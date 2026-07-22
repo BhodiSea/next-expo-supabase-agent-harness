@@ -1,0 +1,23 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "info": {
+      "en-US": {
+        "title": "{{PROJECT_NAME}}",
+        "subtitle": "Replace with a real subtitle",
+        "description": "Replace this scaffold description with the real App Store listing text before dispatching the store-metadata workflow. The store.config schema requires 10-4000 characters here; tools/check-store-config.mjs enforces the bounds and refuses to bless sentinel values like this one.",
+        "keywords": ["notes", "productivity"],
+        "supportUrl": "https://example.com/support",
+        "privacyPolicyUrl": "https://example.com/privacy"
+      }
+    },
+    "review": {
+      "firstName": "Review",
+      "lastName": "Contact",
+      "email": "review-contact@example.com",
+      "phone": "+15550100",
+      "demoRequired": false,
+      "notes": "Replace before each submission: distill docs/store/app-review-notes.md into this field (2-4000 characters). Never put credentials in this committed file."
+    }
+  }
+}

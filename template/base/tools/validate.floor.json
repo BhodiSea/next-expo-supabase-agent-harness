@@ -1,0 +1,26 @@
+{
+  "comment": "frozen snapshot of the canonical VALIDATE_STEPS from tools/harness.config.mjs; CI's `node tools/validate.mjs --min-floor` treats THIS file as authoritative, so a locally-weakened harness.config.mjs can never weaken CI. Regenerate with `node scripts/generate-floor.mjs --write` in the harness repo; tests assert it equals VALIDATE_STEPS. SOURCE: docs/harness/README.md (the CI floor).",
+  "steps": [
+    ["format", "pnpm exec biome ci ."],
+    ["gate-integrity", "node tools/check-gate-integrity.mjs"],
+    ["types", "pnpm exec tsc -b"],
+    ["lint", "pnpm exec eslint . --max-warnings 0 --cache"],
+    ["provenance", "node tools/check-sources.mjs"],
+    ["expo-policy", "node tools/check-expo-policy.mjs"],
+    ["native-deps", "node tools/check-native-deps.mjs"],
+    ["version-sync", "node tools/check-version-sync.mjs"],
+    ["prompts", "node tools/check-prompts-lock.mjs"],
+    ["licenses", "node tools/check-licenses.mjs"],
+    ["schema-rls", "node tools/check-rls-manifest.mjs"],
+    ["migrations", "node tools/check-migrations.mjs"],
+    ["contracts", "node tools/check-contract-drift.mjs"],
+    ["dead-code", "pnpm exec knip --strict"],
+    ["architecture", "pnpm exec depcruise apps packages --config .dependency-cruiser.cjs"],
+    ["build", "node tools/build-check.mjs"],
+    ["styleguide", "node tools/check-styleguide-manifest.mjs"],
+    ["perf-budget", "node tools/check-perf-budget.mjs"],
+    ["route-manifest", "node tools/check-route-manifest.mjs"],
+    ["e2e", "node tools/check-e2e.mjs"],
+    ["docs-sync", "node tools/check-docs-sync.mjs"]
+  ]
+}

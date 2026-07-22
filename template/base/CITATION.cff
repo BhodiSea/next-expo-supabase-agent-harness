@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software in research, please cite it as below. This file makes the
+  project citable-as-a-work (GitHub, Zenodo, and reference managers read it directly);
+  the `licenses` gate keeps its `version` and `license` in lockstep with package.json,
+  so a release can never ship a citation that points at the wrong version.
+type: software
+title: {{PROJECT_NAME}}
+abstract: >-
+  TODO — one paragraph describing what this software does and what a reader would be
+  citing it for. Replace this before your first release.
+authors:
+  - name: {{GITHUB_OWNER}}
+repository-code: https://github.com/{{GITHUB_OWNER}}/{{PROJECT_SLUG}}
+# Kept in lockstep with package.json by the `licenses` gate — bump both together.
+version: 0.1.0
+license: Apache-2.0

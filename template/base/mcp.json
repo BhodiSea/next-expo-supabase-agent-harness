@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "corpus_search": {
+      "command": "node",
+      "args": ["tools/mcp/corpus-search-server.mjs"],
+      "type": "stdio"
+    },
+    "rls_verify": {
+      "command": "node",
+      "args": ["tools/mcp/rls-verify-server.mjs"],
+      "type": "stdio"
+    }
+  }
+}

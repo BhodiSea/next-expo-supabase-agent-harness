@@ -1,0 +1,4 @@
+{
+  "comment": "Human-reviewed cross-group citation escapes for the provenance gate (tools/check-sources.mjs). A decision site whose cited corpus entry declares a `groups` array must normally cite an entry covering the site's own decision group; an entry here permits ONE specific { file, group, id } pairing anyway. Each entry needs: file (repo-relative path of the decision site), group (the site's decision-group key from tools/lib/provenance-rules.mjs), id (the cited corpus id being accepted cross-group), reason (why this citation genuinely justifies that decision — an empty reason is a review reject). Prefer extending tools/mcp/corpus/index.json with a properly-grouped authority over adding entries here. This file is write-guard-protected: edits are a human decision.",
+  "entries": []
+}

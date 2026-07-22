@@ -1,0 +1,99 @@
+// cspell:words trunc
+// (^ Math API name — the shipped .txt form is spell-checked without the TS dictionary)
+import {
+  NewPushDeviceTokenInput,
+  PUSH_TOKENS_PAGE_LIMIT_MAX,
+  PushDeviceTokenDto,
+  PushDeviceTokensPage,
+} from '@app/contracts'
+import { pushDeviceTokens } from '@app/schema'
+import { desc, eq, sql } from 'drizzle-orm'
+import { withUserContext } from '../db/context.js'
+import type { PushTokensDal } from '../types.js'
+// The cursor codec is shape-generic over (createdAt, id) — reused, not copied
+// (a copy is exactly what the duplication gate exists to catch). Renaming the
+// codec to something feature-neutral is a reasonable follow-up refactor.
+import { encodeNotesCursor, type NoteCursorKey } from './cursor.js'
+import { pushTokenRowId } from './push-token-id.js'
+
+// push-notifications module — the device push-token DAL. Installed to
+// apps/server/src/dal/push-tokens.ts. Same laws as dal/notes.ts: everything
+// inside withUserContext (the SET LOCAL authorization boundary), Zod parse at
+// the DAL exit, no app-side owner filtering, keyset list with an unconditional
+// LIMIT, and a FIXED statement count per method (see the statements test).
+
+// Keyset seek for ORDER BY created_at DESC, id DESC — the row-value comparison
+// the composite index (owner_id, created_at DESC, id DESC) serves as a range
+// condition. SOURCE: https://use-the-index-luke.com/no-offset and row-wise
+// comparison https://www.postgresql.org/docs/current/functions-comparisons.html
+const afterCursor = (cursor: NoteCursorKey) =>
+  sql`(${pushDeviceTokens.createdAt}, ${pushDeviceTokens.id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
+
+export const pushTokensDal: PushTokensDal = {
+  async register(userId, input) {
+    const data = NewPushDeviceTokenInput.parse(input)
+    // The idempotence key: same (owner, token) -> same id -> ON CONFLICT takes
+    // the update path. Racing registrations collapse into one row because the
+    // primary key is the arbiter — one statement, no read-before-write.
+    const id = pushTokenRowId(userId, data.token)
+    return withUserContext(userId, async (tx) => {
+      // owner_id comes from the verified token via the GUC identity — never from
+      // the wire. RLS holds BOTH halves of the upsert: the INSERT policy's WITH
+      // CHECK screens the proposed row, and the DO UPDATE path re-checks the
+      // conflicting row against the UPDATE policies' USING and WITH CHECK.
+      // SOURCE: https://www.postgresql.org/docs/current/sql-createpolicy.html [corpus: postgres/rls-force]
+      const rows = await tx
+        .insert(pushDeviceTokens)
+        .values({ id, ownerId: userId, platform: data.platform, token: data.token })
+        .onConflictDoUpdate({
+          target: pushDeviceTokens.id,
+          // Refresh the platform (a token never really migrates, but the row
+          // must mirror the latest registration) and bump updated_at so a
+          // future lifecycle sweep can see which tokens still re-register.
+          set: { platform: data.platform, updatedAt: sql`now()` },
+        })
+        .returning()
+      const row = rows[0]
+      if (row === undefined) {
+        throw new Error('upsert into push_device_tokens returned no row')
+      }
+      return PushDeviceTokenDto.parse(row)
+    })
+  },
+
+  async list(userId, page) {
+    // Defensive clamp (defense in depth below the route's Zod bound): the DAL
+    // NEVER issues an unbounded SELECT, whatever a future caller passes.
+    const limit = Math.min(Math.max(Math.trunc(page.limit), 1), PUSH_TOKENS_PAGE_LIMIT_MAX)
+    return withUserContext(userId, async (tx) => {
+      // SOURCE: visibility is enforced by the RLS policies via the app.user_id
+      // GUC — no owner_id WHERE clause by design, so a policy regression cannot
+      // be masked by application-side filtering [corpus: postgres/rls-initplan]
+      const rows = await tx
+        .select()
+        .from(pushDeviceTokens)
+        .where(page.cursor === undefined ? undefined : afterCursor(page.cursor))
+        .orderBy(desc(pushDeviceTokens.createdAt), desc(pushDeviceTokens.id))
+        .limit(limit + 1) // one sentinel row past the page: cheap has-more probe
+      const items = rows.slice(0, limit)
+      const last = items.at(-1)
+      const nextCursor =
+        rows.length > limit && last !== undefined
+          ? encodeNotesCursor({ createdAt: last.createdAt, id: last.id })
+          : null
+      return PushDeviceTokensPage.parse({ items, nextCursor })
+    })
+  },
+
+  async remove(userId, id) {
+    return withUserContext(userId, async (tx) => {
+      // RLS scopes the DELETE to the caller's own rows; a foreign id simply
+      // matches nothing and the route answers 404.
+      const rows = await tx
+        .delete(pushDeviceTokens)
+        .where(eq(pushDeviceTokens.id, id))
+        .returning({ id: pushDeviceTokens.id })
+      return rows.length > 0
+    })
+  },
+}

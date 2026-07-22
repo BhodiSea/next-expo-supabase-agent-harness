@@ -1,0 +1,17 @@
+# Root machinery deps only (eslint/tsc/knip over installer/, scripts/, tests/,
+# template gate scripts) — this is NOT a monorepo workspace; pnpm 11 reads
+# settings from this file. The scaffold ships its OWN pnpm-workspace.yaml
+# (template/base/pnpm-workspace.yaml); `init --consume` overwrites this one.
+#
+# typescript is force-pinned tree-wide: eslint-plugin-sonarjs declares
+# `typescript: >=5` and would resolve to the 7.x native-compiler line, whose
+# CJS API drops ts.SyntaxKind — the plugin crashes at rule-load time.
+# 6.0.3 matches the consumer catalog pin (template/base/pnpm-workspace.yaml).
+overrides:
+  typescript: 6.0.3
+
+# Same determinism pin as template/base/pnpm-workspace.yaml (see the full
+# rationale there): dependency aging is Renovate's job at the update-PR layer;
+# an ambient CI runner policy re-applying a wall-clock 24h age check per pnpm
+# invocation must not be able to red this repo's own CI nondeterministically.
+minimumReleaseAge: 0

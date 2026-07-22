@@ -1,0 +1,29 @@
+# REUSE.toml — the dual-license claim, machine-verifiable (REUSE spec 3.3).
+# Verify with `pipx run reuse==6.2.0 lint` (CI: the reuse-lint job in
+# .github/workflows/lint.yml) or offline with `node scripts/check-reuse.mjs`.
+#
+# Repo-side only: annotations live HERE, never as headers stamped into
+# template/** files — zero consumer surface, no owned-hash churn on update.
+#
+# Ordering is load-bearing: when several [[annotations]] tables match a file,
+# the LATEST match wins (reuse-tool `find_annotations_item` semantics), so the
+# repo-wide catch-all comes first and the template/** carve-out second.
+version = 1
+
+# Everything in the harness repo (installer/, scripts/, tests/, tools, docs,
+# CI, design records, binaries such as template icons, lockfiles) — Apache-2.0.
+# LICENSE, LICENSES/ and REUSE.toml itself are excluded by the spec.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Cogvera Labs"
+SPDX-License-Identifier = "Apache-2.0"
+
+# The shipped scaffold: recipients may choose EITHER license (README's
+# "additionally 0BSD" = a dual-license choice, hence OR) — 0BSD so scaffolded
+# code carries no attribution requirement.
+[[annotations]]
+path = "template/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Cogvera Labs"
+SPDX-License-Identifier = "Apache-2.0 OR 0BSD"

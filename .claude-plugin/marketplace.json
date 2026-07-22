@@ -1,0 +1,16 @@
+{
+  "name": "next-expo-supabase-agent-harness",
+  "metadata": {
+    "description": "Agent-side companion to the next-expo-supabase-agent-harness: subagents, commands, and the cross-surface vertical-slice + UI-design skills for monorepos shipping a Next.js web app and an Expo mobile app over one shared Supabase backend."
+  },
+  "owner": {
+    "name": "BhodiSea"
+  },
+  "plugins": [
+    {
+      "name": "next-expo-supabase-agent-harness",
+      "source": ".",
+      "description": "Agent half of the harness: migration/RLS, DAL, and test authors; security, Torvalds-grade, accessibility, mobile-security, and design reviewers; citation verifier; /adr, /new-feature, /verify-citations; the vertical-slice and mobile-UI-design skills."
+    }
+  ]
+}

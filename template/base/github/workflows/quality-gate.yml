@@ -1,0 +1,793 @@
+# CI merge gate. pnpm + Corepack; no native toolchain on the fast jobs. The static job
+# runs the SAME validate chain the local Stop hook enforces (tools/validate.mjs) with
+# HARNESS_REQUIRE_TOOLCHAINS=1, so a CI pass and a local pass mean the same thing — and
+# skips fail closed here. Runtime jobs prove the claims static analysis cannot: live RLS
+# isolation against real Postgres, the jest-expo screen suite, the client<->server seam
+# over a real server, and — path-filtered + nightly, like every expensive native lane —
+# the generated project building (native), the Maestro flows walking the installed app on
+# a real emulator (mobile-e2e), and the cold-start budgets measured on-device (perf-lane).
+# SOURCE: docs/harness/README.md (CI merge gate; skip-local / fail-closed-CI asymmetry)
+name: quality-gate
+
+on:
+  pull_request:
+  push:
+    branches: ['{{DEFAULT_BRANCH}}']
+  schedule:
+    # Nightly: keeps the path-filtered native job honest between mobile-native PRs.
+    - cron: '11 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Static floor — the full validate chain, toolchains REQUIRED (no silent skips).
+  # expo-policy / native-deps / build all run for real: the expo CLI resolves the
+  # config and exports the Hermes bundle on this runner.
+  # ---------------------------------------------------------------------------
+  static:
+    name: static (validate floor)
+    runs-on: ubuntu-latest
+    env:
+      HARNESS_REQUIRE_TOOLCHAINS: '1'
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history: the migrations gate diffs against the PR base ref —
+          # a shallow clone makes that ref unresolvable and (fail-closed) red.
+          fetch-depth: 0
+
+      - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # One entrypoint for the whole floor — identical steps to the local Stop hook, with
+      # the hardcoded FLOOR merged in so an edited config can never weaken CI.
+      # SOURCE: docs/harness/README.md (single validate entrypoint; CI floor)
+      - name: Validate (min floor, toolchains required)
+        run: node tools/validate.mjs --min-floor
+
+  # ---------------------------------------------------------------------------
+  # Unit floor, BOTH runners — vitest (server, packages, pure mobile logic; the
+  # rls project self-skips politely here, runtime-rls below runs it for real)
+  # then jest-expo (RN components/screens). Both write istanbul maps and the
+  # diff-coverage step merges them into ONE per-file floor.
+  # ---------------------------------------------------------------------------
+  unit:
+    name: unit (vitest + jest-expo + diff coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history: the diff-coverage step below diffs against the PR
+          # base's merge-base — a shallow clone makes that ref unresolvable
+          # and (fail-closed) red.
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit + contract tests (vitest — server, packages, pure mobile logic)
+        run: pnpm exec vitest run --coverage
+
+      - name: RN component/screen tests (jest-expo, with coverage)
+        run: pnpm --filter mobile exec jest --coverage --silent
+
+      # Per-file floors on every source file the PR touches, read from the TWO
+      # coverage-final.json maps the runs above just wrote — the aggregate
+      # thresholds cannot see one untested module inside a green total.
+      - name: Diff coverage (merged per-file floors on changed files)
+        run: node tools/check-diff-coverage.mjs
+
+      # Copy-paste rot: the same Stop-chain duplication gate an agent runs at
+      # turn-end, enforced on the PR.
+      - name: Duplication (token clones across apps/*/src + packages/*/src)
+        run: node tools/check-duplication.mjs
+
+      # Assertion PRESENCE (the cheap half): no `.only` (it silently disables the whole
+      # suite), no disabled tests, no test body without an assertion. The mutation lane
+      # below is what actually proves a test would NOTICE a break.
+      - name: Test quality (assertions present, nothing focused or disabled)
+        run: node tools/check-test-quality.mjs
+
+  # ---------------------------------------------------------------------------
+  # MUTATION — the assertion-QUALITY gate, and the only check here that asks the
+  # question coverage cannot: change the code, does a test go red?
+  #
+  # Blocking, and CI-only: a run is minutes, and the Stop chain's warm-validate budget
+  # is ~6s. Scoped to the CRITICAL files THIS PR touched (tools/mutation-scope.mjs) —
+  # auth, the DAL, the error envelope, the route wiring, and the mobile client's
+  # auth/transport seam — so the cost is proportional to the change and a docs-only PR
+  # pays nothing. The nightly full run over the whole critical surface lives in
+  # mutation.yml.
+  #
+  # The gate is the SET-based ratchet, never a score threshold: a NEW surviving mutant
+  # reds; an accepted one is a reviewed, reasoned entry in tools/mutation-baseline.json.
+  # ---------------------------------------------------------------------------
+  mutation:
+    name: mutation (critical files in this diff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history: the scoper diffs against the PR base's merge-base. A shallow
+          # clone makes that ref unresolvable — and mutation-scope.mjs FAILS CLOSED there
+          # rather than printing an empty list, which would look exactly like "this PR
+          # touched nothing critical" and pass forever.
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Which critical files does this change touch?
+        id: scope
+        run: echo "files=$(node tools/mutation-scope.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: Mutate them (StrykerJS)
+        if: steps.scope.outputs.files != ''
+        # env indirection, not ${{ }} inside run: file NAMES ride this value, and
+        # a branch can name a file almost anything — expanding it into the shell
+        # text would make that name executable (zizmor: template-injection).
+        env:
+          MUTATE_FILES: ${{ steps.scope.outputs.files }}
+        run: pnpm exec stryker run stryker.config.mjs --mutate "$MUTATE_FILES"
+
+      # The gate. A survivor the baseline does not accept reds the PR.
+      - name: Mutation ratchet (survivors vs the committed baseline)
+        if: steps.scope.outputs.files != ''
+        run: node tools/check-mutation-ratchet.mjs
+
+      - name: No critical files in this diff — nothing to mutate
+        if: steps.scope.outputs.files == ''
+        run: echo 'This change touches no file on the critical surface (see tools/lib/mutation-critical.mjs).'
+
+  # ---------------------------------------------------------------------------
+  # Runtime RLS — the headline isolation gate against REAL Postgres 16 + pgvector
+  # (same digest-pinned image as docker-compose.yml). run-rls.mjs fresh-applies all
+  # migrations, then runs the isolation suite; CI=true makes every skip fail closed.
+  # The job asserts the literal '[rls] OK' marker so a truncated run cannot green.
+  # ---------------------------------------------------------------------------
+  runtime-rls:
+    name: runtime (rls isolation, real postgres)
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: '{{DB_NAME}}'
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Same role bootstrap docker-compose runs on first boot: app_migrator owns the
+      # schema, app_api is NOSUPERUSER + NOBYPASSRLS (FORCE RLS applies, no escape hatch).
+      - name: Provision database roles (db/init/01-roles.sql)
+        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+
+      - name: RLS isolation suite (migration fresh-apply + isolation matrix + catalog gate)
+        shell: bash
+        run: |
+          node tests/rls/run-rls.mjs 2>&1 | tee rls-output.log
+          # Belt and braces: the exit code gates above; the marker proves the runner
+          # reached its final line (a wedged/truncated run cannot count as green).
+          grep -F '[rls] OK' rls-output.log
+
+  # ---------------------------------------------------------------------------
+  # e2e fast lane — the SAME gate the Stop chain runs (tools/check-e2e.mjs):
+  # the whole jest-expo/RNTL suite — states sweep over every ROUTES entry,
+  # screen flows, boot/layout, primitives a11y — mocked at the network seam.
+  # CI=true means the gate FAILS CLOSED instead of skipping (a runner without
+  # jest-expo is a broken lane, never a green one).
+  # ---------------------------------------------------------------------------
+  e2e-fast:
+    name: e2e fast lane (jest-expo screen suite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: RN screen suite (check-e2e gate — anti-vacuity enforced)
+        run: node tools/check-e2e.mjs
+
+  # ---------------------------------------------------------------------------
+  # The mobile<->server seam. Every other lane mocks the network, which is how a
+  # client ships sending no Authorization header at all while every mocked suite
+  # stays green. This lane stubs nothing but the native keystore (no hardware in
+  # CI): the app's own auth provider mints a REAL dev token from the REAL Hono
+  # server, api-client attaches it, FORCE RLS filters rows, and streamApiSse
+  # parses a real SSE stream — the live-api-proof suite under LIVE_PROOF=1.
+  # tools/check-e2e.mjs strips these env vars, so this can NEVER run in the
+  # agent-time chain.
+  # ---------------------------------------------------------------------------
+  integration-lane:
+    name: integration lane (mobile <-> server, real postgres)
+    runs-on: ubuntu-latest
+    env:
+      HARNESS_INTEGRATION_LANE: '1'
+      LIVE_PROOF: '1'
+      AUTH_MODE: stub
+      NODE_ENV: development
+      PORT: '8787'
+      EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
+      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/{{DB_NAME}}'
+      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/{{DB_NAME}}'
+    services:
+      db:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: '{{DB_NAME}}'
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision database roles (db/init/01-roles.sql)
+        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Boot the API server (stub auth mode)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter server dev > /tmp/server.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
+              echo "server up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+
+      # The suite mints its own token through the app's stub auth provider (the
+      # same POST /auth/dev-token path a dev build uses), so the lane exercises
+      # the exact bearer path production does — no token is minted out-of-band.
+      - name: Live API proof (app modules against the real server)
+        run: pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
+
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/server.log || true
+
+  # ---------------------------------------------------------------------------
+  # Native build lane — the generated android project actually assembles.
+  # Expensive, so: per-PR only when the native-affecting surface changed, plus
+  # the nightly schedule and manual dispatch as the unconditional net.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: changed paths
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mobile-native: ${{ steps.filter.outputs.mobile-native }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: filter
+        with:
+          filters: |
+            mobile-native:
+              - 'apps/mobile/app.config.ts'
+              - 'apps/mobile/eas.json'
+              - 'apps/mobile/package.json'
+              - 'apps/mobile/plugins/**'
+              - 'apps/mobile/assets/**'
+              - 'tools/expo-plugins.json'
+              - 'tools/expo-permissions.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            # The device lanes (mobile-e2e + perf-lane): anything that changes what the
+            # installed app IS, what the flows assert, or what the budgets enforce.
+            mobile:
+              - 'apps/mobile/**'
+              - 'maestro/**'
+              - 'tools/startup-budget.json'
+              - 'tools/interaction-budget.json'
+              - 'tools/identity.lock.json'
+              - 'tools/check-e2e-device.mjs'
+              - 'tools/measure-startup.mjs'
+              - 'tools/gen-maestro-flows.mjs'
+              - 'tools/lib/maestro-flows.mjs'
+              - 'tools/lib/mobile-app-meta.mjs'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+
+  native:
+    name: native (prebuild determinism + expo-doctor + gradle assembleDebug)
+    needs: [changes]
+    # Runs when: nightly/dispatch (always), or a PR that touched the native surface.
+    # `!cancelled()` lets it run even though `changes` is skipped outside PRs.
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.mobile-native == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # RN 0.86's supported JDK (design record: CI-LANE-FACTS — "you may
+      # encounter problems using higher JDK versions").
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Prebuild DETERMINISM: CNG's whole promise is that android/ is a pure
+      # function of app.config.ts + the config plugins + the SDK. Run it twice
+      # and hash the trees — a nondeterministic plugin (a timestamp, a random
+      # id) breaks the promise and every future config review with it.
+      # SDK 57 prebuild clears + regenerates by default (CI-LANE-FACTS).
+      - name: Prebuild x2 + tree hash (CNG determinism)
+        shell: bash
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          hash_tree() {
+            find android -type f ! -path '*/.gradle/*' -print0 | sort -z \
+              | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+          }
+          npx expo prebuild -p android --no-install
+          h1="$(hash_tree)"
+          npx expo prebuild -p android --no-install
+          h2="$(hash_tree)"
+          echo "prebuild tree hashes: $h1 / $h2"
+          if [ "$h1" != "$h2" ]; then
+            echo "::error::expo prebuild is nondeterministic — two consecutive runs produced different android/ trees; find the plugin injecting run-dependent content"
+            exit 1
+          fi
+
+      # Network-dependent by design (SDK versions endpoint + the RN directory) —
+      # which is exactly why the hermetic native-deps gate does not run it and
+      # this lane does.
+      - name: expo-doctor
+        working-directory: apps/mobile
+        run: npx expo-doctor
+
+      # The REAL targetSdk is a gradle fact only prebuild can materialize — the
+      # expo-policy gate's pre-prebuild check (declared value or the pinned
+      # per-SDK default in tools/store-policy.json) closes here against the
+      # generated project: Play rejects new builds targeting stale API levels.
+      - name: targetSdk floor (the generated project vs tools/store-policy.json)
+        run: |
+          floor="$(node -p "require('./tools/store-policy.json').androidTargetSdk.floor")"
+          target="$(grep -rhoE 'targetSdkVersion\s*=?\s*[0-9]+' apps/mobile/android --include=build.gradle --include=gradle.properties --include='*.gradle' | grep -oE '[0-9]+' | sort -n | tail -1)"
+          echo "generated targetSdkVersion: ${target:-<none>} (floor ${floor})"
+          if [ -z "$target" ] || [ "$target" -lt "$floor" ]; then
+            echo "::error::generated android project targets SDK '${target:-none}', below the Play floor ${floor} (tools/store-policy.json) — Play rejects new builds targeting stale API levels"
+            exit 1
+          fi
+
+      - name: Gradle assembleDebug (the generated project actually builds)
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleDebug
+
+  # ---------------------------------------------------------------------------
+  # mobile-e2e — the Maestro device lane: the installed binaries walked on a real
+  # Android emulator. Path-filtered + nightly like the native job (emulators are
+  # expensive), and TWO installs, deliberately:
+  #
+  #   RELEASE half (no credentials — the EXPO_PUBLIC_ENTRA_* values below are
+  #   syntactically-valid DUMMIES so the release binary boots to its signed-out
+  #   surfaces instead of failing its no-auth-provider boot check; the dev stub
+  #   stays __DEV__-only and this lane must never weaken that): the per-route
+  #   flows, the generated route sweep, then the sweep re-run under a flipped OS
+  #   theme (the store's `system` preference tracks Appearance live) and under
+  #   font_scale 1.3 — minified Hermes bytecode is where Fabric view flattening
+  #   actually detaches careless testIDs, which is exactly what this half proves.
+  #
+  #   DEV half (Metro on the runner, adb reverse): the flows a release binary
+  #   cannot run — the kv store is PRE-SEEDED (push + run-as into the debuggable
+  #   build's expo-sqlite kv database) so the app BOOTS in ar-XB/RTL for the i18n
+  #   journey; the mutation flow signs in through the stub screen and proves a
+  #   created note survives a relaunch against the real server + Postgres; and
+  #   the perf-harness journey asserts the dev screen's self-measured perf-pass
+  #   marker against tools/interaction-budget.json.
+  #
+  # Maestro install is the SHA-verified cli-2.6.1 zip (the official install
+  # script does NOT verify checksums — never use it in CI); emulator is the
+  # api-33 aosp_atd x86_64 fast lane with the KVM udev rule and AVD caching
+  # (design record: CI-LANE-FACTS).
+  # ---------------------------------------------------------------------------
+  mobile-e2e:
+    name: mobile e2e (maestro device lane)
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      AUTH_MODE: stub
+      NODE_ENV: development
+      PORT: '8787'
+      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/{{DB_NAME}}'
+      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/{{DB_NAME}}'
+    services:
+      db:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: '{{DB_NAME}}'
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM (hardware acceleration for the emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # RN 0.86's supported JDK (design record: CI-LANE-FACTS).
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Checksum-verified Maestro (cli-2.6.1). Never the official install script:
+      # it does not verify what it downloads (design record: CI-LANE-FACTS).
+      - name: Install Maestro CLI (pinned zip, sha256-verified)
+        run: |
+          curl -fsSL -o maestro.zip https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.6.1/maestro.zip
+          echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" | sha256sum -c -
+          unzip -q maestro.zip -d "$HOME/.maestro-dist"
+          echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Provision database roles (db/init/01-roles.sql)
+        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Boot the API server (stub auth mode — the mutation flow's backend)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter server dev > /tmp/server.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
+              echo "server up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+
+      # Both binaries up front (the emulator step below only installs + drives).
+      # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so the dummies and
+      # the loopback API origin must be in the gradle step's env, not the device's.
+      - name: Prebuild + assemble (release for the sweeps, debug for the dev half)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
+          # Boot-shape dummies, NOT credentials: entraConfigured() must answer yes
+          # so the release binary installs its real (Entra) provider and boots
+          # signed-out. No flow attempts an interactive sign-in on this half.
+          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
+          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+        run: |
+          npx expo prebuild -p android --no-install
+          cd android
+          ./gradlew assembleRelease assembleDebug
+
+      - name: AVD cache
+        id: avd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33-aosp-atd-x86_64
+
+      - name: Create AVD snapshot (cache miss only)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Device lane (flows + sweeps + journeys on the emulator)
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash tools/ci/device-lane.sh
+      - name: Server + Metro logs on failure
+        if: failure()
+        run: |
+          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
+
+      - name: Upload Maestro evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-evidence
+          path: artifacts/maestro/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # perf-lane — the startup MEASUREMENT half of the mobile-perf floor (the
+  # --closure half runs in the Stop chain). Release binary only, its own quiet
+  # emulator (wall clock must not share a CPU with Metro or a server):
+  # tools/measure-startup.mjs cold-starts every ROUTES entry via
+  # `am force-stop` + `am start -W <scheme>://<path>` and writes
+  # artifacts/perf-results.json; then HARNESS_PERF_LANE=1 check-mobile-perf
+  # enforces tools/startup-budget.json and FAILS CLOSED if the artifact is
+  # missing — a mis-wired lane can never skip-green.
+  # ---------------------------------------------------------------------------
+  perf-lane:
+    name: perf lane (device startup budgets)
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM (hardware acceleration for the emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prebuild + assembleRelease
+        working-directory: apps/mobile
+        env:
+          # Same boot-shape dummies as mobile-e2e (see that job's comment): the
+          # release binary must boot signed-out; cold-start is what is measured.
+          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
+          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+        run: |
+          npx expo prebuild -p android --no-install
+          cd android
+          ./gradlew assembleRelease
+
+      - name: AVD cache
+        id: avd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33-aosp-atd-x86_64
+
+      - name: Create AVD snapshot (cache miss only)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Measure cold starts + enforce startup budgets
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash tools/ci/perf-lane.sh
+      - name: Upload measured startup numbers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: perf-results
+          path: artifacts/perf-results.json
+          retention-days: 30
+          if-no-files-found: ignore

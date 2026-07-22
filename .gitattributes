@@ -1,0 +1,15 @@
+# Normalize line endings so Windows checkouts keep LF — this covers both the
+# selftest CI runners and consumers who clone via the GitHub template flow.
+# Without it, autocrlf=true converts the template tree to CRLF at checkout and
+# the scaffolded project's biome format gate fails on every file.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets (the installer copies these as Buffers; keep them byte-exact)
+*.png binary
+*.ico binary
+*.icns binary
+
+# Generated-but-committed artifacts inside the shipped template
+template/stack/apps/server/openapi.json linguist-generated=true

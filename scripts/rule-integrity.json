@@ -1,0 +1,17 @@
+{
+  "//": "Integrity record for the config-driven boundary rules (G28): the depcruise forbidden rules + scan options (architecture/dead-code gates) and the FULL eslint config text (lint gate, incl. the restricted-imports/globals bans). A deleted, edited, scope-starved, or severity-flipped rule is a silently no-op'd boundary the runner-kind canaries cannot see. Regenerate with `node scripts/check-rule-integrity.mjs --write` ONLY after a reviewed config change. cognitive-complexity is separately canaried by scripts/check-complexity-ratchet.mjs.",
+  "depcruise": {
+    "no-circular": "3924e74082ea",
+    "mobile-not-into-server": "4b0f249f4c85",
+    "mobile-no-server-stack": "b4521cd32645",
+    "mobile-contracts-not-schema": "941b96e6e54f",
+    "drizzle-orm-schema-and-server-only": "833e9e5e7559",
+    "drizzle-zod-schema-only": "bcdc48d94aff",
+    "postgres-driver-db-layer-only": "250e4e2848f7",
+    "db-context-dal-only": "f752070fbf59",
+    "secure-store-host-seam-only": "0da70bc33afc",
+    "llm-sdks-eval-adapters-only": "2059d6bb2246"
+  },
+  "depcruiseOptions": "42631b30b6c1",
+  "eslintConfigSha": "07cf667c134f"
+}

@@ -1,0 +1,6 @@
+{
+  "//": "Store identity lock — the expo-policy gate asserts the RESOLVED config's ios.bundleIdentifier, android.package, scheme, and extra.eas.projectId all equal these pins (and updates.url, when present, embeds the projectId). Identity is immutable after first release; changing this file is a reviewed human act, never an agent edit (write-guard-protected).",
+  "appIdentifier": "{{APP_IDENTIFIER}}",
+  "scheme": "{{APP_SCHEME}}",
+  "easProjectId": "{{EAS_PROJECT_ID}}"
+}

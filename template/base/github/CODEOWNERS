@@ -1,0 +1,46 @@
+# CODEOWNERS — mandatory human review for security/regulated surfaces.
+# Pair with branch protection (require review + the quality-gate checks) so the gate
+# cannot be skipped. SOURCE: docs/harness/README.md (mandatory human review).
+# NOTE: the installer substitutes the tokens — {{GITHUB_OWNER}} is your GitHub user/org
+# (the catch-all default owner) and {{SECURITY_OWNERS}} is the @handle(s) / @org/team(s)
+# that must sign off on security surfaces (may be several, space-separated). If you are
+# editing this file by hand, replace both tokens with real handles.
+
+# Default owner for everything.
+*                                             @{{GITHUB_OWNER}}
+
+# Auth / data / tenancy boundaries — REQUIRE sign-off.
+/apps/server/src/auth/**                      {{SECURITY_OWNERS}}
+/apps/server/src/dal/**                       {{SECURITY_OWNERS}}
+/apps/server/src/db/**                        {{SECURITY_OWNERS}}
+/apps/server/src/middleware/**                {{SECURITY_OWNERS}}
+/packages/contracts/**                        {{SECURITY_OWNERS}}
+/packages/schema/**                           {{SECURITY_OWNERS}}
+/db/init/**                                   {{SECURITY_OWNERS}}
+/tests/rls/**                                 {{SECURITY_OWNERS}}
+
+# Mobile platform security surface — store identity, transport policy, credential seam.
+/apps/mobile/app.config.ts                    {{SECURITY_OWNERS}}
+/apps/mobile/eas.json                         {{SECURITY_OWNERS}}
+/apps/mobile/src/host/**                      {{SECURITY_OWNERS}}
+/apps/mobile/src/auth/**                      {{SECURITY_OWNERS}}
+
+# The harness itself — changes to enforcement need review.
+/.claude/**                                   {{SECURITY_OWNERS}}
+/.harness/**                                  {{SECURITY_OWNERS}}
+/.github/**                                   {{SECURITY_OWNERS}}
+/tools/**                                     {{SECURITY_OWNERS}}
+/eslint.config.mjs                            {{SECURITY_OWNERS}}
+/biome.jsonc                                  {{SECURITY_OWNERS}}
+/tsconfig.json                                {{SECURITY_OWNERS}}
+/tsconfig.base.json                           {{SECURITY_OWNERS}}
+/knip.json                                    {{SECURITY_OWNERS}}
+/.dependency-cruiser.cjs                      {{SECURITY_OWNERS}}
+/lefthook.yml                                 {{SECURITY_OWNERS}}
+/.gitleaks.toml                               {{SECURITY_OWNERS}}
+/commitlint.config.mjs                        {{SECURITY_OWNERS}}
+/vitest.config.ts                             {{SECURITY_OWNERS}}
+/pnpm-workspace.yaml                          {{SECURITY_OWNERS}}
+/package.json                                 {{SECURITY_OWNERS}}
+/.mcp.json                                    {{SECURITY_OWNERS}}
+/docker-compose.yml                           {{SECURITY_OWNERS}}

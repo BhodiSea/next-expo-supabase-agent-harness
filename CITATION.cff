@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: >-
+  If you use this harness in research on AI-assisted software engineering,
+  deterministic agent guardrails, or provenance-verified code generation,
+  please cite it as below.
+type: software
+title: next-expo-supabase-agent-harness
+abstract: >-
+  A deterministic agent harness for pnpm monorepos that ship a Next.js 16 web
+  app and an Expo (React Native) mobile app over one shared Supabase backend
+  (Postgres, row-level security, Auth), deployed to Vercel and to the Apple
+  App Store and Google Play via EAS Build and Submit: Claude Code hooks that
+  gate turn completion on a green validation chain, security-invariant lint
+  rules and pre-write guards, row-level-security isolation tests against a
+  real database, cross-surface contract/parity and design-token gates, Expo
+  config policy gates (ATS, permissions, plugins, CNG purity), an
+  inline-citation provenance pipeline, and supply-chain-hardened CI.
+authors:
+  - name: Cogvera Labs
+repository-code: 'https://github.com/BhodiSea/next-expo-supabase-agent-harness'
+license: Apache-2.0
+version: 0.1.2

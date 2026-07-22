@@ -1,0 +1,34 @@
+-- 0002_notes_keyset_idx — hand-authored.
+--
+-- 0001 indexed owner_id alone. That satisfies the RLS policy predicate, it satisfies
+-- the pg_catalog leading-column check in the isolation suite, and it satisfied the
+-- v0.1.5 plan probe — which EXPLAINed `SELECT * FROM notes` and asserted only that the
+-- node was not a Seq Scan. All three were green. None of them looked at the statement
+-- the application actually issues.
+--
+-- notesDal.list() is a keyset seek:
+--     WHERE (created_at, id) < ($1, $2)  ORDER BY created_at DESC, id DESC  LIMIT n
+-- An index on (owner_id) cannot serve that ORDER BY, so the planner reached the owner's
+-- rows by index and then sorted the ENTIRE partition on every page — and the row-value
+-- cursor, which the DAL's contract calls "an index range condition", was demoted to a
+-- Filter. Measured on one owner holding 100k notes, returning a single 51-row page:
+--     (owner_id) only    Index Scan → 100 010 rows → top-N Sort → 1 032 buffers
+--     composite          Index Scan →      51 rows → no Sort    →     6 buffers
+-- The work was O(owner's rows) per page instead of O(page). That is the same class of
+-- silent 100x regression 0001 was written to prevent, one level further in.
+--
+-- Column order IS the keyset: the equality column first, then the ORDER BY columns in
+-- their declared direction, so one index serves the RLS predicate AND the sort AND the
+-- cursor range in a single walk. DESC/DESC matches the query; btree reads backwards
+-- just as cheaply, so an ascending page added later still uses this index.
+--
+-- notes_owner_id_idx is now a strict PREFIX of this index — Postgres serves everything
+-- the narrow index served from the composite, so keeping it would only add write
+-- amplification on every INSERT and a second tree to keep warm.
+-- SOURCE: keyset pagination requires the index to cover the ORDERING, not just the
+-- filter — https://use-the-index-luke.com/no-offset ; policy predicates participate in
+-- normal planning, so an RLS-filtered column needs the same index any WHERE would
+-- [corpus: postgres/rls-initplan]
+CREATE INDEX "notes_owner_created_id_idx" ON "notes" ("owner_id", "created_at" DESC, "id" DESC);
+--> statement-breakpoint
+DROP INDEX "notes_owner_id_idx";

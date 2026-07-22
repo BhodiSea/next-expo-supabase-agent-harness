@@ -1,0 +1,46 @@
+# gitleaks.toml (installed as .gitleaks.toml) — secret scanning policy.
+# Extends the gitleaks default ruleset and adds the shapes this stack actually
+# handles: Expo access tokens, App Store Connect API keys, Play service-account
+# JSON, Android keystore passwords, Sentry auth tokens, and Entra client secrets.
+title = "harness secret-scanning policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "expo-token-assignment"
+description = "Expo access token (EXPO_TOKEN) assigned a literal value"
+# Env-var *references* (e.g. ${EXPO_TOKEN} in CI yaml) are fine; a literal
+# assignment of token material is never fine.
+regex = '''(?i)EXPO_TOKEN\s*[:=]\s*['"]?[A-Za-z0-9_-]{16,}'''
+keywords = ["expo_token"]
+
+[[rules]]
+id = "asc-api-key-material"
+description = "App Store Connect API key material (AuthKey .p8 private-key body)"
+regex = '''-----BEGIN PRIVATE KEY-----'''
+keywords = ["authkey", "private key"]
+
+[[rules]]
+id = "play-service-account-json"
+description = "Google Play service-account JSON (type + private_key co-occurrence)"
+regex = '''"type"\s*:\s*"service_account"'''
+keywords = ["service_account"]
+
+[[rules]]
+id = "android-keystore-password-assignment"
+description = "Android keystore/key password assigned a literal value"
+regex = '''(?i)(?:keystore|key)[_-]?password\s*[:=]\s*['"]?[^\s'"${]{6,}'''
+keywords = ["keystore_password", "keystorepassword", "key_password"]
+
+[[rules]]
+id = "sentry-auth-token"
+description = "Sentry auth token (organization token prefix)"
+regex = '''sntrys_[A-Za-z0-9_+/=.-]{16,}'''
+keywords = ["sntrys_"]
+
+[[rules]]
+id = "entra-client-secret"
+description = "Entra (Azure AD) client-secret value shape"
+regex = '''[A-Za-z0-9_~.]{3}8Q~[A-Za-z0-9_~.\-]{20,40}'''
+keywords = ["8q~"]

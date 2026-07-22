@@ -1,0 +1,62 @@
+# ADR guard — architectural decision records are the audit trail for the surfaces
+# that can silently change the security posture: the schema/migrations, the store-identity/native-config
+# capability + window config, and token verification. A PR touching any of them must
+# either change docs/adr/ in the same PR or carry the 'adr-exempt' label (an explicit,
+# reviewable human decision — e.g. a mechanical rename).
+# SOURCE: docs/harness/README.md (provenance & ADR discipline)
+name: adr-guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adr-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adr-guard:
+    name: guarded surfaces require an ADR (or 'adr-exempt')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check guarded surfaces
+        shell: bash
+        env:
+          # Label names via env indirection (never interpolate event data into the script).
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
+          guarded=$(echo "$changed" | grep -E \
+            '^(packages/schema/drizzle/|apps/server/src/auth/)|^(apps/mobile/app\.config\.ts|apps/mobile/eas\.json|tools/identity\.lock\.json|tools/expo-permissions\.json|tools/expo-plugins\.json)$' \
+            || true)
+          if [ -z "$guarded" ]; then
+            echo 'no ADR-guarded surface touched'
+            exit 0
+          fi
+          echo 'guarded surfaces touched:'
+          echo "$guarded"
+          if echo "$changed" | grep -q '^docs/adr/'; then
+            echo 'ADR change present in this PR — OK'
+            exit 0
+          fi
+          case " ${PR_LABELS} " in
+            *' adr-exempt '*)
+              echo "::warning::'adr-exempt' label set — ADR requirement waived for this PR"
+              exit 0
+              ;;
+          esac
+          echo "::error::this PR touches an ADR-guarded surface (schema/migrations, app identity/native config, permission/plugin allowlists, or auth) without a docs/adr/ change. Add an ADR (see docs/adr/0000-adr-template.md, or run /adr in a Claude session) or apply the 'adr-exempt' label with reviewer sign-off."
+          exit 1

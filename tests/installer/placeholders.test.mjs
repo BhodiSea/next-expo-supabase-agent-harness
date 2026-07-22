@@ -1,0 +1,73 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { PLACEHOLDERS, render, tokensIn } from '../../installer/lib/placeholders.mjs'
+
+test('render substitutes registered tokens and leaves unknown ones intact', () => {
+  const out = render('# {{PROJECT_NAME}} by {{GITHUB_OWNER}} — {{NOT_A_TOKEN}}', {
+    PROJECT_NAME: 'Acme',
+    GITHUB_OWNER: 'acme-co',
+  })
+  assert.equal(out, '# Acme by acme-co — {{NOT_A_TOKEN}}')
+})
+
+test('render does not touch GitHub Actions ${{ }} expressions', () => {
+  const yaml = 'run: echo ${{ secrets.GITHUB_TOKEN }} ${{ github.ref }}'
+  assert.equal(render(yaml, { PROJECT_NAME: 'x' }), yaml)
+})
+
+test('tokensIn finds all distinct tokens', () => {
+  assert.deepEqual([...tokensIn('{{A_1}} {{A_1}} {{B_2}}')], ['A_1', 'B_2'])
+})
+
+test('PROJECT_SLUG default kebab-cases the project name', () => {
+  const ctx = { dirName: 'ignored', answers: { PROJECT_NAME: 'Acme  Portal!' } }
+  assert.equal(PLACEHOLDERS.PROJECT_SLUG.default(ctx), 'acme-portal')
+})
+
+test('SECURITY_OWNERS defaults to @GITHUB_OWNER', () => {
+  const ctx = { answers: { GITHUB_OWNER: 'acme-co' } }
+  assert.equal(PLACEHOLDERS.SECURITY_OWNERS.default(ctx), '@acme-co')
+})
+
+test('APP_IDENTIFIER derives reverse-DNS from slug, stripping non-alphanumerics', () => {
+  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
+  assert.equal(PLACEHOLDERS.APP_IDENTIFIER.default(ctx), 'com.example.acmecurriculum')
+})
+
+test('APP_IDENTIFIER validation enforces the iOS∩Android intersection (no hyphens, no underscores)', () => {
+  const v = PLACEHOLDERS.APP_IDENTIFIER.validate
+  assert.equal(v('com.acme.curriculum'), null)
+  assert.match(v('com.acme.my-app') ?? '', /Android forbids/)
+  assert.match(v('com.acme.my_app') ?? '', /iOS forbids/)
+  assert.match(v('acme') ?? '', /reverse-DNS/)
+  assert.match(v('com.9acme.app') ?? '', /reverse-DNS/)
+})
+
+test('APP_SCHEME derives from the slug with dashes stripped, and rejects non-alphanumerics', () => {
+  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
+  assert.equal(PLACEHOLDERS.APP_SCHEME.default(ctx), 'acmecurriculum')
+  assert.equal(PLACEHOLDERS.APP_SCHEME.validate('acmecurriculum'), null)
+  assert.notEqual(PLACEHOLDERS.APP_SCHEME.validate('acme-curriculum'), null)
+  assert.notEqual(PLACEHOLDERS.APP_SCHEME.validate('9acme'), null)
+})
+
+test('EAS/store identity placeholders accept TBD and their real shapes, nothing else', () => {
+  assert.equal(PLACEHOLDERS.EAS_PROJECT_ID.validate('TBD'), null)
+  assert.equal(PLACEHOLDERS.EAS_PROJECT_ID.validate('01234567-89ab-cdef-0123-456789abcdef'), null)
+  assert.notEqual(PLACEHOLDERS.EAS_PROJECT_ID.validate('not-a-uuid'), null)
+  assert.equal(PLACEHOLDERS.ASC_APP_ID.validate('TBD'), null)
+  assert.equal(PLACEHOLDERS.ASC_APP_ID.validate('6448311069'), null)
+  assert.notEqual(PLACEHOLDERS.ASC_APP_ID.validate('abc123'), null)
+  assert.equal(PLACEHOLDERS.APPLE_TEAM_ID.validate('TBD'), null)
+  assert.equal(PLACEHOLDERS.APPLE_TEAM_ID.validate('AB12CD34EF'), null)
+  assert.notEqual(PLACEHOLDERS.APPLE_TEAM_ID.validate('short'), null)
+})
+
+test('DB_NAME default converts kebab slug to snake_case', () => {
+  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
+  assert.equal(PLACEHOLDERS.DB_NAME.default(ctx), 'acme_curriculum')
+})
+
+test('API_ORIGIN defaults to local loopback for bootstrap-green', () => {
+  assert.equal(PLACEHOLDERS.API_ORIGIN.default({}), 'http://127.0.0.1:8787')
+})

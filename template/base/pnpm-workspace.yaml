@@ -1,0 +1,120 @@
+# pnpm-workspace.yaml — workspace layout + THE version catalog.
+# Every external version number in this monorepo lives HERE; workspace
+# package.json files reference "catalog:" so upgrades are one-line diffs and
+# version drift between workspaces is structurally impossible.
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 11 skips dependency build scripts unless explicitly approved here
+# (`allowBuilds`; the pnpm-10-era key was onlyBuiltDependencies).
+allowBuilds:
+  esbuild: true
+  lefthook: true
+
+# Package-aging protection lives in Renovate (renovate.json minimumReleaseAge
+# "5 days": updates age inside a reviewed PR, at the update layer) — NOT in
+# pnpm's runtime lockfile verification. Left unpinned, ambient CI policy
+# (GitHub hosted runners inject a supply-chain default) re-applies a 24h age
+# check per pnpm invocation against a moving wall-clock cutoff: the same
+# committed lockfile installs green, then fails `pnpm exec` minutes later
+# whenever upstream published <24h before the run (observed live: an Expo
+# 57.0.x patch wave reddened the selftest canary job 49 minutes short of the
+# cutoff while every earlier pnpm call in the same job passed). Pinning 0
+# makes the project's posture explicit and its gate chain deterministic.
+minimumReleaseAge: 0
+
+catalog:
+  # ---- toolchain --------------------------------------------------------------
+  typescript: ~6.0.3 # typescript-eslint 8.63.x supports >=4.8.4 <6.1.0
+  tsx: ^4.23.0
+  '@biomejs/biome': 2.5.3 # exact: formatter drift would churn the format gate
+  eslint: ^9.39.4 # 9.x line: typescript-eslint 8.x peers eslint ^9
+  typescript-eslint: ^8.63.0
+  eslint-plugin-react-hooks: ^7.1.1 # includes the React Compiler rule set (merged in v6)
+  eslint-plugin-react-native: ^5.0.0
+  eslint-plugin-react-native-a11y: ^3.5.1
+  eslint-plugin-sonarjs: ^4.1.0
+  knip: ^6.25.0
+  dependency-cruiser: ^18.0.0
+  lefthook: ^2.1.10
+  '@commitlint/cli': ^21.2.1
+  '@commitlint/config-conventional': ^21.2.0
+  cspell: ^10.0.1
+  # ---- test -------------------------------------------------------------------
+  vitest: 4.1.10 # exact: @vitest/coverage-v8 peer-pins the identical version
+  '@vitest/coverage-v8': 4.1.10
+  fast-check: ^4.9.0
+  # Mutation testing (CI-only lane; the behavioural net over the critical surface).
+  # Exact pins: the runner peer-pins core, and the SET-based ratchet compares mutant
+  # identities across runs — a minor bump that renames or adds a mutator would read as
+  # "new survivors" and red the lane for no reason. Renovate proposes bumps deliberately.
+  '@stryker-mutator/core': 9.6.1
+  '@stryker-mutator/vitest-runner': 9.6.1
+  # ---- server -----------------------------------------------------------------
+  hono: ^4.12.28
+  '@hono/node-server': ^2.0.8
+  '@hono/zod-openapi': ^1.4.0 # 1.x line is the zod-4-compatible line
+  zod: ^4.4.3
+  jose: ^6.2.3
+  pino: ^10.3.1
+  pino-pretty: ^13.1.3
+  postgres: ^3.4.9
+  drizzle-orm: ^0.45.2
+  drizzle-zod: ^0.8.3
+  drizzle-kit: 0.31.10 # exact: kit releases have changed migration layout mid-minor
+  '@types/node': ^22.20.1 # matches the node >=22 engines floor
+  # ---- mobile -----------------------------------------------------------------
+  # react/react-dom exact: expo@57's bundledNativeModules expects 19.2.3 —
+  # `expo install --check` (the native-deps gate) reds any drift, so the
+  # catalog mirrors it verbatim (same doctrine as react-native below).
+  react: 19.2.3
+  react-dom: 19.2.3 # the Expo web preview renders through react-native-web/react-dom
+  '@types/react': ^19.2.17
+  '@types/react-dom': ^19.2.3
+  # Expo SDK 57 line. Since SDK 55 every expo-* package's MAJOR tracks the SDK
+  # number, so the whole set rides one ~57 line and upgrades move together
+  # (design record: EXPO-FACTS; pins verified against npm 2026-07-18).
+  expo: 57.0.7 # exact: version-sync's exact-pin set (expo/expo-router/react-native/babel-preset-expo/drizzle-kit)
+  expo-auth-session: ~57.0.4 # Entra PKCE (src/auth/providers/entra.ts); pulls expo-application/expo-crypto/expo-web-browser as its own deps
+  expo-constants: ~57.0.6
+  expo-crypto: ~57.0.1 # PKCE digest backend for expo-auth-session (native module, no config plugin)
+  expo-haptics: ~57.0.1 # the one haptics door (src/lib/haptics.ts): selection/success/warning vocabulary, wired only into PressableScale + Toast
+  expo-linking: ~57.0.3
+  expo-localization: ~57.0.1
+  expo-router: 57.0.7 # exact: version-sync's exact-pin set
+  expo-secure-store: ~57.0.1
+  expo-splash-screen: ~57.0.4
+  expo-sqlite: ~57.0.1
+  expo-status-bar: ~57.0.1
+  expo-system-ui: ~57.0.1 # backs userInterfaceStyle (root view background / appearance) — required for the automatic light/dark surface on Android
+  # expo-updates is deliberately NOT in the base catalog: OTA machinery must not
+  # ride into every install — the eas-update opt-in module adds the dep (and
+  # knip.json carries the matching ignoreDependencies entry until then).
+  expo-web-browser: ~57.0.1 # the auth-session browser surface; its config plugin is a no-op without props, so it is NOT in app.config plugins
+  babel-preset-expo: 57.0.3 # exact: version-sync's exact-pin set
+  jest-expo: ~57.0.2
+  # react-native + native companions: pinned exactly as expo@57's own
+  # bundledNativeModules.json expects them — `expo install --check` (the
+  # native-deps gate) reds drift, so the catalog mirrors its ranges verbatim.
+  react-native: 0.86.0
+  react-native-safe-area-context: ~5.7.0
+  react-native-screens: 4.25.2 # exact: bundledNativeModules pins it exact
+  react-native-svg: 15.15.4 # exact: bundledNativeModules pins it exact; one-door'd to src/components/icons (the closed glyph set)
+  # jest-expo 57 is a jest-29 preset (its babel-jest/@jest/* internals are ^29);
+  # jest 30 would split the runner and the preset internals across majors.
+  jest: ~29.7.0
+  '@types/jest': ^29.5.14
+  # >= 13.2 per expo-router/testing-library. 14.x swaps the react-test-renderer
+  # peer for the new `test-renderer` package — that migration is a deliberate
+  # later bump, not a Renovate drive-by.
+  '@testing-library/react-native': ~13.3.3
+  react-test-renderer: 19.2.3 # exact: RTL's ensure-peer-deps demands react === react-test-renderer (equal to the react pin above)
+  # Hermes Intl gaps (EXPO-FACTS): PluralRules/RelativeTimeFormat/Locale are
+  # polyfilled unconditionally in apps/mobile/src/i18n/polyfills.ts.
+  '@formatjs/intl-getcanonicallocales': ^3.2.11
+  '@formatjs/intl-locale': ^5.3.10
+  '@formatjs/intl-pluralrules': ^6.3.13
+  '@formatjs/intl-relativetimeformat': ^12.3.13
+  # ---- harness runtime (root tools/mcp + tests/rls) -----------------------------
+  '@modelcontextprotocol/sdk': ^1.29.0

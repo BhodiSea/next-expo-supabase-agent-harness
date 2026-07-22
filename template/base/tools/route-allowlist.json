@@ -1,0 +1,18 @@
+{
+  "comment": "Files under apps/mobile/app/ that are shell CHROME, not navigable content screens — exempt from the ROUTES-manifest closure in tools/check-route-manifest.mjs. Every allow entry must be {\"name\": <app/-relative file, extension omitted>, \"reason\": non-empty string}; an entry without a reviewed reason is a gate bypass. Content screens NEVER belong here — register them in apps/mobile/src/routes.ts so the states sweep, the Maestro device flows and the startup budgets cover them. Layout files (_layout.*), +html.* and API routes are router plumbing the gate excludes by pattern and never need listing. unreachableStates is the second reviewed escape: a ROUTES entry may declare a states value of null ONLY when a {\"route\", \"state\", \"reason\"} row here documents why that state provably cannot occur (e.g. a screen whose data source is a static in-process registry has no loading or error state) — the honest alternative to a fabricated spinner. Stale rows (the route gone, or the state declared with a real test id again) fail the gate.",
+  "allow": [
+    {
+      "name": "sign-in",
+      "reason": "auth chrome, not content: the mode-aware sign-in surface (stub or PKCE) has no canonical data states — its pending/failure handling is covered by the sign-in RNTL suite, and it must stay reachable to the SIGNED-OUT user the route manifest's data-state contract presumes away"
+    },
+    {
+      "name": "perf-harness",
+      "reason": "dev-only measurement chrome, not content: the CI device lane deep-links here with budget params from tools/interaction-budget.json and asserts the self-measured perf-pass/perf-fail leaf marker (tools/check-e2e-device.mjs). No canonical data states — the probes run against the in-process actions registry, never a query — and outside __DEV__ the screen renders only its unavailability note"
+    },
+    {
+      "name": "+not-found",
+      "reason": "expo-router's unmatched-route convention file — REQUIRED chrome (the gate reds on its ABSENCE) rather than a registrable screen: no data states, only a way home. Pattern-excluded from route enumeration; listed here because src/routes.ts documents it as chrome and this file is where chrome is reviewed"
+    }
+  ],
+  "unreachableStates": []
+}

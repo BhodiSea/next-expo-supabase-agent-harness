@@ -1,0 +1,4 @@
+{
+  "comment": "Human-reviewed license exceptions for the licenses gate (tools/check-licenses.mjs). Each entry is {\"package\": string, \"reason\": string} — the package is allowlisted by name even when its license is outside the permissive allowlist. Adding an entry is a human decision (this file is write-guard-protected); the gate fails LOUD on any malformed entry, never open.",
+  "exceptions": []
+}

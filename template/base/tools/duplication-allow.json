@@ -1,0 +1,4 @@
+{
+  "comment": "Reviewed accepted code clones for the duplication gate (G17). A genuinely-irreducible repetition goes here as {\"fingerprint\": \"<12-hex from the gate output>\", \"reason\": \"...\"}. Keyed by content fingerprint, so an accepted clone stays accepted after it moves lines. Write-guard-protected + gate-integrity-hashed: widening it is a reviewed human act. Empty by design — the shipped scaffold is DRY.",
+  "allow": []
+}

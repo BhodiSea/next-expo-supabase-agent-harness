@@ -1,0 +1,75 @@
+# Release: tag v* → verify CHANGELOG section → publish a GitHub Release with
+# SLSA L2 build provenance on the packed installer tarball.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Gates
+        run: |
+          node scripts/check-syntax.mjs
+          node scripts/hygiene.mjs
+          node scripts/check-release-lockstep.mjs
+          node --test "tests/**/*.test.mjs"
+      - name: Publish blocks on the selftest acceptance matrix for this exact SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "waiting for a green selftest run on $GITHUB_SHA"
+          for _ in $(seq 1 90); do
+            runs=$(gh run list --workflow=selftest.yml --commit "$GITHUB_SHA" \
+              --json status,conclusion --limit 10)
+            if echo "$runs" | node -e '
+              const runs = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
+              const green = runs.some((r) => r.status === "completed" && r.conclusion === "success")
+              const failed = runs.length > 0 && runs.every((r) => r.status === "completed" && r.conclusion !== "success")
+              if (green) process.exit(0)
+              if (failed) { console.error("selftest matrix FAILED on this SHA"); process.exit(2) }
+              process.exit(1) // still running
+            '; then
+              echo 'selftest matrix: green'; exit 0
+            elif [ $? -eq 2 ]; then
+              exit 1
+            fi
+            sleep 60
+          done
+          echo '::error::timed out waiting for the selftest matrix'; exit 1
+      - name: CHANGELOG must have a section for this tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          grep -q "^## \\[${TAG}\\]" CHANGELOG.md || {
+            echo "CHANGELOG.md is missing a '## [${TAG}]' section" >&2; exit 1; }
+          awk "/^## \\[${TAG}\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+      - name: Pack
+        run: npm pack
+      - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: '*.tgz'
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" ./*.tgz \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md"

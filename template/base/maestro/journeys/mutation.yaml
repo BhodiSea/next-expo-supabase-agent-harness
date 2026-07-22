@@ -1,0 +1,57 @@
+# maestro/journeys/mutation.yaml — the on-device MUTATION flow: sign in through the
+# app's own screen, create a note through the real composer, relaunch, and prove the
+# note SURVIVED. This is the one device flow that exercises the full stack — keychain
+# token, api-client bearer path, Hono, Postgres under FORCE RLS — where every sweep
+# flow tolerates the signed-out error states.
+#
+# PRECONDITIONS (the workflow's job): the DEV build is installed (the stub sign-in is
+# __DEV__-only by design — a release binary must never mint dev tokens), Metro serves
+# the bundle, and the API server + database are up with `adb reverse` mapping the
+# app's 127.0.0.1 ports to the runner. clearState makes the sign-in deterministic.
+#
+# The persistence assertion is the RELAUNCH half: stopApp drops every in-memory cache,
+# so the second `note-row` sighting can only come from the server round-trip with the
+# keychain-persisted token — exactly the two seams a mocked lane cannot see.
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp:
+    clearState: true
+# The app must be INTERACTIVE before the deep link fires: after clearState the
+# dev build re-fetches its bundle from Metro, and a VIEW intent delivered while
+# the router is still mounting is dropped on the floor — the first emulator
+# dispatch proved it (tabs mounted signed-out, sign-in never appeared, 60s
+# timeout). open-actions is the home header leaf that exists in every data
+# state, signed-out included — it appearing IS "the router is live".
+- extendedWaitUntil:
+    visible:
+        id: "open-actions"
+    timeout: 90000
+- openLink: "{{APP_SCHEME}}://sign-in"
+- extendedWaitUntil:
+    visible:
+        id: "sign-in-submit"
+    timeout: 60000
+# Blank subject: the stub authority mints a fresh dev user for this run.
+- tapOn:
+    id: "sign-in-submit"
+- extendedWaitUntil:
+    visible:
+        id: "home-screen"
+    timeout: 30000
+- tapOn:
+    id: "note-composer-input"
+- inputText: "Device mutation flow note"
+- tapOn:
+    id: "note-composer-submit"
+# note-row (not note-row-pending): the row only sheds its pending testID once the
+# server confirmed the create — the optimistic echo alone cannot green this.
+- extendedWaitUntil:
+    visible:
+        id: "note-row"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+        id: "note-row"
+    timeout: 60000

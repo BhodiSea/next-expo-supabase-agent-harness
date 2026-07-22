@@ -1,0 +1,122 @@
+# ci-provenance module — SLSA Build L2 provenance + an npm-ecosystem SBOM.
+# GitHub OIDC only (no long-lived keys):
+#   - `npm pack` every workspace package + the server, attest each tarball, syft SBOM
+#   - one SBOM ecosystem is the WHOLE production surface here: native platform
+#     dependencies enter this stack through npm packages (Expo modules, config
+#     plugins, autolinking), so the pnpm tree covers what ships
+#   - NOTICES drift: tools/check-notices.mjs regenerates the third-party notice
+#     file from the live dependency set and fails on drift vs the committed one
+#   - verify: `gh attestation verify` runs IN CI — producing an attestation nobody
+#     checks is theater.
+# The store binaries (.aab/.ipa) never pass through this job — EAS builds them
+# off-runner. If your consumers verify the store binaries rather than the packages,
+# extend the verify-and-attach job in release-mobile.yml (ci-mobile-release) with
+# the same attest/verify pair (see docs/modules/ci-provenance/README.md, "Honest limits").
+# Honest limit: a valid attestation proves BUILD-PATH integrity, not SOURCE
+# integrity — a stolen OIDC token mints cryptographically valid attestations. For
+# Build L3, move the build into an isolated reusable workflow (slsa-github-generator).
+# SOURCE: docs/harness/gates-catalog.md (ci-provenance module)
+name: provenance
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC -> Fulcio short-lived signing cert (Sigstore, logged to Rekor)
+  attestations: write
+
+concurrency:
+  group: provenance-${{ github.ref }}
+  # Never cancel a release attestation mid-flight; queue instead.
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    name: attest npm packages + SBOM + NOTICES drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # cache-poisoning is suppressed for this file in .github/zizmor.yml: no dependency
+      # cache is configured and the workflow is tag-triggered only (not reachable from PRs).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: NOTICES drift check (third-party attributions vs live dependency set)
+        run: node tools/check-notices.mjs
+
+      # apps/mobile is deliberately NOT packed: its shipped artifact is the store
+      # binary (.aab/.ipa), EAS-built off-runner — attest it where it is verified
+      # (ci-mobile-release's verify-and-attach job; see the module README).
+      - name: Pack workspace packages (npm pack per package)
+        shell: bash
+        run: |
+          mkdir -p dist-pack
+          pnpm --filter './packages/*' --filter './apps/server' exec \
+            npm pack --pack-destination "$GITHUB_WORKSPACE/dist-pack"
+          ls -l dist-pack/
+
+      - name: Attest build provenance (SLSA Build L2, every tarball)
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist-pack/*.tgz
+
+      - name: SBOM — npm ecosystem (syft, SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist-pack/sbom-npm.spdx.json
+
+      - name: Upload packages + SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provenance-bundle
+          path: dist-pack/
+          if-no-files-found: error
+
+      # Prove the attestations are verifiable IN CI — the release gates on it. The
+      # attestation can lag a few seconds after attest-*, so retry briefly; the final
+      # attempt's exit code is the gate.
+      - name: Verify attestations (in-CI gate)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          for tarball in dist-pack/*.tgz; do
+            verified=false
+            for attempt in 1 2 3 4 5; do
+              if gh attestation verify "$tarball" -R "$GITHUB_REPOSITORY"; then
+                verified=true
+                break
+              fi
+              echo "attestation for $tarball not yet queryable (attempt $attempt/5) — retrying in 10s"
+              sleep 10
+            done
+            if [ "$verified" != 'true' ]; then
+              echo "::error::attestation for $tarball failed to verify after retries"
+              status=1
+            fi
+          done
+          exit "$status"
+
+# Verify locally with the GitHub CLI:
+#   gh attestation verify dist-pack/<package>.tgz -R <org>/<repo>

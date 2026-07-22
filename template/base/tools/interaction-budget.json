@@ -1,0 +1,7 @@
+{
+  "comment": "Wall-clock UX budgets for the CI-only device interaction lane (W6: the Maestro journey that drives the installed app under HARNESS_PERF_LANE=1 — never in the validate chain or the Stop hook). Budgets are DELIBERATELY generous: emulator wall clock on a shared runner is noisy, so this lane catches step-function regressions (a main-thread stall on tab switch, a list that drops to per-item layout), not 10% drifts — the in-chain perf-budget gate stays the tight relative canary. Human-tuned data (write-guard-protected, seedOnInitOnly — update never rewrites it): re-baseline only in a reviewed commit from the lane's printed medians with ~6-8x headroom. The W6 lane arms these; until then the numbers are seeded headroom over the reference scaffold's expectations, not measurements. The desktop-era CDP memory ceiling has NO analog here by design: live-listener discipline is enforced statically by the perf-budget leak scan and behaviourally by the jest-expo emitter-count spec (see PORT-SPEC, dropped gates).",
+  "tabSwitchMs": { "median": 400 },
+  "actionsOpenMs": { "median": 600 },
+  "listScrollFrameDropMax": 12,
+  "runs": 7
+}

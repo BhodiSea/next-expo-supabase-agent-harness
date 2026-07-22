@@ -1,0 +1,4 @@
+{
+  "comment": "Reviewed exemptions for the i18n gate (Stop-chain step). Every user-facing string in apps/mobile/src and apps/mobile/app must be a key in apps/mobile/src/i18n/catalog.ts, and locale-sensitive formatting (Intl, toLocale*, toFixed) must live only in apps/mobile/src/i18n/. A string the gate flags that is genuinely never read by a human — or a formatting call that genuinely must bypass the locale — goes here as {\"site\": \"apps/mobile/<dir>/<file>:<line>\", \"reason\": \"...\"}. Write-guard-protected + gate-integrity-hashed: widening it is a reviewed human act. Empty by design — the shipped app routes every string through the catalog.",
+  "allow": []
+}

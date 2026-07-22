@@ -1,0 +1,32 @@
+{
+  // Metro-bundled Expo app. Extends BOTH bases — later entries win per key: the
+  // Expo base supplies the RN semantics (jsx react-jsx, customConditions
+  // ["react-native"], allowJs, resolveJsonModule, esModuleInterop), then the
+  // repo-wide base re-tightens strictness on top. The bundler-vs-NodeNext keys
+  // the repo base warns about are restated below — the only sanctioned split
+  // (see ../../tsconfig.base.json).
+  "extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
+  "compilerOptions": {
+    "composite": true,
+    // Metro owns JS emit; tsc emits declarations only. The Expo base sets
+    // noEmit (incompatible with composite project references) — undo it here.
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    // The repo base narrows lib to ES2023; RN + Expo typings lean on the Expo
+    // base's DOM+ESNext surface (fetch/URL/FormData globals) — restore it.
+    "lib": ["DOM", "ESNext"],
+    // jest: the component/screen suites use jest-expo globals. node: the
+    // routes-closure test walks app/ with node:fs (jest runs on Node; the
+    // types coexist with the DOM lib by design).
+    "types": ["jest", "node"],
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  // package.json is listed because app.config.ts imports it (resolveJsonModule)
+  // and a composite project must name every input file.
+  "include": ["app", "src", "__tests__", "app.config.ts", "jest.setup.ts", "package.json"],
+  "references": [{ "path": "../../packages/contracts" }]
+}

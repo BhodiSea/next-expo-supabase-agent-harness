@@ -1,0 +1,62 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "tools/*.mjs",
+        "tools/mcp/**/*.mjs",
+        "tests/rls/*.mjs",
+        "tests/rls/**/*.test.ts",
+        "tests/migrations/*.mjs",
+        "eslint.config.mjs",
+        "stryker.config.mjs"
+      ],
+      "project": ["tools/**/*.mjs", "tests/**/*.{mjs,ts}", "*.{mjs,ts}"],
+      "ignoreBinaries": ["drizzle-kit"]
+    },
+    "apps/mobile": {
+      "entry": [
+        "app/**/*.{ts,tsx}!",
+        "app.config.ts",
+        "babel.config.js",
+        "metro.config.js",
+        "jest.config.js",
+        "src/features/matrix/perfSubject.tsx!",
+        "src/crash/redact.ts!",
+        "src/lib/sse.ts!",
+        "src/testing/mock-server.ts",
+        "src/host/env.ts",
+        "src/**/*.test.{ts,tsx}",
+        "__tests__/**/*.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}!",
+        "app/**/*.{ts,tsx}!",
+        "__tests__/**/*.{ts,tsx}",
+        "*.{ts,js}"
+      ],
+      "ignore": ["src/theme/tokens.gen.ts"],
+      "ignoreDependencies": ["expo-crypto", "expo-web-browser", "expo-updates"]
+    },
+    "apps/server": {
+      "entry": ["src/index.ts!", "scripts/*.{ts,mjs}", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!", "scripts/**/*.{ts,mjs}"]
+    },
+    "packages/contracts": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/schema": {
+      "entry": ["src/index.ts!", "drizzle.config.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!", "*.ts"]
+    },
+    "packages/importer": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/eval": {
+      "entry": ["src/index.ts!", "src/adapters/*.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+# maestro/flows/actions.yaml — device flow for ROUTES id `actions` (path `/actions`).
+#
+# W5 SEED: launch, open the actions screen through the app's own chrome (the
+# home header's `open-actions` button — a user path, not a test backdoor), and
+# prove the route surface is on screen. The CI device lane arms these fully
+# (emulator + installed release build + cold-start timing via
+# `adb shell am start -W {{APP_SCHEME}}://actions` against
+# tools/startup-budget.json). One flow per ROUTES id —
+# tools/check-mobile-perf.mjs --closure reds a route without one.
+#
+# `open-actions` is a leaf Pressable (present in every home data state) and
+# `actions-screen` is the Screen primitive's STYLED container testID — both
+# sanctioned selectors under the New-Architecture view-flattening caveat
+# (unstyled wrapper Views can lose their testIDs on device; leaves and styled
+# containers do not).
+# SOURCE: https://reactnative.dev/docs/view#testid (testID reaches native view tags)
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- tapOn:
+    id: "open-actions"
+- assertVisible:
+    id: "actions-screen"

@@ -1,0 +1,379 @@
+{
+  "comment": "Falsifiability registry: every step in VALIDATE_STEPS ∪ STOP_HOOK_STEPS must carry at least one mechanical proof that it CAN go red. Proof kinds: 'fixture' (a repo test file that spawns the real gate and asserts exit 1 — ref must exist), 'selftest' (a literal step/leg title that must appear in .github/workflows/selftest.yml or in a scripts/ci/* helper that workflow invokes — the W6 emulator legs live in bash files because the emulator-runner action execs its script under dash), 'runner' (the step wraps a vendor tool whose non-zero exit is the red; OUR wiring's failure propagation is proven by the validate-runner tests — ref must exist). scripts/check-canary-coverage.mjs enforces bidirectional closure: an unregistered step OR a stale registry entry reds the PR that caused it. Guard-rule falsifiability is a PER-RULE closure, not a count: check-canary-coverage.mjs imports the pure-data rule tables from .claude/hooks/lib/guard-rules.mjs (BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS) and asserts every rule id has a behavioral deny/allow case (a RULE_CANARIES entry) in tests/hooks/hook-contract.test.mjs — a rule added without a canary reds the PR. hookRules below keeps only a human-readable grep-able deny example per surface. W6 ARMED the deferred device/runtime canaries in real selftest jobs: the broken-testID sweep red + agent-chain green (maestro-smoke Canary 19), the 300ms busy-loop perf-marker red (maestro-smoke Canary 20), the keyset-index-drop plan-probe red (bootstrap-linux Canary 17), the strip-Authorization live-suite red (integration Canary C01), and the nondeterministic-plugin prebuild-compare red (bootstrap-linux Canary 18). What remains CI-cadence-honest rather than per-PR: the emulator canaries live in a schedule/dispatch-only job (cost), stated in the lane notes below.",
+  "steps": {
+    "format": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "biome ci exits non-zero on any diff"
+      }
+    ],
+    "gate-integrity": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-gate-integrity.test.mjs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 6: tamper a gate script on disk → gate-integrity must FAIL"
+      }
+    ],
+    "types": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "tsc -b exits non-zero on type errors"
+      }
+    ],
+    "lint": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "eslint --max-warnings 0 exits non-zero on any finding"
+      }
+    ],
+    "provenance": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 4: strip SOURCE citations from decision sites → provenance must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-sources.test.mjs",
+        "note": "uncited decision sites red naming file+line; wrong-group corpus cites red naming site, group and cited groups; a bare-URL SOURCE on a host outside tools/lib/citation-domains.mjs reds naming the host; tools/provenance-overrides.json is the reviewed escape and malformed entries fail closed"
+      }
+    ],
+    "expo-policy": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-expo-policy.test.mjs",
+        "note": "runs the REAL gate against fixture trees with a stub expo CLI: identity drift vs identity.lock.json, runtimeVersion != { policy: 'appVersion' }, ATS/cleartext holes, non-loopback ATS exceptions, unreviewed permission AND stale allowlist entry (bidirectional), unreviewed plugin, secret-shaped extra key, secret-shaped EXPO_PUBLIC_ name in source, splash/adaptive-icon color off the generated dark canvas token, eas.json appVersionSource/autoIncrement/secret-env sanity — each red; missing node_modules skips loudly locally and FAILS CLOSED in CI; 0.1.2 store-readiness (tools/store-policy.json, fail-closed on malformed policy): unreviewed/placeholder iOS usage strings red (ios[] lockstep in expo-permissions.json, both directions), undeclared ITSAppUsesNonExemptEncryption reds, malformed/unreviewed privacyManifests entries red (absence NOTEs), ATT claims without a tracking SDK red and an SDK without agreeing declarations reds, a targetSdk below the Play floor or an unknown Expo SDK major reds fail-closed, non-1024/alpha marketing icons red via the pure-node PNG parse (solid placeholders NOTE, escalatable to red), and an auth surface without the registered deletion action + openapi DELETE reds citing Apple 5.1.1(v)"
+      }
+    ],
+    "native-deps": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 2: stage the generated android/ dir → native-deps must FAIL (CNG purity)"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-native-deps.test.mjs",
+        "note": "expo install --check drift (stub CLI exits 1 listing packages) reds verbatim; a tracked apps/mobile/android|ios file reds (CNG purity, pre-stamp); a reasonless tools/expo-plugins.json entry reds; a local config plugin without a same-basename .test.* reds; zero plugins is an honest OK"
+      }
+    ],
+    "version-sync": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-version-sync.test.mjs"
+      }
+    ],
+    "prompts": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/gate-canary-misc.test.mjs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 7: tamper a hash-locked prompt → prompts must FAIL"
+      }
+    ],
+    "licenses": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/gate-canary-misc.test.mjs"
+      }
+    ],
+    "schema-rls": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 5: remove FORCE RLS from the migration → schema-rls must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-rls-manifest.test.mjs"
+      }
+    ],
+    "migrations": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 3: edit a committed migration → migrations must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-migrations.test.mjs"
+      }
+    ],
+    "contracts": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-contract-drift.test.mjs"
+      }
+    ],
+    "dead-code": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "knip --strict exits non-zero on unused exports/files"
+      }
+    ],
+    "architecture": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "depcruise exits non-zero on rule violations; the mobile/server boundary rules are pinned by scripts/check-rule-integrity.mjs (G28)"
+      }
+    ],
+    "build": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/build-check.test.mjs",
+        "note": "gzip ratchet: a committed tools/perf-baseline.json with a tiny total → build red naming measured vs baseline × ratioCap and the `pnpm perf:baseline` re-baseline ceremony; exactly AT the cap stays green; absent baseline → NOTE naming the file+command while the absolute byte budgets keep enforcing; malformed baseline JSON/shape → red, never fail-open; bundle-purity markers (postgres DSNs, EXPO_TOKEN, sk_live_) in a fixture dist red"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 12: a tiny committed perf-baseline → the build gzip ratchet must FAIL"
+      }
+    ],
+    "styleguide": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-styleguide-manifest.test.mjs",
+        "note": "raw hex/rgb()/named-color literals in color positions red; numeric literals in dimension style keys red; inline style={{…}} raw numerics outside the components home red; a hand-edited tokens.gen.ts reds the regen-diff; a below-min contrast pair (AAA 7:1 body pairs, AA 4.5 elsewhere) reds with the computed ratio; primitive-boundary (controlPrimitives) and status-surface (statusSurfaces) scans red per manifest data, and their allow lists fail closed on malformed/stale entries; 0.1.2 design-depth: literal duration:/delay: numerics red (motion tokens own the vocabulary), raw Animated./LayoutAnimation./Easing. references outside the motion seam + components home red with NO allow escape, raw shadow*/elevation style keys outside the tokens module red, a home file styling a raw control without a sizes.minTarget reference reds, and a raw pressable styled outside controlPrimitives.base reds — each keyed on its manifest key (keyless manifests self-disable with ONE combined adoption NOTE; malformed keys and stale seam/base paths fail closed)"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 8: raw hex + inline-style literals in a screen → styleguide must FAIL"
+      }
+    ],
+    "perf-budget": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-perf-budget.test.mjs",
+        "note": "budget arithmetic, subjects[] closure inverses (missing file, undeclared perfSubject, subject+subjects ambiguity), density-signal closure, marker-count scaling, and the G15 effect-cleanup leak scan (a registered listener/interval/rAF/Observer with no teardown in the RETURNED cleanup reds; comments are blanked first; effectCleanupAllow fails closed on malformed/stale entries)"
+      }
+    ],
+    "route-manifest": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-route-manifest.test.mjs",
+        "note": "expo-router derivation: an app/ route file claimed by no ROUTES entry reds; a manifest path disagreeing with the derived URL ((group) elision, index→parent, [param]→:param, [...param]→*param) reds; missing states.loading/empty/error test ids red; stale manifest/allowlist entries naming missing files red; +not-found is required; an empty ROUTES array reds"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 9: an orphan app/ route file + an unregistered screen → route-manifest must FAIL"
+      }
+    ],
+    "e2e": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-e2e.test.mjs",
+        "note": "jest-expo fast lane: a failing jest exit propagates; a zero-passed run reds as a vacuous pass (anti-vacuity parses the Tests: summary line, not Test Suites:); jest-expo unresolvable skips loudly locally and FAILS CLOSED in CI"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 11: a zero-test jest run → the e2e gate must FAIL (anti-vacuity)"
+      }
+    ],
+    "docs-sync": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-docs-sync.test.mjs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL"
+      }
+    ],
+    "validate": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/validate-runner.test.mjs"
+      }
+    ],
+    "rls-isolation": [
+      {
+        "kind": "selftest",
+        "ref": "RLS runner FAILS CLOSED without a database (CI=true)",
+        "note": "the no-database direction: a missing Postgres must red, never skip-green"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 17: drop the keyset index → the DAL plan probe must FAIL (a whole-partition Sort at scale)",
+        "note": "the live direction (bootstrap-linux, real scaffold + the pinned pgvector database): the suite runs green, then the keyset index is dropped and the DAL plan probe must red naming its query shape — proof the probe EXPLAINs the DAL's real SQL, not a statement nobody runs"
+      }
+    ],
+    "unit": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "vitest exits non-zero on failing tests or coverage-threshold misses"
+      }
+    ],
+    "mobile-unit": [
+      {
+        "kind": "runner",
+        "ref": "tests/gates/validate-runner.test.mjs",
+        "note": "jest (jest-expo preset, --coverage) exits non-zero on failing tests or coverageThreshold misses; the e2e gate's anti-vacuity fixture additionally proves a zero-test jest run cannot read as green"
+      }
+    ],
+    "diff-coverage": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-diff-coverage.test.mjs",
+        "note": "an uncovered new src file (absent from both coverage maps) and a below-floor changed file both red naming file + metric; apps/mobile/** files are held to the jest floors, everything else to the vitest floors, and a file both runners measure merges; a missing coverage-final.json fails closed"
+      }
+    ],
+    "duplication": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-duplication.test.mjs",
+        "note": "a token-clone pasted across apps/*/src or packages/*/src reds naming both sites + a content fingerprint; tools/duplication-allow.json mutes an accepted clone by fingerprint and malformed/absent entries fail closed"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 14: a pasted token clone across two modules → duplication must FAIL"
+      }
+    ],
+    "i18n": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-i18n.test.mjs",
+        "note": "STATIC half: a hardcoded user-facing string (JSX text, accessibilityLabel/placeholder/label/title/alt, or the copy-carrying object literals) reds naming the string + the catalog key to add; Intl./toLocale*/.toFixed( outside apps/mobile/src/i18n/ reds; a dead catalog key reds; the polyfill/locale-data closure reds both ways; tools/i18n-allow.json fails closed on malformed/stale entries. The BEHAVIOURAL half (pseudo-locale + RTL sweep) lives in the RNTL fast lane and the W6 Maestro lane — a runtime-assembled string is invisible to this scan by construction (stated in the gate header)."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 16: a hardcoded user-facing string → the static i18n gate must FAIL"
+      }
+    ],
+    "test-quality": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-test-quality.test.mjs",
+        "note": "an assertion-free test body reds naming the test; a committed .only reds with NO reviewed escape; .skip/.todo modifiers red as declared-never-run; an assertion inside a comment does not satisfy the gate; tools/test-quality-allow.json mutes by test title and a missing reason fails closed. Deliberately GAMEABLE ALONE (expect(true).toBe(true) clears it) — the primary control is the mutation lane."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 15: a committed .only → test-quality must FAIL"
+      }
+    ],
+    "mobile-perf": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-mobile-perf.test.mjs",
+        "note": "CLOSURE half: a src/routes.ts id with no maestro/flows/<id>.yaml AND no tools/startup-budget.json row reds turn-fatally; stale flows/rows naming a dead route id red; measurement mode reds on a budget overrun in artifacts/perf-results.json and FAILS CLOSED when the perf lane env is set but the artifact is absent. The MEASUREMENT half needs the W6 emulator lane (see the registry-level PORT NOTE)."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 10: a route with no Maestro flow / no startup-budget row → the mobile-perf closure must FAIL"
+      }
+    ]
+  },
+  "hookRules": {
+    "pretool-bash-guard.mjs": {
+      "denyToolCallSites": 1,
+      "denyExamples": [
+        "rm -rf node_modules",
+        "git push --force origin main",
+        "psql \"$MIGRATOR_DATABASE_URL\" -c \"select 1\""
+      ]
+    },
+    "pretool-write-guard.mjs": {
+      "denyToolCallSites": 9,
+      "denyExamples": [
+        "tools/harness.config.mjs",
+        "dangerouslySetInnerHTML",
+        "tools/route-allowlist.json"
+      ]
+    }
+  },
+  "lanes": {
+    "static": [
+      {
+        "kind": "steps",
+        "note": "runs `node tools/validate.mjs --min-floor` — every step in it is proven in #steps above."
+      }
+    ],
+    "unit": [
+      {
+        "kind": "steps",
+        "note": "runs vitest --coverage, the jest-expo coverage run, check-diff-coverage, check-duplication and check-test-quality — all proven in #steps above."
+      }
+    ],
+    "mutation": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-mutation-ratchet.test.mjs",
+        "note": "the PRIMARY assertion-quality control — the only check that asks what coverage cannot: change the code, does a test go red? A surviving mutant the committed baseline does not accept reds the lane naming file, mutator and the exact edit; an accepted survivor with an EMPTY reason reds; a NoCoverage mutant counts as a survivor; identity is position-independent; an absent baseline self-disables locally and FAILS CLOSED in CI."
+      },
+      {
+        "kind": "selftest",
+        "ref": "an untested branch must red the mutation lane",
+        "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-override branch added to the 99%-mutation-scored apps/server/src/auth/verify.ts leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red — checked, not asserted."
+      }
+    ],
+    "runtime-rls": [
+      {
+        "kind": "steps",
+        "note": "runs `node tests/rls/run-rls.mjs` — proven under the 'rls-isolation' step above (fail-closed selftest proof; the W6 bootstrap lane arms the keyset plan-probe canary)."
+      }
+    ],
+    "e2e-fast": [
+      {
+        "kind": "steps",
+        "note": "runs the jest-expo RNTL suite behind the `e2e` step (states sweep over every ROUTES entry, flows, boot, primitives a11y) — proven under the 'e2e' step above, whose gate asserts the run is neither failing nor vacuous."
+      }
+    ],
+    "integration-lane": [
+      {
+        "kind": "selftest",
+        "ref": "Canary C01: strip the Authorization header from the api-client one door → the live suite must FAIL",
+        "note": "the selftest `integration` job runs the SAME LIVE_PROOF suite this lane runs, against a real scaffold + server + Postgres: green baseline, then the one bearer-attaching line is stripped and the suite must red with an auth-shaped failure, then green again after the revert — the exact no-Authorization defect class the desktop-era source harness shipped while every mocked lane stayed green"
+      }
+    ],
+    "changes": [
+      {
+        "kind": "steps",
+        "note": "a paths-filter job: it computes which downstream lanes run and asserts nothing itself. Its failure mode (mis-filtering) is covered by the gated lanes' own vars/paths conditions, not by an injection."
+      }
+    ],
+    "native": [
+      {
+        "kind": "steps",
+        "note": "prebuild-x2 determinism: runs `expo prebuild` twice from a clean tree and diffs — the assertion is a byte compare whose non-zero exit is the red, plus expo-doctor and gates proven in #steps."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 18: a config plugin emitting run-dependent output → the prebuild ×2 tree compare must FAIL",
+        "note": "end-to-end on a real scaffold (bootstrap-linux): the clean double-prebuild is byte-stable (positive control), then a Date.now()-stamping config plugin is injected and the SAME tree-hash compare the native lane runs must see the mismatch"
+      }
+    ],
+    "mobile-e2e": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-e2e-device.test.mjs",
+        "note": "the runner's own failure surface, spawned for real against stub maestro/adb: a failing flow propagates with evidence artifacts, a ROUTES id with no flow reds, per-flow timeout kills, anti-vacuity, and the skip-local/fail-closed-CI asymmetry"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 19: a broken route-surface testID → the device sweep must FAIL while the agent-time jest lane stays GREEN",
+        "note": "the honest-loss proof on a REAL emulator (maestro-smoke, schedule/dispatch — emulator cost keeps it off the per-PR path): breaking the home container testID leaves tools/check-e2e.mjs green (asserted — the fast lane's blindness is real) while the device sweep reds naming the surface. Both halves checked, so the lane provably adds coverage the chain does not have"
+      }
+    ],
+    "perf-lane": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-mobile-perf.test.mjs",
+        "note": "the budget arithmetic + closure inverses + measurement-mode fail-closed behavior; tests/gates/measure-startup.test.mjs pins the measurement half's parsers and its artifact contract (an unparseable launch reds, absence of reportFullyDrawn records honestly)"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 20: a 300ms busy-loop on the actions ranking path → the perf-harness marker must go RED",
+        "note": "the wall-clock canary on a REAL emulator (maestro-smoke, schedule/dispatch): a 300ms stall injected into rankCommands must flip the dev perf-harness screen's self-measured marker to perf-fail and red the journey, then green again after the revert — the interaction floor has been SEEN failing, so it is not decoration"
+      }
+    ]
+  }
+}

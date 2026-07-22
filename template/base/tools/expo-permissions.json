@@ -1,0 +1,6 @@
+{
+  "//": "Reviewed Android permission allowlist — the expo-policy gate locksteps the RESOLVED android.permissions against this file BIDIRECTIONALLY: a granted permission with no reasoned entry reds, and a stale entry the config no longer grants also reds, so the list can never quietly over-grant. A permission is a user-facing promise: add the grant and its entry in the same reviewed diff. Write-guard-protected against agents. The ios[] list (0.1.2) is the iOS sibling: every *UsageDescription key the resolved config declares needs a { key, reason } entry here (same bidirectional lockstep — the purpose string is the promise Apple's permission sheet shows).",
+  "note": "Both lists seeded EMPTY deliberately: the scaffold's resolved config declares no android.permissions and no usage-description strings (measured against the reference scaffold). Baseline manifest permissions injected at prebuild time (e.g. INTERNET) are prebuild output, not a config surface — the native CI lane's prebuild-determinism check owns that layer.",
+  "permissions": [],
+  "ios": []
+}

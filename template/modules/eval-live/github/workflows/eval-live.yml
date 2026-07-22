@@ -1,0 +1,82 @@
+# eval-live module — the live-model evaluation lane on a self-hosted GPU runner.
+# The DEFAULT eval is fixture-scored by design (deterministic, gate-safe); this
+# lane is the only place a real model runs. Order matters: the cheap correctness
+# gates (grammar pre-validation, exemplar/holdout disjointness) run FIRST — a GPU
+# hour spent on a schema the grammar converter rejects is a wasted GPU hour.
+# Runner contract: self-hosted with labels [self-hosted, gpu], a llama.cpp
+# checkout at LLAMA_CPP_DIR, and a served OpenAI-compatible endpoint (llama-server)
+# reachable at EVAL_LIVE_ENDPOINT. Dispatch-only until that runner exists.
+# The `gpu` label is pre-declared in .github/actionlint.yaml (shipped by the
+# base), so the actions-lint lane accepts this workflow as-is.
+# SOURCE: docs/harness/gates-catalog.md (eval-live module)
+name: eval-live
+
+on:
+  workflow_dispatch:
+  # Uncomment for a nightly live-eval once the GPU runner is provisioned:
+  # schedule:
+  #   - cron: '41 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-live
+  # One live eval at a time — the GPU is a serial resource.
+  cancel-in-progress: false
+
+jobs:
+  pre-validate:
+    name: grammar + disjointness gates (cheap, before any GPU time)
+    runs-on: [self-hosted, gpu]
+    steps:
+      # Self-hosted runner: harden-runner's agent is designed for GitHub-hosted VMs;
+      # egress policy on this box is the runner host's firewall (see the module README).
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: GBNF pre-validation (llama.cpp json_schema converter, check mode)
+        env:
+          HARNESS_REQUIRE_TOOLCHAINS: '1' # the GPU runner MUST have llama.cpp — no silent skip here
+        run: node tools/check-gbnf.mjs
+
+      - name: Exemplar/holdout disjointness
+        run: node tools/check-eval-disjoint.mjs
+
+  live-eval:
+    name: live eval (adapter → served model → fixture scoring)
+    needs: [pre-validate]
+    runs-on: [self-hosted, gpu]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Endpoint preflight (the served model answers before we score anything)
+        shell: bash
+        run: |
+          if [ -z "${EVAL_LIVE_ENDPOINT:-}" ]; then
+            echo '::error::EVAL_LIVE_ENDPOINT is not set on this runner — point it at the served model (e.g. http://127.0.0.1:8080/v1/chat/completions)'
+            exit 1
+          fi
+          curl -sSf -o /dev/null --max-time 20 "${EVAL_LIVE_ENDPOINT%/v1/*}/health" \
+            || echo '::warning::no /health endpoint answered — continuing; the adapter call below is the real probe'
+
+      # The adapter contract tests run against the injected fake everywhere; here the
+      # SAME adapter faces the real endpoint. TODO(project): once you add a live
+      # scoring script (holdout items → LiveInferenceProvider → score.ts), invoke it
+      # here and publish the score report as the job artifact — the fixture scorer in
+      # packages/eval/src/score.ts is the reusable half.
+      - name: Adapter + eval suite (unit lane re-run on the GPU runner)
+        run: pnpm exec vitest run packages/eval

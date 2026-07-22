@@ -1,0 +1,14 @@
+# Normalize line endings; Windows-only script types keep CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets
+*.png binary
+*.ico binary
+*.icns binary
+
+# Generated-but-committed artifacts: collapse in review, regenerate on drift.
+apps/mobile/src/theme/tokens.gen.ts linguist-generated=true
+apps/server/openapi.json linguist-generated=true
+pnpm-lock.yaml linguist-generated=true

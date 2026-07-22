@@ -1,0 +1,39 @@
+// push-notifications module — pins the deterministic row-id derivation.
+// The EXACT-VALUE pin is the point: register()'s idempotence is keyed entirely
+// on this function, so any change to the namespace, the hash, or the byte
+// layout re-keys every stored row and silently stops re-registrations from
+// collapsing onto existing rows. A shape-only test ("looks like a UUID")
+// would wave that through.
+import { describe, expect, it } from 'vitest'
+import { PUSH_TOKEN_ID_NAMESPACE, pushTokenRowId } from './push-token-id.js'
+
+const OWNER_A = '11111111-1111-4111-8111-111111111111'
+const OWNER_B = '22222222-2222-4222-8222-222222222222'
+const TOKEN = 'ExponentPushToken[demo-device-1]'
+
+describe('pushTokenRowId (deterministic version-5 UUID)', () => {
+  it('pins the exact derivation — changing namespace/hash/layout re-keys live data', () => {
+    // Recomputed independently from the RFC 9562 §5.5 construction over
+    // SHA-1(namespace-bytes || owner-bytes || '\n' || token).
+    expect(pushTokenRowId(OWNER_A, TOKEN)).toBe('37129106-1b10-5d96-9bf7-237d0a74acfc')
+    // The namespace itself is part of the pinned contract.
+    expect(PUSH_TOKEN_ID_NAMESPACE).toBe('3f3c9a52-7a08-49d8-9de4-8f5a2c1d9b6e')
+  })
+
+  it('is stable per (owner, token) and distinct across either input', () => {
+    expect(pushTokenRowId(OWNER_A, TOKEN)).toBe(pushTokenRowId(OWNER_A, TOKEN))
+    expect(pushTokenRowId(OWNER_A, 'ExponentPushToken[demo-device-2]')).not.toBe(
+      pushTokenRowId(OWNER_A, TOKEN),
+    )
+    expect(pushTokenRowId(OWNER_B, TOKEN)).not.toBe(pushTokenRowId(OWNER_A, TOKEN))
+  })
+
+  it('emits RFC-shaped UUIDs: version nibble 5, variant bits 10x', () => {
+    const id = pushTokenRowId(OWNER_B, 'ExponentPushToken[demo-device-2]')
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  })
+
+  it('fails closed on a non-UUID owner (the verified subject is always a UUID)', () => {
+    expect(() => pushTokenRowId('not-a-uuid', TOKEN)).toThrow('not a UUID')
+  })
+})

@@ -1,0 +1,9 @@
+{
+  "comment": "Gzip byte budgets enforced by the build gate (tools/build-check.mjs) over apps/mobile/dist (expo export --platform android). Calibrated ~3x above the fresh scaffold (Expo SDK + expo-router + the shell: total ≈ 2080 KB gzip, of which the Hermes entry bundle ≈ 1646 KB and the largest content-addressed asset — a bundled font — ≈ 419 KB) so real features fit while an accidental heavyweight dependency (charting lib, moment, lodash) or an unoptimized image/font turns the gate red. The per-image keys (0.1.2) budget images by MAGIC BYTES and RAW size (content-addressed assets have no extensions; compressed formats barely gzip): largestImageKb caps any single image, maxImageCount bounds how many ship, and pngOverKbPreferWebp reds a heavyweight PNG with the convert-to-WebP fix. Raising a budget is a reviewed human decision — this file is write-guard-protected.",
+  "totalGzipKb": 6250,
+  "largestChunkGzipKb": 5000,
+  "largestAssetGzipKb": 1250,
+  "largestImageKb": 512,
+  "maxImageCount": 40,
+  "pngOverKbPreferWebp": 200
+}

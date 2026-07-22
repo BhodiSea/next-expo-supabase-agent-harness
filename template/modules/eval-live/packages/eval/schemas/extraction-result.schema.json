@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExtractionResult",
+  "description": "JSON Schema mirror of extractionResultSchema in packages/eval/src/extract.ts — keep the two in lockstep (the eval-live workflow's GBNF pre-validation consumes THIS file; the runtime validates through the zod original). A drift between them means the grammar constrains a shape the code no longer accepts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tags"],
+  "properties": {
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["axis", "code", "evidence"],
+        "properties": {
+          "axis": { "type": "string", "minLength": 1 },
+          "code": { "type": "string", "minLength": 1 },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["quote", "start", "end"],
+            "properties": {
+              "quote": { "type": "string", "minLength": 1 },
+              "start": { "type": "integer", "minimum": 0 },
+              "end": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

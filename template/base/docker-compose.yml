@@ -1,0 +1,28 @@
+# docker-compose.yml — local dev Postgres (the only carrier of dev credentials:
+# postgres:postgres superuser bootstrap, LOCAL DEV ONLY). `pnpm db:up` starts it;
+# db/init/01-roles.sql provisions the app_migrator/app_api roles on first boot.
+services:
+  db:
+    # Postgres 16 + pgvector, pinned by manifest-list digest so local dev, CI, and
+    # the RLS runtime gate all test the exact same image (a tag can move under us).
+    # SOURCE: harness doctrine — image pinned by digest, verified on the registry 2026-07-10 [corpus: harness/doctrine]
+    image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: '{{DB_NAME}}'
+    ports:
+      # HARNESS_DB_PORT: override when a resident Postgres already owns 5432;
+      # tests/rls/run-rls.mjs honours the same variable for its default DSNs.
+      - '127.0.0.1:${HARNESS_DB_PORT:-5432}:5432'
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d {{DB_NAME}}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  db-data:

@@ -1,0 +1,135 @@
+# Lint the harness repo itself: workflow syntax + Actions security posture.
+# Template workflows are stored dotless (template/**/github/workflows/) so they
+# never execute here — stage them into .fixtures to lint them anyway.
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Stage template workflows (stored dotless so they never execute here)
+        run: |
+          mkdir -p .fixtures/tpl/.github/workflows
+          find template -path '*/github/workflows/*.yml' -exec cp {} .fixtures/tpl/.github/workflows/ \;
+          # NOTE: custom runner labels for these fixtures (eval-live's gpu box) are
+          # declared in the REPO ROOT .github/actionlint.yaml — actionlint resolves
+          # config from the project root (first .git walking up), not the fixture dir.
+          ls .fixtures/tpl/.github/workflows
+      - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        with:
+          files: |
+            .github/workflows/*.yml
+            .fixtures/tpl/.github/workflows/*.yml
+
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+
+  # The dual-license claim (Apache-2.0 repo-wide, Apache-2.0 OR 0BSD under
+  # template/**) is machine-verifiable: the real reuse tool asserts REUSE spec
+  # 3.3 compliance, and the dependency-free structural mirror additionally
+  # pins README/CITATION.cff/package.json license consistency with REUSE.toml.
+  reuse-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: reuse lint (REUSE spec 3.3)
+        env:
+          # renovate: datasource=pypi depName=reuse
+          REUSE_VERSION: 6.2.0
+        run: pipx run "reuse==${REUSE_VERSION}" lint
+      - name: Structural mirror + license-consistency
+        run: node scripts/check-reuse.mjs
+
+  syntax-and-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - run: node scripts/check-syntax.mjs
+      - name: Validate Claude Code plugin manifests (advisory)
+        continue-on-error: true
+        run: npx --yes @anthropic-ai/claude-code@latest plugin validate .
+
+  # The machinery under its own bar: the installer/scripts/tests/gate scripts +
+  # hooks that enforce strictTypeChecked, cognitive-complexity <= 15 and knip on
+  # consumers are themselves held to the same bar. Template files are linted AS
+  # REPO SOURCE (template/stack app code stays owned by the consumer config).
+  machinery-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: corepack pnpm (pinned via root packageManager)
+        run: |
+          corepack enable
+          corepack prepare --activate
+      - name: Install root dev toolchain (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: machinery-eslint (complexity budget + ratchet; a stale disable is red)
+        run: pnpm exec eslint .
+      # The CEILING the eslint disables cannot enforce (G16): a disabled function can grow
+      # without limit and `eslint .` stays green. This re-lints with --no-inline-config and
+      # fails if any ratcheted function grew past its committed record.
+      - name: machinery-complexity-ratchet (no ratcheted function grew; G16)
+        run: node scripts/check-complexity-ratchet.mjs
+      # The boundary rules the runner-kind canaries cannot see fire (G28): a deleted or
+      # regex-narrowed depcruise architecture rule, or a disappeared eslint import-ban, leaves
+      # the gate green over code it should reject.
+      - name: machinery-rule-integrity (config-driven boundary rules intact; G28)
+        run: node scripts/check-rule-integrity.mjs
+      - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
+        run: pnpm exec tsc --noEmit
+      - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)
+        run: pnpm exec knip

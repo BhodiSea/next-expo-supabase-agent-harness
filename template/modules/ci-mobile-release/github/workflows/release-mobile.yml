@@ -1,0 +1,469 @@
+# ci-mobile-release module — the EAS release DAG, tag-triggered:
+#   gates (validate floor on the tagged tree)
+#     → build-eas    (EXPO_TOKEN present: `eas build --platform all --profile production
+#                     --non-interactive --json`, artifact URLs parsed from the build JSON)
+#     → build-degraded (no token: unsigned Android bundle on the runner + UNSIGNED-BUILD.txt;
+#                     iOS loud-skipped — an .ipa cannot exist without EAS/Apple credentials)
+#     → verify-and-attach (size budgets from tools/perf-baseline.json ratios, SHA-256
+#                     checksums, artifacts attached to the GitHub release)
+#     → submit       (eas submit by build id, gated on the AUTO_SUBMIT repo variable or
+#                     the auto-submit dispatch input; a skipped submit attaches
+#                     NOT-SUBMITTED.txt — loudly recorded, never silently green).
+# HONEST DEGRADE: with no EXPO_TOKEN every job still runs and uploads — the artifact is
+# loudly labeled UNSIGNED and submission is loudly recorded as skipped, never faked.
+# Store key material never touches this runner: the Google service-account key and the
+# ASC API key live in the EAS credentials service and submission executes on EAS servers
+# (design record: RELEASE-FACTS, eas submit).
+# No dependency caches on the release path (zizmor cache-poisoning surface): a tag build
+# pays full price for a clean provenance story (.github/zizmor.yml names this file).
+# NOTE: a tag cut by release-please with the default GITHUB_TOKEN does not trigger this
+# workflow (recursion guard) — dispatch it on the tag ref instead.
+# SOURCE: docs/harness/gates-catalog.md (ci-mobile-release module)
+name: release-mobile
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      auto-submit:
+        description: 'Submit the verified store artifacts with eas submit (this run only; the AUTO_SUBMIT repo variable is the standing switch)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-mobile-${{ github.ref }}
+  # Never cancel a release build mid-flight; queue instead.
+  cancel-in-progress: false
+
+env:
+  # The eas-cli major these jobs are written against (design record: RELEASE-FACTS,
+  # verified against eas-cli v21.0.2). Bump deliberately and re-verify the --json
+  # artifact-URL contract when you do.
+  EAS_CLI_VERSION: '21.0.2'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The same validate floor CI enforces on every PR, re-run on the exact tagged
+  # tree — a release must never outrun the gates. Also surfaces EXPO_TOKEN
+  # presence as a job output (the secrets context is unavailable in job `if:`).
+  # ---------------------------------------------------------------------------
+  gates:
+    name: gates (validate floor on the tagged tree)
+    runs-on: ubuntu-latest
+    env:
+      HARNESS_REQUIRE_TOOLCHAINS: '1'
+      # Secrets cannot be referenced in job/step `if:` directly — surface presence as env.
+      HAVE_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+    outputs:
+      have-token: ${{ steps.token.outputs.have-token }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history: the migrations gate resolves refs a shallow clone cannot.
+          fetch-depth: 0
+
+      - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        run: corepack enable
+
+      # No dependency cache here or in any job below — release path (see header).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate (min floor, toolchains required)
+        run: node tools/validate.mjs --min-floor
+
+      - name: Surface EXPO_TOKEN presence for downstream job gating
+        id: token
+        run: echo "have-token=$HAVE_EXPO_TOKEN" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Credentialed path: one long-running `eas build --wait --json` under the job
+  # timeout, artifact URLs parsed from the exit JSON, .aab/.ipa downloaded onto
+  # the runner for verification (the chosen CI idiom — design record:
+  # RELEASE-FACTS, eas build orchestration).
+  # ---------------------------------------------------------------------------
+  build-eas:
+    name: build (EAS cloud, store-credentialed)
+    needs: [gates]
+    if: needs.gates.outputs.have-token == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    # Bounds the eas build --wait; EAS queue + two store builds fit comfortably.
+    timeout-minutes: 150
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # eas-cli resolves app.config.ts locally before uploading — it needs the
+      # workspace installed even though the build itself runs on EAS servers.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run from the app dir (EAS auto-detects the pnpm workspace from there —
+      # design record: EXPO-FACTS, pnpm workspaces).
+      - name: eas build (production, both stores, wait for artifacts)
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          npx --yes "eas-cli@${EAS_CLI_VERSION}" build --platform all --profile production \
+            --non-interactive --json --wait > "$RUNNER_TEMP/eas-build.json"
+
+      # `--json` stdout at exit is a JSON array of build objects including
+      # artifacts.applicationArchiveUrl — the .aab/.ipa (design record:
+      # RELEASE-FACTS, eas build orchestration). The Authorization header is
+      # sent per the same record (MEDIUM confidence it is required — sending it
+      # is harmless when it is not).
+      - name: Parse artifact URLs + download the store artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release
+          if ! jq -e 'type == "array" and length > 0' "$RUNNER_TEMP/eas-build.json" > /dev/null; then
+            echo "::error::eas build --json did not produce a non-empty JSON build array"
+            cat "$RUNNER_TEMP/eas-build.json"
+            exit 1
+          fi
+          jq '[.[] | {id, platform, url: (.artifacts.applicationArchiveUrl // .artifacts.buildUrl)}]' \
+            "$RUNNER_TEMP/eas-build.json" > artifacts/release/build-meta.json
+          count=$(jq 'length' artifacts/release/build-meta.json)
+          for i in $(seq 0 $((count - 1))); do
+            url=$(jq -r ".[$i].url" artifacts/release/build-meta.json)
+            id=$(jq -r ".[$i].id" artifacts/release/build-meta.json)
+            if [ -z "$url" ] || [ "$url" = 'null' ]; then
+              echo "::error::build $id carries no artifact URL in the eas build JSON — nothing to verify or attach"
+              exit 1
+            fi
+            # Classify by the URL path's extension, not the platform label — the
+            # extension is the fact the verify job depends on.
+            path="${url%%\?*}"
+            case "$path" in
+              *.aab) out=app-release.aab ;;
+              *.ipa) out=app-release.ipa ;;
+              *)
+                echo "::error::unexpected artifact extension in $path (expected .aab or .ipa)"
+                exit 1
+                ;;
+            esac
+            curl -fsSL --retry 3 -H "Authorization: Bearer $EXPO_TOKEN" \
+              -o "artifacts/release/$out" "$url"
+          done
+          ls -l artifacts/release
+
+      - name: Upload release artifacts (workflow artifact)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-release
+          path: artifacts/release/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Degraded path — no EXPO_TOKEN. Still builds what a bare runner can build
+  # (an UNSIGNED Android bundle via CNG prebuild + gradle), labels it loudly,
+  # and loud-skips iOS: an .ipa needs EAS/Apple credentials, and faking one
+  # would be worse than the absence. Never silent green.
+  # ---------------------------------------------------------------------------
+  build-degraded:
+    name: build (degraded — no EXPO_TOKEN, unsigned Android only)
+    needs: [gates]
+    if: needs.gates.outputs.have-token != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Degrade loudly (this artifact must not ship)
+        run: |
+          echo "::warning::EXPO_TOKEN is not configured — building an UNSIGNED Android bundle on the runner and SKIPPING iOS (an .ipa cannot be produced without EAS/Apple credentials). Artifacts are for internal testing only."
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # RN 0.86's supported JDK (design record: CI-LANE-FACTS). No setup-gradle:
+      # its cache belongs to PR lanes, not the release path (see header).
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prebuild + gradle bundleRelease (unsigned AAB)
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          npx expo prebuild -p android --no-install
+          cd android
+          # bundleRelease is the release App Bundle task; with no release keystore
+          # configured the output is not store-acceptable — which is the point of
+          # the UNSIGNED label below.
+          # SOURCE: https://developer.android.com/build/building-cmdline
+          ./gradlew bundleRelease
+
+      - name: Collect the bundle + write UNSIGNED-BUILD.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release
+          shopt -s nullglob
+          bundles=(apps/mobile/android/app/build/outputs/bundle/release/*.aab)
+          if [ ${#bundles[@]} -eq 0 ]; then
+            echo "::error::no .aab found under apps/mobile/android/app/build/outputs/bundle/release — bundleRelease produced nothing"
+            exit 1
+          fi
+          cp "${bundles[0]}" artifacts/release/app-release.aab
+          {
+            echo "This Android App Bundle was built WITHOUT store credentials (no EXPO_TOKEN in CI)."
+            echo ""
+            echo "- No release keystore was configured, so no store will accept this bundle."
+            echo "- No iOS artifact exists for this release: an .ipa cannot be built without"
+            echo "  EAS/Apple credentials. That half of the release was SKIPPED, loudly."
+            echo ""
+            echo "Internal testing only. Do not distribute."
+          } > artifacts/release/UNSIGNED-BUILD.txt
+
+      - name: Upload release artifacts (workflow artifact)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-release
+          path: artifacts/release/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Whichever build ran, the artifacts pass the same bar: size budgets derived
+  # from the committed tools/perf-baseline.json (ratio × installerBudgetBytes —
+  # never a number typed into this file), SHA-256 checksums, then attachment to
+  # the GitHub release.
+  # ---------------------------------------------------------------------------
+  verify-and-attach:
+    name: verify + attach (budgets, checksums, release upload)
+    needs: [gates, build-eas, build-degraded]
+    # Exactly one build job runs; the other is skipped — succeed on either.
+    if: >-
+      !cancelled() && needs.gates.result == 'success' &&
+      (needs.build-eas.result == 'success' || needs.build-degraded.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # attach store artifacts + checksums to the GitHub release
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # The checkout is what provides tools/perf-baseline.json — the budgets
+      # below are read from the tagged tree, never hardcoded here.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: mobile-release
+          path: artifacts/release
+
+      # Budgets: installerBudgetBytes is the committed store-artifact bound in
+      # tools/perf-baseline.json (write-guard-protected; ratchet it DOWN there).
+      # The per-format ratios live here as env so a consumer can widen one format
+      # deliberately in review — 1.0 means "the committed bound, exactly".
+      - name: Store-artifact size budgets (perf-baseline ratios)
+        env:
+          AAB_BUDGET_RATIO: '1.0'
+          IPA_BUDGET_RATIO: '1.0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'EOF'
+          const { readFileSync, readdirSync, statSync } = require('node:fs')
+          const baseline = JSON.parse(readFileSync('tools/perf-baseline.json', 'utf8'))
+          const bound = baseline.installerBudgetBytes
+          if (!Number.isFinite(bound) || bound <= 0) {
+            console.error('::error::tools/perf-baseline.json installerBudgetBytes is missing or invalid — the size budget cannot run')
+            process.exit(1)
+          }
+          const ratios = {
+            '.aab': Number(process.env.AAB_BUDGET_RATIO),
+            '.ipa': Number(process.env.IPA_BUDGET_RATIO),
+          }
+          const dir = 'artifacts/release'
+          const files = readdirSync(dir).filter((f) => f.endsWith('.aab') || f.endsWith('.ipa'))
+          if (files.length === 0) {
+            console.error(`::error::no .aab/.ipa under ${dir} — nothing to verify`)
+            process.exit(1)
+          }
+          let failed = false
+          for (const f of files) {
+            const ext = f.slice(f.lastIndexOf('.'))
+            const budget = Math.floor(bound * ratios[ext])
+            const size = statSync(`${dir}/${f}`).size
+            const line = `${f}: ${size} bytes (budget ${budget} = installerBudgetBytes ${bound} x ${ratios[ext]})`
+            if (size > budget) {
+              console.error(`::error::${line} — over budget; investigate what got bundled before shipping`)
+              failed = true
+            } else {
+              console.log(`${line} — OK`)
+            }
+          }
+          process.exit(failed ? 1 : 0)
+          EOF
+
+      - name: SHA-256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts/release
+          shopt -s nullglob
+          files=(*.aab *.ipa)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::nothing to checksum under artifacts/release"
+            exit 1
+          fi
+          sha256sum "${files[@]}" > checksums.txt
+          cat checksums.txt
+
+      - name: Attach to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # release-please creates the release with the tag; a manually pushed tag
+          # may not have one yet — create a draft instead of failing the upload.
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --draft --generate-notes
+          fi
+          shopt -s nullglob
+          files=(artifacts/release/*.aab artifacts/release/*.ipa artifacts/release/checksums.txt artifacts/release/UNSIGNED-BUILD.txt)
+          gh release upload "$TAG" "${files[@]}" --clobber
+
+  # ---------------------------------------------------------------------------
+  # Submission — gated, and honest about every skip. Submitting is a HUMAN
+  # policy switch (the AUTO_SUBMIT repo variable, or this run's dispatch input);
+  # store key material stays in the EAS credentials service and the submission
+  # runs on EAS servers by build id — no re-upload, no keys on this runner
+  # (design record: RELEASE-FACTS, eas submit). A skipped submit attaches
+  # NOT-SUBMITTED.txt to the release; a failed submit fails this job. There is
+  # no silent path out of this job.
+  # ---------------------------------------------------------------------------
+  submit:
+    name: submit (eas submit, AUTO_SUBMIT-gated)
+    needs: [gates, verify-and-attach]
+    if: >-
+      !cancelled() && needs.verify-and-attach.result == 'success'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write # attach NOT-SUBMITTED.txt when submission is gated off
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      HAVE_TOKEN: ${{ needs.gates.outputs.have-token }}
+      SUBMIT_ENABLED: ${{ vars.AUTO_SUBMIT == 'true' || inputs.auto-submit == true }}
+      IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: mobile-release
+          path: artifacts/release
+
+      - name: Submit, or record loudly why not
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$HAVE_TOKEN" != 'true' ]; then
+            {
+              echo "This release was NOT submitted to any store."
+              echo ""
+              echo "Reason: no EXPO_TOKEN secret — the degraded pipeline built an unsigned"
+              echo "artifact no store accepts (see UNSIGNED-BUILD.txt). Configure EXPO_TOKEN"
+              echo "on the release environment to arm the credentialed pipeline."
+            } > NOT-SUBMITTED.txt
+            echo "::warning::store submission skipped — no EXPO_TOKEN (degraded build). NOT-SUBMITTED.txt attached to the release."
+          elif [ "$SUBMIT_ENABLED" != 'true' ]; then
+            {
+              echo "This release was NOT submitted to any store."
+              echo ""
+              echo "Reason: AUTO_SUBMIT is not enabled. Verified store artifacts are attached"
+              echo "to this release. To submit: set the AUTO_SUBMIT repository variable to"
+              echo "'true', or re-run release-mobile via workflow_dispatch on this tag with"
+              echo "the auto-submit input checked."
+            } > NOT-SUBMITTED.txt
+            echo "::notice::store submission gated off (AUTO_SUBMIT). NOT-SUBMITTED.txt attached to the release."
+          else
+            if [ ! -f artifacts/release/build-meta.json ]; then
+              echo "::error::artifacts/release/build-meta.json missing — cannot submit by build id (was the EAS build job skipped?)"
+              exit 1
+            fi
+            count=$(jq 'length' artifacts/release/build-meta.json)
+            for i in $(seq 0 $((count - 1))); do
+              id=$(jq -r ".[$i].id" artifacts/release/build-meta.json)
+              platform=$(jq -r ".[$i].platform | ascii_downcase" artifacts/release/build-meta.json)
+              echo "submitting $platform build $id"
+              # --id: the build already lives on EAS; submitting by id avoids a
+              # re-upload and keeps store keys in the EAS credentials service
+              # (design record: RELEASE-FACTS, eas submit). Failures are loud —
+              # no fallback, no retry-into-green.
+              npx --yes "eas-cli@${EAS_CLI_VERSION}" submit --platform "$platform" \
+                --id "$id" --non-interactive
+            done
+          fi
+          if [ -f NOT-SUBMITTED.txt ]; then
+            if [ "$IS_TAG" = 'true' ]; then
+              gh release upload "$TAG" NOT-SUBMITTED.txt --clobber
+            else
+              echo "::notice::non-tag run — NOT-SUBMITTED.txt not attached (no release to attach to)"
+            fi
+          fi

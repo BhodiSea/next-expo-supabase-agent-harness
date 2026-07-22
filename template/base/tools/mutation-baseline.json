@@ -1,0 +1,255 @@
+{
+  "//": "Surviving mutants this project has ACCEPTED. Every entry needs a reason \u2014 a survivor is a place your tests would not notice the code breaking, so accepting one is a deliberate, reviewed act (the gate FAILS on an empty reason). Regenerate with `node tools/check-mutation-ratchet.mjs --write`; identity is position-independent, so line shifts never invalidate an entry. This file is write-guard-protected and hashed by gate-integrity.",
+  "survivors": [
+    {
+      "id": "0ae52ed79260",
+      "file": "apps/mobile/src/lib/sse.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "let machine: SseParserState = { ...state, bomStripped, buffer: '' }",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (W5b review): the surviving instance of this id is the machine-INIT `buffer: ''` \u2014 machine.buffer is dead state inside the loop and is unconditionally overwritten by `text.slice(start)` at the return, so no value planted there is observable. The dispatch-reset instance that shares this position-independent id (same file/mutator/original/replacement) WAS killed by the parser-edge kill corpus ('dispatch resets the event type to the DEFAULT')."
+    },
+    {
+      "id": "3cd63897a8cd",
+      "file": "apps/mobile/src/lib/sse.ts",
+      "mutator": "EqualityOperator",
+      "original": "i < text.length",
+      "replacement": "i <= text.length",
+      "snippet": "for (let i = start; i < text.length; i += 1) {",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (W5b review): at i === text.length, charAt returns '' which matches neither terminator, so the extra iteration is a no-op \u2014 `<=` and `<` walk identical states. No input can distinguish them."
+    },
+    {
+      "id": "de7acc8ee6dc",
+      "file": "apps/mobile/src/lib/sse.ts",
+      "mutator": "MethodExpression",
+      "original": "state.buffer.slice(0, -1)",
+      "replacement": "state.buffer",
+      "snippet": "return feedSse({ ...state, buffer: state.buffer.slice(0, -1) }, '\\n')",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (W5b review): keeping the deferred CR and appending LF turns the flushed tail into a CRLF-terminated line, and the walk counts CRLF as ONE terminator \u2014 byte-for-byte the same lines, events and final buffer as slicing the CR off first. The neighbouring flush mutants (endsWith weakenings, slice(0,+1)) are killed by the buffered-tail kill corpus; this one is the spec's own CRLF\u2261LF equivalence."
+    },
+    {
+      "id": "e66ef899bddc",
+      "file": "apps/mobile/src/lib/sse.ts",
+      "mutator": "ConditionalExpression",
+      "original": "line.startsWith(':')",
+      "replacement": "false",
+      "snippet": "if (line.startsWith(':')) return { state, event: null }",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (W5b review): without the comment fast path, ':comment' parses as field '' (colon at 0) and falls into the default ignore arm \u2014 same state, no event, for every comment form. The fast path mirrors the spec's step order; removing it changes nothing observable."
+    },
+    {
+      "id": "f3915abe5be3",
+      "file": "apps/mobile/src/lib/sse.ts",
+      "mutator": "BlockStatement",
+      "original": "{ // Dynamic on purpose; see StreamSseOptions.fetchImpl. const mod = await import('expo/fetch') return mod.fetch }",
+      "replacement": "{}",
+      "snippet": "async function expoStreamingFetch(): Promise<FetchImplementation> {",
+      "status": "NoCoverage",
+      "reason": "the expo/fetch default-transport resolver: only reachable when streamApiSse is called WITHOUT an injected fetchImpl, i.e. on a real device. The vitest pump corpus (W5b) drives every other pump mutant through the injected transport, but evaluating the real `import('expo/fetch')` under node is not meaningful \u2014 the jest lane and the on-device flows own this arm. Accepted eyes-open."
+    },
+    {
+      "id": "4ed85cad43ce",
+      "file": "apps/server/src/app.ts",
+      "mutator": "ConditionalExpression",
+      "original": "token === ''",
+      "replacement": "false",
+      "snippet": "if (token === undefined || token === '') {",
+      "status": "Survived",
+      "reason": "empty-string bearer normalization: an `Authorization: Bearer` with an empty token 401s through jwtVerify anyway \u2014 the explicit '' check is an error-message nicety, not a security branch (verify.ts mutants are all killed). Accepted eyes-open; a targeted 401-copy test is the W5b candidate."
+    },
+    {
+      "id": "ff64033d34e2",
+      "file": "apps/server/src/app.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "if (token === undefined || token === '') {",
+      "status": "Survived",
+      "reason": "same site as the empty-token check above \u2014 the '' literal only selects the friendlier error copy; the reject path itself is proven by the verify.ts kills."
+    },
+    {
+      "id": "10b25ec321df",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ kty: z.string() }",
+      "replacement": "{}",
+      "snippet": "const JwksFileDto = z.object({ keys: z.array(z.looseObject({ kty: z.string() })) })",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "39158f5c4074",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ keys: z.array(z.looseObject({ kty: z.string() })) }",
+      "replacement": "{}",
+      "snippet": "const JwksFileDto = z.object({ keys: z.array(z.looseObject({ kty: z.string() })) })",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "4da9bd3959b5",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "BlockStatement",
+      "original": "{ return [] }",
+      "replacement": "{}",
+      "snippet": "} catch {",
+      "status": "NoCoverage",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "58198703b0a5",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[]",
+      "replacement": "[\"Stryker was here\"]",
+      "snippet": "return []",
+      "status": "NoCoverage",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "5cbf48c1c9f1",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "StringLiteral",
+      "original": "'11111111-1111-4111-8111-111111111111'",
+      "replacement": "\"\"",
+      "snippet": "export const DEV_USER_ID = '11111111-1111-4111-8111-111111111111'",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "71b98cf1aa6c",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "MethodExpression",
+      "original": "[...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }].slice( -MAX_JWKS_KEYS, )",
+      "replacement": "[...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }]",
+      "snippet": "const keys = [...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }].slice(",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "8d78cbdf142d",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "StringLiteral",
+      "original": "'utf8'",
+      "replacement": "\"\"",
+      "snippet": "raw = readFileSync(jwksPath, 'utf8')",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "8d9400ed3857",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ArithmeticOperator",
+      "original": "Date.now() / 1000",
+      "replacement": "Date.now() * 1000",
+      "snippet": "const now = Math.floor(Date.now() / 1000)",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "a81fc2ac06a4",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ArithmeticOperator",
+      "original": "8 * 60 * 60",
+      "replacement": "8 * 60 / 60",
+      "snippet": "export const DEV_TOKEN_TTL_SECONDS = 8 * 60 * 60",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "abf53b041d36",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "BlockStatement",
+      "original": "{ return JwksFileDto.parse(JSON.parse(raw)).keys }",
+      "replacement": "{}",
+      "snippet": "try {",
+      "status": "NoCoverage",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "ba3968ace5cb",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "BlockStatement",
+      "original": "{ raw = readFileSync(jwksPath, 'utf8') }",
+      "replacement": "{}",
+      "snippet": "try {",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "bfcdb4fb0e18",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "StringLiteral",
+      "original": "'JWT'",
+      "replacement": "\"\"",
+      "snippet": ".setProtectedHeader({ alg: 'ES256', typ: 'JWT', kid })",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "c97a402474ef",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "ArithmeticOperator",
+      "original": "8 * 60",
+      "replacement": "8 / 60",
+      "snippet": "export const DEV_TOKEN_TTL_SECONDS = 8 * 60 * 60",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "cd1a84c9ad23",
+      "file": "apps/server/src/auth/dev-auth.ts",
+      "mutator": "BlockStatement",
+      "original": "{ return [] }",
+      "replacement": "{}",
+      "snippet": "} catch {",
+      "status": "Survived",
+      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
+    },
+    {
+      "id": "cea87b9c357c",
+      "file": "apps/server/src/dal/cursor.ts",
+      "mutator": "StringLiteral",
+      "original": "'utf8'",
+      "replacement": "\"\"",
+      "snippet": "return Buffer.from(JSON.stringify(key), 'utf8').toString('base64url')",
+      "status": "Survived",
+      "reason": "encoding-arg equivalence on the cursor payload: the keyset cursor JSON is ASCII by construction (uuid + ISO timestamp), for which the explicit 'utf8' and the default encoding are byte-identical."
+    },
+    {
+      "id": "eb5966489999",
+      "file": "apps/server/src/dal/cursor.ts",
+      "mutator": "Regex",
+      "original": "/^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
+      "replacement": "/\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
+      "snippet": "/^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
+      "status": "Survived",
+      "reason": "anchor-drop equivalence within DTO-validated input: the timestamp string reaching this regex already passed the zod DTO shape, so no accepted input distinguishes the unanchored variant."
+    },
+    {
+      "id": "3008de8b0162",
+      "file": "apps/server/src/dal/notes.ts",
+      "mutator": "ConditionalExpression",
+      "original": "last !== undefined",
+      "replacement": "true",
+      "snippet": "rows.length > limit && last !== undefined",
+      "status": "Survived",
+      "reason": "genuinely equivalent: rows.length > limit (limit >= 1) implies the last row exists \u2014 the guard is a TypeScript narrowing necessity; no input can reach the mutated branch differently."
+    },
+    {
+      "id": "b23a3e992ec1",
+      "file": "apps/server/src/middleware/skew.ts",
+      "mutator": "ConditionalExpression",
+      "original": "typeof handler === 'function'",
+      "replacement": "true",
+      "snippet": "return typeof handler === 'function' && guards.has(handler)",
+      "status": "Survived",
+      "reason": "genuinely equivalent: guards.has(handler) can only hold for values that were registered as functions, so the typeof check is a narrowing guard no behaviour can distinguish."
+    }
+  ]
+}

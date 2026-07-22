@@ -1,0 +1,13 @@
+{
+  // Solution file: `tsc -b` walks these references; it compiles nothing itself.
+  // Every workspace tsconfig extends ./tsconfig.base.json and sets composite: true.
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/schema" },
+    { "path": "packages/importer" },
+    { "path": "packages/eval" },
+    { "path": "apps/server" },
+    { "path": "apps/mobile" }
+  ]
+}

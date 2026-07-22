@@ -1,0 +1,146 @@
+{
+  "comment": "Design-system contract. The OKLCH values under themes.* are THE source of truth for every color in apps/mobile: tools/gen-theme.mjs converts them (OKLCH -> linear sRGB -> gamma-encoded hex via tools/lib/oklch.mjs) and emits the COMMITTED apps/mobile/src/theme/tokens.gen.ts — palettes plus the fontWeight/text/radius/spacing scales from families — and the styleguide gate regen-diffs that file so manifest and shipped tokens can never drift. families.motion/elevation/sizing/fontScaleCap are OPTIONAL, content-conditional families (this manifest is seeded — update never rewrites it): gen-theme emits the motion/elevation/sizes/fontScaleCap blocks only when the family is declared, so an older manifest keeps rendering byte-identically, and a present-but-malformed family FAILS the generator (never a silent skip). motion is the ONE motion vocabulary (durations in ms, cubic-bezier easing control points, the pressed-state scale factor) — components animate through src/lib/motion.ts helpers over these tokens, transform/opacity only, and every animation collapses to static under OS reduce-motion. elevation levels render as ready-to-spread shadow/elevation style objects (the generated module is the only home of the shadow* keys). sizing.minTarget is the 44dp minimum hit target every interactive primitive must meet (Apple HIG 44pt / Android 48dp guidance — 44 is the floor, primitives may exceed it); sizing.icon is the closed icon scale. fontScaleCap holds the maxFontSizeMultiplier caps (default for reading surfaces, dense for fixed-height rows). Near-monochrome (hue 240, chroma <= 0.012) with one cyan-teal accent (hue 200); dark is the design base AND the native launch frame (splash/adaptive-icon backgroundColor in apps/mobile/app.config.ts must equal the dark canvas hex — the expo-policy gate asserts the lockstep). contrast pairs are COMPUTED per theme, each asserted >= min; AAA tier: the primary reading pairs (ink/canvas, ink/surface) carry min 7 (WCAG SC 1.4.6 body text) in both themes; ink-muted and the accent/status hues deliberately stay AA 4.5. An out-of-gamut OKLCH value is a generator FAIL: it would be gamut-mapped on screen and the computed ratios would describe a color nobody sees. accentUsageBudget caps accent-token occurrences across apps/mobile/src. controlPrimitives arms the primitive-boundary scan: a raw JSX open-tag for one of `tags` in a .tsx outside `home` is red — interactive controls render through the src/components primitives (Button/Input), and new control styling goes INTO the primitive; controlAllow entries (file + reason) are the reviewed escape. allow entries (file + reason) exempt a file from the raw-hex/raw-dimension source scan. statusSurfaces: a surface carrying one of `signals` must reference a status token — failure and success must never be the same pixel. This file is write-guard-protected: extending the design system is a reviewed human diff of this manifest and the regenerated tokens together.",
+  "tokens": ["canvas", "surface", "edge", "ink", "ink-muted", "accent", "danger", "success"],
+  "themes": {
+    "dark": {
+      "tokens": {
+        "canvas": { "l": 0.16, "c": 0.006, "h": 240 },
+        "surface": { "l": 0.21, "c": 0.006, "h": 240 },
+        "edge": { "l": 0.32, "c": 0.008, "h": 240 },
+        "ink": { "l": 0.93, "c": 0.005, "h": 240 },
+        "ink-muted": { "l": 0.72, "c": 0.01, "h": 240 },
+        "accent": { "l": 0.8, "c": 0.12, "h": 200 },
+        "danger": { "l": 0.72, "c": 0.16, "h": 25 },
+        "success": { "l": 0.76, "c": 0.14, "h": 150 }
+      }
+    },
+    "light": {
+      "tokens": {
+        "canvas": { "l": 0.97, "c": 0.004, "h": 240 },
+        "surface": { "l": 0.93, "c": 0.005, "h": 240 },
+        "edge": { "l": 0.82, "c": 0.008, "h": 240 },
+        "ink": { "l": 0.25, "c": 0.01, "h": 240 },
+        "ink-muted": { "l": 0.47, "c": 0.012, "h": 240 },
+        "accent": { "l": 0.475, "c": 0.08, "h": 200 },
+        "danger": { "l": 0.5, "c": 0.19, "h": 25 },
+        "success": { "l": 0.48, "c": 0.13, "h": 150 }
+      }
+    }
+  },
+  "contrast": [
+    {
+      "fg": "ink",
+      "bg": "canvas",
+      "min": 7
+    },
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "min": 7
+    },
+    {
+      "fg": "ink-muted",
+      "bg": "canvas",
+      "min": 4.5
+    },
+    {
+      "fg": "ink-muted",
+      "bg": "surface",
+      "min": 4.5
+    },
+    {
+      "fg": "accent",
+      "bg": "canvas",
+      "min": 4.5
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "min": 4.5
+    },
+    {
+      "fg": "danger",
+      "bg": "canvas",
+      "min": 4.5
+    },
+    {
+      "fg": "danger",
+      "bg": "surface",
+      "min": 4.5
+    },
+    {
+      "fg": "success",
+      "bg": "canvas",
+      "min": 4.5
+    },
+    {
+      "fg": "success",
+      "bg": "surface",
+      "min": 4.5
+    }
+  ],
+  "accentTokens": ["accent"],
+  "accentUsageBudget": 10,
+  "families": {
+    "fontWeight": { "normal": "400", "medium": "500", "semibold": "600", "bold": "700" },
+    "text": {
+      "xs": { "fontSize": 12, "lineHeight": 16 },
+      "sm": { "fontSize": 14, "lineHeight": 20 },
+      "base": { "fontSize": 16, "lineHeight": 24 },
+      "lg": { "fontSize": 18, "lineHeight": 28 },
+      "xl": { "fontSize": 20, "lineHeight": 28 },
+      "2xl": { "fontSize": 24, "lineHeight": 32 }
+    },
+    "radius": { "sm": 4, "md": 6, "lg": 8 },
+    "spacing": { "unit": 4 },
+    "motion": {
+      "duration": { "fast": 120, "base": 200, "slow": 320 },
+      "easing": {
+        "standard": [0.2, 0, 0, 1],
+        "decelerate": [0, 0, 0.2, 1],
+        "accelerate": [0.3, 0, 1, 1]
+      },
+      "pressScale": 0.97
+    },
+    "elevation": {
+      "raised": { "offsetY": 1, "blur": 3, "opacity": 0.18, "android": 2 },
+      "overlay": { "offsetY": 4, "blur": 12, "opacity": 0.3, "android": 8 }
+    },
+    "sizing": {
+      "minTarget": 44,
+      "icon": { "sm": 16, "md": 20, "lg": 24 }
+    },
+    "fontScaleCap": { "default": 2, "dense": 1.3 }
+  },
+  "controlPrimitives": {
+    "tags": [
+      "Pressable",
+      "TouchableOpacity",
+      "TouchableHighlight",
+      "TouchableWithoutFeedback",
+      "TextInput",
+      "Button",
+      "Switch"
+    ],
+    "home": "apps/mobile/src/components",
+    "base": {
+      "file": "apps/mobile/src/components/PressableScale.tsx",
+      "tags": [
+        "Pressable",
+        "TouchableOpacity",
+        "TouchableHighlight",
+        "TouchableWithoutFeedback",
+        "Button"
+      ]
+    }
+  },
+  "motionSeam": "apps/mobile/src/lib/motion.ts",
+  "controlAllow": [],
+  "allow": [],
+  "statusSurfaces": {
+    "tokens": ["danger", "success"],
+    "signals": ["role=\"alert\"", "role=\"status\"", "aria-invalid"],
+    "dir": "apps/mobile/src",
+    "allow": []
+  }
+}

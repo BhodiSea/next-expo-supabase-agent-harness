@@ -1,0 +1,34 @@
+{
+  // Shared max-strict compiler options. Workspace tsconfigs extend this and set only
+  // include/outDir/rootDir (and, where noted, module settings). Weakening a flag here
+  // is a gate change — the write-guard protects this file.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    // Node-ESM resolution is the default: apps/server and packages/* run under Node 22
+    // or are consumed through project references. apps/mobile (Metro-bundled) overrides
+    // these two to "Preserve"/"bundler" in its own tsconfig — the only sanctioned split.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force", // every file is a module; no accidental global scripts
+
+    // Project-references topology (BUILD-SPEC §tsc -b): composite everywhere so the
+    // root solution build checks cross-package contracts incrementally.
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true, // indexing returns T | undefined — no phantom elements
+    "exactOptionalPropertyTypes": true, // `x?: T` is not `x: T | undefined` — no sloppy widening
+    "noPropertyAccessFromIndexSignature": true, // index-signature reads must use ['k'] — typo guard
+    "noImplicitOverride": true, // overriding a base member requires the `override` keyword
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true, // every code path returns — silent undefined is a bug
+    "verbatimModuleSyntax": true, // type-only imports must say `import type` — safe emit/strip
+    "isolatedModules": true, // each file must be transpilable alone (esbuild/Metro/tsx safety)
+    "skipLibCheck": true, // check our code, not node_modules' .d.ts fights
+    "forceConsistentCasingInFileNames": true
+  }
+}

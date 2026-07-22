@@ -1,0 +1,8 @@
+# actionlint resolves its config from the project root (the first directory
+# with .git walking up from each linted file), so the staged template fixtures
+# under .fixtures/tpl/ read THIS file — a copy inside the fixture is ignored.
+# The template ships its own (template/base/github/actionlint.yaml) for
+# consumer repos, where the project root is theirs.
+self-hosted-runner:
+  labels:
+    - gpu

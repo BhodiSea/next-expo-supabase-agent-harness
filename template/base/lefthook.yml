@@ -1,0 +1,27 @@
+# lefthook.yml — local git hooks (lefthook 2.x `jobs` syntax; installed by the
+# root `prepare` script). Hooks are a fast local courtesy; the Stop hook and CI
+# run the authoritative gate (tools/validate.mjs) regardless.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      glob: '*.{js,mjs,cjs,ts,tsx,json,jsonc}'
+      run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    - name: secrets
+      # Loud SKIP when gitleaks is absent — a skip must never look like a pass.
+      run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; else echo "[lefthook] SKIP secrets scan — gitleaks binary not installed (https://github.com/gitleaks/gitleaks)"; fi
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: pnpm exec tsc -b
+    - name: lint
+      run: pnpm exec eslint . --max-warnings 0
+    - name: dead-code
+      run: pnpm exec knip --strict

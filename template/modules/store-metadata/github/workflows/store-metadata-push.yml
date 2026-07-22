@@ -1,0 +1,119 @@
+# store-metadata module: the App Store listing lives in the repo
+# (apps/mobile/store.config.json) and reaches App Store Connect only through
+# this workflow. DISPATCH-ONLY by design: pushing store metadata is a
+# deliberate human act, never a merge side effect — there is no push/tag
+# trigger to fire it accidentally.
+#
+# EAS Metadata is BETA and Apple-only (Google Play is not implemented) — the
+# Play listing + Data safety form stay console-managed, mirrored in-repo by
+# docs/store/play-data-safety.md.
+# SOURCE: https://docs.expo.dev/eas/metadata/ (beta; App Store only; store.config.json)
+#
+# HONEST DEGRADE: without the EXPO_TOKEN secret the run still validates
+# store.config.json (tools/check-store-config.mjs, dependency-free), then
+# labels itself NOT-PUSHED — a workflow warning + an uploaded NOT-PUSHED.txt
+# artifact — instead of failing on the missing secret or faking a green push.
+# A degraded run is loud, never silent; a validation red is a real red in both
+# legs.
+# SOURCE: docs/harness/gates-catalog.md (store-metadata module)
+name: store-metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'eas.json submit profile to push with (its ios.ascAppId / metadataPath apply)'
+        type: string
+        default: production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-metadata-${{ github.ref }}
+  # Never cancel a metadata push mid-flight; queue instead.
+  cancel-in-progress: false
+
+jobs:
+  push:
+    name: validate listing, then metadata:push (honest degrade)
+    runs-on: ubuntu-latest
+    env:
+      # Secret PRESENCE is computable in job env (`!= ''`); the token VALUE is
+      # injected only into the one step that talks to EAS.
+      HAVE_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+      SUBMIT_PROFILE: ${{ inputs.profile }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # No dependency cache on this workflow: it publishes to a store, so it
+      # keeps zero cache surface an attacker could poison (same posture the
+      # release/attestation workflows take).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # Dependency-free by design (node:fs + tools/lib only) — the degraded leg
+      # gets its validation without a pnpm install. Schema-lite bounds + refusal
+      # of the scaffold's sentinel values; the first dispatch after enabling
+      # fails HERE until the listing is really written (anti-vacuity proof).
+      - name: Validate store.config.json (runs in BOTH legs)
+        run: node tools/check-store-config.mjs
+
+      - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        run: corepack enable
+
+      # eas-cli resolves the app config (app.config.ts) through the project's
+      # own dependencies, so the push leg needs a real install.
+      - name: Install dependencies
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Run from the app dir — EAS auto-detects pnpm and must execute where
+      # eas.json + store.config.json live in a workspace.
+      # SOURCE: https://docs.expo.dev/guides/monorepos/ (run EAS from the app dir)
+      # eas-cli is version-pinned (the idiom this repo verified against v21.0.2);
+      # `--non-interactive` because there is no TTY, auth via EXPO_TOKEN.
+      # SOURCE: https://docs.expo.dev/accounts/programmatic-access/
+      - name: Push metadata to App Store Connect (eas metadata:push)
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          pnpm dlx eas-cli@21.0.2 metadata:push --profile "$SUBMIT_PROFILE" --non-interactive
+          echo "store-metadata: pushed apps/mobile/store.config.json (submit profile: $SUBMIT_PROFILE)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Label degraded run (no EXPO_TOKEN — validated, NOT pushed)
+        if: env.HAVE_EXPO_TOKEN != 'true'
+        run: |
+          echo '::warning::EXPO_TOKEN is not configured — store.config.json was validated but NOT pushed to App Store Connect.'
+          mkdir -p artifacts
+          {
+            echo 'store-metadata: NOT PUSHED'
+            echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo 'reason: the EXPO_TOKEN repository secret is not configured.'
+            echo 'store.config.json passed structural validation in this run; nothing reached App Store Connect.'
+            echo 'fix: create a robot token (https://docs.expo.dev/accounts/programmatic-access/),'
+            echo '     add it as the EXPO_TOKEN secret, and re-dispatch the store-metadata workflow.'
+          } > artifacts/NOT-PUSHED.txt
+          {
+            echo '## store-metadata: degraded run'
+            echo 'store.config.json validated; push SKIPPED (no EXPO_TOKEN). See the store-metadata-not-pushed artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload NOT-PUSHED marker (the degrade is loud, never silent)
+        if: env.HAVE_EXPO_TOKEN != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: store-metadata-not-pushed
+          path: artifacts/NOT-PUSHED.txt
+          if-no-files-found: error

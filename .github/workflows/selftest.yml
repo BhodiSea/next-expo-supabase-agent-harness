@@ -1,0 +1,982 @@
+# Self-test: prove the installer + template produce a working, gate-green
+# Expo + Hono + Postgres monorepo on every change. This matrix IS the release
+# acceptance test; it grows with the port (see design/PORT-SPEC.md) — the
+# bootstrap/canary/emulator lanes land with their workstreams, and no job in
+# this matrix may ever require EAS, Apple, or Google credentials.
+name: selftest
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    # Nightly: the emulator lane (maestro-smoke) is schedule/dispatch-only — too
+    # expensive per-PR — and the nightly keeps every other job honest between pushes.
+    - cron: '45 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selftest-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Both unit lanes run on ubuntu AND windows: the path-separator/CRLF/shell
+  # bug class only reproduces on a real Windows filesystem — a Linux-only unit
+  # lane cannot make that class extinct.
+  installer-unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        # harden-runner egress blocking is unsupported on Windows (audit-only);
+        # declaring audit everywhere keeps the two legs honest and identical.
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - run: node scripts/check-syntax.mjs
+      - run: node scripts/hygiene.mjs
+      # Release lockstep on every PR: version skew between package.json, the
+      # plugin manifest, the hook stamps, CITATION.cff, and the CHANGELOG must
+      # red the PR that introduces it, not the eventual tag build.
+      - run: node scripts/check-release-lockstep.mjs
+      # Plugin manifests + the shipped agent roster, validated at their SOURCE:
+      # plugin.json/marketplace.json reference only files that exist (dangling
+      # paths are dead on install), and every reviewer agent stays read-only by
+      # construction (tools ⊆ allowlist, disallowedTools ⊇ Write/Edit) — a PR
+      # that widens a reviewer reds here before any scaffold runs docs-sync.
+      - run: node scripts/check-plugin-manifest.mjs
+      # Gate↔canary lockstep (mirrors the source harness's placement): every
+      # VALIDATE ∪ STOP step carries a registered red-proof, every proof file
+      # runs green with real tests (the zero-test TAP detection is
+      # format-independent — resolved paths, never rendered text — so the
+      # Windows leg judges the same signal), and every guard rule id has a
+      # behavioral canary in tests/hooks/hook-contract.test.mjs.
+      - run: node scripts/check-canary-coverage.mjs
+      # Coverage floor over the installer itself. Measured 91.6/80.2/95.2 with
+      # the W5b test set (lifecycle/graduate restored); floors sit ~6 points
+      # under, raised from the W1 78/70/90 — floors only ever rise.
+      - run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include='installer/**'
+          --test-coverage-lines=85 --test-coverage-branches=74 --test-coverage-functions=91
+          "tests/**/*.test.mjs"
+      # Second floor over the TEMPLATE gate-support libs (template/base/tools/lib/**),
+      # measured 94.5/89.0/84.6 at W5b over the gate-logic tests; floors sit ~6
+      # points under. The gate SCRIPTS themselves (tools/check-*.mjs) run as
+      # CHILD processes and are covered BEHAVIORALLY by the canary red-proof
+      # closure (scripts/check-canary-coverage.mjs), not by line coverage — a
+      # gate that cannot go red is decoration, which line counting cannot catch.
+      - run: >-
+          node --test --experimental-test-coverage
+          --test-coverage-include='template/base/tools/lib/**'
+          --test-coverage-lines=88 --test-coverage-branches=82 --test-coverage-functions=78
+          "tests/gates/*.test.mjs"
+
+  # A rendered scaffold carries no unrendered {{PLACEHOLDER}} and no
+  # cross-stack residue — proven on a real init into a scratch dir.
+  render-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: init --yes into a scratch dir
+        run: node installer/cli.mjs init --dir "$RUNNER_TEMP/scaffold" --tier core --yes
+      - name: zero unrendered placeholders
+        run: node scripts/check-residue.mjs "$RUNNER_TEMP/scaffold"
+      - name: rendered tree passes the syntax scan
+        run: node scripts/check-syntax.mjs "$RUNNER_TEMP/scaffold"
+
+  # One deliberate violation per gate DIRECTION; each must turn the matching
+  # gate red on an otherwise-green scaffold. Baseline-pass first so a failure is
+  # attributable to the injection, not to a broken fixture. Ubuntu only, no
+  # emulator, and no EAS/Apple/Google credentials — the config-resolving gates
+  # (expo-policy, native-deps, e2e, build) only need the installed expo CLI.
+  # The W6 device lanes carry their own wall-clock canaries when they land
+  # (see tests/canary/injections.json PORT NOTE).
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Scaffold canary fixture (committed git baseline for the diff-based gates)
+        run: |
+          node installer/cli.mjs init --dir "$RUNNER_TEMP/canary" --tier core --yes
+          cd "$RUNNER_TEMP/canary"
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline'
+      - name: Install the scaffold (config resolution + jest + export need real deps)
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          corepack enable
+          corepack prepare --activate
+          pnpm install --no-frozen-lockfile
+      - name: RLS runner FAILS CLOSED without a database (CI=true)
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          if CI=true node tests/rls/run-rls.mjs; then
+            echo '::error::CANARY: the RLS runner exited 0 with no database reachable — a skip is reading as a pass'; exit 1
+          fi
+          echo 'canary OK: rls runner fails closed without a database'
+      - name: Baseline — every canaried gate PASSES on the clean scaffold
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # GITHUB_BASE_REF belongs to the harness checkout, not this scaffold
+          # repo — unset it so the diff-based gates diff against the scaffold's
+          # own HEAD instead of a ref that does not exist here.
+          env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
+          env -u GITHUB_BASE_REF node tools/check-native-deps.mjs
+          env -u GITHUB_BASE_REF node tools/check-migrations.mjs
+          env -u GITHUB_BASE_REF node tools/check-sources.mjs
+          env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs
+          env -u GITHUB_BASE_REF node tools/check-gate-integrity.mjs
+          env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs
+          env -u GITHUB_BASE_REF node tools/check-styleguide-manifest.mjs
+          env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
+          env -u GITHUB_BASE_REF node tools/check-mobile-perf.mjs --closure
+          env -u GITHUB_BASE_REF node tools/check-docs-sync.mjs
+          env -u GITHUB_BASE_REF node tools/check-duplication.mjs
+          env -u GITHUB_BASE_REF node tools/check-test-quality.mjs
+          env -u GITHUB_BASE_REF node tools/check-i18n.mjs
+          env -u GITHUB_BASE_REF node tools/check-e2e.mjs
+          env -u GITHUB_BASE_REF node tools/build-check.mjs
+      - name: 'Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "apps/mobile/app.config.ts"
+            let s = fs.readFileSync(f, "utf8")
+            // Inject INTO the shipped infoPlist block (0.1.2 ships one for the
+            // export-compliance declaration) — a second infoPlist key would be
+            // shadowed by the later duplicate and the ATS hole would never
+            // reach the resolved config.
+            s = s.replace("ITSAppUsesNonExemptEncryption: false,", "ITSAppUsesNonExemptEncryption: false,\n        NSAppTransportSecurity: { NSAllowsArbitraryLoads: true },")
+            s = s.replace("adaptiveIcon: {", "permissions: [\"android.permission.CAMERA\"],\n      adaptiveIcon: {")
+            s = s.replace("extra: {", "extra: {\n      canaryApiKey: \"shipped-in-bundle\",")
+            fs.writeFileSync(f, s)
+          '
+          if env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs > canary1.log 2>&1; then
+            cat canary1.log
+            echo '::error::CANARY: expo-policy PASSED an ATS hole + unreviewed permission + secret-shaped extra — the gate cannot fail'; exit 1
+          fi
+          # A bare `grep -q` under set -e swallows all evidence when the gate
+          # reds via the WRONG path — always dump the log before asserting why.
+          for leg in 'NSAllowsArbitraryLoads' 'no reviewed reason' 'secret-shaped key'; do
+            if ! grep -q "$leg" canary1.log; then
+              cat canary1.log
+              echo "::error::CANARY: expo-policy reddened WITHOUT the '$leg' message — wrong failure path (log above)"; exit 1
+            fi
+          done
+          git checkout -q -- apps/mobile/app.config.ts
+          echo 'canary OK: expo-policy went red on all three legs'
+      - name: 'Canary 2: stage the generated android/ dir → native-deps must FAIL (CNG purity)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          mkdir -p apps/mobile/android
+          echo '// prebuild output' > apps/mobile/android/build.gradle
+          git add -f apps/mobile/android
+          if env -u GITHUB_BASE_REF node tools/check-native-deps.mjs; then
+            echo '::error::CANARY: native-deps PASSED a committed native dir — CNG purity cannot fail'; exit 1
+          fi
+          git rm -qr --cached apps/mobile/android
+          rm -rf apps/mobile/android
+          echo 'canary OK: native-deps went red'
+      - name: 'Canary 3: edit a committed migration → migrations must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          echo 'ALTER TABLE notes ADD COLUMN sneaky text;' >> packages/schema/drizzle/0000_init.sql
+          if env -u GITHUB_BASE_REF node tools/check-migrations.mjs; then
+            echo '::error::CANARY: migrations PASSED after editing a committed migration — the gate cannot fail'; exit 1
+          fi
+          git checkout -q -- .
+          echo 'canary OK: migrations went red'
+      - name: 'Canary 4: strip SOURCE citations from decision sites → provenance must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          sed -i '/SOURCE:/d' packages/schema/drizzle/0000_init.sql
+          if env -u GITHUB_BASE_REF node tools/check-sources.mjs; then
+            echo '::error::CANARY: provenance PASSED with uncited decision sites — the gate cannot fail'; exit 1
+          fi
+          git checkout -q -- .
+          echo 'canary OK: provenance went red'
+      - name: 'Canary 5: remove FORCE RLS from the migration → schema-rls must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          sed -i '/FORCE ROW LEVEL SECURITY/d' packages/schema/drizzle/0000_init.sql
+          if env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs; then
+            echo '::error::CANARY: schema-rls PASSED without FORCE RLS — the gate cannot fail'; exit 1
+          fi
+          git checkout -q -- .
+          echo 'canary OK: schema-rls went red'
+      - name: 'Canary 6: tamper a gate script on disk → gate-integrity must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          echo '// tampered by the selftest canary' >> tools/check-migrations.mjs
+          if env -u GITHUB_BASE_REF node tools/check-gate-integrity.mjs; then
+            echo '::error::CANARY: gate-integrity PASSED a tampered gate script — the manifest hash surface cannot fail'; exit 1
+          fi
+          git checkout -q -- tools/check-migrations.mjs
+          echo 'canary OK: gate-integrity went red'
+      - name: 'Canary 7: tamper a hash-locked prompt → prompts must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          echo ' ' >> packages/eval/prompts/extract.v1.md
+          if env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs; then
+            echo '::error::CANARY: prompts PASSED a tampered hash-locked prompt — the gate cannot fail'; exit 1
+          fi
+          git checkout -q -- .
+          echo 'canary OK: prompts went red'
+      - name: 'Canary 8: raw hex + inline-style literals in a screen → styleguide must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'import { View } from "react-native"\nexport const Oops = () => <View style={{ padding: 17, backgroundColor: "#ff0000" }} />\n' > apps/mobile/src/oops.tsx
+          if env -u GITHUB_BASE_REF node tools/check-styleguide-manifest.mjs > canary8.log 2>&1; then
+            cat canary8.log
+            echo '::error::CANARY: styleguide PASSED raw hex + an inline style object — the gate cannot fail'; exit 1
+          fi
+          if ! grep -q '#ff0000' canary8.log; then
+            cat canary8.log
+            echo '::error::CANARY: styleguide reddened WITHOUT naming the raw hex — wrong failure path (log above)'; exit 1
+          fi
+          rm apps/mobile/src/oops.tsx
+          echo 'canary OK: styleguide went red on both legs'
+      - name: 'Canary 9: an orphan app/ route file + an unregistered screen → route-manifest must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'export default function Rogue() {\n  return null\n}\n' > apps/mobile/app/rogue.tsx
+          printf 'export default function Reports() {\n  return null\n}\n' > 'apps/mobile/app/(tabs)/reports.tsx'
+          if env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs; then
+            echo '::error::CANARY: route-manifest PASSED unclaimed route files — the closure cannot fail'; exit 1
+          fi
+          rm apps/mobile/app/rogue.tsx 'apps/mobile/app/(tabs)/reports.tsx'
+          echo 'canary OK: route-manifest went red'
+      - name: 'Canary 10: a route with no Maestro flow / no startup-budget row → the mobile-perf closure must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          rm maestro/flows/actions.yaml
+          if env -u GITHUB_BASE_REF node tools/check-mobile-perf.mjs --closure; then
+            echo '::error::CANARY: mobile-perf --closure PASSED a route with no Maestro flow — the closure cannot fail'; exit 1
+          fi
+          git checkout -q -- maestro/flows/actions.yaml
+          node -e '
+            const fs = require("node:fs")
+            const f = "tools/startup-budget.json"
+            const j = JSON.parse(fs.readFileSync(f, "utf8"))
+            delete j.screens.actions
+            fs.writeFileSync(f, JSON.stringify(j, null, 2))
+          '
+          if env -u GITHUB_BASE_REF node tools/check-mobile-perf.mjs --closure; then
+            echo '::error::CANARY: mobile-perf --closure PASSED a route with no startup-budget row — the closure cannot fail'; exit 1
+          fi
+          git checkout -q -- tools/startup-budget.json
+          echo 'canary OK: mobile-perf closure went red on both legs'
+      - name: 'Canary 11: a zero-test jest run → the e2e gate must FAIL (anti-vacuity)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          cat >> apps/mobile/jest.config.js <<'EOF'
+          module.exports.testMatch = ['<rootDir>/__no_tests_here__/*.test.js']
+          module.exports.passWithNoTests = true
+          EOF
+          if env -u GITHUB_BASE_REF node tools/check-e2e.mjs > canary11.log 2>&1; then
+            cat canary11.log
+            echo '::error::CANARY: the e2e gate PASSED a jest run that ran nothing — the anti-vacuity check cannot fail'; exit 1
+          fi
+          if ! grep -q 'vacuous' canary11.log; then
+            cat canary11.log
+            echo '::error::CANARY: the e2e gate reddened WITHOUT the vacuous-pass message — wrong failure path (log above)'; exit 1
+          fi
+          git checkout -q -- apps/mobile/jest.config.js
+          echo 'canary OK: e2e went red on a vacuous run'
+      - name: 'Canary 12: a tiny committed perf-baseline → the build gzip ratchet must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            fs.writeFileSync("tools/perf-baseline.json", JSON.stringify({ gzip: { total: 1000 }, ratioCap: 1.25 }, null, 2))
+          '
+          if env -u GITHUB_BASE_REF node tools/build-check.mjs > canary12.log 2>&1; then
+            cat canary12.log
+            echo '::error::CANARY: build PASSED a bundle far over baseline × ratioCap — the ratchet cannot fail'; exit 1
+          fi
+          if ! grep -q 'exceeds the committed ratchet' canary12.log; then
+            cat canary12.log
+            echo '::error::CANARY: build reddened WITHOUT the ratchet message — wrong failure path (log above)'; exit 1
+          fi
+          git checkout -q -- tools/perf-baseline.json
+          echo 'canary OK: the build ratchet went red'
+      - name: 'Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          sed -i '/^### 21\. docs-sync/d' docs/harness/gates-catalog.md
+          if env -u GITHUB_BASE_REF node tools/check-docs-sync.mjs; then
+            echo '::error::CANARY: docs-sync PASSED with a gate missing from the catalog — the lockstep cannot fail'; exit 1
+          fi
+          git checkout -q -- docs/harness/gates-catalog.md
+          echo 'canary OK: docs-sync went red'
+      - name: 'Canary 14: a pasted token clone across two modules → duplication must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          clone() {
+            printf 'export function canaryCloneScore(rows: number[]): number {\n'
+            printf '  let total = 0\n'
+            printf '  let positives = 0\n'
+            printf '  let negatives = 0\n'
+            printf '  for (const row of rows) {\n'
+            printf '    if (row > 0) {\n'
+            printf '      total += row * 2\n'
+            printf '      positives += 1\n'
+            printf '    } else {\n'
+            printf '      total -= row * 3\n'
+            printf '      negatives += 1\n'
+            printf '    }\n'
+            printf '  }\n'
+            printf '  const mean = total / Math.max(rows.length, 1)\n'
+            printf '  const spread = Math.max(...rows) - Math.min(...rows)\n'
+            printf '  return mean + spread + total + positives - negatives\n'
+            printf '}\n'
+          }
+          clone > apps/mobile/src/features/notes/canaryClone.ts
+          clone > apps/mobile/src/features/matrix/canaryClone.ts
+          if env -u GITHUB_BASE_REF node tools/check-duplication.mjs; then
+            echo '::error::CANARY: duplication PASSED an identical 18-line paste across two modules — the clone scan cannot fail'; exit 1
+          fi
+          rm apps/mobile/src/features/notes/canaryClone.ts apps/mobile/src/features/matrix/canaryClone.ts
+          echo 'canary OK: duplication went red'
+      - name: 'Canary 15: a committed .only → test-quality must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'import { describe, it, expect } from "vitest"\n\ndescribe("canary", () => {\n  it.only("focuses the run", () => {\n    expect(1).toBe(1)\n  })\n})\n' > apps/server/src/canary-focus.test.ts
+          if env -u GITHUB_BASE_REF node tools/check-test-quality.mjs; then
+            echo '::error::CANARY: test-quality PASSED a committed .only — the focused-test check cannot fail'; exit 1
+          fi
+          rm apps/server/src/canary-focus.test.ts
+          echo 'canary OK: test-quality went red'
+      - name: 'Canary 16: a hardcoded user-facing string → the static i18n gate must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'import { AppText } from "../components/AppText"\n\nexport const Oops = () => <AppText>Hardcoded canary copy</AppText>\n' > apps/mobile/src/oops-i18n.tsx
+          if env -u GITHUB_BASE_REF node tools/check-i18n.mjs; then
+            echo '::error::CANARY: i18n PASSED a hardcoded user-facing string — the static scan cannot fail'; exit 1
+          fi
+          rm apps/mobile/src/oops-i18n.tsx
+          echo 'canary OK: the static i18n gate went red'
+      - name: Restore sanity — gates green again after the last restore
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs
+          env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
+          env -u GITHUB_BASE_REF node tools/check-i18n.mjs
+
+  canary-mutation:
+    name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Bootstrap a fresh project
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/mut" --tier core --yes
+      - name: Install
+        working-directory: .selftest/mut
+        run: |
+          corepack enable
+          corepack prepare --activate
+          pnpm install --no-frozen-lockfile
+
+      # Baseline: the shipped exemplar must be green before we can claim an injection reds it.
+      - name: 'Baseline: the shipped critical surface is within its committed baseline'
+        working-directory: .selftest/mut
+        run: |
+          pnpm exec stryker run stryker.config.mjs
+          node tools/check-mutation-ratchet.mjs
+
+      - name: 'Canary: add ONE untested branch to a well-covered file → the mutation lane must FAIL while every other gate stays GREEN'
+        working-directory: .selftest/mut
+        run: |
+          # Git baseline so the diff-scoped gates below (diff-coverage, test-quality) judge
+          # EXACTLY the one file this canary injects — not every untracked scaffold file.
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline'
+          python3 - <<'PY'
+          p = 'apps/server/src/auth/verify.ts'
+          s = open(p).read()
+          s = s.replace(
+              "function buildVerifier(getKey: JwksKeyGetter, issuer: string, audience: string): TokenVerifier {",
+              "function buildVerifier(getKey: JwksKeyGetter, issuer: string, audience: string, env: Env = {}): TokenVerifier {", 1)
+          s = s.replace(
+              "    const { payload } = await jwtVerify(token, getKey, {",
+              "    const skew = env['AUTH_CLOCK_SKEW']\n    const tolerance = skew === undefined ? 300 : Number(skew)\n    const { payload } = await jwtVerify(token, getKey, {", 1)
+          s = s.replace("      clockTolerance: 300,", "      clockTolerance: tolerance,", 1)
+          open(p, 'w').write(s)
+          PY
+          grep -q 'AUTH_CLOCK_SKEW' apps/server/src/auth/verify.ts \
+            || { echo '::error::the canary injection did not apply — the source moved; fix the patch, do not delete the canary'; exit 1; }
+
+          # (1) Every OTHER control must stay green — otherwise this proves nothing about
+          #     what mutation testing uniquely adds over them. Both coverage maps are
+          #     written first: diff-coverage merges the vitest and jest-expo maps.
+          pnpm exec vitest run --coverage --silent \
+            || { echo '::error::MUTATION CANARY: the unit suite reddened. The injection must be executed-but-unverified, not broken'; exit 1; }
+          pnpm --filter mobile exec jest --coverage --silent \
+            || { echo '::error::MUTATION CANARY: the mobile unit suite reddened; the injection touches only the server'; exit 1; }
+          # env -u GITHUB_BASE_REF: the diff-scoped gates read GITHUB_BASE_REF, which belongs
+          # to the harness checkout, not this scaffold's git repo.
+          env -u GITHUB_BASE_REF node tools/check-diff-coverage.mjs \
+            || { echo '::error::MUTATION CANARY: diff-coverage reddened; the injection was supposed to slip THROUGH the per-file floors'; exit 1; }
+          env -u GITHUB_BASE_REF node tools/check-test-quality.mjs \
+            || { echo '::error::MUTATION CANARY: test-quality reddened; the injection adds no test, it does not remove an assertion'; exit 1; }
+
+          # (2) …and the mutation lane must catch what all of them missed.
+          rm -rf reports/mutation .stryker-tmp
+          pnpm exec stryker run stryker.config.mjs --mutate apps/server/src/auth/verify.ts
+          if node tools/check-mutation-ratchet.mjs > ratchet.log 2>&1; then
+            cat ratchet.log
+            echo '::error::MUTATION CANARY: an untested branch survived the ratchet. The lane cannot fail, so it is decoration — coverage already told us this code RAN; only mutation can tell us no test would NOTICE it breaking'
+            exit 1
+          fi
+          grep -q 'new surviving mutant' ratchet.log \
+            || { cat ratchet.log; echo '::error::the ratchet failed for the WRONG reason (not a new survivor)'; exit 1; }
+          grep -E 'AUTH_CLOCK_SKEW|new surviving mutant|change:' ratchet.log | head -n 8
+          git checkout -q -- apps/server/src/auth/verify.ts
+          echo 'canary OK: unit + diff-coverage + test-quality all stayed GREEN; only the mutation ratchet caught it'
+
+  # ---------------------------------------------------------------------------
+  # The product promise on Linux: a fresh scaffold is validate-green OUT OF THE
+  # BOX with real toolchains required, the warm agent-time experience stays
+  # inside its wall-time budget (with the e2e stamp positive control — the
+  # biggest warm win must be SEEN engaging, not assumed), and the RLS story is
+  # proven in BOTH directions against the scaffold's own pinned database:
+  # fail-closed with no db, green with one, and RED again when the keyset index
+  # is dropped (Canary 17 — the DAL plan probe seeing the whole-partition Sort).
+  # Canary 18 proves the prebuild-determinism compare can fail: a config plugin
+  # emitting run-dependent output MUST break the double-prebuild tree hash the
+  # consumer native lane relies on.
+  # ---------------------------------------------------------------------------
+  bootstrap-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bootstrap a fresh project from the template
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/boot" --tier core --yes
+      - name: Git baseline + corepack (lefthook prepare and the diff-based gates need a repo)
+        working-directory: .selftest/boot
+        run: |
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline'
+          corepack enable
+          corepack prepare --activate
+      # Resolving the store path is the cache CONFIG step: if it fails, the job
+      # hard-fails here (cache config error), never silently uncached.
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        working-directory: .selftest/boot
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache pnpm store
+        id: pnpm-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('template/base/pnpm-workspace.yaml', 'template/**/package.json.tmpl') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-node${{ matrix.node }}-
+      - name: pnpm install
+        working-directory: .selftest/boot
+        run: pnpm install --no-frozen-lockfile
+      # Soft assertion: on a re-run with an unchanged catalog the store cache
+      # should hit. A miss is a warning (first run / catalog bump are
+      # legitimate); a cache CONFIG error already failed the job above.
+      - name: Assert pnpm store cache effectiveness
+        if: steps.pnpm-cache.outputs.cache-hit != 'true'
+        run: echo "::warning title=pnpm store cache miss::⚠ pnpm store cache missed (key pnpm-store-${RUNNER_OS}-node${NODE_MAJOR}-…). Expected on the first run after a catalog change; investigate if this repeats on unchanged re-runs."
+        env:
+          NODE_MAJOR: ${{ matrix.node }}
+      - name: THE GATE — full validate must be green out of the box (CI floor, expo resolution for real)
+        working-directory: .selftest/boot
+        env:
+          HARNESS_REQUIRE_TOOLCHAINS: '1'
+        run: node tools/validate.mjs --min-floor
+      - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
+        working-directory: .selftest/boot
+        env:
+          # CI=false so stamps + caches apply: this measures the LOCAL warm
+          # experience an agent gets between edits, not the fail-closed CI run
+          # (which just happened above). Stamps were recorded by the cold run.
+          CI: 'false'
+          HARNESS_REQUIRE_TOOLCHAINS: ''
+        run: |
+          start=$(date +%s)
+          node tools/validate.mjs | tee warm-validate.log
+          elapsed=$(( $(date +%s) - start ))
+          echo "warm validate wall time: ${elapsed}s"
+          {
+            echo '### Warm validate (stamped) — per-step ms'
+            echo '```'
+            grep -E '^  ' warm-validate.log || true
+            echo '```'
+            echo "wall time: ${elapsed}s"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$elapsed" -gt 120 ]; then echo "::error::warm validate took ${elapsed}s (budget 120s)"; exit 1; fi
+          if [ "$elapsed" -gt 90 ]; then echo "::warning::warm validate took ${elapsed}s (target 90s)"; fi
+      - name: Warm-lane positive control — the e2e stamp engaged (skipped the jest re-run)
+        working-directory: .selftest/boot
+        # The cold --min-floor run above recorded the e2e stamp; the warm run must
+        # short-circuit the whole jest-expo suite through it. A green warm log
+        # WITHOUT this line means the biggest warm-path win silently regressed.
+        run: |
+          if grep -E '^e2e: OK.*inputs unchanged' warm-validate.log; then
+            echo 'e2e stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'
+            exit 1
+          fi
+      - name: RLS runner FAILS CLOSED without a database (CI=true)
+        working-directory: .selftest/boot
+        run: |
+          if CI=true node tests/rls/run-rls.mjs > rls-fail.log 2>&1; then
+            cat rls-fail.log
+            echo '::error::expected fail-closed without a database, got green'
+            exit 1
+          fi
+          grep -q 'failing closed' rls-fail.log || { cat rls-fail.log; echo '::error::the runner reddened WITHOUT the fail-closed message — wrong failure path (log above)'; exit 1; }
+          echo 'fail-closed proof: OK'
+      - name: Start the scaffold's pinned pgvector database
+        working-directory: .selftest/boot
+        run: docker compose up -d --wait db
+      - name: RLS isolation suite runs for real and is green
+        working-directory: .selftest/boot
+        run: |
+          set -o pipefail
+          CI=true node tests/rls/run-rls.mjs 2>&1 | tee rls.log
+          # Positive control: prove the DB-backed branch ran (fresh-apply), not
+          # a polite self-skip that would false-green a real leak.
+          grep -q 'fresh-applying migrations' rls.log \
+            || { echo '::error::RLS suite did not fresh-apply migrations against the live database'; exit 1; }
+          grep -q '\[rls\] OK' rls.log \
+            || { echo '::error::RLS suite did not complete green'; exit 1; }
+      # W6 armed (the registry-level PORT NOTE retired with it): the source
+      # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
+      # looking at the DAL's real SQL, not a statement nobody runs.
+      - name: 'Canary 17: drop the keyset index → the DAL plan probe must FAIL (a whole-partition Sort at scale)'
+        if: matrix.node == 22
+        working-directory: .selftest/boot
+        run: |
+          rm packages/schema/drizzle/0002_notes_keyset_idx.sql
+          node -e '
+            const fs = require("node:fs");
+            const p = "packages/schema/drizzle/meta/_journal.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.entries = j.entries.filter((e) => e.tag !== "0002_notes_keyset_idx");
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+          '
+          if CI=true node tests/rls/run-rls.mjs > plan-canary.log 2>&1; then
+            tail -n 60 plan-canary.log
+            echo '::error::PLAN CANARY: the RLS suite PASSED with only the (owner_id) index — the DAL plan probe cannot see a whole-partition Sort, which is the exact defect it exists to catch'
+            exit 1
+          fi
+          # Evidence FIRST, then the which-path assertion: the red must come from
+          # the DAL plan probe naming its query shape, not from some other break.
+          if ! grep -Eq 'notesDal\.list|forbidden plan node' plan-canary.log; then
+            tail -n 60 plan-canary.log
+            echo '::error::the suite failed, but NOT on the DAL plan probe — the canary is not exercising the plan-probe surface (log above)'
+            exit 1
+          fi
+          grep -E 'forbidden plan node|Sort|notesDal\.list' plan-canary.log | tail -n 6 || true
+          git checkout -q -- packages/schema/drizzle/
+          echo 'canary OK: the DAL plan probe went red on the dropped keyset index'
+      - name: 'Canary 18: a config plugin emitting run-dependent output → the prebuild ×2 tree compare must FAIL'
+        if: matrix.node == 22
+        working-directory: .selftest/boot
+        run: |
+          hash_tree() {
+            find apps/mobile/android -type f ! -path '*/.gradle/*' -print0 | sort -z \
+              | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+          }
+          # Positive control: the CLEAN scaffold's double prebuild is byte-stable
+          # (the exact compare the consumer native lane runs).
+          ( cd apps/mobile && npx expo prebuild -p android --no-install )
+          h1="$(hash_tree)"
+          ( cd apps/mobile && npx expo prebuild -p android --no-install )
+          h2="$(hash_tree)"
+          if [ "$h1" != "$h2" ]; then
+            echo "::error::PREBUILD CANARY: the CLEAN scaffold is already nondeterministic ($h1 / $h2) — the baseline is broken, the injection proves nothing"
+            exit 1
+          fi
+          # Injection: a config plugin stamping the manifest with wall-clock —
+          # exactly the class of plugin the determinism compare exists to catch.
+          mkdir -p apps/mobile/plugins
+          cat > apps/mobile/plugins/canary-nondet.js <<'EOF'
+          const { withAndroidManifest } = require('expo/config-plugins')
+          module.exports = (config) =>
+            withAndroidManifest(config, (c) => {
+              const application = c.modResults.manifest.application[0]
+              application['meta-data'] = [
+                ...(application['meta-data'] ?? []),
+                { $: { 'android:name': 'canary.stamp', 'android:value': String(Date.now()) } },
+              ]
+              return c
+            })
+          EOF
+          node -e '
+            const fs = require("node:fs");
+            const f = "apps/mobile/app.config.ts";
+            let s = fs.readFileSync(f, "utf8");
+            s = s.replace("plugins: [", "plugins: [\n      \"./plugins/canary-nondet.js\",");
+            fs.writeFileSync(f, s);
+          '
+          grep -q 'canary-nondet' apps/mobile/app.config.ts \
+            || { echo '::error::the canary injection did not apply — app.config.ts has no plugins array to extend'; exit 1; }
+          ( cd apps/mobile && npx expo prebuild -p android --no-install )
+          h3="$(hash_tree)"
+          ( cd apps/mobile && npx expo prebuild -p android --no-install )
+          h4="$(hash_tree)"
+          if [ "$h3" = "$h4" ]; then
+            echo "::error::PREBUILD CANARY: two prebuilds with a Date.now() plugin produced IDENTICAL trees ($h3) — the compare cannot see nondeterminism, so the consumer native lane is decoration"
+            exit 1
+          fi
+          rm -rf apps/mobile/android apps/mobile/plugins
+          git checkout -q -- apps/mobile/app.config.ts
+          echo "canary OK: the injected plugin broke the tree hash ($h3 != $h4) and the clean baseline was stable"
+
+  # ---------------------------------------------------------------------------
+  # The mobile<->server integration lane, proven on a REAL scaffold: the app's
+  # own auth provider mints a dev token from the real Hono server, api-client
+  # attaches it, FORCE RLS filters rows, streamApiSse parses a live stream
+  # (LIVE_PROOF=1 — the same suite the consumer integration-lane job runs).
+  # Canary C01 is the lane's reason to exist: strip the ONE line that attaches
+  # the Authorization header and the suite MUST red — the source harness once
+  # shipped exactly that hole with every mocked lane green.
+  # ---------------------------------------------------------------------------
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AUTH_MODE: stub
+      NODE_ENV: development
+      PORT: '8787'
+      LIVE_PROOF: '1'
+      EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
+      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/app'
+      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/app'
+    services:
+      db:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      # The dir name "app" is LOAD-BEARING: init derives the DB_NAME placeholder
+      # from the directory name, and the rendered db/init/01-roles.sql runs
+      # `ALTER DATABASE "<DB_NAME>"` against the service container's database —
+      # which is literally named "app". A mismatch reds role provisioning with
+      # `database "<dir>" does not exist`.
+      - name: Bootstrap a fresh project
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes
+      - name: Git baseline + corepack
+        working-directory: .selftest/app
+        run: |
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline'
+          corepack enable
+          corepack prepare --activate
+      - name: pnpm install
+        working-directory: .selftest/app
+        run: pnpm install --no-frozen-lockfile
+      - name: Provision database roles (db/init/01-roles.sql)
+        working-directory: .selftest/app
+        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/app' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+      - name: Apply migrations
+        working-directory: .selftest/app
+        run: pnpm db:migrate
+      # Positive control on the human tooling the lane leans on: the dev-token
+      # minter must actually mint (an empty token here would make the suite's
+      # own mint path the only coverage, silently).
+      - name: mint-dev-token mints (server scripts positive control)
+        working-directory: .selftest/app
+        run: |
+          token="$(pnpm --filter server mint-dev-token | tail -1)"
+          if [ -z "$token" ]; then
+            echo '::error::mint-dev-token produced no token — the stub authority scripts are broken'
+            exit 1
+          fi
+          echo "mint-dev-token: OK (${#token} chars)"
+      - name: Boot the API server (stub auth mode)
+        working-directory: .selftest/app
+        run: |
+          set -euo pipefail
+          pnpm --filter server dev > /tmp/server.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
+              echo "server up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+      - name: Baseline — the LIVE_PROOF suite is green against the real stack
+        working-directory: .selftest/app
+        run: pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
+      - name: 'Canary C01: strip the Authorization header from the api-client one door → the live suite must FAIL'
+        working-directory: .selftest/app
+        run: |
+          # Remove the ONE line that attaches the bearer — the exact defect class
+          # the desktop-era source harness shipped while every mocked lane stayed
+          # green. Heredoc so the template literal reaches node verbatim.
+          node <<'NODE'
+          const fs = require("node:fs")
+          const f = "apps/mobile/src/lib/api-client.ts"
+          let s = fs.readFileSync(f, "utf8")
+          const needle = "merged.set('authorization', `Bearer ${token}`)"
+          if (!s.includes(needle)) {
+            console.error("::error::the canary injection did not apply — the api-client bearer line moved; fix the injection, do not delete the canary")
+            process.exit(1)
+          }
+          s = s.replace(needle, "void token")
+          fs.writeFileSync(f, s)
+          NODE
+          if pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts > c01.log 2>&1; then
+            cat c01.log
+            echo '::error::C01: the live suite PASSED with no Authorization header attached — the integration lane cannot see the auth seam, so it is decoration'
+            exit 1
+          fi
+          # The create hook translates the 401 into a rollback outcome by design, so
+          # the auth failure surfaces as the create round-trip failing its settle
+          # assertion (`Received: "failed"` — proven locally); the raw auth strings
+          # stay as alternates in case a future suite surfaces them directly.
+          if ! grep -Eiq 'Received: "failed"|ApiRequestError|401|unauthorized' c01.log; then
+            cat c01.log
+            echo '::error::C01: the suite reddened WITHOUT the auth-shaped create failure — wrong failure path (log above)'
+            exit 1
+          fi
+          grep -Ei 'Received: "failed"|ApiRequestError|401|unauthorized' c01.log | head -n 4
+          git checkout -q -- apps/mobile/src/lib/api-client.ts
+          echo 'canary OK: stripping the bearer reddened the live suite'
+      - name: Restore sanity — the suite is green again after the revert
+        working-directory: .selftest/app
+        run: pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
+      - name: Server log on failure
+        if: failure()
+        run: cat /tmp/server.log || true
+
+  # ---------------------------------------------------------------------------
+  # maestro-smoke — the emulator lane on a REAL scaffold, schedule/dispatch only
+  # (a KVM emulator + two gradle assembles per PR would double every merge's
+  # wall clock). Proves the whole W6 device story end-to-end: the release
+  # binary's route flows + generated sweep, the kv-pre-seeded ar-XB/RTL boot,
+  # the mutation flow against the real server, the perf-harness marker — and the
+  # two device canaries no repo test can run: a broken testID must red the
+  # device sweep while the agent-time jest lane stays GREEN (Canary 19, the
+  # honest-loss proof, both halves asserted), and a 300ms busy-loop on the
+  # ranking path must flip the perf marker (Canary 20).
+  # ---------------------------------------------------------------------------
+  maestro-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      AUTH_MODE: stub
+      NODE_ENV: development
+      PORT: '8787'
+      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/app'
+      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/app'
+    services:
+      db:
+        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Enable KVM (hardware acceleration for the emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - name: Install Maestro CLI (pinned zip, sha256-verified — the install script verifies nothing)
+        run: |
+          curl -fsSL -o maestro.zip https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.6.1/maestro.zip
+          echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" | sha256sum -c -
+          unzip -q maestro.zip -d "$HOME/.maestro-dist"
+          echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+      # The dir name "app" is LOAD-BEARING: init derives the DB_NAME placeholder
+      # from the directory name, and the rendered db/init/01-roles.sql runs
+      # `ALTER DATABASE "<DB_NAME>"` against the service container's database —
+      # which is literally named "app". A mismatch reds role provisioning with
+      # `database "<dir>" does not exist`.
+      - name: Bootstrap a fresh project
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes
+      - name: Git baseline + corepack
+        working-directory: .selftest/app
+        run: |
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline'
+          corepack enable
+          corepack prepare --activate
+      - name: pnpm install
+        working-directory: .selftest/app
+        run: pnpm install --no-frozen-lockfile
+      - name: Provision database roles + migrations
+        working-directory: .selftest/app
+        run: |
+          psql 'postgres://postgres:postgres@127.0.0.1:5432/app' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+          pnpm db:migrate
+      - name: Boot the API server (stub auth mode — the mutation flow's backend)
+        working-directory: .selftest/app
+        run: |
+          set -euo pipefail
+          pnpm --filter server dev > /tmp/server.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
+              echo "server up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+      - name: Prebuild + assemble (release for the sweeps, debug for the dev half)
+        working-directory: .selftest/app/apps/mobile
+        env:
+          EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
+          # Boot-shape dummies, not credentials: the release binary must install
+          # its real provider and boot signed-out (the stub is __DEV__-only).
+          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
+          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+        run: |
+          npx expo prebuild -p android --no-install
+          cd android
+          ./gradlew assembleRelease assembleDebug
+      - name: AVD cache
+        id: avd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33-aosp-atd-x86_64
+      - name: Create AVD snapshot (cache miss only)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+      - name: Device smoke + canaries (emulator)
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 33
+          target: aosp_atd
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: .selftest/app
+          script: |
+            bash "$GITHUB_WORKSPACE/scripts/ci/device-smoke.sh"
+      - name: Server + Metro logs on failure
+        if: failure()
+        run: |
+          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
+      - name: Upload Maestro evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-smoke-evidence
+          path: .selftest/app/artifacts/maestro/
+          retention-days: 7
+          if-no-files-found: ignore

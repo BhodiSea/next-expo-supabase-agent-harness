@@ -1,0 +1,59 @@
+# Hygiene gate: no project-specific strings, credential shapes, or sibling-stack
+# leftovers may leak into template/, and the placeholder registry must be closed
+# over the template tree. Blocks every PR and release.
+name: hygiene
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    # Nightly: the corpus-fidelity job below reaches the NETWORK, so it cannot ride the
+    # per-PR path (a flaky host must never red someone's PR). A cited authority that
+    # 404s is still a broken citation — it just gets caught within a day, not a minute.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hygiene-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - run: node scripts/hygiene.mjs
+      # G12: the harness's own quantitative claims must be TRUE and mutually consistent.
+      # The source harness's v0.1.5 shipped a README claiming cold ≈70 s while the
+      # CHANGELOG claimed ≈85 s for the same release — "prove, don't claim" has to
+      # apply to the harness itself.
+      - run: node scripts/check-claims.mjs
+
+  corpus-fidelity:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Every cited corpus authority resolves (dead link = broken citation)
+        run: node scripts/check-corpus-fidelity.mjs

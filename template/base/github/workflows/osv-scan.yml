@@ -1,0 +1,47 @@
+# OSV-Scanner SCA — known-vulnerability scan of the npm lockfile surface against
+# the OSV database: every pnpm-lock.yaml the recursive scan discovers. (Cross-port
+# note: the desktop sibling scanned a second ecosystem; this lineage is npm-only.)
+# The PR job is diff-aware (fails only on NEWLY introduced vulns) — the
+# deterministic form of a vulnerability gate: an unchanged tree can never red on
+# an upstream advisory. The scheduled job scans the full tree weekly and owns
+# time-based discovery; Renovate owns the fix path. These are Google's official
+# reusable workflows: pinned by full commit SHA with the version marker in the
+# comment; Renovate keeps the pin current.
+# SOURCE: docs/harness/README.md (supply-chain scanning)
+name: osv-scan
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: ['{{DEFAULT_BRANCH}}']
+  schedule:
+    # Weekly full scan. Monday 03:47 UTC.
+    - cron: '47 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osv-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan-pr:
+    name: osv (PR diff, npm)
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9bb69575e74019c2ad085a1860787043adf47ccb # v2.2.4
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  scan-full:
+    name: osv (full tree, npm)
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9bb69575e74019c2ad085a1860787043adf47ccb # v2.2.4
+    permissions:
+      actions: read
+      contents: read
+      security-events: write

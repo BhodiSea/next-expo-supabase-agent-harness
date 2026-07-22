@@ -1,0 +1,78 @@
+# Mutation testing — the NIGHTLY full net, in both languages. The per-PR lane lives in
+# quality-gate.yml (blocking, scoped to the critical files the PR touched); this one is the
+# unscoped sweep that catches what a diff-scoped lane structurally cannot: a survivor born in
+# file A by a change to file B.
+#
+# NOT advisory. Both jobs can fail the night. The pre-promotion version of this workflow
+# carried `continue-on-error: true` on every per-PR job with a note to remove it "once a
+# measured run confirms the modules clear 80%" — that measurement was never taken, and when
+# it finally was, the exemplar's critical set scored 66%. A threshold nobody measured is
+# either vacuous or a permanent red light; the SET-based ratchet is neither.
+# SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
+name: mutation
+
+on:
+  schedule:
+    # Nightly. 03:17 UTC.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The whole critical surface (tools/lib/mutation-critical.mjs), every mutant.
+  # A survivor the baseline does not accept reds the run; a baseline survivor the
+  # tests have since learned to kill prints a ratchet-tighten hint.
+  # ---------------------------------------------------------------------------
+  stryker-full:
+    name: stryker (nightly, full critical surface)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm mutation` = stryker run && the ratchet. Split here so a Stryker crash and a
+      # ratchet failure are distinguishable in the run log.
+      - name: Mutation testing (StrykerJS, full)
+        run: pnpm exec stryker run stryker.config.mjs
+
+      - name: Mutation ratchet (survivors vs the committed baseline)
+        run: node tools/check-mutation-ratchet.mjs
+
+      - name: Upload the mutation report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # NOTE (recorded honest loss): there is no native-half mutation lane here. The
+  # native projects are GENERATED (CNG) and never committed, and the RN-coupled
+  # client modules run under jest-expo, which the vitest-based mutation runner
+  # cannot execute — see tools/lib/mutation-critical.mjs (runner-boundary
+  # carve-outs) and docs/harness/gates-catalog.md (mutation-ratchet).

@@ -1,0 +1,148 @@
+{
+  "items": [
+    {
+      "id": "hold-001",
+      "input": "This introductory lesson explains how photosynthesis converts light energy into glucose. Students list the inputs and outputs of the process.",
+      "gold": [
+        {
+          "axis": "subject",
+          "code": "BIO"
+        },
+        {
+          "axis": "skill",
+          "code": "RECALL"
+        },
+        {
+          "axis": "difficulty",
+          "code": "INTRO"
+        }
+      ],
+      "canned": {
+        "tags": [
+          {
+            "axis": "subject",
+            "code": "BIO",
+            "evidence": {
+              "quote": "photosynthesis converts light energy",
+              "start": 38,
+              "end": 74
+            }
+          },
+          {
+            "axis": "skill",
+            "code": "RECALL",
+            "evidence": {
+              "quote": "list the inputs and outputs",
+              "start": 98,
+              "end": 125
+            }
+          },
+          {
+            "axis": "difficulty",
+            "code": "INTRO",
+            "evidence": {
+              "quote": "introductory lesson",
+              "start": 5,
+              "end": 24
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "hold-002",
+      "input": "Balance combustion equations and use mole ratios to predict the mass of carbon dioxide produced.",
+      "gold": [
+        {
+          "axis": "subject",
+          "code": "CHEM"
+        },
+        {
+          "axis": "skill",
+          "code": "APPLY"
+        }
+      ],
+      "canned": {
+        "tags": [
+          {
+            "axis": "subject",
+            "code": "CHEM",
+            "evidence": {
+              "quote": "Balance combustion equations",
+              "start": 0,
+              "end": 28
+            }
+          },
+          {
+            "axis": "skill",
+            "code": "ANALYZE",
+            "evidence": {
+              "quote": "use mole ratios to predict",
+              "start": 33,
+              "end": 59
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "hold-003",
+      "input": "Advanced problem set: derive the projectile range equation for launches onto sloped terrain.",
+      "gold": [
+        {
+          "axis": "subject",
+          "code": "PHYS"
+        },
+        {
+          "axis": "difficulty",
+          "code": "ADV"
+        }
+      ],
+      "canned": {
+        "tags": [
+          {
+            "axis": "subject",
+            "code": "PHYS",
+            "evidence": {
+              "quote": "projectile range equation",
+              "start": 33,
+              "end": 58
+            }
+          },
+          {
+            "axis": "grade",
+            "code": "G10",
+            "evidence": {
+              "quote": "Advanced problem set",
+              "start": 0,
+              "end": 20
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "hold-004",
+      "input": "Prime factorization drills with worked examples drawn from biology population counts.",
+      "gold": [
+        {
+          "axis": "subject",
+          "code": "MATH"
+        }
+      ],
+      "canned": {
+        "tags": [
+          {
+            "axis": "subject",
+            "code": "BIO",
+            "evidence": {
+              "quote": "biology population counts",
+              "start": 59,
+              "end": 84
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+# device-e2e module — the DEEP on-device lane. The base quality-gate mobile-e2e job is
+# the fast device lane (one emulator image, one font-scale point, the RTL journey on the
+# DEBUG binary); this scheduled matrix walks the RELEASE binary — minified Hermes
+# bytecode, the build where Fabric view flattening actually detaches careless testIDs —
+# across the claims the fast lane cannot afford per-PR:
+#
+#   - every API level: the committed route flows + the generated route sweep on api-33
+#     (the base lane's image) AND api-34/api-35 google_apis images — a testID that
+#     survives one OS vintage and detaches on another is exactly what a single-image
+#     lane never sees (design record: CI-LANE-FACTS).
+#   - font-scale sweep at 1.3 AND the 200% maximum on the api-34/35 legs: Android 14+
+#     supports font scaling up to 200% (non-linear), and its own guidance is to UI-test
+#     at that maximum — a clipped or overflowed layout loses its asserted leaves, which
+#     is what the re-run sweep detects.
+#     SOURCE: https://developer.android.com/about/versions/14/features (non-linear font scaling up to 200%)
+#   - the RTL journey against the RELEASE binary: the base lane can only run it on the
+#     debug build (the kv seed rides `run-as`, which needs a debuggable app). Here the
+#     seed rides `adb root` on the AOSP image instead, so the ar-XB/RTL boot is proven
+#     on the bytes that ship.
+#   - release cold-start measurement: tools/measure-startup.mjs against the release APK
+#     on the api-33 aosp_atd leg (the same image family the budgets in
+#     tools/startup-budget.json were ratcheted on), enforced by check-mobile-perf
+#     measurement mode — fail-closed under HARNESS_PERF_LANE=1.
+#
+# No credentials of any kind: the release build is assembleRelease with no store
+# signing, installed straight on emulators. Nightly + manual (slow emulator matrix);
+# the workflow IS the gate — no tools/harness.config.mjs change. Evidence (Maestro
+# debug output, screenshot, logcat tail) uploads on every leg, always.
+# SOURCE: docs/harness/gates-catalog.md (device-e2e module)
+name: device-e2e
+
+on:
+  schedule:
+    # Nightly. Offset from the base quality-gate cron so the two device lanes never
+    # compete for the same runner window. Trim to weekly here if the emulator-minutes
+    # budget matters more than the overnight signal.
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: device-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build ONCE, drive three times. The release APK is a pure function of the
+  # checkout (CNG prebuild + gradle), so building it per matrix leg would spend
+  # 3x gradle time to produce identical bytes — and a leg-local build could
+  # never prove "the SAME binary behaves on every image" the way one artifact can.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build (prebuild + assembleRelease, no store credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack (pins pnpm from package.json#packageManager)
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # RN 0.86's supported JDK (design record: CI-LANE-FACTS).
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # EXPO_PUBLIC_ vars are inlined at BUNDLE time, so they belong to this step's env,
+      # not to any device. Boot-shape dummies, NOT credentials (same discipline as the
+      # base mobile-e2e job): entraConfigured() must answer yes so the release binary
+      # installs its real auth provider and boots to its signed-out surfaces — no flow
+      # in this lane attempts an interactive sign-in.
+      - name: Prebuild + assembleRelease (unsigned — no store credentials anywhere)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
+          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+        run: |
+          npx expo prebuild -p android --no-install
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Upload the release APK for the matrix legs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: device-e2e-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 1
+          # A build job that produced no APK is a broken lane, never a green one.
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # The matrix. Each leg installs the SAME release APK and runs the committed
+  # route flows + the generated route sweep; per-leg extras are matrix data so
+  # the whole schedule is reviewable in one screen:
+  #
+  #   api-33 aosp_atd     root-capable AOSP image (Play-store images are release-key
+  #                       -signed and refuse `adb root`) -> the RTL-under-release
+  #                       journey; also the budget-comparable image family for
+  #                       the cold-start measurement half.
+  #   api-34 google_apis  current-API coverage + font-scale sweep incl. the 200%
+  #                       maximum (Android 14+ feature).
+  #   api-35 google_apis  same, one OS vintage ahead.
+  #
+  # The legs run NO pnpm install and NO gradle: every tool they invoke
+  # (tools/check-e2e-device.mjs, tools/measure-startup.mjs,
+  # tools/check-mobile-perf.mjs) is dependency-free node + adb + the pinned
+  # Maestro CLI, which keeps each emulator job minutes shorter and the failure
+  # surface device-shaped.
+  # ---------------------------------------------------------------------------
+  device:
+    name: device (api ${{ matrix.api-level }} ${{ matrix.target }})
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      # One flaky image must not cost the other legs' evidence.
+      fail-fast: false
+      matrix:
+        include:
+          # avd-key mirrors the base quality-gate lane's AVD cache key exactly, so
+          # this leg and the base lane share one warmed snapshot instead of paying
+          # for two.
+          - api-level: 33
+            target: aosp_atd
+            avd-key: avd-33-aosp-atd-x86_64
+            rtl-release: true
+            measure: true
+          - api-level: 34
+            target: google_apis
+            avd-key: avd-34-google-apis-x86_64
+            font-scales: '1.3 2.0'
+          - api-level: 35
+            target: google_apis
+            avd-key: avd-35-google-apis-x86_64
+            font-scales: '1.3 2.0'
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM (hardware acceleration for the emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Node for the lane tools; no corepack/pnpm on purpose (see the job comment).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # Maestro needs Java 17+; pin it rather than trusting the runner image's
+      # preinstall to never drift (design record: CI-LANE-FACTS).
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Checksum-verified Maestro (cli-2.6.1). Never the official install script:
+      # it does not verify what it downloads (design record: CI-LANE-FACTS).
+      - name: Install Maestro CLI (pinned zip, sha256-verified)
+        run: |
+          curl -fsSL -o maestro.zip https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.6.1/maestro.zip
+          echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" | sha256sum -c -
+          unzip -q maestro.zip -d "$HOME/.maestro-dist"
+          echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
+
+      # Pin resolved 2026-07-18: `gh api repos/actions/download-artifact/git/ref/tags/v8.0.1`.
+      # v8 fails closed on digest mismatch by default — the leg drives the exact
+      # bytes the build job hashed, or it reds.
+      - name: Download the release APK (built once above)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: device-e2e-apk
+          path: apk
+
+      - name: AVD cache
+        id: avd-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: ${{ matrix.avd-key }}
+
+      - name: Create AVD snapshot (cache miss only)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      # Matrix data reaches the script as env (never interpolated into the script
+      # text — the same template-injection discipline the workflow audits enforce
+      # on run: blocks).
+      - name: Deep lane (flows + sweeps + extended phases on the release binary)
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          FONT_SCALES: ${{ matrix.font-scales }}
+          RUN_RTL_RELEASE: ${{ matrix.rtl-release }}
+          RUN_MEASURE: ${{ matrix.measure }}
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash tools/ci/device-e2e-matrix.sh
+      - name: Upload evidence (Maestro debug output, screenshots, logcat tails)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: device-e2e-evidence-api${{ matrix.api-level }}
+          path: artifacts/device-e2e/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload measured startup numbers
+        if: ${{ always() && matrix.measure }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: device-e2e-perf-results
+          path: artifacts/perf-results.json
+          retention-days: 30
+          if-no-files-found: ignore

@@ -1,0 +1,141 @@
+# ci-mobile-release module — the PR preview lane, two deliberately unequal halves:
+#   fingerprint: every PR, credential-free. The expo/expo-github-action fingerprint
+#     sub-action diffs the project's native fingerprint against its database and
+#     comments the PR — "does this PR change the native app?" answered before review,
+#     with no EXPO_TOKEN anywhere near a pull request (design record: EXPO-FACTS,
+#     CI fingerprint). The push trigger is REQUIRED: default-branch pushes are what
+#     update the action's fingerprint database.
+#   preview-build: only on the `preview-build` label, and only when EXPO_TOKEN
+#     exists — a fire-and-forget `eas build --profile preview --no-wait` (CI is not
+#     billed while EAS builds; design record: RELEASE-FACTS). No token → the job
+#     stays GREEN with a loud warning: fork PRs never see secrets, and a preview is
+#     a convenience, never a floor.
+# SOURCE: docs/harness/gates-catalog.md (ci-mobile-release module)
+name: preview-mobile
+
+on:
+  push:
+    branches: ['{{DEFAULT_BRANCH}}']
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+# Default-branch runs must serialize: they update the fingerprint database and
+# concurrent writers conflict (the sub-action's documented requirement). PR runs
+# group by run id — each is its own group, so none queues behind another.
+concurrency:
+  group: preview-mobile-${{ github.event_name != 'pull_request' && 'fingerprint-db' || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  # Same pin discipline as release-mobile.yml (design record: RELEASE-FACTS).
+  EAS_CLI_VERSION: '21.0.2'
+
+jobs:
+  fingerprint:
+    name: fingerprint (native-change detector, credential-free)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # the sub-action comments the fingerprint diff on the PR
+      actions: write # and persists its fingerprint database in the Actions cache
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # A PR lane, not a release path — the pnpm cache is fine here.
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Pin resolved 2026-07-18: tag 8.2.1 (the v8 line EXPO-FACTS verified as
+      # credential-free; github-token only, packager set for this workspace).
+      - name: Fingerprint diff (native surface vs the database)
+        id: fingerprint
+        uses: expo/expo-github-action/fingerprint@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # 8.2.1
+        with:
+          working-directory: apps/mobile
+          packager: pnpm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Surface the verdict in the job log
+        env:
+          DIFF: ${{ steps.fingerprint.outputs.fingerprint-diff }}
+        run: |
+          if [ -z "$DIFF" ] || [ "$DIFF" = '[]' ]; then
+            echo "native fingerprint unchanged — this change is OTA-shaped (no native rebuild implied)"
+          else
+            echo "::notice::native fingerprint CHANGED — this PR alters the built app's native surface; expect a store build, not just an update"
+            echo "$DIFF" | jq . || echo "$DIFF"
+          fi
+
+  preview-build:
+    name: preview build (EAS, label-gated)
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'preview-build')
+    runs-on: ubuntu-latest
+    env:
+      # Secrets cannot be referenced in step `if:` directly — surface presence as env.
+      HAVE_EXPO_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # Green-with-warning, never red: a fork PR (or a repo without a token) can
+      # carry the label without breaking CI — the warning names what is missing.
+      - name: No EXPO_TOKEN — skip loudly, stay green
+        if: env.HAVE_EXPO_TOKEN != 'true'
+        run: |
+          echo "::warning::preview-build label is set but EXPO_TOKEN is not available to this run — no EAS preview build was queued (fork PRs never see secrets; configure a repository-level EXPO_TOKEN to enable previews)."
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Fire-and-forget: `--no-wait` returns as soon as the builds are queued —
+      # CI is not billed while EAS builds, and a preview's artifact belongs on
+      # the EAS dashboard, not in this job (design record: RELEASE-FACTS).
+      - name: Queue EAS preview builds
+        if: env.HAVE_EXPO_TOKEN == 'true'
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          npx --yes "eas-cli@${EAS_CLI_VERSION}" build --platform all --profile preview \
+            --non-interactive --json --no-wait > "$RUNNER_TEMP/eas-preview.json"
+          echo "Queued preview builds (see the EAS dashboard for progress + install links):"
+          jq -r '.[] | "  \(.platform // "unknown-platform") \(.id // "unknown-id")"' \
+            "$RUNNER_TEMP/eas-preview.json" || cat "$RUNNER_TEMP/eas-preview.json"

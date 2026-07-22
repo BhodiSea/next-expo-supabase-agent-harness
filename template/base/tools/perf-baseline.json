@@ -1,0 +1,13 @@
+{
+  "comment": "Committed gzip baseline for the build gate byte-true ratchet (tools/build-check.mjs): the bundle fails when measured gzip bytes exceed baseline × ratioCap — long before the absolute budgets in tools/bundle-budget.json (~3x headroom) would notice. Bytes are hardware-independent, so this check is deterministic everywhere, agent time included. Regenerate ONLY via `pnpm perf:baseline` after a DELIBERATE size change and commit the diff for review — the file is write-guard-protected. installerBudgetBytes bounds the nightly CI device-lane debug APK (a coarse bundled-dependency canary, not a ship-size promise) — the first nightly prints the real size; ratchet it DOWN in a reviewed commit.",
+  "generatedBy": "pnpm perf:baseline",
+  "gzip": {
+    "chunks": {
+      "android/entry.hbc": 1685940,
+      "assets": 442434
+    },
+    "total": 2129111
+  },
+  "installerBudgetBytes": 367001600,
+  "ratioCap": 1.25
+}

@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledMcpjsonServers": ["corpus_search", "rls_verify"],
+  "env": {
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "8"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-fast-check.mjs",
+            "timeout": 60,
+            "type": "command"
+          },
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-source-check.mjs",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-validate-gate.mjs",
+            "timeout": 600,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash",
+      "WebFetch",
+      "WebSearch",
+      "Bash(pnpm validate)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm knip)",
+      "Bash(pnpm arch)",
+      "Bash(pnpm format)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm exec vitest*)",
+      "Bash(pnpm exec jest*)",
+      "Bash(pnpm exec biome:*)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm exec eslint*)",
+      "Bash(pnpm exec knip*)",
+      "Bash(pnpm exec depcruise*)",
+      "Bash(pnpm exec expo config*)",
+      "Bash(pnpm exec expo export*)",
+      "Bash(pnpm exec expo install --check*)",
+      "Bash(pnpm exec expo-doctor*)",
+      "Bash(node tools/validate.mjs*)",
+      "Bash(node tests/rls/run-rls.mjs*)",
+      "Bash(node tests/migrations/migration-apply.mjs*)",
+      "Bash(pnpm db:up)",
+      "Bash(pnpm db:migrate)",
+      "Bash(pnpm openapi:emit)",
+      "Bash(docker compose up -d db*)",
+      "Bash(docker compose ps*)",
+      "Bash(docker compose logs*)",
+      "Bash(pnpm --filter @app/schema exec drizzle-kit generate*)",
+      "Bash(pnpm --filter @app/schema exec drizzle-kit check*)",
+      "Bash(maestro test*)",
+      "mcp__corpus_search__corpus_search",
+      "mcp__corpus_search__corpus_resolve",
+      "mcp__rls_verify__rls_verify",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:reactnative.dev)",
+      "WebFetch(domain:react.dev)",
+      "WebFetch(domain:hono.dev)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "WebFetch(domain:www.postgresql.org)",
+      "WebFetch(domain:developer.mozilla.org)"
+    ],
+    "ask": [
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git tag -d:*)",
+      "Bash(git clean:*)",
+      "Bash(docker compose down -v:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker system prune:*)",
+      "Bash(pnpm publish:*)",
+      "Bash(npm publish:*)",
+      "Bash(sudo:*)",
+      "Bash(eas build:*)",
+      "Bash(eas submit:*)",
+      "Bash(eas update:*)"
+    ],
+    "defaultMode": "acceptEdits",
+    "deny": [
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(rm -Rf:*)",
+      "Bash(rm -fR:*)",
+      "Bash(rm -r -f:*)",
+      "Bash(rm -R -f:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(pnpm exec expo prebuild*)",
+      "Bash(eas credentials:*)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./**/.env)",
+      "Read(./**/.env.local)",
+      "Read(./**/.env.*.local)",
+      "Read(./.dev-auth/**)",
+      "Read(./**/*.keystore)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.p8)",
+      "Read(./**/*.p12)",
+      "Read(./**/*.mobileprovision)",
+      "Read(./**/google-services.json)",
+      "Read(./**/GoogleService-Info.plist)",
+      "Read(./**/credentials.json)",
+      "Read(~/.ssh/**)",
+      "Edit(./.claude/hooks/**)",
+      "Write(./.claude/hooks/**)",
+      "Edit(./.claude/settings.json)",
+      "Write(./.claude/settings.json)",
+      "Edit(./.claude/settings.local.json)",
+      "Write(./.claude/settings.local.json)",
+      "Edit(./.mcp.json)",
+      "Write(./.mcp.json)",
+      "Edit(./.harness/**)",
+      "Write(./.harness/**)",
+      "Edit(./apps/mobile/android/**)",
+      "Write(./apps/mobile/android/**)",
+      "Edit(./apps/mobile/ios/**)",
+      "Write(./apps/mobile/ios/**)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "statusLine": {
+    "command": "$CLAUDE_PROJECT_DIR/.claude/statusline.mjs",
+    "type": "command"
+  }
+}

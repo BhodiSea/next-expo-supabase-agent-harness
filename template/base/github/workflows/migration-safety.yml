@@ -1,0 +1,101 @@
+# Migration safety — three independent nets over packages/schema/drizzle/**:
+#   1. squawk lints every NEW migration for classic Postgres footguns (lock-taking
+#      DDL, unsafe type changes) — added files only; modified files are already an
+#      append-only violation.
+#   2. the append-only / no-DML / destructive-DDL-needs-ADR gate re-asserted against
+#      the PR BASE (locally check-migrations.mjs diffs against HEAD; here the base
+#      ref catches a rewritten-then-committed migration).
+#   3. an explicit ADR-coupling grep: destructive DDL in a new migration must ship
+#      with an ADR (in-file `-- adr:` marker or a docs/adr/ change in the same PR).
+# SOURCE: docs/harness/README.md (migration discipline)
+name: migration-safety
+
+on:
+  pull_request:
+    paths:
+      - 'packages/schema/drizzle/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migration-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  squawk:
+    name: squawk (new migrations)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base is resolvable for the changed-files diff.
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Lint added migrations with squawk
+        shell: bash
+        run: |
+          mapfile -t added < <(git diff --name-only --diff-filter=A \
+            "origin/${GITHUB_BASE_REF}...HEAD" -- 'packages/schema/drizzle/*.sql')
+          if [ "${#added[@]}" -eq 0 ]; then
+            echo 'no new migration files in this PR — nothing for squawk to lint'
+            exit 0
+          fi
+          printf 'linting: %s\n' "${added[@]}"
+          # --assume-in-transaction: drizzle-kit migrate wraps each migration in a
+          # transaction, so per-statement robustness rules would be false positives.
+          pnpm dlx squawk-cli@2.59.0 --assume-in-transaction "${added[@]}"
+
+  append-only:
+    name: append-only + ADR coupling (vs base)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # GITHUB_BASE_REF makes the gate diff against origin/<base> instead of HEAD —
+      # the exact same script the local validate chain runs. Zero dependencies needed.
+      - name: check-migrations (append-only, no DML, destructive DDL needs ADR)
+        run: node tools/check-migrations.mjs
+
+      - name: ADR coupling for destructive DDL in new migrations
+        shell: bash
+        run: |
+          mapfile -t added < <(git diff --name-only --diff-filter=A \
+            "origin/${GITHUB_BASE_REF}...HEAD" -- 'packages/schema/drizzle/*.sql')
+          adr_changes=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- 'docs/adr/' | wc -l)
+          status=0
+          for f in "${added[@]}"; do
+            if grep -qiE '\b(DROP[[:space:]]+TABLE|DROP[[:space:]]+COLUMN|TRUNCATE)\b' "$f"; then
+              if ! grep -q -- '-- adr:' "$f" && [ "$adr_changes" -eq 0 ]; then
+                echo "::error file=$f::destructive DDL without ADR coupling — add \`-- adr: docs/adr/NNNN-<slug>.md\` or include the ADR in this PR"
+                status=1
+              fi
+            fi
+          done
+          exit "$status"

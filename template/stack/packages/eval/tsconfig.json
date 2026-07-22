@@ -1,0 +1,19 @@
+{
+  // @app/eval — Node-flavored workspace package (plain ESM, no bundler).
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically regardless of what
+  // resolution the base picks for the app workspaces (packages + server are
+  // node16-style, apps/mobile is bundler-style).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // TypeScript 6 no longer auto-includes node_modules/@types — node built-in
+    // types (node:fs for prompt/fixture loading) must be requested explicitly.
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,19 @@
+{
+  "comment": "Decision-group extensions (G27), merged into tools/lib/provenance-rules.mjs by BOTH enforcement layers. The six built-in groups (rls-policy, guc-identity, token-verification, vector-index, llm-sampling, tuning-constants) cover the stack-neutral security/LLM surface; this file carries the classes beyond them. The template SEEDS `mobile-security` — ATS/cleartext exceptions, Android permission strings, the runtimeVersion policy, and the updates URL are the locked mobile decision sites of the design record, so their constants carry a citation duty from day one. Add YOUR project's research/domain decision classes here too (a RAG chunk size, a similarity threshold, a sampling seed). Each group: {\"key\": \"lowercase-kebab\", \"description\": \"...\", \"patterns\": [\"regex-source\", ...]}. A group you add MUST also gain a corpus entry tagged with its key (the provenance gate's coverage lockstep enforces this). Write-guard-protected: extending the taxonomy is a reviewed act — and the seeded group is a floor, never remove it.",
+  "groups": [
+    {
+      "key": "mobile-security",
+      "description": "Mobile transport/permission/update security — ATS and cleartext exceptions, Android permission strings, runtimeVersion policy, the EAS updates URL",
+      "patterns": [
+        "NSAppTransportSecurity",
+        "NSAllowsArbitraryLoads",
+        "NSExceptionDomains",
+        "usesCleartextTraffic",
+        "cleartextTrafficPermitted",
+        "android\\.permission\\.",
+        "runtimeVersion",
+        "u\\.expo\\.dev"
+      ]
+    }
+  ]
+}

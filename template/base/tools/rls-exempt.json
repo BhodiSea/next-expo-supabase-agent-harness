@@ -1,0 +1,4 @@
+{
+  "comment": "Tables exempt from the FORCE-RLS + per-operation policy manifest gate (tools/check-rls-manifest.mjs). Every entry must be {\"table\": string, \"reason\": string} and be approved by {{SECURITY_OWNERS}} — an exemption without a reviewed reason is a gate bypass. Empty by design: the demo `notes` table is fully policied.",
+  "exempt": []
+}

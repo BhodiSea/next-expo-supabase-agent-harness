@@ -1,0 +1,15 @@
+# zizmor configuration (auto-discovered by zizmorcore/zizmor-action).
+# House rule (checked by the harden-runner-coverage job in actions-lint.yml): every
+# runnable job starts with step-security/harden-runner; on windows-* runners it runs
+# with egress-policy: audit — blocking is Linux-only, and an audited Windows job beats
+# an uninstrumented one.
+# SOURCE: docs/harness/README.md (workflow linting / CI-for-the-CI)
+rules:
+  cache-poisoning:
+    # Tag-triggered release/attestation workflows configure no dependency cache on the
+    # artifact-producing path, so there is no attacker-poisoned cache to taint them:
+    #   - release-mobile.yml (ci-mobile-release module)
+    #   - provenance.yml (ci-provenance module)
+    ignore:
+      - release-mobile.yml
+      - provenance.yml

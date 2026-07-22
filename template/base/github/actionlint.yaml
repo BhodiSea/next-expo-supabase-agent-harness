@@ -1,0 +1,6 @@
+# Custom self-hosted runner labels used by opt-in module workflows —
+# eval-live runs on the local GPU box (llama.cpp needs real hardware).
+# actionlint flags unknown labels as [runner-label] without this declaration.
+self-hosted-runner:
+  labels:
+    - gpu

@@ -1,0 +1,56 @@
+# docker-compose.pgbackrest.yml — OPT-IN overlay (ops-backup module).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.pgbackrest.yml up -d
+#
+# WHAT THIS IS: a local restore-DRILL rig — WAL archiving on, an archive volume,
+# and a scratch container to practice docs/runbooks/backup-restore-drill.md
+# against. A backup you have never restored is a rumor; this overlay makes the
+# drill a `docker compose` command instead of a production incident.
+#
+# WHAT THIS IS NOT: production backup. pgBackRest must run ON the database host
+# (archive_command invokes it in-process), with a remote repository (TLS/SSH or
+# S3-compatible), retention, and encryption — see the runbook's production
+# section for the pgbackrest.conf skeleton. The stock pgvector image carries no
+# pgbackrest binary, so the local drill uses the portable equivalents
+# (pg_basebackup + WAL file archiving) that exercise the SAME restore mechanics.
+# cspell:ignore pgbackrest basebackup pgarchive pgbackups psql PGHOST PGUSER PGPASSWORD
+services:
+  db:
+    # WAL archiving into a named volume: the raw material of point-in-time recovery.
+    # The `test ! -f … && cp` guard is the documented example archive_command shape
+    # (refuse to overwrite an already-archived segment); the `cp` stand-in replaces
+    # `pgbackrest --stanza=main archive-push %p` on a production host.
+    # SOURCE: https://www.postgresql.org/docs/16/continuous-archiving.html
+    # (archive_mode/archive_command with %p/%f, the test-!-f example, archive_timeout)
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=60
+      - -c
+      - archive_command=test ! -f /var/lib/pgarchive/%f && cp %p /var/lib/pgarchive/%f
+    volumes:
+      - pg-archive:/var/lib/pgarchive
+
+  # Scratch workbench for drills: same image (same pg_basebackup/psql versions),
+  # sees the archive + a backups volume, does nothing until you `compose run` it.
+  # Start a drill:  docker compose -f docker-compose.yml -f docker-compose.pgbackrest.yml \
+  #                   run --rm backup-drill bash
+  backup-drill:
+    # Same digest as docker-compose.yml's db service, so the drill's client tools
+    # always match the server version being drilled.
+    # SOURCE: harness doctrine — image pinned by digest, same pin as the base compose [corpus: harness/doctrine]
+    image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+    profiles: ['drill']
+    entrypoint: ['sleep', 'infinity']
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: postgres # local drill rig only — matches the dev compose convention
+    volumes:
+      - pg-archive:/var/lib/pgarchive:ro
+      - pg-backups:/var/lib/pgbackups
+
+volumes:
+  pg-archive:
+  pg-backups:

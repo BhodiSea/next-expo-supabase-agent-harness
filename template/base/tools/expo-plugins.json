@@ -1,0 +1,21 @@
+{
+  "//": "Reviewed config-plugin allowlist — the expo-policy gate locksteps the RESOLVED plugins[] against this file BIDIRECTIONALLY (an unreviewed plugin reds, a stale entry reds), and native-deps asserts every entry carries a reason. A config plugin rewrites the generated native project at prebuild time, so adding one is a native-surface decision: land the plugin and its entry in the same reviewed diff. Write-guard-protected against agents.",
+  "plugins": [
+    {
+      "name": "expo-router",
+      "reason": "file-based navigation — the app/ directory IS the route table the route-manifest gate closes over"
+    },
+    {
+      "name": "expo-secure-store",
+      "reason": "hardware-backed credential storage (Keychain/Keystore) — the one-door token store behind src/host + src/auth"
+    },
+    {
+      "name": "expo-localization",
+      "reason": "native locale surface: per-app language on iOS, RTL resources — the i18n floor's device half"
+    },
+    {
+      "name": "expo-splash-screen",
+      "reason": "native launch frame; its backgroundColor rides the generated dark canvas token (anti-flash lockstep asserted by expo-policy)"
+    }
+  ]
+}

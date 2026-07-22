@@ -1,0 +1,9 @@
+{
+  "comment": "Reviewed exemptions for the contracts gate's bounded-wire-string sweep (G18). Every z.string() in the wire contract (packages/contracts/src, plus packages/schema/src) must carry a .max(N) so a client cannot send an arbitrarily large payload the server buffers and stores. A genuinely-unbounded string the contract accepts on purpose goes here as {\"site\": \"packages/contracts/src/<file>.ts:<line>\", \"reason\": \"...\"}. Write-guard-protected + gate-integrity-hashed: widening it is a reviewed human act.",
+  "allow": [
+    {
+      "site": "packages/contracts/src/index.ts:71",
+      "reason": "Not unbounded: the site is `timestampText(z.string())`, and the timestampText helper (same file) applies `.regex(...).max(64)` to the schema it receives. The textual chain scan cannot see through the helper call; the bound is real and asserted by the contracts unit tests."
+    }
+  ]
+}

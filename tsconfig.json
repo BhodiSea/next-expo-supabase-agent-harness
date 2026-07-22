@@ -1,0 +1,36 @@
+{
+  // Root machinery typecheck (v0.1.5): tsc --noEmit over the same plain-.mjs
+  // surface the root eslint config lints. strict:false first pass — the goal
+  // is real type holes (bad call shapes, misspelled properties), not JSDoc
+  // annotation coverage. template/stack/** is consumer app surface and is
+  // typechecked by the scaffold's own tsc -b, never here.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "eslint.config.mjs",
+    "installer/**/*.mjs",
+    "scripts/**/*.mjs",
+    "tests/**/*.mjs",
+    "template/base/tools/**/*.mjs",
+    "template/base/.claude/**/*.mjs",
+    "template/base/tests/**/*.mjs",
+    "template/modules/**/*.mjs"
+  ],
+  "exclude": [
+    // Resolvable only inside an installed consumer, not in the repo layout:
+    // module tools land beside tools/lib/gate.mjs on install, and the MCP
+    // servers / stryker configs import scaffold-only dependencies. ESLint
+    // still lints all of these as repo source.
+    "template/modules/**",
+    "template/base/tools/mcp/**"
+  ]
+}

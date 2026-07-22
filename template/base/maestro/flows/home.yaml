@@ -1,0 +1,20 @@
+# maestro/flows/home.yaml — device flow for ROUTES id `home` (path `/`).
+#
+# W5 SEED: launch + prove the route surface is on screen. The CI device lane
+# arms these fully (emulator + installed release build + cold-start timing via
+# `adb shell am start -W` against tools/startup-budget.json). One flow per
+# ROUTES id — tools/check-mobile-perf.mjs --closure reds a route without one,
+# and a flow whose name is not a ROUTES id.
+#
+# Selector doctrine: assert an INTERACTIVE/styled leaf testID — the New
+# Architecture flattens plain wrapper Views and can detach their testIDs on
+# device, so a deep testID inside an unstyled wrapper is not a selector.
+# `open-actions` is the home header's actions button: a leaf, present in every
+# data state (loading/empty/error/ready), so the assertion cannot flake on
+# whatever the freshly-installed app's data happens to be.
+# SOURCE: https://reactnative.dev/docs/view#testid (testID reaches native view tags)
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- assertVisible:
+    id: "open-actions"

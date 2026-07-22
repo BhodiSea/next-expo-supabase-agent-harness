@@ -1,0 +1,99 @@
+# Lint the CI itself: actionlint (workflow syntax + shellcheck on run: blocks) and
+# zizmor (workflow security audit — pin hygiene, untrusted inputs, credential exposure).
+# House rule enforced in review + zizmor config: EVERY job carries harden-runner, and on
+# `windows-*` runners it uses `egress-policy: audit` (the agent cannot block egress on
+# Windows — an audit entry is honest; a silently absent sensor is not).
+# SOURCE: docs/harness/README.md (workflow linting / CI-for-the-CI)
+name: actions-lint
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/zizmor.yml'
+  push:
+    branches: ['{{DEFAULT_BRANCH}}']
+    paths:
+      - '.github/workflows/**'
+      - '.github/zizmor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actions-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: actionlint
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+
+  zizmor:
+    name: zizmor (workflow security audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+        with:
+          # Fail the job on findings instead of uploading SARIF — works without GitHub
+          # Advanced Security. Flip to true to feed the Security tab (needs
+          # security-events: write on this job and GHAS on private repos).
+          advanced-security: false
+
+  harden-runner-coverage:
+    name: harden-runner coverage (incl. audit-on-windows)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Deterministic grep-level enforcement of the house rule: every job in every
+      # workflow declares harden-runner as its first action, Windows jobs included
+      # (audit mode there). Exempt: reusable-workflow call jobs (`uses:` jobs have
+      # no steps of their own) and self-hosted jobs (the agent targets GitHub-hosted
+      # VMs; egress control on self-hosted boxes belongs to their host firewall).
+      - name: Every job carries harden-runner
+        shell: bash
+        run: |
+          status=0
+          for wf in .github/workflows/*.yml; do
+            jobs_total=$(grep -cE '^    (runs-on|uses):' "$wf" || true)
+            hardened=$(grep -c 'step-security/harden-runner@' "$wf" || true)
+            reusable=$(grep -cE '^    uses: .+/\.github/workflows/' "$wf" || true)
+            self_hosted=$(grep -cE '^    runs-on: \[?\s*self-hosted' "$wf" || true)
+            expected=$((jobs_total - reusable - self_hosted))
+            if [ "$hardened" -lt "$expected" ]; then
+              echo "::error file=$wf::$wf declares $expected runnable job(s) but only $hardened harden-runner step(s) — add harden-runner (egress-policy: audit on windows-*) as the first step of every job"
+              status=1
+            fi
+          done
+          exit "$status"

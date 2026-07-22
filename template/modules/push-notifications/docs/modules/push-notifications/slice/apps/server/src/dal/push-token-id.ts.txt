@@ -1,0 +1,70 @@
+import { createHash } from 'node:crypto'
+
+// cspell:words subarray
+// (^ Buffer API name — the shipped .txt form is spell-checked without the TS dictionary)
+// push-notifications module — deterministic row id for push_device_tokens.
+// Installed to apps/server/src/dal/push-token-id.ts.
+//
+// register() must be idempotent per (owner, token) and race-free under
+// concurrent app starts. The usual shape — a UNIQUE (owner_id, token) index as
+// the upsert arbiter — is off the table here because the harness plan probe
+// bulk-seeds isolation targets with constant per-column scalars, which a
+// two-column uniqueness constraint rejects (module README, honest limits). So
+// the arbiter is the PRIMARY KEY itself, made deterministic: a name-based
+// (version 5, SHA-1) UUID of (owner, token). Two racing registrations compute
+// the same id and collapse into one row via ON CONFLICT on the primary key.
+// SOURCE: RFC 9562 §5.5 — UUID version 5 (name-based, SHA-1)
+// https://www.rfc-editor.org/rfc/rfc9562
+
+/**
+ * Namespace minted once for this slice (any fixed UUID works; RFC 9562 lets
+ * applications define their own namespace ids). NEVER change it on a live
+ * database: every derived id — and register()'s idempotence with it — re-keys.
+ *
+ * gitleaks:allow — NOT a credential: a public RFC 9562 namespace UUID (the
+ * "TOKEN" in the name + UUID entropy merely pattern-matches generic-api-key).
+ * @public pinned verbatim by push-token-id.test.ts (knip: test-only consumer)
+ */
+export const PUSH_TOKEN_ID_NAMESPACE = '3f3c9a52-7a08-49d8-9de4-8f5a2c1d9b6e' // gitleaks:allow
+
+const UUID_HEX = /^[0-9a-f]{32}$/
+
+function uuidBytes(uuid: string): Buffer {
+  const hex = uuid.toLowerCase().replaceAll('-', '')
+  if (!UUID_HEX.test(hex)) {
+    throw new Error('push-token id derivation: namespace/owner is not a UUID')
+  }
+  return Buffer.from(hex, 'hex')
+}
+
+/**
+ * The deterministic push_device_tokens row id: UUIDv5(namespace, owner + token).
+ *
+ * `ownerId` is the verified token subject (a UUID, fixed 36-char text), so the
+ * concatenation is unambiguous whatever bytes the device token contains — the
+ * name's owner prefix has constant length. The '\n' separator is belt and
+ * braces on top of that.
+ */
+export function pushTokenRowId(ownerId: string, token: string): string {
+  // RFC 9562 name-based construction: SHA-1 over namespace bytes || name bytes,
+  // truncated to 128 bits, then version and variant bits stamped in place.
+  const digest = createHash('sha1')
+    .update(uuidBytes(PUSH_TOKEN_ID_NAMESPACE))
+    .update(uuidBytes(ownerId))
+    .update('\n', 'utf8')
+    .update(token, 'utf8')
+    .digest()
+  const bytes = Buffer.from(digest.subarray(0, 16))
+  // readUInt8/writeUInt8 instead of index access: the buffer is provably 16
+  // bytes, but noUncheckedIndexedAccess cannot know that.
+  bytes.writeUInt8((bytes.readUInt8(6) & 0x0f) | 0x50, 6) // version 5 nibble
+  bytes.writeUInt8((bytes.readUInt8(8) & 0x3f) | 0x80, 8) // RFC variant bits 10x
+  const hex = bytes.toString('hex')
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-')
+}

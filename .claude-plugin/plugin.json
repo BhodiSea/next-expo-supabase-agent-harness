@@ -1,0 +1,21 @@
+{
+  "name": "next-expo-supabase-agent-harness",
+  "description": "Subagents, commands, and the cross-surface vertical-slice + UI-design skills from the next-expo-supabase-agent-harness. The deterministic layer (hooks, gates, permissions, CI) cannot ship in a plugin — install it with: npx --yes github:BhodiSea/next-expo-supabase-agent-harness init",
+  "version": "0.1.2",
+  "author": {
+    "name": "Cogvera Labs"
+  },
+  "agents": [
+    "./template/base/.claude/agents/accessibility-reviewer.md",
+    "./template/base/.claude/agents/citation-verifier.md",
+    "./template/base/.claude/agents/dal-author.md",
+    "./template/base/.claude/agents/design-reviewer.md",
+    "./template/base/.claude/agents/migration-rls-author.md",
+    "./template/base/.claude/agents/mobile-security-reviewer.md",
+    "./template/base/.claude/agents/security-reviewer.md",
+    "./template/base/.claude/agents/test-author.md",
+    "./template/base/.claude/agents/torvalds-reviewer.md"
+  ],
+  "commands": "./template/base/.claude/commands",
+  "skills": "./template/base/.claude/skills"
+}

@@ -1,0 +1,45 @@
+# maestro/journeys/i18n-rtl.yaml — the ON-DEVICE half of the pseudo-locale + RTL sweep.
+#
+# PRECONDITION (the workflow's job, not this flow's): the kv store is PRE-SEEDED with
+# locale=ar-XB (and theme=light — the explicit-preference read path rides along) BEFORE
+# this launch, via `adb push` + `run-as` on the debuggable build — see the mobile-e2e
+# job. Never an in-run switch: react-native snapshots layout direction at startup
+# (I18nManager), so a live flip proves nothing about a mirrored BOOT — the app must
+# come up already-RTL (design record: src/i18n/platform.ts).
+#
+# What this asserts, honestly:
+#   1. every route surface still mounts under an RTL boot (the mirrored-layout crash
+#      class — a hardcoded direction assumption usually dies at first render);
+#   2. pseudo-localized copy is actually on screen: ar-XB wraps every catalog message
+#      in the pseudo brackets, so matching one on each route proves the catalog (not
+#      raw English source) rendered. The bracket literal here mirrors src/i18n/pseudo.ts
+#      by necessity — a YAML flow cannot import the transform; the RNTL fast lane owns
+#      per-key completeness, this lane owns "the DEVICE booted into it".
+# Home is asserted through its header button (open-actions) AND its container: the
+# button is the leaf that exists in every data state, signed-out included.
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+        id: "home-screen"
+    timeout: 60000
+- assertVisible:
+    id: "open-actions"
+# Pseudo-locale proof on the home surface: some catalog message rendered mangled.
+- assertVisible:
+    text: ".*⟦.*"
+- openLink: "{{APP_SCHEME}}://matrix"
+- extendedWaitUntil:
+    visible:
+        id: "matrix-screen"
+    timeout: 30000
+- assertVisible:
+    text: ".*⟦.*"
+- openLink: "{{APP_SCHEME}}://actions"
+- extendedWaitUntil:
+    visible:
+        id: "actions-screen"
+    timeout: 30000
+- assertVisible:
+    text: ".*⟦.*"

@@ -1,0 +1,20 @@
+# maestro/flows/matrix.yaml — device flow for ROUTES id `matrix` (path `/matrix`).
+#
+# W5 SEED: launch, reach the route through the app's own navigation (the tab
+# bar — a user path, not a test backdoor), and prove the route surface is on
+# screen. The CI device lane arms these fully (emulator + installed release
+# build + cold-start timing via `adb shell am start -W {{APP_SCHEME}}://matrix`
+# against tools/startup-budget.json). One flow per ROUTES id —
+# tools/check-mobile-perf.mjs --closure reds a route without one.
+#
+# `matrix-screen` is the Screen container's testID — sanctioned as a Maestro
+# selector by the Screen primitive itself (a STYLED SafeAreaView, so the New
+# Architecture does not flatten it away; only unstyled wrapper Views lose their
+# testIDs). The tab tap matches the visible tab title (catalog `route.matrix`);
+# the device lane runs the default locale.
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- tapOn: "Matrix"
+- assertVisible:
+    id: "matrix-screen"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", ":semanticCommits"],
+  "minimumReleaseAge": "5 days",
+  "schedule": ["before 6am on monday"],
+  "packageRules": [
+    {
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "dev dependencies"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  // Node 22 service: nodenext module resolution so tsc, tsx and node agree on
+  // ESM specifiers (explicit .js extensions on relative imports).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src", "scripts"],
+  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/schema" }]
+}

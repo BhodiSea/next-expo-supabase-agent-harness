@@ -1,0 +1,47 @@
+# deps / builds
+node_modules/
+dist/
+dist-types/
+*.tsbuildinfo
+coverage/
+# expo / metro artifacts
+.expo/
+# CNG purity: prebuild output is generated, never committed (the native-deps
+# gate asserts these stay untracked AND ignored)
+apps/mobile/android/
+apps/mobile/ios/
+# jest / maestro artifacts (fast-lane reports and device-lane recordings)
+test-results/
+.maestro/tests/
+# mutation lane (stryker sandbox + report) and device-lane evidence
+# (check-e2e-device / measure-startup write artifacts/). All generated; left
+# unignored they also enter the format gate via biome's useIgnoreFile and red
+# `pnpm validate` after any local `pnpm mutation` or device-lane run.
+.stryker-tmp/
+reports/
+artifacts/
+
+# env & local secrets — .env.example is the committed contract
+.env
+.env.*
+!.env.example
+# dev-only JWKS + minted tokens (the mint-dev-token CLI and the /auth/dev-token route)
+.dev-auth/
+# store/signing material must never enter the tree (EAS credentials service owns it)
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# harness runtime state (gate stamps, caches) — the install manifest stays
+# committed so `doctor` and CI can hash-verify harness-owned files
+.harness/*
+!.harness/manifest.json
+
+# editor/os noise
+.DS_Store
+*.log
+.eslintcache

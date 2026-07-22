@@ -1,0 +1,19 @@
+node_modules/
+*.log
+.DS_Store
+# Coverage artifacts (nothing generates these at the root today; belt-and-braces)
+coverage/
+# Local gate stamps
+.harness/*.ok
+# Scratch fixtures created by local selftest runs
+.fixtures/
+# Build artifacts a local `tsc -b` / `expo export` can drop INSIDE the template tree.
+# template/base/gitignore ships these rules to every scaffold — but that file only
+# protects CONSUMERS; this protects the shipped template itself from a `git add -A`.
+template/**/dist/
+template/**/dist-types/
+template/**/.expo/
+*.tsbuildinfo
+# CNG purity: generated native projects must never be committed, anywhere.
+template/**/android/
+template/**/ios/
