@@ -97,6 +97,12 @@
         "ref": "tests/gates/check-rls-manifest.test.mjs"
       }
     ],
+    "types-drift": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-types-drift.test.mjs"
+      }
+    ],
     "migrations": [
       {
         "kind": "selftest",

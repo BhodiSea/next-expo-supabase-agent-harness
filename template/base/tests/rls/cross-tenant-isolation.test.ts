@@ -1,241 +1,110 @@
-// Cross-user isolation over plain Postgres FORCE RLS: as user A, user B's rows must
-// be invisible to SELECT, untouchable by UPDATE/DELETE (0 rows matched, no error),
-// and un-smugglable via INSERT (WITH CHECK → SQLSTATE 42501). Includes the seeded
-// positive control (A sees its own row — a deny-all database must NOT pass), the
-// pooled-connection GUC-leak detector, and the catalog gate (FORCE RLS + per-op
-// policies + pgvector version straight from pg_catalog).
-// SOURCE: docs/harness/README.md (RLS testing doctrine) [corpus: postgres/rls-force]
+// Cross-tenant isolation proven THROUGH the Supabase client — the transport a real
+// Class-A mobile write and a web Server Action both take. Two tenants are created via
+// the admin API, sign in for real GoTrue JWTs, and then: tenant A sees its OWN rows
+// (the positive control — a deny-all database must NOT pass), a cross-tenant read
+// returns the EMPTY SET rather than an error (existence is data; a 403 on "note 91c3…"
+// confirms the row exists and belongs to someone else), a cross-tenant DELETE matches
+// nothing, an INSERT smuggling another tenant's owner id is rejected by WITH CHECK, and
+// an anonymous client — which holds no grant — reads nothing.
+//
+// This is the client-path twin of supabase/tests/rls_isolation.test.sql (pgTAP, the DB
+// boundary via raw role-switch). Both run from `node tests/rls/run-rls.mjs`; this half
+// self-skips unless RLS_SUITE_READY=1, so a bare `vitest run` never touches the network.
+// SOURCE: supabase/tests/rls_isolation.test.sql (the empty-set principle) [corpus: postgres/rls-force]
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
-  appSql,
+  anonClient,
+  createTenant,
+  deleteTenant,
   ISOLATION_TARGETS,
   RLS_SUITE_READY,
-  type Sql,
-  USER_A,
-  USER_B,
-  withUser,
+  resetTenants,
+  serviceClient,
+  signIn,
+  TENANT_A,
+  TENANT_B,
 } from './db-context'
 
 if (!RLS_SUITE_READY) {
-  describe.skip('user-scoped isolation (skipped: database not ready)', () => {
-    it('database not ready — RLS suite self-skips (run node tests/rls/run-rls.mjs; FAILS CLOSED in CI)', () => {
+  describe.skip('cross-tenant isolation via the Supabase client (skipped: no local stack)', () => {
+    it('self-skips — run `node tests/rls/run-rls.mjs`; this layer FAILS CLOSED in CI', () => {
       expect(true).toBe(true)
     })
   })
 } else {
-  describe('user-scoped isolation', () => {
-    let sql: Sql
+  describe('cross-tenant isolation via the Supabase client', () => {
+    let svc: SupabaseClient
+    let a: SupabaseClient
+    let b: SupabaseClient
 
     beforeAll(async () => {
-      sql = appSql()
-      // Seed one row per user per target THROUGH the RLS path (impersonated
-      // insert) — proving inserts-as-self work is itself part of the contract.
+      svc = serviceClient()
+      await resetTenants(svc) // clear residue from a prior aborted run
+      await createTenant(svc, TENANT_A)
+      await createTenant(svc, TENANT_B)
+      a = await signIn(TENANT_A.email, TENANT_A.password)
+      b = await signIn(TENANT_B.email, TENANT_B.password)
+      // Seed one row per target per tenant THROUGH the RLS path — that a self-write is
+      // ADMITTED is itself part of the contract the INSERT policies encode.
       for (const t of ISOLATION_TARGETS) {
-        for (const user of [USER_A, USER_B]) {
-          await withUser(sql, user, async (tx) => {
-            await tx`INSERT INTO ${tx(t.table)} ${tx(t.seedRow(user))}`
-          })
+        for (const [client, tenant] of [
+          [a, TENANT_A],
+          [b, TENANT_B],
+        ] as const) {
+          const { error } = await client.from(t.table).insert(t.seedRow(tenant.id))
+          expect(error, `${tenant.email} self-insert into ${t.table}: ${error?.message}`).toBeNull()
         }
       }
     })
 
     afterAll(async () => {
-      for (const t of ISOLATION_TARGETS) {
-        for (const user of [USER_A, USER_B]) {
-          await withUser(sql, user, async (tx) => {
-            await tx`DELETE FROM ${tx(t.table)}`
-          })
-        }
-      }
-      await sql.end({ timeout: 5 })
+      await deleteTenant(svc, TENANT_A)
+      await deleteTenant(svc, TENANT_B)
     })
 
-    it.each(ISOLATION_TARGETS)('isolates user B rows in $table from user A', async (t) => {
-      // POSITIVE CONTROL: A sees its OWN row. Without this, a deny-all database
-      // would make every assertion below pass vacuously.
-      const own = await withUser(
-        sql,
-        USER_A,
-        (tx) => tx`SELECT * FROM ${tx(t.table)} WHERE ${tx(t.ownerColumn)} = ${USER_A}`,
-      )
-      expect(own.length).toBeGreaterThanOrEqual(1)
+    it.each(ISOLATION_TARGETS)('isolates $table across tenants through PostgREST', async (t) => {
+      // POSITIVE CONTROL: A sees its OWN row. Without it, a deny-all database would pass
+      // every assertion below for the worst possible reason.
+      const own = await a.from(t.table).select(t.ownerColumn).eq(t.ownerColumn, TENANT_A.id)
+      expect(own.error, `A own-read ${t.table}: ${own.error?.message}`).toBeNull()
+      expect(own.data?.length ?? 0, `A must see its own ${t.table} row`).toBeGreaterThanOrEqual(1)
 
-      // SELECT another user's rows → RLS hides them: no error, zero rows.
-      const read = await withUser(
-        sql,
-        USER_A,
-        (tx) => tx`SELECT * FROM ${tx(t.table)} WHERE ${tx(t.ownerColumn)} = ${USER_B}`,
-      )
-      expect(read).toHaveLength(0)
+      // Cross-tenant SELECT → the EMPTY SET, no error. RLS filters rows; it does not
+      // reject the statement, so nothing — not even existence — is disclosed.
+      const cross = await a.from(t.table).select(t.ownerColumn).eq(t.ownerColumn, TENANT_B.id)
+      expect(cross.error, `A cross-read ${t.table} must not raise`).toBeNull()
+      expect(cross.data ?? [], `A must see none of B's ${t.table} rows`).toHaveLength(0)
 
-      // UPDATE / DELETE across users: statements match nothing (0 rows), no error.
-      // The probed column comes from the target's OWN seed row — hard-coding a
-      // column name (the old `SET title = ...`) reds SQLSTATE 42703 on any
-      // second ISOLATION_TARGET whose table has no such column.
-      const probeSample = t.seedRow(USER_B)
-      const probeColumn = Object.keys(probeSample).find((c) => c !== t.ownerColumn)
-      if (probeColumn === undefined) {
-        throw new Error(`${t.table}: seedRow has no non-owner column to probe`)
-      }
-      const updated = await withUser(
-        sql,
-        USER_A,
-        (tx) =>
-          tx`UPDATE ${tx(t.table)} SET ${tx(probeColumn)} = ${'pwned'} WHERE ${tx(t.ownerColumn)} = ${USER_B}`,
-      )
-      expect(updated.count).toBe(0)
-      const deleted = await withUser(
-        sql,
-        USER_A,
-        (tx) => tx`DELETE FROM ${tx(t.table)} WHERE ${tx(t.ownerColumn)} = ${USER_B}`,
-      )
-      expect(deleted.count).toBe(0)
+      // Cross-tenant DELETE matches nothing and raises nothing (the returned set is what
+      // was actually deleted — empty).
+      const del = await a.from(t.table).delete().eq(t.ownerColumn, TENANT_B.id).select()
+      expect(del.error, `A cross-delete ${t.table} must not raise`).toBeNull()
+      expect(del.data ?? [], `A must delete none of B's ${t.table} rows`).toHaveLength(0)
 
-      // INSERT smuggling B's id must be rejected by WITH CHECK → SQLSTATE 42501.
-      await expect(
-        withUser(sql, USER_A, (tx) => tx`INSERT INTO ${tx(t.table)} ${tx(t.seedRow(USER_B))}`),
-      ).rejects.toMatchObject({ code: '42501' })
+      // INSERT smuggling B's owner id → rejected by WITH CHECK (surfaced as a PostgREST
+      // error, never a silent write).
+      const smuggle = await a.from(t.table).insert(t.seedRow(TENANT_B.id))
+      expect(
+        smuggle.error,
+        `A smuggling B's owner id into ${t.table} must be rejected`,
+      ).not.toBeNull()
 
-      // B still sees B's data untouched (probe column not 'pwned', row count intact).
-      const bOwn = await withUser(
-        sql,
-        USER_B,
-        (tx) =>
-          tx`SELECT ${tx(probeColumn)} FROM ${tx(t.table)} WHERE ${tx(t.ownerColumn)} = ${USER_B}`,
-      )
-      expect(bOwn.length).toBeGreaterThanOrEqual(1)
-      for (const row of bOwn) expect(row[probeColumn]).not.toBe('pwned')
+      // B still sees its own row, untouched.
+      const bOwn = await b.from(t.table).select(t.ownerColumn).eq(t.ownerColumn, TENANT_B.id)
+      expect(
+        bOwn.data?.length ?? 0,
+        `B must still see its own ${t.table} row`,
+      ).toBeGreaterThanOrEqual(1)
     })
 
-    it('does not leak identity across the pooled connection (GUC hygiene)', async () => {
-      // withUser sets the GUC transaction-locally; after the transaction the SAME
-      // physical connection (pool max=1) must have no identity: current_setting
-      // returns NULL and RLS matches nothing.
-      await withUser(sql, USER_A, (tx) => tx`SELECT 1`)
-      const guc = await sql`SELECT current_setting('app.user_id', true) AS v`
-      // Postgres reports "no identity" two ways: NULL on a session that never
-      // set the GUC, '' on one that ran SET LOCAL in a now-closed transaction.
-      // The policies map BOTH to NULL via nullif(..., '') — any other value
-      // here is a real cross-request identity leak.
-      const leaked = guc[0]?.['v'] ?? null
-      expect(leaked === null || leaked === '', `leaked identity: ${String(leaked)}`).toBe(true)
-      for (const t of ISOLATION_TARGETS) {
-        const rows = await sql`SELECT * FROM ${sql(t.table)}`
-        expect(rows).toHaveLength(0)
-      }
-    })
-
-    // The account-deletion sweep (Apple 5.1.1(v)) — the LIVE half of the slice:
-    // accountDal.deleteAllOwnedData emits an unqualified DELETE (statement shape
-    // pinned by apps/server/src/dal/account.test.ts), so under FORCE RLS the
-    // policy qual must be the ONLY thing separating "delete my account" from
-    // "delete the table". Runs LAST in this describe: it empties user A.
-    it.each(
-      ISOLATION_TARGETS,
-    )('account deletion in $table: an unqualified DELETE as A sweeps ONLY A — B survives', async (t) => {
-      // Fresh seeds for both users through the RLS path.
-      for (const user of [USER_A, USER_B]) {
-        await withUser(sql, user, async (tx) => {
-          await tx`INSERT INTO ${tx(t.table)} ${tx(t.seedRow(user))}`
-        })
-      }
-      // The DAL's exact statement shape: DELETE with NO application WHERE.
-      const swept = await withUser(sql, USER_A, (tx) => tx`DELETE FROM ${tx(t.table)}`)
-      expect(swept.count).toBeGreaterThanOrEqual(1)
-      // A's account is empty…
-      const aRows = await withUser(sql, USER_A, (tx) => tx`SELECT * FROM ${tx(t.table)}`)
-      expect(aRows).toHaveLength(0)
-      // …and B's data SURVIVED the unqualified sweep — the whole point.
-      const bRows = await withUser(sql, USER_B, (tx) => tx`SELECT * FROM ${tx(t.table)}`)
-      expect(bRows.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  describe('catalog gate (pg_catalog facts, not vibes)', () => {
-    let sql: Sql
-    beforeAll(() => {
-      sql = appSql()
-    })
-    afterAll(async () => {
-      await sql.end({ timeout: 5 })
-    })
-
-    it('every isolation target has ENABLE + FORCE row security and per-op policies', async () => {
-      for (const t of ISOLATION_TARGETS) {
-        const rel = await sql`
-          SELECT relrowsecurity, relforcerowsecurity FROM pg_class
-          WHERE oid = ${`public.${t.table}`}::regclass`
-        expect(rel[0], t.table).toMatchObject({
-          relrowsecurity: true,
-          relforcerowsecurity: true,
-        })
-        const policies = await sql`
-          SELECT cmd FROM pg_policies WHERE schemaname = 'public' AND tablename = ${t.table}`
-        const cmds = new Set(policies.map((p) => String(p['cmd'])))
-        const covered = (op: string) => cmds.has(op) || cmds.has('ALL')
-        for (const op of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
-          expect(covered(op), `${t.table}: policy FOR ${op}`).toBe(true)
-        }
-      }
-    })
-
-    it('every isolation target owner column is the LEADING column of an index', async () => {
-      // Leading-column coverage is what turns the policy qual into an Index Cond —
-      // an index with the owner column in second position does not serve
-      // `owner = $0`, and every RLS policy filters by it on every statement.
-      // SOURCE: PostgreSQL multicolumn index semantics [corpus: postgres/rls-initplan]
-      for (const t of ISOLATION_TARGETS) {
-        const idx = await sql`
-          SELECT c.relname FROM pg_index i
-          JOIN pg_class c ON c.oid = i.indexrelid
-          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
-          WHERE i.indrelid = ${`public.${t.table}`}::regclass AND a.attname = ${t.ownerColumn}`
-        expect(
-          idx.length,
-          `${t.table}.${t.ownerColumn}: no leading-column index — add a migration (see 0001_notes_owner_idx.sql)`,
-        ).toBeGreaterThanOrEqual(1)
-      }
-    })
-
-    it('every policy predicate resolves identity through a sub-select (initPlan), per pg_policies', async () => {
-      // The static schema-rls gate asserts this on migration TEXT; this asserts it on
-      // what the database actually compiled — pg_policies pretty-prints the stored
-      // predicate, so a per-row current_setting() shows up here with no `( SELECT`.
-      // SOURCE: initPlan sub-select pattern [corpus: postgres/rls-initplan]
-      for (const t of ISOLATION_TARGETS) {
-        const policies = await sql`
-          SELECT policyname, qual, with_check FROM pg_policies
-          WHERE schemaname = 'public' AND tablename = ${t.table}`
-        expect(policies.length, `${t.table}: has policies`).toBeGreaterThanOrEqual(1)
-        for (const p of policies) {
-          const preds: [string, unknown][] = [
-            ['USING', p['qual']],
-            ['WITH CHECK', p['with_check']],
-          ]
-          for (const [kind, pred] of preds) {
-            if (pred === null || pred === undefined) continue
-            const text = String(pred)
-            expect(
-              /\(\s*SELECT\b/i.test(text) && /current_setting/i.test(text),
-              `${t.table} policy ${String(p['policyname'])} ${kind} must wrap current_setting in a scalar sub-select (initPlan) — got: ${text}`,
-            ).toBe(true)
-          }
-        }
-      }
-    })
-
-    it('pgvector is installed at a patched version (>= 0.8.2)', async () => {
-      const ext = await sql`SELECT extversion FROM pg_extension WHERE extname = 'vector'`
-      expect(ext, 'vector extension installed').toHaveLength(1)
-      const [maj = 0, min = 0, pat = 0] = String(ext[0]?.['extversion']).split('.').map(Number)
-      // SOURCE: patched pgvector floor per security advisory [corpus: pgvector/hnsw]
-      expect(maj * 10000 + min * 100 + pat).toBeGreaterThanOrEqual(802)
-    })
-
-    it('the app role is not policy-exempt (no BYPASSRLS, not superuser)', async () => {
-      const role = await sql`
-        SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`
-      expect(role[0]).toMatchObject({ rolsuper: false, rolbypassrls: false })
+    it('an anonymous client reads no rows from a private table', async () => {
+      // anon holds no grant on these tables (REVOKE ALL … FROM anon), so it reads
+      // nothing — whether PostgREST answers with a permission error or an empty set, the
+      // one thing that must never come back is a row.
+      const anon = anonClient()
+      const res = await anon.from('notes').select('id')
+      expect(res.data ?? [], 'anon must read zero rows').toHaveLength(0)
     })
   })
 }

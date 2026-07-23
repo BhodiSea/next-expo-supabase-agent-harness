@@ -206,19 +206,39 @@ dependency the moment an agent adds one.
 
 ### 11. schema-rls — `node tools/check-rls-manifest.mjs`
 
-Static <100ms cross-reference: every Drizzle `pgTable` in `packages/schema/src`
-has ENABLE + FORCE ROW LEVEL SECURITY and per-operation policies in the cumulative
-migration SQL, or an entry in the human-reviewed `tools/rls-exempt.json`. Policy
-predicates must be real (no `USING (true)`) and initPlan-shaped; every
-migration-created table must be a declared `pgTable`; every non-exempt table must
-be in `ISOLATION_TARGETS` (`tests/rls/db-context.ts`); every target's owner column
-must be the LEADING column of a migration-created index. Existence proof only —
-the runtime suite proves isolation and the access path.
-**Anti-vacuity:** declare `pgTable('widgets', …)` with no migration → FAIL four
-times (no ENABLE, no FORCE, missing policies); delete the owner-index migration →
-FAIL naming the missing leading column.
+Static <100ms cross-reference over the SQL, not substring vibes. Every table declared
+in `supabase/schemas/*.sql` has ENABLE + FORCE ROW LEVEL SECURITY and per-operation
+policies in the applied `supabase/migrations/*.sql`, or an entry in the human-reviewed
+`tools/rls-exempt.json`. Policy predicates must be real (no `USING (true)`) and resolve
+identity through the initPlan sub-select `(select auth.uid())`, not a per-row call. Every
+migration-created table must be declared in a schema; every non-exempt table must appear
+in BOTH runtime registries — `ISOLATION_TARGETS` (`tests/rls/db-context.ts`) and the pgTAP
+`rls_targets` (`supabase/tests/rls_structure.test.sql`), on the same owner column — and
+that owner column must be the LEADING column of some migration-declared index (an inline
+`PRIMARY KEY` counts). Existence proof only — the runtime twins prove isolation and the
+access path.
+**Anti-vacuity:** declare a table with no migration → FAIL (no ENABLE, no FORCE, missing
+policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth.uid()` →
+FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
+to one registry but not the other → FAIL naming the gap.
 
-### 12. migrations — `node tools/check-migrations.mjs`
+### 12. types-drift — `node tools/check-types-drift.mjs`
+
+Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
+running local stack and byte-diffs it against the committed
+`packages/platform/supabase/src/database.types.ts`; a mismatch means a migration landed
+without a `pnpm db:types` regen, so the checked-in types describe a schema no database
+runs. A LIVE-STACK gate: it SKIPS LOUDLY (exit 0) with no supabase CLI/stack — its
+fail-closed enforcement is the CI supabase lane that brings the stack up — and the mirror
+is opt-in (`pnpm db:types` writes it), so until it exists there is nothing to diff. The
+generic is deliberately NOT in the compile graph (`packages/platform/supabase/src/types.ts`):
+rows are re-parsed against zod at the DAL exit, so this is a CI drift assertion, never a
+compile-time licence to skip validation.
+**Anti-vacuity:** edit a committed migration's column and re-run without `pnpm db:types` →
+FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
+while the stack is up".
+
+### 13. migrations — `node tools/check-migrations.mjs`
 
 Append-only (no committed migration modified/deleted vs HEAD, or vs the PR base in
 CI); no DML without `-- harness-allow-dml: <reason>`; destructive DDL requires
@@ -227,7 +247,7 @@ migration; follow `docs/runbooks/expand-contract.md` for destructive phases.
 **Anti-vacuity:** append a comment to an existing migration file (editor) → FAIL
 append-only; add `DROP TABLE notes;` in a new migration without an ADR line → FAIL.
 
-### 13. contracts — `node tools/check-contract-drift.mjs`
+### 14. contracts — `node tools/check-contract-drift.mjs`
 
 (1) OpenAPI regen-diff: re-emit from the live route definitions
 (stable-stringified) and diff against the committed `apps/server/openapi.json` —
@@ -237,7 +257,7 @@ into confusing type errors otherwise.
 **Anti-vacuity:** add a route without re-emitting → FAIL stale; delete a
 `references` entry from a package tsconfig → FAIL naming the missing ref.
 
-### 14. dead-code — `pnpm exec knip --strict`
+### 15. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
@@ -246,7 +266,7 @@ visible, greppable claim, reviewed like code. NEVER `knip --fix` (blocked): it
 auto-deletes with false positives.
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 15. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 16. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; mobile resolves no `postgres|drizzle-orm|pino|@hono/*`,
 nothing in `apps/server`, and NOT `@app/schema` (wire contracts come from
@@ -257,7 +277,7 @@ under `apps/server/src/db/`; `withUserContext` importable only from the DAL;
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 16. build — `node tools/build-check.mjs`
+### 17. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -274,7 +294,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 17. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 18. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA. `tools/styleguide.manifest.json` (write-guard-protected)
 is the OKLCH source of truth; `tools/gen-theme.mjs` COMPILES it into the committed
@@ -313,7 +333,7 @@ FAIL naming the literal; call `Animated.timing` from a screen → FAIL pointing 
 the seam; spell `shadowOpacity:` outside src/theme → FAIL; style a raw
 `<Pressable>` in a second home file → FAIL naming the base.
 
-### 18. perf-budget — `node tools/check-perf-budget.mjs`
+### 19. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -340,7 +360,7 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 19. route-manifest — `node tools/check-route-manifest.mjs`
+### 20. route-manifest — `node tools/check-route-manifest.mjs`
 
 Every screen is REGISTERED: `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -357,7 +377,7 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-### 20. e2e — `node tools/check-e2e.mjs`
+### 21. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -376,7 +396,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 21. docs-sync — `node tools/check-docs-sync.mjs`
+### 22. docs-sync — `node tools/check-docs-sync.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must

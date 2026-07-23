@@ -12,6 +12,7 @@
     ["prompts", "node tools/check-prompts-lock.mjs"],
     ["licenses", "node tools/check-licenses.mjs"],
     ["schema-rls", "node tools/check-rls-manifest.mjs"],
+    ["types-drift", "node tools/check-types-drift.mjs"],
     ["migrations", "node tools/check-migrations.mjs"],
     ["contracts", "node tools/check-contract-drift.mjs"],
     ["dead-code", "pnpm exec knip --strict"],

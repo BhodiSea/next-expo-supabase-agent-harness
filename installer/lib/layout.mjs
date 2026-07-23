@@ -108,11 +108,11 @@ export const SEEDED_FILES = new Set([
   // project's judgements into another's repo.
   'tools/mutation-baseline.json',
   'tools/test-quality-allow.json',
+  // The isolation-target registry the schema-rls gate closes over AND the supabase-js
+  // suite drives: it names THIS project's user-scoped tables + owner columns, so only
+  // the project can write it. seedOnInitOnly — `update` withholds it from existing
+  // installs so one project's targets never overwrite another's.
   'tests/rls/db-context.ts',
-  // The DAL query-shape registry the plan probe drives: it names THIS project's
-  // DAL methods, so only the project can write it. seedOnInitOnly — `update` withholds it
-  // and the probe self-disables with an adoption NOTE rather than ambushing an upgrade.
-  'tests/rls/dal-shapes.ts',
 ])
 
 // The gate config is seeded (projects tune it) but hash-tracked so `doctor`

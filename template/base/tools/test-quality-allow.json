@@ -2,12 +2,8 @@
   "//": "Reviewed escapes for the test-quality gate (tools/check-test-quality.mjs): tests that are deliberately DISABLED (.skip/.todo/xit) or that deliberately carry no assertion. Keyed by '<file>::<test title>' — the TITLE, not a line number, so an entry survives the file being reformatted or the test moving. A reason is MANDATORY: a test that does not run is a hole in the net that every coverage number still counts as covered, so leaving one is a decision, not an oversight. There is NO escape for `.only` — a focused test silently disables the entire rest of the suite, and no reason makes that acceptable in a commit. This file is write-guard-protected and hashed by gate-integrity. A stale entry (its file is gone — e.g. an opt-in module this tier does not install) is ignored, not an error.",
   "allow": [
     {
-      "test": "tests/rls/cross-tenant-isolation.test.ts::user-scoped isolation (skipped: database not ready)",
-      "reason": "The RLS suite's documented self-skip, and it FAILS CLOSED where it matters. These suites need a real Postgres; `node tests/rls/run-rls.mjs` fresh-applies the migrations and sets RLS_SUITE_READY=1, and in CI a skip is an ERROR (CI=true makes the runner fail closed). So the skipped branch exists only so that a plain `vitest run` on a laptop with no database stays green instead of erroring — it is the local-dev affordance, not a disabled test. The enforcing branch is the one CI runs."
-    },
-    {
-      "test": "tests/rls/plan-regression.test.ts::RLS plan regression (skipped: database not ready)",
-      "reason": "Same RLS self-skip as cross-tenant-isolation: the DAL query-plan probe EXPLAINs against real Postgres at seed scale, so it cannot run without a database. Fail-closed in CI via tests/rls/run-rls.mjs."
+      "test": "tests/rls/cross-tenant-isolation.test.ts::cross-tenant isolation via the Supabase client (skipped: no local stack)",
+      "reason": "The SDK RLS suite's documented self-skip, and it FAILS CLOSED where it matters. It needs a running `supabase start` stack; `node tests/rls/run-rls.mjs` starts from that stack, sets RLS_SUITE_READY=1, and in CI a skip is an ERROR (CI=true makes the runner fail closed). So the skipped branch exists only so a plain `vitest run` on a laptop with no stack stays green instead of erroring — it is the local-dev affordance, not a disabled test. The enforcing branch is the one CI runs (alongside the pgTAP twin, supabase/tests/*.sql)."
     },
     {
       "test": "apps/server/src/observability/span-routes.test.ts::emits exactly one server span per request, named from this manifest (wire @opentelemetry/sdk-node + an InMemorySpanExporter, request each route, assert one span with the manifest name)",

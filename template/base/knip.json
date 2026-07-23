@@ -7,7 +7,7 @@
         "tools/mcp/**/*.mjs",
         "tests/rls/*.mjs",
         "tests/rls/**/*.test.ts",
-        "tests/migrations/*.mjs",
+        "tests/rls/db-context.ts",
         "eslint.config.mjs",
         "stryker.config.mjs"
       ],
@@ -86,7 +86,8 @@
     },
     "packages/platform/supabase": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts!"]
+      "project": ["src/**/*.ts!"],
+      "ignore": ["src/database.types.ts"]
     },
     "packages/verticals/notes": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],

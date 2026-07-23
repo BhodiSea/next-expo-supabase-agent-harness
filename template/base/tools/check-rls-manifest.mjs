@@ -1,41 +1,74 @@
 #!/usr/bin/env node
-// Gate: schema-rls — every Drizzle pgTable is covered by FORCE ROW LEVEL SECURITY and
-// per-operation policies in the migration SQL, every policy predicate is real (no
-// USING (true)) and uses the initPlan sub-select pattern, every table the migrations
-// create is declared in the schema, every non-exempt table is wired into the
-// runtime isolation matrix (tests/rls/db-context.ts ISOLATION_TARGETS) — or is
-// explicitly exempted in tools/rls-exempt.json (write-guard-protected, human-reviewed,
-// reasons required) — and every isolation target's owner column is the LEADING column
-// of some migration-created index (the policies filter by it on every statement; an
-// un-indexed owner column is a per-row sequential scan at scale). Static and <100ms:
-// statement-level SQL parsing, not substring vibes — an early regex version was defeated
-// by the shipped migration's own `AS PERMISSIVE` syntax and never looked at predicates
-// at all. The runtime twin (tests/rls/) re-asserts the index and initPlan facts from
-// pg_catalog and EXPLAIN.
+// Gate: schema-rls — every table DECLARED in supabase/schemas/*.sql is covered, in
+// the APPLIED migration SQL (supabase/migrations/*.sql), by ENABLE + FORCE ROW LEVEL
+// SECURITY and per-operation policies; every policy predicate is real (no
+// USING (true)) and resolves identity through the initPlan sub-select pattern
+// ((select auth.uid())); every table a migration creates is declared in a schema;
+// every non-exempt table is wired into BOTH runtime registries — the client suite's
+// ISOLATION_TARGETS (tests/rls/db-context.ts) and the pgTAP structural suite's
+// rls_targets (supabase/tests/rls_structure.test.sql) — which must name the SAME set
+// on the SAME owner columns, so neither can silently under-cover; and every target's
+// owner column is the LEADING column of some migration-declared index (a PRIMARY KEY
+// or UNIQUE on that column counts). Or the table is explicitly exempted in
+// tools/rls-exempt.json (write-guard-protected, human-reviewed, reasons required).
+//
+// Static and <100ms: statement-level SQL parsing, not substring vibes — an early
+// regex version was defeated by the shipped migration's own `AS PERMISSIVE` syntax
+// and never looked at predicates at all. The runtime twins re-assert isolation and
+// the index/initPlan facts from pg_catalog against `supabase start`:
+// supabase/tests/*.sql (pgTAP) and tests/rls/ (the client), both via
+// tests/rls/run-rls.mjs.
 // SOURCE: docs/harness/README.md (schema-rls gate) [corpus: postgres/rls-force]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'schema-rls'
-const SCHEMA_DIR = 'packages/schema/src'
-const MIGRATIONS_DIR = 'packages/schema/drizzle'
+const SCHEMAS_DIR = 'supabase/schemas'
+const MIGRATIONS_DIR = 'supabase/migrations'
 const EXEMPT = 'tools/rls-exempt.json'
 const DB_CONTEXT = 'tests/rls/db-context.ts'
+const PGTAP_STRUCTURE = 'supabase/tests/rls_structure.test.sql'
 
-if (!existsSync(SCHEMA_DIR)) skipOrFail(GATE, `${SCHEMA_DIR} not found (no schema surface yet)`)
+if (!existsSync(SCHEMAS_DIR)) skipOrFail(GATE, `${SCHEMAS_DIR} not found (no schema surface yet)`)
 
-// 1. Declared tables from Drizzle schema source: pgTable('name', ...)
-const declaredTables = new Set()
-for (const rel of walkFiles(SCHEMA_DIR, {
-  filter: (p) => /\.ts$/.test(p) && !/\.(test|spec)\.ts$/.test(p),
-})) {
-  const src = readFileSync(`${SCHEMA_DIR}/${rel}`, 'utf8')
-  for (const m of src.matchAll(/pgTable\(\s*['"]([a-z0-9_]+)['"]/g)) declaredTables.add(m[1])
+// Concatenate every .sql in a directory in filename order — the cumulative text is
+// what the database ends up running.
+function readSqlDir(dir) {
+  if (!existsSync(dir)) return ''
+  let raw = ''
+  for (const f of readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()) {
+    raw += `\n${readFileSync(join(dir, f), 'utf8')}`
+  }
+  return raw
 }
 
-if (declaredTables.size === 0) skipOrFail(GATE, 'no pgTable declarations found yet')
+// Strip line comments (they legally contain SQL keywords), drop double quotes, and
+// collapse each statement to one whitespace-normalized line. Dollar-quoted function
+// bodies split into fragments that match none of the DDL patterns below — harmless.
+function statementsOf(raw) {
+  return raw
+    .split('\n')
+    .filter((l) => !/^\s*--/.test(l))
+    .join('\n')
+    .replace(/"/g, '')
+    .split(/;|--> statement-breakpoint/)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+const stripSchema = (t) => t.replace(/^public\./, '')
+
+// 1. Declared tables = the DESIRED state (supabase/schemas). This is the pgTable
+//    analogue: the inventory every other check is closed over.
+const declaredTables = new Set()
+for (const stmt of statementsOf(readSqlDir(SCHEMAS_DIR))) {
+  const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
+  if (m) declaredTables.add(stripSchema(m[1].toLowerCase()))
+}
+if (declaredTables.size === 0) skipOrFail(GATE, `no CREATE TABLE found in ${SCHEMAS_DIR} yet`)
 
 // 2. Exemptions — the ONE escape hatch, so its parse fails LOUD, never open.
 //    Canonical shape: { "comment": string, "exempt": [{ "table": string, "reason": string }] }
@@ -73,37 +106,24 @@ if (existsSync(EXEMPT)) {
   }
 }
 
-// 3. Statement-level parse of the cumulative migration SQL.
-let rawSql = ''
-if (existsSync(MIGRATIONS_DIR)) {
-  for (const f of readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()) {
-    rawSql += `\n${readFileSync(join(MIGRATIONS_DIR, f), 'utf8')}`
-  }
-}
-// Strip line comments (they legally contain SQL keywords), normalize quotes and
-// whitespace, then split into statements.
-const statements = rawSql
-  .split('\n')
-  .filter((l) => !/^\s*--/.test(l))
-  .join('\n')
-  .replace(/"/g, '')
-  .split(/;|--> statement-breakpoint/)
-  .map((s) => s.replace(/\s+/g, ' ').trim())
-  .filter(Boolean)
-
-const stripSchema = (t) => t.replace(/^public\./, '')
-
+// 3. Statement-level parse of the APPLIED migration SQL — the history a database
+//    actually replays. RLS is only real once it is in a migration; a policy that
+//    lives only in the declarative schema never ran.
 const enabled = new Set()
 const forced = new Set()
 const createdTables = new Set()
-// table -> Set of leading index columns (CREATE INDEX / PK / UNIQUE constraints)
+// table -> Set of leading index columns (CREATE INDEX / PK / UNIQUE)
 const indexedLeading = new Map()
 // table -> op -> [{ name, using, check }]
 const policies = new Map()
 
-for (const stmt of statements) {
+function registerLeading(table, col) {
+  const c = col.toLowerCase()
+  if (!indexedLeading.has(table)) indexedLeading.set(table, new Set())
+  indexedLeading.get(table).add(c)
+}
+
+for (const stmt of statementsOf(readSqlDir(MIGRATIONS_DIR))) {
   let m = stmt.match(/^ALTER TABLE (?:ONLY )?([a-z0-9_.]+) ENABLE ROW LEVEL SECURITY$/i)
   if (m) {
     enabled.add(stripSchema(m[1].toLowerCase()))
@@ -116,7 +136,26 @@ for (const stmt of statements) {
   }
   m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
   if (m) {
-    createdTables.add(stripSchema(m[1].toLowerCase()))
+    const table = stripSchema(m[1].toLowerCase())
+    createdTables.add(table)
+    // An INLINE primary key is the owner index for a table whose owner column IS
+    // its id (e.g. public.profiles): `id uuid PRIMARY KEY` creates the index the
+    // policy qual rides, with no separate CREATE INDEX. Parse the column list so
+    // that counts. The list is everything between the first `(` and the final `)`.
+    const cols = stmt.match(/^CREATE TABLE[^(]*\((.*)\)\s*$/is)?.[1]
+    if (cols !== undefined) {
+      // Column-level `<col> <type> ... PRIMARY KEY|UNIQUE` (not the table-level
+      // `PRIMARY KEY (...)` form, which the negative lookahead excludes).
+      for (const cm of cols.matchAll(
+        /(?:^|,)\s*([a-z0-9_]+)\b[^,]*?\b(?:PRIMARY KEY|UNIQUE)\b(?!\s*\()/gi,
+      )) {
+        registerLeading(table, cm[1])
+      }
+      // Table-level `[CONSTRAINT x] PRIMARY KEY|UNIQUE (<col>, ...)` — leading col.
+      for (const cm of cols.matchAll(/\b(?:PRIMARY KEY|UNIQUE)\s*\(\s*([a-z0-9_]+)/gi)) {
+        registerLeading(table, cm[1])
+      }
+    }
     continue
   }
   // CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] <name> ON [ONLY] <table>
@@ -142,10 +181,7 @@ for (const stmt of statements) {
       .trim()
       .toLowerCase()
       .match(/^[a-z0-9_]+/)?.[0]
-    if (leading !== undefined) {
-      if (!indexedLeading.has(table)) indexedLeading.set(table, new Set())
-      indexedLeading.get(table).add(leading)
-    }
+    if (leading !== undefined) registerLeading(table, leading)
     continue
   }
   // CREATE POLICY <name> ON <table> [AS PERMISSIVE|RESTRICTIVE] [FOR <op>]
@@ -166,11 +202,12 @@ for (const stmt of statements) {
   }
 }
 
-// 4. Runtime-matrix closure: tables wired into ISOLATION_TARGETS.
-let isolationTargets = null // null = suite file absent (pre-scaffold shapes)
-// table -> ownerColumn, when the entry keeps the scaffolded `table:` -> `ownerColumn:`
-// key order. An unmatchable entry only skips the STATIC index check — the runtime
-// pg_catalog check in tests/rls/ still enforces it against the live database.
+// 4. Runtime-matrix closure. TWO registries the runtime suites drive, which the gate
+//    holds to the SAME set so a table cannot be proven by one and forgotten by the
+//    other. ISOLATION_TARGETS (the client suite) carries the owner column too.
+//    `null` = the registry file is absent (pre-scaffold shapes) — its checks are
+//    then inert and the pg_catalog twins still enforce the fact at runtime.
+let isolationTargets = null
 const targetOwnerColumns = new Map()
 if (existsSync(DB_CONTEXT)) {
   const ctx = readFileSync(DB_CONTEXT, 'utf8')
@@ -182,12 +219,27 @@ if (existsSync(DB_CONTEXT)) {
   }
 }
 
+let pgtapTargets = null
+if (existsSync(PGTAP_STRUCTURE)) {
+  const insert = readFileSync(PGTAP_STRUCTURE, 'utf8').match(
+    /INSERT\s+INTO\s+rls_targets\b[^;]*;/i,
+  )?.[0]
+  if (insert !== undefined) {
+    pgtapTargets = new Map()
+    for (const m of insert.matchAll(/\(\s*'([a-z0-9_]+)'\s*,\s*'([a-z0-9_]+)'\s*\)/g)) {
+      pgtapTargets.set(m[1], m[2])
+    }
+  }
+}
+
 const OPS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
 const errs = []
 
-// A predicate is vacuous when it always passes; per-row current_setting (no
-// initPlan sub-select) is a correctness-adjacent perf failure the runtime
-// suite cannot see (it tests 2 rows, production has 2 million).
+// A predicate is vacuous when it always passes; a per-row identity call (no initPlan
+// sub-select) is a correctness-adjacent perf failure the runtime suite cannot see (it
+// tests 2 rows, production has 2 million).
+const IDENTITY_CALL = /\b(?:auth\.uid|auth\.jwt|current_setting)\s*\(/i
+const IDENTITY_IN_SUBSELECT = /\(\s*select\b[^)]*(?:auth\.uid|auth\.jwt|current_setting)\s*\(/i
 function checkPredicate(table, policyName, kind, body) {
   if (body === null) return
   const trimmed = body.trim().toLowerCase()
@@ -195,9 +247,9 @@ function checkPredicate(table, policyName, kind, body) {
     errs.push(`${table}: policy ${policyName} has a vacuous ${kind} (true) — it permits every row`)
     return
   }
-  if (/current_setting\(/i.test(body) && !/\(\s*select\b[^)]*current_setting\(/i.test(body)) {
+  if (IDENTITY_CALL.test(body) && !IDENTITY_IN_SUBSELECT.test(body)) {
     errs.push(
-      `${table}: policy ${policyName} calls current_setting() per row — wrap it in a scalar sub-select (initPlan pattern): (select current_setting('app.user_id', true))`,
+      `${table}: policy ${policyName} calls an identity function per row — wrap it in a scalar sub-select (initPlan pattern): (select auth.uid())`,
     )
   }
 }
@@ -223,32 +275,64 @@ for (const table of [...declaredTables].sort()) {
 
   if (isolationTargets !== null && !isolationTargets.has(table)) {
     errs.push(
-      `${table}: not wired into ISOLATION_TARGETS (${DB_CONTEXT}) — the runtime suite never proves its isolation; add a target entry (or exempt with a reviewed reason)`,
+      `${table}: not wired into ISOLATION_TARGETS (${DB_CONTEXT}) — the client suite never proves its isolation; add a target entry (or exempt with a reviewed reason)`,
+    )
+  }
+  if (pgtapTargets !== null && !pgtapTargets.has(table)) {
+    errs.push(
+      `${table}: not listed in rls_targets (${PGTAP_STRUCTURE}) — the pgTAP structural suite never asserts its shape; add a ('${table}', '<owner_column>') row (or exempt with a reviewed reason)`,
     )
   }
 
   const ownerCol = targetOwnerColumns.get(table)
-  if (ownerCol !== undefined && !(indexedLeading.get(table)?.has(ownerCol) ?? false)) {
+  if (ownerCol !== undefined) {
+    if (!(indexedLeading.get(table)?.has(ownerCol) ?? false)) {
+      errs.push(
+        `${table}: no index with leading column ${ownerCol} in any migration — every RLS policy filters by it, so an un-indexed owner column degrades to a per-row sequential scan at scale; add one in a migration (a PRIMARY KEY on the owner column counts)`,
+      )
+    }
+    const pgtapOwner = pgtapTargets?.get(table)
+    if (pgtapOwner !== undefined && pgtapOwner !== ownerCol) {
+      errs.push(
+        `${table}: the two registries disagree on the owner column — ${DB_CONTEXT} says '${ownerCol}', ${PGTAP_STRUCTURE} says '${pgtapOwner}'`,
+      )
+    }
+  }
+}
+
+// Two-way closure: a registry row naming a table no schema declares is a stale row —
+// the runtime suite silently over- or under-asserts, exactly the drift the plan's
+// two-way parity discipline exists to catch.
+for (const table of isolationTargets ?? []) {
+  if (!declaredTables.has(table) && !exempt.has(table)) {
     errs.push(
-      `${table}: no index with leading column ${ownerCol} in any migration — every RLS policy filters by it, so an un-indexed owner column degrades to a per-row sequential scan at scale; add one in a NEW migration (see 0001_notes_owner_idx.sql)`,
+      `${table}: listed in ISOLATION_TARGETS (${DB_CONTEXT}) but no schema declares it — remove the stale target or add the table`,
+    )
+  }
+}
+for (const table of pgtapTargets?.keys() ?? []) {
+  if (!declaredTables.has(table) && !exempt.has(table)) {
+    errs.push(
+      `${table}: listed in rls_targets (${PGTAP_STRUCTURE}) but no schema declares it — remove the stale row or add the table`,
     )
   }
 }
 
-// Migration-only tables escape BOTH the static and runtime nets — surface them.
+// Migration-only tables escape BOTH the schema net and the isolation matrix — surface
+// them. (Applied history diverging from the declarative schema is itself the drift.)
 for (const table of [...createdTables].sort()) {
   if (declaredTables.has(table) || exempt.has(table)) continue
   errs.push(
-    `${table}: created by a migration but not declared as a pgTable in ${SCHEMA_DIR} — undeclared tables escape the schema gate and the isolation matrix`,
+    `${table}: created by a migration but not declared in ${SCHEMAS_DIR} — undeclared tables escape the schema gate and the isolation matrix`,
   )
 }
 
 failures(
   GATE,
   errs,
-  `Add the RLS statements to a NEW migration and the table to ISOLATION_TARGETS, or (human decision) exempt it with a reason in ${EXEMPT}.`,
+  `Add the RLS statements to a NEW migration and the table to ISOLATION_TARGETS + rls_targets, or (human decision) exempt it with a reason in ${EXEMPT}.`,
 )
 ok(
   GATE,
-  `${declaredTables.size} table(s): FORCE RLS + per-op policies + real predicates + owner-column indexes + isolation-matrix coverage`,
+  `${declaredTables.size} table(s): FORCE RLS + per-op policies + real predicates + owner-column indexes + dual isolation-registry coverage`,
 )

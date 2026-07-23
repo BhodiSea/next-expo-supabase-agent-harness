@@ -34,14 +34,16 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 21-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 22-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
 - `pnpm test` (`vitest run`) · `pnpm test:mobile` (jest-expo, the RN half) ·
-  `pnpm test:rls` (`node tests/rls/run-rls.mjs` — live isolation vs Postgres).
-- `pnpm db:up` · `pnpm db:migrate` (drizzle-kit migrate as `app_migrator`).
-- `pnpm dev:server` · `pnpm dev:mobile` · `pnpm openapi:emit` · `pnpm mutation`.
+  `pnpm test:rls` (`node tests/rls/run-rls.mjs` — live isolation vs the supabase stack:
+  pgTAP + the supabase-js client suite).
+- `pnpm db:up` (`supabase start`) · `pnpm db:reset` · `pnpm db:test` (pgTAP) ·
+  `pnpm db:types` (regenerate the Supabase type mirror) · `pnpm gen` (types + tokens).
+- `pnpm dev:web` · `pnpm dev:mobile` · `pnpm mutation`.
 
 ## The validate contract (YOU MUST)
 
@@ -57,9 +59,9 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 21 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
+- The 22 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
   `provenance`, `expo-policy`, `native-deps`, `version-sync`, `prompts`,
-  `licenses`, `schema-rls`, `migrations`, `contracts`, `dead-code`,
+  `licenses`, `schema-rls`, `types-drift`, `migrations`, `contracts`, `dead-code`,
   `architecture`, `build`, `styleguide`, `perf-budget`, `route-manifest`,
   `e2e`, `docs-sync` (docs/harness/gates-catalog.md documents each).
 - **Toolchain asymmetry:** gates needing a live database, an install, or a
