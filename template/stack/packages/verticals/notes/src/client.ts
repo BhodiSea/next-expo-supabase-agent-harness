@@ -22,46 +22,8 @@
 // credential out of an app store binary.
 // ---------------------------------------------------------------------------
 
-// Pure domain — no IO, no clock, fully unit-tested.
-export {
-  applyNoteUpdate,
-  buildExcerpt,
-  compareNotesByRecency,
-  isArchived,
-  isRenderableTitle,
-  normalizeTitle,
-  type NotePatch,
-  toNoteView,
-} from './domain/note.js'
-
-// The keyset codec. Both surfaces need it: the server mints cursors, the
-// clients hold them, and an optimistic list has to be able to read one back.
-export { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from './domain/cursor.js'
-
-// Input schemas — validated identically wherever a form lives.
-export {
-  clampPageLimit,
-  CreateNoteSchema,
-  ListNotesSchema,
-  NoteRefSchema,
-  UpdateNoteSchema,
-} from './schemas.js'
-
-// The event vocabulary. Names and payload shapes are shared so a client-side
-// cache can invalidate on the same facts a server-side sink records. The
-// CATALOG rides this barrel too: the contracts generator walks it, and a
-// catalog reachable only from the server barrel would be invisible to it.
-export { noteEvents } from './events.js'
-export type {
-  NoteCreatedPayload,
-  NoteDeletedPayload,
-  NoteEvent,
-  NoteEventBase,
-  NoteEventSink,
-  NoteField,
-  NoteUpdatedPayload,
-} from './events.js'
-
+// Direct reads.
+export { getNote, listNotes } from './data/notes.js'
 // The database port — a type, so it costs nothing at runtime, and it is what
 // lets a caller pass its own RLS-scoped client without importing the DAL's
 // internals.
@@ -72,6 +34,39 @@ export type {
   PostgrestQuery,
   PostgrestTable,
 } from './data/port.js'
-
-// Direct reads.
-export { getNote, listNotes } from './data/notes.js'
+// The keyset codec. Both surfaces need it: the server mints cursors, the
+// clients hold them, and an optimistic list has to be able to read one back.
+export { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from './domain/cursor.js'
+// Pure domain — no IO, no clock, fully unit-tested.
+export {
+  applyNoteUpdate,
+  buildExcerpt,
+  compareNotesByRecency,
+  isArchived,
+  isRenderableTitle,
+  type NotePatch,
+  normalizeTitle,
+  toNoteView,
+} from './domain/note.js'
+export type {
+  NoteCreatedPayload,
+  NoteDeletedPayload,
+  NoteEvent,
+  NoteEventBase,
+  NoteEventSink,
+  NoteField,
+  NoteUpdatedPayload,
+} from './events.js'
+// The event vocabulary. Names and payload shapes are shared so a client-side
+// cache can invalidate on the same facts a server-side sink records. The
+// CATALOG rides this barrel too: the contracts generator walks it, and a
+// catalog reachable only from the server barrel would be invisible to it.
+export { noteEvents } from './events.js'
+// Input schemas — validated identically wherever a form lives.
+export {
+  CreateNoteSchema,
+  clampPageLimit,
+  ListNotesSchema,
+  NoteRefSchema,
+  UpdateNoteSchema,
+} from './schemas.js'

@@ -28,6 +28,8 @@ export const CITATION_DOMAINS = [
   'developer.mozilla.org',
   // This stack's platform documentation hosts.
   'docs.expo.dev', // Expo SDK / EAS / config reference — NOT the expo.dev apex
+  'supabase.com', // Supabase's OWN docs (supabase.com/docs — auth, api keys, RN quickstart): the data/identity tier of this stack
+  'docs.postgrest.org', // PostgREST's OWN docs — the error codes and query grammar Supabase serves the DB through
   'reactnative.dev', // React Native docs
   'developer.android.com', // Android platform docs (permissions, network security)
   'developer.apple.com', // Apple developer docs (HIG, App Review Guidelines, Info.plist keys)

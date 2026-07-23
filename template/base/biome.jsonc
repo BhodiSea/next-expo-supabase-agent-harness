@@ -44,6 +44,21 @@
       "enabled": true
     }
   },
+  // Biome does NOT own CSS in this stack. apps/web is Tailwind v4 (CSS-first `@theme`,
+  // `@import "tailwindcss"`) and packages/design-tokens emits a generated theme .css. The
+  // parser must be told about Tailwind's at-rules or it aborts the whole `biome ci` gate on a
+  // parse error; the formatter stays OFF so Biome never reflows a hand-authored `@theme` block
+  // or the byte-stable generated .css (which the styleguide gate regen-diffs). Tailwind's own
+  // pipeline and the token generator own that CSS. SOURCE: docs/harness/README.md (one owner
+  // per concern)
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "enabled": false
+    }
+  },
   "assist": {
     "enabled": true,
     "actions": {

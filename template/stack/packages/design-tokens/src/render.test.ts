@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { SEMANTIC_TOKENS } from './color'
-import { GENERATED_FILES, assertTokenContract, renderNativeModule, renderWebCss } from './render'
+import { assertTokenContract, GENERATED_FILES, renderNativeModule, renderWebCss } from './render'
 
 // Paths are resolved from THIS module, not from cwd: vitest, the Stop hook and CI all
 // invoke the runner from different directories, and a cwd-relative read would turn a

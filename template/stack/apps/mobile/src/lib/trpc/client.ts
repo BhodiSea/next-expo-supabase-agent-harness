@@ -7,8 +7,8 @@
 // touches — into the native binary, where a determined reader gets all of it.
 // `import type` is erased by the compiler, so what ships is the URL string below
 // and nothing else.
-// SOURCE: design/W1-STACK-SPEC.md §3 (the backend seam: api is a mobile
-// devDependency, import type only)
+// SOURCE: packages/api/src/index.ts (the backend seam — @app/api is a mobile
+// devDependency, consumed import type only; the reversibility wall lives there)
 import type { AppRouter } from '@app/api'
 import type { Client } from '@app/supabase/client'
 import { createTRPCClient, httpBatchLink } from '@trpc/client'

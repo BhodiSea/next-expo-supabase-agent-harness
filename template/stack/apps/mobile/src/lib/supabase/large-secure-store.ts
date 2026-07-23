@@ -1,8 +1,9 @@
 // AsyncStorage's package exposes the store as its DEFAULT export (it is an
 // instance, not a namespace) — a named import silently yields undefined and the
 // first getItem throws inside Supabase's auth boot.
-import AsyncStorage from '@react-native-async-storage/async-storage'
+
 import type { SessionStorageAdapter } from '@app/supabase/client'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as aesjs from 'aes-js'
 import * as Crypto from 'expo-crypto'
 import * as SecureStore from 'expo-secure-store'
@@ -69,7 +70,10 @@ export class LargeSecureStore implements SessionStorageAdapter {
   private async decrypt(key: string, value: string): Promise<string | null> {
     const keyHex = await SecureStore.getItemAsync(key)
     if (keyHex === null) return null
-    const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(keyHex), new aesjs.Counter(1))
+    const cipher = new aesjs.ModeOfOperation.ctr(
+      aesjs.utils.hex.toBytes(keyHex),
+      new aesjs.Counter(1),
+    )
     return aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(value)))
   }
 

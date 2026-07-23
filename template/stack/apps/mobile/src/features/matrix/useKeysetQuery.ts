@@ -1,4 +1,4 @@
-import { type NoteView, NOTES_PAGE_LIMIT_DEFAULT, NotesPage } from '@app/contracts'
+import { NOTES_PAGE_LIMIT_DEFAULT, NotesPage, type NoteView } from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { translateError, type UserFacingError } from '../../i18n/errors'

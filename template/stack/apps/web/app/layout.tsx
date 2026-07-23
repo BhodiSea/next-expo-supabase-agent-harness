@@ -53,11 +53,7 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
-  children,
-}: {
-  readonly children: ReactNode
-}): ReactNode {
+export default function RootLayout({ children }: { readonly children: ReactNode }): ReactNode {
   return (
     // lang is not decoration: screen readers pick pronunciation from it, and browsers pick
     // hyphenation and translation prompts. An unset lang is a WCAG failure.

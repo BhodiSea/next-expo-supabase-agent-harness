@@ -1,9 +1,9 @@
 import {
   NewNoteInput,
-  NoteRef,
-  NoteUpdateInput,
   NOTES_PAGE_LIMIT_MAX,
+  NoteRef,
   NotesListQuery,
+  NoteUpdateInput,
 } from '@app/contracts'
 import { z } from 'zod'
 import { isRenderableTitle } from './domain/note.js'

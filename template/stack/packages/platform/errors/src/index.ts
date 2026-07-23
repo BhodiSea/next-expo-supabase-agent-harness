@@ -204,9 +204,10 @@ export const appError = {
     ...(options.fields === undefined ? {} : { fields: options.fields }),
   }),
 
-  // SOURCE: Retry-After is delta-seconds (a whole number of seconds), so the
-  // field is seconds — never milliseconds, never a date string
-  // https://www.rfc-editor.org/rfc/rfc9110#field.retry-after
+  // The rate-limited kind exists because HTTP 429 does; Retry-After is delta-seconds
+  // (a whole number), so retryAfterSeconds is seconds — never ms, never a date string.
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc6585#section-4 (429 Too Many Requests) ·
+  // https://www.rfc-editor.org/rfc/rfc9110#field.retry-after (Retry-After is delta-seconds)
   rateLimited: (options: RetryAfterErrorOptions = {}) => ({
     ...core('rateLimited', 'rate_limited', options),
     ...(options.retryAfterSeconds === undefined

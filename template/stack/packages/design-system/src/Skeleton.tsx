@@ -21,14 +21,7 @@ export interface SkeletonProps {
 // caller data, not design decisions: a skeleton matches the shape of the content it
 // stands in for, and that shape is measured at the call site. Everything the design
 // system does own here — the surface colour, the radius, the pulse — comes from tokens.
-export function Skeleton({
-  width,
-  height,
-  fullWidth,
-  rounded,
-  className,
-  testID,
-}: SkeletonProps) {
+export function Skeleton({ width, height, fullWidth, rounded, className, testID }: SkeletonProps) {
   return (
     <span
       aria-hidden="true"

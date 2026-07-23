@@ -9,9 +9,9 @@
 // implementation wearing the costume of a shortcut. An import here would also drag DOM
 // element types into a Metro bundle, where a <div> typechecks cleanly and then renders
 // nothing on a device: a failure found by a human holding a phone instead of by tsc.
-// SOURCE: design/W1-STACK-SPEC.md §5 (no shared React component layer; the Tailwind split is
-// real) and §2 (the layering law — design-system-native ↛ design-system), enforced three
-// times over by the `exports` walls, the workspace manifests and dependency-cruiser.
+// SOURCE: tools/exports-walls.json (the single census the `exports` walls, the workspace
+// manifests and dependency-cruiser all derive from) — there is no shared React component
+// layer, and the layering law design-system-native ↛ design-system is enforced three times over.
 //
 // The mirror of this rule lives in the web twin's index.ts: that package must not import
 // react-native, react-native-web, or this one.

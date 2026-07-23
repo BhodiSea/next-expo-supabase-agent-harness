@@ -66,10 +66,7 @@ const RETRYABLE_CLASSES: ReadonlySet<string> = new Set(['08', '53', '57'])
  * into an existence oracle an attacker can enumerate. So there is deliberately
  * no "denied read" branch below — see `missingNote` for the read side.
  */
-export function mapPostgrestFailure(
-  failure: PostgrestFailure,
-  operation: NoteOperation,
-): AppError {
+export function mapPostgrestFailure(failure: PostgrestFailure, operation: NoteOperation): AppError {
   switch (failure.code) {
     case INSUFFICIENT_PRIVILEGE:
       // `rlsDenied`, not `forbidden`. The distinction is for the OPERATOR: one

@@ -35,8 +35,8 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined)
 // owns the session now, it is built inside <SupabaseProvider> (component scope,
 // once per mount), and the transport pulls a fresh bearer token per request
 // from it. There is nothing left for a boot line to install.
-// SOURCE: src/lib/supabase/provider.tsx (component scope, never module scope) ·
-// design/W1-STACK-SPEC.md §3
+// SOURCE: apps/mobile/src/lib/supabase/provider.tsx (the session lives in the provider,
+// component scope, never module scope)
 initTheme()
 initI18n()
 

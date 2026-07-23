@@ -1,4 +1,10 @@
-import type { HealthReport, NewNoteInput, NotesListQuery, NotesPage, NoteView } from '@app/contracts'
+import type {
+  HealthReport,
+  NewNoteInput,
+  NotesListQuery,
+  NotesPage,
+  NoteView,
+} from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import type { ApiClient } from '../lib/trpc/use-api'
 

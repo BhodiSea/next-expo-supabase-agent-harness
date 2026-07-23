@@ -90,12 +90,16 @@ describe('asRowArray', () => {
     expect(asRowArray([])).toEqual([])
   })
 
-  it.each([null, undefined, 'rows', 0, {}, { data: [] }])(
-    'coerces the non-array %j to empty rather than indexing it blindly',
-    (data: unknown) => {
-      // `data[0]` on a non-array is `undefined`, which would read as "no rows"
-      // instead of "the protocol did something unexpected".
-      expect(asRowArray(data)).toEqual([])
-    },
-  )
+  it.each([
+    null,
+    undefined,
+    'rows',
+    0,
+    {},
+    { data: [] },
+  ])('coerces the non-array %j to empty rather than indexing it blindly', (data: unknown) => {
+    // `data[0]` on a non-array is `undefined`, which would read as "no rows"
+    // instead of "the protocol did something unexpected".
+    expect(asRowArray(data)).toEqual([])
+  })
 })

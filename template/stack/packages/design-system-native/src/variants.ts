@@ -93,14 +93,17 @@ export const cardVariants = cva('rounded-lg border border-edge bg-surface', {
   defaultVariants: { padding: 'md', elevated: false },
 })
 
-export const inputVariants = cva('w-full rounded-md border bg-canvas px-3 py-2 text-base text-ink', {
-  variants: {
-    // ink-muted, not edge — a control boundary must clear 3:1 against its backdrop to
-    // be identifiable, and `edge` is tuned for dividers between filled surfaces.
-    invalid: { true: 'border-danger', false: 'border-ink-muted' },
+export const inputVariants = cva(
+  'w-full rounded-md border bg-canvas px-3 py-2 text-base text-ink',
+  {
+    variants: {
+      // ink-muted, not edge — a control boundary must clear 3:1 against its backdrop to
+      // be identifiable, and `edge` is tuned for dividers between filled surfaces.
+      invalid: { true: 'border-danger', false: 'border-ink-muted' },
+    },
+    defaultVariants: { invalid: false },
   },
-  defaultVariants: { invalid: false },
-})
+)
 
 export const skeletonVariants = cva('bg-surface', {
   variants: {

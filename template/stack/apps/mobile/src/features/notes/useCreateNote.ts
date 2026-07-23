@@ -20,8 +20,8 @@ import { useApi } from '../../lib/trpc/use-api'
 // envelope) onto the DATA channel, so this hook has exactly one thing to branch
 // on — `outcome.ok` — and cannot forget the other. The `catch` that remains
 // covers the contract parse below and nothing else.
-// SOURCE: design/W1-STACK-SPEC.md §3 (the envelope rule; the mobile normalize
-// layer folds transport UNAUTHORIZED back onto it)
+// SOURCE: packages/platform/errors/src/index.ts (the envelope rule — AppError on the
+// data channel; the mobile normalize layer folds transport UNAUTHORIZED back onto it)
 
 /** What the list renders for an optimistic entry — temp while pending, server after. */
 export interface ComposerRow {

@@ -50,14 +50,7 @@ export interface SkeletonProps {
 // the surface colour, the radius, the pulse — comes from tokens. The numbers are dp rather
 // than px, which is the same arithmetic in a different unit; the token ramp is deliberately
 // unitless so this is the only place the distinction has to be said out loud.
-export function Skeleton({
-  width,
-  height,
-  fullWidth,
-  rounded,
-  className,
-  testID,
-}: SkeletonProps) {
+export function Skeleton({ width, height, fullWidth, rounded, className, testID }: SkeletonProps) {
   const reduceMotion = useReduceMotion()
 
   return (

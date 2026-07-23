@@ -167,6 +167,7 @@ export function useThemedStyles<T extends NamedStyles<T>>(factory: (palette: Pal
   return styles as T
 }
 
+export type { Palette, ThemeName } from '@app/design-tokens/native'
 // ---------------------------------------------------------------------------
 // THE ONE LOCAL TOKEN SEAM.
 //
@@ -200,4 +201,3 @@ export {
   space,
   typeScale,
 } from '@app/design-tokens/native'
-export type { Palette, ThemeName } from '@app/design-tokens/native'

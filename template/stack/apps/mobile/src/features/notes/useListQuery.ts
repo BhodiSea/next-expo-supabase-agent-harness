@@ -23,7 +23,7 @@ import { translateError, type UserFacingError } from '../../i18n/errors'
 // upstream. So the `.catch` below is not the error path — it is the last line of
 // defence against a bug in the hook's own plumbing, and it lands in the same
 // place a domain failure does.
-// SOURCE: design/W1-STACK-SPEC.md §3 (the envelope rule) · @app/errors
+// SOURCE: packages/platform/errors/src/index.ts (the envelope rule — AppError on the data channel)
 
 /**
  * What the hook calls. It takes the signal so an unmounted screen (or a reload

@@ -46,15 +46,15 @@ export {
   CONTRAST_CONTRACT,
   RAMP_FAMILIES,
   RAMP_STEPS,
+  ramps,
   SEMANTIC_TOKENS,
   THEME_NAMES,
-  ramps,
   themes,
 } from './color'
 export type { Elevation, ElevationName } from './elevation'
 export { ELEVATIONS, elevation } from './elevation'
 export type { BezierQuad, DurationName, EasingName } from './motion'
-export { DURATIONS, EASINGS, PRESS_SCALE, duration, easing } from './motion'
+export { DURATIONS, duration, EASINGS, easing, PRESS_SCALE } from './motion'
 export type { LinearSrgb, Oklch } from './oklch'
 export {
   contrastOf,
@@ -70,13 +70,13 @@ export { RADIUS_FULL, RADIUS_STEPS, radius } from './radius'
 // can re-run the gamut + contrast preflight without shelling out to the generator.
 export { assertTokenContract } from './render'
 export type { IconSize, SpaceStep } from './space'
-export { ICON_SIZES, MIN_TOUCH_TARGET, SPACE_STEPS, SPACE_UNIT, iconSize, space } from './space'
+export { ICON_SIZES, iconSize, MIN_TOUCH_TARGET, SPACE_STEPS, SPACE_UNIT, space } from './space'
 export type { FontScaleRole, FontWeightName, TypeStep, TypeStyle } from './typography'
 export {
   FONT_SCALE_CAPS,
   FONT_WEIGHTS,
-  TYPE_STEPS,
   fontScaleCap,
   fontWeight,
+  TYPE_STEPS,
   typeScale,
 } from './typography'

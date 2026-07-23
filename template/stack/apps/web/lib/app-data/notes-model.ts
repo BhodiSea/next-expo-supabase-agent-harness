@@ -19,7 +19,11 @@ import type { ActionOutcome, AppError } from '@app/errors'
  * that a real notes screen needs to re-derive the cursor it was handed and threw away.
  */
 export type NotesPageModel =
-  | { readonly status: 'ready'; readonly notes: readonly NoteView[]; readonly nextCursor: string | null }
+  | {
+      readonly status: 'ready'
+      readonly notes: readonly NoteView[]
+      readonly nextCursor: string | null
+    }
   | { readonly status: 'empty' }
   | { readonly status: 'missing' }
   | { readonly status: 'error'; readonly error: AppError }

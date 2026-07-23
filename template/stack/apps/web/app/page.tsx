@@ -20,14 +20,14 @@ export default async function HomePage(): Promise<ReactNode> {
           rendered name carrying an apostrophe would break the file it lands in. */}
       <h1 className="text-4xl font-semibold tracking-tight">Welcome</h1>
       <p className="text-ink-muted text-lg">
-        One Supabase backend, two surfaces: this web app and the Expo client. Both call the
-        same tRPC router and the same domain packages — the API you are looking at is served
-        from this deployment.
+        One Supabase backend, two surfaces: this web app and the Expo client. Both call the same
+        tRPC router and the same domain packages — the API you are looking at is served from this
+        deployment.
       </p>
       {user === null ? (
         <p className="text-ink-muted">
-          Sign in to continue. Session state is refreshed on every navigation, and every read
-          is scoped by row-level security in Postgres — not by this page.
+          Sign in to continue. Session state is refreshed on every navigation, and every read is
+          scoped by row-level security in Postgres — not by this page.
         </p>
       ) : (
         <Link

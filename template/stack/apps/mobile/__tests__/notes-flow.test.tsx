@@ -7,9 +7,10 @@
 // and what the API answers (the tRPC client). Everything between them is the
 // shipped code — the screens, the hooks, the @app/contracts parses, and
 // `callProcedure`, the fold that makes one envelope true end to end.
+
+import type { NotesPage, NoteView } from '@app/contracts'
 import { type ActionOutcome, appError } from '@app/errors'
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library'
-import type { NotesPage, NoteView } from '@app/contracts'
 import { en } from '../src/i18n/catalog'
 import { installMockServer, mockApiClient, uninstallMockServer } from '../src/testing/mock-server'
 import { installMockSupabase, mockSupabaseClient } from '../src/testing/mock-supabase'

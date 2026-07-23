@@ -1,13 +1,13 @@
 import {
   FONT_WEIGHTS,
-  RADIUS_STEPS,
-  SEMANTIC_TOKENS,
-  SPACE_STEPS,
-  type SemanticToken,
-  TYPE_STEPS,
   fontWeight,
+  RADIUS_STEPS,
   radius,
+  SEMANTIC_TOKENS,
+  type SemanticToken,
+  SPACE_STEPS,
   space,
+  TYPE_STEPS,
   typeScale,
 } from '@app/design-tokens'
 

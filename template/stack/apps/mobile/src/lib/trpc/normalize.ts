@@ -28,8 +28,8 @@ const VERSION_SKEW_CODE = TransportErrorCode.enum.version_skew
 // would crash a render instead of showing an error state. So this module is the
 // single place a rejection becomes an outcome: after `callProcedure`, there is
 // exactly one shape, and `!outcome.ok` is the whole failure vocabulary.
-// SOURCE: design/W1-STACK-SPEC.md §3 — the envelope rule and the mobile
-// normalize layer that folds transport-level UNAUTHORIZED back onto it
+// SOURCE: packages/platform/errors/src/index.ts (the envelope rule — AppError on the data
+// channel) — the mobile normalize layer folds transport-level UNAUTHORIZED back onto it
 
 /**
  * tRPC's transport-level error codes, mapped to what the user actually
@@ -64,6 +64,7 @@ function fromTrpcCode(code: string, message: string): ActionOutcome<never> {
       return { ok: false, error: appError.validation({ message }) }
     case 'NOT_FOUND':
       return { ok: false, error: appError.notFound({ message }) }
+    // SOURCE: https://www.rfc-editor.org/rfc/rfc6585#section-4 (429 Too Many Requests)
     case 'TOO_MANY_REQUESTS':
       return { ok: false, error: appError.rateLimited({ message }) }
     // The ONLY thing that throws CONFLICT on this router is the version-skew
@@ -122,7 +123,8 @@ export async function callProcedure<T>(call: Promise<ActionOutcome<T>>): Promise
       // tunnel, and it sends the user to support instead of to their signal bars.
       // `unavailable` is also the kernel's ONE retryable kind, which is exactly
       // the advice a tunnel deserves.
-      if (code === null) return { ok: false, error: appError.unavailable({ message: cause.message }) }
+      if (code === null)
+        return { ok: false, error: appError.unavailable({ message: cause.message }) }
       return fromTrpcCode(code, cause.message)
     }
     // Not a tRPC error at all: a bug in a link, an aborted request, a throw from

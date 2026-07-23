@@ -3,15 +3,15 @@ import { type ActionOutcome, outcomeErr, outcomeOk } from '@app/errors'
 import { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from '../domain/cursor.js'
 import { normalizeTitle, toNoteView } from '../domain/note.js'
 import {
-  noteCreated,
-  noteDeleted,
   type NoteEventSink,
   type NoteField,
+  noteCreated,
+  noteDeleted,
   noteUpdated,
 } from '../events.js'
 import {
-  clampPageLimit,
   type CreateNoteSchema,
+  clampPageLimit,
   type ListNotesSchema,
   type NoteRefSchema,
   type UpdateNoteSchema,
@@ -271,12 +271,7 @@ export async function deleteNote(
   context: NoteWriteContext,
   ref: NoteRefSchema,
 ): Promise<ActionOutcome<NoteDeletion>> {
-  const result = await db
-    .from(NOTES_TABLE)
-    .delete()
-    .eq('id', ref.id)
-    .select(NOTE_COLUMNS)
-    .limit(1)
+  const result = await db.from(NOTES_TABLE).delete().eq('id', ref.id).select(NOTE_COLUMNS).limit(1)
 
   if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'delete'))
 

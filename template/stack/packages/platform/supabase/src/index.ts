@@ -40,7 +40,8 @@
 // so the two barrels cannot drift: a name added to `./client` is available from
 // `.` on the same commit, and nobody has to remember to mirror it.
 export * from './client.js'
-
+// ── Factory 4: the per-request client for a cookie-bearing browser caller.
+export { createServerSupabaseClient, type ServerClientOptions } from './cookie-server.js'
 // ── The cookie adapter: the framework-agnostic indirection that keeps this
 // package usable from a non-Next host. apps/web satisfies it over next/headers
 // and over NextRequest/NextResponse; a test satisfies it with a Map.
@@ -56,9 +57,6 @@ export {
   type SupabaseCookieToSet,
 } from './cookies.js'
 
-// ── Factory 4: the per-request client for a cookie-bearing browser caller.
-export { createServerSupabaseClient, type ServerClientOptions } from './cookie-server.js'
-
 // ── Factory 5. The name is the warning. It bypasses row-level security, it
 // requires a merged ADR and a written reason, and its only sanctioned home is a
 // Supabase Edge Function.
@@ -66,7 +64,9 @@ export {
   createServiceRoleClient_BYPASSES_RLS,
   type ServiceRoleWarrant,
 } from './service-role.js'
-
+// ── The elevated client's type, exported HERE and not from `./client`: a name
+// autocomplete can offer is a name someone will ask to construct.
+export type { SupabaseServiceRoleClient } from './types.js'
 // ── The auth doctrine: getClaims()/getUser(), NEVER getSession().
 export {
   CLIENT_SATISFIES_VERIFICATION_PORT,
@@ -75,7 +75,3 @@ export {
   type VerifiedIdentitySource,
   type VerifiedUser,
 } from './verify.js'
-
-// ── The elevated client's type, exported HERE and not from `./client`: a name
-// autocomplete can offer is a name someone will ask to construct.
-export type { SupabaseServiceRoleClient } from './types.js'

@@ -5,12 +5,7 @@
 //      column names, constraint definitions and sometimes row VALUES. Break it
 //      and row content is rendered on a user's screen.
 import { describe, expect, it } from 'vitest'
-import {
-  isRlsDenied,
-  mapPostgresError,
-  type PostgresFailure,
-  readMiss,
-} from './errors.js'
+import { isRlsDenied, mapPostgresError, type PostgresFailure, readMiss } from './errors.js'
 
 const failure = (code: string | undefined, message = 'driver text'): PostgresFailure =>
   code === undefined ? { message } : { code, message }
@@ -131,8 +126,19 @@ describe('driver text containment', () => {
 
   it('produces a JSON-safe error for every code it knows', () => {
     const codes = [
-      '42501', '23505', '23503', '23502', '23514', '22P02',
-      '40001', '40P01', 'PGRST116', 'PGRST301', 'PGRST202', '08006', 'nope',
+      '42501',
+      '23505',
+      '23503',
+      '23502',
+      '23514',
+      '22P02',
+      '40001',
+      '40P01',
+      'PGRST116',
+      'PGRST301',
+      'PGRST202',
+      '08006',
+      'nope',
     ]
     for (const code of codes) {
       const mapped = mapPostgresError(failure(code), { relation: 'notes', resource: 'note' })

@@ -15,8 +15,8 @@ import { t } from './index'
 // what the client localizes. The developer-facing `message` stays available — but as a
 // technical DETAIL beneath the translated copy, where it belongs: it is for the person
 // reading the support ticket, not the person filing it.
-// SOURCE: @app/errors — `kind` is the COARSE class a screen branches on, `code` is the FINE
-// identity a translation key is allowed to depend on
+// SOURCE: packages/platform/errors/src/index.ts — `kind` is the COARSE class a screen branches
+// on, `code` is the FINE identity a translation key is allowed to depend on
 
 /**
  * One catalog key per AppError KIND. `satisfies Record<AppErrorKind, MessageKey>` is doing
@@ -32,6 +32,8 @@ const BY_KIND = {
   // Telling a signed-in user to sign in sends them round a loop they cannot exit.
   forbidden: 'error.api.forbidden',
   notFound: 'error.api.not_found',
+  // HTTP 429 → the copy asks the user to wait; the kernel carries retryAfterSeconds.
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc6585#section-4 (429 Too Many Requests)
   rateLimited: 'error.api.rate_limited',
   // Deliberately the SAME copy as `forbidden`. The kernel keeps the two kinds apart so an
   // operator can tell "the app said no" from "the database's policy said no" — completely

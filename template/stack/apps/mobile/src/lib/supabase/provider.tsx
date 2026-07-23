@@ -116,7 +116,9 @@ export function SupabaseProvider({ children }: { readonly children: ReactNode })
 export function useSupabase(): Client {
   const client = useContext(SupabaseContext)
   if (client === null) {
-    throw new Error('useSupabase requires <SupabaseProvider> — app/_layout.tsx mounts one at the root')
+    throw new Error(
+      'useSupabase requires <SupabaseProvider> — app/_layout.tsx mounts one at the root',
+    )
   }
   return client
 }

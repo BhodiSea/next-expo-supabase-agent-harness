@@ -49,8 +49,6 @@ describe('the name is the warning', () => {
     // Not a behavioural assertion — a structural one. The identifier is the
     // grep that answers "does anything elevated exist in this repo?", and a
     // rename to something innocuous would silently remove that.
-    expect(createServiceRoleClient_BYPASSES_RLS.name).toBe(
-      'createServiceRoleClient_BYPASSES_RLS',
-    )
+    expect(createServiceRoleClient_BYPASSES_RLS.name).toBe('createServiceRoleClient_BYPASSES_RLS')
   })
 })

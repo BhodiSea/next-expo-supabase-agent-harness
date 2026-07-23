@@ -30,14 +30,16 @@ export interface InputProps {
 // 'email-address' and 'numeric', not 'default' everywhere: the keyboard is the single
 // biggest determinant of how painful a form is on a phone, and it is also the one
 // property nobody notices missing in a simulator with a hardware keyboard attached.
-const KEYBOARD_TYPE: Record<InputKeyboard, 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'url'> =
-  {
-    text: 'default',
-    email: 'email-address',
-    number: 'numeric',
-    tel: 'phone-pad',
-    url: 'url',
-  }
+const KEYBOARD_TYPE: Record<
+  InputKeyboard,
+  'default' | 'email-address' | 'numeric' | 'phone-pad' | 'url'
+> = {
+  text: 'default',
+  email: 'email-address',
+  number: 'numeric',
+  tel: 'phone-pad',
+  url: 'url',
+}
 
 // A CONTROLLED input with no internal state. An uncontrolled fallback would work in a
 // story and drop keystrokes the first time a parent re-rendered during an async submit.
@@ -85,11 +87,7 @@ export function Input({
       accessibilityState={{ disabled }}
       aria-invalid={invalidState}
       testID={testID}
-      className={cn(
-        inputVariants({ invalid: invalidState }),
-        disabled && 'opacity-50',
-        className,
-      )}
+      className={cn(inputVariants({ invalid: invalidState }), disabled && 'opacity-50', className)}
     />
   )
 }

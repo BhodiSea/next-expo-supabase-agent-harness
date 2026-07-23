@@ -3,12 +3,12 @@ import {
   CONTRAST_CONTRACT,
   RAMP_FAMILIES,
   RAMP_STEPS,
+  ramps,
   SEMANTIC_TOKENS,
   THEME_NAMES,
-  ramps,
   themes,
 } from './color'
-import { palettes, ramps as nativeRamps } from './generated/native'
+import { ramps as nativeRamps, palettes } from './generated/native'
 import { contrastOf, inSrgbGamut, oklchToHex, oklchToLinearSrgb } from './oklch'
 import { SPACE_STEPS, SPACE_UNIT, space } from './space'
 import { TYPE_STEPS, typeScale } from './typography'

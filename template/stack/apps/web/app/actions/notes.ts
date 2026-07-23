@@ -3,7 +3,7 @@
 import type { NewNoteInput, NoteView } from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import { appError, outcomeErr } from '@app/errors'
-import { createNote, CreateNoteSchema, type NotesDatabase, type NoteWriteContext } from '@app/notes'
+import { CreateNoteSchema, createNote, type NotesDatabase, type NoteWriteContext } from '@app/notes'
 import { revalidatePath } from 'next/cache'
 import { actionClient } from '../../lib/safe-action'
 import { createRequestScopedClient, getVerifiedUser } from '../../lib/supabase/server'

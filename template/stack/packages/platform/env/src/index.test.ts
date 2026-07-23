@@ -20,9 +20,9 @@ import type { EnvSource } from './client.js'
 import * as clientBarrel from './client.js'
 import {
   NativePublicEnvSchema,
+  PUBLIC_PREFIXES,
   parseNativePublicEnv,
   parseWebPublicEnv,
-  PUBLIC_PREFIXES,
   readNativePublicEnv,
   readWebPublicEnv,
   WebPublicEnvSchema,

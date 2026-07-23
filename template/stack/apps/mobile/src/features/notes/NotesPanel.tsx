@@ -1,4 +1,4 @@
-import { type NoteView, NotesPage } from '@app/contracts'
+import { NotesPage, type NoteView } from '@app/contracts'
 import { useCallback } from 'react'
 import { FlatList, RefreshControl, View } from 'react-native'
 import { AppText } from '../../components/AppText'

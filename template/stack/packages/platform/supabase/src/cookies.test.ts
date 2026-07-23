@@ -9,11 +9,11 @@ import {
   chunkCookieValue,
   cookieDeletions,
   cookieSessionStorage,
+  cookieWrites,
+  readChunkedCookie,
   type SupabaseCookie,
   type SupabaseCookieAdapter,
   type SupabaseCookieToSet,
-  cookieWrites,
-  readChunkedCookie,
 } from './cookies.js'
 
 /** A cookie jar in nine lines — the reason the adapter is an interface. */

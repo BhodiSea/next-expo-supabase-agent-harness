@@ -38,10 +38,7 @@ export function Text({
   testID,
 }: TextProps) {
   return (
-    <Element
-      className={cn(textVariants({ size, tone, weight }), className)}
-      data-testid={testID}
-    >
+    <Element className={cn(textVariants({ size, tone, weight }), className)} data-testid={testID}>
       {children}
     </Element>
   )

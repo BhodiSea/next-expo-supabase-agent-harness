@@ -33,9 +33,7 @@ export * from './client.js'
 // ---------------------------------------------------------------------------
 
 export { createNote, deleteNote, type NoteWriteContext, updateNote } from './data/notes.js'
-
-export { noteCreated, noteDeleted, noteUpdated } from './events.js'
-
 // The row boundary, exported for the migration/seed tooling that needs to name
 // the table and its projection without re-spelling either.
 export { NOTE_COLUMNS, NOTE_ROW_KEYS, NOTES_TABLE } from './data/rows.js'
+export { noteCreated, noteDeleted, noteUpdated } from './events.js'

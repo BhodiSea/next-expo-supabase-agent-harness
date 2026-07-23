@@ -77,9 +77,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`DESIGN-TOKENS: CLEAN (${artifacts.length} generated files match the source)`)
   } else {
     write(artifacts)
-    console.log(
-      `DESIGN-TOKENS: wrote ${artifacts.map((artifact) => artifact.relPath).join(', ')}`,
-    )
+    console.log(`DESIGN-TOKENS: wrote ${artifacts.map((artifact) => artifact.relPath).join(', ')}`)
   }
 }
 
