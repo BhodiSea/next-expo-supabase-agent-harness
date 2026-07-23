@@ -12,6 +12,9 @@ import reactNative from 'eslint-plugin-react-native'
 import reactNativeA11y from 'eslint-plugin-react-native-a11y'
 import sonarjs from 'eslint-plugin-sonarjs'
 import tseslint from 'typescript-eslint'
+// The harness's four custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
+// JS/TS-shared syntax nodes, scoped by the blocks at the bottom of this config.
+import localRules from './tools/eslint-rules/index.mjs'
 
 // Every rule the plugin ships, at error severity. Derived from the plugin's own
 // rule table ON PURPOSE: a plugin upgrade that adds a rule arms it here
@@ -32,10 +35,10 @@ export default tseslint.config(
       'apps/mobile/android/**', // CNG prebuild output — generated, never committed
       'apps/mobile/ios/**', // CNG prebuild output — generated, never committed
       'apps/mobile/src/theme/tokens.gen.ts', // emitted by tools/gen-theme.mjs; regen-diff-gated, not linted
-      'packages/schema/drizzle/**', // generated SQL migrations + snapshots
-      'tools/**', // gate scripts: plain node, guarded by the harness itself
+      'packages/platform/supabase/src/database.types.ts', // `supabase gen types` output; types-drift-gated
+      'tools/**', // gate scripts (incl. the custom-rules plugin): plain node, guarded by the harness itself
       'tests/**', // root-level RLS runner surface (gates wave)
-      'db/**',
+      'supabase/**', // SQL migrations/schemas/seed — owned by the schema-rls + migrations gates
     ],
   },
   {
@@ -211,5 +214,51 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    // app-error-only — the lint half of the single-error-channel doctrine. Scoped to the
+    // enveloped surfaces (web Server Actions, tRPC procedures, the vertical DAL) where a domain
+    // failure MUST be a returned outcomeErr, never a thrown error. trpc.ts (the two sanctioned
+    // transport throws) and tests (which throw by design) are outside these globs.
+    files: [
+      'apps/web/app/actions/**/*.ts',
+      'packages/api/src/routers/**/*.ts',
+      'packages/verticals/**/src/data/**/*.ts',
+    ],
+    ignores: ['**/*.test.ts'],
+    plugins: { local: localRules },
+    rules: { 'local/app-error-only': 'error' },
+  },
+  {
+    // no-module-scope-supabase — a Supabase client is created per request inside the handler,
+    // never at module load. Scoped to the CONSUMER surfaces (the factory package itself builds
+    // clients inside factory functions, which the rule does not flag).
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/verticals/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx'],
+    plugins: { local: localRules },
+    rules: { 'local/no-module-scope-supabase': 'error' },
+  },
+  {
+    // ui-copy-voice — user-facing copy hygiene over the i18n catalog (the message sources).
+    // Logic modules (index, i18n, polyfills) and the pseudo-locale generator carry no copy.
+    files: ['apps/*/src/i18n/**/*.ts'],
+    ignores: [
+      'apps/*/src/i18n/index.ts',
+      'apps/*/src/i18n/i18n.ts',
+      'apps/*/src/i18n/polyfills.ts',
+      'apps/*/src/i18n/pseudo.ts',
+      '**/*.test.ts',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/ui-copy-voice': 'error' },
+  },
+  {
+    // zod-schema-module-scope — schemas are built once at module scope, never rebuilt per call.
+    // The module-scope `export const X = z.object(...)` shape does not fire; only a z.<builder>
+    // inside a function does.
+    files: ['packages/contracts/**/*.ts', 'packages/verticals/**/src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    plugins: { local: localRules },
+    rules: { 'local/zod-schema-module-scope': 'error' },
   },
 )

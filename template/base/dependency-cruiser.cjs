@@ -1,7 +1,14 @@
 // .dependency-cruiser.cjs (stored dotless; the installer renames it) — the architecture
-// law, run as `depcruise apps packages --config .dependency-cruiser.cjs`.
+// law, run as `depcruise apps packages --config .dependency-cruiser.cjs`. The import-GRAPH
+// half of the boundary triad; the package.json-DEPENDENCY half (the census consumers) is the
+// earlier `boundaries` gate, and the tsc `exports` maps are the third. All three derive their
+// list of Metro-safe packages from the ONE census, tools/exports-walls.json.
+//
 // Path regexes match RESOLVED paths, so `node_modules/<pkg>/` also matches pnpm's
-// `.pnpm/<pkg>@<v>/node_modules/<pkg>/` store layout.
+// `.pnpm/<pkg>@<v>/node_modules/<pkg>/` store layout. Rules that must exempt a package's own
+// internal (relative) imports use dependency-cruiser's `$1` backreference: a group captured in
+// `from.path` is substituted into `to.pathNot`, so "package X may not import a sibling package"
+// is expressed without listing every package.
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -14,93 +21,88 @@ module.exports = {
       to: { circular: true },
     },
     {
-      name: 'mobile-not-into-server',
+      name: 'verticals-not-into-verticals',
       comment:
-        'The mobile app talks to the API over HTTPS only. Importing server code would smuggle ' +
-        'server-only modules (and their secrets/config assumptions) into the shipped bundle.',
+        'A feature domain never imports another. Cross-feature code goes through the API; ' +
+        'genuinely shared code is lifted into packages/shared. Two verticals importing each ' +
+        "other is a distributed monolith with none of a monolith's guarantees.",
       severity: 'error',
-      from: { path: '^apps/mobile' },
-      to: { path: '^apps/server' },
+      from: { path: '^packages/verticals/([^/]+)/' },
+      to: { path: '^packages/verticals/([^/]+)/', pathNot: '^packages/verticals/$1/' },
     },
     {
-      name: 'mobile-no-server-stack',
+      name: 'shared-not-into-verticals',
       comment:
-        'DB driver, ORM, logger, and HTTP framework are server-side; if the mobile bundle ' +
-        'can resolve them, the client/server boundary has already been breached.',
+        'packages/shared is importable BY verticals, never the reverse — shared code that ' +
+        'reaches back into a feature is no longer shared, it is a hidden coupling.',
       severity: 'error',
-      from: { path: '^apps/mobile' },
-      to: { path: 'node_modules/(postgres|drizzle-orm|pino|@hono)/' },
+      from: { path: '^packages/shared/' },
+      to: { path: '^packages/verticals/' },
     },
     {
-      name: 'mobile-contracts-not-schema',
+      name: 'platform-imports-kernel-only',
       comment:
-        'apps/mobile imports the pure-Zod wire contracts (@app/contracts) only. @app/schema ' +
-        'carries the drizzle table/policy definitions and is server-side: resolving it from ' +
-        'the mobile tree drags the ORM into the shipped bundle.',
+        'A platform leaf imports ONLY the foundational kernel — @app/errors, @app/events, ' +
+        '@app/env (all import nothing and are needed everywhere) — plus external deps and its ' +
+        'own files. A platform package reaching into another (supabase into observability) ' +
+        'grows a second dependency spine no layering law can see.',
       severity: 'error',
-      from: { path: '^apps/mobile' },
-      to: { path: '^packages/schema' },
+      from: { path: '^packages/platform/([^/]+)/' },
+      to: {
+        path: '^packages/',
+        pathNot: '^packages/platform/(?:errors|events|env)/|^packages/platform/$1/',
+      },
     },
     {
-      name: 'drizzle-orm-schema-and-server-only',
+      name: 'api-not-into-next',
       comment:
-        'drizzle-orm is allowed in packages/schema (table defs) and apps/server (queries via ' +
-        'the DAL). Anywhere else means database access is leaking out of the DAL boundary.',
+        'The reversibility wall: packages/api is a framework-neutral tRPC router so it can be ' +
+        'promoted to its own apps/api by moving one route.ts. A next/* import welds it to the ' +
+        'web app and closes that exit.',
       severity: 'error',
-      from: { pathNot: '^(packages/schema|apps/server)' },
-      to: { path: 'node_modules/drizzle-orm/' },
+      from: { path: '^packages/api/' },
+      to: { path: 'node_modules/next/' },
     },
     {
-      name: 'drizzle-zod-schema-only',
+      name: 'mobile-not-into-web-only',
       comment:
-        'drizzle-zod exists in packages/schema solely for the contracts-drift test (the ' +
-        'derived shape must equal the hand-authored @app/contracts DTO); nothing else may ' +
-        'import the derivation.',
+        'apps/mobile paints RN views: it must not import the web design system (@app/design-system, ' +
+        'DOM/Radix) or the web renderer (react-dom, next). Metro would resolve a <div> that ' +
+        'typechecks and renders nothing on a device.',
       severity: 'error',
-      from: { pathNot: '^packages/schema' },
-      to: { path: 'node_modules/drizzle-zod/' },
+      from: { path: '^apps/mobile/' },
+      to: { path: '^packages/design-system/|node_modules/(react-dom|next)/' },
     },
     {
-      name: 'postgres-driver-db-layer-only',
+      name: 'web-not-into-react-native',
       comment:
-        'The postgres driver is the DAL substrate: only apps/server/src/db/** may import it. ' +
-        'Routes and DAL modules reach the database exclusively through withUserContext ' +
-        '(src/db/context.ts), where the transaction binds the RLS identity — a stray driver ' +
-        'import is an unauthorized path around FORCE RLS.',
+        'apps/web paints a DOM tree: it must not import the mobile design system ' +
+        '(@app/design-system-native) or react-native. An RN view in a browser typechecks and ' +
+        'renders nothing.',
       severity: 'error',
-      from: { pathNot: '^apps/server/src/db/' },
-      to: { path: 'node_modules/postgres/' },
+      from: { path: '^apps/web/' },
+      to: { path: '^packages/design-system-native/|node_modules/react-native/' },
     },
     {
-      name: 'db-context-dal-only',
+      name: 'design-system-native-not-into-web',
       comment:
-        'withUserContext (apps/server/src/db/context*) is THE authorization boundary; only the ' +
-        'DAL layer (src/dal/**, including its colocated tests) and db internals may import it. ' +
-        'Routes depend on the DAL port — a route importing the context could run queries ' +
-        'outside the DAL law (Zod-parse at exit, no raw rows).',
+        'The mobile design system shares TOKENS and API SHAPE with the web one, never CODE — ' +
+        'Tailwind v3 (NativeWind) and v4 (web) do not share a class vocabulary, and a DOM box ' +
+        'model is not an RN one. An import here would drag DOM element types into a Metro bundle.',
       severity: 'error',
-      from: { path: '^apps/server', pathNot: '^apps/server/src/(dal|db)/' },
-      to: { path: '^apps/server/src/db/context' },
+      from: { path: '^packages/design-system-native/' },
+      to: { path: '^packages/design-system/' },
     },
     {
       name: 'secure-store-host-seam-only',
       comment:
-        'expo-secure-store is the credential seam: only src/host/** may touch it. The auth ' +
-        'providers own the credential lifecycle but store through AccessTokenProvider — a ' +
-        'module reading the keychain directly bypasses that discipline (single door, ' +
-        'corrupt-safe, mockable).',
+        'expo-secure-store is the credential seam: only apps/mobile/src/host/** may touch it. ' +
+        'The auth providers own the credential lifecycle but store through the host seam — a ' +
+        'module reading the keychain directly bypasses the single, corrupt-safe door. ESLint ' +
+        'catches this at the write; this catches it on the resolved module graph.',
       severity: 'error',
       from: { path: '^apps/mobile', pathNot: '^apps/mobile/src/host/' },
       to: { path: 'node_modules/expo-secure-store/' },
-    },
-    {
-      name: 'llm-sdks-eval-adapters-only',
-      comment:
-        'LLM SDKs may only be touched by packages/eval/src/adapters — every other module ' +
-        'programs against the InferenceProvider/EmbeddingProvider ports (no live-model creep).',
-      severity: 'error',
-      from: { pathNot: '^packages/eval/src/adapters' },
-      to: { path: 'node_modules/(openai|@anthropic-ai|ollama)/' },
     },
   ],
   options: {
