@@ -90,8 +90,46 @@ export interface CreateContextOptions {
    * request rather than each of them reading a slightly different clock.
    */
   readonly now?: () => string
-  /** Verifies the token and resolves the caller. Returns null for an absent or invalid session. */
-  readonly resolveSession: (accessToken: string) => Promise<Session | null>
+  /**
+   * Verify a bearer/explicit token and resolve the caller, or null for an absent
+   * or invalid one — the TOKEN path.
+   *
+   * OPTIONAL, because there are two ways a host can supply identity and it need
+   * only pick one. A host that carries the session in a header this context can
+   * extract (a worker with a bearer token, a test with a literal) provides this
+   * port and lets the context call it. A host that resolves identity ITSELF —
+   * apps/web, which reads a cookie jar AND verifies bearer tokens with its own
+   * client, so it already holds the answer — injects `session` below and omits
+   * this. When NEITHER is given and a token is present, the token cannot be turned
+   * into an identity and the caller is anonymous: a fail-safe (RLS still governs
+   * every row), never a silent elevation.
+   */
+  readonly resolveSession?: (accessToken: string) => Promise<Session | null>
+  /**
+   * A session the HOST has already resolved and verified itself — the INJECTION
+   * path, and apps/web's. A browser's credential lives in a cookie jar this
+   * framework-neutral file has no way to read and must never trust unverified; the
+   * host reads it, verifies with getUser() against the auth server (never
+   * getSession()), and hands the result in here already proven.
+   *
+   * When present it WINS over token resolution, for the same reason `accessToken`
+   * wins over the header: identity a host has already established outranks anything
+   * this context would re-derive. `null` is a first-class value — it means the host
+   * looked and found no verified caller (anonymous), DISTINCT from omitting the
+   * field to defer to `resolveSession`. Injected, the token is used only to mint
+   * the RLS-scoped client, never to re-resolve an identity the host already knows.
+   */
+  readonly session?: Session | null
+  /**
+   * The oldest client the server will still serve, as a full `major.minor.patch`
+   * — the minimum-supported-client floor. OPTIONAL and off by default (null): most
+   * deploys rely on the major-skew check alone, and set this only to force out a
+   * specific old build within the current major (a shipped client bug, a security
+   * fix). Unlike `serverVersion`, an unparseable value here is NOT fatal — the
+   * floor is simply inert (see `isBelowMinimum`), because a broken floor must not
+   * take down a deployment whose major-skew guard is still sound.
+   */
+  readonly minSupportedClient?: string | null
   /**
    * This deployment's version. Parsed ONCE here, at wiring time: a version the
    * skew gate cannot parse makes the gate inert, and that must fail loudly.
@@ -105,6 +143,8 @@ export interface RequestContext {
   readonly db: NotesDatabase
   readonly emit: EventSink
   readonly membership: Membership | null
+  /** The minimum-supported-client floor, or null when none is set. See CreateContextOptions. */
+  readonly minSupportedClient: string | null
   readonly now: string
   readonly requestId: string
   readonly serverMajor: number
@@ -128,7 +168,7 @@ function isHeaderReader(source: HeaderSource): source is HeaderReader {
  * and a lookup that assumes otherwise silently misses on one of the two hosts.
  * SOURCE: https://www.rfc-editor.org/rfc/rfc9110#section-5.1
  */
-function readHeader(source: HeaderSource, name: string): string | null {
+export function readHeader(source: HeaderSource, name: string): string | null {
   if (isHeaderReader(source)) return source.get(name)
   for (const [key, value] of Object.entries(source)) {
     if (key.toLowerCase() !== name) continue
@@ -175,10 +215,22 @@ export async function createContext(options: CreateContextOptions): Promise<Requ
   const serverMajor = requireServerMajor(options.serverVersion)
 
   const token = options.accessToken ?? bearerToken(options.headers)
-  // No token means no session lookup at all. Calling `resolveSession('')` would
-  // spend a network round trip proving what is already known, on every
-  // unauthenticated request.
-  const session = token === null || token === '' ? null : await options.resolveSession(token)
+  // Identity, in priority order:
+  //   1. A session the host already resolved and verified (apps/web's path) wins —
+  //      re-deriving it here would second-guess a proof the host already holds, and
+  //      for a cookie caller there is no token to re-derive it FROM.
+  //   2. Otherwise, if a token AND the resolveSession port are both present,
+  //      resolve from the token.
+  //   3. Otherwise anonymous. No token means no lookup at all (calling
+  //      `resolveSession('')` would spend a round trip proving what is already
+  //      known, on every unauthenticated request — the reason the health check
+  //      stays cheap); and a host that injected neither identity source fails safe.
+  const session =
+    options.session !== undefined
+      ? options.session
+      : token !== null && token !== '' && options.resolveSession !== undefined
+        ? await options.resolveSession(token)
+        : null
 
   return {
     actor: session?.actor ?? null,
@@ -188,6 +240,9 @@ export async function createContext(options: CreateContextOptions): Promise<Requ
     db: options.createClient(token),
     emit: options.emit ?? dropEvents,
     membership: session?.membership ?? null,
+    // Carried, never parsed here: an unparseable floor is inert, not fatal (unlike
+    // serverVersion), so the parse lives at the point of use in `isBelowMinimum`.
+    minSupportedClient: options.minSupportedClient ?? null,
     now: options.now?.() ?? new Date().toISOString(),
     requestId: newRequestId(),
     serverMajor,

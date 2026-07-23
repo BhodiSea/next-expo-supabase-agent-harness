@@ -243,9 +243,9 @@ describe('input validation is a CONTRACT violation, not a domain outcome', () =>
       string,
       Record<string, (input?: unknown) => Promise<unknown>>
     >
-    const thrown: unknown = await groups['notes']?.['get']?.({ id: 'not-a-uuid' }).catch(
-      (cause: unknown) => cause,
-    )
+    const thrown: unknown = await groups['notes']
+      ?.['get']?.({ id: 'not-a-uuid' })
+      .catch((cause: unknown) => cause)
 
     expect(thrown).toBeInstanceOf(TRPCError)
     if (!(thrown instanceof TRPCError)) return

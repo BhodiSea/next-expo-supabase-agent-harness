@@ -4,7 +4,14 @@ import { TRPCError } from '@trpc/server'
 import { describe, expect, it } from 'vitest'
 import { createContext, type Session } from './context.js'
 import { appRouter } from './index.js'
-import { isSkewed, isVersionSkewError, parseMajor, requireServerMajor } from './skew.js'
+import {
+  isBelowMinimum,
+  isSkewed,
+  isVersionSkewError,
+  parseMajor,
+  parseSemver,
+  requireServerMajor,
+} from './skew.js'
 import { createCallerFactory } from './trpc.js'
 
 const SERVER_VERSION = '1.2.3'
@@ -29,12 +36,17 @@ const forbiddenDb: NotesDatabase = {
   },
 }
 
-async function callerFor(clientVersion?: string, serverVersion = SERVER_VERSION) {
+async function callerFor(
+  clientVersion?: string,
+  serverVersion = SERVER_VERSION,
+  minSupportedClient: string | null = null,
+) {
   const headers: Record<string, string> = { authorization: 'Bearer test-token' }
   if (clientVersion !== undefined) headers[CLIENT_VERSION_HEADER] = clientVersion
   const ctx = await createContext({
     createClient: () => forbiddenDb,
     headers,
+    minSupportedClient,
     now: () => '2026-06-01T12:00:00.000Z',
     resolveSession: () => Promise.resolve(SESSION),
     serverVersion,
@@ -215,5 +227,99 @@ describe('gate coverage — no procedure can dodge the guard', () => {
     // The gate runs BEFORE the input parser, so a CONFLICT (never a
     // BAD_REQUEST) is what proves the ordering.
     await expect(call?.(undefined)).rejects.toMatchObject({ code: 'CONFLICT' })
+  })
+})
+
+describe('parseSemver — the full triple the floor orders on', () => {
+  const cases = [
+    { version: '1.2.3', triple: [1, 2, 3], pins: 'a plain triple' },
+    { version: 'v2.0.5', triple: [2, 0, 5], pins: 'the optional v prefix' },
+    { version: '  3.4.5', triple: [3, 4, 5], pins: 'leading whitespace' },
+    { version: '10.20.30', triple: [10, 20, 30], pins: 'multi-digit components' },
+    {
+      version: '1.2.3-rc.1',
+      triple: [1, 2, 3],
+      pins: 'a prerelease tail keeps the release triple',
+    },
+  ] as const
+
+  it.each(cases)('$pins', ({ triple, version }) => {
+    expect(parseSemver(version)).toEqual(triple)
+  })
+
+  it.each([
+    '1',
+    '1.2',
+    'v1',
+    'nope',
+    '',
+    '.1.2',
+  ])('returns null for the incomplete %j', (v: string) => {
+    // A bare major or major.minor cannot be ordered against a full floor, so it
+    // does not parse HERE — the major-skew check governs it instead.
+    expect(parseSemver(v)).toBeNull()
+  })
+})
+
+describe('isBelowMinimum — the floor, distinct from skew', () => {
+  it('is inert with no floor set (null or empty), whatever the client', () => {
+    expect(isBelowMinimum('0.0.1', null)).toBe(false)
+    expect(isBelowMinimum('0.0.1', '')).toBe(false)
+  })
+
+  const ordered = [
+    { client: '1.1.9', min: '1.2.0', below: true, pins: 'minor below' },
+    { client: '1.2.2', min: '1.2.3', below: true, pins: 'patch below' },
+    { client: '0.9.9', min: '1.0.0', below: true, pins: 'major below' },
+    { client: '1.2.3', min: '1.2.3', below: false, pins: 'exactly at the floor passes' },
+    { client: '1.2.4', min: '1.2.3', below: false, pins: 'patch above' },
+    {
+      client: '2.0.0',
+      min: '1.9.9',
+      below: false,
+      pins: 'major above (skew, not floor, would catch it)',
+    },
+  ] as const
+
+  it.each(ordered)('$client vs floor $min → below=$below ($pins)', ({ below, client, min }) => {
+    expect(isBelowMinimum(client, min)).toBe(below)
+  })
+
+  it('is inert when either side is not a full triple — never a false rejection', () => {
+    // A malformed client is already skew by the major check; the floor must not
+    // ALSO reject it on an unorderable comparison.
+    expect(isBelowMinimum('1.2', '1.2.3')).toBe(false)
+    expect(isBelowMinimum('1.2.3', 'not-a-version')).toBe(false)
+  })
+})
+
+describe('the minimum-supported-client floor on the wire', () => {
+  // Server on 1.2.3 (major 1). A floor of 1.2.0 makes an old build WITHIN major 1
+  // fail even though the major-skew check would wave it through.
+  it('rejects a client below the floor even when its major matches', async () => {
+    const caller = await callerFor('1.1.5', SERVER_VERSION, '1.2.0')
+    await expect(caller.system.health()).rejects.toMatchObject({ code: 'CONFLICT' })
+  })
+
+  it('passes a client at or above the floor', async () => {
+    const atFloor = await callerFor('1.2.0', SERVER_VERSION, '1.2.0')
+    await expect(atFloor.system.health()).resolves.toMatchObject({ ok: true })
+    const above = await callerFor('1.5.0', SERVER_VERSION, '1.2.0')
+    await expect(above.system.health()).resolves.toMatchObject({ ok: true })
+  })
+
+  it('with NO floor set, an old same-major client still passes (only major governs)', async () => {
+    const caller = await callerFor('1.0.0', SERVER_VERSION, null)
+    await expect(caller.system.health()).resolves.toMatchObject({ ok: true })
+  })
+
+  it('carries the same version_skew code as a major mismatch — one signal for the client', async () => {
+    const caller = await callerFor('1.1.0', SERVER_VERSION, '1.2.0')
+    const thrown: unknown = await caller.system.health().catch((cause: unknown) => cause)
+    expect(thrown).toBeInstanceOf(TRPCError)
+    if (!(thrown instanceof TRPCError)) return
+    expect(isVersionSkewError(thrown.cause)).toBe(true)
+    if (!isVersionSkewError(thrown.cause)) return
+    expect(thrown.cause.code).toBe('version_skew')
   })
 })

@@ -71,6 +71,48 @@ export function isSkewed(serverMajor: number, clientVersion: string): boolean {
 }
 
 /**
+ * A full `major.minor.patch` triple, for the minimum-supported-client floor.
+ * `parseMajor` decides SKEW (a different major is a contract break); this decides
+ * "too old WITHIN the same major", which needs the lower components too.
+ *
+ * Anchored like `parseMajor`, and null for anything without all three numeric
+ * components — a bare `1` or `1.2` cannot be ordered against a `1.2.3` floor, and
+ * the floor is inert rather than guessing. A pre-release tail (`-rc.1`) is
+ * ignored: it shares the triple of the release it precedes, which is the
+ * conservative reading (an rc is treated as its release, never rejected for being
+ * "below" it).
+ */
+export function parseSemver(version: string): readonly [number, number, number] | null {
+  const match = /^\s*v?(\d+)\.(\d+)\.(\d+)/.exec(version)
+  if (match === null) return null
+  return [Number(match[1]), Number(match[2]), Number(match[3])]
+}
+
+/**
+ * True when `clientVersion` is strictly below `minSupported` — the minimum-
+ * supported-client floor. This is NOT skew: skew is a different major (a contract
+ * break); this is an OLD build within the SAME major that the server has decided
+ * to stop serving — a shipped client bug, or a security fix that must be forced
+ * out faster than a major bump. Both end the same way for the client ("please
+ * update"), so the guard raises the same rejection for both.
+ *
+ * Inert unless a floor is set AND both versions parse as full semver: a floor
+ * cannot order a version it cannot read, and a malformed client is already caught
+ * as skew by the major check. A null or empty `minSupported` means no floor.
+ */
+export function isBelowMinimum(clientVersion: string, minSupported: string | null): boolean {
+  if (minSupported === null || minSupported === '') return false
+  const client = parseSemver(clientVersion)
+  const min = parseSemver(minSupported)
+  if (client === null || min === null) return false
+  const [cMajor, cMinor, cPatch] = client
+  const [mMajor, mMinor, mPatch] = min
+  if (cMajor !== mMajor) return cMajor < mMajor
+  if (cMinor !== mMinor) return cMinor < mMinor
+  return cPatch < mPatch
+}
+
+/**
  * The marker carried on the rejection's `cause`. A class, not a string match on
  * the message: messages are for humans and get reworded, and a guard whose
  * machine-readable identity depends on prose is one copy-edit from silence.
@@ -81,7 +123,10 @@ export class VersionSkewError extends Error {
   readonly serverVersion: string
 
   constructor(serverVersion: string, clientVersion: string) {
-    super('client major version does not match the server')
+    // Generic on purpose: this cause is raised for BOTH a major mismatch and a
+    // below-minimum-floor rejection, so its message names neither. The client
+    // switches on `code`, not this prose.
+    super('client version is not supported by the server')
     this.name = 'VersionSkewError'
     this.clientVersion = clientVersion
     this.serverVersion = serverVersion

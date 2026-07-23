@@ -37,7 +37,6 @@ export const appRouter = router({
  */
 export type AppRouter = typeof appRouter
 
-export { createContext } from './context.js'
 export type {
   Actor,
   CreateContextOptions,
@@ -49,15 +48,20 @@ export type {
   RequestContext,
   Session,
 } from './context.js'
-
+export { createContext } from './context.js'
+// The CSRF guard for the ambient (cookie) transport. Framework-neutral header
+// logic — a host applies it, the router does not — so it lives beside the context
+// those hosts build, and a standalone apps/api would reuse it unchanged.
+export { CSRF_REJECTED_CODE, hasAmbientSessionCookie, isCrossSiteRequest } from './csrf.js'
 export {
   isVersionSkewError,
   parseMajor,
+  parseSemver,
   requireServerMajor,
   VERSION_SKEW_CODE,
   VersionSkewError,
 } from './skew.js'
-
+export type { AuthedContext, MemberContext } from './trpc.js'
 export {
   authedProcedure,
   createCallerFactory,
@@ -65,4 +69,3 @@ export {
   publicProcedure,
   router,
 } from './trpc.js'
-export type { AuthedContext, MemberContext } from './trpc.js'

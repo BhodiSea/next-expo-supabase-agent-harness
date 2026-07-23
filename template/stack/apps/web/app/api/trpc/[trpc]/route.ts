@@ -1,13 +1,20 @@
-import { appRouter, createContext } from '@app/api'
 import type { Session } from '@app/api'
+import {
+  appRouter,
+  CSRF_REJECTED_CODE,
+  createContext,
+  hasAmbientSessionCookie,
+  isCrossSiteRequest,
+} from '@app/api'
 import type { NotesDatabase } from '@app/notes'
-import { getVerifiedUser as verifyBearerToken } from '@app/supabase'
-import type { SupabaseServerClient } from '@app/supabase'
+import type { SupabaseServerClient, VerifiedUser } from '@app/supabase'
+import { getVerifiedUser } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
 import {
   createBearerScopedClient,
   createRequestScopedClient,
 } from '../../../../lib/supabase/server'
+import pkg from '../../../../package.json'
 
 // The API. apps/web is the host, but it is only the host: the router itself is @app/api,
 // which imports nothing from next/* on purpose. That prohibition is the reversibility wall —
@@ -39,31 +46,36 @@ function bearerToken(request: Request): string | null {
   return BEARER_SCHEME.exec(header)?.[1] ?? null
 }
 
-// The deployment version the skew guard compares client majors against. @app/api parses this
-// ONCE at context-build time and rejects an unparseable one loudly (an inert skew gate is worse
-// than a loud one). The web host has no resolved manifest to read it from the way mobile reads
-// `Constants.expoConfig.version`, and @app/env declares no version variable — so it comes from
-// an optional deploy-set env var, falling back to the package version. Bracket access, not dot:
-// noPropertyAccessFromIndexSignature forbids dot access on process.env's index signature, and a
-// server-only route needs no build-time inlining of the read.
-const SERVER_VERSION: string = process.env['APP_VERSION'] ?? '0.1.0'
+// The deployment version the skew guard compares client majors against. In order:
+//   1. a deploy-set `APP_VERSION` — the override, so a canary or hotfix build can pin it;
+//   2. else apps/web's OWN package.json version — this surface's single source of truth,
+//      exactly as apps/mobile derives its version from ITS package.json (app.config.ts).
+// There is NO hardcoded literal: a magic '0.1.0' here would silently diverge from the package
+// the moment it bumped, leaving the skew gate either inert (never rejecting) or over-eager
+// (rejecting current clients) — the precise failure the version-skew doctrine exists to
+// prevent (@app/api parses this ONCE and rejects an unparseable value loudly). Bracket access,
+// not dot: noPropertyAccessFromIndexSignature forbids dot access on process.env's index
+// signature, and this server-only read needs no build-time inlining.
+const SERVER_VERSION: string = process.env['APP_VERSION'] ?? pkg.version
+
+// The minimum-supported-client floor, or null when unset. OPTIONAL policy the deploy sets
+// only to force out a specific old build within the current major (a shipped client bug, a
+// security fix) — the major-skew check needs no floor at all. Off by default: an unset or
+// unparseable value leaves the floor inert (see @app/api's isBelowMinimum), never rejecting.
+// Bracket access for the same index-signature reason as APP_VERSION above.
+const MIN_SUPPORTED_CLIENT: string | null = process.env['MIN_SUPPORTED_CLIENT'] ?? null
 
 /**
- * Turn a verified BEARER access token into the router's Session, or null.
- *
- * This is @app/api's `resolveSession` port, satisfied inside the host: the router package is
- * framework-neutral and takes identity resolution as an injected function precisely so this
- * wiring lives here and not in the reversibility-walled package. The token is VERIFIED against
- * the auth server (verifyBearerToken → getUser under the hood, with the token passed because a
- * bearer client persists no session for a no-arg getUser to read), never decoded locally.
+ * A verified user → the router's Session, or null. ONE builder, shared by both credential
+ * shapes, so a cookie caller and a bearer caller resolve to the SAME actor shape — the "two
+ * callers, one operation" rule reaching all the way down to identity.
  *
  * membership is null: the seed ships no workspace/membership vertical, so every caller is
- * seatless — a reachable state the context models as null, exactly as the `me` procedure does.
- * displayName has no profiles read wired yet, so it falls back to the verified email then the
- * id; Actor.displayName only needs a non-empty string and both are.
+ * seatless — a reachable state the context models as null, exactly as the `me` procedure
+ * returns. displayName falls back to the verified email then the id; Actor.displayName only
+ * needs a non-empty string and both are.
  */
-async function resolveSession(accessToken: string): Promise<Session | null> {
-  const user = await verifyBearerToken(createBearerScopedClient(accessToken), accessToken)
+function sessionForVerifiedUser(user: VerifiedUser | null): Session | null {
   if (user === null) return null
   return {
     actor: { displayName: user.email ?? user.userId, email: user.email, userId: user.userId },
@@ -72,32 +84,76 @@ async function resolveSession(accessToken: string): Promise<Session | null> {
 }
 
 /**
- * One endpoint, two credential shapes — and the reason proxy.ts's matcher must exclude this
- * path.
+ * One endpoint, two credential shapes.
  *
- * apps/mobile authenticates with `Authorization: Bearer <access token>` out of the platform
- * keychain: no cookie jar exists on that host, and a Set-Cookie header aimed at it is either
- * ignored or, in a shared jar, actively harmful. apps/web's own client components
- * authenticate with the httpOnly session cookie. Choosing per request keeps ONE endpoint
- * serving both surfaces rather than forking the API by client — and it is why the
- * cookie-refresh proxy must not also run here: two independent refreshes of the same
- * rotating token, and the loser's is revoked.
+ * apps/mobile authenticates with `Authorization: Bearer <access token>` from the platform
+ * keychain: no cookie jar exists on that host, and a Set-Cookie aimed at it is ignored or, in
+ * a shared jar, actively harmful. apps/web's browser authenticates with the httpOnly Supabase
+ * session cookie. Choosing per request keeps ONE endpoint serving both surfaces rather than
+ * forking the API by client — and it is why proxy.ts's matcher EXCLUDES this path: the cookie
+ * refresh must happen in exactly one place per request, and for /api/trpc that place is the
+ * cookie client built here. Two independent refreshes of the same rotating token, and the
+ * loser's is revoked ("randomly signed out mid-session").
  *
- * Either way the credential is verified downstream and RLS is what enforces access. A forged
- * bearer token does not produce an error page; it produces zero rows.
- * SOURCE: apps/web/proxy.ts (the matcher excludes /api/trpc for exactly this reason)
- * docs/security/sandbox-and-supply-chain.md
+ * The host resolves BOTH shapes to a verified `Session` and INJECTS it — so identity is
+ * decided in one place and @app/api's `resolveSession` port is not even wired here (the router
+ * cannot read a cookie jar, and the bearer client already in hand verifies the token without a
+ * second client). Either credential is VERIFIED before it becomes an identity: a cookie via
+ * getUser() against the auth server (never getSession()), a bearer token the same way, with the
+ * token passed because a bearer client persists no session for a no-arg getUser to read. RLS is
+ * the enforcement beneath that — a forged credential produces zero rows, not an error page.
+ *
+ * The cookie path is additionally CSRF-guarded, because a cookie is an AMBIENT credential the
+ * browser attaches to cross-site requests and a bearer token is not. The guard runs on the raw
+ * request BEFORE the cookie client is built, so a cross-site request can never reach the
+ * getUser() refresh it would otherwise use to rotate — then withhold — a victim's token.
+ * SOURCE: apps/web/proxy.ts (the matcher excludes /api/trpc for exactly this reason) ·
+ * packages/api/src/csrf.ts · docs/security/sandbox-and-supply-chain.md
  */
 const handler = async (request: Request): Promise<Response> => {
   const token = bearerToken(request)
-  // Mint the request's RLS-scoped client ONCE, here, keyed on the credential shape: a bearer
-  // caller gets a token-scoped client; a cookie caller gets the request-scoped cookie client
-  // (built here because it must await next/headers' cookies(), and createContext's injected
-  // `createClient` port is synchronous). The context carries the caller's identity, so this is
-  // per request and never hoisted — a shared client would serve the first caller's session to
-  // everyone the warm process handles concurrently.
-  const db: SupabaseServerClient =
-    token === null ? await createRequestScopedClient() : createBearerScopedClient(token)
+
+  // Resolve the credential shape into a client and a verified session, THEN hand off — one
+  // fetchRequestHandler serves both surfaces.
+  let db: SupabaseServerClient
+  let session: Session | null
+
+  if (token === null) {
+    // COOKIE (browser) path — the ambient-credential surface.
+    const ambient = hasAmbientSessionCookie(request.headers)
+    if (ambient && isCrossSiteRequest(request.headers, new URL(request.url).origin)) {
+      // Refused by the host, before the router: a plain 403 with a stable body code, never a
+      // tRPC error (this never reaches the error formatter — see packages/api/src/csrf.ts).
+      return new Response(JSON.stringify({ error: CSRF_REJECTED_CODE }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    // The request-scoped cookie client. On this writable host getUser() BOTH verifies the jar
+    // and performs the session refresh proxy.ts deliberately leaves to this route.
+    db = await createRequestScopedClient()
+    // Resolve identity ONLY when a session cookie is actually present. An anonymous request (a
+    // curl health check, a signed-out browser) makes no auth round trip — mirroring
+    // createContext's own skip for a tokenless caller, and keeping the public health procedure
+    // as cheap as the skew doctrine requires.
+    session = ambient ? sessionForVerifiedUser(await getVerifiedUser(db)) : null
+  } else {
+    // BEARER (apps/mobile) path. ONE client, minted from the token so RLS sees the caller, and
+    // the same client verifies the token (passed explicitly — a bearer client persists no
+    // session for a no-arg getUser to read).
+    db = createBearerScopedClient(token)
+    session = sessionForVerifiedUser(await getVerifiedUser(db, token))
+  }
+
+  // Narrowed to the DAL's structural port. `as unknown as`: checking a full SupabaseServerClient
+  // against NotesDatabase instantiates supabase-js's vast `.from()` overload set (TS2589,
+  // "excessively deep"). The assertion is SOUND — NotesDatabase is a hand-authored subset of
+  // exactly the supabase surface the DAL calls, and `db` is a real supabase client. The cast
+  // rides a `const` (never the createClient return position) for the same reason the sibling
+  // does: an assertion in a contextually-typed slot reads as redundant to no-unnecessary-type-
+  // assertion, which does not see the deep check that makes it load-bearing.
+  // SOURCE: apps/web/app/actions/notes.ts (the same NotesDatabase-subset cast, full rationale)
+  const notesDb = db as unknown as NotesDatabase
 
   return fetchRequestHandler({
     // Must match this route's own path. tRPC strips it to recover the procedure name, so a
@@ -105,27 +161,14 @@ const handler = async (request: Request): Promise<Response> => {
     endpoint: '/api/trpc',
     req: request,
     router: appRouter,
-    // The real createContext takes INJECTED PORTS, not a client: it derives the token from the
-    // headers (or the explicit accessToken), verifies it through resolveSession, and mints the
-    // db through createClient. `accessToken` is passed so a bearer token WINS over header
-    // parsing, and `createClient` returns the already-built `db` for either token value it is
-    // handed (the client for this request's credential shape is already decided above).
-    // NOTE — a COOKIE caller is anonymous to the router today: its identity lives in the cookie
-    // jar, not in a bearer token this port can verify, so createContext resolves no actor for it
-    // (reads still run RLS-scoped by the cookie). apps/web's browser reads/writes go through RSC
-    // + Server Actions, not this HTTP endpoint; the exercised HTTP caller is apps/mobile (bearer).
     createContext: () =>
       createContext({
-        accessToken: token,
-        // `as unknown as NotesDatabase`: the createClient port returns the DAL's structural
-        // port, and checking a full SupabaseServerClient against it instantiates supabase-js's
-        // vast `.from()` overload set — TS2589 ("excessively deep"). The assertion is SOUND:
-        // NotesDatabase is a deliberate hand-authored subset of exactly the supabase surface
-        // the DAL calls, and `db` is a real supabase client. Same escape the Server Action
-        // uses (apps/web/app/actions/notes.ts). SOURCE: design/W1-STACK-SPEC.md §3
-        createClient: () => db as unknown as NotesDatabase,
+        createClient: () => notesDb,
         headers: request.headers,
-        resolveSession,
+        minSupportedClient: MIN_SUPPORTED_CLIENT,
+        // Identity is injected, already verified — no resolveSession port, because the router
+        // cannot read a cookie jar and the bearer path already verified with the client above.
+        session,
         serverVersion: SERVER_VERSION,
       }),
   })

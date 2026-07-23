@@ -20,6 +20,11 @@
     // Next resolves them. This pair is the ONLY resolution split the base tolerates.
     "module": "esnext",
     "moduleResolution": "bundler",
+    // The skew guard's server version reads this app's OWN package.json version (see
+    // app/api/trpc/[trpc]/route.ts) — the same single-source pattern apps/mobile uses in
+    // app.config.ts. That import needs resolveJsonModule; the base leaves it off (only the
+    // Metro app turned it on), so it is restated here, scoped to this app.
+    "resolveJsonModule": true,
     // "preserve" is mandatory — Next transforms JSX itself (with the React Compiler and
     // its own fast-refresh instrumentation). Letting tsc transform it first would strip
     // exactly the syntax Next needs to see.

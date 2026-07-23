@@ -2,7 +2,7 @@ import { TransportErrorCode } from '@app/contracts'
 import { type ActionOutcome, appError, outcomeErr, outcomeOk } from '@app/errors'
 import { initTRPC, TRPCError } from '@trpc/server'
 import type { Actor, Membership, RequestContext } from './context.js'
-import { isSkewed, isVersionSkewError, VersionSkewError } from './skew.js'
+import { isBelowMinimum, isSkewed, isVersionSkewError, VersionSkewError } from './skew.js'
 
 // ---------------------------------------------------------------------------
 // The tRPC root.
@@ -65,11 +65,21 @@ export const createCallerFactory = t.createCallerFactory
  * the smoke check that exists to tell you the deploy is alive.
  */
 const skewGuard = t.middleware(({ ctx, next }) => {
-  if (ctx.clientVersion !== null && isSkewed(ctx.serverMajor, ctx.clientVersion)) {
+  // Two rejections, ONE response. A different major is a contract break (isSkewed);
+  // an old build within the current major that the deploy has chosen to stop serving
+  // is the minimum-supported-client floor (isBelowMinimum, inert unless a floor is
+  // set). Both mean "this client must update", so both raise the same CONFLICT with
+  // the same machine code — the client's handling is identical, and the distinction
+  // is a server-log concern, not a wire one.
+  if (
+    ctx.clientVersion !== null &&
+    (isSkewed(ctx.serverMajor, ctx.clientVersion) ||
+      isBelowMinimum(ctx.clientVersion, ctx.minSupportedClient))
+  ) {
     throw new TRPCError({
       code: 'CONFLICT',
       cause: new VersionSkewError(ctx.serverVersion, ctx.clientVersion),
-      message: 'client major version does not match the server',
+      message: 'client version is not supported by the server',
     })
   }
   return next()
