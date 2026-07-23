@@ -34,7 +34,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 22-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 23-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -59,11 +59,11 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 22 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
-  `provenance`, `expo-policy`, `native-deps`, `version-sync`, `prompts`,
-  `licenses`, `schema-rls`, `types-drift`, `migrations`, `contracts`, `dead-code`,
-  `architecture`, `build`, `styleguide`, `perf-budget`, `route-manifest`,
-  `e2e`, `docs-sync` (docs/harness/gates-catalog.md documents each).
+- The 23 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
+  `provenance`, `boundaries`, `expo-policy`, `native-deps`, `version-sync`,
+  `prompts`, `licenses`, `schema-rls`, `types-drift`, `migrations`, `contracts`,
+  `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
+  `route-manifest`, `e2e`, `docs-sync` (docs/harness/gates-catalog.md documents each).
 - **Toolchain asymmetry:** gates needing a live database, an install, or a
   network-verified toolchain SKIP LOUDLY locally when the prerequisite is
   absent and FAIL CLOSED in CI (`CI=true` / `HARNESS_REQUIRE_TOOLCHAINS=1`).

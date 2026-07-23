@@ -43,6 +43,13 @@
         "note": "uncited decision sites red naming file+line; wrong-group corpus cites red naming site, group and cited groups; a bare-URL SOURCE on a host outside tools/lib/citation-domains.mjs reds naming the host; tools/provenance-overrides.json is the reviewed escape and malformed entries fail closed"
       }
     ],
+    "boundaries": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-boundaries.test.mjs",
+        "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system"
+      }
+    ],
     "expo-policy": [
       {
         "kind": "selftest",

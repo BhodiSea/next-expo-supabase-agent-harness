@@ -40,13 +40,15 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-22 gates, cheap → expensive:
+23 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks —
 tampering is turn-fatal) → types (`tsc -b`) → lint (typescript-eslint
 strictTypeChecked + react-native/a11y every-rule-error + React Compiler rules +
 cognitive-complexity ≤ 15 + the fetch/secure-store/chart-library boundary
-bans) → provenance (`SOURCE:` on every decision site) → **expo-policy**
+bans) → provenance (`SOURCE:` on every decision site) → **boundaries** (the two
+census consumers off one `tools/exports-walls.json`: the `./client` wall + the
+declared-dependency allow-matrix) → **expo-policy**
 (identity lock, ATS/cleartext, permissions + config-plugin allowlists, CNG
 purity, secret-shaped `extra` ban, splash-color lockstep, eas.json sanity) →
 **native-deps** (`expo install --check`, CNG purity, plugin allowlist) →

@@ -103,7 +103,26 @@ Consumer-added decision classes live in `tools/decision-groups.json`.
 file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
 naming the mismatch.
 
-### 6. expo-policy — `node tools/check-expo-policy.mjs`
+### 6. boundaries — `node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs`
+
+The boundary triad, part 1 (part 2 — the import-graph layering — is the later
+`architecture` step). Both consumers derive from the ONE census
+`tools/exports-walls.json`, never a per-consumer copy. **check-exports-walls**: every
+package that ships a `./client` subpath export must carry a sanctioned `{package,
+reason}` entry (Metro does not tree-shake, so a `./client` on a package holding a
+server graph puts it one import from the native binary); two-way, so a sanction naming
+a missing package reds too. `sanctioned` is MAY not MUST — a listed package shipping
+only `.` is fine. **check-workspace-deps** (the declared-dependency allow-matrix):
+apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
+universally-importable (the error/event kernel, the wire contracts, the RN-only design
+system); `@app/api` must be an import-type-only devDependency; verticals never depend on
+each other; shared never depends on a vertical; apps/web never carries the RN-only design
+system.
+**Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
+naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
+vertical depend on another → FAIL "verticals never import each other".
+
+### 7. expo-policy — `node tools/check-expo-policy.mjs`
 
 Asserts over the RESOLVED Expo config (`expo config --json --type public` — dynamic
 config executed, plugins expanded), the store/security surface the app actually
@@ -156,7 +175,7 @@ declare a usage string as "TODO" → FAIL; empty the deletion registry entry
 while sign-in ships → FAIL citing 5.1.1(v); swap the marketing icon for a
 512×512 or alpha-carrying PNG → FAIL with the measured dimensions.
 
-### 7. native-deps — `node tools/check-native-deps.mjs`
+### 8. native-deps — `node tools/check-native-deps.mjs`
 
 The native dependency floor for a CNG app: (1) `expo install --check` exits clean —
 every Expo-managed package at the SDK-blessed version (an Expo package's MAJOR
@@ -170,7 +189,7 @@ native lane, not here. Loud SKIP without the toolchain; FAIL CLOSED in CI.
 **Anti-vacuity:** pin an expo-* package one patch off the SDK set → FAIL with
 expo's own fix list; commit a file under `apps/mobile/android/` → FAIL CNG purity.
 
-### 8. version-sync — `node tools/check-version-sync.mjs`
+### 9. version-sync — `node tools/check-version-sync.mjs`
 
 One version everywhere — root/server/mobile package.json agree AND the RESOLVED
 Expo config equals the app.config.ts derivation formulas (`ios.buildNumber` =
@@ -187,7 +206,7 @@ always re-runs.
 disagreeing versions; replace the versionCode derivation with a literal → FAIL on
 the next version bump.
 
-### 9. prompts — `node tools/check-prompts-lock.mjs`
+### 10. prompts — `node tools/check-prompts-lock.mjs`
 
 Every prompt file under `packages/*/prompts/` / `apps/*/prompts/` is sha256-locked
 in `tools/prompts.lock.json` and versioned in its filename (`extract.v1.md`). Pass
@@ -196,7 +215,7 @@ lock (write-guard-protected — a human act).
 **Anti-vacuity:** edit one word in `packages/eval/prompts/extract.v1.md` → FAIL
 hash mismatch.
 
-### 10. licenses — `node tools/check-licenses.mjs`
+### 11. licenses — `node tools/check-licenses.mjs`
 
 The production npm dependency tree stays inside a permissive allowlist
 (MIT/ISC/Apache-2.0/BSD/MPL-2.0 etc.); exceptions are reviewable data in
@@ -204,7 +223,7 @@ The production npm dependency tree stays inside a permissive allowlist
 dependency the moment an agent adds one.
 **Anti-vacuity:** `pnpm add` any GPL-3.0-only package as a prod dep → FAIL naming it.
 
-### 11. schema-rls — `node tools/check-rls-manifest.mjs`
+### 12. schema-rls — `node tools/check-rls-manifest.mjs`
 
 Static <100ms cross-reference over the SQL, not substring vibes. Every table declared
 in `supabase/schemas/*.sql` has ENABLE + FORCE ROW LEVEL SECURITY and per-operation
@@ -222,7 +241,7 @@ policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth
 FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
 to one registry but not the other → FAIL naming the gap.
 
-### 12. types-drift — `node tools/check-types-drift.mjs`
+### 13. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
 running local stack and byte-diffs it against the committed
@@ -238,7 +257,7 @@ compile-time licence to skip validation.
 FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
 while the stack is up".
 
-### 13. migrations — `node tools/check-migrations.mjs`
+### 14. migrations — `node tools/check-migrations.mjs`
 
 Append-only (no committed migration modified/deleted vs HEAD, or vs the PR base in
 CI); no DML without `-- harness-allow-dml: <reason>`; destructive DDL requires
@@ -247,7 +266,7 @@ migration; follow `docs/runbooks/expand-contract.md` for destructive phases.
 **Anti-vacuity:** append a comment to an existing migration file (editor) → FAIL
 append-only; add `DROP TABLE notes;` in a new migration without an ADR line → FAIL.
 
-### 14. contracts — `node tools/check-contract-drift.mjs`
+### 15. contracts — `node tools/check-contract-drift.mjs`
 
 (1) OpenAPI regen-diff: re-emit from the live route definitions
 (stable-stringified) and diff against the committed `apps/server/openapi.json` —
@@ -257,7 +276,7 @@ into confusing type errors otherwise.
 **Anti-vacuity:** add a route without re-emitting → FAIL stale; delete a
 `references` entry from a package tsconfig → FAIL naming the missing ref.
 
-### 15. dead-code — `pnpm exec knip --strict`
+### 16. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
@@ -266,7 +285,7 @@ visible, greppable claim, reviewed like code. NEVER `knip --fix` (blocked): it
 auto-deletes with false positives.
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 16. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 17. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; mobile resolves no `postgres|drizzle-orm|pino|@hono/*`,
 nothing in `apps/server`, and NOT `@app/schema` (wire contracts come from
@@ -277,7 +296,7 @@ under `apps/server/src/db/`; `withUserContext` importable only from the DAL;
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 17. build — `node tools/build-check.mjs`
+### 18. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -294,7 +313,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 18. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 19. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA. `tools/styleguide.manifest.json` (write-guard-protected)
 is the OKLCH source of truth; `tools/gen-theme.mjs` COMPILES it into the committed
@@ -333,7 +352,7 @@ FAIL naming the literal; call `Animated.timing` from a screen → FAIL pointing 
 the seam; spell `shadowOpacity:` outside src/theme → FAIL; style a raw
 `<Pressable>` in a second home file → FAIL naming the base.
 
-### 19. perf-budget — `node tools/check-perf-budget.mjs`
+### 20. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -360,7 +379,7 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 20. route-manifest — `node tools/check-route-manifest.mjs`
+### 21. route-manifest — `node tools/check-route-manifest.mjs`
 
 Every screen is REGISTERED: `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -377,7 +396,7 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-### 21. e2e — `node tools/check-e2e.mjs`
+### 22. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -396,7 +415,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 22. docs-sync — `node tools/check-docs-sync.mjs`
+### 23. docs-sync — `node tools/check-docs-sync.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must

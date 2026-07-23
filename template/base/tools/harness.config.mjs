@@ -24,6 +24,11 @@ export const VALIDATE_STEPS = [
   ['types', 'pnpm exec tsc -b . apps/web apps/mobile'],
   ['lint', 'pnpm exec eslint . --max-warnings 0 --cache'],
   ['provenance', 'node tools/check-sources.mjs'],
+  // The boundary TRIAD, part 1: the two census consumers (check-exports-walls +
+  // check-workspace-deps) that derive from the ONE tools/exports-walls.json. Cheap,
+  // pure-node, static. The import-GRAPH half of the triad (the census-derived
+  // dependency-cruiser layering) is enforced by the later `architecture` step.
+  ['boundaries', 'node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs'],
   ['expo-policy', 'node tools/check-expo-policy.mjs'],
   ['native-deps', 'node tools/check-native-deps.mjs'],
   ['version-sync', 'node tools/check-version-sync.mjs'],
