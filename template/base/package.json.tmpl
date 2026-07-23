@@ -31,10 +31,14 @@
     "db:types": "supabase gen types typescript --local --schema public > packages/platform/supabase/src/database.types.ts",
     "dev:web": "pnpm --filter web run dev",
     "dev:mobile": "pnpm --filter mobile run dev",
-    "gen": "pnpm db:types && pnpm --filter @app/design-tokens run gen",
+    "gen:contracts": "pnpm exec tsx tools/gen-action-inventory.mjs && pnpm exec tsx tools/gen-event-catalog.mjs",
+    "gen": "pnpm db:types && pnpm --filter @app/design-tokens run gen && pnpm gen:contracts",
     "prepare": "lefthook install"
   },
   "devDependencies": {
+    "@app/api": "workspace:*",
+    "@app/events": "workspace:*",
+    "@app/notes": "workspace:*",
     "@biomejs/biome": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",

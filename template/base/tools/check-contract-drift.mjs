@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 // Gate: contracts — the committed API contract and the project graph cannot drift.
-//   1. openapi.json regen-diff: re-emit the OpenAPI document from the live route
-//      definitions (apps/server/scripts/emit-openapi.ts, stable-stringified) and diff
-//      against the committed apps/server/openapi.json. Requires an install (tsx);
-//      skips loudly without one, fails closed in CI.
+//   1. contract inventory regen-diff: regenerate the two committed inventories —
+//      tools/generated/action-inventory.json (every tRPC procedure the appRouter exposes)
+//      and tools/generated/event-catalog.json (every event the platform + vertical catalogs
+//      declare) — from the LIVE values and diff against the committed copies, so adding or
+//      removing an action/event without regenerating reds. Requires an install (tsx, to walk
+//      the runtime router/catalogs); skips loudly without one, fails closed in CI.
 //   2. tsconfig project-references sync: the solution tsconfig and each package's
 //      references must mirror the pnpm workspace dependency graph — three parallel
 //      topologies (workspace deps, project refs, knip map) desynchronize into
 //      confusing type errors otherwise. Pure static check, no install needed.
 //   3. bounded wire strings (G18): every `z.string()` in the shared wire contract —
-//      @app/contracts (the pure-Zod DTO package the mobile app imports) plus
-//      @app/schema (the drizzle surface, should a DTO ever land there) — must be
+//      @app/contracts, the pure-Zod DTO package both surfaces import — must be
 //      length-bounded with `.max(N)`. An unbounded wire string is a
 //      memory-amplification vector — the server accepts a 50 MB "title" the client
 //      never meant to send. The app.errors spec-walk already proves the ENVELOPE on
@@ -75,38 +76,51 @@ if (existsSync('tsconfig.json')) {
   const solution = parseJsonc(readFileSync('tsconfig.json', 'utf8'))
   const refs = new Set((solution.references ?? []).map((r) => r.path.replace(/^\.\//, '')))
   for (const dir of pkgDirs) {
+    // apps/* are the two NON-COMPOSITE leaf apps: the `types` gate passes them as extra
+    // `tsc -b . apps/web apps/mobile` roots, never as solution references (a referenced
+    // project must be composite, and a leaf app that emits a declaration reds on the tRPC
+    // client's un-nameable private symbol). Only packages/* are solution references.
+    if (posix(dir).startsWith('apps/')) continue
     if (!refs.has(posix(dir))) errs.push(`tsconfig.json (solution): missing reference to ${dir}`)
   }
 }
 
-// ---- 1. openapi regen-diff ----
-const EMIT = 'apps/server/scripts/emit-openapi.ts'
-const COMMITTED = 'apps/server/openapi.json'
-if (existsSync(EMIT)) {
+// ---- 1. contract inventory regen-diff (actions + events) ----
+// The two committed inventories are the API's SHAPE written down: every tRPC procedure the
+// appRouter exposes (gen-action-inventory) and every event the platform + vertical catalogs
+// declare (gen-event-catalog). Regenerate each FRESH from the live values and diff against
+// the committed copy, so adding OR removing an action/event without regenerating reds. The
+// generators walk runtime values (appRouter._def.procedures, listEvents) under tsx, so this
+// leg needs an install — it skips loudly without one and fails closed in CI, exactly as the
+// old OpenAPI emit did.
+const INVENTORIES = [
+  ['tools/gen-action-inventory.mjs', 'tools/generated/action-inventory.json'],
+  ['tools/gen-event-catalog.mjs', 'tools/generated/event-catalog.json'],
+]
+if (INVENTORIES.some(([gen]) => existsSync(gen))) {
   if (!existsSync('node_modules')) {
     if (errs.length) failures(GATE, errs)
-    skipOrFail(GATE, 'node_modules missing — openapi regen-diff needs an install')
+    skipOrFail(GATE, 'node_modules missing — the contract inventory regen-diff needs an install')
   }
-  try {
-    // --silent: under CI=true pnpm prints its auto-install/verify banner to
-    // STDOUT, which would pollute the captured JSON and false-fail the diff.
-    const regenerated = runCmd(`pnpm --silent exec tsx ${EMIT} --stdout`)
-    const committed = existsSync(COMMITTED) ? readFileSync(COMMITTED, 'utf8') : ''
-    if (regenerated.trim() !== committed.trim()) {
+  for (const [gen, committed] of INVENTORIES) {
+    if (!existsSync(gen)) continue
+    try {
+      // --silent: pnpm's auto-install/verify banner would pollute the captured stream.
+      // The generator's --check exits non-zero (and explains) when the committed copy drifts.
+      runCmd(`pnpm --silent exec tsx ${gen} --check`)
+    } catch (e) {
       errs.push(
-        `${COMMITTED} is stale — routes changed without regenerating the contract. Run: pnpm openapi:emit (then review the diff; consumers depend on it)`,
+        `${committed} is stale — regenerate it: \`pnpm gen\`, then commit the diff (consumers depend on it). ${(e.stderr?.toString() ?? e.message).slice(0, 300).trim()}`,
       )
     }
-  } catch (e) {
-    errs.push(`openapi emit failed: ${(e.stderr?.toString() ?? e.message).slice(0, 400)}`)
   }
 }
 
 // ---- 3. bounded wire strings (G18): every z.string() carries .max() ----
-// The wire DTOs live in @app/contracts (mobile-importable pure Zod); @app/schema is
-// scanned too so a DTO drifting into the drizzle package cannot dodge the bound.
-// Internal packages (eval fixtures, importer) are NOT wire surface and stay out.
-const WIRE_SRC = ['packages/contracts/src', 'packages/schema/src']
+// The wire DTOs live in @app/contracts — the pure-Zod package both surfaces import. It is
+// the only wire surface: verticals re-parse rows against these DTOs, they do not author new
+// ones, so a bound dodged here is a bound dodged everywhere.
+const WIRE_SRC = ['packages/contracts/src']
 const DTO_ALLOW = 'tools/dto-bounds-allow.json'
 let boundedChecked = 0
 const wireRoots = WIRE_SRC.filter((p) => existsSync(p))
@@ -196,5 +210,5 @@ failures(GATE, errs)
 recordGreen()
 ok(
   GATE,
-  `openapi.json in sync; tsconfig references mirror the workspace graph; ${boundedChecked} wire string(s) length-bounded`,
+  `contract inventories in sync; tsconfig references mirror the workspace graph; ${boundedChecked} wire string(s) length-bounded`,
 )

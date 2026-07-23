@@ -8,12 +8,13 @@
 //      and the openapi regen-diff SKIP/FAIL asymmetry. Fixtures never carry
 //      apps/server/scripts/emit-openapi.ts unless a case wants the openapi branch, so
 //      the tsconfig check runs in isolation with a clean red/green.
-import { test } from 'node:test'
+
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // Windows-safe dynamic import: a raw absolute path (D:\…) is not loadable by the
@@ -22,6 +23,10 @@ const JSONC = pathToFileURL(
   fileURLToPath(new URL('../../template/base/tools/lib/jsonc.mjs', import.meta.url)),
 ).href
 const { parseJsonc } = await import(JSONC)
+const INV = pathToFileURL(
+  fileURLToPath(new URL('../../template/base/tools/lib/inventory.mjs', import.meta.url)),
+).href
+const { renderActions, renderEvents } = await import(INV)
 
 const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-contract-drift.mjs', import.meta.url),
@@ -109,26 +114,29 @@ test('parseJsonc: KNOWN BUG — trailing-comma cleanup is not string-aware', () 
 })
 
 // ---------------------------------------------------------------------------
-// B. check-contract-drift — tsconfig references sync + openapi skip asymmetry
+// B. check-contract-drift — tsconfig references sync + inventory regen-diff skip asymmetry
 // ---------------------------------------------------------------------------
 
-// A GREEN workspace: schema has no workspace deps; mobile depends on schema and
-// carries the matching project reference; the solution file references both dirs.
+// A GREEN workspace: schema has no workspace deps; contracts depends on schema and carries
+// the matching project reference; the solution references both PACKAGE dirs. apps/* are
+// deliberately NOT solution references (the two non-composite leaf apps are extra
+// `tsc -b . apps/web apps/mobile` roots), so the solution-reference check skips them.
 const GREEN_PACKAGES = {
   'packages/schema': { pkg: { name: '@app/schema' }, tsconfig: { references: [] } },
-  'apps/mobile': {
-    pkg: { name: '@app/mobile', dependencies: { '@app/schema': 'workspace:*' } },
-    tsconfig: { references: [{ path: '../../packages/schema' }] },
+  'packages/contracts': {
+    pkg: { name: '@app/contracts', dependencies: { '@app/schema': 'workspace:*' } },
+    tsconfig: { references: [{ path: '../schema' }] },
   },
 }
-const GREEN_SOLUTION = ['packages/schema', 'apps/mobile']
+const GREEN_SOLUTION = ['packages/schema', 'packages/contracts']
 
-// Build a scaffold-shaped tree; a package's `tsconfig: null` omits its tsconfig.json,
-// a string tsconfig/solution is written verbatim (to exercise JSONC), `solution: null`
-// omits the root tsconfig.json, and `emit: true` plants emit-openapi.ts.
-/** @param {{ packages?: any, solution?: any, emit?: boolean }} [opts] */
-function fixture({ packages = GREEN_PACKAGES, solution = GREEN_SOLUTION, emit = false } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'epah-contract-'))
+// Build a scaffold-shaped tree; a package's `tsconfig: null` omits its tsconfig.json, a
+// string tsconfig/solution is written verbatim (to exercise JSONC), `solution: null` omits
+// the root tsconfig.json, and `inventory: true` plants a stub tools/gen-action-inventory.mjs
+// so the regen-diff branch engages.
+/** @param {{ packages?: any, solution?: any, inventory?: boolean }} [opts] */
+function fixture({ packages = GREEN_PACKAGES, solution = GREEN_SOLUTION, inventory = false } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'nesah-contract-'))
   for (const [rel, spec] of Object.entries(packages)) {
     mkdirSync(join(dir, rel), { recursive: true })
     if (spec.pkg != null) {
@@ -147,9 +155,9 @@ function fixture({ packages = GREEN_PACKAGES, solution = GREEN_SOLUTION, emit = 
         : JSON.stringify({ references: solution.map((p) => ({ path: p })) }, null, 2)
     writeFileSync(join(dir, 'tsconfig.json'), body)
   }
-  if (emit) {
-    mkdirSync(join(dir, 'apps/server/scripts'), { recursive: true })
-    writeFileSync(join(dir, 'apps/server/scripts/emit-openapi.ts'), 'export {}\n')
+  if (inventory) {
+    mkdirSync(join(dir, 'tools'), { recursive: true })
+    writeFileSync(join(dir, 'tools/gen-action-inventory.mjs'), 'export {}\n')
   }
   return dir
 }
@@ -176,12 +184,14 @@ test('GREEN: tsconfig references mirror the workspace dependency graph', () => {
 test('GREEN: JSONC tsconfigs (comments + trailing commas) still parse and pass in the gate', () => {
   const packages = {
     'packages/schema': { pkg: { name: '@app/schema' }, tsconfig: '{ "references": [] }' },
-    'apps/mobile': {
-      pkg: { name: '@app/mobile', dependencies: { '@app/schema': 'workspace:*' } },
-      tsconfig: '{\n  // mobile references the schema package it imports\n  "references": [\n    { "path": "../../packages/schema" }, // trailing comma is legal JSONC\n  ],\n}',
+    'packages/contracts': {
+      pkg: { name: '@app/contracts', dependencies: { '@app/schema': 'workspace:*' } },
+      tsconfig:
+        '{\n  // contracts references the schema package it imports\n  "references": [\n    { "path": "../schema" }, // trailing comma is legal JSONC\n  ],\n}',
     },
   }
-  const solution = '{\n  // every workspace package is a referenced project\n  "references": [\n    { "path": "packages/schema" },\n    { "path": "apps/mobile" },\n  ],\n}'
+  const solution =
+    '{\n  // every workspace PACKAGE is a referenced project\n  "references": [\n    { "path": "packages/schema" },\n    { "path": "packages/contracts" },\n  ],\n}'
   const r = runGate(fixture({ packages, solution }))
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('tsconfig references mirror the workspace graph'), r.out)
@@ -190,8 +200,8 @@ test('GREEN: JSONC tsconfigs (comments + trailing commas) still parse and pass i
 test('RED: a workspace dep with no matching project reference fails naming the dep', () => {
   const packages = {
     ...GREEN_PACKAGES,
-    'apps/mobile': {
-      pkg: { name: '@app/mobile', dependencies: { '@app/schema': 'workspace:*' } },
+    'packages/contracts': {
+      pkg: { name: '@app/contracts', dependencies: { '@app/schema': 'workspace:*' } },
       tsconfig: { references: [] },
     },
   }
@@ -203,8 +213,8 @@ test('RED: a workspace dep with no matching project reference fails naming the d
 test('RED: a workspace package without a tsconfig.json fails loud', () => {
   const packages = {
     ...GREEN_PACKAGES,
-    'apps/mobile': {
-      pkg: { name: '@app/mobile', dependencies: { '@app/schema': 'workspace:*' } },
+    'packages/contracts': {
+      pkg: { name: '@app/contracts', dependencies: { '@app/schema': 'workspace:*' } },
       tsconfig: null,
     },
   }
@@ -213,10 +223,24 @@ test('RED: a workspace package without a tsconfig.json fails loud', () => {
   assert.ok(r.out.includes('missing tsconfig.json'), r.out)
 })
 
-test('RED: the solution tsconfig missing a package reference is named', () => {
+test('RED: the solution tsconfig missing a PACKAGE reference is named', () => {
   const r = runGate(fixture({ solution: ['packages/schema'] }))
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('missing reference to apps/mobile'), r.out)
+  assert.ok(r.out.includes('missing reference to packages/contracts'), r.out)
+})
+
+test('GREEN: apps/* are NOT required as solution references (non-composite leaf roots)', () => {
+  // apps/web depends on @app/schema and carries the per-package reference (which IS checked),
+  // but the solution does not reference apps/web — and must not need to.
+  const packages = {
+    ...GREEN_PACKAGES,
+    'apps/web': {
+      pkg: { name: 'web', dependencies: { '@app/schema': 'workspace:*' } },
+      tsconfig: { references: [{ path: '../../packages/schema' }] },
+    },
+  }
+  const r = runGate(fixture({ packages, solution: GREEN_SOLUTION }))
+  assert.equal(r.code, 0, r.out)
 })
 
 test('GREEN: with no solution tsconfig, the per-package reference checks still pass', () => {
@@ -225,27 +249,63 @@ test('GREEN: with no solution tsconfig, the per-package reference checks still p
   assert.ok(r.out.includes('tsconfig references mirror the workspace graph'), r.out)
 })
 
-test('openapi skip asymmetry: emit-openapi.ts present, no install → local SKIP, CI FAIL', () => {
-  const local = runGate(fixture({ emit: true }), { ci: false })
+test('inventory skip asymmetry: a generator present, no install → local SKIP, CI FAIL', () => {
+  const local = runGate(fixture({ inventory: true }), { ci: false })
   assert.equal(local.code, 0, local.out)
   assert.ok(local.out.includes('SKIPPED'), local.out)
   assert.ok(local.out.includes('node_modules missing'), local.out)
 
-  const ci = runGate(fixture({ emit: true }), { ci: true })
+  const ci = runGate(fixture({ inventory: true }), { ci: true })
   assert.equal(ci.code, 1, ci.out)
   assert.ok(ci.out.includes('node_modules missing'), ci.out)
 })
 
-test('a tsconfig failure beats the openapi skip: red even locally, never SKIPPED', () => {
+test('a tsconfig failure beats the inventory skip: red even locally, never SKIPPED', () => {
   const packages = {
     ...GREEN_PACKAGES,
-    'apps/mobile': {
-      pkg: { name: '@app/mobile', dependencies: { '@app/schema': 'workspace:*' } },
+    'packages/contracts': {
+      pkg: { name: '@app/contracts', dependencies: { '@app/schema': 'workspace:*' } },
       tsconfig: { references: [] },
     },
   }
-  const r = runGate(fixture({ packages, emit: true }), { ci: false })
+  const r = runGate(fixture({ packages, inventory: true }), { ci: false })
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('missing project reference to packages/schema'), r.out)
   assert.ok(!r.out.includes('SKIPPED'), r.out)
+})
+
+// ---------------------------------------------------------------------------
+// C. the pure inventory serializers (tools/lib/inventory.mjs) — in-process, no workspace
+// ---------------------------------------------------------------------------
+
+test('renderActions: code-unit sorted rows of {action, type} from a _def.procedures record', () => {
+  const procedures = {
+    'system.me': { _def: { type: 'query' } },
+    'notes.create': { _def: { type: 'mutation' } },
+  }
+  const expected = `${JSON.stringify(
+    [
+      { action: 'notes.create', type: 'mutation' },
+      { action: 'system.me', type: 'query' },
+    ],
+    null,
+    2,
+  )}\n`
+  assert.equal(renderActions(procedures), expected)
+})
+
+test('renderEvents: code-unit sorted {name,version,description}; a duplicate name throws', () => {
+  const out = renderEvents([
+    { name: 'platform.b', version: 1, description: 'second' },
+    { name: 'notes.a', version: 2, description: 'first' },
+  ])
+  assert.ok(out.indexOf('notes.a') < out.indexOf('platform.b'), out)
+  assert.throws(
+    () =>
+      renderEvents([
+        { name: 'x', version: 1, description: 'd' },
+        { name: 'x', version: 1, description: 'e' },
+      ]),
+    /duplicate event name/,
+  )
 })

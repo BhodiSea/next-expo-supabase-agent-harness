@@ -26,22 +26,24 @@ export const STAMP_INPUTS = {
     'tools/perf-baseline.json',
     'pnpm-lock.yaml',
   ],
-  // openapi regen-diff + tsconfig project-references sync + the G18 bounded-
-  // wire-string sweep (its reviewed allow list is an input: narrowing an entry
-  // must re-arm the gate on the very next validate, never ride a warm stamp).
+  // contract inventory regen-diff (action + event inventories) + tsconfig project-
+  // references sync + the G18 bounded-wire-string sweep (its reviewed allow list is an
+  // input: narrowing an entry must re-arm the gate on the very next validate, never ride
+  // a warm stamp). `apps`/`packages` cover the tsconfig topology + the router/catalog/DTO
+  // sources; the generators + their shared serializer + the committed inventories are named
+  // so a generator edit or a hand-edit to an inventory also re-arms the stamp.
   contracts: [
-    'apps/server/src',
-    'apps/server/scripts',
-    'apps/server/openapi.json',
-    'apps/server/package.json',
-    'apps/server/tsconfig.json',
-    'apps/mobile/package.json',
-    'apps/mobile/tsconfig.json',
+    'apps',
     'packages',
     'pnpm-workspace.yaml',
     'tsconfig.json',
     'knip.json',
     'tools/dto-bounds-allow.json',
+    'tools/gen-action-inventory.mjs',
+    'tools/gen-event-catalog.mjs',
+    'tools/lib/inventory.mjs',
+    'tools/generated/action-inventory.json',
+    'tools/generated/event-catalog.json',
   ],
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: apps/server is mocked at the network seam (the suites
