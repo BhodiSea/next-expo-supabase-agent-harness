@@ -2,8 +2,7 @@ import { Component, type ReactNode } from 'react'
 import { View } from 'react-native'
 import { t } from '../i18n'
 import { log } from '../lib/log'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { spacing, typeScale } from '../theme/tokens.gen'
+import { type Palette, space, typeScale, useThemedStyles } from '../theme/theme'
 import { AppText } from './AppText'
 import { Button } from './Button'
 
@@ -63,9 +62,9 @@ const fallbackStyles = (palette: Palette) => ({
     alignItems: 'center' as const,
     backgroundColor: palette.canvas,
     flex: 1,
-    gap: spacing * 3,
+    gap: space[3],
     justifyContent: 'center' as const,
-    padding: spacing * 8,
+    padding: space[8],
   },
   // The heading takes the danger token: this is the one screen where the app
   // has FAILED — it must not render in the same ink as ordinary chrome.

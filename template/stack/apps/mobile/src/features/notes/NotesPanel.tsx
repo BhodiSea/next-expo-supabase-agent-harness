@@ -1,4 +1,5 @@
-import { type Note, NotesPage } from '@app/contracts'
+import { type NoteView, NotesPage } from '@app/contracts'
+import { useCallback } from 'react'
 import { FlatList, RefreshControl, View } from 'react-native'
 import { AppText } from '../../components/AppText'
 import { Button } from '../../components/Button'
@@ -7,10 +8,10 @@ import { EmptyState } from '../../components/EmptyState'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../components/Toast'
 import { formatRelativeTime, useI18n } from '../../i18n'
-import { apiFetch } from '../../lib/api-client'
+import { callProcedure } from '../../lib/trpc/normalize'
+import { useApi } from '../../lib/trpc/use-api'
 import { ROUTES } from '../../routes'
-import { type Palette, usePalette, useThemedStyles } from '../../theme/theme'
-import { radius, spacing } from '../../theme/tokens.gen'
+import { type Palette, radius, space, usePalette, useThemedStyles } from '../../theme/theme'
 import { NoteComposer } from './NoteComposer'
 import { type ComposerRow, useCreateNote } from './useCreateNote'
 import { type ListFetcher, type ListQueryState, useListQuery } from './useListQuery'
@@ -20,23 +21,11 @@ import { type ListFetcher, type ListQueryState, useListQuery } from './useListQu
 // through the shared primitives: a quiet loading line, EmptyState (empty), and
 // a retry Button (error). The loading/empty/error surfaces each render the
 // manifest's testID, and the error surface carries a working retry affordance.
-// The states sweep drives all three through the mock server. The panel is also
+// The states sweep drives all three through the fake API. The panel is also
 // the WRITE exemplar: NoteComposer + useCreateNote insert an optimistic pending
 // row at the head of this list and reconcile or roll it back.
 // SOURCE: harness doctrine — degraded/empty/loading states are a first-class
 // UI concern, never a blank panel [corpus: harness/doctrine]
-
-// Zod parse at the fetch boundary — the client trusts contracts, not wire
-// bytes. Keyset pagination: this panel renders the FIRST page; the matrix
-// screen (features/matrix/useKeysetQuery) shows the paged variant. apiFetch
-// carries the bearer token and throws the envelope's own message; useListQuery
-// runs every failure through translateError(), so a signed-out session reads
-// the same (translated) way here, in the matrix, and in a toast. One mapping,
-// not one per call site.
-const fetchNotes: ListFetcher<Note> = async (signal) => {
-  const response = await apiFetch('/api/notes', { signal })
-  return NotesPage.parse(await response.json()).items
-}
 
 // The scaffold's home screen; its manifest entry carries the state test ids.
 const [HOME] = ROUTES
@@ -44,7 +33,7 @@ const [HOME] = ROUTES
 const panelStyles = (palette: Palette) => ({
   root: {
     flex: 1,
-    gap: spacing * 3,
+    gap: space[3],
   },
   header: {
     alignItems: 'center' as const,
@@ -52,16 +41,16 @@ const panelStyles = (palette: Palette) => ({
     justifyContent: 'space-between' as const,
   },
   list: {
-    gap: spacing * 2,
+    gap: space[2],
   },
   row: {
     backgroundColor: palette.canvas,
     borderColor: palette.edge,
     borderRadius: radius.sm,
     borderWidth: 1,
-    gap: spacing,
-    paddingHorizontal: spacing * 3,
-    paddingVertical: spacing * 2,
+    gap: space[1],
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
   },
   // Pending rows keep full-contrast tokens (ink-muted stays >= 4.5:1 in both
   // themes) — the provisional look is the dashed edge + muted ink, never an
@@ -111,7 +100,7 @@ function NotesBody({
   onRetry,
   overlay,
 }: {
-  readonly state: ListQueryState<Note>
+  readonly state: ListQueryState<NoteView>
   readonly onRetry: () => void
   /** Optimistic rows from useCreateNote, rendered ahead of the fetched page. */
   readonly overlay: readonly ComposerRow[]
@@ -141,26 +130,27 @@ function NotesBody({
                  because the server's error contract carries a stable code.
               3. The raw failure text — an envelope message, a TypeError, an
                  offline socket. Untranslatable by nature (it is whatever the
-                 failure said), so it stays quiet and muted, next to the request
-                 id. It is kept, not hidden: it is what turns "it failed" into a
-                 bug someone can trace. role=alert on the WHY line announces the
-                 failure when it lands. */}
+                 failure said), so it stays quiet and muted, next to the stable
+                 code. It is kept, not hidden: it is what turns "it failed" into
+                 a bug someone can trace. role=alert on the WHY line announces
+                 the failure when it lands. */}
         <AppText variant="label">{t('notes.error.title')}</AppText>
         <AppText role="alert">{state.error.message}</AppText>
         {state.error.detail !== null && state.error.detail !== '' && (
           <AppText variant="muted">
             {state.error.detail}
-            {state.error.requestId !== null &&
-              ` — ${t('error.reference', { id: state.error.requestId })}`}
+            {state.error.code !== null && ` — ${t('error.reference', { id: state.error.code })}`}
           </AppText>
         )}
         <Button variant="outline" label={t('common.retry')} onPress={onRetry} />
       </Card>
     )
   }
-  const items = state.status === 'ready' ? state.items : []
+  const items: readonly NoteView[] = state.status === 'ready' ? state.items : []
   // A reconciled row can reappear in a reloaded page — the fetched row wins.
-  const optimistic = overlay.filter((row) => !items.some((note) => note.id === row.id))
+  const optimistic = overlay.filter(
+    (row: ComposerRow) => !items.some((note: NoteView) => note.id === row.id),
+  )
   if (state.status === 'empty' && optimistic.length === 0) {
     return (
       <EmptyState
@@ -173,12 +163,19 @@ function NotesBody({
   }
   const rows: readonly ComposerRow[] = [
     ...optimistic,
-    ...items.map((note) => ({
-      id: note.id,
-      title: note.title,
-      pending: false,
-      createdAt: note.createdAt,
-    })),
+    // NoteView -> ComposerRow, explicitly. The two shapes are NOT the same and
+    // must not be spread into one another: NoteView carries `excerpt`,
+    // `hasBody` and `isArchived` that a composer row has no notion of, and a
+    // `...note` here would make the row silently widen every time the render
+    // contract gains a field.
+    ...items.map(
+      (note: NoteView): ComposerRow => ({
+        id: note.id,
+        title: note.title,
+        pending: false,
+        createdAt: note.createdAt,
+      }),
+    ),
   ]
   return (
     <FlatList
@@ -211,6 +208,31 @@ interface NotesPanelProps {
 }
 
 export function NotesPanel({ autoFocusComposer = false }: NotesPanelProps) {
+  const api = useApi()
+  // The fetcher is built HERE, not at module scope, because it closes over the
+  // session's tRPC client — a module-scope one would have to reach for a global
+  // client and would then keep the FIRST session's bearer token after a
+  // sign-out. `useCallback` keyed on the client keeps its identity stable across
+  // the composer's keystroke re-renders.
+  //
+  // Keyset pagination: this panel renders the FIRST page and nothing else; the
+  // matrix screen (features/matrix/useKeysetQuery) is the paged variant. The
+  // input is `{}` deliberately — `limit` and `includeArchived` carry their
+  // defaults in @app/contracts (NotesListQuery), and restating 50 here would be
+  // a second place the page size is decided.
+  //
+  // Parsed, not trusted: tRPC types the payload from the router this bundle was
+  // COMPILED against, which is a claim about our source tree, not about the
+  // bytes a deployed server just sent. NotesPage is the contract both ends
+  // compile against, so the parse is what actually checks them.
+  const fetchNotes = useCallback<ListFetcher<NoteView>>(
+    async (signal) => {
+      const outcome = await callProcedure(api.notes.list.query({}, { signal }))
+      if (!outcome.ok) return outcome
+      return { ok: true, data: NotesPage.parse(outcome.data).items }
+    },
+    [api],
+  )
   const { state, reload } = useListQuery(fetchNotes)
   const { t } = useI18n()
   const styles = useThemedStyles(panelStyles)

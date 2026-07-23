@@ -4,8 +4,7 @@ import { Button } from '../../components/Button'
 import { Field } from '../../components/Field'
 import { Input } from '../../components/Input'
 import { useI18n } from '../../i18n'
-import { type Palette, useThemedStyles } from '../../theme/theme'
-import { spacing } from '../../theme/tokens.gen'
+import { type Palette, space, useThemedStyles } from '../../theme/theme'
 import type { CreateNoteStatus, SubmitOutcome } from './useCreateNote'
 
 // The write form of the optimistic create-note slice — pure presentation over
@@ -33,7 +32,7 @@ const composerStyles = (_palette: Palette) => ({
   row: {
     alignItems: 'flex-start' as const,
     flexDirection: 'row' as const,
-    gap: spacing * 2,
+    gap: space[2],
   },
   // Input's base style is width:'100%'; inside a row it must flex instead.
   inputSlot: {

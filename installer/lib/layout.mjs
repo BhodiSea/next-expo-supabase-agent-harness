@@ -48,7 +48,12 @@ export const TIERS = {
 export const SEEDED_PREFIXES = [
   'apps/',
   'packages/',
-  'drizzle/',
+  // The database is the authorization boundary, and its migrations are
+  // append-only history: once a consumer has applied one, an `update` that
+  // rewrote it would be rewriting deployed schema. Seeded — written at init,
+  // never touched again. (The GATES over this tree live in tools/ and stay
+  // `owned`, so the harness can still ship migration-safety fixes.)
+  'supabase/',
   'tests/unit/',
 ]
 export const SEEDED_FILES = new Set([
@@ -61,7 +66,6 @@ export const SEEDED_FILES = new Set([
   '.gitignore',
   'package.json',
   'pnpm-workspace.yaml',
-  'docker-compose.yml',
   'tools/rls-exempt.json',
   'tools/provenance-overrides.json', // reviewed cross-group cites — consumer-owned like rls-exempt
   'tools/license-exceptions.json',
@@ -117,11 +121,20 @@ export const CONFIG_FILES = new Set(['tools/harness.config.mjs'])
 
 // Stack files installed in retrofit mode only when absent (additive seeds).
 // Workspace packages are additive-only: never merged into existing apps.
+//
+// Only the SHARED SEAM packages are additive. A retrofit target already has its
+// own screens, its own vertical, and its own design system — planting ours would
+// collide with real code. What it does NOT have is the seam this harness gates:
+// the wire contracts, the error kernel, the event registry, and the single token
+// source. Those are the packages the boundary/contract/token gates read, so
+// seeding their manifests is what lets a retrofit reach a green chain at all.
+// apps/* are never additive; @app/api is not either (it composes verticals the
+// retrofit target does not have yet).
 export const RETROFIT_ADDITIVE = new Set([
   'packages/contracts/package.json',
-  'packages/schema/package.json',
-  'packages/importer/package.json',
-  'packages/eval/package.json',
+  'packages/platform/errors/package.json',
+  'packages/platform/events/package.json',
+  'packages/design-tokens/package.json',
 ])
 
 // Existing root configs the installer must never clobber on retrofit: if the

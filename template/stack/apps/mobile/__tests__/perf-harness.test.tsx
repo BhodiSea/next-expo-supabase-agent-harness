@@ -9,14 +9,16 @@
 // busy-loop canary.
 import { renderRouter, screen } from 'expo-router/testing-library'
 import { usePerfProbes } from '../src/lib/perf-probes'
+import { mockSupabaseClient } from '../src/testing/mock-supabase'
 
-jest.mock('../src/host', () => ({
-  secureGetToken: jest.fn(() => Promise.resolve('jest-session-token')),
-  secureSetToken: jest.fn(() => Promise.resolve()),
-  secureDeleteToken: jest.fn(() => Promise.resolve()),
-  secureGetRefreshToken: jest.fn(() => Promise.resolve(null)),
-  secureSetRefreshToken: jest.fn(() => Promise.resolve()),
-  secureDeleteRefreshToken: jest.fn(() => Promise.resolve()),
+// The root layout mounts the Supabase provider, and the real one constructs a
+// keychain-backed client over native modules jest only stubs. The harness route
+// makes no API call at all, so the auth seam is substituted and the procedure
+// seam is deliberately NOT installed — an unstubbed procedure throws, which is
+// the assertion that this screen stays network-free.
+jest.mock('../src/lib/supabase/provider', () => ({
+  SupabaseProvider: ({ children }: { readonly children: unknown }) => children,
+  useSupabase: () => mockSupabaseClient(),
 }))
 
 // Delegates to the real hook unless a test overrides it for the render-contract leg.

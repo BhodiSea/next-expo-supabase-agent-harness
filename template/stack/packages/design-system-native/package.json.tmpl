@@ -1,0 +1,26 @@
+{
+  "name": "@app/design-system-native",
+  "version": "0.1.0",
+  "description": "Mobile component vocabulary — NativeWind (Tailwind v3) over @app/design-tokens; never imports @app/design-system",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@app/design-tokens": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "nativewind": "catalog:",
+    "react": "catalog:",
+    "react-native": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

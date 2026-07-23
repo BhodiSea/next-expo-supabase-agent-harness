@@ -1,0 +1,67 @@
+/* The one stylesheet. Tailwind v4 is CSS-first: there is no tailwind.config.js anywhere in
+   this app, and adding one back would create a second theme source that silently outranks
+   the generated tokens below. Configuration that used to live in JS lives here.
+   SOURCE: docs/harness/README.md (single source of truth for design tokens) */
+
+@import 'tailwindcss';
+
+/* THE theme. @app/design-tokens is a framework-neutral TypeScript module and is the SINGLE
+   source of truth for colour, type scale, spacing, radius and motion; this sheet is one of
+   its two generated, committed outputs (the other is the native theme apps/mobile consumes).
+   Both are regen-diffed by the tokens gate, so a hand edit to either is a red gate rather
+   than a design change.
+
+   Why generation instead of sharing a CSS file: web is Tailwind v4 and mobile is pinned to
+   Tailwind v3 because NativeWind 4 requires it. Two majors cannot share a config or a token
+   sheet — but they can both be emitted from one TypeScript module, which is why the source
+   of truth is TS and never CSS. Edit the tokens in the package, regenerate, commit both.
+
+   The specifier is the package's real `./web.css` exports subpath (the generated @theme block),
+   NOT `theme.css` — @app/design-tokens exposes exactly `.`, `./client`, `./native` and
+   `./web.css`, and a subpath outside that map does not resolve. */
+@import '@app/design-tokens/web.css';
+
+/* Tailwind v4 discovers the classes it must emit by scanning source files — and it skips
+   node_modules. Workspace packages are symlinked INTO node_modules by pnpm, so every utility
+   class used inside @app/design-system is invisible to that scan and gets pruned from the
+   build. The symptom is not an error: it is components that render unstyled in production
+   while looking perfect in a Storybook or a test. This line is the fix, and it must name
+   every workspace package that writes utility classes. */
+@source '../../../packages/design-system/src';
+
+@layer base {
+  /* Tell the UA which palette the page is in, so form controls, scrollbars and the caret
+     follow the theme. Without it a dark page renders a light scrollbar and a white caret
+     nobody can see. */
+  :root {
+    color-scheme: light dark;
+  }
+
+  html {
+    /* The one place smooth scrolling is opted OUT of for people who asked the OS to reduce
+       motion. Honouring that preference is an accessibility requirement, not a nicety.
+       SOURCE: https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html */
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A visible focus indicator on EVERY keyboard-focused element, applied once here rather
+     than remembered per component. :focus-visible (not :focus) keeps it off pointer
+     interactions, which is what stopped teams from deleting focus rings in the first place.
+     SOURCE: https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

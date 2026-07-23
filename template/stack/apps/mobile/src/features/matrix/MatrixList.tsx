@@ -1,8 +1,14 @@
 import { FlatList, RefreshControl, View } from 'react-native'
 import { AppText } from '../../components/AppText'
 import { formatCellValue, useI18n } from '../../i18n'
-import { type Palette, usePalette, useThemedStyles } from '../../theme/theme'
-import { fontScaleCap, spacing, typeScale } from '../../theme/tokens.gen'
+import {
+  fontScaleCap,
+  type Palette,
+  space,
+  typeScale,
+  usePalette,
+  useThemedStyles,
+} from '../../theme/theme'
 import type { MatrixColumn, MatrixRow } from './matrixData'
 
 // The dense list — the RN successor of the desktop original's virtualized grid.
@@ -23,7 +29,7 @@ import type { MatrixColumn, MatrixRow } from './matrixData'
 
 // Row height in dp — getItemLayout's contract with the styles below. A drifted
 // pair would make FlatList scroll to the wrong offsets, so it is ONE constant.
-// 44 is the hit-target floor (sizes.minTarget): rows are not pressable today,
+// 44 is the hit-target floor (minTouchTarget): rows are not pressable today,
 // but a fixed-height row below 44dp also clips sm text at font_scale 1.3 — the
 // dense fontScaleCap below and this height move together.
 /** @public — seam API: the layout constant device tests measure against. */
@@ -51,7 +57,7 @@ interface MatrixListProps {
 const listStyles = (palette: Palette) => ({
   list: {
     borderColor: palette.edge,
-    borderRadius: spacing,
+    borderRadius: space[1],
     borderWidth: 1,
     flexGrow: 0,
   },
@@ -60,9 +66,9 @@ const listStyles = (palette: Palette) => ({
     borderBottomColor: palette.edge,
     borderBottomWidth: 1,
     flexDirection: 'row' as const,
-    gap: spacing * 2,
+    gap: space[2],
     height: MATRIX_ROW_HEIGHT,
-    paddingHorizontal: spacing * 3,
+    paddingHorizontal: space[3],
   },
   label: {
     color: palette['ink-muted'],

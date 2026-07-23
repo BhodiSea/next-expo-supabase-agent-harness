@@ -28,8 +28,10 @@ export interface ActionContext {
   readonly signOut: () => Promise<void>
   /**
    * In-app account deletion (Apple 5.1.1(v)): the host confirms destructively,
-   * calls DELETE /api/me, then signs out. Fire-and-forget from a command's
-   * point of view — the host owns the confirm/error choreography.
+   * invokes the deletion Edge Function, then signs out. Fire-and-forget from a
+   * command's point of view — the host owns the confirm/error choreography, and
+   * the registry stays import-pure (no auth client, no navigation) so ranking
+   * remains a pure function this module can be tested through.
    */
   readonly deleteAccount: () => void
 }

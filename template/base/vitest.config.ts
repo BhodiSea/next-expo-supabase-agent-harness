@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config'
 
 // Root Vitest config — the ONLY vitest config (BUILD-SPEC §Vitest). Two projects:
-//   unit-node: packages/* (contracts, schema, importer, eval) + apps/server,
-//              plain node environment
+//   unit-node: packages/** (contracts, api, design-tokens, platform/*, verticals/*)
+//              + apps/web's non-DOM modules, plain node environment
 //   rls:       tests/rls/** — the isolation suite. It self-skips politely unless
 //              RLS_SUITE_READY=1, which only `node tests/rls/run-rls.mjs` sets after
 //              fresh-applying migrations to a real Postgres (and which FAILS CLOSED
@@ -17,16 +17,21 @@ import { defineConfig } from 'vitest/config'
 // Source files the UNIT-coverage bar cannot measure honestly — excluded from
 // coverage AND from the diff-coverage gate (tools/check-diff-coverage.mjs parses
 // THIS array, so the two surfaces cannot drift):
-//   - process boot wiring (server index.ts) runs only in a real host
-//   - the live-database surface (db/client.ts, db/context.ts) is deliberately
+//   - the live-database surface (the Supabase client factories) is deliberately
 //     unreachable by unit tests (they never open a connection — determinism
 //     doctrine); the RLS isolation suite in the same Stop chain proves it
-//     against real Postgres instead.
+//     against a real database instead.
+//   - generated files are transcriptions of a source of truth, not decisions:
+//     the regen-diff gate proves them, coverage would only dilute the bar.
 const COVERAGE_EXCLUDE = [
   '**/*.d.ts',
-  'apps/server/src/index.ts',
-  'apps/server/src/db/client.ts',
-  'apps/server/src/db/context.ts',
+  'packages/platform/supabase/src/browser.ts',
+  'packages/platform/supabase/src/cookie-server.ts',
+  'packages/platform/supabase/src/native.ts',
+  'packages/platform/supabase/src/service-role.ts',
+  'packages/platform/supabase/src/access-token.ts',
+  'packages/platform/supabase/src/database.types.ts',
+  'packages/design-tokens/src/generated/**',
 ]
 
 // Per-file coverage floors — deliberately BELOW the aggregate thresholds: their
@@ -59,13 +64,16 @@ export default defineConfig({
       // + coverageThreshold); counting those files here as 0% would make this
       // aggregate a lie in both directions, and the diff-coverage gate already
       // merges both maps into the one per-file floor.
+      // BOTH glob depths are required: the layered groups (platform/*,
+      // verticals/*) sit one level deeper than the flat packages, and a
+      // single-depth glob would silently measure half the workspace while
+      // reporting a healthy aggregate.
       include: [
-        'apps/server/src/**',
         'packages/*/src/**',
+        'packages/*/*/src/**',
         'apps/mobile/src/i18n/**',
         'apps/mobile/src/routes.ts',
         'apps/mobile/src/lib/kv.ts',
-        'apps/mobile/src/lib/sse.ts',
         'apps/mobile/src/features/actions/fuzzyScore.ts',
         'apps/mobile/src/features/actions/recents.ts',
         'apps/mobile/src/features/matrix/matrixData.ts',
@@ -96,8 +104,9 @@ export default defineConfig({
           include: [
             'packages/*/src/**/*.test.ts',
             'packages/*/tests/unit/**/*.test.ts',
-            'apps/server/src/**/*.test.ts',
-            'apps/server/tests/unit/**/*.test.ts',
+            // The layered groups sit one level deeper — see the coverage note above.
+            'packages/*/*/src/**/*.test.ts',
+            'packages/*/*/tests/unit/**/*.test.ts',
             // apps/mobile PURE suites — an explicit FILE list, never a glob.
             // The runner split: a mobile module (and its test) belongs to vitest
             // ONLY when its import closure reaches zero react-native/expo native
@@ -108,7 +117,6 @@ export default defineConfig({
             'apps/mobile/src/i18n/i18n.test.ts',
             'apps/mobile/src/routes.test.ts',
             'apps/mobile/src/lib/kv.test.ts',
-            'apps/mobile/src/lib/sse.test.ts',
             'apps/mobile/src/features/actions/fuzzyScore.test.ts',
             'apps/mobile/src/features/actions/recents.test.ts',
             'apps/mobile/src/features/matrix/matrixData.test.ts',

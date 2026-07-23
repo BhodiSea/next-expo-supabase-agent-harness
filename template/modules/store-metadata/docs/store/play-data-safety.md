@@ -37,9 +37,9 @@ SOURCE: https://developer.android.com/guide/topics/data/collect-share
 
 | Play category | Answer for the scaffold | Grounding |
 | --- | --- | --- |
-| Personal info → User IDs | **Collected** (account identifier from your identity provider, sent as the bearer token subject to `{{API_ORIGIN}}`; the server keys rows by it). Not shared with third parties. | auth flow + FORCE RLS schema |
+| Personal info → User IDs | **Collected** (account identifier from your identity provider, sent as the bearer token subject to `{{WEB_ORIGIN}}`; the server keys rows by it). Not shared with third parties. | auth flow + FORCE RLS schema |
 | Personal info → Name / Email address | **VERIFY per tenant**: whether ID-token claims carry name/email depends on the scopes and claims your identity tenant releases. Declare what your tenant actually emits. | your IdP configuration |
-| App activity → Other user-generated content | **Collected** (note content the user writes syncs to `{{API_ORIGIN}}`). Not shared. | notes feature |
+| App activity → Other user-generated content | **Collected** (note content the user writes syncs to `{{WEB_ORIGIN}}`). Not shared. | notes feature |
 | App info and performance → Crash logs / Diagnostics | **Not collected** in the base scaffold. Flips to *Collected* the moment the `crash-reporting` module (or any telemetry) is enabled — update this row in that same diff. | no crash/telemetry dependency in base |
 | Device or other IDs | **Not collected** — the scaffold reads no advertising or device identifier. | dependency set |
 | Location / Contacts / Calendar / Photos / Messages / Financial / Health | **Not collected** — no permission grants (see mirror table above). | empty `tools/expo-permissions.json` |

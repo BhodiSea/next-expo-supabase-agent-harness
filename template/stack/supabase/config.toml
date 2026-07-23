@@ -1,0 +1,127 @@
+# supabase/config.toml — the local stack, as data.
+#
+# This file is committed and contains NO secrets. Anything sensitive (OAuth
+# client secrets, SMTP credentials) is referenced as env(NAME) and lives in
+# .env, never here — a committed secret is a secret that has to be rotated,
+# and the value in git stays valid until someone remembers to.
+#
+# The ports below are the Supabase CLI's standard local allocation. They are
+# written out explicitly rather than left to defaults because the CI lanes and
+# .env.example hard-code them: a default that shifts under a CLI upgrade would
+# desynchronize this file from every consumer of it silently, whereas an
+# explicit port that stops matching is a one-line diff.
+
+# The remote project this tree deploys to. NOT a secret — the ref is the
+# subdomain of every client-side request URL. It is committed (rather than kept
+# in .env) so `supabase link`, the generated-types drift lane, and any reviewer
+# reading this file all see the SAME target; a project ref that lives only in an
+# operator's shell is how a migration lands on the wrong database.
+project_id = "{{SUPABASE_PROJECT_REF}}"
+
+[api]
+enabled = true
+port = 54321
+# Only `public` is exposed through PostgREST. `auth` and `storage` stay
+# unexposed: their tables are managed by Supabase's own services and are not
+# part of this project's API contract, and exposing a schema is how an
+# unreviewed table becomes a public endpoint the moment someone creates it.
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# A hard row cap on every unbounded request. Without it a client that forgets a
+# range header turns a table scan into a response body — the cap makes the
+# pathological case slow-but-survivable instead of an outage.
+max_rows = 1000
+
+[db]
+port = 54322
+# The shadow database `supabase db diff` builds to compute a migration. It is
+# created and destroyed per diff; it must not collide with the live local port.
+shadow_port = 54320
+# MUST match the remote project's Postgres major version (Dashboard → Settings →
+# Infrastructure). The shadow database used by `db diff` runs THIS version, so a
+# mismatch produces migrations that apply cleanly locally and fail on deploy —
+# the worst failure ordering available, because it is discovered in production.
+major_version = 17
+
+[db.migrations]
+# Declarative schema files, applied in the order listed. Order is load-bearing:
+# a table with a foreign key must be created after its parent, and the glob at
+# the end is the catch-all for files added later (globs are deduplicated and
+# sorted lexicographically, so the numeric prefixes keep new files predictable).
+schema_paths = [
+  "./schemas/00_shared.sql",
+  "./schemas/10_account.sql",
+  "./schemas/20_notes.sql",
+  "./schemas/*.sql",
+]
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1:54321"
+
+# Local mail capture (Mailpit). Every auth email — signup confirmation, magic
+# link, recovery — lands here instead of a real inbox, so local development
+# never sends mail to a real address by accident.
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+# The origin auth redirects resolve against. In this lineage apps/web is both
+# the web client and the API host, so this is also the cookie origin.
+site_url = "{{WEB_ORIGIN}}"
+# The redirect allowlist — an open redirect here is an account-takeover
+# primitive, because the provider will hand the code to any URL on this list.
+# Exactly two entries: the web callback, and the mobile deep link. A wildcard
+# entry ("{{WEB_ORIGIN}}/**") would readmit the whole class and is deliberately
+# not used.
+additional_redirect_urls = [
+  "{{WEB_ORIGIN}}/auth/callback",
+  "{{APP_SCHEME}}://auth/callback",
+]
+# One hour of access-token life, with rotation on refresh and a 10-second reuse
+# window. The reuse window is not slack for attackers: it is the allowance for a
+# mobile client that fires two refreshes concurrently (a cold start racing a
+# resumed request), which without it invalidates the whole family and signs the
+# user out at random.
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+# OFF deliberately. An anonymous sign-in mints a real `authenticated` JWT with a
+# real `sub`, which means it satisfies EVERY `auth.uid()` policy in this tree —
+# the whole RLS wall would still hold, but it would be holding open a door for
+# an identity nobody verified. Turning this on is a product decision that
+# belongs in an ADR, not a config default.
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+# Local only: confirmations off so `supabase start` gives a usable account
+# without a round trip through Mailpit. The deployed project must have
+# confirmations ON — this file's [remotes] blocks, or the Dashboard, own that.
+enable_confirmations = false
+double_confirm_changes = true
+
+# Realtime and Storage are OFF at seed. Both are authorization surfaces of their
+# own (Realtime replays row changes through its own policy check; Storage has a
+# separate bucket policy model), and shipping them enabled-but-unpoliced would
+# put two doors in the wall that no test in this repo watches. Enable either one
+# in the same change that adds its policies and its tests.
+[realtime]
+enabled = false
+
+[storage]
+enabled = false
+
+# The Edge Function runtime. No function is deployed at seed — see
+# supabase/functions/README.md for why that directory is empty and what has to
+# be true before it stops being.
+[edge_runtime]
+enabled = true

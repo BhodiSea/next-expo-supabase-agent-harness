@@ -6,7 +6,12 @@
 import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library'
 import { Alert } from 'react-native'
 import { en } from '../src/i18n/catalog'
-import { installMockServer, uninstallMockServer } from '../src/testing/mock-server'
+import { installMockServer, mockApiClient, uninstallMockServer } from '../src/testing/mock-server'
+import {
+  installMockSupabase,
+  mockSupabaseCalls,
+  mockSupabaseClient,
+} from '../src/testing/mock-supabase'
 
 const { kvBacking } = jest.requireMock<{ kvBacking: Map<string, string> }>('../src/lib/kv')
 
@@ -24,14 +29,11 @@ jest.mock('../src/lib/kv', () => {
   }
 })
 
-jest.mock('../src/host', () => ({
-  secureGetToken: jest.fn(() => Promise.resolve('jest-session-token')),
-  secureSetToken: jest.fn(() => Promise.resolve()),
-  secureDeleteToken: jest.fn(() => Promise.resolve()),
-  secureGetRefreshToken: jest.fn(() => Promise.resolve(null)),
-  secureSetRefreshToken: jest.fn(() => Promise.resolve()),
-  secureDeleteRefreshToken: jest.fn(() => Promise.resolve()),
+jest.mock('../src/lib/supabase/provider', () => ({
+  SupabaseProvider: ({ children }: { readonly children: unknown }) => children,
+  useSupabase: () => mockSupabaseClient(),
 }))
+jest.mock('../src/lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
 
 const RECENTS_KEY = 'actions.recents'
 
@@ -42,20 +44,17 @@ async function pressFirst(testId: string): Promise<void> {
   fireEvent.press(first)
 }
 
-const emptyPage = () => ({ status: 200, body: { items: [], nextCursor: null } })
-const HEALTH = () => ({ status: 200, body: { ok: true as const, version: '0.0.0' } })
+const emptyPage = () => ({ ok: true as const, data: { items: [], nextCursor: null } })
+const HEALTH = () => ({ ok: true as const, version: '0.0.0' })
 
-// Every screen a command can land on fetches — cover the whole route surface.
+// Every screen a command can land on queries — one list procedure serves both.
 function installAppNetwork(): void {
-  installMockServer({
-    'GET /healthz': HEALTH,
-    'GET /api/notes': emptyPage,
-    'GET /api/notes?limit=50': emptyPage,
-  })
+  installMockServer({ systemHealth: HEALTH, notesList: emptyPage })
 }
 
 beforeEach(() => {
   kvBacking.clear()
+  installMockSupabase()
 })
 
 afterEach(() => {
@@ -192,6 +191,7 @@ describe('actions modal commands', () => {
     await pressFirst('action-session.signOut')
 
     expect(await screen.findByTestId('sign-in-screen')).toBeTruthy()
+    expect(mockSupabaseCalls.signOut).toBe(1)
   })
 })
 
@@ -203,15 +203,13 @@ interface AlertButton {
   readonly onPress?: () => void
 }
 
-/** The app network plus a recordable DELETE /api/me (204 is unrepresentable in
- *  the mock's JSON envelope — a 200 body stands in; apiFetch only reads ok). */
-function installDeletionNetwork(onDelete: () => { status: number; body: unknown }): void {
-  installMockServer({
-    'GET /healthz': HEALTH,
-    'GET /api/notes': emptyPage,
-    'GET /api/notes?limit=50': emptyPage,
-    'DELETE /api/me': onDelete,
-  })
+/** The app's procedures, plus the deletion Edge Function's answer. The function
+ *  is invoked through the Supabase client (not the router) because deleting a
+ *  user needs the service-role client, and an Edge Function is this workspace's
+ *  one sanctioned home for that — so the double for it lives on the auth seam. */
+function installDeletionNetwork(failure?: string): void {
+  installMockSupabase(failure === undefined ? {} : { deleteAccountFailure: failure })
+  installAppNetwork()
 }
 
 describe('actions modal account deletion (Apple 5.1.1(v))', () => {
@@ -221,11 +219,7 @@ describe('actions modal account deletion (Apple 5.1.1(v))', () => {
 
   it('the command asks for native confirmation first — cancel sends NOTHING', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
-    let hits = 0
-    installDeletionNetwork(() => {
-      hits += 1
-      return { status: 200, body: { ok: true } }
-    })
+    installDeletionNetwork()
     renderRouter('./app', { initialUrl: '/actions' })
 
     await pressFirst('action-session.deleteAccount')
@@ -237,16 +231,12 @@ describe('actions modal account deletion (Apple 5.1.1(v))', () => {
     )
     const buttons = (alert.mock.calls.at(-1)?.[2] ?? []) as readonly AlertButton[]
     buttons.find((b) => b.style === 'cancel')?.onPress?.()
-    expect(hits).toBe(0)
+    expect(mockSupabaseCalls.invoked).toHaveLength(0)
   })
 
   it('confirm deletes on the server, drops the session, and lands on sign-in', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
-    let hits = 0
-    installDeletionNetwork(() => {
-      hits += 1
-      return { status: 200, body: { ok: true } }
-    })
+    installDeletionNetwork()
     renderRouter('./app', { initialUrl: '/actions' })
 
     await pressFirst('action-session.deleteAccount')
@@ -256,15 +246,15 @@ describe('actions modal account deletion (Apple 5.1.1(v))', () => {
     confirm?.onPress?.()
 
     expect(await screen.findByTestId('sign-in-screen')).toBeTruthy()
-    expect(hits).toBe(1)
+    expect(mockSupabaseCalls.invoked).toEqual(['delete-account'])
+    // Server first, THEN the local session — a client that signed out first
+    // would leave an undeleted account nobody can sign back in to and fix.
+    expect(mockSupabaseCalls.signOut).toBe(1)
   })
 
-  it('a failed server deletion keeps the session and surfaces the envelope toast', async () => {
+  it('a failed server deletion keeps the session and surfaces the error toast', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
-    installDeletionNetwork(() => ({
-      status: 500,
-      body: { error: { code: 'internal', message: 'deletion exploded' } },
-    }))
+    installDeletionNetwork('deletion exploded')
     renderRouter('./app', { initialUrl: '/actions' })
 
     await pressFirst('action-session.deleteAccount')
@@ -272,7 +262,9 @@ describe('actions modal account deletion (Apple 5.1.1(v))', () => {
     buttons.find((b) => b.style === 'destructive')?.onPress?.()
 
     expect(await screen.findByTestId('toast-error')).toBeTruthy()
-    // Nothing half-deletes: the failure keeps the session, no sign-in redirect.
+    // Nothing half-deletes: the failure keeps the session, no sign-out, no
+    // sign-in redirect.
+    expect(mockSupabaseCalls.signOut).toBe(0)
     expect(screen.queryByTestId('sign-in-screen')).toBeNull()
   })
 })

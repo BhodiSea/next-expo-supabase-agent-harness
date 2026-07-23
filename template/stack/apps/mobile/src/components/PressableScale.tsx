@@ -3,12 +3,12 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { Animated, Pressable } from 'react-native'
 import { type HapticKind, haptic } from '../lib/haptics'
 import { usePressScale } from '../lib/motion'
-import { sizes } from '../theme/tokens.gen'
+import { minTouchTarget } from '../theme/theme'
 
 // THE touchable base. Every interactive primitive (Button, OptionRow) renders
 // through it, so the pressed affordance (spring scale through the motion seam +
 // opacity dip), the disabled treatment, the 44dp minimum hit target
-// (sizes.minTarget — Apple HIG 44pt floor), and the optional haptic all live in
+// (minTouchTarget — Apple HIG 44pt floor), and the optional haptic all live in
 // exactly ONE place. The a11y contract rides the Pressable LEAF (role, label,
 // state, testID) — the Animated wrapper only carries the scale transform and
 // the caller's layout (design record: CI-LANE-FACTS, leaf-testID discipline).
@@ -38,7 +38,7 @@ interface PressableScaleProps {
 // palette colour, so they live outside the themed-factory cache.
 const base = {
   justifyContent: 'center' as const,
-  minHeight: sizes.minTarget,
+  minHeight: minTouchTarget,
 }
 const pressedDip = { opacity: 0.7 }
 const disabledDip = { opacity: 0.5 }

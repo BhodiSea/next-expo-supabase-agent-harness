@@ -77,8 +77,10 @@ module.exports = {
     'src/**/*.{ts,tsx}',
     'app/**/*.{ts,tsx}',
     '!**/*.test.{ts,tsx}',
-    // Generated from the styleguide manifest — the regen-diff gate owns it;
-    // coverage over generated lines would only dilute the signal.
-    '!src/theme/tokens.gen.ts',
+    // The generated token module used to live under src/theme and was excluded
+    // here (regen-diffed, so coverage over its lines only diluted the signal).
+    // It now lives in @app/design-tokens, outside this app's coverage surface
+    // entirely, so the exclusion is gone rather than stale — a path exclusion
+    // matching nothing is a rule nobody can tell is dead.
   ],
 }

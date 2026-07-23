@@ -1,18 +1,27 @@
-import { NewNoteInput, NOTE_TITLE_MAX, NoteDto } from '@app/contracts'
+import { NewNoteInput, NOTE_TITLE_MAX, NoteView } from '@app/contracts'
 import { useCallback, useReducer, useRef } from 'react'
 import { t } from '../../i18n'
 import { translateError } from '../../i18n/errors'
-import { apiPost } from '../../lib/api-client'
+import { callProcedure } from '../../lib/trpc/normalize'
+import { useApi } from '../../lib/trpc/use-api'
 
 // The write-UX exemplar: ONE plain reducer drives the whole optimistic
 // create-note lifecycle. Submit validates against the @app/contracts contract at
-// the fetch boundary, inserts a temp row (pending: true) BEFORE the POST so the
-// list answers instantly, then reconciles the temp row with the server row on
-// 2xx or rolls it back (removes it) on failure — a single rollback path, no
-// retry queue, no cache layer. Failures surface through the injected callback
+// the call boundary, inserts a temp row (pending: true) BEFORE the mutation so
+// the list answers instantly, then reconciles the temp row with the server row
+// on success or rolls it back (removes it) on failure — a single rollback path,
+// no retry queue, no cache layer. Failures surface through the injected callback
 // (the Toast pattern, same seam as useKeysetQuery's onLoadMoreError).
 // SOURCE: harness doctrine — latency feel is a first-class UI concern; the
 // optimistic row must never outlive a failed write [corpus: harness/doctrine]
+//
+// ONE FAILURE CHANNEL. `callProcedure` folds every transport rejection (a
+// dropped socket, a 401 from the auth middleware, a body that is not our
+// envelope) onto the DATA channel, so this hook has exactly one thing to branch
+// on — `outcome.ok` — and cannot forget the other. The `catch` that remains
+// covers the contract parse below and nothing else.
+// SOURCE: design/W1-STACK-SPEC.md §3 (the envelope rule; the mobile normalize
+// layer folds transport UNAUTHORIZED back onto it)
 
 /** What the list renders for an optimistic entry — temp while pending, server after. */
 export interface ComposerRow {
@@ -73,13 +82,13 @@ export type SubmitOutcome = 'rejected' | 'settled' | 'failed'
 
 // What the failure toast says. It used to be the raw error text — whatever the server, the
 // fetch layer or a TypeError happened to produce, shown verbatim to the person who just tried
-// to save a note. translateError() turns the envelope's stable `code` into catalog copy
-// instead. The requestId is still quoted (that is what makes "it failed" a ticket an engineer
-// can trace) but now through a message key, so the word "Reference" is translatable too.
+// to save a note. translateError() turns the envelope into catalog copy instead. The stable
+// `code` is still quoted (that is what makes "it failed" a ticket an engineer can trace) but
+// through a message key, so the word "Reference" is translatable too.
 function failureMessage(cause: unknown): string {
   const error = translateError(cause)
-  if (error.requestId === null) return error.message
-  return `${error.message} ${t('error.reference', { id: error.requestId.slice(0, 8) })}`
+  if (error.code === null) return error.message
+  return `${error.message} ${t('error.reference', { id: error.code })}`
 }
 
 // PORT NOTE (desktop original used crypto.randomUUID): Hermes ships no Web
@@ -102,10 +111,11 @@ function tempNoteId(): string {
 
 export function useCreateNote(onFailure: (message: string) => void): {
   readonly state: CreateNoteState
-  /** Validate → optimistic insert → POST → reconcile or rollback. */
+  /** Validate → optimistic insert → mutate → reconcile or rollback. */
   readonly submit: (input: { readonly title: string }) => Promise<SubmitOutcome>
 } {
   const [state, dispatch] = useReducer(createNoteReducer, CREATE_NOTE_INITIAL)
+  const api = useApi()
   // Single-flight: the composer disables its button while pending; this ref
   // backstops against a second entry point racing the same reducer.
   const inFlight = useRef(false)
@@ -113,7 +123,7 @@ export function useCreateNote(onFailure: (message: string) => void): {
   const submit = useCallback(
     async (input: { readonly title: string }): Promise<SubmitOutcome> => {
       if (inFlight.current) return 'rejected'
-      // Zod at the fetch boundary: invalid input never reaches the network and never
+      // Zod at the call boundary: invalid input never reaches the network and never
       // inserts a row. The CONTRACT decides validity; the CATALOG decides what the human
       // reads. Those used to be the same string, and that was the bug: zod's built-in
       // issue message is hardcoded English no translator can reach ("String must contain
@@ -121,6 +131,11 @@ export function useCreateNote(onFailure: (message: string) => void): {
       // it told a user nothing and told a German user nothing in English. NOTE_TITLE_MAX
       // comes from the same contracts module the parse enforces, so the bound quoted in
       // the sentence cannot drift from the bound that actually rejected the input.
+      //
+      // The router re-validates this input against the SAME schema (@app/notes derives
+      // its CreateNoteSchema from NewNoteInput). That is not redundancy: this parse is a
+      // UX affordance the client owes the user, and the server's is the enforcement,
+      // because a client is a thing an attacker controls.
       const parsed = NewNoteInput.safeParse(input)
       if (!parsed.success) {
         dispatch({ type: 'reject', message: t('notes.composer.invalid', { max: NOTE_TITLE_MAX }) })
@@ -135,11 +150,20 @@ export function useCreateNote(onFailure: (message: string) => void): {
         row: { id: tempId, title: parsed.data.title, pending: true, createdAt: null },
       })
       try {
-        // apiPost attaches the host-held bearer token and throws ApiRequestError
-        // carrying the envelope's own message — so the ONE rollback path below covers
-        // a 4xx, a 5xx, an offline socket, and an unauthenticated session alike.
-        const response = await apiPost('/api/notes', parsed.data)
-        const note = NoteDto.parse(await response.json())
+        // ONE rollback path covers a domain refusal, a rejected write, an offline
+        // socket and a signed-out session alike — because callProcedure has already
+        // made all four the same shape.
+        const outcome = await callProcedure(api.notes.create.mutate(parsed.data))
+        if (!outcome.ok) {
+          dispatch({ type: 'fail', tempId })
+          onFailure(failureMessage(outcome.error))
+          return 'failed'
+        }
+        // Parsed, not trusted. tRPC gives the payload a compile-time type, and a
+        // compile-time type is a claim about the code that BUILT this bundle — not
+        // about the bytes a deployed server just sent. The contract is the only thing
+        // that checks the bytes, and it is the same module both ends compile against.
+        const note = NoteView.parse(outcome.data)
         dispatch({
           type: 'settle',
           tempId,
@@ -147,6 +171,9 @@ export function useCreateNote(onFailure: (message: string) => void): {
         })
         return 'settled'
       } catch (cause) {
+        // Reachable only through the parse above (the envelope has no throw path).
+        // It still rolls back: a row the client cannot describe is a row it must not
+        // keep pretending to have saved.
         dispatch({ type: 'fail', tempId })
         onFailure(failureMessage(cause))
         return 'failed'
@@ -154,7 +181,7 @@ export function useCreateNote(onFailure: (message: string) => void): {
         inFlight.current = false
       }
     },
-    [onFailure],
+    [api, onFailure],
   )
 
   return { state, submit }

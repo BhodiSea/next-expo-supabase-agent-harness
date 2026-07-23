@@ -1,0 +1,35 @@
+{
+  // @app/design-tokens — the framework-neutral token source, consumed by BOTH design
+  // systems, by Next, by Metro, and by node-side tooling. Plain ESM, zero runtime
+  // dependencies: nothing in this package may import react, react-native, tailwind or
+  // a CSS file — the whole point is that a gate script, a server component and a
+  // native screen can all read the same numbers.
+  //
+  // Extends the repo-wide max-strict base and overrides only the module keys.
+  //
+  // BUNDLER RESOLUTION, NOT NODENEXT — and the relative imports inside src/ are
+  // therefore EXTENSIONLESS (`./color`, not `./color.js`). This is the one place this
+  // package deviates from the node16-style packages, and the reason is Metro: the
+  // package ships raw TypeScript through its `exports` map (no build step, per the
+  // dual-barrel contract), so Metro resolves these files directly, and Metro does NOT
+  // perform TypeScript's `.js` -> `.ts` specifier substitution. A NodeNext-style
+  // `./color.js` import resolves perfectly for tsc, for Next and for vitest, and then
+  // fails at bundle time on a device — the worst possible place to discover it.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    // TypeScript 6 no longer auto-includes node_modules/@types. `node` is here for
+    // ONE reason: the freshness test reads the committed artifacts off disk with
+    // node:fs. The shipped token modules themselves import nothing at all.
+    "types": ["node"]
+  },
+  // scripts/gen.mjs is deliberately OUTSIDE the program. It is plain JS, it is the
+  // only file that touches the filesystem, and pulling it in would force allowJs —
+  // which drags every .mjs it imports into the composite build's rootDir.
+  "include": ["src"]
+}

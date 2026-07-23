@@ -1,0 +1,20 @@
+{
+  // @app/events — the second kernel leaf. Like @app/errors it imports nothing,
+  // NOT EVEN @app/errors: an event payload that referenced the error taxonomy
+  // would make renaming an error kind a breaking change to already-emitted
+  // analytics rows. Two independent leaves, no edge between them.
+  // Extends the repo-wide max-strict base; NodeNext module semantics restated so
+  // the package typechecks identically from either resolution mode.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // Empty on purpose (TypeScript 6 no longer auto-includes @types): the
+    // registry is declarations and one sort — no host API, on any surface.
+    "types": []
+  },
+  "include": ["src"]
+}

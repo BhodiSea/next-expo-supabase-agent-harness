@@ -1,6 +1,14 @@
 import { Text } from 'react-native'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { fontScaleCap, fontWeight, radius, sizes, spacing, typeScale } from '../theme/tokens.gen'
+import {
+  fontScaleCap,
+  fontWeight,
+  minTouchTarget,
+  type Palette,
+  radius,
+  space,
+  typeScale,
+  useThemedStyles,
+} from '../theme/theme'
 import { PressableScale } from './PressableScale'
 
 // The one button primitive, rendered through the PressableScale base — the
@@ -29,9 +37,9 @@ const buttonStyles = (palette: Palette) => ({
   base: {
     alignItems: 'center' as const,
     borderRadius: radius.sm,
-    minWidth: sizes.minTarget,
-    paddingHorizontal: spacing * 4,
-    paddingVertical: spacing * 2,
+    minWidth: minTouchTarget,
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
   },
   // The accent-tinted border is the SOLE accent highlight across the control set.
   solid: {

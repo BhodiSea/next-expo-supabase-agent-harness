@@ -1,45 +1,57 @@
 // useKeysetQuery suite — jest-expo + RNTL renderHook (same runner-split
 // reasoning as useCreateNote.test.ts: the hook is pure React, but its import
-// closure reaches expo-constants through the api-client). The network runs
-// through the mock server, so origin/bearer/envelope code is the shipped code.
+// closure reaches expo-constants through the tRPC client).
 //
-// Mock-server keys are METHOD + full path INCLUDING the query string — the
-// hook's own page requests ('?limit=50', '?limit=50&cursor=…') are what the
-// keys pin, which doubles as an assertion that the cursor actually rides the
-// second request.
+// The seam is the TYPED CLIENT, so the cursor assertions read `input.cursor`
+// directly rather than pattern-matching a URL and hoping the query string was
+// assembled the way the test guessed. What the double replaces is the HTTP link;
+// what still runs is the hook, the contract parse, and `callProcedure`.
+import type { NotesPage, NoteView } from '@app/contracts'
+import { type ActionOutcome, appError } from '@app/errors'
 import { act, renderHook, waitFor } from '@testing-library/react-native'
-import { setAccessTokenProvider } from '../../lib/api-client'
-import { installMockServer, uninstallMockServer } from '../../testing/mock-server'
+import { installMockServer, mockApiClient, uninstallMockServer } from '../../testing/mock-server'
+import { mockSupabaseClient } from '../../testing/mock-supabase'
 import { useKeysetQuery } from './useKeysetQuery'
 
-const FIRST_PAGE_KEY = 'GET /api/notes?limit=50'
-const SECOND_PAGE_KEY = 'GET /api/notes?limit=50&cursor=c2'
+jest.mock('../../lib/supabase/provider', () => ({
+  useSupabase: () => mockSupabaseClient(),
+}))
+jest.mock('../../lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
 
-function note(id: string) {
+const SECOND_CURSOR = 'c2'
+
+// The SHIPPED contract shape, not a locally re-declared twin — a hand-written
+// double drifts silently the day the contract gains a field, and every test keeps
+// passing while the screen renders undefined.
+type Page = ActionOutcome<NotesPage>
+
+// NoteView is re-parsed by the hook against @app/contracts, so a fixture that
+// drifts from the render contract fails HERE rather than passing a test the app
+// could never reproduce. The uuids are built from the label so a failure names
+// the row it came from.
+function note(id: string): NoteView {
   return {
-    // NoteDto validates id/ownerId as UUIDs — build valid ones from the label.
-    id: `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
-    ownerId: '00000000-0000-4000-8000-0000000000aa',
-    title: `note ${id}`,
-    body: '',
     createdAt: '2026-01-01T00:00:00.000Z',
-    embedding: null,
-    sourceConfidence: null,
-    sourceModel: null,
+    excerpt: '',
+    hasBody: false,
+    id: `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
+    isArchived: false,
+    title: `note ${id}`,
+    updatedAt: '2026-01-01T00:00:00.000Z',
   }
 }
 
-function page(ids: readonly string[], nextCursor: string | null) {
-  return { status: 200, body: { items: ids.map(note), nextCursor } }
+function page(ids: readonly string[], nextCursor: string | null): Page {
+  return { ok: true, data: { items: ids.map(note), nextCursor } }
 }
 
-const ENVELOPE_500 = { status: 500, body: { error: {} } }
+// A domain failure on the DATA channel — the envelope rule. Nothing throws.
+const FAILURE: ActionOutcome<never> = {
+  ok: false,
+  error: appError.unknown({ message: 'page exploded' }),
+}
 
 const noop = (): void => undefined
-
-beforeAll(() => {
-  setAccessTokenProvider(() => Promise.resolve('test-token'))
-})
 
 afterEach(() => {
   uninstallMockServer()
@@ -47,41 +59,44 @@ afterEach(() => {
 
 describe('useKeysetQuery', () => {
   it('loads the first page into the ready state with rows and a cursor', async () => {
-    installMockServer({ [FIRST_PAGE_KEY]: () => page(['1', '2'], 'c2') })
+    installMockServer({ notesList: () => page(['1', '2'], SECOND_CURSOR) })
     const { result } = renderHook(() => useKeysetQuery(noop))
     await waitFor(() => {
       expect(result.current.state.status).toBe('ready')
     })
     expect(result.current.state.rows.length).toBe(2)
-    expect(result.current.state.cursor).toBe('c2')
+    expect(result.current.state.cursor).toBe(SECOND_CURSOR)
   })
 
   it('an empty first page is the empty state', async () => {
-    installMockServer({ [FIRST_PAGE_KEY]: () => page([], null) })
+    installMockServer({ notesList: () => page([], null) })
     const { result } = renderHook(() => useKeysetQuery(noop))
     await waitFor(() => {
       expect(result.current.state.status).toBe('empty')
     })
   })
 
-  it('an initial-load failure owns the route error state', async () => {
-    installMockServer({ [FIRST_PAGE_KEY]: () => ENVELOPE_500 })
+  it('an initial-load failure owns the route error state, translated', async () => {
+    installMockServer({ notesList: () => FAILURE })
     const { result } = renderHook(() => useKeysetQuery(noop))
     await waitFor(() => {
       expect(result.current.state.status).toBe('error')
     })
     // The failure arrives as a UserFacingError: `.message` is TRANSLATED copy chosen by the
-    // envelope's `code` (here the body has no valid envelope, so the client falls back to
-    // the status), and `.detail` keeps the raw text a support engineer needs.
-    expect(result.current.state.error?.message).toContain('500')
-    expect(result.current.state.error?.detail).toContain('500')
+    // envelope's kind, `.detail` keeps the raw text a support engineer needs, and `.code` is
+    // the stable handle that turns "it failed" into something greppable in a server log.
+    expect(result.current.state.error?.detail).toBe('page exploded')
+    expect(result.current.state.error?.code).toBe('unknown')
+    expect(result.current.state.error?.message).not.toBe('page exploded')
   })
 
-  it('loadMore appends the next page and forwards the cursor', async () => {
-    const secondPage = jest.fn(() => page(['2'], null))
+  it('loadMore appends the next page and forwards the cursor VERBATIM', async () => {
+    const seen: (string | undefined)[] = []
     installMockServer({
-      [FIRST_PAGE_KEY]: () => page(['1'], 'c2'),
-      [SECOND_PAGE_KEY]: secondPage,
+      notesList: (input) => {
+        seen.push(input.cursor)
+        return input.cursor === undefined ? page(['1'], SECOND_CURSOR) : page(['2'], null)
+      },
     })
     const { result } = renderHook(() => useKeysetQuery(noop))
     await waitFor(() => {
@@ -94,15 +109,16 @@ describe('useKeysetQuery', () => {
       expect(result.current.state.rows.length).toBe(2)
     })
     expect(result.current.state.cursor).toBeNull()
-    // The cursor rode the request — the mock key would not have matched otherwise.
-    expect(secondPage).toHaveBeenCalledTimes(1)
+    // The page token is OPAQUE: the only correct client handling is to send back
+    // exactly what arrived, so this equality IS the contract. A client that
+    // parsed or rebuilt it would break the day the keyset encoding changed.
+    expect(seen).toEqual([undefined, SECOND_CURSOR])
   })
 
   it('a loadMore failure raises the callback + inline retry flag, data intact', async () => {
     const onError = jest.fn()
     installMockServer({
-      [FIRST_PAGE_KEY]: () => page(['1'], 'c2'),
-      [SECOND_PAGE_KEY]: () => ENVELOPE_500,
+      notesList: (input) => (input.cursor === undefined ? page(['1'], SECOND_CURSOR) : FAILURE),
     })
     const { result } = renderHook(() => useKeysetQuery(onError))
     await waitFor(() => {
@@ -115,18 +131,20 @@ describe('useKeysetQuery', () => {
       expect(result.current.state.loadMoreFailed).toBe(true)
     })
     expect(onError).toHaveBeenCalledTimes(1)
+    // The rendered data SURVIVES: blanking a list the user is reading because
+    // its NEXT page failed is a worse answer than the list plus a retry.
     expect(result.current.state.status).toBe('ready')
     expect(result.current.state.rows.length).toBe(1)
   })
 
   it('reload aborts a slow initial load so a stale response cannot overwrite newer state', async () => {
-    let resolveFirst: (result: { status: number; body: unknown }) => void = () => undefined
-    const first = new Promise<{ status: number; body: unknown }>((resolve) => {
+    let resolveFirst: (result: Page) => void = () => undefined
+    const first = new Promise<Page>((resolve) => {
       resolveFirst = resolve
     })
     let calls = 0
     installMockServer({
-      [FIRST_PAGE_KEY]: () => {
+      notesList: () => {
         calls += 1
         return calls === 1 ? first : page([], null)
       },

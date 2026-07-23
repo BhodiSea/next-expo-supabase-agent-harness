@@ -1,76 +1,69 @@
 // useCreateNote suite — jest-expo + RNTL renderHook (the desktop original
 // tested this hook with renderHook under its DOM runner; the hook is pure React
-// but its import closure reaches expo-constants through the api-client, so on
+// but its import closure reaches expo-constants through the tRPC client, so on
 // this host it lives in the jest lane — see the runner split note in
-// jest.config.js). The NETWORK seam is the mock server: the shipped api-client
-// code (origin, bearer, envelope decoding) still runs.
+// jest.config.js). The seam is the TYPED CLIENT: the shipped hook, the shipped
+// contract parse and the shipped envelope fold all still run.
 //
 // Every reducer transition is driven through the PUBLIC api (submit), never a
 // test-only export: start (optimistic insert at the head), settle (reconcile
 // by temp id), fail (rollback removes ONLY the temp row), reject (inline field
-// error, nothing inserted). Fetch settlement is test-controlled, so the
+// error, nothing inserted). Mutation settlement is test-controlled, so the
 // pending window is asserted deterministically — no timers, no races.
+import type { NoteView } from '@app/contracts'
+import { type ActionOutcome, appError } from '@app/errors'
 import { act, renderHook } from '@testing-library/react-native'
 import { en } from '../../i18n/catalog'
-import { setAccessTokenProvider } from '../../lib/api-client'
-import {
-  installMockServer,
-  type MockRouteHandler,
-  uninstallMockServer,
-} from '../../testing/mock-server'
+import { installMockServer, mockApiClient, uninstallMockServer } from '../../testing/mock-server'
+import { mockSupabaseClient } from '../../testing/mock-supabase'
 import { type SubmitOutcome, useCreateNote } from './useCreateNote'
 
-// Full NoteDto bodies — the hook Zod-parses every 201, so stubs must honor the
-// @app/contracts contract exactly.
-const SERVER_NOTE = {
-  id: '00000000-0000-4000-8000-000000000099',
-  ownerId: '00000000-0000-4000-8000-0000000000aa',
-  title: 'Hello',
-  body: '',
+jest.mock('../../lib/supabase/provider', () => ({
+  useSupabase: () => mockSupabaseClient(),
+}))
+jest.mock('../../lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
+
+// Full NoteView payloads — the hook re-parses every success against
+// @app/contracts, so a stub that drifts from the render contract fails HERE
+// rather than passing a test the app could never reproduce.
+const SERVER_NOTE: NoteView = {
   createdAt: '2026-01-01T00:00:01.000Z',
-  embedding: null,
-  sourceConfidence: null,
-  sourceModel: null,
+  excerpt: '',
+  hasBody: false,
+  id: '00000000-0000-4000-8000-000000000099',
+  isArchived: false,
+  title: 'Hello',
+  updatedAt: '2026-01-01T00:00:01.000Z',
 }
-const SECOND_NOTE = {
+const SECOND_NOTE: NoteView = {
   ...SERVER_NOTE,
+  createdAt: '2026-01-01T00:00:02.000Z',
   id: '00000000-0000-4000-8000-000000000100',
   title: 'Second',
-  createdAt: '2026-01-01T00:00:02.000Z',
 }
 
-interface MockResult {
-  readonly status: number
-  readonly body: unknown
-}
-
-/** A route whose settlement the test controls — the held-POST window. */
-function heldRoute() {
-  let release!: (result: MockResult) => void
-  const gate = new Promise<MockResult>((resolve) => {
+/** A mutation whose settlement the test controls — the held-write window. */
+function heldMutation() {
+  let release!: (result: ActionOutcome<NoteView>) => void
+  const gate = new Promise<ActionOutcome<NoteView>>((resolve) => {
     release = resolve
   })
   const calls = jest.fn()
-  const handler: MockRouteHandler = () => {
+  const handler = (): Promise<ActionOutcome<NoteView>> => {
     calls()
     return gate
   }
   return { handler, release, calls }
 }
 
-beforeAll(() => {
-  // The hook posts through the one door; give the door a session.
-  setAccessTokenProvider(() => Promise.resolve('test-token'))
-})
-
 afterEach(() => {
   uninstallMockServer()
 })
 
 describe('useCreateNote', () => {
-  it('optimistically inserts a pending row while the POST is held, then reconciles on 201', async () => {
-    const held = heldRoute()
-    installMockServer({ 'POST /api/notes': held.handler })
+  it('optimistically inserts a pending row while the write is held, then reconciles', async () => {
+    const held = heldMutation()
+    installMockServer({ notesCreate: held.handler })
     const onFailure = jest.fn()
     const { result } = renderHook(() => useCreateNote(onFailure))
 
@@ -86,7 +79,7 @@ describe('useCreateNote', () => {
     expect(result.current.state.rows[0]?.title).toBe('Hello')
     const tempId = result.current.state.rows[0]?.id
 
-    held.release({ status: 201, body: SERVER_NOTE })
+    held.release({ ok: true, data: SERVER_NOTE })
     await act(async () => {
       await expect(outcome).resolves.toBe('settled')
     })
@@ -101,14 +94,12 @@ describe('useCreateNote', () => {
   })
 
   it('a second create inserts at the head and reconciles only its own temp row', async () => {
-    const held = heldRoute()
-    let posts = 0
+    const held = heldMutation()
+    let writes = 0
     installMockServer({
-      'POST /api/notes': () => {
-        posts += 1
-        return posts === 1
-          ? { status: 201, body: SERVER_NOTE }
-          : held.handler({ url: '', body: null })
+      notesCreate: () => {
+        writes += 1
+        return writes === 1 ? { ok: true, data: SERVER_NOTE } : held.handler()
       },
     })
     const { result } = renderHook(() => useCreateNote(jest.fn()))
@@ -130,7 +121,7 @@ describe('useCreateNote', () => {
       pending: false,
     })
 
-    held.release({ status: 201, body: SECOND_NOTE })
+    held.release({ ok: true, data: SECOND_NOTE })
     await act(async () => {
       await expect(outcome).resolves.toBe('settled')
     })
@@ -140,14 +131,14 @@ describe('useCreateNote', () => {
     ])
   })
 
-  it('rolls ONLY the temp row back on a 500 and surfaces TRANSLATED copy, not the raw message', async () => {
-    let posts = 0
+  it('rolls ONLY the temp row back on a failure envelope, with TRANSLATED copy', async () => {
+    let writes = 0
     installMockServer({
-      'POST /api/notes': () => {
-        posts += 1
-        return posts === 1
-          ? { status: 201, body: SERVER_NOTE }
-          : { status: 500, body: { error: { code: 'internal', message: 'note storage exploded' } } }
+      notesCreate: () => {
+        writes += 1
+        return writes === 1
+          ? { ok: true, data: SERVER_NOTE }
+          : { ok: false, error: appError.unknown({ message: 'note storage exploded' }) }
       },
     })
     // Typed mock: the toast inspection below reads mock.calls, and an untyped
@@ -167,21 +158,22 @@ describe('useCreateNote', () => {
     expect(result.current.state.rows).toEqual([
       { id: SERVER_NOTE.id, title: 'Hello', pending: false, createdAt: SERVER_NOTE.createdAt },
     ])
-    // The toast says what the envelope's `code` means, in the user's language. The server's own
-    // English message ("note storage exploded") is a diagnostic for the logs and must NOT be the
-    // sentence a user is asked to read.
+    // The toast says what the envelope's kind means, in the user's language, plus the stable
+    // code as the support handle. The server's own English message ("note storage exploded")
+    // is a diagnostic for the logs and must NOT be the sentence a user is asked to read.
     const toasted: string = onFailure.mock.calls[0]?.[0] ?? ''
     expect(toasted).toContain(en['error.api.internal'])
     expect(toasted).not.toContain('note storage exploded')
   })
 
-  it('rolls back on a network failure with translated copy (no envelope exists to quote)', async () => {
+  it('rolls back on a transport rejection the fold turned into an envelope', async () => {
     installMockServer({
-      'POST /api/notes': () => {
-        throw new Error('offline')
-      },
+      // `callProcedure` folds a REJECTION back onto the data channel, so the
+      // hook has ONE branch rather than two. This case proves the fold, not a
+      // second error path in the hook.
+      notesCreate: () => Promise.reject(new Error('offline')),
     })
-    const onFailure = jest.fn()
+    const onFailure = jest.fn<undefined, [string]>()
     const { result } = renderHook(() => useCreateNote(onFailure))
 
     await act(async () => {
@@ -189,18 +181,13 @@ describe('useCreateNote', () => {
     })
 
     expect(result.current.state.rows).toEqual([])
-    // No envelope, so no code: the client says the one true thing it knows.
-    expect(onFailure).toHaveBeenCalledWith(en['error.api.offline'])
+    // A non-tRPC rejection is `unknown` by nature; the copy says exactly that.
+    expect(onFailure.mock.calls[0]?.[0] ?? '').toContain(en['error.api.internal'])
   })
 
-  it('rejects an invalid title at the contract boundary — no fetch, no row', async () => {
-    const posts = jest.fn()
-    installMockServer({
-      'POST /api/notes': () => {
-        posts()
-        return { status: 201, body: SERVER_NOTE }
-      },
-    })
+  it('rejects an invalid title at the contract boundary — no mutation, no row', async () => {
+    const writes = jest.fn(() => ({ ok: true as const, data: SERVER_NOTE }))
+    installMockServer({ notesCreate: writes })
     const onFailure = jest.fn()
     const { result } = renderHook(() => useCreateNote(onFailure))
 
@@ -210,13 +197,13 @@ describe('useCreateNote', () => {
 
     expect(result.current.state.fieldError).not.toBeNull()
     expect(result.current.state.rows).toEqual([])
-    expect(posts).not.toHaveBeenCalled()
+    expect(writes).not.toHaveBeenCalled()
     expect(onFailure).not.toHaveBeenCalled()
   })
 
   it('a corrected retry clears the field error as the optimistic insert starts', async () => {
-    const held = heldRoute()
-    installMockServer({ 'POST /api/notes': held.handler })
+    const held = heldMutation()
+    installMockServer({ notesCreate: held.handler })
     const { result } = renderHook(() => useCreateNote(jest.fn()))
 
     await act(async () => {
@@ -232,8 +219,8 @@ describe('useCreateNote', () => {
   })
 
   it('is single-flight: a second submit while one is pending is rejected', async () => {
-    const held = heldRoute()
-    installMockServer({ 'POST /api/notes': held.handler })
+    const held = heldMutation()
+    installMockServer({ notesCreate: held.handler })
     const { result } = renderHook(() => useCreateNote(jest.fn()))
 
     let first: Promise<SubmitOutcome> | undefined
@@ -245,7 +232,7 @@ describe('useCreateNote', () => {
     })
     expect(held.calls).toHaveBeenCalledTimes(1)
 
-    held.release({ status: 201, body: { ...SERVER_NOTE, title: 'One' } })
+    held.release({ ok: true, data: { ...SERVER_NOTE, title: 'One' } })
     await act(async () => {
       await expect(first).resolves.toBe('settled')
     })

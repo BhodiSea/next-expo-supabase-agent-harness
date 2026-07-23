@@ -1,0 +1,20 @@
+{
+  "name": "@app/supabase",
+  "version": "0.1.0",
+  "description": "The five Supabase client factories — the one sanctioned way either surface reaches the database, and the SQLSTATE-to-AppError map",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "dependencies": {
+    "@app/env": "workspace:*",
+    "@app/errors": "workspace:*",
+    "@supabase/supabase-js": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

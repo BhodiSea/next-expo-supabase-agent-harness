@@ -1,7 +1,6 @@
 import type { ViewProps } from 'react-native'
 import { View } from 'react-native'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { elevation, radius, spacing } from '../theme/tokens.gen'
+import { elevation, type Palette, radius, space, useThemedStyles } from '../theme/theme'
 
 // The bordered-surface primitive: ONE home for the card look (surface fill,
 // edge border, md radius, base padding) so content boxes cannot drift apart
@@ -23,8 +22,8 @@ const cardStyles = (palette: Palette) => ({
     borderColor: palette.edge,
     borderRadius: radius.md,
     borderWidth: 1,
-    gap: spacing * 2,
-    padding: spacing * 3,
+    gap: space[2],
+    padding: space[3],
   },
   danger: {
     borderColor: palette.danger,

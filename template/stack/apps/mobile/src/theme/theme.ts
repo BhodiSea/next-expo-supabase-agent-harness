@@ -1,8 +1,8 @@
+import { type Palette, palettes, type ThemeName } from '@app/design-tokens/native'
 import { useSyncExternalStore } from 'react'
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native'
 import { Appearance } from 'react-native'
 import { kvGet, kvSet } from '../lib/kv'
-import { type Palette, palettes, type ResolvedThemeName } from './tokens.gen'
 
 // Light/dark theming — the desktop original's store logic (module-level store +
 // useSyncExternalStore), re-seamed for this host: persistence goes through
@@ -41,13 +41,13 @@ function systemPrefersLight(): boolean {
 }
 
 /** The concrete theme actually painted, collapsing `system` to light/dark. */
-function resolveTheme(preference: ThemePreference): ResolvedThemeName {
+function resolveTheme(preference: ThemePreference): ThemeName {
   if (preference === 'system') return systemPrefersLight() ? 'light' : 'dark'
   return preference
 }
 
 let preference: ThemePreference = readPreference()
-let resolved: ResolvedThemeName = resolveTheme(preference)
+let resolved: ThemeName = resolveTheme(preference)
 const listeners = new Set<() => void>()
 
 function emit(): void {
@@ -115,7 +115,7 @@ function getSnapshot(): string {
 
 interface ThemeControls {
   readonly preference: ThemePreference
-  readonly resolved: ResolvedThemeName
+  readonly resolved: ThemeName
   /** Advance system → light → dark → system, persisting + applying the choice. */
   readonly cycle: () => void
 }
@@ -145,7 +145,7 @@ type StyleFactory = (palette: Palette) => unknown
 // factory so each theme's style object is built once for the app's lifetime,
 // not once per render — the WeakMap also means a hot-reloaded factory simply
 // starts a fresh cache entry.
-const styleCache = new WeakMap<StyleFactory, Partial<Record<ResolvedThemeName, unknown>>>()
+const styleCache = new WeakMap<StyleFactory, Partial<Record<ThemeName, unknown>>>()
 
 /**
  * Tokens-only styling helper: the factory receives the ACTIVE palette and
@@ -167,4 +167,37 @@ export function useThemedStyles<T extends NamedStyles<T>>(factory: (palette: Pal
   return styles as T
 }
 
-export type { Palette } from './tokens.gen'
+// ---------------------------------------------------------------------------
+// THE ONE LOCAL TOKEN SEAM.
+//
+// Every visual constant this app paints with is re-exported HERE, and screens
+// import it from `../theme/theme` rather than reaching for the package
+// directly. The reason is the one that made the app's old hand-generated local
+// token module a liability: a per-file import of a token module is
+// a per-file decision about WHICH token module, and the moment a second one
+// exists (a raw source barrel and a platform-resolved adapter that re-use the
+// names `radius`/`typeScale` with DIFFERENT value types) half the tree paints
+// from one and half from the other, typechecking perfectly the whole way.
+//
+// `@app/design-tokens/native` — not `@app/design-tokens` — is deliberate and is
+// the whole of that hazard: the package barrel carries the OKLCH SOURCE values
+// (numbers, `Oklch` objects) that generate both platforms; the `/native`
+// subpath carries the same names resolved to what React Native's style system
+// can actually parse (hex strings, dp numbers). Importing the barrel here would
+// hand a component an OKLCH triple where it wants '#6ad8de' and paint nothing.
+// SOURCE: design/W1-STACK-SPEC.md §5 (tokens are TS → both platforms; the two
+// generated adapters ride their own subpaths precisely because they re-use the
+// source names with platform-resolved values) · packages/design-tokens/src/index.ts
+// ---------------------------------------------------------------------------
+export {
+  elevation,
+  fontScaleCap,
+  fontWeight,
+  iconSize,
+  minTouchTarget,
+  motion,
+  radius,
+  space,
+  typeScale,
+} from '@app/design-tokens/native'
+export type { Palette, ThemeName } from '@app/design-tokens/native'

@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 import { KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { spacing } from '../theme/tokens.gen'
+import { type Palette, space, useThemedStyles } from '../theme/theme'
 
 // The one screen container: safe-area handling + the canvas token + the base
 // gutter, in one place. Every route's top-level surface renders through it so
@@ -23,14 +22,14 @@ const screenStyles = (palette: Palette) => ({
   root: {
     backgroundColor: palette.canvas,
     flex: 1,
-    gap: spacing * 3,
-    padding: spacing * 4,
+    gap: space[3],
+    padding: space[4],
   },
   // The avoider replaces root as the children's flex container, so it carries
   // the same gap (root's gap then spaces a single child — a no-op).
   avoider: {
     flex: 1,
-    gap: spacing * 3,
+    gap: space[3],
   },
 })
 

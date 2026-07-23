@@ -1,112 +1,240 @@
-// Pure contract behavior — bounds, formats, and the closed error-code set.
-// These tests exercise the WIRE semantics only; everything table- or
-// migration-coupled (RLS text, keyset index, drift against the drizzle
-// derivation) lives in packages/schema/src/schema.test.ts.
+// Pure contract behaviour — bounds, formats, and the closed code sets. These
+// tests exercise WIRE semantics only; anything table- or policy-coupled (column
+// types, RLS text, the keyset index) belongs to the database suite, and the
+// Record -> View mapping belongs to @app/notes' domain tests. Keeping the split
+// means a contract test never needs a database and never needs a router.
 import { describe, expect, it } from 'vitest'
-import type { NewNote, Note } from './index.js'
 import {
-  ApiError,
-  EMBEDDING_DIM,
-  HealthResponse,
+  ActorView,
+  CLIENT_VERSION_HEADER,
+  DISPLAY_NAME_MAX,
+  EMAIL_MAX,
+  HealthReport,
+  MembershipRole,
   NewNoteInput,
   NOTE_BODY_MAX,
+  NOTE_EXCERPT_MAX,
   NOTE_TITLE_MAX,
+  NOTES_CURSOR_MAX,
   NOTES_PAGE_LIMIT_DEFAULT,
   NOTES_PAGE_LIMIT_MAX,
-  NoteDto,
+  NoteDeletion,
+  NoteRecord,
+  NoteRef,
   NotesListQuery,
   NotesPage,
+  NoteUpdateInput,
+  NoteView,
+  TransportErrorCode,
+  WireTimestamp,
 } from './index.js'
 
-const sample: Note = {
+const OWNER_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
+const NOTE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+
+const record: NoteRecord = {
+  archivedAt: null,
   body: '',
-  createdAt: '2026-01-01 00:00:00+00',
-  embedding: null,
-  id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
-  ownerId: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
-  sourceConfidence: null,
-  sourceModel: null,
+  createdAt: '2026-01-01T00:00:00.123456+00:00',
+  id: NOTE_ID,
+  ownerId: OWNER_ID,
   title: 'RLS smoke note',
+  updatedAt: '2026-01-01T00:00:00.123456+00:00',
 }
 
-describe('DTOs', () => {
-  it('round-trips a Note through NoteDto', () => {
-    expect(NoteDto.parse(sample)).toEqual(sample)
+const view: NoteView = {
+  createdAt: record.createdAt,
+  excerpt: '',
+  hasBody: false,
+  id: NOTE_ID,
+  isArchived: false,
+  title: 'RLS smoke note',
+  updatedAt: record.updatedAt,
+}
+
+describe('WireTimestamp', () => {
+  it('keeps the driver text verbatim, microseconds and all', () => {
+    // The exact string survives parsing: keyset cursors compare it back against
+    // the column, so a millisecond-truncating round trip would skip rows.
+    const micro = '2026-01-01T00:00:00.123456+00:00'
+    expect(WireTimestamp.parse(micro)).toBe(micro)
+    expect(WireTimestamp.parse('2026-01-01 00:00:00+00')).toBe('2026-01-01 00:00:00+00')
   })
 
-  it('keeps the driver timestamptz text verbatim and rejects non-timestamp shapes', () => {
-    // Both the Postgres text form (microsecond precision) and ISO-8601 pass;
-    // the exact string survives parsing — keyset cursors depend on it.
-    const micro = { ...sample, createdAt: '2026-01-01 00:00:00.123456+00' }
-    expect(NoteDto.parse(micro).createdAt).toBe('2026-01-01 00:00:00.123456+00')
-    expect(NoteDto.parse({ ...sample, createdAt: '2026-01-01T00:00:00.000Z' })).toBeTruthy()
-    expect(() => NoteDto.parse({ ...sample, createdAt: 'yesterday' })).toThrow()
+  it('rejects anything that is not a timestamp', () => {
+    expect(() => WireTimestamp.parse('yesterday')).toThrow()
+    expect(() => WireTimestamp.parse('2026-01-01')).toThrow()
+    expect(() => WireTimestamp.parse('')).toThrow()
+  })
+})
+
+describe('NoteRecord', () => {
+  it('round-trips the persisted shape', () => {
+    expect(NoteRecord.parse(record)).toEqual(record)
   })
 
-  it('enforces the embedding dimension contract', () => {
-    const full: Note = {
-      ...sample,
-      embedding: Array.from({ length: EMBEDDING_DIM }, () => 0.5),
-    }
-    expect(NoteDto.parse(full)).toEqual(full)
-    expect(() => NoteDto.parse({ ...sample, embedding: [0.1, 0.2] })).toThrow()
+  it('carries a nullable archivedAt (lifecycle is a column, not a second table)', () => {
+    const archived = { ...record, archivedAt: '2026-02-02T09:00:00+00:00' }
+    expect(NoteRecord.parse(archived).archivedAt).toBe('2026-02-02T09:00:00+00:00')
   })
 
-  it('bounds every wire string and number (no unbounded input)', () => {
-    expect(() => NoteDto.parse({ ...sample, title: 'x'.repeat(NOTE_TITLE_MAX + 1) })).toThrow()
-    expect(() => NoteDto.parse({ ...sample, body: 'x'.repeat(NOTE_BODY_MAX + 1) })).toThrow()
-    expect(() => NoteDto.parse({ ...sample, sourceModel: 'm'.repeat(129) })).toThrow()
-    // confidence is a probability: [0, 1]
-    expect(NoteDto.parse({ ...sample, sourceConfidence: 0.5 }).sourceConfidence).toBe(0.5)
-    expect(() => NoteDto.parse({ ...sample, sourceConfidence: 1.5 })).toThrow()
-    expect(() => NewNoteInput.parse({ title: 'x'.repeat(NOTE_TITLE_MAX + 1) })).toThrow()
-    expect(() => NewNoteInput.parse({ title: 'ok', body: 'x'.repeat(NOTE_BODY_MAX + 1) })).toThrow()
+  it('bounds every wire string (no unbounded input)', () => {
+    expect(() => NoteRecord.parse({ ...record, title: 'x'.repeat(NOTE_TITLE_MAX + 1) })).toThrow()
+    expect(() => NoteRecord.parse({ ...record, body: 'x'.repeat(NOTE_BODY_MAX + 1) })).toThrow()
+    expect(NoteRecord.parse({ ...record, title: 'x'.repeat(NOTE_TITLE_MAX) }).title).toHaveLength(
+      NOTE_TITLE_MAX,
+    )
   })
 
+  it('rejects an empty title and a non-uuid id', () => {
+    expect(() => NoteRecord.parse({ ...record, title: '' })).toThrow()
+    expect(() => NoteRecord.parse({ ...record, id: 'note-1' })).toThrow()
+  })
+})
+
+describe('NoteView', () => {
+  it('round-trips the render shape', () => {
+    expect(NoteView.parse(view)).toEqual(view)
+  })
+
+  it('does NOT carry ownerId — the render shape leaks no identifiers', () => {
+    const withOwner = NoteView.parse({ ...view, ownerId: OWNER_ID })
+    expect(withOwner).not.toHaveProperty('ownerId')
+  })
+
+  it('bounds the excerpt so neither surface has to re-truncate', () => {
+    expect(NoteView.parse({ ...view, excerpt: 'x'.repeat(NOTE_EXCERPT_MAX) })).toBeTruthy()
+    expect(() => NoteView.parse({ ...view, excerpt: 'x'.repeat(NOTE_EXCERPT_MAX + 1) })).toThrow()
+  })
+})
+
+describe('write inputs', () => {
   it('accepts client fields only in NewNoteInput and rejects an empty title', () => {
-    const input: NewNote = { body: 'world', title: 'hello' }
-    expect(NewNoteInput.parse(input)).toEqual(input)
+    expect(NewNoteInput.parse({ body: 'world', title: 'hello' })).toEqual({
+      body: 'world',
+      title: 'hello',
+    })
     expect(NewNoteInput.parse({ title: 'body is optional' })).toEqual({ title: 'body is optional' })
     expect(() => NewNoteInput.parse({ title: '' })).toThrow()
-    // owner_id must never be accepted from the wire — it is not part of the shape.
-    expect(NewNoteInput.parse({ ownerId: sample.ownerId, title: 'x' })).toEqual({ title: 'x' })
   })
 
-  it('locks the health contract', () => {
-    const health = { ok: true, version: '0.1.0' }
-    expect(HealthResponse.parse(health)).toEqual(health)
-    expect(() => HealthResponse.parse({ ok: false, version: '0.1.0' })).toThrow()
+  it('never accepts ownerId from the wire', () => {
+    // Stripped, not honoured: an owner-bearing create input is an
+    // account-takeover primitive dressed as a convenience.
+    expect(NewNoteInput.parse({ ownerId: OWNER_ID, title: 'x' })).toEqual({ title: 'x' })
   })
 
-  it('locks the error envelope: nested code/message(/requestId), closed code set', () => {
-    const body = {
-      error: {
-        code: 'version_skew',
-        message: 'client major version does not match the server',
-        requestId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
-      },
-    }
-    expect(ApiError.parse(body)).toEqual(body)
-    expect(ApiError.parse({ error: { code: 'not_found', message: 'gone' } })).toBeTruthy()
-    // The flat pre-envelope shape and undeclared codes are contract violations.
-    expect(() => ApiError.parse({ error: 'version_skew' })).toThrow()
-    expect(() => ApiError.parse({ error: { code: 'teapot', message: 'no' } })).toThrow()
-    expect(() => ApiError.parse({ error: { code: 'internal', message: '' } })).toThrow()
+  it('rejects an empty patch (a no-op UPDATE still bumps updated_at)', () => {
+    expect(NoteUpdateInput.parse({ id: NOTE_ID, title: 'renamed' })).toEqual({
+      id: NOTE_ID,
+      title: 'renamed',
+    })
+    expect(NoteUpdateInput.parse({ id: NOTE_ID, isArchived: true }).isArchived).toBe(true)
+    expect(NoteUpdateInput.parse({ body: '', id: NOTE_ID }).body).toBe('')
+    expect(() => NoteUpdateInput.parse({ id: NOTE_ID })).toThrow()
   })
 
-  it('locks the keyset pagination contracts', () => {
-    expect(NotesListQuery.parse({})).toEqual({ limit: NOTES_PAGE_LIMIT_DEFAULT })
-    expect(NotesListQuery.parse({ limit: '25', cursor: 'abc_-123' })).toEqual({
-      limit: 25,
+  it('bounds the patch fields exactly as the record bounds them', () => {
+    expect(() =>
+      NoteUpdateInput.parse({ id: NOTE_ID, title: 'x'.repeat(NOTE_TITLE_MAX + 1) }),
+    ).toThrow()
+    expect(() =>
+      NoteUpdateInput.parse({ body: 'x'.repeat(NOTE_BODY_MAX + 1), id: NOTE_ID }),
+    ).toThrow()
+  })
+
+  it('locks the single-note addressing shapes', () => {
+    expect(NoteRef.parse({ id: NOTE_ID })).toEqual({ id: NOTE_ID })
+    expect(NoteDeletion.parse({ id: NOTE_ID })).toEqual({ id: NOTE_ID })
+    expect(() => NoteRef.parse({ id: '1' })).toThrow()
+  })
+})
+
+describe('keyset pagination', () => {
+  it('defaults the page size and the archived filter', () => {
+    expect(NotesListQuery.parse({})).toEqual({
+      includeArchived: false,
+      limit: NOTES_PAGE_LIMIT_DEFAULT,
+    })
+  })
+
+  it('coerces a string limit (query strings are strings) inside the bounds', () => {
+    expect(NotesListQuery.parse({ cursor: 'abc_-123', limit: '25' })).toEqual({
       cursor: 'abc_-123',
+      includeArchived: false,
+      limit: 25,
     })
     expect(() => NotesListQuery.parse({ limit: String(NOTES_PAGE_LIMIT_MAX + 1) })).toThrow()
     expect(() => NotesListQuery.parse({ limit: '0' })).toThrow()
-    expect(() => NotesListQuery.parse({ cursor: 'not+base64url!' })).toThrow()
-    expect(() => NotesListQuery.parse({ cursor: 'x'.repeat(300) })).toThrow()
+    expect(() => NotesListQuery.parse({ limit: '1.5' })).toThrow()
+  })
 
-    const page = { items: [sample], nextCursor: null }
+  it('accepts only base64url cursors, bounded', () => {
+    expect(() => NotesListQuery.parse({ cursor: 'not+base64url!' })).toThrow()
+    expect(() => NotesListQuery.parse({ cursor: 'x'.repeat(NOTES_CURSOR_MAX + 1) })).toThrow()
+    expect(() => NotesListQuery.parse({ cursor: '' })).toThrow()
+  })
+
+  it('locks the page envelope', () => {
+    const page = { items: [view], nextCursor: null }
     expect(NotesPage.parse(page)).toEqual(page)
     expect(NotesPage.parse({ items: [], nextCursor: 'abc' }).nextCursor).toBe('abc')
+    expect(() =>
+      NotesPage.parse({
+        items: Array.from({ length: NOTES_PAGE_LIMIT_MAX + 1 }, () => view),
+        nextCursor: null,
+      }),
+    ).toThrow()
+  })
+})
+
+describe('actor and roles', () => {
+  it('models "authenticated but not a member" as a reachable state', () => {
+    const stranger: ActorView = {
+      displayName: 'Sam',
+      email: 'sam@example.test',
+      id: OWNER_ID,
+      role: null,
+      workspaceId: null,
+    }
+    expect(ActorView.parse(stranger)).toEqual(stranger)
+  })
+
+  it('bounds the identity strings', () => {
+    const base = { displayName: 'Sam', email: null, id: OWNER_ID, role: 'owner', workspaceId: null }
+    expect(() =>
+      ActorView.parse({ ...base, email: `${'x'.repeat(EMAIL_MAX)}@example.test` }),
+    ).toThrow()
+    const tooLong = { ...base, displayName: 'x'.repeat(DISPLAY_NAME_MAX + 1) }
+    expect(() => ActorView.parse(tooLong)).toThrow()
+    expect(() => ActorView.parse({ ...base, displayName: '' })).toThrow()
+  })
+
+  it('keeps the role set closed — an unknown role must fail parsing, not default', () => {
+    expect(MembershipRole.options).toEqual(['member', 'admin', 'owner'])
+    expect(() => MembershipRole.parse('superuser')).toThrow()
+    expect(() => MembershipRole.parse('')).toThrow()
+  })
+})
+
+describe('transport contract', () => {
+  it('pins the client-version header spelling shared by both ends of the wire', () => {
+    expect(CLIENT_VERSION_HEADER).toBe('x-client-version')
+    // Header names are compared lowercased everywhere; a capitalised literal
+    // here would silently miss on a Headers.get() lookup.
+    expect(CLIENT_VERSION_HEADER).toBe(CLIENT_VERSION_HEADER.toLowerCase())
+  })
+
+  it('keeps the transport code set closed and disjoint from domain failures', () => {
+    expect(TransportErrorCode.options).toEqual(['unauthorized', 'version_skew'])
+    expect(() => TransportErrorCode.parse('not_found')).toThrow()
+    expect(() => TransportErrorCode.parse('internal')).toThrow()
+  })
+
+  it('locks the health contract: ok is a literal true, never a boolean', () => {
+    const report = { ok: true, version: '0.1.0' }
+    expect(HealthReport.parse(report)).toEqual(report)
+    expect(() => HealthReport.parse({ ok: false, version: '0.1.0' })).toThrow()
+    expect(() => HealthReport.parse({ ok: true, version: '' })).toThrow()
   })
 })

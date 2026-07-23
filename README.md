@@ -131,8 +131,11 @@ in a copy is the checklist of repo-root sites that hardcode the upstream owner:
   whose stack *is* that vocabulary reds on its own first file. Drop only the
   words your lineage now owns, and add the words of the lineage you forked
   away from — never delete a pattern to make a run pass. (This fork dropped
-  `/supabase/i` and `/vercel/i`, and arms `/\bhono\b/i` + `/drizzle/i` in W1
-  when the inherited stack tree leaves.)
+  `/supabase/i` and `/vercel/i` immediately, and arms `/\bhono\b/i` +
+  `/drizzle/i` in the final closure wave — 65 template files still carry that
+  vocabulary at W1, so arming it early would force every later wave's rewrites
+  into one change. Expect this: a lineage fork's detectors arm last, once every
+  consumer has been retargeted.)
 
 Then prove closure the way the harness proves everything else:
 

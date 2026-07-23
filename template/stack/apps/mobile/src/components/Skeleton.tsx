@@ -1,8 +1,7 @@
 import { Animated, View } from 'react-native'
 import { useI18n } from '../i18n'
 import { usePulse } from '../lib/motion'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { radius, spacing } from '../theme/tokens.gen'
+import { type Palette, radius, space, useThemedStyles } from '../theme/theme'
 
 // The loading primitive. A loading surface is never prose ("Loading…") — it is a
 // skeleton that MIRRORS the final content's layout so arrival shifts nothing:
@@ -20,14 +19,14 @@ interface SkeletonProps {
 
 const skeletonStyles = (palette: Palette) => ({
   block: {
-    gap: spacing * 2,
+    gap: space[2],
   },
   line: {
     backgroundColor: palette.surface,
     borderColor: palette.edge,
     borderRadius: radius.sm,
     borderWidth: 1,
-    height: spacing * 5,
+    height: space[5],
   },
   // The last line runs short — the asymmetry is what reads as "text is coming",
   // not a decorative stripe pattern.

@@ -195,22 +195,14 @@ jobs:
   # The job asserts the literal '[rls] OK' marker so a truncated run cannot green.
   # ---------------------------------------------------------------------------
   runtime-rls:
-    name: runtime (rls isolation, real postgres)
+    name: runtime (rls isolation + pgTAP, real postgres)
     runs-on: ubuntu-latest
-    services:
-      db:
-        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: '{{DB_NAME}}'
-        ports:
-          - '5432:5432'
-        options: >-
-          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
+    # No `services:` block. The database under test is the Supabase local stack,
+    # started by its own CLI below — a bare postgres service container would be a
+    # DIFFERENT database from the one the app runs against: no auth schema, no
+    # auth.uid(), no GoTrue-issued JWTs, and therefore none of the RLS predicates
+    # this job exists to prove. Testing the wrong engine green is worse than not
+    # testing it.
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -232,18 +224,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Same role bootstrap docker-compose runs on first boot: app_migrator owns the
-      # schema, app_api is NOSUPERUSER + NOBYPASSRLS (FORCE RLS applies, no escape hatch).
-      - name: Provision database roles (db/init/01-roles.sql)
-        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+      # `supabase start` applies supabase/migrations from scratch, so a migration
+      # that cannot fresh-apply fails HERE rather than on someone's next deploy.
+      # The stack ships its own postgres, auth schema and GoTrue — the same shape
+      # the app authenticates against.
+      - name: Start the Supabase local stack
+        run: supabase start
 
-      - name: RLS isolation suite (migration fresh-apply + isolation matrix + catalog gate)
+      # pgTAP over the RLS STRUCTURE: force-RLS on every table, four per-operation
+      # policies, no vacuous `USING (true)`, the initPlan sub-select form, and the
+      # owner column leading an index.
+      - name: RLS structure (pgTAP)
+        run: supabase test db
+
+      # The SDK twin: cross-tenant isolation exercised through a real client with
+      # real JWTs. Structure tests prove the policies EXIST and are shaped right;
+      # only this proves they DENY.
+      - name: RLS isolation suite (cross-tenant matrix)
         shell: bash
         run: |
           node tests/rls/run-rls.mjs 2>&1 | tee rls-output.log
           # Belt and braces: the exit code gates above; the marker proves the runner
           # reached its final line (a wedged/truncated run cannot count as green).
           grep -F '[rls] OK' rls-output.log
+
+      # A migration can land without regenerating the committed types; nothing else
+      # in the chain notices until a consumer's typecheck breaks against a stale view
+      # of the schema. The stack is up here, so this is the one place it can be proved.
+      - name: Generated-types drift
+        run: node tools/check-types-drift.mjs
 
   # ---------------------------------------------------------------------------
   # e2e fast lane — the SAME gate the Stop chain runs (tools/check-e2e.mjs):
@@ -290,31 +299,17 @@ jobs:
   # agent-time chain.
   # ---------------------------------------------------------------------------
   integration-lane:
-    name: integration lane (mobile <-> server, real postgres)
+    name: integration lane (mobile <-> web-hosted API, real postgres)
     runs-on: ubuntu-latest
     env:
       HARNESS_INTEGRATION_LANE: '1'
       LIVE_PROOF: '1'
-      AUTH_MODE: stub
       NODE_ENV: development
-      PORT: '8787'
-      EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
-      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/{{DB_NAME}}'
-      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/{{DB_NAME}}'
-    services:
-      db:
-        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: '{{DB_NAME}}'
-        ports:
-          - '5432:5432'
-        options: >-
-          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
+      # apps/web IS the API host in this lineage, so the lane boots the web app
+      # and the mobile client talks to its origin — there is no separate server
+      # to start, and the transport under test is the one production uses.
+      EXPO_PUBLIC_WEB_ORIGIN: 'http://127.0.0.1:3000'
+    # No `services:` block — see runtime-rls above. The stack is the Supabase CLI's.
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -336,34 +331,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Provision database roles (db/init/01-roles.sql)
-        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+      # Starting the stack applies supabase/migrations and seeds deterministically.
+      - name: Start the Supabase local stack
+        run: supabase start
 
-      - name: Apply migrations
-        run: pnpm db:migrate
-
-      - name: Boot the API server (stub auth mode)
+      - name: Boot the web app (which hosts /api/trpc)
         shell: bash
         run: |
           set -euo pipefail
-          pnpm --filter server dev > /tmp/server.log 2>&1 &
-          for _ in $(seq 1 40); do
-            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
-              echo "server up"; exit 0
+          pnpm --filter web run dev > /tmp/web.log 2>&1 &
+          for _ in $(seq 1 60); do
+            # The health PROCEDURE, not the page: a 200 from / proves Next is
+            # serving, not that the router mounted and reached the database.
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+              echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
 
-      # The suite mints its own token through the app's stub auth provider (the
-      # same POST /auth/dev-token path a dev build uses), so the lane exercises
-      # the exact bearer path production does — no token is minted out-of-band.
-      - name: Live API proof (app modules against the real server)
+      # The suite authenticates through the real Supabase local stack, so the lane
+      # exercises the exact JWT path production does — no token is minted
+      # out-of-band, and RLS is live underneath every assertion.
+      - name: Live API proof (app modules against the real API)
         run: pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
 
-      - name: Server log on failure
+      - name: Web log on failure
         if: failure()
-        run: cat /tmp/server.log || true
+        run: cat /tmp/web.log || true
 
   # ---------------------------------------------------------------------------
   # Native build lane — the generated android project actually assembles.
@@ -542,25 +537,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      AUTH_MODE: stub
       NODE_ENV: development
-      PORT: '8787'
-      DATABASE_URL: 'postgres://app_api:postgres@127.0.0.1:5432/{{DB_NAME}}'
-      MIGRATOR_DATABASE_URL: 'postgres://app_migrator:postgres@127.0.0.1:5432/{{DB_NAME}}'
-    services:
-      db:
-        image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: '{{DB_NAME}}'
-        ports:
-          - '5432:5432'
-        options: >-
-          --health-cmd "pg_isready -U postgres -d {{DB_NAME}}"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
+      # The device lane drives a real emulator against the real API host. See
+      # runtime-rls for why there is no postgres service container.
+      EXPO_PUBLIC_WEB_ORIGIN: 'http://127.0.0.1:3000'
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -605,24 +585,21 @@ jobs:
           unzip -q maestro.zip -d "$HOME/.maestro-dist"
           echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
 
-      - name: Provision database roles (db/init/01-roles.sql)
-        run: psql 'postgres://postgres:postgres@127.0.0.1:5432/{{DB_NAME}}' -v ON_ERROR_STOP=1 -f db/init/01-roles.sql
+      - name: Start the Supabase local stack
+        run: supabase start
 
-      - name: Apply migrations
-        run: pnpm db:migrate
-
-      - name: Boot the API server (stub auth mode — the mutation flow's backend)
+      - name: Boot the web app (the mutation flow's backend)
         shell: bash
         run: |
           set -euo pipefail
-          pnpm --filter server dev > /tmp/server.log 2>&1 &
-          for _ in $(seq 1 40); do
-            if curl -fsS -m 2 "http://127.0.0.1:8787/healthz" > /dev/null; then
-              echo "server up"; exit 0
+          pnpm --filter web run dev > /tmp/web.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+              echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the API server never became healthy"; cat /tmp/server.log; exit 1
+          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
 
       # Both binaries up front (the emulator step below only installs + drives).
       # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so the dummies and

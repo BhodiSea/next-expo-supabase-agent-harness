@@ -1,7 +1,14 @@
 import type { TextInputProps } from 'react-native'
 import { TextInput } from 'react-native'
-import { type Palette, usePalette, useThemedStyles } from '../theme/theme'
-import { radius, sizes, spacing, typeScale } from '../theme/tokens.gen'
+import {
+  minTouchTarget,
+  type Palette,
+  radius,
+  space,
+  typeScale,
+  usePalette,
+  useThemedStyles,
+} from '../theme/theme'
 
 // The one text-input primitive: tokens-only look, a11y wiring spread THROUGH
 // from Field (callers own the contract, this owns the pixels).
@@ -23,11 +30,11 @@ const inputStyles = (palette: Palette) => ({
     borderWidth: 1,
     color: palette.ink,
     fontSize: typeScale.sm.fontSize,
-    // The 44dp hit-target floor (sizes.minTarget) — a text field is a touch
+    // The 44dp hit-target floor (minTouchTarget) — a text field is a touch
     // target too, and the padding alone left it ~36dp.
-    minHeight: sizes.minTarget,
-    paddingHorizontal: spacing * 3,
-    paddingVertical: spacing * 2,
+    minHeight: minTouchTarget,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
     width: '100%' as const,
   },
   invalid: {

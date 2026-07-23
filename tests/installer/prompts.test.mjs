@@ -95,16 +95,19 @@ function drive({ spec, lines }) {
 }
 
 // The full set of default answers --yes derives from ctx(): identity chains from
-// PROJECT_NAME -> PROJECT_SLUG -> {APP_IDENTIFIER, APP_SCHEME, DB_NAME}, owner
-// chains from gitOwner -> GITHUB_OWNER -> SECURITY_OWNERS; the EAS/store trio
-// defaults to TBD (doctor warns while it remains).
+// PROJECT_NAME -> PROJECT_SLUG -> {APP_IDENTIFIER, APP_SCHEME}, owner chains from
+// gitOwner -> GITHUB_OWNER -> SECURITY_OWNERS; WEB_ORIGIN defaults to the Next dev
+// port (apps/web is both the web client AND the API host); the project-ref and the
+// EAS/store trio default to TBD (doctor warns while they remain).
+// Key ORDER here mirrors the registry's declaration order, which IS the prompt
+// order — the interactive reply scripts below are positional.
 const DEFAULT_ANSWERS = {
   PROJECT_NAME: 'demo-app',
   PROJECT_SLUG: 'demo-app',
   APP_IDENTIFIER: 'com.example.demoapp',
   APP_SCHEME: 'demoapp',
-  API_ORIGIN: 'http://127.0.0.1:8787',
-  DB_NAME: 'demo_app',
+  WEB_ORIGIN: 'http://127.0.0.1:3000',
+  SUPABASE_PROJECT_REF: 'TBD',
   GITHUB_OWNER: 'acme-co',
   SECURITY_OWNERS: '@acme-co',
   DEFAULT_BRANCH: 'main',
@@ -132,8 +135,8 @@ test('parseSets: parses VAR=value for known placeholders', () => {
 
 test('parseSets: only the FIRST "=" splits — values may contain "="', () => {
   assert.deepEqual(
-    parseSets(['API_ORIGIN=http://h:1?a=b=c']),
-    { API_ORIGIN: 'http://h:1?a=b=c' },
+    parseSets(['WEB_ORIGIN=http://h:1?a=b=c']),
+    { WEB_ORIGIN: 'http://h:1?a=b=c' },
   )
 })
 
@@ -190,14 +193,13 @@ test('--yes fills every placeholder from defaults, chaining derived values', asy
 test('--set overrides a default AND feeds downstream default derivation', async () => {
   const answers = await collectAnswers({
     yes: true,
-    sets: { PROJECT_NAME: 'Acme Portal', API_ORIGIN: 'https://api.acme.example' },
+    sets: { PROJECT_NAME: 'Acme Portal', WEB_ORIGIN: 'https://app.acme.example' },
     ctx: ctx({ dirName: 'ignored-dir' }),
   })
   assert.equal(answers.PROJECT_NAME, 'Acme Portal')
-  assert.equal(answers.API_ORIGIN, 'https://api.acme.example')
-  // PROJECT_SLUG / DB_NAME / APP_SCHEME derive from the --set name, not ctx.dirName.
+  assert.equal(answers.WEB_ORIGIN, 'https://app.acme.example')
+  // PROJECT_SLUG / APP_SCHEME / APP_IDENTIFIER derive from the --set name, not ctx.dirName.
   assert.equal(answers.PROJECT_SLUG, 'acme-portal')
-  assert.equal(answers.DB_NAME, 'acme_portal')
   assert.equal(answers.APP_SCHEME, 'acmeportal')
   assert.equal(answers.APP_IDENTIFIER, 'com.example.acmeportal')
 })
@@ -210,8 +212,8 @@ test('fully --set answers resolve with NO readline even when yes is false', asyn
     PROJECT_SLUG: 'full-set-app',
     APP_IDENTIFIER: 'com.acme.fullset',
     APP_SCHEME: 'fullsetapp',
-    API_ORIGIN: 'http://127.0.0.1:8787',
-    DB_NAME: 'full_set_app',
+    WEB_ORIGIN: 'http://127.0.0.1:3000',
+    SUPABASE_PROJECT_REF: 'TBD',
     GITHUB_OWNER: 'acme-co',
     SECURITY_OWNERS: '@acme-co',
     DEFAULT_BRANCH: 'main',
@@ -285,8 +287,8 @@ test('interactive: typed replies are stored, trimmed of surrounding whitespace',
       'padded-name', // PROJECT_SLUG
       'com.acme.padded', // APP_IDENTIFIER
       'paddedname', // APP_SCHEME
-      'https://api.padded.example', // API_ORIGIN
-      'padded_name', // DB_NAME
+      'https://app.padded.example', // WEB_ORIGIN
+      '', // SUPABASE_PROJECT_REF (default TBD)
       'acme-co', // GITHUB_OWNER
       '@acme-co @acme-co/security', // SECURITY_OWNERS
       '  develop  ', // DEFAULT_BRANCH
@@ -298,7 +300,8 @@ test('interactive: typed replies are stored, trimmed of surrounding whitespace',
   assert.ok(r.ok, JSON.stringify(r))
   assert.equal(r.answers.PROJECT_NAME, 'Padded Name', 'leading/trailing whitespace trimmed')
   assert.equal(r.answers.DEFAULT_BRANCH, 'develop')
-  assert.equal(r.answers.API_ORIGIN, 'https://api.padded.example')
+  assert.equal(r.answers.WEB_ORIGIN, 'https://app.padded.example')
+  assert.equal(r.answers.SUPABASE_PROJECT_REF, 'TBD')
   assert.equal(r.answers.SECURITY_OWNERS, '@acme-co @acme-co/security')
   assert.equal(r.answers.EAS_PROJECT_ID, 'TBD')
 })
@@ -315,8 +318,8 @@ test('interactive: an invalid reply re-prompts, then accepts a valid one', () =>
       'my-portal', // PROJECT_SLUG — valid retry
       'com.acme.portal', // APP_IDENTIFIER
       'myportal', // APP_SCHEME
-      'https://api.acme.example', // API_ORIGIN
-      'acme_portal', // DB_NAME
+      'https://app.acme.example', // WEB_ORIGIN
+      '', // SUPABASE_PROJECT_REF
       'acme-co', // GITHUB_OWNER
       '@acme-co', // SECURITY_OWNERS
       'develop', // DEFAULT_BRANCH

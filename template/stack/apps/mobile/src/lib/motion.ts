@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { AccessibilityInfo, Animated, Easing } from 'react-native'
-import { motion, spacing } from '../theme/tokens.gen'
+import { motion, space } from '../theme/theme'
 
 // The ONE motion seam. Every animation in the app is built from these hooks over
-// the manifest's motion tokens (tokens.gen.ts `motion`), the same one-door shape
-// as api-client/host: raw `Animated`/`Easing` outside this module and the
+// the token package's motion block (`motion` from @app/design-tokens/native,
+// reached through the local theme seam) — the same one-door shape the theme and
+// i18n stores take: raw `Animated`/`Easing` outside this module and the
 // components home is a styleguide red, so motion vocabulary and reduce-motion
 // behavior cannot fork per call site. Native-driver-only by construction — every
 // helper animates opacity/transform, the two properties the native driver
@@ -52,7 +53,7 @@ function useReducedMotion(): boolean {
  * animated style fragment for an Animated.View. Under reduce-motion the view
  * renders at its end state on the first frame — no travel, no fade.
  */
-export function useEntrance(offset: number = spacing * 2): {
+export function useEntrance(offset: number = space[2]): {
   readonly opacity: Animated.Value
   readonly transform: readonly [{ readonly translateY: Animated.AnimatedInterpolation<number> }]
 } {

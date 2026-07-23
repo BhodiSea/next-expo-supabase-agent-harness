@@ -1,7 +1,6 @@
 import type { TextProps } from 'react-native'
 import { Text } from 'react-native'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { fontScaleCap, fontWeight, typeScale } from '../theme/tokens.gen'
+import { fontScaleCap, fontWeight, type Palette, typeScale, useThemedStyles } from '../theme/theme'
 
 // The one text primitive. Every visible string renders through it, so the type
 // scale and ink tokens live in exactly ONE place — a raw <Text> with ad-hoc

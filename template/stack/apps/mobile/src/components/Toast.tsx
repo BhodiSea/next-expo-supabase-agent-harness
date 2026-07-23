@@ -3,8 +3,7 @@ import { AccessibilityInfo, Animated, View } from 'react-native'
 import { useI18n } from '../i18n'
 import { haptic } from '../lib/haptics'
 import { useEntrance } from '../lib/motion'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { elevation, radius, spacing } from '../theme/tokens.gen'
+import { elevation, type Palette, radius, space, useThemedStyles } from '../theme/theme'
 import { AppText } from './AppText'
 import { Button } from './Button'
 import { Icon } from './icons/Icon'
@@ -55,9 +54,9 @@ const toastStyles = (palette: Palette) => ({
   // keeps the screen behind it interactive.
   stack: {
     bottom: 0,
-    gap: spacing * 2,
+    gap: space[2],
     left: 0,
-    padding: spacing * 4,
+    padding: space[4],
     position: 'absolute' as const,
     right: 0,
   },
@@ -69,13 +68,13 @@ const toastStyles = (palette: Palette) => ({
     alignItems: 'center' as const,
     backgroundColor: palette.surface,
     borderColor: palette.edge,
-    borderLeftWidth: spacing,
+    borderLeftWidth: space[1],
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row' as const,
-    gap: spacing * 3,
-    paddingHorizontal: spacing * 3,
-    paddingVertical: spacing * 2,
+    gap: space[3],
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
   },
   error: {
     borderColor: palette.danger,

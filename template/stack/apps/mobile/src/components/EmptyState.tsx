@@ -1,6 +1,5 @@
 import { View } from 'react-native'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { spacing } from '../theme/tokens.gen'
+import { type Palette, space, useThemedStyles } from '../theme/theme'
 import { AppText } from './AppText'
 import { Button } from './Button'
 
@@ -24,8 +23,8 @@ interface EmptyStateProps {
 
 const emptyStyles = (_palette: Palette) => ({
   root: {
-    gap: spacing,
-    paddingVertical: spacing * 4,
+    gap: space[1],
+    paddingVertical: space[4],
   },
 })
 

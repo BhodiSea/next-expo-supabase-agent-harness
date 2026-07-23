@@ -1,0 +1,32 @@
+{
+  // @app/env — the parsed environment, and a DUAL-BARREL package: `.` is the
+  // server barrel (secrets), `./client` is the Metro-safe one. zod is the only
+  // dependency, so there is no `references` array: nothing in this package
+  // imports a sibling workspace, and a platform leaf that grew an edge to one
+  // would put that sibling into every bundle this package reaches.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically no matter which
+  // resolution a consuming workspace picks (packages are node16-style,
+  // apps/mobile is bundler-style).
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // EMPTY, and load-bearing here in a way it is not in the kernel (TypeScript 6
+    // no longer auto-includes node_modules/@types). This package is the one that
+    // legitimately touches `process` — so WITHOUT this line, @types/node would
+    // type `process.env` as a string index signature, and every variable in the
+    // codebase would become readable from either barrel with no compile error.
+    // Instead each barrel declares its OWN narrow `process` shape listing exactly
+    // the variables it may see: reading a server secret from src/client.ts is a
+    // typecheck failure, which is how the wall between the three classes is
+    // enforced at build time rather than by review. It also keeps `process.exit`,
+    // `process.cwd()` and the rest of the Node surface — none of which exist in
+    // Hermes — unreachable from a file Metro bundles.
+    "types": []
+  },
+  "include": ["src"]
+}

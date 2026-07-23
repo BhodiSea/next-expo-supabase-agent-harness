@@ -19,11 +19,11 @@ const homeStyles = (_palette: Palette) => ({
 })
 
 // The home screen: the notes vertical slice. Its ROUTES entry's states
-// (home-loading/-empty/-error) all live inside NotesPanel, driven by
-// useListQuery over the real api-client — the route-manifest contract holds
-// with three REACHABLE states now, not a placeholder's honest-empty.
+// (home-loading/-empty/-error) all live inside NotesPanel, driven by its list
+// query over the real tRPC client — the route-manifest contract holds with
+// three REACHABLE states now, not a placeholder's honest-empty.
 //
-// Header row: the screen title, the healthz connection indicator (the
+// Header row: the screen title, the liveness connection indicator (the
 // degraded-network surface), and the entry point to the actions modal.
 export default function HomeScreen() {
   const { t } = useI18n()

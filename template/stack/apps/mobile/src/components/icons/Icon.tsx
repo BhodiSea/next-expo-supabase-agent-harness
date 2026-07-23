@@ -1,6 +1,5 @@
 import Svg, { Path } from 'react-native-svg'
-import { usePalette } from '../../theme/theme'
-import { sizes } from '../../theme/tokens.gen'
+import { iconSize, usePalette } from '../../theme/theme'
 
 // The one icon primitive. The glyph set is a CLOSED union of template-owned
 // path data (24×24 grid, stroke 2, round caps/joins — the shared line-icon
@@ -27,14 +26,14 @@ type IconTone = 'ink' | 'ink-muted' | 'accent' | 'danger' | 'success'
 
 interface IconProps {
   readonly name: IconName
-  readonly size?: keyof typeof sizes.icon
+  readonly size?: keyof typeof iconSize
   readonly tone?: IconTone
   readonly testID?: string
 }
 
 export function Icon({ name, size = 'md', tone = 'ink-muted', testID }: IconProps) {
   const palette = usePalette()
-  const dim = sizes.icon[size]
+  const dim = iconSize[size]
   return (
     <Svg
       width={dim}

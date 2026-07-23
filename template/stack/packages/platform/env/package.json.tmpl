@@ -1,0 +1,17 @@
+{
+  "name": "@app/env",
+  "version": "0.1.0",
+  "description": "Parsed, typed environment — server secrets, NEXT_PUBLIC_* and EXPO_PUBLIC_* kept in three separate schemas",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

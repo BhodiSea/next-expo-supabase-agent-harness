@@ -16,7 +16,12 @@
 export const VALIDATE_STEPS = [
   ['format', 'pnpm exec biome ci .'],
   ['gate-integrity', 'node tools/check-gate-integrity.mjs'],
-  ['types', 'pnpm exec tsc -b'],
+  // `tsc -b .` builds the composite package graph; `apps/web apps/mobile` are added as
+  // extra build ROOTS so the two non-composite leaf apps are typechecked in the same
+  // invocation (they cannot be `references` of the solution — a referenced project must be
+  // composite, and an app that emits a declaration reds on the tRPC client's private
+  // symbol; see apps/*/tsconfig.json). One command, whole workspace. SOURCE: design/W1-STACK-SPEC.md §3
+  ['types', 'pnpm exec tsc -b . apps/web apps/mobile'],
   ['lint', 'pnpm exec eslint . --max-warnings 0 --cache'],
   ['provenance', 'node tools/check-sources.mjs'],
   ['expo-policy', 'node tools/check-expo-policy.mjs'],

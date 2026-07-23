@@ -58,9 +58,15 @@ test('fileMode: exact seeded-file matches classify as seeded', () => {
 })
 
 test('fileMode: seeded-prefix matches classify as seeded', () => {
-  assert.equal(fileMode('apps/desktop/src/main.ts'), 'seeded')
-  assert.equal(fileMode('packages/schema/src/index.ts'), 'seeded')
-  assert.equal(fileMode('drizzle/0001_init.sql'), 'seeded')
+  assert.equal(fileMode('apps/web/app/page.tsx'), 'seeded')
+  assert.equal(fileMode('packages/contracts/src/index.ts'), 'seeded')
+  // The NESTED package groups (platform/verticals/shared/config) ride the same
+  // `packages/` prefix. A prefix rule that only matched one level deep would
+  // classify the whole layered half of the workspace as `owned`, and `update`
+  // would then overwrite a consumer's own domain code.
+  assert.equal(fileMode('packages/platform/errors/src/index.ts'), 'seeded')
+  assert.equal(fileMode('packages/verticals/notes/src/client.ts'), 'seeded')
+  assert.equal(fileMode('supabase/migrations/20260101000100_notes.sql'), 'seeded')
   assert.equal(fileMode('tests/unit/example.test.ts'), 'seeded')
 })
 

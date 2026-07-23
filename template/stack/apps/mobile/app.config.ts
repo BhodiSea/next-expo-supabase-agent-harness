@@ -15,13 +15,18 @@ const [major = 0, minor = 0, patch = 0] = pkg.version.split('.').map(Number)
 // loudly as minor/patch approach the 999 bound.
 const versionCode = major * 1_000_000 + minor * 1_000 + patch
 
-// LOCKSTEP: this hex IS the dark `canvas` token — tools/styleguide.manifest.json
-// rendered through tools/gen-theme.mjs into apps/mobile/src/theme/tokens.gen.ts.
-// The native launch frame (splash + adaptive-icon background) must paint the same
-// pixel the first React frame paints, or every cold start flashes; the
-// expo-policy gate asserts this literal equals the generated token. Change the
-// token, regenerate, and update this literal in the same reviewed diff.
-const CANVAS_DARK = '#0b0e10'
+// LOCKSTEP: this hex IS the dark `canvas` token — the OKLCH source in
+// packages/design-tokens rendered by that package's generator into
+// src/generated/native.ts, which apps/mobile reads through src/theme/theme.ts.
+// The native launch frame (splash + adaptive-icon background) must paint the
+// same pixel the first React frame paints, or every cold start flashes; the
+// expo-policy gate asserts this literal equals the generated token. It cannot
+// be an import: app.config.ts is evaluated by the Expo CLI under Node, outside
+// the Metro graph, so the value has to be repeated here — and the gate is what
+// makes the repetition safe. Change the token, regenerate, and update this
+// literal in the same reviewed diff.
+// SOURCE: packages/design-tokens/src/generated/native.ts (palettes.dark.canvas)
+const CANVAS_DARK = '#0b0e0f'
 
 export default {
   expo: {
@@ -67,7 +72,10 @@ export default {
     extra: {
       // The committed transport target — the expo-policy gate asserts it is
       // https or loopback. Never a secret (it ships in the bundle by design).
-      apiOrigin: '{{API_ORIGIN}}',
+      // The KEY stays `apiOrigin` (the expo-policy gate reads that name); the
+      // VALUE is {{WEB_ORIGIN}} — mobile talks to the web app's own origin,
+      // which is also the cookie/CORS origin. See src/lib/trpc/client.ts.
+      apiOrigin: '{{WEB_ORIGIN}}',
       eas: {
         projectId: '{{EAS_PROJECT_ID}}',
       },

@@ -1,9 +1,20 @@
-import type { Note } from '@app/contracts'
+import type { NoteView } from '@app/contracts'
 import { type MessageKey, t } from '../../i18n'
 
-// The matrix's data model: dense numeric columns derived from the NoteDto wire
-// type, plus a synthetic generator for load/perf work. All hand-rolled — no
-// chart or data-grid library.
+// The matrix's data model: dense numeric columns derived from the NoteView
+// render contract, plus a synthetic generator for load/perf work. All
+// hand-rolled — no chart or data-grid library.
+//
+// NoteView, not NoteRecord, and the choice decides what CAN be a column.
+// `*View` is the ONE shape both surfaces render; `*Record` is the persisted
+// contract, and it carries ownership and lifecycle columns a UI has no business
+// drawing. So there is no body-length column and no owner column here — the
+// render contract deliberately ships an `excerpt` (bounded at 160 chars) and a
+// `hasBody` flag instead of the body itself, precisely so a list row does not
+// carry 20 000 characters it will never paint. A column needing the full body
+// would have to change the CONTRACT, on both surfaces, which is the review this
+// arrangement exists to force.
+// SOURCE: packages/contracts/src/index.ts (the Record/View split and why)
 //
 // THIS MODULE IS NOT A COMPONENT, and it carries copy (column headers, synthetic
 // row labels). So it reaches the catalog through the PLAIN `t` export from
@@ -33,34 +44,44 @@ export interface MatrixRow {
   readonly values: readonly number[]
 }
 
-// The numeric projection of a note. Every column is derivable from a NoteDto so
+// The numeric projection of a note. Every column is derivable from a NoteView so
 // notesToMatrixRows and makeSyntheticRows stay shape-compatible.
 export const MATRIX_COLUMNS: readonly MatrixColumn[] = [
-  { key: 'confidence', labelKey: 'matrix.column.confidence' },
+  { key: 'hasBody', labelKey: 'matrix.column.hasBody' },
   { key: 'title', labelKey: 'matrix.column.title' },
-  { key: 'body', labelKey: 'matrix.column.body' },
+  { key: 'excerpt', labelKey: 'matrix.column.excerpt' },
   { key: 'words', labelKey: 'matrix.column.words' },
-  { key: 'lines', labelKey: 'matrix.column.lines' },
+  { key: 'archived', labelKey: 'matrix.column.archived' },
   { key: 'day', labelKey: 'matrix.column.day' },
 ]
 
 const MS_PER_DAY = 86_400_000
 
-function wordCount(body: string): number {
-  return body.split(/\s+/).filter(Boolean).length
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * Booleans as 0/1 rather than as text. The grid is NUMERIC by construction —
+ * every cell goes through formatCellValue, which is what keeps the decimal mark
+ * the locale's — and a 'yes'/'no' cell would be an English literal smuggled past
+ * the catalog in a module the i18n gate scans for exactly that.
+ */
+function flag(value: boolean): number {
+  return value ? 1 : 0
 }
 
 /** Project real notes onto the matrix columns — deterministic, no clock reads. */
-export function notesToMatrixRows(notes: readonly Note[]): readonly MatrixRow[] {
+export function notesToMatrixRows(notes: readonly NoteView[]): readonly MatrixRow[] {
   return notes.map((note) => ({
     id: note.id,
     label: note.title,
     values: [
-      note.sourceConfidence ?? 0,
+      flag(note.hasBody),
       note.title.length,
-      note.body.length,
-      wordCount(note.body),
-      note.body.split('\n').length,
+      note.excerpt.length,
+      wordCount(note.excerpt),
+      flag(note.isArchived),
       Math.floor(Date.parse(note.createdAt) / MS_PER_DAY),
     ],
   }))
@@ -94,12 +115,17 @@ export function makeSyntheticRows(count: number): readonly MatrixRow[] {
       // Called at render time, so `t` reads the locale that is active NOW — the
       // id above stays machine-stable, only the human label is translated.
       label: t('matrix.row', { n: i + 1 }),
+      // Column-for-column with notesToMatrixRows above, and RANGED to match:
+      // the two 0/1 flag columns stay 0/1, the length columns stay inside their
+      // contract bounds (NOTE_TITLE_MAX 200, NOTE_EXCERPT_MAX 160). Synthetic
+      // rows that ignored those ranges would make the perf subject render cells
+      // no real page can produce — a benchmark of a layout nobody ships.
       values: [
-        rng(),
+        rng() > 0.3 ? 1 : 0,
         Math.floor(rng() * 80) + 1,
-        Math.floor(rng() * 2000),
-        Math.floor(rng() * 400),
-        Math.floor(rng() * 40) + 1,
+        Math.floor(rng() * 160),
+        Math.floor(rng() * 30),
+        rng() < 0.1 ? 1 : 0,
         20_000 + Math.floor(rng() * 400),
       ],
     })

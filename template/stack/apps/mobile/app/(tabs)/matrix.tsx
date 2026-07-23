@@ -12,8 +12,7 @@ import { MATRIX_COLUMNS, notesToMatrixRows } from '../../src/features/matrix/mat
 import { useKeysetQuery } from '../../src/features/matrix/useKeysetQuery'
 import { useI18n } from '../../src/i18n'
 import { ROUTES } from '../../src/routes'
-import { type Palette, useThemedStyles } from '../../src/theme/theme'
-import { spacing } from '../../src/theme/tokens.gen'
+import { type Palette, space, useThemedStyles } from '../../src/theme/theme'
 
 // The matrix route's screen. Same three canonical data states as the home panel
 // (loading/empty/error testIDs from src/routes.ts, driven by the states sweep),
@@ -28,7 +27,7 @@ const matrixStyles = (_palette: Palette) => ({
   loadMoreRow: {
     alignItems: 'center' as const,
     flexDirection: 'row' as const,
-    gap: spacing * 2,
+    gap: space[2],
   },
 })
 
@@ -74,8 +73,7 @@ export default function MatrixScreen() {
           {state.error !== null && state.error.detail !== null && state.error.detail !== '' && (
             <AppText variant="muted">
               {state.error.detail}
-              {state.error.requestId !== null &&
-                ` — ${t('error.reference', { id: state.error.requestId })}`}
+              {state.error.code !== null && ` — ${t('error.reference', { id: state.error.code })}`}
             </AppText>
           )}
           <Button label={t('common.retry')} onPress={reload} />

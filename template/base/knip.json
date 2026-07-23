@@ -12,7 +12,18 @@
         "stryker.config.mjs"
       ],
       "project": ["tools/**/*.mjs", "tests/**/*.{mjs,ts}", "*.{mjs,ts}"],
-      "ignoreBinaries": ["drizzle-kit"]
+      "ignoreBinaries": ["supabase"]
+    },
+    "apps/web": {
+      "entry": [
+        "app/**/*.{ts,tsx}!",
+        "proxy.ts!",
+        "next.config.ts",
+        "postcss.config.mjs",
+        "app/**/*.test.{ts,tsx}",
+        "lib/**/*.test.{ts,tsx}"
+      ],
+      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "*.{ts,mjs}"]
     },
     "apps/mobile": {
       "entry": [
@@ -23,7 +34,6 @@
         "jest.config.js",
         "src/features/matrix/perfSubject.tsx!",
         "src/crash/redact.ts!",
-        "src/lib/sse.ts!",
         "src/testing/mock-server.ts",
         "src/host/env.ts",
         "src/**/*.test.{ts,tsx}",
@@ -35,27 +45,51 @@
         "__tests__/**/*.{ts,tsx}",
         "*.{ts,js}"
       ],
-      "ignore": ["src/theme/tokens.gen.ts"],
-      "ignoreDependencies": ["expo-crypto", "expo-web-browser", "expo-updates"]
+      "ignoreDependencies": ["expo-crypto", "expo-updates", "react-native-css-interop"]
     },
-    "apps/server": {
-      "entry": ["src/index.ts!", "scripts/*.{ts,mjs}", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts!", "scripts/**/*.{ts,mjs}"]
+    "packages/api": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
     },
     "packages/contracts": {
       "entry": ["src/index.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     },
-    "packages/schema": {
-      "entry": ["src/index.ts!", "drizzle.config.ts", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts!", "*.ts"]
+    "packages/design-tokens": {
+      "entry": ["src/index.ts!", "src/client.ts!", "scripts/gen.mjs", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!", "scripts/*.mjs"],
+      "ignore": ["src/generated/**"]
     },
-    "packages/importer": {
+    "packages/design-system": {
+      "entry": ["src/index.ts!", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}!"]
+    },
+    "packages/design-system-native": {
+      "entry": ["src/index.ts!", "src/preset.ts!", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}!"]
+    },
+    "packages/platform/errors": {
       "entry": ["src/index.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     },
-    "packages/eval": {
-      "entry": ["src/index.ts!", "src/adapters/*.ts!", "src/**/*.test.ts"],
+    "packages/platform/events": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/platform/env": {
+      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/platform/observability": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/platform/supabase": {
+      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/verticals/notes": {
+      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     }
   }

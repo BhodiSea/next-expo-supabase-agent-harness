@@ -1,90 +1,144 @@
-// __DEV__-only fetch interceptor — the network seam for component tests and the
-// future Maestro fast lane (route handlers instead of a live server). The
-// api-client one-door is the ONLY caller of fetch in this app, so wrapping
-// global fetch here mocks the entire network surface in one move while the real
-// api-client code (origin resolution, bearer attachment, envelope decoding)
-// still runs — the seam under test stays the shipped seam.
+import type { HealthReport, NewNoteInput, NotesListQuery, NotesPage, NoteView } from '@app/contracts'
+import type { ActionOutcome } from '@app/errors'
+import type { ApiClient } from '../lib/trpc/use-api'
+
+// The network seam for component and screen tests, and the reason it moved.
 //
-// Handlers are keyed "METHOD /path". An UNMATCHED request throws instead of
-// falling through to the real network: a test that silently reached a live
-// server would be nondeterministic exactly when it matters.
+// It used to wrap global `fetch`: the app had exactly one caller of fetch (an
+// HTTP client module), so intercepting fetch mocked the whole network in one
+// move while that client's real code — origin resolution, bearer attachment,
+// envelope decoding — still ran. That property is what made it worth doing.
+//
+// Under tRPC it stops being true. `httpBatchLink` coalesces N procedure calls
+// into ONE request whose URL is a comma-joined procedure list and whose body is
+// a positional map, and whose response is a positional ARRAY of
+// `{ result: { data } }` / `{ error: { … } }` frames. A fetch-level fake would
+// therefore have to reimplement tRPC's batch wire format to answer at all — and
+// a test double that reimplements a protocol is a test of that reimplementation.
+// It would go green against a batch encoding the installed client had stopped
+// using, which is the worst failure a seam can have.
+//
+// So the seam moved UP one layer, to the typed client. What is still under test:
+// every screen, every hook, the contract parses, and `callProcedure` — the fold
+// that makes one envelope true end to end (src/lib/trpc/normalize.ts). What is
+// no longer under test here: the HTTP link itself (batching, the bearer header,
+// the origin). That is honest rather than free — those belong to a lane that can
+// speak to a real server, and pretending a hand-written fetch stub covered them
+// was the more expensive lie.
 
-interface MockResponse {
-  readonly status: number
-  readonly body: unknown
+/** A procedure handler: input in, the procedure's own return shape out. */
+export type MockProcedure<I, O> = (input: I) => O | Promise<O>
+
+/**
+ * The procedures this app actually calls, named ONE BY ONE rather than as an
+ * open `Record<string, …>`. An open map would let a test stub a procedure that
+ * does not exist and pass; this list is a census of the app's real API surface,
+ * so adding a call site means adding a line here — which is exactly the moment
+ * to notice a new server dependency.
+ */
+export interface MockApiHandlers {
+  /** `notes.create` — the envelope; a domain refusal is `{ ok: false }`, never a throw. */
+  readonly notesCreate?: MockProcedure<NewNoteInput, ActionOutcome<NoteView>>
+  /**
+   * `notes.list` — the envelope wrapping one keyset page.
+   *
+   * `Partial<NotesListQuery>` deliberately. The contract's `limit` and
+   * `includeArchived` carry zod DEFAULTS, and a default is applied by the
+   * parse — which happens on the SERVER. What actually leaves the client is
+   * whatever the screen passed, so a handler typed against the parsed shape
+   * would promise a `limit` this double never fills in, and a test asserting on
+   * it would be asserting a value no request contains.
+   */
+  readonly notesList?: MockProcedure<Partial<NotesListQuery>, ActionOutcome<NotesPage>>
+  /** `system.health` — the ONE un-enveloped procedure (health has no failure mode). */
+  readonly systemHealth?: MockProcedure<undefined, HealthReport>
 }
 
-export type MockRouteHandler = (request: {
-  readonly url: string
-  /** The request body as text, or null when absent/non-string. */
-  readonly body: string | null
-}) => MockResponse | Promise<MockResponse>
+let handlers: MockApiHandlers | null = null
 
-// `installed` is tracked separately from originalFetch: a jest environment may
-// have NO global fetch at all (originalFetch legitimately undefined), and the
-// install/uninstall discipline must still hold.
-let installed = false
-let originalFetch: typeof globalThis.fetch | undefined = undefined
-let routes: ReadonlyMap<string, MockRouteHandler> | null = null
-
-function toResponse(result: MockResponse): Response {
-  const payload = JSON.stringify(result.body)
-  if (typeof Response === 'function') {
-    return new Response(payload, {
-      status: result.status,
-      headers: { 'content-type': 'application/json' },
-    })
-  }
-  // Older jsdom-era jest environments consume fetch results without shipping
-  // the constructors — a minimal duck type covers what api-client touches.
-  const duck = {
-    ok: result.status >= 200 && result.status < 300,
-    status: result.status,
-    json: () => Promise.resolve(JSON.parse(payload) as unknown),
-    text: () => Promise.resolve(payload),
-  }
-  return duck as unknown as Response
+/**
+ * Reject an unstubbed call LOUDLY, and synchronously.
+ *
+ * Synchronously is the load-bearing half. A rejected promise here would be
+ * caught by `callProcedure` and folded into `appError.unavailable()` — the
+ * offline variant — so a test that forgot to stub a procedure would render a
+ * plausible "could not reach the server" surface and pass or fail for a reason
+ * unrelated to what it was written to check. Throwing before a promise exists
+ * puts the message where the test author will read it.
+ */
+function unstubbed(procedure: string): never {
+  throw new Error(
+    `mock server: no handler installed for ${procedure} — declare it in installMockServer(), ` +
+      'or the screen under test is calling a procedure the test did not expect',
+  )
 }
 
-function requestKey(input: RequestInfo | URL, init?: RequestInit): { key: string; url: string } {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  const method = (
-    init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')
-  ).toUpperCase()
-  const path = url.replace(/^[a-z][\w+.-]*:\/\/[^/]*/i, '')
-  return { key: `${method} ${path}`, url }
+function live(): MockApiHandlers {
+  if (handlers === null) {
+    throw new Error('mock server: not installed — call installMockServer() first')
+  }
+  return handlers
 }
 
-export function installMockServer(handlers: Readonly<Record<string, MockRouteHandler>>): void {
-  if (!__DEV__) {
-    // Shipping an interceptor that can rewrite every API response is a
-    // man-in-the-middle primitive, not a test utility.
-    throw new Error('mock server is a dev/test seam only')
-  }
-  if (installed) throw new Error('mock server already installed — uninstall first')
-  installed = true
-  originalFetch = globalThis.fetch
-  routes = new Map(Object.entries(handlers))
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const { key, url } = requestKey(input, init)
-    const handler = routes?.get(key)
-    if (handler === undefined) {
-      throw new Error(`mock server: unhandled ${key} (${url})`)
-    }
-    const body = typeof init?.body === 'string' ? init.body : null
-    return toResponse(await handler({ url, body }))
-  }
+/**
+ * A stand-in for the typed tRPC client.
+ *
+ * IDENTITY-STABLE, and that is not tidiness. The real `useApi()` returns one
+ * client per session precisely so `useEffect`/`useCallback` can depend on it;
+ * a double that minted a fresh object per render would make every one of those
+ * dependencies change every render — `useKeysetQuery`'s initial-load effect
+ * would re-fire forever and the suite would hang rather than fail. One object
+ * for the process, reading a mutable handler table, keeps the double honest
+ * about the property the production hook guarantees.
+ *
+ * The cast is the one this file cannot avoid: `ApiClient` is tRPC's recursive
+ * proxy type, carrying inference machinery (`$types`, per-procedure option
+ * overloads) that no hand-written object literal can structurally satisfy. It is
+ * contained HERE, in a test-only module, and the shape it produces is checked
+ * where it matters — each handler's input and output are typed against the same
+ * @app/contracts declarations the real procedures use, so a contract change reds
+ * the fixtures instead of silently letting them lie.
+ */
+let client: ApiClient | null = null
+
+export function mockApiClient(): ApiClient {
+  client ??= buildClient()
+  return client
+}
+
+function buildClient(): ApiClient {
+  return {
+    notes: {
+      create: {
+        mutate: (input: NewNoteInput) => {
+          const handler = live().notesCreate ?? unstubbed('notes.create')
+          return Promise.resolve(handler(input))
+        },
+      },
+      list: {
+        query: (input: Partial<NotesListQuery>) => {
+          const handler = live().notesList ?? unstubbed('notes.list')
+          return Promise.resolve(handler(input))
+        },
+      },
+    },
+    system: {
+      health: {
+        query: () => {
+          const handler = live().systemHealth ?? unstubbed('system.health')
+          return Promise.resolve(handler(undefined))
+        },
+      },
+    },
+  } as unknown as ApiClient
+}
+
+/** Install the procedure table for one test. Paired with uninstall in afterEach. */
+export function installMockServer(next: MockApiHandlers): void {
+  if (handlers !== null) throw new Error('mock server already installed — uninstall first')
+  handlers = next
 }
 
 export function uninstallMockServer(): void {
-  if (installed) {
-    // Restore exactly what was there — including "nothing": jest environments
-    // without a global fetch get their absence back, so the write goes through a
-    // fetch-optional view of globalThis instead of a non-null assertion.
-    const host = globalThis as { fetch?: typeof globalThis.fetch | undefined }
-    host.fetch = originalFetch
-    originalFetch = undefined
-    installed = false
-  }
-  routes = null
+  handlers = null
 }

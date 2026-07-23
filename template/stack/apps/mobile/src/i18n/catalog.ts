@@ -75,12 +75,18 @@ export const en = {
   // `{message}` is the server's envelope text — a support detail we interpolate,
   // never copy we author. The sentence around it is the catalog's.
   'matrix.loadMore.toast': 'Could not load more rows: {message}',
+  // The columns are the numeric projection of a NoteView (@app/contracts) — the
+  // ONE shape both surfaces render. They changed with the contract: `NoteView`
+  // deliberately carries no `body` and no model-confidence column (the render
+  // contract exposes an `excerpt` and a `hasBody` flag instead, so a list row
+  // never ships a 20 000-character body it will not draw), so a "Body length"
+  // or "Confidence" header here would be a column with nothing behind it.
   'matrix.column.note': 'Note',
-  'matrix.column.confidence': 'Confidence',
+  'matrix.column.hasBody': 'Has body',
   'matrix.column.title': 'Title length',
-  'matrix.column.body': 'Body length',
+  'matrix.column.excerpt': 'Excerpt length',
   'matrix.column.words': 'Words',
-  'matrix.column.lines': 'Lines',
+  'matrix.column.archived': 'Archived',
   'matrix.column.day': 'Day',
   'matrix.row': 'Row {n}',
 
@@ -108,19 +114,26 @@ export const en = {
   'account.delete.confirm': 'Delete',
   'account.delete.cancel': 'Cancel',
 
-  // ---- sign-in (dev) ----------------------------------------------------------
+  // ---- sign-in ----------------------------------------------------------------
+  // Supabase Auth, email + password. The screen validates both fields inline
+  // BEFORE any request (the Field/Input three-channel error contract) so a typo
+  // never costs a round trip and never reads as a credential failure.
   'signin.title': 'Sign in',
-  'signin.body':
-    'Development sign-in: mints a local token from the API server’s stub authority. Production auth (Entra) replaces this screen.',
-  'signin.subject.label': 'Dev subject (optional)',
-  'signin.subject.placeholder': 'uuid — blank mints a fresh user',
-  'signin.subject.invalid': 'Must be a uuid (8-4-4-4-12 hex) or blank.',
-  'signin.submit': 'Sign in (dev)',
+  'signin.body': 'Sign in with the email and password for your account.',
+  'signin.email.label': 'Email',
+  'signin.email.placeholder': 'you@example.com',
+  'signin.email.invalid': 'Enter an email address.',
+  'signin.password.label': 'Password',
+  'signin.password.placeholder': 'Your password',
+  'signin.password.invalid': 'Enter your password.',
+  'signin.submit': 'Sign in',
   'signin.pending': 'Signing in…',
-  // Entra mode (rendered when EXPO_PUBLIC_ENTRA_* IDs are present — see
-  // src/auth/providers/entra.ts).
-  'signin.entra.body': 'Sign in with your organization’s Microsoft Entra account.',
-  'signin.entra.submit': 'Sign in with Microsoft',
+  // The ONE sentence a failed sign-in may show. It does NOT distinguish "no such
+  // account" from "wrong password", and that is a security decision, not vague
+  // copy: a form that tells an attacker which half was right is an account
+  // enumeration oracle. The provider's own message stays available as the quiet
+  // technical detail underneath.
+  'signin.failed': 'That email and password did not match an account.',
 
   // ---- perf harness (dev chrome — app/perf-harness.tsx) ------------------------
   'perf.title': 'Performance harness',
@@ -145,19 +158,24 @@ export const en = {
   // ---- errors -----------------------------------------------------------------
   'error.title': 'Something went wrong',
   'error.body': 'An unexpected error occurred while rendering this screen.',
-  // The server's error envelope carries a stable `code` — THAT is what the client
-  // localizes. The server's English `message` is a developer detail (and a support
-  // reference), never the sentence a user is asked to read.
+  // One line per AppError KIND (@app/errors), plus the one `code` override that
+  // needs its own instruction. THAT union is what the client localizes; the
+  // envelope's English `message` is a developer detail (and a support
+  // reference), never the sentence a user is asked to read. src/i18n/errors.ts
+  // pins the kind → key map exhaustively, so a kind with no line here is a
+  // compile error rather than an untranslated string in production.
   'error.api.bad_request': 'That request was not valid.',
   'error.api.unauthorized': 'You are not signed in.',
+  'error.api.forbidden': 'You do not have access to that.',
   'error.api.not_found': 'That item no longer exists.',
-  'error.api.payload_too_large': 'That is too large to send.',
+  'error.api.conflict': 'That changed somewhere else — reload and try again.',
+  'error.api.rate_limited': 'Too many requests — wait a moment and try again.',
   'error.api.version_skew': 'This app is out of date — update to continue.',
   'error.api.internal': 'Something went wrong on the server.',
-  'error.api.unknown': 'The request failed ({status}).',
   'error.api.offline': 'Could not reach the server.',
-  // The requestId suffix quoted next to a failure — what turns "it failed" into
-  // a ticket an engineer can trace. A key so the word "Reference" translates too.
+  // The stable machine code quoted next to a failure — what turns "it failed"
+  // into a ticket an engineer can trace. A key so the word "Reference"
+  // translates too.
   'error.reference': 'Reference {id}',
 } as const satisfies Record<string, Message>
 

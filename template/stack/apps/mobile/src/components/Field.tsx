@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { spacing } from '../theme/tokens.gen'
+import { type Palette, space, useThemedStyles } from '../theme/theme'
 import { AppText } from './AppText'
 
 // The one form-field primitive: label + control slot + inline error line, with
@@ -35,7 +34,7 @@ interface FieldProps {
 
 const fieldStyles = (_palette: Palette) => ({
   root: {
-    gap: spacing,
+    gap: space[1],
     width: '100%' as const,
   },
 })

@@ -1,0 +1,39 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@app/api": "workspace:*",
+    "@app/contracts": "workspace:*",
+    "@app/design-system": "workspace:*",
+    "@app/design-tokens": "workspace:*",
+    "@app/errors": "workspace:*",
+    "@app/notes": "workspace:*",
+    "@app/supabase": "workspace:*",
+    "@supabase/ssr": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@trpc/server": "catalog:",
+    "next": "catalog:",
+    "next-safe-action": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

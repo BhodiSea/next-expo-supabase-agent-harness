@@ -80,11 +80,11 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
     'tools/validate.mjs',
     'tools/validate.floor.json',
     'tools/identity.lock.json',
-    'docker-compose.yml',
     'apps/mobile/app.config.ts',
     'apps/mobile/eas.json',
-    'apps/server/src/app.ts',
-    'packages/schema/drizzle/0000_init.sql',
+    'apps/web/app/page.tsx',
+    'supabase/migrations/20260101000100_notes.sql',
+    'supabase/config.toml',
     'tests/rls/run-rls.mjs',
     '.harness/manifest.json',
   ]) {
@@ -141,8 +141,8 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
   assert.equal(manifest.files['tools/validate.mjs'].mode, 'owned')
   assert.equal(manifest.files['.claude/hooks/stop-validate-gate.mjs'].mode, 'owned')
   assert.equal(manifest.files['apps/mobile/app.config.ts'].mode, 'seeded')
-  assert.equal(manifest.files['apps/server/src/app.ts'].mode, 'seeded')
-  assert.equal(manifest.files['packages/schema/drizzle/0000_init.sql'].mode, 'seeded')
+  assert.equal(manifest.files['apps/web/app/page.tsx'].mode, 'seeded')
+  assert.equal(manifest.files['supabase/migrations/20260101000100_notes.sql'].mode, 'seeded')
   assert.equal(manifest.files['pnpm-workspace.yaml'].mode, 'seeded')
   assert.equal(manifest.files['AGENTS.md'].mode, 'seeded')
 
@@ -197,16 +197,20 @@ test('retrofit: non-clobber configs, merged workspace yaml, no stack app code', 
   assert.match(ws, /- '?apps\/\*'?/, 'their glob must survive')
   assert.match(ws, /- '?packages\/\*'?/, 'harness glob must be unioned in')
   assert.match(ws, /catalog:/, 'harness catalog must be added')
-  assert.match(ws, /drizzle-orm/, 'harness catalog pins must be present')
+  assert.match(ws, /'@supabase\/supabase-js'/, 'harness catalog pins must be present')
   assert.ok(!existsSync(join(dir, 'pnpm-workspace.harness.yaml')), 'workspace yaml must merge, not suffix')
 
   // Their app code untouched; our stack app code NOT installed on retrofit.
   assert.equal(readFileSync(join(dir, 'apps/web/src/index.ts'), 'utf8'), 'export const theirs = true\n')
   assert.equal(readFileSync(join(dir, 'apps/web/package.json'), 'utf8'), '{"name":"web"}\n')
   assert.ok(!existsSync(join(dir, 'apps/mobile')), 'stack mobile app installed on retrofit')
-  assert.ok(!existsSync(join(dir, 'packages/schema/drizzle/0000_init.sql')), 'stack migration installed on retrofit')
+  assert.ok(!existsSync(join(dir, 'supabase/migrations')), 'stack migrations installed on retrofit')
   // Additive workspace-package seeds ARE installed when absent.
-  assert.ok(existsSync(join(dir, 'packages/schema/package.json')), 'additive schema package seed missing')
+  assert.ok(existsSync(join(dir, 'packages/contracts/package.json')), 'additive contracts package seed missing')
+  assert.ok(
+    existsSync(join(dir, 'packages/platform/errors/package.json')),
+    'additive nested-package seed missing (RETROFIT_ADDITIVE must reach packages/*/*)',
+  )
 
   const manifest = JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8'))
   assert.equal(manifest.mode, 'retrofit')
@@ -226,8 +230,12 @@ test('retrofit non-clobber is universal: project memory, ignore rules, settings,
 
   const theirAgents = '# My project memory\nDo not touch.\n'
   writeFileSync(join(dir, 'AGENTS.md'), theirAgents)
-  const theirCompose = 'services:\n  api:\n    image: theirs\n'
-  writeFileSync(join(dir, 'docker-compose.yml'), theirCompose)
+  // A shipped root config that is deliberately NOT in CONFLICTABLE — so the
+  // universal parking path is exercised, not the `<base>.harness.<ext>` sibling
+  // path. (docker-compose.yml used to play this role; this lineage's local stack
+  // is the Supabase CLI, so nothing ships a compose file to collide with.)
+  const theirStryker = 'export default { mutate: ["src/theirs.ts"] }\n'
+  writeFileSync(join(dir, 'stryker.config.mjs'), theirStryker)
   writeFileSync(join(dir, '.gitignore'), '# mine\nnode_modules/\n')
   mkdirSync(join(dir, '.claude'), { recursive: true })
   writeFileSync(
@@ -241,14 +249,14 @@ test('retrofit non-clobber is universal: project memory, ignore rules, settings,
   const r = run(['init', '--dir', dir, '--yes', ...SETS])
   assert.equal(r.code, 2, r.out)
 
-  // Byte-preserved: their project memory, compose file, and workflow.
+  // Byte-preserved: their project memory, mutation config, and workflow.
   assert.equal(readFileSync(join(dir, 'AGENTS.md'), 'utf8'), theirAgents)
-  assert.equal(readFileSync(join(dir, 'docker-compose.yml'), 'utf8'), theirCompose)
+  assert.equal(readFileSync(join(dir, 'stryker.config.mjs'), 'utf8'), theirStryker)
   assert.equal(readFileSync(join(dir, '.github/workflows/quality-gate.yml'), 'utf8'), theirWorkflow)
   // Ours parked OUTSIDE active paths (a sibling in workflows/ would execute).
   for (const parked of [
     '.harness/conflicts/AGENTS.md',
-    '.harness/conflicts/docker-compose.yml',
+    '.harness/conflicts/stryker.config.mjs',
     '.harness/conflicts/.github/workflows/quality-gate.yml',
   ]) {
     assert.ok(existsSync(join(dir, parked)), `missing parked copy: ${parked}`)
@@ -306,7 +314,7 @@ test('init rejects invalid placeholder values, unknown --set keys, unknown tiers
   assert.ok(badId.out.includes('hyphens'), badId.out)
   assert.ok(!existsSync(join(dir, 'package.json')), 'nothing may be written on invalid answers')
 
-  const badOrigin = run(['init', '--dir', dir, '--yes', ...SETS, '--set', 'API_ORIGIN=api.example.com/v1'])
+  const badOrigin = run(['init', '--dir', dir, '--yes', ...SETS, '--set', 'WEB_ORIGIN=app.example.com/v1'])
   assert.equal(badOrigin.code, 1, badOrigin.out)
   assert.ok(badOrigin.out.includes('bare origin'), badOrigin.out)
 
@@ -503,7 +511,7 @@ test('enable/disable round-trips representative W7 module shapes with correct in
     !existsSync(join(dir, 'apps/server/src/observability')),
     'observability: empty apps/server/src/observability/ husk left after disable',
   )
-  assert.ok(existsSync(join(dir, 'apps/server/src/app.ts')), 'disable must not touch base scaffold files')
+  assert.ok(existsSync(join(dir, 'apps/web/app/page.tsx')), 'disable must not touch base scaffold files')
 })
 
 test('retrofit rejects hono-only, Tauri, foreign lockfiles, and non-workspace layouts with clear messages', () => {
@@ -583,7 +591,7 @@ test('backslash manifest keys: doctor trips, update heals', () => {
   // rewrite one seeded and one owned key with Windows separators.
   const manifestPath = join(dir, '.harness/manifest.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  for (const key of ['apps/server/src/app.ts', 'tools/validate.mjs']) {
+  for (const key of ['apps/web/app/page.tsx', 'tools/validate.mjs']) {
     manifest.files[key.split('/').join('\\')] = manifest.files[key]
     delete manifest.files[key]
   }
@@ -604,7 +612,7 @@ test('backslash manifest keys: doctor trips, update heals', () => {
     [],
     'update must rewrite backslash keys to POSIX',
   )
-  assert.ok(healed.files['apps/server/src/app.ts'], 'healed seeded key must survive under POSIX form')
+  assert.ok(healed.files['apps/web/app/page.tsx'], 'healed seeded key must survive under POSIX form')
   const docAfter = run(['doctor', '--dir', dir])
   assert.ok(!docAfter.out.includes('Windows-separator'), docAfter.out)
 })
@@ -823,7 +831,12 @@ test('npm pack ships every template path (dotless storage survives packing)', ()
     'template/base/github/workflows/quality-gate.yml',
     'template/stack/apps/mobile/app.config.ts',
     'template/stack/apps/mobile/assets/icon.png',
-    'template/stack/packages/schema/drizzle/0000_init.sql',
+    'template/stack/apps/web/app/page.tsx',
+    'template/stack/supabase/migrations/20260101000100_notes.sql',
+    // A NESTED package manifest: packages/*/* is a second glob level, and a
+    // packing rule that only reached one level deep would drop the entire
+    // platform/verticals half of the workspace while still looking green.
+    'template/stack/packages/platform/errors/package.json.tmpl',
     'installer/cli.mjs',
   ]) {
     assert.ok(files.includes(critical), `npm pack dropped ${critical}`)
@@ -883,7 +896,7 @@ test('refresh-seeded unknown path: non-zero via return (not a throw), near-candi
 
   // Batch with one good + one bad path: the good one is still applied in full,
   // but a single miss fails the whole invocation (exit 1).
-  const seededRel = 'apps/server/src/app.ts'
+  const seededRel = 'apps/web/app/page.tsx'
   const seededAbs = join(dir, seededRel)
   const seededTemplate = readFileSync(seededAbs, 'utf8')
   const manifestPath = join(dir, '.harness/manifest.json')

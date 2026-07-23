@@ -7,11 +7,22 @@
   // (see ../../tsconfig.base.json).
   "extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
   "compilerOptions": {
-    "composite": true,
-    // Metro owns JS emit; tsc emits declarations only. The Expo base sets
-    // noEmit (incompatible with composite project references) — undo it here.
-    "noEmit": false,
-    "emitDeclarationOnly": true,
+    // NOT composite, and noEmit. An app is a BUILD LEAF: nothing in the workspace
+    // imports it, so it never needs to emit a declaration — and it MUST NOT, because
+    // its own type surface (the tRPC client carries @trpc/client's module-private
+    // `untypedClientSymbol`) cannot be named in a .d.ts. Composite would force that
+    // emit and red with TS2883/TS2322. Instead the app is typechecked as a `tsc -b`
+    // BUILD ROOT (its `references` still build the composite packages it depends on),
+    // which needs neither composite nor emit on the app itself. Metro owns JS output.
+    // SOURCE: design/W1-STACK-SPEC.md §3 (leaf apps are non-composite, noEmit)
+    "noEmit": true,
+    // The repo base turns all three ON for the composite package graph. They must be turned
+    // OFF here explicitly: `declaration: true` makes tsc run the declaration-NAMEABILITY check
+    // even under noEmit, which is what reds with TS2883 on the tRPC client's private symbol.
+    // A leaf that emits nothing needs none of them.
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
     "module": "Preserve",
     "moduleResolution": "Bundler",
     // The repo base narrows lib to ES2023; RN + Expo typings lean on the Expo
@@ -28,5 +39,18 @@
   // package.json is listed because app.config.ts imports it (resolveJsonModule)
   // and a composite project must name every input file.
   "include": ["app", "src", "__tests__", "app.config.ts", "jest.setup.ts", "package.json"],
-  "references": [{ "path": "../../packages/contracts" }]
+  // LOCKSTEP with package.json.tmpl: every @app/* specifier this app resolves
+  // needs its project named here. A missing reference does not error — it widens
+  // the import to `any`, which is exactly the silent degradation that
+  // src/lib/trpc/client.ts's IsAny<AppRouter> assertion exists to red on.
+  // @app/api is listed despite being a devDependency consumed `import type`
+  // only: the reference is what makes the type real, and the type erasure is
+  // what keeps the value out of the bundle. The two are independent.
+  "references": [
+    { "path": "../../packages/api" },
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/design-tokens" },
+    { "path": "../../packages/platform/errors" },
+    { "path": "../../packages/platform/supabase" }
+  ]
 }

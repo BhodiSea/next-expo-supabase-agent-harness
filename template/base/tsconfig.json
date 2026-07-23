@@ -1,13 +1,36 @@
 {
   // Solution file: `tsc -b` walks these references; it compiles nothing itself.
   // Every workspace tsconfig extends ./tsconfig.base.json and sets composite: true.
+  //
+  // ORDER IS THE LAYERING LAW (design/W1-STACK-SPEC.md §2), read bottom-up:
+  // the {errors, events} kernel imports nothing, platform leaves import only the
+  // kernel, verticals sit on platform, @app/api composes verticals, and the two
+  // apps sit on top. `tsc -b` derives its own build order from the per-package
+  // `references`, so this list is a manifest, not a schedule — but keeping it in
+  // layer order means a reference added in the wrong place reads as wrong here.
+  //
+  // The `contracts` gate cross-checks this list against the pnpm workspace graph:
+  // three parallel topologies (workspace deps, project references, the knip map)
+  // desynchronise into type errors that point everywhere except at the drift.
   "files": [],
   "references": [
+    { "path": "packages/platform/errors" },
+    { "path": "packages/platform/events" },
+    { "path": "packages/platform/env" },
+    { "path": "packages/platform/observability" },
+    { "path": "packages/platform/supabase" },
     { "path": "packages/contracts" },
-    { "path": "packages/schema" },
-    { "path": "packages/importer" },
-    { "path": "packages/eval" },
-    { "path": "apps/server" },
-    { "path": "apps/mobile" }
+    { "path": "packages/design-tokens" },
+    { "path": "packages/design-system" },
+    { "path": "packages/design-system-native" },
+    { "path": "packages/verticals/notes" },
+    { "path": "packages/api" }
+    // apps/web and apps/mobile are DELIBERATELY absent. They are build LEAVES (nothing
+    // imports them), non-composite + noEmit, so a reference here would red with
+    // "referenced project must have composite: true". They are typechecked as their own
+    // `tsc -b` build roots — see the `types` step in tools/harness.config.mjs, which runs
+    // `tsc -b . apps/web apps/mobile`. Their own `references` pull in the composite
+    // packages they depend on, so build order is correct. SOURCE: design/W1-STACK-SPEC.md §3
   ]
 }
+

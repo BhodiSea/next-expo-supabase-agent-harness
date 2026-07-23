@@ -1,0 +1,24 @@
+{
+  "name": "@app/design-tokens",
+  "version": "0.1.0",
+  "description": "The single source for colour, spacing, type, radii and motion — framework-neutral TypeScript that generates the web and native themes",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./native": "./src/generated/native.ts",
+    "./web.css": "./src/generated/web.css"
+  },
+  "scripts": {
+    "gen": "tsx scripts/gen.mjs",
+    "gen:check": "tsx scripts/gen.mjs --check",
+    "typecheck": "tsc -b ."
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

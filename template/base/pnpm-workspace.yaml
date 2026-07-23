@@ -2,15 +2,29 @@
 # Every external version number in this monorepo lives HERE; workspace
 # package.json files reference "catalog:" so upgrades are one-line diffs and
 # version drift between workspaces is structurally impossible.
+#
+# The layering law (design/W1-STACK-SPEC.md §2) groups packages into NESTED
+# directories — packages/platform/*, packages/verticals/*, packages/shared/*,
+# packages/config/* — so the second glob is load-bearing, not decorative. With
+# `packages/*` alone, pnpm silently resolves NOTHING under those groups: the
+# workspace deps fail to link, `tsc -b` cannot find the projects, and vitest
+# collects no suites from them. A missing glob here fails as "package not
+# found" three layers away from its cause.
 packages:
   - apps/*
   - packages/*
+  - packages/*/*
 
 # pnpm 11 skips dependency build scripts unless explicitly approved here
 # (`allowBuilds`; the pnpm-10-era key was onlyBuiltDependencies).
 allowBuilds:
   esbuild: true
   lefthook: true
+  # Next's image optimizer ships a native binary. Without an entry here pnpm
+  # skips its install script, and every later `pnpm exec` fails its deps-status
+  # check — so the symptom is not "images are slow", it is that the whole gate
+  # chain refuses to run.
+  sharp: true
 
 # Package-aging protection lives in Renovate (renovate.json minimumReleaseAge
 # "5 days": updates age inside a reviewed PR, at the update layer) — NOT in
@@ -51,40 +65,65 @@ catalog:
   # "new survivors" and red the lane for no reason. Renovate proposes bumps deliberately.
   '@stryker-mutator/core': 9.6.1
   '@stryker-mutator/vitest-runner': 9.6.1
-  # ---- server -----------------------------------------------------------------
-  hono: ^4.12.28
-  '@hono/node-server': ^2.0.8
-  '@hono/zod-openapi': ^1.4.0 # 1.x line is the zod-4-compatible line
+  # ---- shared backend ----------------------------------------------------------
+  # There is no standalone server in this lineage: apps/web hosts the tRPC router
+  # at /api/trpc and Supabase Postgres is the data + identity tier. The
+  # self-hosted server half (an HTTP framework, a query builder, a migration CLI,
+  # a connection pool, a JWT verifier, a logger) left with apps/server.
   zod: ^4.4.3
-  jose: ^6.2.3
-  pino: ^10.3.1
-  pino-pretty: ^13.1.3
-  postgres: ^3.4.9
-  drizzle-orm: ^0.45.2
-  drizzle-zod: ^0.8.3
-  drizzle-kit: 0.31.10 # exact: kit releases have changed migration layout mid-minor
+  '@trpc/server': ^11.8.1
+  '@trpc/client': ^11.8.1
+  '@tanstack/react-query': ^5.101.2
+  '@supabase/supabase-js': ^2.108.0
+  '@supabase/ssr': ^0.10.3 # web-only: the cookie-session adapter apps/web satisfies
+  supabase: ^2.34.3 # the CLI — local stack, migrations, `gen types` (types-drift gate)
   '@types/node': ^22.20.1 # matches the node >=22 engines floor
+  # ---- web ---------------------------------------------------------------------
+  next: 16.2.7 # exact: the framework's minor bumps move the App Router contract
+  next-safe-action: ^8.5.3
+  tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
+  '@tailwindcss/postcss': ^4.3.0
+  '@radix-ui/react-label': ^2.1.6
+  class-variance-authority: ^0.7.1
+  clsx: ^2.1.1
+  tailwind-merge: ^3.6.0
   # ---- mobile -----------------------------------------------------------------
   # react/react-dom exact: expo@57's bundledNativeModules expects 19.2.3 —
   # `expo install --check` (the native-deps gate) reds any drift, so the
   # catalog mirrors it verbatim (same doctrine as react-native below).
+  # ONE React pin serves BOTH surfaces — see design/W1-STACK-SPEC.md §6. Expo 57's
+  # bundledNativeModules requires exactly 19.2.3 (`expo install --check`, the
+  # native-deps gate, reds on any drift) and Next 16 requires ^19.2.0, which 19.2.3
+  # satisfies. Keeping one pin is what makes this file's opening claim — that
+  # version drift between workspaces is structurally impossible — literally true
+  # rather than a carve-out that turns the header into a lie.
+  #
+  # ACCEPTED COST: Next's React floor now gates the Expo SDK upgrade cadence in both
+  # directions. A future Next major demanding a React that Expo has not yet bundled
+  # forces a deliberate decision (hold the upgrade, or split the pin and amend the
+  # doctrine above) instead of a silent divergence. `version-sync` carries a
+  # single-React-instance assertion so two copies cannot coexist undetected — two
+  # Reacts break the hooks dispatcher for any package rendering on both surfaces.
   react: 19.2.3
-  react-dom: 19.2.3 # the Expo web preview renders through react-native-web/react-dom
+  react-dom: 19.2.3 # web (Next) + the Expo web preview via react-native-web
   '@types/react': ^19.2.17
   '@types/react-dom': ^19.2.3
   # Expo SDK 57 line. Since SDK 55 every expo-* package's MAJOR tracks the SDK
   # number, so the whole set rides one ~57 line and upgrades move together
   # (design record: EXPO-FACTS; pins verified against npm 2026-07-18).
-  expo: 57.0.7 # exact: version-sync's exact-pin set (expo/expo-router/react-native/babel-preset-expo/drizzle-kit)
-  expo-auth-session: ~57.0.4 # Entra PKCE (src/auth/providers/entra.ts); pulls expo-application/expo-crypto/expo-web-browser as its own deps
+  expo: 57.0.7 # exact: version-sync's exact-pin set (expo/expo-router/react-native/babel-preset-expo)
   expo-constants: ~57.0.6
-  expo-crypto: ~57.0.1 # PKCE digest backend for expo-auth-session (native module, no config plugin)
+  expo-crypto: ~57.0.1 # CSPRNG for the LargeSecureStore AES key (native module, no config plugin)
   expo-haptics: ~57.0.1 # the one haptics door (src/lib/haptics.ts): selection/success/warning vocabulary, wired only into PressableScale + Toast
   expo-linking: ~57.0.3
   expo-localization: ~57.0.1
   expo-router: 57.0.7 # exact: version-sync's exact-pin set
-  expo-secure-store: ~57.0.1
+  expo-secure-store: ~57.0.1 # holds the AES key; the ciphertext lives in AsyncStorage (SecureStore caps value size)
   expo-splash-screen: ~57.0.4
+  # Kept for `expo-sqlite/kv-store` ONLY — the one SYNCHRONOUS key-value seam
+  # (src/lib/kv.ts). Nothing here opens a SQL database: the data tier is Supabase
+  # Postgres. The sync API is the point (an async read cannot serve a render pass
+  # without a flash of empty state), which is why AsyncStorage does not replace it.
   expo-sqlite: ~57.0.1
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.1 # backs userInterfaceStyle (root view background / appearance) — required for the automatic light/dark surface on Android
@@ -101,6 +140,18 @@ catalog:
   react-native-safe-area-context: ~5.7.0
   react-native-screens: 4.25.2 # exact: bundledNativeModules pins it exact
   react-native-svg: 15.15.4 # exact: bundledNativeModules pins it exact; one-door'd to src/components/icons (the closed glyph set)
+  '@react-native-async-storage/async-storage': 2.2.0 # exact: bundledNativeModules pins it
+  aes-js: ^3.1.2 # AES-256-CTR for the SecureStore/AsyncStorage split (LargeSecureStore)
+  '@types/aes-js': ^3.1.4 # aes-js ships no types; without this the strict build reds TS7016
+  # NativeWind 4 REQUIRES Tailwind v3, while apps/web is on v4. This is the one
+  # place two majors of a dependency legitimately coexist in the workspace, and it
+  # is why the shared token source (@app/design-tokens) is a framework-neutral TS
+  # module rather than a shared tailwind.config or a shared CSS file — neither
+  # could be consumed by both majors. The mobile pin lives in apps/mobile's own
+  # manifest, NOT in this catalog, because a catalog key holds exactly one version
+  # and `tailwindcss` here is the web's v4.
+  nativewind: ^4.2.6
+  react-native-css-interop: ^0.2.6 # must resolve to ONE path from both the DS-native package and apps/mobile, or cssInterop's registry splits and every className silently no-ops
   # jest-expo 57 is a jest-29 preset (its babel-jest/@jest/* internals are ^29);
   # jest 30 would split the runner and the preset internals across majors.
   jest: ~29.7.0

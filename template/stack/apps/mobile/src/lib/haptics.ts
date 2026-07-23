@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics'
 
-// The ONE haptics door (the api-client/motion-seam pattern): a closed
+// The ONE haptics door (the motion-seam pattern): a closed
 // three-word vocabulary instead of the engine's full surface, so tactile
 // feedback stays consistent app-wide — selection for picking/activating,
 // success/warning for write outcomes. Wired only into PressableScale (opt-in

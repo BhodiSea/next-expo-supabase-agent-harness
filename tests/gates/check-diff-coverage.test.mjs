@@ -236,11 +236,11 @@ test('non-source changed files are ignored: outside src trees, tests, .d.ts, non
       'tools/check-migrations.mjs',
       'apps/mobile/maestro/smoke.yaml',
       'apps/mobile/src/App.test.tsx', // colocated test
-      'apps/server/tests/unit/app.test.ts', // not under src/
-      'apps/server/src/types.d.ts', // .d.ts
+      'apps/web/tests/unit/page.test.ts', // not under src/ or app/
+      'packages/contracts/src/types.d.ts', // .d.ts
       'apps/mobile/assets/icon.png', // not a code file
-      'apps/server/src/index.ts', // COVERAGE_EXCLUDE exact path
-      'apps/server/src/db/client.ts', // COVERAGE_EXCLUDE exact path
+      'packages/platform/supabase/src/browser.ts', // COVERAGE_EXCLUDE exact path
+      'packages/platform/supabase/src/service-role.ts', // COVERAGE_EXCLUDE exact path
     ],
     maps: { vitest: {}, jest: {} },
     floors: BOTH,
@@ -307,9 +307,15 @@ test('the SHIPPED vitest.config.ts parses: floors 50/40/45/50 and the exclusion 
   assert.deepEqual(parsePerFileFloors(readShippedVitest()), FLOORS)
   const excludes = parseCoverageExcludes(readShippedVitest())
   assert.ok(excludes.includes('**/*.d.ts'))
-  assert.ok(excludes.includes('apps/server/src/index.ts'))
-  assert.ok(excludes.includes('apps/server/src/db/client.ts'))
-  assert.ok(excludes.includes('apps/server/src/db/context.ts'))
+  // The live-database surface: the client factories open real connections, so a
+  // unit test can only assert they were constructed — the RLS isolation suite in
+  // the same Stop chain proves them against a real database instead.
+  assert.ok(excludes.includes('packages/platform/supabase/src/browser.ts'))
+  assert.ok(excludes.includes('packages/platform/supabase/src/service-role.ts'))
+  assert.ok(excludes.includes('packages/platform/supabase/src/database.types.ts'))
+  // Generated artifacts are transcriptions of a source of truth, not decisions;
+  // the regen-diff gate proves them and coverage would only dilute the bar.
+  assert.ok(excludes.includes('packages/design-tokens/src/generated/**'))
 })
 
 test('the SHIPPED apps/mobile/jest.config.js parses: LOCKSTEP floors + collectCoverageFrom', () => {
@@ -318,7 +324,10 @@ test('the SHIPPED apps/mobile/jest.config.js parses: LOCKSTEP floors + collectCo
   assert.ok(surface.includes('src/**/*.{ts,tsx}'), surface.join(', '))
   assert.ok(surface.includes('app/**/*.{ts,tsx}'), surface.join(', '))
   assert.ok(surface.includes('!**/*.test.{ts,tsx}'), surface.join(', '))
-  assert.ok(surface.includes('!src/theme/tokens.gen.ts'), surface.join(', '))
+  // No `!src/theme/tokens.gen.ts` assertion: the generated token module moved to
+  // @app/design-tokens (design/W1-STACK-SPEC.md §5), so it is outside this app's
+  // coverage surface entirely — the exclusion is correctly GONE, not stale. Asserting a
+  // path-exclusion that no longer has a file to exclude would pin dead config.
 })
 
 test('a config without the expected block (or with a metric missing) parses to null — fail closed', () => {

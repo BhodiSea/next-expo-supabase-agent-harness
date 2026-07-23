@@ -1,0 +1,25 @@
+{
+  "comment": "The SINGLE census of packages permitted to expose a `./client` subpath export. Three consumers derive from this file — the exports-walls check and both dependency-cruiser layering rules — so that the list exists once; where it was copy-pasted per consumer it drifted, and the weakest copy silently won. Read `sanctioned` as MAY, not MUST: a listed package is permitted a dual barrel, never obliged to have one, so an entry whose package currently ships only `.` is fine. The failure this census exists to catch runs the other way — a package that ships a `./client` key WITHOUT an entry here. That is the shape of the accident it guards: `.` is the server barrel (\"use server\" leaves, service-role clients, Next-coupled imports) and `./client` is the Metro-safe one, and Metro does not tree-shake, so a `./client` added casually to a package holding elevated writes puts the server graph one import away from the native binary. A package that handles elevated writes stays hardened to the single `.` key and must NOT be added here; if it also needs a mobile-facing surface, extract that surface into its own package instead of widening this one. `@app/api` is deliberately absent for the same reason: apps/mobile takes it as a devDependency and imports it `import type` only. Additions are a security review, not a build fix — each entry carries a non-empty `reason` naming what would ride into the mobile bundle without the split, and {{SECURITY_OWNERS}} signs off. This file is classified `owned` and hash-pinned by the installer manifest, because a file that can DISABLE a check has to be tamper-evident.",
+  "sanctioned": [
+    {
+      "package": "@app/env",
+      "reason": "The `.` barrel parses the full server environment — service-role key, database URL, provider secrets — and its schema names every one of them. Mobile needs only the public subset (web origin, Supabase URL, publishable key), so `./client` exports that and nothing else. Without the split, importing typed env from a screen drags the secret schema into the bundle, and any eager parse at module load turns a missing server variable into a native crash on a device that was never supposed to have that variable."
+    },
+    {
+      "package": "@app/supabase",
+      "reason": "Holds all five client factories. The `.` barrel carries the service-role factory and the cookie-bound server/middleware factories, which import `next/headers` and cannot resolve under Metro at all; `./client` carries only the browser and native factories, which are pure `@supabase/supabase-js` over a public key. This is the single most load-bearing entry in the census: a mobile import of the `.` barrel would put a service-role factory into a binary users can unzip."
+    },
+    {
+      "package": "@app/observability",
+      "reason": "Listed under the MAY rule, like @app/design-tokens: it ships only `.` today and needs no split, because the package imports NOTHING — no vendor SDK, no node built-in, no kernel — so Metro can resolve its single barrel as-is. The entry exists because the mobile import wall keys off this census: a package absent here is one apps/mobile may not import at all, and this seam is meant to be callable from both surfaces. It is pre-authorised rather than pre-built — the day a server-only sink (Next instrumentation, a node transport) is added, it goes behind `.` and the Metro-safe reporter interface moves to `./client`, with no security review needed at that moment because the review happened here."
+    },
+    {
+      "package": "@app/notes",
+      "reason": "The seeded reference vertical, and therefore the shape every later vertical is copied from. `.` adds the Server Action entry points and the elevated write paths; `./client` is the pure domain — zod DTOs, pure derivations, and the direct reads a screen performs against its own rows through RLS. Getting this one right matters twice over: it is the pattern, and a vertical is exactly where a mutation helper gets added to the wrong barrel by reflex."
+    },
+    {
+      "package": "@app/design-tokens",
+      "reason": "The one entry with no server-only half to protect, listed for the opposite reason to the rest. `src/index.ts` is a pure `export * from './client'` — numbers are numbers on both sides of the wire — but the mobile import wall keys off this census, so a package ABSENT here is a package apps/mobile and @app/design-system-native may not import at all. Omitting it hardens nothing; it rejects the mobile design system's own single dependency, which is why the omission has to be recorded here rather than fixed by collapsing the package to one key. The two generated adapters ride their own subpaths (`./native`, `./web.css`) and stay off both barrels deliberately: they re-use the source names (`ramps`, `radius`, `typeScale`) with platform-RESOLVED values, so flattening them in would let a web component import the mobile hex, typecheck perfectly, and paint an unthemed colour."
+    }
+  ]
+}

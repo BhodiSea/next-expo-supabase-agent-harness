@@ -1,0 +1,39 @@
+{
+  // @app/supabase — the platform leaf BOTH surfaces reach the database through.
+  // Extends the repo-wide max-strict base; NodeNext module semantics are
+  // restated here so this package typechecks identically no matter which
+  // resolution a consuming workspace picks (packages are node16-style,
+  // apps/mobile is bundler-style).
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // `types: []` for the same reason the kernel sets it (TypeScript 6 no longer
+    // auto-includes node_modules/@types): an ambient `@types/node` here would
+    // declare `process`, `Buffer` and `node:*` for the ./client barrel too, and
+    // Metro ships that barrel into a Hermes binary where none of them exist. An
+    // accidental `Buffer.from` must red at typecheck, not on a device.
+    "types": [],
+    // DOM is in `lib` — deliberately, and it is the one concession here.
+    // @supabase/supabase-js is fetch-based on every host, so its own
+    // declarations name `fetch`, `Request`, `Response`, `Headers` and
+    // `AbortController`. Those globals have to be declared from somewhere. The
+    // alternative is `types: ["node"]`, which declares them AND `process`,
+    // `Buffer` and the whole `node:*` surface — a strictly larger hole in
+    // exactly the direction that matters, because this package's ./client
+    // barrel is bundled for React Native. `lib` adds declarations only; it emits
+    // nothing and links nothing. The Metro-safety wall is the `exports` split
+    // plus tools/exports-walls.json, never the ambient type list.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["src"],
+  // Both are real imports, not manifest-only: @app/errors supplies the AppError
+  // union this package maps SQLSTATEs into, and @app/env supplies the parsed
+  // credentials the env-reading factories default to. Declaring the references
+  // is what makes `tsc -b` build them first — without it the declarations
+  // resolve to whatever stale `dist` happens to be on disk.
+  "references": [{ "path": "../env" }, { "path": "../errors" }]
+}

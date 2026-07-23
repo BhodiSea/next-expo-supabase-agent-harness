@@ -1,5 +1,4 @@
-import { type Palette, useThemedStyles } from '../theme/theme'
-import { radius, spacing } from '../theme/tokens.gen'
+import { type Palette, radius, space, useThemedStyles } from '../theme/theme'
 import { AppText } from './AppText'
 import { Icon } from './icons/Icon'
 import { PressableScale } from './PressableScale'
@@ -28,10 +27,10 @@ const optionRowStyles = (palette: Palette) => ({
     borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row' as const,
-    gap: spacing * 2,
+    gap: space[2],
     justifyContent: 'space-between' as const,
-    paddingHorizontal: spacing * 3,
-    paddingVertical: spacing * 2,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
   },
 })
 

@@ -2,7 +2,7 @@
 // enforcement in the fast lane: for every route with a network-backed query
 // (home, matrix) every canonical data state renders its manifest testID, and
 // the error state CONTAINS a working retry affordance. Driven through
-// renderRouter + the mock server, so the shipped screens, api-client and
+// renderRouter over the procedure double, so the shipped screens, hooks and
 // translateError run for real.
 //
 // ACTIONS HONESTY: the actions route's data source is a static in-process
@@ -10,50 +10,48 @@
 // failure mode), and this suite does not fake them. Its one driveable state is
 // EMPTY (a query with no match), swept below. The manifest keeps all three ids
 // so the contract stays uniform for consumers that add async sources.
+import { appError } from '@app/errors'
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library'
 import { en } from '../src/i18n/catalog'
 import { ROUTES } from '../src/routes'
 import {
   installMockServer,
-  type MockRouteHandler,
+  type MockApiHandlers,
+  mockApiClient,
   uninstallMockServer,
 } from '../src/testing/mock-server'
+import { installMockSupabase, mockSupabaseClient } from '../src/testing/mock-supabase'
 
-jest.mock('../src/host', () => ({
-  secureGetToken: jest.fn(() => Promise.resolve('jest-session-token')),
-  secureSetToken: jest.fn(() => Promise.resolve()),
-  secureDeleteToken: jest.fn(() => Promise.resolve()),
-  secureGetRefreshToken: jest.fn(() => Promise.resolve(null)),
-  secureSetRefreshToken: jest.fn(() => Promise.resolve()),
-  secureDeleteRefreshToken: jest.fn(() => Promise.resolve()),
+jest.mock('../src/lib/supabase/provider', () => ({
+  SupabaseProvider: ({ children }: { readonly children: unknown }) => children,
+  useSupabase: () => mockSupabaseClient(),
 }))
+jest.mock('../src/lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
 
 const HOME = ROUTES[0]
 const MATRIX = ROUTES[1]
 const ACTIONS = ROUTES[2]
 
-const HEALTH: MockRouteHandler = () => ({ status: 200, body: { ok: true, version: '0.0.0' } })
+const HEALTH = () => ({ ok: true as const, version: '0.0.0' })
 
-type Behavior = 'held' | 'empty' | 'error'
+type Behavior = 'empty' | 'error' | 'held'
 
-// One handler shape per behavior, installed for BOTH notes-query keys (home's
-// bare list and matrix's paged list), so the sweep stays uniform per route.
-function queryHandler(behavior: Behavior): MockRouteHandler {
+// ONE list handler per behavior, shared by both network-backed routes — home's
+// unpaged query and matrix's paged one hit the same procedure, which is exactly
+// why the sweep can be uniform per route instead of per screen.
+function queryHandler(behavior: Behavior): NonNullable<MockApiHandlers['notesList']> {
   if (behavior === 'held') return () => new Promise<never>(() => undefined)
-  if (behavior === 'empty') return () => ({ status: 200, body: { items: [], nextCursor: null } })
-  return () => ({
-    status: 500,
-    body: { error: { code: 'internal', message: 'sweep-induced failure' } },
-  })
+  if (behavior === 'empty') return () => ({ ok: true, data: { items: [], nextCursor: null } })
+  return () => ({ ok: false, error: appError.unknown({ message: 'sweep-induced failure' }) })
 }
 
 function installFor(behavior: Behavior): void {
-  installMockServer({
-    'GET /healthz': HEALTH,
-    'GET /api/notes': queryHandler(behavior),
-    'GET /api/notes?limit=50': queryHandler(behavior),
-  })
+  installMockServer({ systemHealth: HEALTH, notesList: queryHandler(behavior) })
 }
+
+beforeEach(() => {
+  installMockSupabase()
+})
 
 afterEach(() => {
   uninstallMockServer()
@@ -80,14 +78,14 @@ describe.each(
     expect(await screen.findByTestId(route.states.empty)).toBeTruthy()
   })
 
-  it(`a 500 envelope renders ${route.states.error} CONTAINING a retry that recovers`, async () => {
+  it(`a failure envelope renders ${route.states.error} CONTAINING a retry that recovers`, async () => {
     installFor('error')
     renderRouter('./app', { initialUrl: route.path })
     const surface = await screen.findByTestId(route.states.error)
     expect(surface).toBeTruthy()
     // The manifest contract: the error surface CONTAINS the retry affordance,
-    // and the retry actually re-runs the query (swap the network to empty
-    // first, so recovery is observable).
+    // and the retry actually re-runs the query (swap the double to empty first,
+    // so recovery is observable).
     uninstallMockServer()
     installFor('empty')
     fireEvent.press(screen.getByRole('button', { name: en['common.retry'] }))

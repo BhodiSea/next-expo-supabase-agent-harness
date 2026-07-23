@@ -34,9 +34,21 @@ const LEAK_PATTERNS = [
   // genuine one-file exception instead of deleting a line.
   //
   // NOT YET ARMED: /\bhono\b/i and /drizzle/i (the expo-postgres sibling's
-  // self-hosted server half). template/stack/ is still that sibling's reference
-  // app verbatim, so arming them now would red every run. They arm in W1, in the
-  // same change that replaces the stack tree — see docs/harness/README.md.
+  // self-hosted server half).
+  //
+  // These arm in the FINAL closure wave, not with the stack swap. Measured at
+  // W1: 65 template files still carry that vocabulary — 54 under base/ (the
+  // subagent roster, .claude rules and skills, dependency-cruiser, eslint, the
+  // schema-rls/migrations/contracts/build gates, the RLS harness, CI workflows,
+  // the corpus index) and 11 under modules/. Every one of them is retargeted by
+  // a LATER wave (W3 schema, W4 boundaries, W5 contracts, W8 CI, W9 agent
+  // layer). Arming here would either red the repo for the whole build-out or
+  // force those 65 rewrites into one unreviewable change.
+  //
+  // The guard is therefore sequenced last, deliberately — not forgotten. Until
+  // it arms, nothing mechanically stops sibling vocabulary re-entering
+  // template/; that risk is accepted for the build-out window and closed by the
+  // final wave. See design/W1-STACK-SPEC.md §10.
   /tauri/i,
   /\bcargo\b/i,
   /VITE_/,

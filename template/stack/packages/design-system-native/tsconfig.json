@@ -1,0 +1,56 @@
+{
+  // @app/design-system-native — the MOBILE component vocabulary. Compiled into the Metro
+  // bundle, never into a Next one, so react-native is available and the DOM is not.
+  //
+  // THE WALL: there is no `{ "path": "../design-system" }` in the references below, and
+  // there never will be. The two design systems share TOKENS and API SHAPE and nothing
+  // else — no shared component layer, by design record, because Tailwind v4 and the v3
+  // NativeWind requires do not share a class vocabulary and a DOM tree and an RN view tree
+  // do not share a box model. A reference here is all it would take to make the mistake
+  // silent: the web package's types would resolve, `<div>` would typecheck inside a file
+  // Metro bundles, and the first report would be a blank screen on a device rather than a
+  // red build. The manifest and dependency-cruiser hold the same line from the other two
+  // sides (design/W1-STACK-SPEC.md §2, §5); this file is the one tsc itself can enforce.
+  //
+  // Bundler resolution + Preserve, matching the app that consumes it: the package ships raw
+  // TSX through its `exports` map with no build step, so Metro is the only thing that ever
+  // transforms these files and tsc's job here is types only.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    // The condition Metro resolves with. Without it a dependency that publishes both a
+    // browser entry and a native one is TYPED from the browser entry and BUNDLED from the
+    // native one — types describing an implementation that never runs, which is worse than
+    // no types at all because nothing about it looks wrong.
+    "customConditions": ["react-native"],
+    "jsx": "react-jsx",
+    // NO `lib` override, and that absence is the point: the repo base narrows lib to ES2023
+    // and the DOM types the web twin has to restore are exactly what must not be reachable
+    // from here. React Native declares its own host globals (see `types` below), so a file
+    // in this package that reaches for `document` or `window` reds at typecheck instead of
+    // throwing on a device.
+    //
+    // Metro owns JS emit. Declarations only — but NOT noEmit, which is incompatible with
+    // the composite project references the solution build walks.
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    // TypeScript 6 no longer auto-includes node_modules/@types, so this list is the whole
+    // ambient surface — and unlike the web twin's (deliberately empty) one, this package
+    // needs two entries:
+    //   react-native   — the platform's globals are AMBIENT declarations, not module
+    //                    exports: __DEV__, the timers, fetch. Nothing imports them, so
+    //                    nothing would pull them in.
+    //   nativewind/types — what teaches `className` to React Native's components. Without
+    //                    it every className in this package is an excess-property error,
+    //                    and the tempting fix (widening the prop types) would trade a
+    //                    compile error for a class string that silently paints nothing.
+    "types": ["react-native", "nativewind/types"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../design-tokens" }]
+}

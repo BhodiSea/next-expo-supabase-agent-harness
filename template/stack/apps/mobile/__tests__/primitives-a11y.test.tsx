@@ -24,7 +24,7 @@ import { MATRIX_COLUMNS, makeSyntheticRows } from '../src/features/matrix/matrix
 import { PerfSubject } from '../src/features/matrix/perfSubject'
 import { en } from '../src/i18n/catalog'
 import { haptic } from '../src/lib/haptics'
-import { fontScaleCap, sizes } from '../src/theme/tokens.gen'
+import { fontScaleCap, minTouchTarget } from '../src/theme/theme'
 
 // The SEAM is mocked (not the engine): what this file pins is the WIRING — which
 // primitive speaks which vocabulary word. The seam's own engine mapping is
@@ -172,19 +172,19 @@ describe('Toast', () => {
   })
 })
 
-describe('hit targets — the sizes.minTarget floor', () => {
+describe('hit targets — the minTouchTarget floor', () => {
   it('Button, OptionRow and Input all flatten to minHeight >= 44dp', () => {
     render(<Button label="Target" onPress={jest.fn()} />)
     const button = flatStyle(screen.getByRole('button', { name: 'Target' }).props)
-    expect(button.minHeight).toBeGreaterThanOrEqual(sizes.minTarget)
+    expect(button.minHeight).toBeGreaterThanOrEqual(minTouchTarget)
 
     render(<OptionRow label="Row target" onPress={jest.fn()} />)
     const row = flatStyle(screen.getByRole('button', { name: 'Row target' }).props)
-    expect(row.minHeight).toBeGreaterThanOrEqual(sizes.minTarget)
+    expect(row.minHeight).toBeGreaterThanOrEqual(minTouchTarget)
 
     render(<Input accessibilityLabel="Field target" accessibilityHint="hit-target fixture" />)
     const input = flatStyle(screen.getByLabelText('Field target').props)
-    expect(input.minHeight).toBeGreaterThanOrEqual(sizes.minTarget)
+    expect(input.minHeight).toBeGreaterThanOrEqual(minTouchTarget)
   })
 })
 

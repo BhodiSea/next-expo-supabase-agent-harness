@@ -54,23 +54,32 @@ export const PLACEHOLDERS = {
       (ctx.answers.PROJECT_SLUG ?? ctx.dirName ?? 'myapp').toLowerCase().replace(/[^a-z0-9]+/g, ''),
     validate: (v) => (/^[a-z][a-z0-9]*$/.test(v) ? null : 'must be a lowercase alphanumeric scheme starting with a letter'),
   },
-  // The server origin the mobile client talks to. Feeds the COMMITTED
-  // app.config.ts extra.apiOrigin and the transport-security policy the
-  // expo-policy gate asserts (https-or-loopback) — which is why it is a
-  // placeholder, not env.
-  API_ORIGIN: {
-    prompt: 'API origin the mobile client connects to (e.g. https://api.internal.example.edu)',
-    default: (_ctx) => 'http://127.0.0.1:8787',
+  // The web app's origin. In this lineage apps/web is BOTH the web client and
+  // the API host (it mounts the tRPC router at /api/trpc), so one origin serves
+  // three roles at once: the mobile client's transport target, the cookie/CORS
+  // origin, and the committed app.config.ts extra. It is a placeholder rather
+  // than env because it lands in the committed transport-security policy the
+  // expo-policy gate asserts (https-or-loopback).
+  WEB_ORIGIN: {
+    prompt: 'Web app origin — also the API host and cookie origin (e.g. https://app.example.com)',
+    default: (_ctx) => 'http://127.0.0.1:3000',
     validate: (v) =>
       /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/.test(v)
         ? null
         : 'must be a bare origin — http(s)://host[:port], no path or trailing slash (it lands in the committed transport policy)',
   },
-  DB_NAME: {
-    prompt: 'Postgres database name',
-    default: (ctx) =>
-      (ctx.answers.PROJECT_SLUG ?? ctx.dirName ?? 'app').replace(/-/g, '_'),
-    validate: (v) => (/^[a-z_][a-z0-9_]*$/.test(v) ? null : 'must be a lowercase Postgres identifier ([a-z_][a-z0-9_]*)'),
+  // Supabase project ref — the subdomain of the project URL. NOT a secret: it
+  // appears in every client-side request URL. It is a placeholder because
+  // supabase/config.toml commits it and the CI generated-types lane keys off it.
+  // 'TBD' is accepted so init never blocks on project creation; doctor warns
+  // while it remains (same doctrine as the EAS/store ids below).
+  SUPABASE_PROJECT_REF: {
+    prompt: 'Supabase project ref (20-char id from the project URL, or TBD)',
+    default: () => 'TBD',
+    validate: (v) =>
+      v === 'TBD' || /^[a-z]{20}$/.test(v)
+        ? null
+        : 'must be the 20-character lowercase project ref from the Supabase project URL, or TBD',
   },
   GITHUB_OWNER: {
     prompt: 'GitHub org/user that owns the repo',

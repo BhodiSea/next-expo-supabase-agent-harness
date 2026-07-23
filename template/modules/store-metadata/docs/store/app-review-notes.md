@@ -51,7 +51,7 @@ Two supported paths for the password:
 
 ## Server dependency (do not skip)
 
-The app is a thin client for the API at `{{API_ORIGIN}}`.
+The app is a thin client for the API at `{{WEB_ORIGIN}}`.
 
 - [ ] The origin baked into the RELEASE build is publicly reachable over HTTPS
       from outside your network — App Review runs on Apple's infrastructure.
@@ -90,7 +90,7 @@ The app is a thin client for the API at `{{API_ORIGIN}}`.
       is red until they are).
 - [ ] `apple.review.notes` regenerated from this file; under 4000 characters.
 - [ ] Demo account works from a device OUTSIDE your network, signed in fresh.
-- [ ] `{{API_ORIGIN}}` reachable and seeded.
+- [ ] `{{WEB_ORIGIN}}` reachable and seeded.
 - [ ] Privacy manifest entries current (`docs/store/ios-privacy-manifests.md`).
 - [ ] Play data-safety answers still true (`docs/store/play-data-safety.md`) —
       the two stores' privacy stories must not contradict each other.

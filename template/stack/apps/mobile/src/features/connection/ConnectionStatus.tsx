@@ -1,11 +1,10 @@
-import { HealthResponse } from '@app/contracts'
+import { HealthReport } from '@app/contracts'
 import { useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { AppText } from '../../components/AppText'
 import { useI18n } from '../../i18n'
-import { apiFetch } from '../../lib/api-client'
-import { type Palette, useThemedStyles } from '../../theme/theme'
-import { spacing } from '../../theme/tokens.gen'
+import { useApi } from '../../lib/trpc/use-api'
+import { type Palette, space, useThemedStyles } from '../../theme/theme'
 
 // SOURCE: harness doctrine — degraded-network states are a first-class UI
 // concern; probe cadence is slow enough to stay invisible in server logs and
@@ -30,16 +29,16 @@ const statusStyles = (palette: Palette) => ({
   root: {
     alignItems: 'center' as const,
     flexDirection: 'row' as const,
-    gap: spacing * 2,
+    gap: space[2],
   },
   // The dot is decorative — the text beside it carries the meaning; colour is
   // the redundant channel (WCAG 1.4.1). Degraded takes the danger token,
   // connected takes success: at a glance a dead API must not be
   // indistinguishable from one still connecting.
   dot: {
-    borderRadius: spacing,
-    height: spacing * 2,
-    width: spacing * 2,
+    borderRadius: space[1],
+    height: space[2],
+    width: space[2],
   },
   dotOk: {
     backgroundColor: palette.success,
@@ -57,6 +56,7 @@ const statusStyles = (palette: Palette) => ({
 export function ConnectionStatus() {
   const { t } = useI18n()
   const styles = useThemedStyles(statusStyles)
+  const api = useApi()
   const [state, setState] = useState<ProbeState>({ status: 'connecting' })
 
   useEffect(() => {
@@ -69,13 +69,25 @@ export function ConnectionStatus() {
         controller.abort()
       }, PROBE_TIMEOUT_MS)
       try {
-        // The liveness probe is the ONE unauthenticated call: it must report a
-        // reachable-but-signed-out server as connected, not degraded.
-        const response = await apiFetch('/healthz', { auth: false, signal: controller.signal })
-        const body: unknown = await response.json()
-        // HealthResponse pins `ok: literal(true)` — a degraded body fails the
-        // parse and lands in the catch below.
-        const health = HealthResponse.parse(body)
+        // `system.health` is a publicProcedure and the ONE call in this app that
+        // is not enveloped — health has no failure mode: if it can answer at
+        // all, the answer is ok. So this is also the one place a raw `try/catch`
+        // is the right shape rather than `callProcedure`: there is no
+        // ActionOutcome to fold a rejection into, and a rejection here IS the
+        // signal the indicator exists to show.
+        //
+        // It is likewise the one UNAUTHENTICATED call: a reachable server with
+        // no session must read as connected, not degraded, or a signed-out user
+        // is told their network is broken.
+        // SOURCE: packages/api/src/routers/system.ts (health is public and
+        // un-enveloped, and why)
+        const body: unknown = await api.system.health.query(undefined, {
+          signal: controller.signal,
+        })
+        // HealthReport pins `ok: literal(true)` — a degraded body fails the
+        // parse and lands in the catch below rather than being reported as a
+        // successfully-parsed failure.
+        const health = HealthReport.parse(body)
         if (!cancelled) setState({ status: 'ok', version: health.version })
       } catch {
         if (!cancelled) setState({ status: 'degraded' })
@@ -91,7 +103,7 @@ export function ConnectionStatus() {
       cancelled = true
       clearInterval(timer)
     }
-  }, [])
+  }, [api])
 
   return (
     <View style={styles.root}>

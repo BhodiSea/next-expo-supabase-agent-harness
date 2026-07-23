@@ -63,11 +63,27 @@ test('EAS/store identity placeholders accept TBD and their real shapes, nothing 
   assert.notEqual(PLACEHOLDERS.APPLE_TEAM_ID.validate('short'), null)
 })
 
-test('DB_NAME default converts kebab slug to snake_case', () => {
-  const ctx = { answers: { PROJECT_SLUG: 'acme-curriculum' } }
-  assert.equal(PLACEHOLDERS.DB_NAME.default(ctx), 'acme_curriculum')
+test('WEB_ORIGIN defaults to local loopback for bootstrap-green', () => {
+  // apps/web is BOTH the web client and the API host, so the default is the Next
+  // dev port — not a separate server's. 3000, not 8787.
+  assert.equal(PLACEHOLDERS.WEB_ORIGIN.default({}), 'http://127.0.0.1:3000')
 })
 
-test('API_ORIGIN defaults to local loopback for bootstrap-green', () => {
-  assert.equal(PLACEHOLDERS.API_ORIGIN.default({}), 'http://127.0.0.1:8787')
+test('WEB_ORIGIN rejects anything that is not a bare origin', () => {
+  // It lands in the committed transport policy the expo-policy gate asserts, so a
+  // trailing path or slash would be baked into a shipped binary.
+  assert.equal(PLACEHOLDERS.WEB_ORIGIN.validate('https://app.example.com'), null)
+  assert.equal(PLACEHOLDERS.WEB_ORIGIN.validate('http://127.0.0.1:3000'), null)
+  assert.notEqual(PLACEHOLDERS.WEB_ORIGIN.validate('https://app.example.com/'), null)
+  assert.notEqual(PLACEHOLDERS.WEB_ORIGIN.validate('https://app.example.com/api'), null)
+  assert.notEqual(PLACEHOLDERS.WEB_ORIGIN.validate('app.example.com'), null)
+})
+
+test('SUPABASE_PROJECT_REF accepts TBD or a 20-char ref, nothing else', () => {
+  // TBD keeps init from blocking on project creation; doctor warns while it remains.
+  assert.equal(PLACEHOLDERS.SUPABASE_PROJECT_REF.default(), 'TBD')
+  assert.equal(PLACEHOLDERS.SUPABASE_PROJECT_REF.validate('TBD'), null)
+  assert.equal(PLACEHOLDERS.SUPABASE_PROJECT_REF.validate('abcdefghijklmnopqrst'), null)
+  assert.notEqual(PLACEHOLDERS.SUPABASE_PROJECT_REF.validate('tooshort'), null)
+  assert.notEqual(PLACEHOLDERS.SUPABASE_PROJECT_REF.validate('ABCDEFGHIJKLMNOPQRST'), null)
 })
