@@ -63,10 +63,10 @@ export const STAMP_INPUTS = {
     'pnpm-lock.yaml',
   ],
   // identity lock + ATS/cleartext + permissions/plugins allowlists + CNG purity +
-  // secret-shaped `extra` ban + eas.json sanity. tokens.gen.ts and the styleguide
-  // manifest are inputs because the gate asserts the splash background color
-  // equals the GENERATED dark canvas token — a retuned palette must invalidate
-  // a warm stamp or the splash check would ride a stale green.
+  // secret-shaped `extra` ban + eas.json sanity. @app/design-tokens' committed native
+  // adapter is an input because the gate asserts the splash background color equals its
+  // GENERATED dark canvas token — a retuned palette must invalidate a warm stamp or the
+  // splash check would ride a stale green.
   // The 0.1.2 store-readiness inputs join the list: the reviewed policy, the
   // icon assets (integrity checks parse their bytes), the actions registry +
   // openapi contract (the account-deletion closure reads both).
@@ -77,8 +77,7 @@ export const STAMP_INPUTS = {
     'tools/expo-permissions.json',
     'tools/expo-plugins.json',
     'apps/mobile/eas.json',
-    'apps/mobile/src/theme/tokens.gen.ts',
-    'tools/styleguide.manifest.json',
+    'packages/design-tokens/src/generated/native.ts',
     'tools/store-policy.json',
     'apps/mobile/assets',
     'apps/mobile/src/features/actions/registry.ts',

@@ -339,42 +339,42 @@ FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
 ### 20. styleguide — `node tools/check-styleguide-manifest.mjs`
 
-The design system is DATA. `tools/styleguide.manifest.json` (write-guard-protected)
-is the OKLCH source of truth; `tools/gen-theme.mjs` COMPILES it into the committed
-`apps/mobile/src/theme/tokens.gen.ts` that plain style objects consume. The gate
-holds: manifest schema (every theme declares exactly the canonical token set, OKLCH
-numbers in gamut — out-of-gamut is red 'unverifiable'); regen-diff
-(`gen-theme.mjs --check` — the committed module byte-identical to a fresh
-generation; a hand edit is a red gate, not a design change); COMPUTED WCAG
-contrast for every declared `{fg,bg,min}` pair in BOTH themes through
-`tools/lib/oklch.mjs` (OKLCH → linear sRGB → relative luminance → ratio), body
-text held to its declared floor; a source scan of the mobile tree for hex/rgb
-color literals and rogue style vocabularies outside the generated module (lint's
-no-color-literals is the in-editor half); the launch-frame lockstep with
-app.config.ts shared with expo-policy.
+The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
+(the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
+things. (1) **Regen-diff the package** — `pnpm --filter @app/design-tokens run
+gen:check` (`tsx packages/design-tokens/scripts/gen.mjs --check`): one command
+re-asserts BOTH committed adapters byte-for-byte — `src/generated/native.ts` (the RN
+theme `apps/mobile` consumes via `@app/design-tokens/native`) and
+`src/generated/web.css` (the Tailwind v4 `@theme` `apps/web` imports) — AND the
+gamut + WCAG contrast contract (`render()` throws before emitting a byte), so a hand
+edit to a generated file, or a retune that breaks readability, is a red gate. Needs
+an install (tsx); skips loudly without one, fails closed in CI. (2) **Source-scan**
+`apps/mobile/{src,app}` (outside `src/theme`) for raw values: hex/rgb color literals,
+CSS named colors on color props, raw dimension literals, inline `style={{…}}` numeric
+values. `tools/styleguide.manifest.json` (write-guard-protected) is now the gate
+POLICY — accent budget, status surfaces, primitive boundary, motion seam, allow
+lists — not token values; the token names it references (accentTokens,
+statusSurfaces.tokens) are validated against the committed `native.ts` palette. The
+launch-frame lockstep (splash/adaptive-icon background == the dark canvas token) is
+shared with expo-policy, which reads the same `native.ts` adapter.
 
-The DESIGN-DEPTH sub-checks (0.1.2), each content-conditional on its manifest
-key — keyless manifests self-disable with ONE combined adoption NOTE, malformed
-keys and stale seam/base paths fail closed: **motion discipline** (`motionSeam`)
-— literal `duration:`/`delay:` numerics red anywhere in the walk (the motion
-vocabulary lives in the `families.motion` tokens; 0 passes), and raw
-`Animated.`/`LayoutAnimation.`/`Easing.` references red outside the seam file +
-the components home with NO allow escape, because the seam's hooks
-(useEntrance/usePulse/usePressScale) carry both the token vocabulary and the
-reduce-motion collapse; **elevation keys** (`families.elevation`) — the
-`shadow*`/`elevation` style keys are spelled only inside the generated tokens
-module, consumers spread a level (`{ ...elevation.raised }`); **hit-target
-floor** (`families.sizing`) — a home file styling a raw control must reference
-`sizes.minTarget` in its own code, and with `controlPrimitives.base` declared
-the pressable-class tags may be styled in exactly ONE home file (the
-PressableScale touchable base — pressed feedback, the hit target, and the
-haptic live there).
-**Anti-vacuity:** darken a token below its pair's floor → FAIL printing the
-computed ratio; hand-edit tokens.gen.ts → FAIL regen-diff; add a hex literal to a
-component style → FAIL naming the file; write `duration: 250` in a feature →
-FAIL naming the literal; call `Animated.timing` from a screen → FAIL pointing at
-the seam; spell `shadowOpacity:` outside src/theme → FAIL; style a raw
-`<Pressable>` in a second home file → FAIL naming the base.
+The DESIGN-DEPTH sub-checks: **motion discipline** (`motionSeam`) — literal
+`duration:`/`delay:` numerics red anywhere in the walk (the motion vocabulary lives
+in `@app/design-tokens` `motion`; 0 passes), and raw
+`Animated.`/`LayoutAnimation.`/`Easing.` references red outside the seam file + the
+components home with NO allow escape; **elevation keys** — the `shadow*`/`elevation`
+style keys are spelled only inside the generated adapter, consumers spread a level
+(`{ ...elevation.raised }`); **hit-target floor** — a home file styling a raw control
+must reference `minTouchTarget` (the 44dp floor `@app/design-tokens` exports), and
+with `controlPrimitives.base` declared the pressable-class tags may be styled in
+exactly ONE home file (the PressableScale touchable base — pressed feedback, the hit
+target, and the haptic live there).
+**Anti-vacuity:** hand-edit `native.ts`/`web.css` → FAIL regen-diff; retune a token
+below a contrast floor → FAIL (`render()` throws in gen:check); add a hex literal to
+a component style → FAIL naming the file; write `duration: 250` in a feature → FAIL
+naming the literal; call `Animated.timing` from a screen → FAIL pointing at the seam;
+spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
+home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
 ### 21. perf-budget — `node tools/check-perf-budget.mjs`
 

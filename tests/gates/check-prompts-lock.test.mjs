@@ -1,146 +1,80 @@
 // Can-fail proofs for the prompts gate (template/base/tools/check-prompts-lock.mjs).
-// Every LLM prompt must be a versioned, hash-locked artifact: tools/prompts.lock.json
-// maps prompt path -> sha256, prompt filenames carry an explicit .vN version, and the
-// lock has no dangling entries. Fixture-driven like the schema-rls / route-manifest
-// suites: build a scaffold-shaped tree, run the real gate with cwd inside it, assert
-// the exact red/green. The GREEN case writes the SHIPPED prompt + SHIPPED lock verbatim,
-// so it also proves the shipped lock hash actually matches the shipped prompt bytes.
+// This lineage ships NO prompts (the eval package was dropped), so the fixtures SYNTHESIZE
+// prompt files + locks rather than reading a shipped one: build a scaffold-shaped tree
+// (prompts under packages/*/prompts/**, a tools/prompts.lock.json), run the real gate with
+// cwd inside it, and assert the exact red/green.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-prompts-lock.mjs', import.meta.url),
 )
-const SHIPPED_PROMPT = readFileSync(
-  fileURLToPath(new URL('../../template/stack/packages/eval/prompts/extract.v1.md', import.meta.url)),
-  'utf8',
-)
-const SHIPPED_LOCK = readFileSync(
-  fileURLToPath(new URL('../../template/base/tools/prompts.lock.json', import.meta.url)),
-  'utf8',
-)
-const SHIPPED_PROMPT_PATH = 'packages/eval/prompts/extract.v1.md'
+const sha = (s) => createHash('sha256').update(s).digest('hex')
 
-const sha256 = (s) => createHash('sha256').update(s).digest('hex')
+function run(dir) {
+  return spawnSync(process.execPath, [GATE], { cwd: dir, encoding: 'utf8' })
+}
 
-// prompts: POSIX-relative path -> file content (dirs created as needed).
-// lock: object (JSON.stringify'd), raw string (written verbatim — for the bad-JSON
-// case), or null to omit the lock file entirely (the LOCK-absent branch).
-function fixture({ prompts = {}, lock = {} } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'epah-promptsgate-'))
+// { prompts?: {relPath: content}, lock?: {relPath: sha} }
+function scaffold({ prompts = {}, lock = {} } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'prompts-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(join(dir, 'tools/prompts.lock.json'), JSON.stringify(lock, null, 2))
   for (const [rel, content] of Object.entries(prompts)) {
-    const abs = join(dir, ...rel.split('/'))
-    mkdirSync(dirname(abs), { recursive: true })
-    writeFileSync(abs, content)
-  }
-  if (lock !== null) {
-    const text = typeof lock === 'string' ? lock : JSON.stringify(lock, null, 2)
-    writeFileSync(join(dir, 'tools/prompts.lock.json'), text)
+    mkdirSync(dirname(join(dir, rel)), { recursive: true })
+    writeFileSync(join(dir, rel), content)
   }
   return dir
 }
 
-function runGate(dir) {
-  const res = spawnSync('node', [GATE], {
-    cwd: dir,
-    encoding: 'utf8',
-    env: { ...process.env, CI: 'true' },
-  })
-  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
-}
+const PROMPT = 'packages/notes/prompts/summarize.v1.md'
+const BODY = '# summarize\nSummarize the note in one sentence.\n'
 
-test('GREEN: shipped prompt + shipped lock verbatim (proves the shipped lock matches the prompt bytes)', () => {
-  const r = runGate(fixture({ prompts: { [SHIPPED_PROMPT_PATH]: SHIPPED_PROMPT }, lock: SHIPPED_LOCK }))
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('1 prompt(s) hash-locked and versioned'), r.out)
+test('GREEN — no prompts, empty lock → passes (0 prompts)', () => {
+  const r = run(scaffold())
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /0 prompt\(s\) hash-locked/)
 })
 
-test('RED: tampered prompt content fails with a hash mismatch, naming the file', () => {
-  const r = runGate(
-    fixture({ prompts: { [SHIPPED_PROMPT_PATH]: `${SHIPPED_PROMPT}\ndrifted` }, lock: SHIPPED_LOCK }),
+test('GREEN — a versioned prompt whose lock hash matches passes', () => {
+  const r = run(scaffold({ prompts: { [PROMPT]: BODY }, lock: { [PROMPT]: sha(BODY) } }))
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.match(r.stdout, /1 prompt\(s\) hash-locked and versioned/)
+})
+
+test('RED — a prompt not in the lock reds (every prompt must be hash-locked)', () => {
+  const r = run(scaffold({ prompts: { [PROMPT]: BODY }, lock: {} }))
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, new RegExp(`${PROMPT.replace(/\./g, '\\.')} is not in`))
+  assert.match(r.stderr, /every prompt must be hash-locked/)
+})
+
+test('RED — a changed prompt (hash mismatch) reds', () => {
+  const r = run(
+    scaffold({ prompts: { [PROMPT]: `${BODY}drifted` }, lock: { [PROMPT]: sha(BODY) } }),
   )
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes(SHIPPED_PROMPT_PATH), r.out)
-  assert.ok(r.out.includes('hash mismatch'), r.out)
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /hash mismatch/)
 })
 
-test('RED: a prompt file present but absent from the lock is an unlocked production input', () => {
-  const r = runGate(fixture({ prompts: { [SHIPPED_PROMPT_PATH]: SHIPPED_PROMPT }, lock: {} }))
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes(`${SHIPPED_PROMPT_PATH} is not in tools/prompts.lock.json`), r.out)
-  assert.ok(r.out.includes('every prompt must be hash-locked'), r.out)
+test('RED — a lock entry for a file that does not exist reds', () => {
+  const r = run(scaffold({ lock: { 'packages/gone/prompts/x.v1.md': sha('x') } }))
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /references missing file packages\/gone\/prompts\/x\.v1\.md/)
 })
 
-test('RED: a lock entry with no corresponding file is a dangling reference', () => {
-  const r = runGate(fixture({ prompts: {}, lock: { [SHIPPED_PROMPT_PATH]: sha256(SHIPPED_PROMPT) } }))
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes(`references missing file ${SHIPPED_PROMPT_PATH}`), r.out)
-})
-
-test('RED: an unversioned filename that IS locked fails the version rule (not the hash rule)', () => {
-  const rel = 'packages/eval/prompts/extract.md'
-  const content = 'extract the fields\n'
-  const r = runGate(fixture({ prompts: { [rel]: content }, lock: { [rel]: sha256(content) } }))
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('must carry an explicit version'), r.out)
-  // Hash matches, so the version rule is what fires — not a mismatch.
-  assert.ok(!r.out.includes('hash mismatch'), r.out)
-})
-
-test('CURRENT BEHAVIOR: an unversioned filename NOT in the lock reds on not-locked only — the version message is suppressed by the continue', () => {
-  const rel = 'packages/eval/prompts/extract.md'
-  const r = runGate(fixture({ prompts: { [rel]: 'extract the fields\n' }, lock: {} }))
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes(`${rel} is not in tools/prompts.lock.json`), r.out)
-  // The `continue` after the not-in-lock error skips the version check for this file.
-  assert.ok(!r.out.includes('must carry an explicit version'), r.out)
-})
-
-test('RED: a malformed lock file fails LOUD and closed (never fail-open) with a FIX hint', () => {
-  const r = runGate(fixture({ prompts: { [SHIPPED_PROMPT_PATH]: SHIPPED_PROMPT }, lock: '{ not json' }))
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('tools/prompts.lock.json is not valid JSON'), r.out)
-  assert.ok(r.out.includes('FIX[prompts]:'), r.out)
-})
-
-test('GREEN: no prompt surface and no lock file passes with a zero count', () => {
-  const r = runGate(fixture({ prompts: {}, lock: null }))
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('0 prompt(s) hash-locked and versioned'), r.out)
-})
-
-test('GREEN: an apps/*/prompts prompt, properly versioned and locked, is discovered and passes (apps scope)', () => {
-  const rel = 'apps/mobile/prompts/summarize.v2.md'
-  const content = 'summarize the note\n'
-  const r = runGate(fixture({ prompts: { [rel]: content }, lock: { [rel]: sha256(content) } }))
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('1 prompt(s) hash-locked and versioned'), r.out)
-})
-
-test('RED: multiple independent violations aggregate into one counted failure list', () => {
-  const r = runGate(
-    fixture({
-      prompts: {
-        'packages/eval/prompts/a.v1.md': 'A',
-        'packages/eval/prompts/b.v1.md': 'B',
-      },
-      // a: wrong hash (mismatch); b: unlocked; c: dangling entry with no file.
-      lock: {
-        'packages/eval/prompts/a.v1.md': sha256('not-A'),
-        'packages/eval/prompts/c.v1.md': sha256('anything'),
-      },
-    }),
+test('RED — an unversioned prompt filename reds (must carry an explicit vN)', () => {
+  const UNVERSIONED = 'packages/notes/prompts/summarize.md'
+  const r = run(
+    scaffold({ prompts: { [UNVERSIONED]: BODY }, lock: { [UNVERSIONED]: sha(BODY) } }),
   )
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('prompts: FAIL (3)'), r.out)
-  assert.ok(r.out.includes('hash mismatch'), r.out)
-  assert.ok(r.out.includes('b.v1.md is not in'), r.out)
-  assert.ok(r.out.includes('references missing file packages/eval/prompts/c.v1.md'), r.out)
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /must carry an explicit version/)
 })

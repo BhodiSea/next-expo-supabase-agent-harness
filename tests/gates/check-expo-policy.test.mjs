@@ -36,10 +36,11 @@ const SHIPPED_STORE_POLICY = readFileSync(
   fileURLToPath(new URL('../../template/base/tools/store-policy.json', import.meta.url)),
   'utf8',
 )
+// @app/design-tokens' committed RN adapter is the single source apps/mobile paints from,
+// and the one the splash lockstep reads the dark canvas token out of.
+const NATIVE_MODULE_REL = 'packages/design-tokens/src/generated/native.ts'
 const SHIPPED_TOKENS = readFileSync(
-  fileURLToPath(
-    new URL('../../template/stack/apps/mobile/src/theme/tokens.gen.ts', import.meta.url),
-  ),
+  fileURLToPath(new URL(`../../template/stack/${NATIVE_MODULE_REL}`, import.meta.url)),
   'utf8',
 )
 
@@ -210,7 +211,10 @@ function fixture({
   if (perms !== null) writeFileSync(join(dir, 'tools/expo-permissions.json'), asText(perms))
   if (pluginsFile !== null) writeFileSync(join(dir, 'tools/expo-plugins.json'), asText(pluginsFile))
   if (eas !== null) writeFileSync(join(dir, 'apps/mobile/eas.json'), asText(eas))
-  if (tokens !== null) writeFileSync(join(dir, 'apps/mobile/src/theme/tokens.gen.ts'), asText(tokens))
+  if (tokens !== null) {
+    mkdirSync(join(dir, 'packages/design-tokens/src/generated'), { recursive: true })
+    writeFileSync(join(dir, NATIVE_MODULE_REL), asText(tokens))
+  }
   if (storePolicy !== null) writeFileSync(join(dir, 'tools/store-policy.json'), asText(storePolicy))
   for (const [rel, content] of Object.entries(assets ?? {})) {
     const abs = join(dir, rel)
@@ -509,14 +513,14 @@ test('RED: an unparsable or missing tokens module fails CLOSED — the lockstep 
   const unparsable = runGate(fixture({ tokens: 'export const palettes = 42\n' }))
   assert.equal(unparsable.code, 1, unparsable.out)
   assert.ok(
-    unparsable.out.includes('could not parse the dark canvas token out of apps/mobile/src/theme/tokens.gen.ts'),
+    unparsable.out.includes(`could not parse the dark canvas token out of ${NATIVE_MODULE_REL}`),
     unparsable.out,
   )
 
   const missing = runGate(fixture({ tokens: null }))
   assert.equal(missing.code, 1, missing.out)
   assert.ok(
-    missing.out.includes('apps/mobile/src/theme/tokens.gen.ts missing — cannot verify the launch-frame lockstep'),
+    missing.out.includes(`${NATIVE_MODULE_REL} missing — cannot verify the launch-frame lockstep`),
     missing.out,
   )
 })

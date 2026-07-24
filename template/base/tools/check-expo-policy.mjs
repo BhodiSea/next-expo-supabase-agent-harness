@@ -61,7 +61,10 @@ const CONFIG = `${APP}/app.config.ts`
 const LOCK = 'tools/identity.lock.json'
 const PERMS_FILE = 'tools/expo-permissions.json'
 const PLUGINS_FILE = 'tools/expo-plugins.json'
-const TOKENS_FILE = `${APP}/src/theme/tokens.gen.ts`
+// The dark canvas token is read from @app/design-tokens' committed RN adapter — the
+// single source apps/mobile paints from (via @app/design-tokens/native). The styleguide
+// gate regen-diffs it against the TypeScript token modules.
+const TOKENS_FILE = 'packages/design-tokens/src/generated/native.ts'
 const EAS_FILE = `${APP}/eas.json`
 // The one secret-shape heuristic, shared with the eas.json env-name check and
 // the EXPO_PUBLIC_ source scan below.
@@ -351,12 +354,12 @@ function checkPublicEnvNames() {
 }
 
 // 8. splash lockstep: both native launch-frame colors equal the GENERATED dark
-// canvas token (parsed textually from the committed tokens module — the gate
-// must not import app TS). Unparsable file fails closed rather than guessing.
+// canvas token (parsed textually from @app/design-tokens' committed native adapter —
+// the gate must not import app TS). Unparsable file fails closed rather than guessing.
 function checkSplashLockstep() {
   if (!existsSync(TOKENS_FILE)) {
     errs.push(
-      `${TOKENS_FILE} missing — cannot verify the launch-frame lockstep (fails closed); run \`node tools/gen-theme.mjs\``,
+      `${TOKENS_FILE} missing — cannot verify the launch-frame lockstep (fails closed); run \`pnpm --filter @app/design-tokens run gen\``,
     )
     return
   }

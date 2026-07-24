@@ -156,12 +156,17 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   code and asks whether a test goes red — a SET-based ratchet against
   `tools/mutation-baseline.json`, never a score. Accepting a survivor is a
   reviewed human act (empty reasons FAIL).
-- **Styling is tokens-only, in BOTH themes.** `tools/styleguide.manifest.json`
-  (OKLCH) is the design source; `tools/gen-theme.mjs` emits the committed
-  `src/theme/tokens.gen.ts`; components style via `useThemedStyles((palette) =>`
-  factories over those tokens. No color literals, no inline styles (lint), no
-  hand-edited tokens.gen.ts (regen-diff). The styleguide gate COMPUTES WCAG
-  contrast from the OKLCH tokens for every declared pair in both themes.
+- **Styling is tokens-only, in BOTH themes.** `@app/design-tokens` (the TS
+  modules in `packages/design-tokens/src`, OKLCH) is the single source;
+  `packages/design-tokens/scripts/gen.mjs` compiles them — fail-closed on gamut +
+  WCAG contrast — into the committed adapters `src/generated/native.ts` (mobile,
+  via `@app/design-tokens/native`) and `src/generated/web.css` (web, the Tailwind
+  v4 `@theme`). Mobile components style via `useThemedStyles((palette) =>`
+  factories over those tokens. No color literals, no inline styles, no hand-edited
+  generated file — the `styleguide` gate regen-diffs the package (its `gen:check`
+  script) and source-scans `apps/mobile` for raw values;
+  `tools/styleguide.manifest.json` is the gate POLICY (accent budget, status
+  surfaces, primitive boundary, motion seam), not the token values.
 - **Controls render through `src/components` primitives** (AppText/Button/
   Input/Field/Screen/Toast/EmptyState/OptionRow) — raw text outside AppText is
   lint-red; new control styling goes into the primitive.
