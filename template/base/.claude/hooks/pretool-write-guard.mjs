@@ -220,6 +220,32 @@ if (anyRel(/^apps\/mobile\//)) {
   }
 }
 
+// ---- Web surface: the two web-specific credential mistakes, at the moment of the
+// edit (defense-in-depth over the eslint/RLS layers). ----
+if (anyRel(/^apps\/web\//)) {
+  // The service-role key BYPASSES row-level security and never belongs in the web
+  // process — its one sanctioned home is an ADR-governed Edge Function
+  // (supabase/functions/<name>). The factory name is the deliberate grep signal;
+  // the env accessor + the key name are the other two ways it gets reached for.
+  if (/createServiceRoleClient_BYPASSES_RLS|serviceRoleCredentials|SUPABASE_SERVICE_ROLE_KEY/.test(text)) {
+    denyTool(
+      'PreToolUse',
+      'the service-role key BYPASSES row-level security and must never sit in the web process — its only sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts). SOURCE: packages/platform/supabase/src/service-role.ts',
+    )
+  }
+  // Server-side web code must resolve the user with getUser()/getClaims(), NEVER
+  // getSession(): getSession returns an UNVERIFIED token straight from an
+  // attacker-controlled cookie. Judged on whole-file writes so 'use client' (which
+  // marks a browser component, where a cheap session read is legitimate) can exempt.
+  const isClientComponent = /^\s*['"]use client['"]/m.test(text)
+  if (isWholeFile && !isClientComponent && /\.\s*getSession\s*\(/.test(text)) {
+    denyTool(
+      'PreToolUse',
+      "server-side web code must resolve the user with getUser()/getClaims(), NEVER getSession() — getSession decodes an UNVERIFIED token from an attacker-controlled cookie and does not check its signature. If this is a browser component, mark it 'use client'. SOURCE: apps/web/lib/supabase/server.ts (getUser, never getSession)",
+    )
+  }
+}
+
 // Positive requirement: DAL modules must run through the request-context wrapper
 // (withUserContext = the SET LOCAL RLS identity). Whole-file writes only.
 if (anyRel(/^apps\/server\/src\/dal\/[^/]+\.ts$/) && isWholeFile && !/withUserContext/.test(text)) {

@@ -301,11 +301,12 @@
       ]
     },
     "pretool-write-guard.mjs": {
-      "denyToolCallSites": 9,
+      "denyToolCallSites": 11,
       "denyExamples": [
         "tools/harness.config.mjs",
         "dangerouslySetInnerHTML",
-        "tools/route-allowlist.json"
+        "tools/route-allowlist.json",
+        "createServiceRoleClient_BYPASSES_RLS"
       ]
     }
   },

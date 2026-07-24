@@ -10,16 +10,20 @@
 // Path-scoped inline checks (app.config weakenings, WITH RECURSIVE, the mobile
 // server-import ban, the expo-secure-store host seam, DAL withUserContext,
 // append-only migrations) have no flat rule id and stay as direct tests.
-import { test, before } from 'node:test'
+
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
-const GUARD_RULES = new URL('../../template/base/.claude/hooks/lib/guard-rules.mjs', import.meta.url)
+const GUARD_RULES = new URL(
+  '../../template/base/.claude/hooks/lib/guard-rules.mjs',
+  import.meta.url,
+)
 let proj
 
 before(() => {
@@ -81,7 +85,9 @@ test('guards fail CLOSED when guard-rules.mjs cannot load (removed module)', () 
   rmSync(join(broken, '.claude/hooks/lib/guard-rules.mjs'))
   for (const hook of ['pretool-bash-guard.mjs', 'pretool-write-guard.mjs']) {
     const res = spawnSync('node', [join(broken, '.claude/hooks', hook)], {
-      input: JSON.stringify({ tool_input: { command: 'echo hi', file_path: 'x.ts', content: 'x' } }),
+      input: JSON.stringify({
+        tool_input: { command: 'echo hi', file_path: 'x.ts', content: 'x' },
+      }),
       encoding: 'utf8',
       env: { ...process.env, CLAUDE_PROJECT_DIR: broken },
     })
@@ -331,7 +337,7 @@ const RULE_CANARIES = {
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],
   'migration-apply-runner': [pathDeny('tests/migrations/migration-apply.mjs')],
-  'lefthook': [pathDeny('lefthook.yml')],
+  lefthook: [pathDeny('lefthook.yml')],
   'github-workflows': [pathDeny('.github/workflows/quality-gate.yml')],
   'eslint-config': [pathDeny('eslint.config.mjs')],
   'biome-config': [pathDeny('biome.jsonc')],
@@ -341,7 +347,7 @@ const RULE_CANARIES = {
   // The other half of the unit floor: the jest-expo preset config the Stop
   // hook's mobile-unit step runs.
   'jest-config': [pathDeny('apps/mobile/jest.config.js')],
-  'tsconfig': [pathDeny('tsconfig.json'), pathDeny('tsconfig.base.json')],
+  tsconfig: [pathDeny('tsconfig.json'), pathDeny('tsconfig.base.json')],
   'pnpm-workspace': [pathDeny('pnpm-workspace.yaml')],
   'gitleaks-config': [pathDeny('.gitleaks.toml')],
   'claude-settings': [pathDeny('.claude/settings.json')],
@@ -354,14 +360,14 @@ const RULE_CANARIES = {
     pathDeny('apps/mobile/android/app/build.gradle'),
     pathDeny('apps/mobile/android/gradle.properties'),
   ],
-  'cng-ios': [
-    pathDeny('apps/mobile/ios/Podfile'),
-    pathDeny('apps/mobile/ios/App/Info.plist'),
-  ],
+  'cng-ios': [pathDeny('apps/mobile/ios/Podfile'), pathDeny('apps/mobile/ios/App/Info.plist')],
 
   // ── write-guard: everywhere content-checks ──
   'dangerously-set-inner-html': [
-    contentDeny('apps/mobile/src/components/Html.tsx', '<div dangerouslySetInnerHTML={{ __html: x }} />\n'),
+    contentDeny(
+      'apps/mobile/src/components/Html.tsx',
+      '<div dangerouslySetInnerHTML={{ __html: x }} />\n',
+    ),
   ],
   'expo-public-secret-name': [
     // EXPO_PUBLIC_ vars are inlined into the shipped client bundle at export time.
@@ -370,14 +376,41 @@ const RULE_CANARIES = {
     // The transport origin legitimately rides the prefix — secret-SHAPED names only.
     contentAllow('apps/mobile/src/config.ts', 'const url = process.env.EXPO_PUBLIC_API_URL\n'),
   ],
+  'next-public-secret-name': [
+    // NEXT_PUBLIC_ vars are inlined into the shipped WEB bundle at build time.
+    contentDeny(
+      'apps/web/lib/config.ts',
+      'const k = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY\n',
+    ),
+    contentDeny('apps/web/app/page.tsx', 'const t = process.env.NEXT_PUBLIC_ADMIN_TOKEN\n'),
+    // The public config rides the prefix — secret-SHAPED names only. NEXT_PUBLIC_SUPABASE_
+    // PUBLISHABLE has no KEY suffix by design, so it must pass.
+    contentAllow('apps/web/lib/config.ts', 'const url = process.env.NEXT_PUBLIC_SUPABASE_URL\n'),
+    contentAllow(
+      'apps/web/lib/config.ts',
+      'const pk = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE\n',
+    ),
+  ],
   'set-config-session-wide': [
-    contentDeny('apps/server/src/db/context.ts', "await sql`select set_config('app.user_id', ${id}, false)`\n"),
+    contentDeny(
+      'apps/server/src/db/context.ts',
+      "await sql`select set_config('app.user_id', ${id}, false)`\n",
+    ),
     // A comma inside the value expression must not hide the session-wide 3rd arg.
-    contentDeny('apps/server/src/db/context.ts', "await sql`select set_config('app.user_id', concat(${a}, ${b}), false)`\n"),
+    contentDeny(
+      'apps/server/src/db/context.ts',
+      "await sql`select set_config('app.user_id', concat(${a}, ${b}), false)`\n",
+    ),
     // /i catches SQL-style FALSE.
-    contentDeny('apps/server/src/db/context.ts', "await sql`select set_config('app.user_id', ${id}, FALSE)`\n"),
+    contentDeny(
+      'apps/server/src/db/context.ts',
+      "await sql`select set_config('app.user_id', ${id}, FALSE)`\n",
+    ),
     // A nested "tests"-named product dir is still content-checked (not exempt).
-    contentDeny('apps/server/src/dal/tests/helper.ts', "await sql`select set_config('app.user_id', ${id}, false)`\n"),
+    contentDeny(
+      'apps/server/src/dal/tests/helper.ts',
+      "await sql`select set_config('app.user_id', ${id}, false)`\n",
+    ),
   ],
   'set-session-app-guc': [
     contentDeny('apps/server/src/db/context.ts', 'await sql`SET SESSION app.user_id = ${id}`\n'),
@@ -438,7 +471,9 @@ test('write-guard does NOT false-positive on ordinary nested project files', () 
     // Contains "ios" in a segment without BEING the generated native dir.
     'apps/mobile/src/ios-utils.ts',
   ]) {
-    const r = runHook('pretool-write-guard.mjs', { tool_input: { file_path: f, content: 'const x = 1\n' } })
+    const r = runHook('pretool-write-guard.mjs', {
+      tool_input: { file_path: f, content: 'const x = 1\n' },
+    })
     assert.ok(!denied(r), `${f} should not be treated as harness-protected`)
   }
 })
@@ -472,11 +507,17 @@ for (const cmd of [
 // ── write-guard: migrations append-only ───────────────────────────────────────
 test('write-guard denies edits to an EXISTING migration, allows a NEW one', () => {
   const existing = runHook('pretool-write-guard.mjs', {
-    tool_input: { file_path: 'packages/schema/drizzle/0000_init.sql', content: 'ALTER TABLE notes ...\n' },
+    tool_input: {
+      file_path: 'packages/schema/drizzle/0000_init.sql',
+      content: 'ALTER TABLE notes ...\n',
+    },
   })
   assert.ok(denied(existing), 'existing migration must be append-only')
   const fresh = runHook('pretool-write-guard.mjs', {
-    tool_input: { file_path: 'packages/schema/drizzle/0001_add_column.sql', content: 'ALTER TABLE notes ADD COLUMN x text;\n' },
+    tool_input: {
+      file_path: 'packages/schema/drizzle/0001_add_column.sql',
+      content: 'ALTER TABLE notes ADD COLUMN x text;\n',
+    },
   })
   assert.ok(!denied(fresh), fresh.stdout)
 })
@@ -485,7 +526,11 @@ test('write-guard denies edits to an EXISTING migration, allows a NEW one', () =
 test('write-guard content-checks app.config.ts weakenings (not blanket protection)', () => {
   const cases = [
     ['export default { android: { usesCleartextTraffic: true } }\n', true, 'cleartext traffic'],
-    ['export default { ios: { infoPlist: { NSAllowsArbitraryLoads: true } } }\n', true, 'ATS off wholesale'],
+    [
+      'export default { ios: { infoPlist: { NSAllowsArbitraryLoads: true } } }\n',
+      true,
+      'ATS off wholesale',
+    ],
     ['export default { newArchEnabled: false }\n', true, 'New Architecture off'],
     ['export default { name: "Renamed App", slug: "renamed-app" }\n', false, 'benign edit'],
   ]
@@ -501,23 +546,59 @@ test('write-guard content-checks app.json the same way (JSON spelling)', () => {
   const bad = runHook('pretool-write-guard.mjs', {
     tool_input: {
       file_path: 'apps/mobile/app.json',
-      content: '{"expo":{"ios":{"infoPlist":{"NSAppTransportSecurity":{"NSAllowsArbitraryLoads":true}}}}}\n',
+      content:
+        '{"expo":{"ios":{"infoPlist":{"NSAppTransportSecurity":{"NSAllowsArbitraryLoads":true}}}}}\n',
     },
   })
   assert.ok(denied(bad), bad.stdout)
   const good = runHook('pretool-write-guard.mjs', {
-    tool_input: { file_path: 'apps/mobile/app.json', content: '{"expo":{"name":"app","slug":"app"}}\n' },
+    tool_input: {
+      file_path: 'apps/mobile/app.json',
+      content: '{"expo":{"name":"app","slug":"app"}}\n',
+    },
   })
   assert.ok(!denied(good), good.stdout)
 })
 
 for (const [label, file, content] of [
-  ['unguarded WITH RECURSIVE', 'apps/server/src/queries/graph.ts', 'const q = sql`WITH RECURSIVE t AS (SELECT 1)`\n'],
-  ['mobile importing drizzle', 'apps/mobile/src/features/notes.ts', "import { eq } from 'drizzle-orm'\n"],
+  [
+    'unguarded WITH RECURSIVE',
+    'apps/server/src/queries/graph.ts',
+    'const q = sql`WITH RECURSIVE t AS (SELECT 1)`\n',
+  ],
+  [
+    'mobile importing drizzle',
+    'apps/mobile/src/features/notes.ts',
+    "import { eq } from 'drizzle-orm'\n",
+  ],
   ['mobile importing postgres', 'apps/mobile/src/data/db.ts', "import postgres from 'postgres'\n"],
-  ['mobile importing @hono/*', 'apps/mobile/src/api/client.ts', "import { hc } from '@hono/zod-validator'\n"],
+  [
+    'mobile importing @hono/*',
+    'apps/mobile/src/api/client.ts',
+    "import { hc } from '@hono/zod-validator'\n",
+  ],
   ['mobile importing pino', 'apps/mobile/src/log.ts', "import pino from 'pino'\n"],
-  ['expo-secure-store outside the host seam', 'apps/mobile/src/features/auth.ts', "import * as SecureStore from 'expo-secure-store'\n"],
+  [
+    'expo-secure-store outside the host seam',
+    'apps/mobile/src/features/auth.ts',
+    "import * as SecureStore from 'expo-secure-store'\n",
+  ],
+  // Web surface: the service-role factory never in the web process; server-side getSession banned.
+  [
+    'service-role factory in apps/web',
+    'apps/web/app/actions/admin.ts',
+    "import { createServiceRoleClient_BYPASSES_RLS } from '@app/supabase'\n",
+  ],
+  [
+    'SUPABASE_SERVICE_ROLE_KEY in apps/web',
+    'apps/web/lib/db.ts',
+    'const k = process.env.SUPABASE_SERVICE_ROLE_KEY\n',
+  ],
+  [
+    'getSession server-side in apps/web',
+    'apps/web/lib/auth.ts',
+    'export async function who() { return await supabase.auth.getSession() }\n',
+  ],
 ]) {
   test(`write-guard denies (inline check): ${label}`, () => {
     const r = runHook('pretool-write-guard.mjs', { tool_input: { file_path: file, content } })
@@ -526,10 +607,37 @@ for (const [label, file, content] of [
 }
 
 for (const [label, file, content] of [
-  ['transaction-local GUC', 'apps/server/src/db/context.ts', "await sql`select set_config('app.user_id', ${id}, true)`\n"],
-  ['guarded WITH RECURSIVE', 'apps/server/src/queries/graph.ts', 'const q = sql`WITH RECURSIVE t AS (SELECT 1) CYCLE id SET is_cycle USING path`\n'],
-  ['expo-secure-store inside src/host (the one-door seam)', 'apps/mobile/src/host/secure-store.ts', "import * as SecureStore from 'expo-secure-store'\n"],
-  ['server importing drizzle (the ban is mobile-only)', 'apps/server/src/db/schema-glue.ts', "import { eq } from 'drizzle-orm'\n"],
+  [
+    'transaction-local GUC',
+    'apps/server/src/db/context.ts',
+    "await sql`select set_config('app.user_id', ${id}, true)`\n",
+  ],
+  [
+    'guarded WITH RECURSIVE',
+    'apps/server/src/queries/graph.ts',
+    'const q = sql`WITH RECURSIVE t AS (SELECT 1) CYCLE id SET is_cycle USING path`\n',
+  ],
+  [
+    'expo-secure-store inside src/host (the one-door seam)',
+    'apps/mobile/src/host/secure-store.ts',
+    "import * as SecureStore from 'expo-secure-store'\n",
+  ],
+  [
+    'server importing drizzle (the ban is mobile-only)',
+    'apps/server/src/db/schema-glue.ts',
+    "import { eq } from 'drizzle-orm'\n",
+  ],
+  // Web surface: getUser is the CORRECT server-side call; getSession is fine inside a 'use client' component.
+  [
+    'getUser server-side in apps/web',
+    'apps/web/lib/auth.ts',
+    'export async function who() { return await supabase.auth.getUser() }\n',
+  ],
+  [
+    "getSession inside a 'use client' web component",
+    'apps/web/components/SessionBadge.tsx',
+    "'use client'\nexport function B() { return supabase.auth.getSession() }\n",
+  ],
 ]) {
   test(`write-guard passes: ${label}`, () => {
     const r = runHook('pretool-write-guard.mjs', { tool_input: { file_path: file, content } })
@@ -539,13 +647,17 @@ for (const [label, file, content] of [
 
 test('write-guard requires withUserContext in whole-file DAL writes', () => {
   const bare = runHook('pretool-write-guard.mjs', {
-    tool_input: { file_path: 'apps/server/src/dal/notes.ts', content: 'export const list = () => db.select()\n' },
+    tool_input: {
+      file_path: 'apps/server/src/dal/notes.ts',
+      content: 'export const list = () => db.select()\n',
+    },
   })
   assert.ok(denied(bare), 'DAL without withUserContext must be denied')
   const wrapped = runHook('pretool-write-guard.mjs', {
     tool_input: {
       file_path: 'apps/server/src/dal/notes.ts',
-      content: "import { withUserContext } from '../db/context'\nexport const list = (u: string) => withUserContext(u, (tx) => tx.select())\n",
+      content:
+        "import { withUserContext } from '../db/context'\nexport const list = (u: string) => withUserContext(u, (tx) => tx.select())\n",
     },
   })
   assert.ok(!denied(wrapped), wrapped.stdout)
@@ -568,7 +680,10 @@ test('write-guard exempts test bodies from content checks', () => {
     'apps/mobile/__tests__/setup.tsx',
   ]) {
     const r = runHook('pretool-write-guard.mjs', {
-      tool_input: { file_path: f, content: "await sql`select set_config('app.user_id', ${id}, false)`\n" },
+      tool_input: {
+        file_path: f,
+        content: "await sql`select set_config('app.user_id', ${id}, false)`\n",
+      },
     })
     assert.ok(!denied(r), `${f}: ${r.stdout}`)
   }
@@ -579,19 +694,34 @@ test('source-check blocks uncited decision sites, passes cited ones (ts + sql)',
   const uncitedTs = join(proj, 'apps/server/src/auth-x.ts')
   mkdirSync(join(proj, 'apps/server/src'), { recursive: true })
   writeFileSync(uncitedTs, 'const claims = await jwtVerify(token, jwks)\n')
-  assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedTs } }).code, 2)
+  assert.equal(
+    runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedTs } }).code,
+    2,
+  )
 
   const citedTs = join(proj, 'apps/server/src/auth-y.ts')
-  writeFileSync(citedTs, '// SOURCE: entra docs [corpus: entra/jwt-verify]\nconst claims = await jwtVerify(token, jwks)\n')
+  writeFileSync(
+    citedTs,
+    '// SOURCE: entra docs [corpus: entra/jwt-verify]\nconst claims = await jwtVerify(token, jwks)\n',
+  )
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: citedTs } }).code, 0)
 
   const uncitedSql = join(proj, 'packages/schema/drizzle/9999_x.sql')
   writeFileSync(uncitedSql, 'ALTER TABLE notes FORCE ROW LEVEL SECURITY;\n')
-  assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedSql } }).code, 2)
+  assert.equal(
+    runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedSql } }).code,
+    2,
+  )
 
   const citedSql = join(proj, 'packages/schema/drizzle/9998_y.sql')
-  writeFileSync(citedSql, '-- SOURCE: postgres docs [corpus: postgres/rls-force]\nALTER TABLE notes FORCE ROW LEVEL SECURITY;\n')
-  assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: citedSql } }).code, 0)
+  writeFileSync(
+    citedSql,
+    '-- SOURCE: postgres docs [corpus: postgres/rls-force]\nALTER TABLE notes FORCE ROW LEVEL SECURITY;\n',
+  )
+  assert.equal(
+    runHook('posttool-source-check.mjs', { tool_input: { file_path: citedSql } }).code,
+    0,
+  )
 })
 
 test('source-check skips json, tests, and generated theme tokens', () => {
@@ -662,7 +792,10 @@ test('stop gate: a BROKEN config blocks the turn even when the fallback chain wo
   const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false })
   assert.equal(r.code, 2, 'mangled gate config must block the turn')
   assert.ok(r.stderr.includes('gate-config BROKEN'), r.stderr)
-  assert.ok(!r.stderr.includes('pnpm validate FAILED'), 'fallback must be direct invocation, not script indirection')
+  assert.ok(
+    !r.stderr.includes('pnpm validate FAILED'),
+    'fallback must be direct invocation, not script indirection',
+  )
 })
 
 test('stop gate: green output surfaces SKIPPED layers instead of staying silent', () => {
@@ -670,9 +803,13 @@ test('stop gate: green output surfaces SKIPPED layers instead of staying silent'
     join(proj, 'tools/harness.config.mjs'),
     `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls', 'node -e "console.log(process.env.X_MSG)"']]\n`,
   )
-  const r = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, {
-    env: { X_MSG: 'rls-isolation: SKIPPED - database unreachable' },
-  })
+  const r = runHook(
+    'stop-validate-gate.mjs',
+    { stop_hook_active: false },
+    {
+      env: { X_MSG: 'rls-isolation: SKIPPED - database unreachable' },
+    },
+  )
   assert.equal(r.code, 0, r.stderr)
   assert.ok(r.stderr.includes('skipped layers'), r.stderr)
   assert.ok(r.stderr.includes('SKIPPED'), r.stderr)
@@ -731,7 +868,10 @@ test('write-guard: an ordinary file is still approved (the resolver must not ove
   mkdirSync(join(proj, 'apps/mobile/src'), { recursive: true })
   const r = runHook('pretool-write-guard.mjs', {
     tool_name: 'Write',
-    tool_input: { file_path: 'apps/mobile/src/App.tsx', content: 'export const App = () => null\n' },
+    tool_input: {
+      file_path: 'apps/mobile/src/App.tsx',
+      content: 'export const App = () => null\n',
+    },
   })
   assert.ok(!denied(r), `ordinary source writes must still pass: ${r.stdout} ${r.stderr}`)
 })

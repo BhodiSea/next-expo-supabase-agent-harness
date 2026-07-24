@@ -316,6 +316,17 @@ export const WRITE_GLOBAL_CHECKS = [
       'EXPO_PUBLIC_-prefixed vars are inlined into the shipped client bundle — never put secret-shaped names there.',
   },
   {
+    // NEXT_PUBLIC_ vars are inlined into the Next.js CLIENT bundle at build time —
+    // the web twin of EXPO_PUBLIC_ on mobile. Secret-SHAPED names only: the public
+    // config rides NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE (no
+    // KEY suffix, by design), so a NEXT_PUBLIC_*KEY/SECRET/TOKEN is a secret leaking
+    // into a browser-shipped bundle.
+    id: 'next-public-secret-name',
+    re: /NEXT_PUBLIC_[A-Z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PRIVATE)/,
+    message:
+      'NEXT_PUBLIC_-prefixed vars are inlined into the shipped web bundle — never put secret-shaped names there. The public config uses NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE (no KEY suffix); the service key stays server-only.',
+  },
+  {
     // Lazy [\s\S]*? instead of [^,]+ so a comma INSIDE the value expression
     // cannot hide the session-wide third argument; /i catches SQL-style FALSE.
     id: 'set-config-session-wide',
