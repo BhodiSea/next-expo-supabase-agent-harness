@@ -40,7 +40,7 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-23 gates, cheap → expensive:
+24 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks —
 tampering is turn-fatal) → types (`tsc -b`) → lint (typescript-eslint
@@ -56,7 +56,9 @@ version-sync → prompts (hash-locked LLM prompts) → licenses → **schema-rls
 (every `supabase/schemas` table FORCE RLS + per-operation policies + initPlan
 predicates + dual isolation-registry coverage, or a reviewed exemption) →
 **types-drift** (the committed Supabase type mirror matches the live schema) →
-migrations (append-only, DML-free) → contracts → dead-code (`knip --strict`) →
+migrations (append-only, DML-free) → contracts → **parity** (two-way
+surface-parity ledger: every action ↔ a `PARITY.md` row, both ways) →
+dead-code (`knip --strict`) →
 architecture (dependency-cruiser: mobile never imports server code or the
 server stack, driver confined to the db layer, `db/context` DAL-only) → build →
 styleguide (OKLCH token manifest regen-diff) → perf-budget → route-manifest →

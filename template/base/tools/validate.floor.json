@@ -16,6 +16,7 @@
     ["types-drift", "node tools/check-types-drift.mjs"],
     ["migrations", "node tools/check-migrations.mjs"],
     ["contracts", "node tools/check-contract-drift.mjs"],
+    ["parity", "node tools/check-mobile-parity.mjs"],
     ["dead-code", "pnpm exec knip --strict"],
     ["architecture", "pnpm exec depcruise apps packages --config .dependency-cruiser.cjs"],
     ["build", "node tools/build-check.mjs"],

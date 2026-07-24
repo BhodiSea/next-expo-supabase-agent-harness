@@ -268,15 +268,39 @@ append-only; add `DROP TABLE notes;` in a new migration without an ADR line → 
 
 ### 15. contracts — `node tools/check-contract-drift.mjs`
 
-(1) OpenAPI regen-diff: re-emit from the live route definitions
-(stable-stringified) and diff against the committed `apps/server/openapi.json` —
-pass with `pnpm openapi:emit` and review the diff. (2) tsconfig project references
-mirror the pnpm workspace dependency graph — parallel topologies desynchronize
-into confusing type errors otherwise.
-**Anti-vacuity:** add a route without re-emitting → FAIL stale; delete a
-`references` entry from a package tsconfig → FAIL naming the missing ref.
+(1) Contract-inventory regen-diff: regenerate the two committed inventories —
+`tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes)
+and `tools/generated/event-catalog.json` (every event the platform + vertical
+catalogs declare) — from the LIVE values and diff against the committed copies, so
+adding OR removing an action/event without `pnpm gen` reds. Needs an install (tsx,
+to walk the runtime router/catalogs); skips loudly without one, fails closed in CI.
+(2) tsconfig project references mirror the pnpm workspace dependency graph —
+parallel topologies desynchronize into confusing type errors otherwise. (3) Bounded
+wire strings (G18): every `z.string()` in `@app/contracts` carries `.max(N)`, or a
+reviewed entry in `tools/dto-bounds-allow.json` — an unbounded wire string is a
+memory-amplification vector.
+**Anti-vacuity:** add a procedure without regenerating → FAIL stale; delete a
+`references` entry from a package tsconfig → FAIL naming the missing ref; add an
+unbounded `z.string()` to a wire DTO → FAIL naming the site.
 
-### 16. dead-code — `pnpm exec knip --strict`
+### 16. parity — `node tools/check-mobile-parity.mjs`
+
+Two-way surface parity: every action in the contracts-verified inventory
+(`tools/generated/action-inventory.json`) maps to EXACTLY ONE row in the seeded
+`PARITY.md` ledger, naming the web screen and the mobile screen that surface it —
+each an existing repo-relative path, or `—` (exempt) WITH a reason in the Notes
+cell. The closure runs both directions: a new action with no row reds (forward), a
+row for a deleted/renamed action reds (backward — the fix to the source scanner's
+one-way rot). Action names admit digits (`billing.v2Invoice`), unlike the source
+regex that silently dropped them. Runs right after `contracts` so the inventory is
+byte-fresh. Ships **soft** via `rampNote` (NOTE-only on installs predating it) and
+**strict** on fresh installs + the template tree; `CHECK_MOBILE_PARITY_STRICT=1`
+forces strict anywhere.
+**Anti-vacuity:** add a procedure without a `PARITY.md` row → FAIL (strict) naming
+the action; leave a row for a removed action → FAIL naming the stale row; set a
+surface cell to `—` with an empty Notes cell → FAIL demanding the reason.
+
+### 17. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
@@ -285,7 +309,7 @@ visible, greppable claim, reviewed like code. NEVER `knip --fix` (blocked): it
 auto-deletes with false positives.
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 17. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 18. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; mobile resolves no `postgres|drizzle-orm|pino|@hono/*`,
 nothing in `apps/server`, and NOT `@app/schema` (wire contracts come from
@@ -296,7 +320,7 @@ under `apps/server/src/db/`; `withUserContext` importable only from the DAL;
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 18. build — `node tools/build-check.mjs`
+### 19. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -313,7 +337,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 19. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 20. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA. `tools/styleguide.manifest.json` (write-guard-protected)
 is the OKLCH source of truth; `tools/gen-theme.mjs` COMPILES it into the committed
@@ -352,7 +376,7 @@ FAIL naming the literal; call `Animated.timing` from a screen → FAIL pointing 
 the seam; spell `shadowOpacity:` outside src/theme → FAIL; style a raw
 `<Pressable>` in a second home file → FAIL naming the base.
 
-### 20. perf-budget — `node tools/check-perf-budget.mjs`
+### 21. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -379,7 +403,7 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 21. route-manifest — `node tools/check-route-manifest.mjs`
+### 22. route-manifest — `node tools/check-route-manifest.mjs`
 
 Every screen is REGISTERED: `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -396,7 +420,7 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-### 22. e2e — `node tools/check-e2e.mjs`
+### 23. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -415,7 +439,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 23. docs-sync — `node tools/check-docs-sync.mjs`
+### 24. docs-sync — `node tools/check-docs-sync.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must

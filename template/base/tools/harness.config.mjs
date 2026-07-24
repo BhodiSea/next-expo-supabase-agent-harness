@@ -38,6 +38,11 @@ export const VALIDATE_STEPS = [
   ['types-drift', 'node tools/check-types-drift.mjs'],
   ['migrations', 'node tools/check-migrations.mjs'],
   ['contracts', 'node tools/check-contract-drift.mjs'],
+  // Two-way surface parity: every action in the contracts-verified inventory maps to exactly
+  // one PARITY.md row (a web screen, a mobile screen, or a reasoned —), and every row names a
+  // LIVE action. Runs right after `contracts` so the inventory it contains against is proven
+  // byte-fresh. Ships soft via rampNote (strict on fresh installs + the template tree).
+  ['parity', 'node tools/check-mobile-parity.mjs'],
   ['dead-code', 'pnpm exec knip --strict'],
   ['architecture', 'pnpm exec depcruise apps packages --config .dependency-cruiser.cjs'],
   ['build', 'node tools/build-check.mjs'],

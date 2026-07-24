@@ -59,6 +59,9 @@ export const SEEDED_PREFIXES = [
 export const SEEDED_FILES = new Set([
   'AGENTS.md',
   'CLAUDE.md',
+  // The surface-parity ledger the `parity` gate reads: its rows name THIS project's actions
+  // and screens, so `update` must plant-when-absent and never clobber a project's tuned rows.
+  'PARITY.md',
   'CITATION.cff',
   'LICENSE',
   'SECURITY.md',

@@ -126,6 +126,12 @@
         "ref": "tests/gates/check-contract-drift.test.mjs"
       }
     ],
+    "parity": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-mobile-parity.test.mjs"
+      }
+    ],
     "dead-code": [
       {
         "kind": "runner",
