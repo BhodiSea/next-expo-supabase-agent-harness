@@ -28,7 +28,6 @@ export const MODULES = [
   'gate-a11y-deep',
   'crash-reporting',
   'push-notifications',
-  'ops-backup',
   'eval-live',
   'observability',
 ]

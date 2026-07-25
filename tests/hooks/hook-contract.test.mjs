@@ -8,8 +8,8 @@
 // imports that pure-data module and asserts every rule id has at least one canary —
 // the per-rule falsifiability closure scripts/check-canary-coverage.mjs greps for.
 // Path-scoped inline checks (app.config weakenings, WITH RECURSIVE, the mobile
-// server-import ban, the expo-secure-store host seam, DAL withUserContext,
-// append-only migrations) have no flat rule id and stay as direct tests.
+// server-import ban, the expo-secure-store host seam, the web getSession/service-role
+// checks, append-only migrations) have no flat rule id and stay as direct tests.
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -399,7 +399,7 @@ const RULE_CANARIES = {
     ),
     // A nested "tests"-named product dir is still content-checked (not exempt).
     contentDeny(
-      'apps/server/src/dal/tests/helper.ts',
+      'packages/verticals/notes/src/data/tests/helper.ts',
       "await sql`select set_config('app.user_id', ${id}, false)`\n",
     ),
   ],
@@ -643,28 +643,6 @@ for (const [label, file, content] of [
   })
 }
 
-test('write-guard requires withUserContext in whole-file DAL writes', () => {
-  const bare = runHook('pretool-write-guard.mjs', {
-    tool_input: {
-      file_path: 'apps/server/src/dal/notes.ts',
-      content: 'export const list = () => db.select()\n',
-    },
-  })
-  assert.ok(denied(bare), 'DAL without withUserContext must be denied')
-  const wrapped = runHook('pretool-write-guard.mjs', {
-    tool_input: {
-      file_path: 'apps/server/src/dal/notes.ts',
-      content:
-        "import { withUserContext } from '../db/context'\nexport const list = (u: string) => withUserContext(u, (tx) => tx.select())\n",
-    },
-  })
-  assert.ok(!denied(wrapped), wrapped.stdout)
-  const fragment = runHook('pretool-write-guard.mjs', {
-    tool_input: { file_path: 'apps/server/src/dal/notes.ts', new_string: 'const limit = 50\n' },
-  })
-  assert.ok(!denied(fragment), 'Edit fragments must not false-deny the DAL positive check')
-})
-
 test('write-guard exempts test bodies from content checks', () => {
   // Root test trees, the mobile __tests__ tree, and colocated *.test.* files
   // legitimately reference banned patterns (the RLS suite asserts on
@@ -674,7 +652,7 @@ test('write-guard exempts test bodies from content checks', () => {
     'tests/rls/probe.test.ts',
     'test/unit/context.ts',
     'e2e/a11y.spec.ts',
-    'apps/server/src/dal/notes.test.ts',
+    'packages/verticals/notes/src/data/notes.test.ts',
     'apps/mobile/__tests__/setup.tsx',
   ]) {
     const r = runHook('pretool-write-guard.mjs', {
@@ -831,19 +809,20 @@ test('write-guard: a symlink pointing at a protected file is DENIED under its in
 })
 
 test('write-guard: an exempt-LOOKING link name cannot smuggle content into a checked path', (t) => {
-  mkdirSync(join(proj, 'apps/server/src/dal'), { recursive: true })
-  writeFileSync(join(proj, 'apps/server/src/dal/notes.ts'), 'export const q = 1\n')
+  mkdirSync(join(proj, 'apps/mobile/src/features/notes'), { recursive: true })
+  writeFileSync(join(proj, 'apps/mobile/src/features/notes/data.ts'), 'export const q = 1\n')
   // *.test.ts is content-check-exempt (test bodies legitimately reference banned
-  // patterns) — but the bytes here land in a DAL module, which must carry withUserContext.
-  if (!trySymlink('apps/server/src/dal/notes.ts', join(proj, 'sneaky.test.ts'))) {
+  // patterns) — but the bytes here land in the mobile bundle, which must never import a
+  // server/database module (feature code reaches data through the tRPC client).
+  if (!trySymlink('apps/mobile/src/features/notes/data.ts', join(proj, 'sneaky.test.ts'))) {
     t.skip('symlinkSync needs privileges on this Windows runner')
     return
   }
   const r = runHook('pretool-write-guard.mjs', {
     tool_name: 'Write',
-    tool_input: { file_path: 'sneaky.test.ts', content: 'export const all = () => db.select()\n' },
+    tool_input: { file_path: 'sneaky.test.ts', content: "import { sql } from 'postgres'\n" },
   })
-  assert.ok(denied(r), 'an exempt name must not buy an exemption for bytes landing in the DAL')
+  assert.ok(denied(r), 'an exempt name must not buy an exemption for bytes landing in the mobile bundle')
 })
 
 test('write-guard: a link out of the project tree is DENIED (path-scoped guards cannot see it)', (t) => {

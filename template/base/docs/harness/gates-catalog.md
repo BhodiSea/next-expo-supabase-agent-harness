@@ -340,7 +340,7 @@ ratchet against the committed `tools/perf-baseline.json` (measured ≤ baseline 
 ratioCap; re-baseline only via `pnpm perf:baseline` in a reviewed commit; a
 malformed baseline FAILS CLOSED). Stamped — editing the baseline invalidates the
 stamp, so a warm validate re-runs the real export.
-**Anti-vacuity:** embed the literal `MIGRATOR_DATABASE_URL` in a mobile constant →
+**Anti-vacuity:** embed the literal `SUPABASE_SERVICE_ROLE_KEY` in a mobile constant →
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
@@ -680,7 +680,6 @@ ci-provenance + ci-mobile-release + ci-web-deploy, `strict` = all.
 | `gate-a11y-deep` | screen-reader checklist + extended a11y assertions beyond the lint/RNTL floor | needs human-in-the-loop passes; the floor already lint/test-enforces |
 | `crash-reporting` | crash/error ingestion wiring, symbol upload, redaction unit test | needs an ingestion endpoint; redaction policy is project-specific |
 | `push-notifications` | push credential wiring + permission-prompt discipline | a product decision with store-policy weight |
-| `ops-backup` | pgBackRest configuration + restore-drill runner | operational infrastructure, not repo code |
 | `eval-live` | GPU-runner live-model eval lane: GBNF/schema pre-validation, exemplar/holdout disjointness check | needs GPU hardware and a served model; the default eval is fixture-scored by design |
 | `observability` | OpenTelemetry wiring for the server + span-per-route test | adds a runtime dependency and an OTLP target decision better made deliberately |
 

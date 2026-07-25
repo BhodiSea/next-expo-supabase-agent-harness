@@ -76,7 +76,7 @@ test('the deliberatePlant allowlist clears exactly the listed git path, nothing 
 test('template→install mapping is the installer’s own: renames, .tmpl strip, module trees, metadata skipped', () => {
   // package.json.tmpl in a module → installs at package.json (seeded) — the
   // .tmpl strip and two-segment module prefix both come from installer/lib.
-  const tmpl = check(['template/modules/ops-backup/package.json.tmpl'])
+  const tmpl = check(['template/modules/push-notifications/package.json.tmpl'])
   assert.equal(tmpl.length, 1)
   assert.equal(tmpl[0].installPath, 'package.json')
   assert.equal(tmpl[0].mode, 'seeded')

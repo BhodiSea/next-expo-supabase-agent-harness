@@ -23,9 +23,9 @@ $ pnpm test:rls        # REQUIRED if this PR touches migrations / RLS / the DAL 
       wider than its operation; INSERT covered by `WITH CHECK`.
 - [ ] Migrations are append-only (new file, never an edit); destructive DDL carries
       `-- adr:` and follows docs/runbooks/expand-contract.md.
-- [ ] User identity flows ONLY via the GUC discipline (`set_config('app.user_id', …, true)`
-      inside a transaction — `SET LOCAL` semantics); no interpolated identity, no
-      superuser/BYPASSRLS role on the request path.
+- [ ] User identity flows ONLY via RLS + `auth.uid()` — the request-scoped supabase-js
+      client carries the verified JWT (`request.jwt.claims`); no app-side filtering, no
+      interpolated identity, no `service_role`/BYPASSRLS role on the request path.
 - [ ] Authorization decisions live in the DAL against RLS-scoped connections — never in
       the mobile client, never trusting client-supplied IDs.
 - [ ] Token verification unchanged, or reviewed: issuer/audience/algorithm stay pinned;

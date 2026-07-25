@@ -618,11 +618,14 @@ const REGISTRY_WITH_DELETE = `export const ACTION_COMMANDS = [
   { id: 'session.deleteAccount', titleKey: 'command.deleteAccount', group: 'session' },
 ]
 `
-const OPENAPI_WITH_DELETE = { openapi: '3.1.0', paths: { '/api/me': { delete: { responses: {} } } } }
 const AUTH_SOURCES = {
   'apps/mobile/app/sign-in.tsx': 'export default function SignIn() { return null }\n',
   'apps/mobile/src/features/actions/registry.ts': REGISTRY_WITH_DELETE,
-  'apps/server/openapi.json': JSON.stringify(OPENAPI_WITH_DELETE),
+  // The account-deletion backing is a Supabase Edge Function: its index.ts on
+  // disk AND a [functions.<name>] block in config.toml (store-policy points at it
+  // via accountDeletion.edgeFunction = 'delete-account').
+  'supabase/functions/delete-account/index.ts': 'Deno.serve(() => new Response("ok"))\n',
+  'supabase/config.toml': '[functions.delete-account]\nverify_jwt = true\n',
 }
 
 test('GREEN store floor: the base fixture passes with the placeholder-icon NOTE (warn posture)', () => {
@@ -852,7 +855,7 @@ test('11f icons: the solid-placeholder posture escalates from NOTE to red via th
   assert.equal(realArt.code, 0, realArt.out)
 })
 
-test('11g account deletion: an auth surface without the registered action or the openapi DELETE reds', () => {
+test('11g account deletion: an auth surface without the registered action or the backing Edge Function reds', () => {
   const noAction = runGate(
     fixture({
       sources: {
@@ -865,13 +868,12 @@ test('11g account deletion: an auth surface without the registered action or the
   assert.ok(noAction.out.includes("registers no 'session.deleteAccount' command"), noAction.out)
   assert.ok(noAction.out.includes('5.1.1(v)'), noAction.out)
 
-  const noEndpoint = runGate(
-    fixture({
-      sources: { ...AUTH_SOURCES, 'apps/server/openapi.json': JSON.stringify({ paths: {} }) },
-    }),
-  )
+  // The action is registered but the backing Edge Function is absent on disk.
+  const authNoFn = { ...AUTH_SOURCES }
+  delete authNoFn['supabase/functions/delete-account/index.ts']
+  const noEndpoint = runGate(fixture({ sources: authNoFn }))
   assert.equal(noEndpoint.code, 1, noEndpoint.out)
-  assert.ok(noEndpoint.out.includes('declares no such operation'), noEndpoint.out)
+  assert.ok(noEndpoint.out.includes('does not exist'), noEndpoint.out)
 
   const closed = runGate(fixture({ sources: AUTH_SOURCES }))
   assert.equal(closed.code, 0, closed.out)

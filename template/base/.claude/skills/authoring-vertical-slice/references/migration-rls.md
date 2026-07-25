@@ -128,9 +128,9 @@ worked example.
 
 `auth.uid()` resolves from the caller's verified `request.jwt.claims`, set by PostgREST from
 the bearer/cookie token — the caller runs as the `authenticated` role over a real GoTrue JWT.
-There is NO `set_config('app.user_id', …)`, no `SET LOCAL app.user_id`, and no per-connection
-identity GUC anywhere in this stack; a policy that read one would be trusting a value the
-transport, not the auth server, decided. The pgTAP suites impersonate a tenant with
+No policy reads an application-set identity variable, and nothing in this stack sets one — no
+`set_config` identity GUC, no per-connection session value; a policy that trusted one would be
+trusting a value the transport, not the auth server, decided. The pgTAP suites impersonate a tenant with
 `SET LOCAL "request.jwt.claims"` + `SET LOCAL ROLE authenticated` precisely because that is
 the shape a real request arrives with.
 

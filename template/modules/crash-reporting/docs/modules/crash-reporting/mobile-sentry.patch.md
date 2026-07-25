@@ -204,7 +204,7 @@ import { redactEvent } from './report'
 it('routes Sentry event fields through the redaction policy', () => {
   const event = redactEvent({
     message: 'probe by admin@example.com',
-    exception: { values: [{ value: 'db at postgres://app_api:postgres@127.0.0.1/app' }] },
+    exception: { values: [{ value: 'db at postgres://postgres:postgres@127.0.0.1/app' }] },
     extra: { authorization: 'Bearer abc' },
     breadcrumbs: [{ message: 'GET https://svc:hunter2@internal/health' }],
   } as never)
@@ -219,11 +219,11 @@ it('routes Sentry event fields through the redaction policy', () => {
 
 With your ingest host (or a local capture proxy) as the DSN target, capture a
 test error containing a credentialed connection string (the dev-shaped
-`postgres://app_api:postgres@127.0.0.1/app` works) plus an e-mail address:
+`postgres://postgres:postgres@127.0.0.1/app` works) plus an e-mail address:
 
 ```ts
 Sentry.captureException(
-  new Error('probe by admin@example.com via postgres://app_api:postgres@127.0.0.1/app'),
+  new Error('probe by admin@example.com via postgres://postgres:postgres@127.0.0.1/app'),
 )
 ```
 

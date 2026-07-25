@@ -1,13 +1,12 @@
 {
   "_readme": [
     "Personal, git-ignored overrides. Copy this file to .claude/settings.local.json and fill in the env values.",
-    "DATABASE_URL / MIGRATOR_DATABASE_URL are for the LOCAL docker-compose Postgres ONLY (started via `pnpm db:up`). Never point them at a shared or production database.",
+    "SUPABASE_DB_URL is the direct, password-bearing connection to the LOCAL Supabase Postgres ONLY (started via `supabase start`; `supabase status` prints it) — used by migrations/tooling and the rls_verify probe. Never point it at a shared or production database.",
     "CORPUS_INDEX_URL optionally points the corpus_search MCP server at a remote citation index; leave it empty to use the checked-in corpus index.",
     "The shared settings.json already allows Bash/WebFetch broadly (the PreToolUse guards, not permission prompts, are the enforcement layer); add personal permission overrides here only to tighten, or to clear a specific `ask` entry you hit often."
   ],
   "env": {
-    "DATABASE_URL": "",
-    "MIGRATOR_DATABASE_URL": "",
+    "SUPABASE_DB_URL": "",
     "CORPUS_INDEX_URL": ""
   }
 }

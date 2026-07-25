@@ -109,7 +109,8 @@ text: security-surface weakenings in `app.config.ts`/`eas.json` (cleartext/ATS
 exceptions, identity or runtimeVersion drift, secret-shaped `extra` keys),
 EXPO_PUBLIC_-prefixed secret-shaped names, session-scoped GUCs, `WITH RECURSIVE`
 without CYCLE/visited, mobile imports of server/db modules, keychain access outside the
-host/auth seam, and DAL modules missing `withUserContext`. It deliberately does NOT
+host/auth seam, and the two web-process credential mistakes (the service-role key, and
+`getSession()` in server-side web code). It deliberately does NOT
 blanket-protect the app config — adding a plugin or permission is routine vertical-slice
 work; only the specific weakenings are content-checked, and the reviewed data files
 (`tools/expo-permissions.json`, `tools/expo-plugins.json`) are where grants get their
@@ -164,10 +165,16 @@ Doctrine notes for the citations:
 
 - **mobile-server split** — the mobile app is an untrusted client: it holds a scoped
   bearer token and can send any request it likes; the OS keychain, the app scheme, and
-  store review are containment, never authorization. `withUserContext(userId, fn)`
-  (`apps/server/src/db/context.ts`) is THE authorization boundary: transaction +
-  `SET LOCAL app.user_id`, everything inside runs as `app_api` under FORCE RLS. Routes
-  never touch the driver; the DAL returns Zod-parsed DTOs.
+  store review are containment, never authorization. THE authorization boundary is
+  **RLS at the database**, not a code wrapper: every exposed table is `ENABLE` +
+  `FORCE ROW LEVEL SECURITY` with `owner_id = (select auth.uid())` policies, and
+  `auth.uid()` reads the request's `request.jwt.claims`. The DAL
+  (`packages/verticals/<name>/src/data/*.ts`) reaches Postgres only through a
+  request-scoped supabase-js client built from the caller's JWT — PostgREST, never a raw
+  SQL wrapper — and re-parses every row against the vertical's zod contract at its EXIT
+  (rows enter as `unknown`; the compiler is never trusted for row shapes). Normal
+  requests run as `authenticated` (the RLS-subject role); `service_role` BYPASSES RLS and
+  is Edge-Function-only, ADR-governed.
 - **the api-client one-door** — every request goes through
   `apps/mobile/src/lib/api-client.ts` (origin, bearer, envelope decode, the single
   401-refresh-retry). In the source harness, features once called the network directly
@@ -175,8 +182,11 @@ Doctrine notes for the citations:
   live-api proof is the answer. The token lives behind `src/host/**`
   (expo-secure-store — iOS Keychain / Android Keystore), never in JS-visible app
   storage and never behind an `EXPO_PUBLIC_` name (inlined into the shipped bundle).
-- **GUC discipline** — the RLS identity GUC is transaction-local by construction:
-  `set_config('app.user_id', $uuid, true)` / `SET LOCAL`. A session-scoped GUC
+- **GUC discipline** — production identity rides the request-scoped supabase-js client's
+  JWT (`auth.uid()` reads `request.jwt.claims`), never an app-side GUC. Tests and the
+  mid-turn probe impersonate with `SET LOCAL ROLE authenticated` plus a transaction-local
+  `request.jwt.claims`, and that GUC MUST be transaction-local by construction
+  (`set_config('request.jwt.claims', …, true)` / `SET LOCAL`): a session-scoped GUC
   survives the transaction and LEAKS the previous user's identity to whoever gets the
   pooled connection next. [corpus: postgres/guc-set-local]
 - **append-only migrations** — editing an already-committed migration desynchronizes
@@ -199,9 +209,10 @@ Doctrine notes for the citations:
 
 The `schema-rls` gate proves policies **exist**; the runtime suite proves they
 **isolate**. `node tests/rls/run-rls.mjs` (the `rls-isolation` Stop-hook step /
-`pnpm test:rls`) orchestrates: resolve DSNs (env wins; passwordless local-dev defaults
-otherwise), probe Postgres (unreachable → loud SKIP locally; in CI with migrations
-present, unreachable = FAIL), fresh-apply all migrations, then run the suite. Per
+`pnpm test:rls`) orchestrates: resolve `SUPABASE_DB_URL` (env wins; the local
+`supabase start` default otherwise), probe Postgres (unreachable → loud SKIP locally; in
+CI with migrations present, unreachable = FAIL), fresh-apply all migrations, then run the
+suite. Per
 `ISOLATION_TARGETS` entry:
 
 - **Seeded positive control** — user A sees its OWN row first. Without this, a deny-all
@@ -215,16 +226,17 @@ present, unreachable = FAIL), fresh-apply all migrations, then run the suite. Pe
   exactly the session-GUC bug class this exists to catch.
 - **Catalog gate** — facts from `pg_catalog`, not vibes: FORCE RLS flags, per-operation
   policies, leading-column owner indexes, patched pgvector, non-BYPASSRLS role.
-- **Plan probes** — EXPLAIN at seeded scale, as `app_api`: the bare policy-shape SELECT
-  AND every query the DAL actually issues (captured through a pg-proxy, registered in
-  the seeded `tests/rls/dal-shapes.ts` — a DAL method with no shape reds). The index
+- **Plan probes** — EXPLAIN at seeded scale, as `authenticated`: the bare policy-shape
+  SELECT AND every query the DAL actually issues (captured through a pg-proxy, registered
+  in the seeded `tests/rls/dal-shapes.ts` — a DAL method with no shape reds). The index
   must carry the ORDERING, not just the filter.
 
-Tests impersonate via the same shape as the server's `withUserContext`, so the suite
-exercises the exact GUC discipline production uses. The mid-turn probe
-(`tools/mcp/rls-verify-server.mjs`, the `rls_verify` MCP tool) is read-only,
-transaction-local, always rolled back, positive control first — anything preventing a
-real probe is a SKIP, never a green.
+Tests impersonate the Supabase way — `SET LOCAL ROLE authenticated` plus a
+transaction-local `request.jwt.claims` whose `sub` is the user id (exactly what
+`auth.uid()` reads) — so the suite exercises the same RLS path a request-scoped client
+takes in production. The mid-turn probe (`tools/mcp/rls-verify-server.mjs`, the
+`rls_verify` MCP tool) is read-only, transaction-local, always rolled back, positive
+control first — anything preventing a real probe is a SKIP, never a green.
 
 ## The provenance pipeline
 

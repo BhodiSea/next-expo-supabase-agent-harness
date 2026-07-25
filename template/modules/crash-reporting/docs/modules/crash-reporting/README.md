@@ -17,7 +17,7 @@ deployment decision, not a scaffold default.
 | `apps/mobile/src/crash/redact.test.ts` | the policy's unit tests — they join the jest-expo `mobile-unit` lane immediately |
 | `docs/modules/crash-reporting/mobile-sentry.patch.md` | `@sentry/react-native` wiring: install, metro config, the config plugin + `tools/expo-plugins.json` same-diff rule, `Sentry.init` with the PII-scrubbing defaults, the log-seam swap |
 | `docs/modules/crash-reporting/release-sourcemaps.patch.md` | source-map upload: the EAS-build half (runs on EAS servers) and the release-workflow half (honest degrade when `SENTRY_AUTH_TOKEN` is absent) |
-| `docs/modules/crash-reporting/server-sentry.patch.md` | `@sentry/node` wiring for `apps/server`: env contract, beforeSend → redaction, `app.onError` funnel |
+| `docs/modules/crash-reporting/server-sentry.patch.md` | `@sentry/nextjs` wiring for `apps/web`: `instrumentation.ts` init, beforeSend → redaction, the `onRequestError` + tRPC `onError` funnel |
 
 ## Prerequisites
 
@@ -150,7 +150,7 @@ Two halves, both in `release-sourcemaps.patch.md`:
   `tools/expo-plugins.json` row (or the reverse) → `expo-policy` reds with the
   exact messages quoted above.
 - After wiring Sentry: capture a test error containing a credentialed DSN (the
-  dev-shaped `postgres://app_api:postgres@127.0.0.1/app` works) and an e-mail;
+  dev-shaped `postgres://postgres:postgres@127.0.0.1/app` works) and an e-mail;
   assert the payload your ingest host received shows `[redacted]` /
   `[redacted-email]` (mobile patch, step 7) — this proves the WIRING calls the
   policy, not just that the policy exists.

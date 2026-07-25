@@ -246,12 +246,9 @@ if (anyRel(/^apps\/web\//)) {
   }
 }
 
-// Positive requirement: DAL modules must run through the request-context wrapper
-// (withUserContext = the SET LOCAL RLS identity). Whole-file writes only.
-if (anyRel(/^apps\/server\/src\/dal\/[^/]+\.ts$/) && isWholeFile && !/withUserContext/.test(text)) {
-  denyTool(
-    'PreToolUse',
-    'every DAL module must acquire the database through withUserContext(userId, …) — that wrapper IS the authorization boundary (SET LOCAL app.user_id + FORCE RLS).',
-  )
-}
+// Authorization at the DAL is not a code wrapper in this stack: it is RLS at the
+// database (owner_id = (select auth.uid()) under FORCE ROW LEVEL SECURITY), the
+// structural PostgREST port re-parsing rows against the vertical's zod contract at
+// the DAL's exit, and the depcruise boundary — enforced by the schema-rls / RLS
+// isolation suite and the architecture gates, not by a positive content check here.
 pass()

@@ -50,7 +50,7 @@ Usage:
            runs validate, refuses while any ramp NOTE remains)
   enable   <module>   (ci-mobile-release, ci-web-deploy, device-e2e, eas-update,
            store-metadata, ci-provenance, gate-a11y-deep, crash-reporting,
-           push-notifications, ops-backup, eval-live, observability)
+           push-notifications, eval-live, observability)
   disable  <module>
 
 Placeholders: PROJECT_NAME PROJECT_SLUG APP_IDENTIFIER APP_SCHEME API_ORIGIN

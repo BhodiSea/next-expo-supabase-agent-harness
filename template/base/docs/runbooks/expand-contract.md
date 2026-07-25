@@ -57,11 +57,11 @@ Move existing rows to the new shape.
 - Small, immutable reference data MAY ride a migration with an explicit
   `-- harness-allow-dml: <reason>` marker (the `migrations` gate rejects unmarked DML).
 - Everything else uses a **backfill runner outside migrations** (idempotent, batched,
-  resumable; the `ops-backup` module ships a harnessed one). Backfills run as a
-  deliberate operational act, not as a side effect of `db:migrate`.
-- Verify: counts old-vs-new agree; `pnpm test:rls` still green (backfills run under
-  the migrator role — confirm they set owner columns correctly, or RLS will hide the
-  rows from their owners and the positive control will catch it).
+  resumable). Backfills run as a deliberate operational act, not as a side effect of
+  `supabase db push`.
+- Verify: counts old-vs-new agree; `pnpm test:rls` still green (backfills run through a
+  privileged connection that bypasses RLS — confirm they set owner columns correctly, or
+  RLS will hide the rows from their owners and the positive control will catch it).
 
 ## Phase 4 — CONTRACT (destructive migration; ADR-coupled)
 

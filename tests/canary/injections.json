@@ -301,7 +301,7 @@
       ]
     },
     "pretool-write-guard.mjs": {
-      "denyToolCallSites": 11,
+      "denyToolCallSites": 10,
       "denyExamples": [
         "tools/harness.config.mjs",
         "dangerouslySetInnerHTML",

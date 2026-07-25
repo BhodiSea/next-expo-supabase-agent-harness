@@ -40,8 +40,9 @@ Only when nothing covers the need do you scaffold a new slice.
    timestamped, append-only migration `supabase/migrations/<timestamp>_<slice>.sql` carrying
    `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation policies keyed on `auth.uid()`
    (`TO authenticated`), a leading-column owner index, `REVOKE ALL` from `service_role`, and
-   the `authenticated` grants. Never a GUC — RLS keys on the request's verified JWT, not on
-   any `SET LOCAL app.user_id`. Delegate to the `migration-rls-author` subagent.
+   the `authenticated` grants. Never a GUC — RLS keys on the request's verified JWT
+   (`auth.uid()` reads `request.jwt.claims`), never on an application-set identity value.
+   Delegate to the `migration-rls-author` subagent.
 2. **RLS tests** — read `references/tests.md`. TWO twins, both run by `pnpm test:rls`:
    pgTAP under `supabase/tests/*.sql` (the structural + isolation suites read back what the
    database compiled and prove the empty-set principle through raw role-switch), and the

@@ -17,7 +17,7 @@ Copy to specs/<feature>.md and fill in.
 
 **Files & interfaces touched (name them):**
 
-**Security invariants implicated** (RLS policies? DAL/`withUserContext`? migration —
+**Security invariants implicated** (RLS policies? DAL / request-scoped client? migration —
 expand/contract phase? auth verification? keychain seam (`src/host`/`src/auth`)?
 `app.config.ts` / `eas.json` / permission or config-plugin change? new screen (routes
 manifest + Maestro flow + startup budget)? prompt/lock change?):

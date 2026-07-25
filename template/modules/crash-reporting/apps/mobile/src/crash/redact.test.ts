@@ -36,7 +36,7 @@ const macHome = ['', 'Users', 'jdoe'].join('/')
 
 describe('redactText', () => {
   it('strips userinfo from credentialed connection strings', () => {
-    expect(redactText('db failed: postgres://app_api:postgres@127.0.0.1:5432/app timeout')).toBe(
+    expect(redactText('db failed: postgres://postgres:postgres@127.0.0.1:5432/app timeout')).toBe(
       'db failed: postgres://[redacted]@127.0.0.1:5432/app timeout',
     )
     expect(redactText('cache at redis://svc:hunter2@cache.internal:6379/0')).toBe(

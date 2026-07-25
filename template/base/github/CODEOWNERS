@@ -9,14 +9,15 @@
 # Default owner for everything.
 *                                             @{{GITHUB_OWNER}}
 
-# Auth / data / tenancy boundaries — REQUIRE sign-off.
-/apps/server/src/auth/**                      {{SECURITY_OWNERS}}
-/apps/server/src/dal/**                       {{SECURITY_OWNERS}}
-/apps/server/src/db/**                        {{SECURITY_OWNERS}}
-/apps/server/src/middleware/**                {{SECURITY_OWNERS}}
+# Auth / data / tenancy boundaries — REQUIRE sign-off. Authorization is RLS at the
+# database, so the migrations/policies, the request-scoped clients, and the DAL that
+# rides them are the surfaces that need eyes.
+/supabase/**                                  {{SECURITY_OWNERS}}
+/packages/api/**                              {{SECURITY_OWNERS}}
+/packages/verticals/**                        {{SECURITY_OWNERS}}
 /packages/contracts/**                        {{SECURITY_OWNERS}}
-/packages/schema/**                           {{SECURITY_OWNERS}}
-/db/init/**                                   {{SECURITY_OWNERS}}
+/packages/platform/supabase/**                {{SECURITY_OWNERS}}
+/apps/web/lib/supabase/**                     {{SECURITY_OWNERS}}
 /tests/rls/**                                 {{SECURITY_OWNERS}}
 
 # Mobile platform security surface — store identity, transport policy, credential seam.
@@ -43,4 +44,3 @@
 /pnpm-workspace.yaml                          {{SECURITY_OWNERS}}
 /package.json                                 {{SECURITY_OWNERS}}
 /.mcp.json                                    {{SECURITY_OWNERS}}
-/docker-compose.yml                           {{SECURITY_OWNERS}}

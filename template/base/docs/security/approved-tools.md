@@ -15,15 +15,16 @@ steered by prompt injection — a regulated operator must vet them, not trust th
 3. **Re-review on every version bump** (rug-pull defense — approving v1 does not
    approve v2).
 4. **Least privilege + sandbox.** Scope tools per subagent; never hand an MCP server
-   the migrator DSN, store/signing credentials, or user PII. Keep private data out of
-   the lethal trifecta (see `sandbox-and-supply-chain.md`).
+   the direct database URL (`SUPABASE_DB_URL`), the `service_role` key, store/signing
+   credentials, or user PII. Keep private data out of the lethal trifecta (see
+   `sandbox-and-supply-chain.md`).
 
 ## Approved registry
 
 | Tool | Type | Source / pin | Reviewed | Rationale |
 |---|---|---|---|---|
 | `corpus_search` | MCP (local stdio) | `tools/mcp/corpus-search-server.mjs` @ this repo | self-authored | citation grounding; no network, reads only the local pinned corpus (`tools/mcp/corpus/index.json`) |
-| `rls_verify` | MCP (local stdio) | `tools/mcp/rls-verify-server.mjs` @ this repo | self-authored | mid-turn cross-user RLS probe; connects only to the local `DATABASE_URL` as the unprivileged `app_api` role; read-only, always rolled back |
+| `rls_verify` | MCP (local stdio) | `tools/mcp/rls-verify-server.mjs` @ this repo | self-authored | mid-turn cross-user RLS probe; connects only to the local `SUPABASE_DB_URL` and impersonates via `SET LOCAL ROLE authenticated` + a transaction-local `request.jwt.claims`; read-only, always rolled back |
 | `authoring-vertical-slice` | Skill | `.claude/skills/authoring-vertical-slice/` @ this repo | self-authored | the slice recipe (migration → RLS → DAL → route → screen → tests); bundled scripts reviewed with the harness itself |
 | `designing-mobile-ui` | Skill | `.claude/skills/designing-mobile-ui/` @ this repo | self-authored | the design doctrine (typography/spacing/motion/state choreography + per-surface checklists); prose only — ships NO scripts by design |
 
@@ -32,20 +33,24 @@ for security reviews. Both shipped servers are wired in `.mcp.json` and allow-li
 `.claude/settings.json` (`enabledMcpjsonServers`); adding a third requires a registry
 row FIRST, then a human edit to those files (both write-guard/permission-protected).
 
-## Privileged database access (the migrator carve-out)
+## Privileged database access (the direct-DB + service-role carve-out)
 
-There is no service key in this stack; the equivalent privilege is
-`MIGRATOR_DATABASE_URL` — the `app_migrator` role owns the schema, so it can rewrite
-the RLS policies themselves (and would bypass them entirely on any table missing
-FORCE). The API never uses this role, and the mobile app never sees ANY database
-credential — it holds only a scoped bearer token. Sanctioned uses, enforced by the
-bash guard:
+Two credentials outrank a normal `authenticated` request, and neither ever reaches the
+app runtime or the mobile app (which holds only a scoped bearer token):
 
-1. `supabase migration new` / `supabase db diff` / `supabase db reset` (`pnpm db:reset`, `pnpm db:test`),
-2. `tests/rls/run-rls.mjs` (the isolation runner behind the RLS suite — pgTAP + the
-   supabase-js client suite).
+- `SUPABASE_DB_URL` — the direct, password-bearing Postgres connection. It owns the
+  schema, so it can rewrite the RLS policies themselves (and would bypass them entirely
+  on any table missing FORCE). Sanctioned uses:
 
-Anything else that wants the migrator DSN needs a governing ADR (`docs/adr/`), a row in
+  1. `supabase migration new` / `supabase db diff` / `supabase db push` / `supabase db reset` (`pnpm db:reset`, `pnpm db:test`),
+  2. `tests/rls/run-rls.mjs` (the isolation runner behind the RLS suite — pgTAP + the
+     supabase-js client suite).
+
+- `SUPABASE_SERVICE_ROLE_KEY` — the `service_role` key that BYPASSES RLS through
+  PostgREST. Its ONLY sanctioned home is an ADR-governed Edge Function
+  (`supabase/functions/<name>`); the write-guard denies it anywhere in the web process.
+
+Anything else that wants either credential needs a governing ADR (`docs/adr/`), a row in
 this registry, and CODEOWNERS sign-off — there is no other sanctioned home for
 privileged database access.
 
