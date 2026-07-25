@@ -221,8 +221,8 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 17: drop the keyset index → the DAL plan probe must FAIL (a whole-partition Sort at scale)",
-        "note": "the live direction (bootstrap-linux, real scaffold + the pinned pgvector database): the suite runs green, then the keyset index is dropped and the DAL plan probe must red naming its query shape — proof the probe EXPLAINs the DAL's real SQL, not a statement nobody runs"
+        "ref": "Canary 17: drop the keyset index → the RLS structure test must FAIL (owner column no longer leads an index)",
+        "note": "the live direction (bootstrap-linux, real scaffold + the Supabase local stack): the RLS suite runs green, then notes_owner_id_created_at_id_idx (the only index whose leading column is notes.owner_id) is dropped live and `supabase test db` (the pgTAP structure suite) must red on the 'every owner column is the LEADING column of some index' invariant — proof the assertion is wired to the real schema, not a statement nobody runs"
       }
     ],
     "unit": [
@@ -332,7 +332,7 @@
       {
         "kind": "selftest",
         "ref": "an untested branch must red the mutation lane",
-        "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-override branch added to the 99%-mutation-scored apps/server/src/auth/verify.ts leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red — checked, not asserted."
+        "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-gated patch-grace branch added to the well-mutation-covered packages/api/src/skew.ts (the version-skew floor) leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red — checked, not asserted."
       }
     ],
     "runtime-rls": [

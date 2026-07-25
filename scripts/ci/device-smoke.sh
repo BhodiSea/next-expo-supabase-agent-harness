@@ -17,7 +17,11 @@ node tools/check-e2e-device.mjs --phase sweep --out-dir artifacts/maestro/sweep
 adb uninstall "$appid"
 adb install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 adb reverse tcp:8081 tcp:8081
-adb reverse tcp:8787 tcp:8787
+# The device reaches the host over loopback via adb reverse: :3000 is the web app
+# that hosts /api/trpc, and :54321 is the Supabase local stack (auth/GoTrue +
+# PostgREST) the mobile client authenticates against.
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:54321 tcp:54321
 # Metro must run in WATCH mode: Canaries 19/20 edit source on the runner and
 # assert the DEVICE sees it, and Metro under CI=true disables the file watcher
 # outright ("Metro is running in CI mode, reloads are disabled" — dispatch #6,
@@ -27,7 +31,10 @@ adb reverse tcp:8787 tcp:8787
 # the Metro process alone; watch mode over a pnpm monorepo needs inotify
 # headroom the runner default may not have.
 sudo sysctl -q fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=1024 || true
-env -u CI -u GITHUB_ACTIONS EXPO_PUBLIC_API_ORIGIN=http://127.0.0.1:8787 \
+env -u CI -u GITHUB_ACTIONS \
+  EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000 \
+  EXPO_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE" \
   pnpm --filter mobile exec expo start --port 8081 < /dev/null > /tmp/metro.log 2>&1 &
 for _ in $(seq 1 60); do
   if curl -fsS -m 2 "http://127.0.0.1:8081/status" > /dev/null; then break; fi
