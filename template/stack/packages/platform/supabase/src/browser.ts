@@ -60,6 +60,7 @@ export function createBrowserSupabaseClient(
     ? requireCredentials(options.credentials, 'the caller')
     : publicCredentials()
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- @supabase/supabase-js's createClient is untyped by deliberate doctrine (types.ts: no Database generic; rows are re-parsed at the DAL exit). This return is the intentional untyped-client boundary.
   return createClient(url, publishableKey, {
     auth: {
       // The browser is the one host where an unattended refresh timer is right:

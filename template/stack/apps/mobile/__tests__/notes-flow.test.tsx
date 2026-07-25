@@ -117,10 +117,14 @@ describe('notes optimistic create', () => {
 
     await composeNote('Doomed note')
 
-    // The error toast carries catalog copy chosen by the envelope's kind. The
-    // server's own English message is a log diagnostic, never the headline.
+    // The error toast carries catalog copy chosen by the envelope's kind, PLUS
+    // the stable error code as a traceable reference (failureMessage composes
+    // `${message} Reference ${code}`; 'unknown' is appError.unknown()'s code).
+    // The server's own English message is a log diagnostic, never the headline.
     const toast = await screen.findByTestId('toast-error')
-    expect(toast).toHaveTextContent(en['error.api.internal'])
+    expect(toast).toHaveTextContent(
+      `${en['error.api.internal']} ${en['error.reference'].replace('{id}', 'unknown')}`,
+    )
     expect(screen.queryByText('note storage exploded')).toBeNull()
     // …and the temp row is GONE (rollback — never a phantom row after a failed
     // write), while the draft survives for retry.
@@ -143,7 +147,9 @@ describe('notes optimistic create', () => {
     await composeNote('Signed out note')
 
     const toast = await screen.findByTestId('toast-error')
-    expect(toast).toHaveTextContent(en['error.api.unauthorized'])
+    expect(toast).toHaveTextContent(
+      `${en['error.api.unauthorized']} ${en['error.reference'].replace('{id}', 'unauthorized')}`,
+    )
     expect(screen.queryByText('Signed out note')).toBeNull()
   })
 

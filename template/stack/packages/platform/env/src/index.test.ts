@@ -77,7 +77,7 @@ const TOUCHED = [
 function setHostEnv(source: EnvSource): void {
   for (const name of TOUCHED) {
     const value = source[name]
-    if (value === undefined) delete process.env[name]
+    if (value === undefined) Reflect.deleteProperty(process.env, name)
     else process.env[name] = value
   }
 }

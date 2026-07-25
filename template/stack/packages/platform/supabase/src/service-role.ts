@@ -124,6 +124,7 @@ export function createServiceRoleClient_BYPASSES_RLS(
 
   const { secretKey, url } = serviceRoleCredentials()
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- @supabase/supabase-js's createClient is untyped by deliberate doctrine (types.ts: no Database generic; rows are re-parsed at the DAL exit). This return is the intentional untyped-client boundary.
   return createClient(url, secretKey, {
     auth: {
       // ALL THREE OFF, and none of them is optional here. This client has no

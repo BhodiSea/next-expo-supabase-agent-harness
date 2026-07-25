@@ -33,7 +33,7 @@ const SAMPLES: Readonly<Record<AppErrorKind, AppError>> = {
   unknown: appError.unknown(),
 }
 
-const roundTrip = <T>(value: T): unknown => JSON.parse(JSON.stringify(value)) as unknown
+const roundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value)) as unknown
 
 describe('AppError closure', () => {
   it('names the same kinds in the union, the namespace, and the runtime list', () => {

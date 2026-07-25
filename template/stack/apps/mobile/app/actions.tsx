@@ -168,6 +168,7 @@ export default function ActionsModal() {
           style: 'destructive',
           onPress: () => {
             void (async () => {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- supabase (useSupabase) is the untyped Client (types.ts doctrine), so invoke's result carries `any`. We read only `error` and toast it; nothing here trusts `data`.
               const { error } = await supabase.functions.invoke<never>('delete-account')
               if (error !== null) {
                 // A FunctionsError is not an AppError, and translateError is

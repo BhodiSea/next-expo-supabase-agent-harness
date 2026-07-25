@@ -129,11 +129,7 @@ export const SCANNABLE_FILE = /\.(ts|tsx|sql)$/
 
 // Excluded everywhere: tests and machine-generated adapters (the design-tokens
 // output under src/generated/, the Supabase type mirror).
-export const SCAN_EXCLUDES = [
-  /\.(test|spec)\.tsx?$/,
-  /\/generated\//,
-  /\/database\.types\.ts$/,
-]
+export const SCAN_EXCLUDES = [/\.(test|spec)\.tsx?$/, /\/generated\//, /\/database\.types\.ts$/]
 
 // Hook-only exclusion: harness tooling under .claude/ (the gate's globs below never
 // reach it, but the hook sees absolute paths for every edited file).

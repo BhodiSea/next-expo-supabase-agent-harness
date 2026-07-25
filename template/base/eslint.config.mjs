@@ -78,6 +78,14 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+      // Interpolating a number into a string is idiomatic here (CSS px sizes, the
+      // design-token numeric scale, byte counts in log lines) — strictTypeChecked
+      // bans it by default, which would force String(n) noise at every call site.
+      // Numbers and booleans stringify unambiguously; any/nullish/never stay banned.
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        { allowNumber: true, allowBoolean: true },
+      ],
     },
   },
   {
