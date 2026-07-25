@@ -712,12 +712,14 @@ jobs:
   # the ONE line that attaches the Authorization header and the suite MUST red —
   # the source harness once shipped exactly that hole with every mocked lane green.
   #
-  # PRECONDITION — apps/web must boot under `next dev` and serve /api/trpc. The
-  # workspace packages ship raw TypeScript with NodeNext `.js` import specifiers,
-  # which Next's transpilePackages resolution does not rewrite to `.ts` on its own
-  # (the web analog of the Metro `.js`->`.ts` resolver shim). If the boot step
-  # below never reaches /api/trpc/system.health, that resolution is the defect to
-  # fix first — this lane is what surfaces it.
+  # PRECONDITION — apps/web boots under `next dev` and serves /api/trpc. The
+  # workspace packages ship raw TypeScript with NodeNext `.js` import specifiers;
+  # Next 16's default Turbopack bundler does not rewrite `.js`->`.ts`, so the web
+  # scripts run with `--webpack` and apps/web/next.config.ts adds
+  # `resolve.extensionAlias` — the web analog of the Metro `.js`->`.ts` resolver
+  # shim (see that file for the trade and the Turbopack alternative). If the boot
+  # step below never reaches /api/trpc/system.health, that resolver mapping — or
+  # the Supabase env published above — is the first thing to check.
   # ---------------------------------------------------------------------------
   integration:
     runs-on: ubuntu-latest

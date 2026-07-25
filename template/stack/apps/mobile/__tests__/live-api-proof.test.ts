@@ -234,16 +234,15 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // owner_id = their auth.uid() and is visible to that same user. service_role is
   // REVOKED on public.notes, so this INSERT can ONLY be the RLS-scoped
   // authenticated client (WITH CHECK owner_id = auth.uid()). This is the identity
-  // binding the whole seam rests on. Columns are named explicitly to avoid
-  // `archived_at`, which the seeded schema never defined (see (ii)).
+  // binding the whole seam rests on.
   //
-  // (ii) tRPC read-path seam. WITH the bearer, notes.list authenticates and
-  // RESOLVES to an ActionOutcome ON THE DATA CHANNEL; strip the bearer (C01) and
-  // the same call THROWS UNAUTHORIZED before any handler runs. In THIS environment
-  // the envelope is a store error rather than an ok page — the seeded `notes`
-  // table is missing the `archived_at` column the list DAL selects — but a domain
-  // envelope is precisely NOT a transport reject: that gap is what the bearer buys.
-  it('the bearer binds RLS (owner sees its own row) and an authed notes.list reaches the data channel', async () => {
+  // (ii) tRPC read-path seam. WITH the bearer, notes.list authenticates, RESOLVES
+  // to an OK ActionOutcome ON THE DATA CHANNEL, and the page carries the very row
+  // just inserted (the `archived_at` column the list DAL selects is now part of the
+  // seeded schema, so the projection succeeds); strip the bearer (C01) and the same
+  // call THROWS UNAUTHORIZED before any handler runs. An ok envelope is precisely
+  // NOT a transport reject: that gap is what the bearer buys.
+  it('the bearer binds RLS (owner sees its own row) and an authed notes.list returns it on the data channel', async () => {
     const title = `live-proof note ${runId}`
     const inserted = await authedSb.from('notes').insert({ title }).select('id, owner_id').single()
     expect(inserted.error).toBeNull()
@@ -258,28 +257,32 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     expect((visible.data ?? []).length).toBe(1)
 
     const page = await authedApi.notes.list.query({})
-    expect(page).toHaveProperty('ok')
-    expect(typeof page.ok).toBe('boolean')
+    expect(page.ok).toBe(true)
+    if (page.ok) {
+      expect(page.data.items.some((note) => note.id === row?.id)).toBe(true)
+    }
   })
 
-  // notes.create is a memberProcedure. The web host injects `membership: null`
-  // for every bearer caller (the seatless seed — apps/web resolves identity but
-  // no workspace membership), so the member gate returns a `forbidden` outcome ON
-  // THE DATA CHANNEL. The point proven here is the seam, not the gate: WITH the
-  // bearer the request authenticates and RESOLVES to a well-formed envelope;
-  // strip the bearer (C01) and this exact call THROWS UNAUTHORIZED instead.
-  it('notes.create with a valid bearer reaches the data channel (member gate), never a transport reject', async () => {
-    const outcome = await authedApi.notes.create.mutate({ title: `live-proof create ${runId}` })
+  // notes.create is a memberProcedure. Every verified caller owns a PERSONAL
+  // workspace (sessionForVerifiedUser keys it by user id — the single-tenant seat
+  // the seed ships in place of a workspaces table), so the member gate PASSES and
+  // the write lands. WITH the bearer the request authenticates, the gate resolves a
+  // seat, and the DAL returns an ok NoteView carrying the created note; strip the
+  // bearer (C01) and this exact call THROWS UNAUTHORIZED before any handler runs.
+  it('notes.create with a valid bearer passes the member gate and creates the note on the data channel', async () => {
+    const title = `live-proof create ${runId}`
+    const outcome = await authedApi.notes.create.mutate({ title })
     // It RESOLVED (did not throw) — that is the seam. Under C01 this same call
     // throws UNAUTHORIZED and never produces a value.
-    expect(typeof outcome.ok).toBe('boolean')
-    // The deterministic seatless-seed outcome: an application rule refused the
-    // write, ON THE ENVELOPE — distinct from the transport `unauthorized` the
-    // negative control below asserts.
-    expect(outcome.ok).toBe(false)
-    if (!outcome.ok) {
-      expect(outcome.error.kind).toBe('forbidden')
-      expect(outcome.error.code).toBe('membership_required')
+    expect(outcome.ok).toBe(true)
+    // The write actually landed: an ok envelope carrying the created note, a fresh
+    // note is un-archived (archived_at NULL round-trips to isArchived=false), and
+    // the returned title is the one sent — distinct from BOTH the transport
+    // `unauthorized` of the negative control and the old seatless `forbidden`.
+    if (outcome.ok) {
+      expect(outcome.data.title).toBe(title)
+      expect(outcome.data.isArchived).toBe(false)
+      expect(outcome.data.id).not.toBe('')
     }
   })
 

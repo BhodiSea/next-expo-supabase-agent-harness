@@ -25,6 +25,15 @@ CREATE TABLE public.notes (
   body text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  -- Soft-archive marker: NULL is an active note, a timestamp is the instant it
+  -- was archived. Nullable with no default, so creation leaves it NULL — the
+  -- list DAL hides archived rows by default (`WHERE archived_at IS NULL`) and the
+  -- update path stamps or clears it. A plain timestamp, not a status enum,
+  -- because the only two states the surfaces model are "active" and "archived at
+  -- time T" and one nullable timestamp carries both. It is projected by
+  -- NOTE_COLUMNS in @app/notes, so its absence is not cosmetic: every SELECT the
+  -- DAL issues names this column, and without it the whole vertical errors.
+  archived_at timestamptz,
   -- Bounds, not validation — the zod DTO in @app/contracts is the input
   -- contract. These hold for callers that reach the table by another path.
   CONSTRAINT notes_title_length CHECK (char_length(title) BETWEEN 1 AND 200),

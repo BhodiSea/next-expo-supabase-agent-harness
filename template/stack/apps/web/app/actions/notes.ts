@@ -50,17 +50,19 @@ const runCreateNote = actionClient
     // narrower port. The double-cast (never a single `as NotesDatabase`) is deliberate — it
     // documents that the two types are not directly comparable, which is the whole reason.
     const supabase = (await createRequestScopedClient()) as unknown as NotesDatabase
-    // workspaceId is null and events are dropped BY DESIGN on this host: the seed ships no
-    // workspace/membership vertical (so there is no seat to resolve — the same null the
-    // `me` procedure returns), and apps/web wires no event sink, mirroring createContext's
-    // own `dropEvents` default. createNote uses neither for the write itself — it sets
-    // owner_id from actorId and takes the database's own created_at — so a null workspace and
-    // a no-op sink change nothing about the row that lands, only the event nobody consumes yet.
+    // workspaceId is the caller's OWN id and events are dropped BY DESIGN on this host. Every
+    // verified user owns a PERSONAL workspace keyed by their user id — the single-tenant seat
+    // the tRPC host resolves in sessionForVerifiedUser, shipped in place of the workspaces table
+    // the seed omits — so both surfaces stamp the same workspace onto a write. apps/web wires no
+    // event sink, so events are dropped here exactly as createContext's own `dropEvents` default
+    // does. createNote uses NEITHER for the write itself — it sets owner_id from actorId and
+    // takes the database's own created_at — so the workspace id and the no-op sink only shape the
+    // event nobody consumes yet, never the row that lands.
     const context: NoteWriteContext = {
       actorId: user.id,
       emit: () => undefined,
       now: new Date().toISOString(),
-      workspaceId: null,
+      workspaceId: user.id,
     }
     const outcome = await createNote(supabase, context, parsedInput)
     // Only on success, and only after the write has actually landed. Invalidating on the

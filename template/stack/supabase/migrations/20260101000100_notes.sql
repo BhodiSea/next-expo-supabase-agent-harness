@@ -20,6 +20,12 @@ CREATE TABLE public.notes (
   body text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  -- Soft-archive marker: NULL is active, a timestamp is the archive instant.
+  -- Nullable/defaultless so creation leaves it NULL; the list DAL hides archived
+  -- rows (`archived_at IS NULL`) and the update path stamps it. NOTE_COLUMNS in
+  -- @app/notes projects this on every SELECT, so the vertical errors without it.
+  -- Full reasoning in supabase/schemas/20_notes.sql.
+  archived_at timestamptz,
   CONSTRAINT notes_title_length CHECK (char_length(title) BETWEEN 1 AND 200),
   CONSTRAINT notes_body_length CHECK (char_length(body) <= 20000)
 );

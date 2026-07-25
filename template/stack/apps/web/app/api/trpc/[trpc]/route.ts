@@ -70,16 +70,23 @@ const MIN_SUPPORTED_CLIENT: string | null = process.env['MIN_SUPPORTED_CLIENT'] 
  * shapes, so a cookie caller and a bearer caller resolve to the SAME actor shape — the "two
  * callers, one operation" rule reaching all the way down to identity.
  *
- * membership is null: the seed ships no workspace/membership vertical, so every caller is
- * seatless — a reachable state the context models as null, exactly as the `me` procedure
- * returns. displayName falls back to the verified email then the id; Actor.displayName only
- * needs a non-empty string and both are.
+ * The seed ships no workspace/membership vertical, so there is no membership TABLE to resolve a
+ * seat from. Every verified user is instead the `owner` of their own PERSONAL workspace, keyed
+ * by their user id — the single-tenant default that lets the seeded notes vertical (whose writes
+ * ride `memberProcedure`) work end to end without inventing a workspaces table the scaffold does
+ * not have. This is a real resolution, NOT a bypass: the member gate still runs, an anonymous
+ * caller still gets no session at all (null in → null out), and a consumer that adds a real
+ * membership vertical replaces this one expression with a lookup that CAN return null — the
+ * seatless state the `Membership | null` type, `memberGate` and context.test.ts all still model.
+ * workspaceId is the user id because a personal workspace has exactly one member and no separate
+ * identity of its own. displayName falls back to the verified email then the id; Actor.displayName
+ * only needs a non-empty string and both are.
  */
 function sessionForVerifiedUser(user: VerifiedUser | null): Session | null {
   if (user === null) return null
   return {
     actor: { displayName: user.email ?? user.userId, email: user.email, userId: user.userId },
-    membership: null,
+    membership: { role: 'owner', workspaceId: user.userId },
   }
 }
 

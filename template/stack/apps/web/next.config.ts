@@ -30,6 +30,41 @@ const WORKSPACE_PACKAGES = [
 const nextConfig: NextConfig = {
   transpilePackages: WORKSPACE_PACKAGES,
 
+  // The WEB ANALOG of apps/mobile/metro.config.js's resolver shim. The @app/* packages above
+  // are `moduleResolution: NodeNext` (they type-check under `tsc -b` and their emitted dist is
+  // valid Node ESM), so their relative imports carry explicit `.js` extensions that map to a
+  // `.ts` source on disk — `export * from './client.js'` where only `client.ts` exists. A
+  // bundler must be TOLD that a `.js` specifier may resolve to a `.ts`: webpack's
+  // `resolve.extensionAlias` is exactly that instruction, the same "try it as `.js`, fall back
+  // to the `.ts`" the Metro shim performs. Without it every barrel re-export fails with
+  // `Module not found: Can't resolve './client.js'` and the web surface never boots.
+  //
+  // WHY WEBPACK, NOT TURBOPACK. Turbopack (Next 16's default bundler) has no `extensionAlias`
+  // equivalent, so it cannot make this mapping — which is why apps/web/package.json runs `next
+  // dev`/`next build` with the `--webpack` flag (Next 16 errors on a webpack config under the
+  // default Turbopack, telling you to choose explicitly). This is the same correctness-over-
+  // speed trade the harness already makes in choosing `tsc -b` solution mode over a Turborepo
+  // task graph: one source of truth, no per-package build step, resolved by a bundler that can
+  // follow NodeNext's `.js` convention. The `.mjs`/`.cjs` rows keep the mapping honest for the
+  // ESM/CJS variants some dependencies ship.
+  //
+  // THE ALTERNATIVE, stated so the trade is a choice and not a cage: a consumer who would rather
+  // keep Turbopack can switch the @app/* packages to `moduleResolution: Bundler` and drop the
+  // `.js` extensions from their relative imports — then this block, the two `--webpack` flags,
+  // and the Metro shim all become unnecessary. That is a wider change (every package + its
+  // tests) and it forfeits the packages' valid-Node-ESM emit, which is why the shipped default
+  // keeps NodeNext and shims the two bundlers instead.
+  webpack: (config) => {
+    config.resolve = config.resolve ?? {}
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+      '.cjs': ['.cts', '.cjs'],
+    }
+    return config
+  },
+
   // Typed routes turn `<Link href="/notes">` into a checked expression: a route that was
   // renamed or deleted reds at typecheck instead of 404ing in production. It is the same
   // doctrine as the mobile side's ROUTES manifest — the route set is a contract, not a
