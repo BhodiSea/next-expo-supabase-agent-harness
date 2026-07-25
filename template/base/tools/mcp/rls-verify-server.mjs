@@ -63,7 +63,8 @@ async function runProbe(sql, { table, ownerColumn, userA, userB }) {
 
 async function rlsVerify(args) {
   const dbUrl = process.env['SUPABASE_DB_URL']
-  if (!dbUrl) return 'RLS: SKIPPED (SUPABASE_DB_URL not set — start the local stack: supabase start)'
+  if (!dbUrl)
+    return 'RLS: SKIPPED (SUPABASE_DB_URL not set — start the local stack: supabase start)'
   const { table, userA, userB } = args
   const ownerColumn = args.ownerColumn || 'owner_id'
   if (typeof table !== 'string' || typeof userA !== 'string' || typeof userB !== 'string') {
@@ -95,7 +96,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       description:
-        "Probe cross-user RLS isolation for a table: as userA, assert 0 rows of userB are visible. userB must already own at least one visible row (positive control, checked by impersonating userB) or the probe returns SKIPPED — a vacuous probe is never reported green. Runs on the `authenticated` role with a transaction-local request.jwt.claims (auth.uid() reads its `sub`). Returns RLS: ISOLATED / RLS: LEAK / SKIPPED. Read-only, always rolled back. The CI suite (node tests/rls/run-rls.mjs) is authoritative.",
+        'Probe cross-user RLS isolation for a table: as userA, assert 0 rows of userB are visible. userB must already own at least one visible row (positive control, checked by impersonating userB) or the probe returns SKIPPED — a vacuous probe is never reported green. Runs on the `authenticated` role with a transaction-local request.jwt.claims (auth.uid() reads its `sub`). Returns RLS: ISOLATED / RLS: LEAK / SKIPPED. Read-only, always rolled back. The CI suite (node tests/rls/run-rls.mjs) is authoritative.',
       inputSchema: {
         properties: {
           table: { type: 'string' },
