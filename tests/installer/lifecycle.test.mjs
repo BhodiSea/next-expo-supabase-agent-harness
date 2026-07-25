@@ -453,7 +453,7 @@ test('enable/disable round-trips representative W7 module shapes with correct in
     {
       name: 'observability',
       expect: [
-        'apps/server/src/observability/span-routes.test.ts',
+        'packages/api/src/observability/span-routes.test.ts',
         'docs/modules/observability/README.md',
         'docs/modules/observability/otel-server.patch.md',
       ],
@@ -463,8 +463,8 @@ test('enable/disable round-trips representative W7 module shapes with correct in
       expect: [
         'docs/modules/push-notifications/README.md',
         'docs/modules/push-notifications/APPLY.md',
-        'docs/modules/push-notifications/slice/apps/server/src/routes/push-tokens.ts.txt',
-        'docs/modules/push-notifications/slice/packages/schema/drizzle/0003_push_device_tokens.sql',
+        'docs/modules/push-notifications/slice/packages/api/src/routers/push.ts.txt',
+        'docs/modules/push-notifications/slice/supabase/migrations/20260101000200_push_tokens.sql',
       ],
     },
   ]
@@ -483,7 +483,7 @@ test('enable/disable round-trips representative W7 module shapes with correct in
   }
   // Slice code must stay inert: no live .ts twin of the .txt slice files.
   assert.ok(
-    !existsSync(join(dir, 'docs/modules/push-notifications/slice/apps/server/src/routes/push-tokens.ts')),
+    !existsSync(join(dir, 'docs/modules/push-notifications/slice/packages/api/src/routers/push.ts')),
     'slice .ts.txt must not install as live .ts',
   )
   // The whole enabled scaffold still renders with zero placeholder residue.
@@ -509,8 +509,8 @@ test('enable/disable round-trips representative W7 module shapes with correct in
     )
   }
   assert.ok(
-    !existsSync(join(dir, 'apps/server/src/observability')),
-    'observability: empty apps/server/src/observability/ husk left after disable',
+    !existsSync(join(dir, 'packages/api/src/observability')),
+    'observability: empty packages/api/src/observability/ husk left after disable',
   )
   assert.ok(existsSync(join(dir, 'apps/web/app/page.tsx')), 'disable must not touch base scaffold files')
 })

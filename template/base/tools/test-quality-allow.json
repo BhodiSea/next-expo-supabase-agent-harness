@@ -6,12 +6,12 @@
       "reason": "The SDK RLS suite's documented self-skip, and it FAILS CLOSED where it matters. It needs a running `supabase start` stack; `node tests/rls/run-rls.mjs` starts from that stack, sets RLS_SUITE_READY=1, and in CI a skip is an ERROR (CI=true makes the runner fail closed). So the skipped branch exists only so a plain `vitest run` on a laptop with no stack stays green instead of erroring — it is the local-dev affordance, not a disabled test. The enforcing branch is the one CI runs (alongside the pgTAP twin, supabase/tests/*.sql)."
     },
     {
-      "test": "apps/server/src/observability/span-routes.test.ts::emits exactly one server span per request, named from this manifest (wire @opentelemetry/sdk-node + an InMemorySpanExporter, request each route, assert one span with the manifest name)",
-      "reason": "observability module: a deliberate, titled placeholder. Asserting real span emission needs @opentelemetry/sdk-node + an InMemorySpanExporter wired into the test host, which the module does not ship (it ships the manifest and the route-name contract). The title IS the specification for whoever wires the SDK. Tracked in docs/modules/observability/README.md."
+      "test": "packages/api/src/observability/span-routes.test.ts::emits exactly one server span per call, named from this manifest (wire @opentelemetry/sdk-trace-node + an InMemorySpanExporter, call each procedure through createCallerFactory(appRouter), assert one span whose name equals the manifest entry)",
+      "reason": "observability module: a deliberate, titled placeholder. Asserting real span emission needs @opentelemetry/sdk-trace-node + an InMemorySpanExporter wired into the test host, which the module does not ship (it ships the manifest and the procedure-path contract). The title IS the specification for whoever wires the SDK. Tracked in docs/modules/observability/README.md and docs/modules/observability/otel-server.patch.md."
     },
     {
-      "test": "apps/server/src/observability/span-routes.test.ts::propagates pino log correlation (trace_id/span_id appear on request-scoped log lines via instrumentation-pino)",
-      "reason": "observability module: same placeholder class as above — proving trace/log correlation requires the OTel SDK and instrumentation-pino to be live in-process. Tracked in docs/modules/observability/README.md."
+      "test": "packages/api/src/observability/span-routes.test.ts::propagates log correlation (trace_id/span_id appear on request-scoped @app/observability records emitted during a procedure call)",
+      "reason": "observability module: same placeholder class as above — proving trace/log correlation requires the OTel SDK live in-process and the active span context folded into the @app/observability request logger. Tracked in docs/modules/observability/README.md and docs/modules/observability/otel-server.patch.md."
     }
   ]
 }

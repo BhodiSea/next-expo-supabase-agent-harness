@@ -25,10 +25,10 @@ export const PUSH_TOKEN_MAX = 512
 export const PUSH_PLATFORMS = ['android', 'ios'] as const
 
 /**
- * Keyset pagination bounds for GET /api/push/tokens. A user's device fleet is
- * small (phones + tablets), so the page bounds sit below the notes bounds on
- * purpose: default 20 covers every realistic fleet in one page, max 100 caps
- * the DAL's LIMIT so no request demands an unbounded scan.
+ * Keyset pagination bounds for the push.listTokens query. A user's device
+ * fleet is small (phones + tablets), so the page bounds sit below the notes
+ * bounds on purpose: default 20 covers every realistic fleet in one page, max
+ * 100 caps the DAL's LIMIT so no request demands an unbounded scan.
  * SOURCE: bounded list responses per Google AIP-158 https://google.aip.dev/158
  */
 export const PUSH_TOKENS_PAGE_LIMIT_DEFAULT = 20
@@ -51,9 +51,10 @@ export const PUSH_TOKENS_CURSOR_MAX = 256
 const TIMESTAMP_TEXT_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/
 
 /**
- * Row shape the DAL returns (drizzle select + Zod parse at the DAL exit).
+ * Row shape the DAL returns (Zod-parsed at the DAL exit — never a raw row).
  * The id is deterministic — a version-5 UUID of (owner, token) — so clients
- * may cache it as the handle for DELETE /api/push/tokens/{id} on sign-out.
+ * may cache it as the handle to pass back to the push.removeToken mutation on
+ * sign-out.
  */
 export const PushDeviceTokenDto = z.object({
   createdAt: z.string().regex(TIMESTAMP_TEXT_RE).max(64),
@@ -75,7 +76,7 @@ export const NewPushDeviceTokenInput = z.object({
 })
 export type NewPushDeviceToken = z.infer<typeof NewPushDeviceTokenInput>
 
-/** Query contract for GET /api/push/tokens — keyset, never OFFSET. */
+/** Query contract for the push.listTokens query — keyset, never OFFSET. */
 export const PushDeviceTokensListQuery = z.object({
   cursor: z
     .string()
@@ -92,7 +93,7 @@ export const PushDeviceTokensListQuery = z.object({
 })
 export type PushDeviceTokensListQueryInput = z.infer<typeof PushDeviceTokensListQuery>
 
-/** Response contract for GET /api/push/tokens: one page + the next-page token. */
+/** Response contract for push.listTokens: one page + the next-page token. */
 export const PushDeviceTokensPage = z.object({
   items: z.array(PushDeviceTokenDto).max(PUSH_TOKENS_PAGE_LIMIT_MAX),
   nextCursor: z.string().min(1).max(PUSH_TOKENS_CURSOR_MAX).nullable(),

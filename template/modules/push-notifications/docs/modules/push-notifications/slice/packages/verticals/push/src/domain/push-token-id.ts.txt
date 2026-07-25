@@ -3,16 +3,17 @@ import { createHash } from 'node:crypto'
 // cspell:words subarray
 // (^ Buffer API name — the shipped .txt form is spell-checked without the TS dictionary)
 // push-notifications module — deterministic row id for push_device_tokens.
-// Installed to apps/server/src/dal/push-token-id.ts.
+// Installed to packages/verticals/push/src/domain/push-token-id.ts. Pure
+// node:crypto; a SERVER-ONLY domain helper (register is a write, so this never
+// rides the Metro-safe ./client barrel).
 //
-// register() must be idempotent per (owner, token) and race-free under
-// concurrent app starts. The usual shape — a UNIQUE (owner_id, token) index as
-// the upsert arbiter — is off the table here because the harness plan probe
-// bulk-seeds isolation targets with constant per-column scalars, which a
-// two-column uniqueness constraint rejects (module README, honest limits). So
-// the arbiter is the PRIMARY KEY itself, made deterministic: a name-based
-// (version 5, SHA-1) UUID of (owner, token). Two racing registrations compute
-// the same id and collapse into one row via ON CONFLICT on the primary key.
+// registerToken() must be idempotent per (owner, token) and race-free under
+// concurrent app starts. Rather than a UNIQUE (owner_id, token) index as the
+// upsert arbiter, the arbiter is the PRIMARY KEY itself, made deterministic: a
+// name-based (version 5, SHA-1) UUID of (owner, token). Two racing
+// registrations compute the same id and collapse into one row via the upsert's
+// ON CONFLICT (id) DO UPDATE — see the module README's honest limits for why a
+// deterministic key was chosen over a second unique constraint.
 // SOURCE: RFC 9562 §5.5 — UUID version 5 (name-based, SHA-1)
 // https://www.rfc-editor.org/rfc/rfc9562
 
