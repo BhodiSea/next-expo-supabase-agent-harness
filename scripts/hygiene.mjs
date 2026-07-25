@@ -29,26 +29,19 @@ const LEAK_PATTERNS = [
   // file was carried from a sibling harness unadapted. This lineage OWNS
   // Next.js + Expo + Supabase + Vercel, so `supabase` and `vercel` were dropped
   // from the inherited set — they are first-class vocabulary here. What remains
-  // is the Tauri desktop harness's vocabulary, which must never appear.
+  // is the two siblings' server/desktop vocabulary, which must never appear:
+  //   - hono + drizzle — the expo-postgres sibling's self-hosted server half.
+  //     The whole template was retargeted to Supabase/tRPC (SQL-first migrations,
+  //     the packages/api router, RLS) across the closure wave — guard machinery,
+  //     then gate code + docs + CI + config, then the two opt-in module slices —
+  //     and these two lines ARM last, once nothing carries them. Measured at W1
+  //     this vocabulary lived in 65 template files; it is now zero, so no
+  //     ALLOWLIST entry is needed. Re-entry is a hard red from here on.
+  //   - tauri/cargo/vite/nsis/webview2 — the Tauri desktop harness.
   // Removing a pattern permanently removes a guard: extend ALLOWLIST for a
   // genuine one-file exception instead of deleting a line.
-  //
-  // NOT YET ARMED: /\bhono\b/i and /drizzle/i (the expo-postgres sibling's
-  // self-hosted server half).
-  //
-  // These arm in the FINAL closure wave, not with the stack swap. Measured at
-  // W1: 65 template files still carry that vocabulary — 54 under base/ (the
-  // subagent roster, .claude rules and skills, dependency-cruiser, eslint, the
-  // schema-rls/migrations/contracts/build gates, the RLS harness, CI workflows,
-  // the corpus index) and 11 under modules/. Every one of them is retargeted by
-  // a LATER wave (W3 schema, W4 boundaries, W5 contracts, W8 CI, W9 agent
-  // layer). Arming here would either red the repo for the whole build-out or
-  // force those 65 rewrites into one unreviewable change.
-  //
-  // The guard is therefore sequenced last, deliberately — not forgotten. Until
-  // it arms, nothing mechanically stops sibling vocabulary re-entering
-  // template/; that risk is accepted for the build-out window and closed by the
-  // final wave. See design/W1-STACK-SPEC.md §10.
+  /\bhono\b/i,
+  /drizzle/i,
   /tauri/i,
   /\bcargo\b/i,
   /VITE_/,

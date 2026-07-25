@@ -17,11 +17,13 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
 > the surface-agnostic machinery was ported forward and the single-surface stack
 > replaced. `template/stack/` is now `apps/{web,mobile}` (Next 16 + Expo 57) over
-> one shared Supabase backend, and the gate chain describes THAT stack. Remaining
-> before GA: the `hono`/`drizzle` cross-porting detectors arm once the last
-> inherited surfaces still carrying that vocabulary — the opt-in module slices,
-> the `apps/server`-shaped gate code, and the old CI workflows — are retargeted.
-> Nothing is claimed here that the selftest matrix does not prove.
+> one shared Supabase backend, and the gate chain describes THAT stack. The
+> closure wave is complete: every inherited surface that carried `hono`/`drizzle`
+> vocabulary — the guard machinery, the `apps/server`-shaped gate code, the old
+> CI workflows, and the opt-in module slices — has been retargeted to
+> Supabase/tRPC, and the `hono`/`drizzle` cross-porting detectors are now armed,
+> so re-entry is a hard red. Nothing is claimed here that the selftest matrix
+> does not prove.
 
 ## What it is
 
