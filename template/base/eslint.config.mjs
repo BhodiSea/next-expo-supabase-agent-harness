@@ -34,7 +34,6 @@ export default tseslint.config(
       '**/.expo/**',
       'apps/mobile/android/**', // CNG prebuild output — generated, never committed
       'apps/mobile/ios/**', // CNG prebuild output — generated, never committed
-      'apps/mobile/src/theme/tokens.gen.ts', // emitted by tools/gen-theme.mjs; regen-diff-gated, not linted
       'packages/platform/supabase/src/database.types.ts', // `supabase gen types` output; types-drift-gated
       'tools/**', // gate scripts (incl. the custom-rules plugin): plain node, guarded by the harness itself
       'tests/**', // root-level RLS runner surface (gates wave)

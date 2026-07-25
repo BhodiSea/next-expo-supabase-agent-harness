@@ -14,7 +14,8 @@
     "./template/base/.claude/agents/mobile-security-reviewer.md",
     "./template/base/.claude/agents/security-reviewer.md",
     "./template/base/.claude/agents/test-author.md",
-    "./template/base/.claude/agents/torvalds-reviewer.md"
+    "./template/base/.claude/agents/torvalds-reviewer.md",
+    "./template/base/.claude/agents/web-security-reviewer.md"
   ],
   "commands": "./template/base/.claude/commands",
   "skills": "./template/base/.claude/skills"

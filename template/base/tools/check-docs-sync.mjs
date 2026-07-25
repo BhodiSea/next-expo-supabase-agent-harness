@@ -16,7 +16,7 @@
 //   5. The agent roster matches the docs' claim: every .claude/agents/*.md
 //      parses under the pinned frontmatter grammar (a parse failure is a RED,
 //      never a skip) and carries name (== filename), description, and model;
-//      the six reviewer agents hold ONLY read-only tools and disallow
+//      the seven reviewer agents hold ONLY read-only tools and disallow
 //      Write + Edit — "read-only by construction" (README "The agent roster"),
 //      machine-asserted. Deliberately NOT version-ramped: the agent files are
 //      harness-OWNED, so the update that delivers this check refreshes the
@@ -135,7 +135,7 @@ if (catalogErrs.length > 0) {
 
 // 5. Agent roster. Every roster file must parse (fail-open here would let a
 //    malformed reviewer hide a write grant) and carry the universal fields;
-//    the six reviewers may hold only read-only tools and must disallow
+//    the seven reviewers may hold only read-only tools and must disallow
 //    Write + Edit. Author agents keep their write tools — universal fields only.
 const AGENTS_DIR = '.claude/agents'
 const DOCTRINE = 'reviewers are read-only by construction (README "The agent roster")'

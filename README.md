@@ -9,15 +9,18 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release, W0 of 10 complete — the stack tree is NOT yet this
-> lineage's.** This repo was forked from
+> **Status: pre-release. The consolidation is complete through W9 — the stack
+> tree, gate chain, hooks, CI, and agent layer are this lineage's own.** This
+> repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
-> [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness)).
-> The harness machinery below — installer, gate chain, hooks, CI — is ported
-> and green. **`template/stack/` is still the Expo + Hono + Drizzle reference
-> app verbatim** and is replaced in W1 by the Next + Expo + Supabase tree; until
-> then the gate chain describes that inherited stack, not the target one.
+> [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
+> the surface-agnostic machinery was ported forward and the single-surface stack
+> replaced. `template/stack/` is now `apps/{web,mobile}` (Next 16 + Expo 57) over
+> one shared Supabase backend, and the gate chain describes THAT stack. Remaining
+> before GA: the `hono`/`drizzle` cross-porting detectors arm once the last
+> inherited surfaces still carrying that vocabulary — the opt-in module slices,
+> the `apps/server`-shaped gate code, and the old CI workflows — are retargeted.
 > Nothing is claimed here that the selftest matrix does not prove.
 
 ## What it is
@@ -138,10 +141,12 @@ in a copy is the checklist of repo-root sites that hardcode the upstream owner:
   words your lineage now owns, and add the words of the lineage you forked
   away from — never delete a pattern to make a run pass. (This fork dropped
   `/supabase/i` and `/vercel/i` immediately, and arms `/\bhono\b/i` +
-  `/drizzle/i` in the final closure wave — 65 template files still carry that
-  vocabulary at W1, so arming it early would force every later wave's rewrites
-  into one change. Expect this: a lineage fork's detectors arm last, once every
-  consumer has been retargeted.)
+  `/drizzle/i` in the final closure wave. W9 retargeted the `.claude` authoring
+  surface and deleted the design-token gate-side tooling; the detectors arm once
+  the remaining carriers — the `push-notifications`/`observability`/
+  `crash-reporting` module slices, the `apps/server`-shaped gate code, and the
+  old CI workflows — are retargeted too. Expect this: a lineage fork's detectors
+  arm last, once every consumer has been retargeted.)
 
 Then prove closure the way the harness proves everything else:
 
@@ -159,12 +164,11 @@ pattern.
 - `template/base/` — the harness machinery installed into a consumer: gate
   scripts, Claude Code hooks/agents/rules, CI workflows (stored dotless),
   db bootstrap, RLS/migration test harnesses.
-- `template/stack/` — the reference app. **Inherited, not yet this lineage's:**
-  currently `apps/mobile` (Expo + expo-router), `apps/server` (Hono + Drizzle
-  over Postgres FORCE RLS), `packages/{contracts,schema,importer,eval}`. W1
-  replaces it with `apps/{web,mobile}` + `packages/{api,contracts,verticals/*,
-  shared/*,platform/*,design-tokens,design-system,design-system-native}` +
-  `supabase/`.
+- `template/stack/` — the reference app: `apps/{web,mobile}` (Next 16 App Router
+  + Expo 57 expo-router) + `packages/{api,contracts,verticals/*,shared/*,
+  platform/*,design-tokens,design-system,design-system-native}` + `supabase/`
+  (SQL-first migrations + RLS + pgTAP). One seeded vertical (`notes`) is
+  exercised end-to-end across both surfaces.
 - `template/modules/` — opt-in modules (EAS release automation, EAS Update,
   store metadata, device e2e, crash reporting, observability, …).
 - `scripts/`, `tests/` — the harness holding itself to its own bar.

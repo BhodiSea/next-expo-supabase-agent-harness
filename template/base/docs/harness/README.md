@@ -20,7 +20,7 @@ Every mechanism belongs to one of six layers:
 | 2 | **Generation** | plan-mode design first; data structures before code (the quality bar in AGENTS.md) |
 | 3 | **In-loop verification** | mid-turn MCP tools (`corpus_search`, `rls_verify`), `posttool-fast-check.mjs` per-edit feedback |
 | 4 | **Provenance capture** | `// SOURCE:` + `[corpus: <id>]` comments, `posttool-source-check.mjs`, `tools/check-sources.mjs`, one ADR per slice (`/adr`) |
-| 5 | **Adversarial review** | read-only reviewer subagents (`security-reviewer`, `mobile-security-reviewer`, `torvalds-reviewer`, `accessibility-reviewer`, `design-reviewer`, `citation-verifier` via `/verify-citations`) |
+| 5 | **Adversarial review** | read-only reviewer subagents (`security-reviewer`, `web-security-reviewer`, `mobile-security-reviewer`, `torvalds-reviewer`, `accessibility-reviewer`, `design-reviewer`, `citation-verifier` via `/verify-citations`) |
 | 6 | **Gated completion** | the Stop hook (`stop-validate-gate.mjs`) running the full validate chain with exit-2 semantics; CI as the floor |
 
 Layers 1–2 raise the probability of correct output; layers 3–6 make incorrect output
@@ -271,10 +271,14 @@ machine-asserted: the `docs-sync` gate parses every `.claude/agents/*.md` frontm
 and reds a reviewer holding anything outside the read-only allowlist or missing
 `disallowedTools: Write, Edit`.
 
-- `security-reviewer` — MUST run on any change to RLS SQL, the DAL/`withUserContext`,
-  or auth verification.
-- `mobile-security-reviewer` — MUST run on any change to the keychain seam
-  (`src/host`/`src/auth`), the api-client, `app.config.ts`/`eas.json`, permissions, or
+- `security-reviewer` — MUST run on any change to RLS SQL, migrations, the
+  server-only data layer (tRPC procedures / Server Actions / a vertical's
+  `./client`), or `service_role` usage.
+- `web-security-reviewer` — MUST run on any change to Server Actions, the web
+  Supabase seam (`apps/web/lib/supabase/**`), `proxy.ts`, the tRPC route handler
+  (`app/api/trpc/[trpc]/route.ts`), or `NEXT_PUBLIC_` env.
+- `mobile-security-reviewer` — MUST run on any change to the Supabase session
+  storage (`LargeSecureStore`), `app.config.ts`/`eas.json`, permissions, or
   config plugins.
 - `torvalds-reviewer` — the quality red-team (data structures first, kill special
   cases, delete code) before a slice is declared done.

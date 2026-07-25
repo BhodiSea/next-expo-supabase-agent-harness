@@ -76,8 +76,9 @@ test('duplication: test files are excluded (they legitimately repeat setup)', ()
 })
 
 test('duplication: generated *.gen.ts modules are excluded (machine-written, e.g. theme tokens)', () => {
-  // The port swaps the source harness's specta-bindings exclusion for the
-  // generated-module pattern this stack ships (tokens.gen.ts from gen-theme).
+  // The port swaps the source harness's specta-bindings exclusion for a
+  // generated-module pattern: machine-written *.gen.ts modules stay out of the
+  // duplication census.
   const r = runReal({
     'apps/mobile/src/theme/tokens.gen.ts': BLOCK('summariseAlpha'),
     'apps/mobile/src/other.gen.ts': BLOCK('summariseBeta'),

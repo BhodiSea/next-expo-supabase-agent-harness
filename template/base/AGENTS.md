@@ -1,4 +1,4 @@
-# AGENTS.md — {{PROJECT_NAME}} mobile platform
+# AGENTS.md — {{PROJECT_NAME}} web + mobile platform
 
 Canonical project memory (CLAUDE.md points here). Advisory context — the Stop
 hook + CI are the real enforcement. Keep under ~200 lines.
@@ -6,26 +6,43 @@ SOURCE: docs/harness/README.md.
 
 ## Stack (pnpm monorepo, versions live ONLY in the pnpm-workspace.yaml catalog)
 
+- **apps/web** — Next 16 (App Router, React 19, Server Components + Server
+  Actions), deployed on Vercel. It SERVES the API: `app/api/trpc/[trpc]/route.ts`
+  mounts `@app/api`, choosing the cookie-backed Supabase client for browser
+  sessions and the bearer client for mobile. Server-side identity is
+  `getUser()`/`getClaims()`, NEVER `getSession()`; the request-scoped client is
+  built per request, never at module scope. `proxy.ts` refreshes the session
+  cookie and is NOT an authorization boundary (CVE-2025-29927).
 - **apps/mobile** — Expo SDK 57 (React Native 0.86 + React 19, Hermes, New
   Architecture, React Compiler on) with expo-router file routes under `app/`.
-  CNG: `android/` and `ios/` are prebuild OUTPUT — generated, never committed,
-  never hand-edited; native change = config plugin from the reviewed allowlist
-  (`tools/expo-plugins.json`). The keychain (expo-secure-store) has ONE door:
-  `src/host/**` — auth providers own the credential lifecycle but store through
-  the host seam's `secure*` helpers; the API only via `src/lib/api-client.ts`.
-- **apps/server** — Hono + Node 22 API on `PORT` (default 8787). Auth =
-  `AUTH_MODE=stub|entra`, one jose `jwtVerify` path (pinned iss/aud/alg,
-  `clockTolerance: 300`). Boot-time fatal: `NODE_ENV=production` + stub.
-- **packages/contracts** — `@app/contracts`: pure-Zod wire contracts, the ONLY
-  schema surface both sides import. `EMBEDDING_DIM = 1024`.
-- **packages/schema** — `@app/schema`: Drizzle tables + append-only migrations
-  in `packages/schema/drizzle/`. Server-side only — mobile never resolves it.
-- **packages/importer** — deterministic parsers + fast-check property tests.
-- **packages/eval** — Inference/Embedding ports, fixture-scored eval, versioned
-  hash-locked prompts. NO live model calls anywhere in the repo.
-- **Postgres 16 + pgvector** via `docker-compose.yml` (`pnpm db:up`). Roles from
-  `db/init/01-roles.sql`: `app_migrator` (owns schema, migrations only) and
-  `app_api` (the server's login role — NOSUPERUSER, NOBYPASSRLS, FORCE RLS).
+  CNG: `android/`/`ios/` are prebuild OUTPUT — generated, never committed; native
+  change = config plugin from the reviewed allowlist (`tools/expo-plugins.json`).
+  Data flows through the tRPC client (`src/lib/trpc/client.ts`) or a vertical's
+  `./client`; the Supabase session lives in `LargeSecureStore`
+  (`src/lib/supabase/**` — AES-256-CTR key in expo-secure-store, ciphertext in
+  AsyncStorage), never JS-visible storage.
+- **packages/api** — `@app/api`: the framework-neutral tRPC v11 router
+  (`publicProcedure` → `authedProcedure` → `memberProcedure`; the version-skew
+  guard on the base). Imports NO `next/*` — the reversibility wall. Mobile takes
+  it as a devDependency, `import type` only (Metro does not tree-shake).
+- **packages/contracts** — `@app/contracts`: hand-authored zod DTOs + the
+  GENERATED action/event inventories both surfaces import; the `contracts` gate
+  regen-diffs the inventories.
+- **packages/verticals/\*** — feature domains (never import each other), each a
+  `.` server barrel + a Metro-safe `./client` barrel (the `exports` census is
+  `tools/exports-walls.json`).
+- **packages/platform/\*** — `{errors, events}` are the KERNEL (import nothing —
+  the bottom of the graph; the single `ActionOutcome` envelope lives here).
+  `@app/supabase` owns the five Supabase factories (`service_role` BYPASSES RLS —
+  ADR-governed Edge Functions only); `@app/env` validates env per surface.
+- **packages/design-tokens** — the single OKLCH TS token source →
+  `src/generated/native.ts` (mobile) + `src/generated/web.css` (Tailwind v4);
+  `design-system` (web/Radix) and `design-system-native` (NativeWind) share only
+  tokens + icon paths, never components.
+- **Supabase** — Postgres + RLS + Auth, ONE backend for both surfaces. Schema is
+  SQL-first: `supabase/schemas/*.sql` (declarative) + `supabase/migrations/*.sql`
+  (append-only). RLS keys on `auth.uid()`; the caller runs as `authenticated`.
+  `pnpm db:up` = `supabase start` (API 54321, Postgres 54322, Studio 54323).
 
 ## Package manager: pnpm 11 (pinned via `packageManager`), Node >= 22
 
@@ -71,49 +88,51 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Security invariants (NON-NEGOTIABLE — hook- and lint-enforced)
 
-- **`withUserContext(userId, fn)` IS the authorization boundary.** Every
-  `apps/server/src/dal/*` module acquires the database through it (opens a tx,
-  `SET LOCAL app.user_id`), returns Zod-parsed DTOs, never raw rows. Routes
-  never touch the db driver. **The mobile app, its URL scheme, and the OS
-  keychain are NOT authorization** — the app is an untrusted client bearing a
-  scoped token; authorize in the DAL, on FORCE RLS.
-- **The app talks to the API ONLY through `src/lib/api-client.ts`** —
-  `apiFetch`/`apiPost` attach the bearer token and decode the error envelope
-  (with the one refresh-then-retry-once 401 path). Never call `fetch()` from a
-  feature (lint-banned): a bare request 401s against the real server, and every
-  unit test mocks the network, so nothing local would tell you. The token lives
-  in the platform keychain behind `src/host/**` (expo-secure-store one-door —
-  lint + depcruise), never in JS-visible storage and never behind an
-  `EXPO_PUBLIC_` name (those are inlined into the shipped JS bundle).
-  `__tests__/live-api-proof.test.ts` is where both halves run for real.
-- **GUC discipline:** RLS identity is `set_config('app.user_id', $uuid, true)`
-  inside a transaction. NEVER `set_config(..., false)`, `SET SESSION app.*`, or
-  bare `SET app.*` — session GUCs leak identity across pooled connections.
-- **Migrations are append-only.** Never edit or delete a committed migration —
-  add a new one (`drizzle-kit generate`). `drizzle-kit push`/`drop` are blocked.
-  Destructive DDL (DROP TABLE/COLUMN, TRUNCATE) needs `-- adr: docs/adr/<file>`;
-  DML in a migration needs `-- harness-allow-dml: <reason>`.
-- **`MIGRATOR_DATABASE_URL` bypasses RLS** (schema owner). Sanctioned uses only:
-  drizzle-kit migrate/generate/check and the harness RLS runners
-  (`tests/migrations/`, `tests/rls/` — plan-probe seeding + ANALYZE). Never in
-  app or assertion code: isolation asserts always run as `app_api`.
-- **Every new table ships FORCE RLS**: `ENABLE` + `FORCE ROW LEVEL SECURITY` +
-  four per-operation policies reading
-  `(select current_setting('app.user_id', true)::uuid)` (initPlan pattern) +
-  a leading-column index on the owner column, in the same migration.
-  Exemptions = human-reviewed `tools/rls-exempt.json`.
-- **Every DAL method is registered in `tests/rls/dal-shapes.ts`** — and so is every
-  interesting ARGUMENT shape (a first page and a cursor page plan differently). The plan
-  probe drives the REAL DAL through a capturing pg-proxy and `EXPLAIN`s the SQL it emits at
-  scale, redding on any `Seq Scan`, `Sort` or per-row `SubPlan`. **The index must carry the
-  ORDERING, not just the filter**: index `(owner_id, <the ORDER BY columns, declared
-  direction>)` so one index serves the policy, the sort and the cursor range
-  (`0002_notes_keyset_idx.sql` is the worked pattern).
-- **Mobile-bundle purity:** `apps/mobile` never imports `postgres`,
-  `drizzle-orm`, `pg`, `@hono/*`, `pino`, `@app/schema`, or anything in
-  `apps/server`. It talks to the API via `@app/contracts` DTOs only.
-- **No EXPO_PUBLIC_-prefixed secret-shaped names** (`*KEY|SECRET|TOKEN|
-  PASSWORD|PRIVATE`) — EXPO_PUBLIC_ vars are inlined into the shipped bundle.
+- **RLS on `auth.uid()` IS the authorization boundary.** Every user-scoped table
+  ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration, with
+  per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) keyed
+  on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `service_role`,
+  and grants to `authenticated`. Web and mobile hit the SAME policies, so isolation
+  is enforced in ONE place; `supabase/tests/**` (pgTAP) + `tests/rls/` (supabase-js)
+  prove tenant B cannot read A on every `db reset`. **The owner index must carry the
+  ORDERING, not just the filter** — `(owner_id, <ORDER BY columns, direction>)` so
+  one index serves the policy, the sort and the cursor range. Exemptions =
+  human-reviewed `tools/rls-exempt.json`.
+- **`service_role` bypasses RLS — it lives ONLY in an ADR-governed Edge Function**
+  (`supabase/functions/<name>/index.ts`), built via
+  `createServiceRoleClient_BYPASSES_RLS(warrant)`. NEVER in a Server Action, tRPC
+  procedure, Route Handler, component, or the mobile bundle. Migrations `REVOKE ALL`
+  from `service_role`; a function reaches a table only through an explicit per-table
+  grant attached to the ADR.
+- **Server-side identity is `getUser()`/`getClaims()`, NEVER `getSession()`** — the
+  cookie is attacker-controlled and `getSession()` does not verify the signature.
+  The request-scoped Supabase client is built per request from `cookies()`, never at
+  module scope (a hoisted client leaks one request's identity into another's render).
+  `proxy.ts` is not an authz boundary (CVE-2025-29927) — it only refreshes the
+  session cookie.
+- **The single error channel.** Procedures (`@app/api`) and web Server Actions return
+  `ActionOutcome<T>` from `@app/errors` on the DATA channel; a domain failure is a
+  returned `outcomeErr(appError.X())`, never a thrown error. Only two transport facts
+  bypass it: the auth middleware's UNAUTHORIZED and the version-skew CONFLICT. The
+  `app-error-only` ESLint rule is the static half.
+- **Boundaries.** `verticals ⊥ verticals`; `shared ↛ verticals`; `platform/* →
+  {errors,events}` only; `packages/api ↛ next/*` (reversibility wall); `apps/mobile ↛
+  web-only packages`; `apps/web ↛ react-native`. The dual-barrel `exports` census is
+  `tools/exports-walls.json`; `@app/api` is absent (mobile `import type` only).
+- **Migrations are append-only.** Never edit or delete a committed migration — add a
+  new timestamped `supabase/migrations/<timestamp>_<slice>.sql`. Destructive DDL
+  (DROP/TRUNCATE) needs `-- adr: docs/adr/<file>`; DML in a migration needs
+  `-- harness-allow-dml: <reason>`.
+- **Mobile-bundle purity:** `apps/mobile` never imports a server-graph or
+  service-role module, `next`, `react-dom`, or `@app/design-system` (DOM). It
+  reaches data through the tRPC client (`src/lib/trpc/**`) or a vertical's `./client`,
+  and holds its Supabase session only in `LargeSecureStore` (`src/lib/supabase/**`) —
+  never JS-visible storage, never a log line.
+- **No `EXPO_PUBLIC_`- or `NEXT_PUBLIC_`-prefixed secret-shaped names** (`*KEY|SECRET|
+  TOKEN|PASSWORD|PRIVATE`) — both prefixes are inlined into their shipped bundle. The
+  public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
+  `EXPO_PUBLIC_*` transport only; the service-role key and any provider secret stay
+  server-env.
 - **Store identity is locked** in `tools/identity.lock.json` (bundle id /
   package) — it is upgrade identity and never changes. `version`,
   `ios.buildNumber`, `android.versionCode` are DERIVED from package.json in
@@ -123,7 +142,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   export compliance stays DECLARED (`ITSAppUsesNonExemptEncryption`), every
   iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`, the
   targetSdk floor holds, and an auth surface requires the account-deletion
-  surface (`session.deleteAccount` + `DELETE /api/me` — Apple 5.1.1(v)).
+  surface (a `session.deleteAccount` procedure — Apple 5.1.1(v)).
 - **`WITH RECURSIVE` requires a `CYCLE` clause or visited guard** — graph data
   loops forever otherwise.
 - **Prompt lock discipline:** every LLM prompt file is versioned in its name
@@ -142,10 +161,10 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 - Eliminate special-casing; delete code; justify every abstraction. `knip
   --strict` stays green. Cognitive complexity <= 15 (ESLint error).
 - Adversarial self-review before declaring done: try to break your own code.
-- **Server surface:** errors through the ONE envelope
-  (`src/errors.ts` — `{ error: { code, message, requestId } }`); every wire
-  string bounded (`.max()`); every list keyset-paginated with an unconditional
-  LIMIT (`dal/notes.ts` + `dal/cursor.ts` are the worked pattern).
+- **API surface:** procedures + Server Actions return the ONE envelope
+  (`ActionOutcome` from `@app/errors`); every wire string bounded (`.max()`);
+  every list keyset-paginated with an unconditional LIMIT
+  (`packages/verticals/notes` is the worked pattern).
 - **Coverage floors are enforced**: the Stop hook runs BOTH unit lanes with
   coverage (vitest for server/packages/pure mobile logic; jest-expo for RN
   components/screens), then `tools/check-diff-coverage.mjs` holds every CHANGED
@@ -225,8 +244,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Provenance
 
-- Non-trivial decision sites (RLS SQL, jwtVerify/JWKS options, vector index
-  choices, retry/timeout/sampling constants, ATS/policy choices) carry
+- Non-trivial decision sites (RLS SQL, `getUser`/`getClaims` verification, the
+  service-role warrant, retry/timeout/sampling constants, ATS/policy choices) carry
   `// SOURCE: <authority> [corpus: <id>]` (`-- SOURCE:` in SQL). Corpus ids
   resolve against `tools/mcp/corpus/index.json` (use the `corpus_search` MCP
   tool mid-turn; extend the corpus in the PR that cites it). Cite an entry whose
@@ -247,14 +266,18 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   version: store review lags, rollouts are staged, and some installs never
   update. Server first, contract phase last.
 - `/new-feature <name>` drives the one-turn slice recipe (the
-  `authoring-vertical-slice` skill): migration + RLS → DAL → route + contract
-  regen → mobile screen → tests → provenance → green gate.
+  `authoring-vertical-slice` skill): migration + RLS → RLS tests → `./client`
+  data fn → tRPC procedure (+ web Server Action) → web screen → mobile screen →
+  tests → provenance → green gate. `/new-action`, `/new-migration`, `/rls-check`
+  and `/verify-invariants` drive the individual steps.
 - Reviewers are read-only subagents (the `docs-sync` gate asserts their
-  frontmatter stays read-only): `security-reviewer` (MUST run on RLS/DAL/auth
-  changes), `mobile-security-reviewer` (MUST run on keychain/api-client/
-  app.config/eas.json/permission changes), `accessibility-reviewer` and
-  `design-reviewer` on UI changes, `torvalds-reviewer` before finishing,
-  `citation-verifier` via `/verify-citations`.
+  frontmatter stays read-only): `security-reviewer` (MUST run on RLS/migration/
+  auth changes), `web-security-reviewer` (MUST run on Server Actions, the web
+  Supabase seam, `proxy.ts`, the tRPC route handler, or `NEXT_PUBLIC_` env),
+  `mobile-security-reviewer` (keychain/app.config/eas.json/permission changes),
+  `accessibility-reviewer` and `design-reviewer` on UI changes,
+  `torvalds-reviewer` before finishing, `citation-verifier` via
+  `/verify-citations`.
 - PRs paste real `pnpm validate` + `pnpm test:rls` output; CODEOWNERS
   ({{SECURITY_OWNERS}}) sign off on auth/data/harness surfaces. New MCP servers
   or Skills must be registered in `docs/security/approved-tools.md` first. Keep

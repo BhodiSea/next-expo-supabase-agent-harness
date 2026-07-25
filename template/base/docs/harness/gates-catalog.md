@@ -457,9 +457,9 @@ numbered section (`### <n>. <name> — `) in THIS catalog — the anti-vacuity r
 is part of the gate, so an undocumented step cannot ship. The agent roster is part
 of the same surface: every `.claude/agents/*.md` must parse under the pinned
 frontmatter grammar (`tools/lib/agent-roster.mjs`; a parse failure is a RED, never
-a skip) and the six reviewers (`security-reviewer`, `mobile-security-reviewer`,
-`accessibility-reviewer`, `design-reviewer`, `torvalds-reviewer`,
-`citation-verifier`) may hold ONLY
+a skip) and the seven reviewers (`security-reviewer`, `web-security-reviewer`,
+`mobile-security-reviewer`, `accessibility-reviewer`, `design-reviewer`,
+`torvalds-reviewer`, `citation-verifier`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
 "read-only by construction" claim, machine-asserted.
 **Anti-vacuity:** add a gate to VALIDATE_STEPS without touching AGENTS.md → FAIL

@@ -23,10 +23,11 @@ absent).
   `android.versionCode` (maj·1e6 + min·1e3 + pat) from `package.json`;
   `eas.json` pins `appVersionSource: "local"`, `autoIncrement: false`.
   `runtimeVersion.policy = 'appVersion'`.
-- **Styling**: plain `StyleSheet` + a generated tokens module.
-  `tools/styleguide.manifest.json` stays the OKLCH source of truth;
-  `tools/gen-theme.mjs` emits committed sRGB tokens; the styleguide gate
-  regen-diffs.
+- **Styling**: plain `StyleSheet` on native + a generated tokens module. The
+  `packages/design-tokens` TypeScript modules are the OKLCH source of truth;
+  `packages/design-tokens/scripts/gen.mjs` emits the committed sRGB adapter
+  (`src/generated/native.ts`) and the theme CSS; the styleguide/tokens gates
+  regen-diff them.
 - **Motion** (0.1.2): RN core `Animated` + manifest motion tokens
   (`families.motion` — durations/easings/pressScale as data), consumed through
   ONE seam (`src/lib/motion.ts`) whose hooks animate transform/opacity only

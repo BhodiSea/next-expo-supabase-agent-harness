@@ -297,7 +297,6 @@ const RULE_CANARIES = {
     pathDeny('tools/check-native-deps.mjs'),
     pathDeny('tools/build-check.mjs'),
     pathDeny('tools/perf-baseline.mjs'),
-    pathDeny('tools/gen-theme.mjs'),
   ],
   // Listed before tools-lib in WRITE_PROTECTED so the citation allowlist carries
   // its own named deny; the SELF_EDIT escape stays human-only, like every rule.

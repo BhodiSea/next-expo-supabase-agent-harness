@@ -174,10 +174,10 @@ function shippedAgent(name) {
   return readFileSync(join(ROSTER_TEMPLATE, name), 'utf8')
 }
 
-test('GREEN: the shipped roster passes and the summary counts all six reviewers', () => {
+test('GREEN: the shipped roster passes and the summary counts all seven reviewers', () => {
   const r = runGate(fixture({ agents: shippedAgents }))
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('6/6 reviewers read-only'), r.out)
+  assert.ok(r.out.includes('7/7 reviewers read-only'), r.out)
 })
 
 test('RED: a reviewer granted Bash names the agent, the grant, and the doctrine', () => {
@@ -230,7 +230,7 @@ test('GREEN: author agents are unconstrained — a consumer-added author with Ba
     '---\nname: db-tuner\ndescription: consumer-added author agent\ntools: Read, Edit, Write, Bash\nmodel: sonnet\n---\nBody.\n'
   const r = runGate(fixture({ agents: shippedAgents, roster: { 'db-tuner.md': custom } }))
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('10 agent(s) parsed'), r.out)
+  assert.ok(r.out.includes('11 agent(s) parsed'), r.out)
 })
 
 test('RED: missing model, name/filename mismatch, unparseable frontmatter, deleted reviewer', () => {

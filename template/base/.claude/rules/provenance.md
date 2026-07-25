@@ -6,9 +6,12 @@ SOURCE: docs/harness/README.md (provenance rule)
   `// SOURCE: <authoritative URL or corpus id>` on or above the decision line —
   `-- SOURCE:` in SQL files and migrations.
 - Decision sites include: RLS policy SQL (`CREATE POLICY`, `FORCE ROW LEVEL
-  SECURITY`, `current_setting`/`set_config`), token verification (`jwtVerify`,
-  JWKS choices, `clockTolerance`), vector index choices (`USING hnsw`/`ivfflat`,
-  opclass), LLM sampling parameters, retry/timeout/rate-limit constants, the
+  SECURITY`, the `auth.uid()` policy predicate) and the server-side session
+  verification that feeds it (`getUser()`/`getClaims()`, never `getSession()` —
+  the choice itself is the cited decision), token/webhook verification
+  (`jwtVerify`, JWKS choices, `clockTolerance`), vector index choices (`USING
+  hnsw`/`ivfflat`, opclass), LLM sampling parameters, retry/timeout/rate-limit
+  constants, the
   mobile security surface (ATS/cleartext exceptions, Android permission
   strings, the `runtimeVersion` policy, the EAS updates URL — the seeded
   `mobile-security` group), and any security trade-off. The

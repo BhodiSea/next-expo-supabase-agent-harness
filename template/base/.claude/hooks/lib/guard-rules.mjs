@@ -228,10 +228,9 @@ export const WRITE_PROTECTED = [
   // The frozen CI floor: `validate.mjs --min-floor` trusts THIS file over the config, so a
   // shell/tool edit here would be the way to weaken CI without touching the config.
   { id: 'validate-floor', re: /^tools\/validate\.floor\.json$/ },
-  // perf-baseline.mjs is the ratchet-baseline regenerator; gen-theme.mjs is the token
-  // emitter the styleguide gate regen-diffs against — both sit at the same trust level
-  // as the gates that consume their output.
-  { id: 'gate-scripts', re: /^tools\/(check-[^/]+|build-check|perf-baseline|gen-theme)\.mjs$/ },
+  // perf-baseline.mjs is the ratchet-baseline regenerator — it sits at the same trust
+  // level as the gates that consume its output.
+  { id: 'gate-scripts', re: /^tools\/(check-[^/]+|build-check|perf-baseline)\.mjs$/ },
   // The bare-URL citation allowlist the provenance gate resolves against — widening it
   // weakens the gate, so adding a domain is a human decision. Listed BEFORE tools-lib
   // (which also covers the path) so the deny carries its own named, canaried rule id.

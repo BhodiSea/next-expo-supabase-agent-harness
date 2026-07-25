@@ -3,16 +3,12 @@
 // this file is what lets the token module DECLARE colors perceptually (OKLCH) and
 // still hand every consumer a value its renderer can actually paint.
 //
-// Why a TypeScript copy of the same math that lives in tools/lib/oklch.mjs: the
-// gate scripts under tools/ are plain Node ESM and cannot import TypeScript,
-// while this package is typechecked at maximum strictness and cannot import an
-// untyped .mjs without either allowJs (which drags tools/ outside this project's
-// rootDir and breaks the composite build) or a hand-maintained .d.mts (a second
-// signature nobody would keep honest). Both copies are the SAME published CSS
-// Color 4 reference conversion; the constants are pinned by a test in this
-// package, so an edit to either side that changes a matrix coefficient reds
-// rather than silently shifting every shipped color. The two converge when the
-// styleguide/tokens gates are retargeted at this package.
+// This is the single, canonical implementation of that conversion. The styleguide
+// and tokens gates no longer recompute colors in a parallel gate-side copy — they
+// regen-diff the committed generated output (packages/design-tokens/src/generated/*)
+// against this package, so the CSS Color 4 reference conversion lives in exactly one
+// place. The constants are pinned by a test in this package, so an edit that changes
+// a matrix coefficient reds rather than silently shifting every shipped color.
 // SOURCE: CSS Color 4 OKLCH→sRGB reference conversion (OKLab polar→rectangular,
 // cube LMS, matrices to linear-sRGB) [corpus: csswg/oklch-srgb]
 // https://www.w3.org/TR/css-color-4/#color-conversion-code

@@ -1,101 +1,182 @@
-# DAL + DTO + route reference
+# Data layer reference — vertical, procedure, Server Action, web read
 
-## The DAL law
+One operation, two callers. The vertical package holds the ONE implementation; the tRPC
+procedure and the web Server Action are thin transports over it. The moment a rule lives in
+only one of them ("web trims the title but mobile doesn't") the two surfaces have become two
+products. `packages/verticals/notes/**` is the worked example every layer below is copied
+from.
 
-`apps/server/src/db/client.ts` is the ONLY module that imports the database
-driver (depcruise rule `postgres-driver-db-layer-only`). `apps/server/src/dal/**`
-acquires the database exclusively through `withUserContext` from
-`apps/server/src/db/context.ts` (depcruise rule `db-context-dal-only`):
+## The vertical (`packages/verticals/<slice>/`)
 
-```ts
-// db/context.ts (already shipped — reuse, never reimplement)
-export async function withUserContext<T>(
-  userId: string,
-  fn: (tx: UserTx) => Promise<T>,
-): Promise<T> {
-  // opens a drizzle transaction and binds identity transaction-locally:
-  //   select set_config('app.user_id', ${userId}, true)
-  // FORCE RLS keys on this GUC — the wrapper IS the authorization boundary.
-}
-```
+Shape (mirror `packages/verticals/notes/src/*`):
 
-The write-guard denies whole-file writes to `apps/server/src/dal/*.ts` that lack
-`withUserContext`. `DATABASE_URL` is the unprivileged `app_api` role; there is no
-code path to the database outside a user context.
+- `src/domain/` — pure functions. No IO, no clock, no client. The exhaustively testable layer
+  where the rules actually live.
+- `src/data/` — the DAL. Takes a client, returns DTOs (never rows), returns outcomes (never
+  throws for a domain failure).
+- `src/schemas.ts` — the input schemas, DERIVED from `@app/contracts` (add only the
+  refinements that need domain knowledge; a refinement that could have been a wire bound
+  belongs upstream in the contract, where the client sees it too).
+- `src/events.ts` — the facts this vertical publishes, through `@app/events`'
+  `defineEventCatalog` so the `event-catalog` generator can walk them. Payloads carry
+  IDENTIFIERS, never content; constructors are PURE (`occurredAt` is a parameter, the row's
+  own timestamp, never `Date.now()`).
+- `src/client.ts` — the METRO-SAFE barrel: pure domain + zod + the DIRECT RLS READS a phone
+  performs against its own scoped client.
+- `src/index.ts` — re-exports `./client` and adds the SERVER-ONLY surface (the writes).
 
-## DAL module shape (`apps/server/src/dal/<feature>.ts`)
+### The three DAL laws (visible in every `data/<slice>.ts` function)
 
-- Implement an interface declared in `src/types.ts` (the `NotesDal` pattern) so
-  routes depend on the contract and tests inject fakes via `createApp({ ... })`.
-- Query with the drizzle query builder against the schema from `@app/schema` —
-  no raw SQL string triplication (see `dal/notes.ts` for the worked example).
-- Zod-parse at the DAL exit (`NoteDto.parse` / `NotesPage.parse` from
-  `@app/contracts`) — raw driver rows never escape. Internal columns (e.g.
-  `embedding`) are never selected.
-- **Every list query is keyset-paginated with an unconditional LIMIT** — an
-  unbounded SELECT is a shipped regression at scale. The pattern (see
-  `dal/notes.ts` + `dal/cursor.ts`): opaque base64url cursor over
-  `{ createdAt, id }`, seek via row-wise comparison
-  `("created_at","id") < ($1::timestamptz, $2::uuid)`, fetch `limit + 1` as the
-  has-more sentinel, return `{ items, nextCursor }`. `createdAt` rides the
-  cursor as VERBATIM timestamptz text — a JS `Date` round-trip truncates
-  microseconds and skips/dups rows.
-- Statement-count invariance: a DAL list call executes exactly ONE statement
-  regardless of row count (`dal/notes.statements.test.ts` asserts it — the N+1
-  class cannot land silently). Give new DAL functions the same test, and register
-  the method plus its interesting argument shapes (first page, cursor page) in
-  `tests/rls/dal-shapes.ts` so the plan probe EXPLAINs the real SQL at scale.
-- No app-side owner filtering on reads — visibility is the RLS policies' job, and a
-  `WHERE owner_id = ...` would mask a policy regression. On INSERT the owner column
-  is `userId` (the verified token subject), never a wire value; the RLS `WITH CHECK`
-  rejects anything else with SQLSTATE 42501.
-- `noUncheckedIndexedAccess`: `rows[0]` is `T | undefined` — branch on it explicitly.
+1. **It takes a client, it never makes one.** The client handed in is the per-request,
+   RLS-scoped one. A DAL that could reach for a service-role client would make every caller a
+   privilege decision. The client arrives through a small STRUCTURAL port (`data/port.ts`) —
+   a hand-authored subset of the PostgREST query builder with `data: unknown` — not the
+   generated `Database` type: a generated type makes rows look trustworthy at the entrance,
+   the exact illusion the re-parse at the exit exists to prevent, and it is fakeable in three
+   lines so every branch (RLS denial, malformed row) is reachable from a unit test with no
+   container.
+2. **It returns DTOs, never rows.** A single row-boundary module (`data/rows.ts`) parses each
+   row ONCE against a schema whose fields are BORROWED from the `@app/contracts` shape
+   (`NoteRecord.shape.title`, never a restated bound) and renames snake_case -> camelCase. An
+   explicit column projection, never `select('*')` — `*` welds the wire payload to the
+   physical table, so an internal column (an embedding, a moderation flag) silently grows
+   every response past the contract. `rows.test.ts` asserts the projection string covers
+   exactly the row schema's keys.
+3. **It returns outcomes, never throws for a domain failure.** Every exit is
+   `outcomeOk(dto)` / `outcomeErr(appError.X())` from `@app/errors`.
+
+And one absence that is load-bearing: **no app-side owner filter on reads.** Visibility is the
+RLS policies' job, enforced against `auth.uid()`. A `WHERE owner_id = …` in the app would MASK
+a policy regression — the tests would pass the day a policy is dropped. On INSERT the owner
+column comes from the VERIFIED actor on a write context, never a wire value; the contract does
+not even carry the field, and the `WITH CHECK` re-rejects anything else with SQLSTATE 42501.
+
+### Reads, writes, and the barrel split
+
+- **Reads** (`getNote`, `listNotes`) go on `./client`: they are safe to run from a phone
+  because RLS is the boundary and the token is scoped to one user.
+- **Writes** (`createNote`, `updateNote`, `deleteNote`) stay OFF `./client`: they set an
+  ownership column from a verified actor and emit an event, so they belong where the actor was
+  verified. They take a `WriteContext` (`{ actorId, emit, now, workspaceId }`) alongside the
+  client and input.
+- **Every list query is keyset-paginated with an unconditional LIMIT.** Opaque base64url
+  cursor over `{ createdAt, id }`, an `or(...)` seek expressing the two lexicographic cases
+  (never OFFSET), `limit + 1` fetched as the has-more sentinel. `createdAt` rides the cursor
+  as VERBATIM timestamptz text — a JS `Date` round-trip truncates microseconds and
+  skips/dups rows. `data/notes.ts` + `domain/cursor.ts` are the pattern.
+- **`error` FIRST, always.** PostgREST resolves rather than rejects, so reading `data` before
+  `error` renders an RLS denial as an empty list. Map a Postgres failure through the
+  vertical's error mapper (42501 -> `rlsDenied`, etc.).
+- **`noUncheckedIndexedAccess`:** `rows[0]` is `T | undefined` — branch on it. An INSERT that
+  reports no error and returns no row means a SELECT policy filtered the RETURNING projection
+  (an unreadable-write misconfiguration), NOT a user error.
+
+## The tRPC procedure (`packages/api/src/routers/<slice>.ts`)
+
+Copy `routers/notes.ts`. Every procedure is three lines or fewer, and that is the point: pick
+a rung of the ladder (`packages/api/src/trpc.ts`), name an input schema, hand the call to the
+vertical. Business rules in a router are rules the Server Action cannot reach — the moment one
+lands here the two surfaces have forked.
+
+The rung split says something real:
+
+- **Reads are `authedProcedure`** — any signed-in user may read what RLS lets them see.
+- **Writes are `memberProcedure`** — writing consumes a seat. Membership is an authorization
+  OUTCOME, not a transport fact, so the middleware resolves it once and the handler returns it
+  verbatim on the failure path:
+
+  ```ts
+  create: memberProcedure.input(CreateNoteSchema).mutation(({ ctx, input }) => {
+    const gate = ctx.member
+    if (!gate.ok) return gate
+    return createNote(ctx.db, writeContext(ctx, gate.data.workspaceId), input)
+  }),
+  ```
+
+  Assemble the `WriteContext` in a small `writeContext(ctx, workspaceId)` function so
+  `actorId` can only ever come from `ctx.actor.userId` (the verified actor), never the input.
+
+**The envelope rule.** Procedures return `ActionOutcome` on the DATA channel. A domain failure
+is NEVER a thrown `TRPCError` — throwing flattens the `AppError` discriminant the screens
+switch on into an HTTP status, and "someone else deleted this note" becomes "something went
+wrong". Exactly two things bypass the envelope, both transport facts a handler could not
+produce: the auth middleware's `UNAUTHORIZED` and the skew guard's `CONFLICT`. A `.input()`
+parse failure is the framework's, not yours. `no transformer` — every payload is JSON-safe by
+construction.
+
+**After ANY router change, regenerate the committed inventories: `pnpm gen`** (rewrites
+`tools/generated/action-inventory.json` + `event-catalog.json`; the `contracts` gate
+regen-diffs them, and `parity` holds the mobile ledger to the action inventory).
+
+## The optional web Server Action (`apps/web/app/actions/<slice>.ts`)
+
+Add it only when the WEB surface writes this entity. It is the procedure's twin — SAME
+`@app/contracts` schema, SAME vertical implementation, SAME `ActionOutcome`. Copy
+`app/actions/notes.ts`:
+
+- `'use server'` marks the whole module — every export becomes a POST endpoint callable by
+  anyone who can read the client bundle. Treat each exported function as a public API.
+- Validate with `actionClient.inputSchema(<Slice>Schema)` (the same schema the procedure
+  uses) BEFORE any of it reaches domain code.
+- Resolve identity server-side: `getVerifiedUser()` (which uses `getUser()` under the hood —
+  never `getSession()`); an anonymous caller is refused on the data channel with
+  `outcomeErr(appError.unauthorized())`, not left to surface as an opaque RLS denial.
+- Mint the request-scoped client with `createRequestScopedClient()` and narrow it to the
+  vertical's port with the sanctioned double-cast `as unknown as <Slice>Database` (checking a
+  full `SupabaseServerClient` against the shallow port sends tsc into TS2589 — the assertion
+  is a hand-authored SUBSET, sound, and matches the tRPC route and the read seam).
+- On success only, `revalidatePath('/<slice>')` — invalidating on failure refetches identical
+  data and makes a rejected write look like a slow one.
+- Fold next-safe-action's three out-of-band channels (`data` / `validationErrors` /
+  `serverError`) back ONTO the data channel so the caller only ever sees one envelope shape.
+
+## The web read seam (`apps/web/lib/app-data/<slice>.ts`)
+
+The RSC read path, in one place and this order: per-request client
+(`createRequestScopedClient()`) -> the vertical `./client` fn -> match the outcome -> a render
+model -> the page. Read it as prohibitions (copy `lib/app-data/notes.ts`):
+
+- A Server Component NEVER queries Supabase directly — the table access, the projection and
+  the ordering belong to the vertical.
+- The vertical NEVER constructs its own client — it receives a request-scoped one, which is
+  what keeps it free of `next/*` and reusable from the mobile-facing bearer path unchanged.
+- No `fetch()` and no HTTP hop to the app's own `/api/trpc` — this runs in the same process as
+  the API; that would be pure latency plus a second copy of the auth story.
+- Caching is deliberately absent: every read is RLS-scoped to the calling user, and a cache
+  keyed on anything less specific than the verified identity is a cross-tenant leak in a
+  performance costume. Add caching per query with the identity in the key, or not at all.
+- Infrastructure throws (Supabase unreachable, env unparsed) are NOT caught here — they belong
+  to the route's `error.tsx` boundary, which can offer a retry. Domain failures come back
+  inside the model.
 
 ## Contracts (`packages/contracts`)
 
-- **Every wire string carries a `.max()` bound** (and `.min(1)` where empty is
-  meaningless); numbers carry ranges. Unbounded wire input is gate-red culture:
-  follow the `NewNoteInput` bounds (title 1..200, body ≤ 20 000) as the scale
-  reference.
-- List responses are `{ items, nextCursor }` (`NotesPage` pattern); `limit`
-  defaults to 50, caps at 200; cursors are opaque bounded strings.
+- **Every wire string carries a `.max()` bound** (and `.min(1)` where empty is meaningless);
+  numbers carry ranges. Follow `NewNoteInput` (title 1..200, body <= 20 000) and the
+  `NOTE_*_MAX` constants as the scale reference. An unbounded wire string is a
+  memory-amplification primitive.
+- Two shapes per entity: `*Record` (persisted contract, the DAL's exit shape, camelCased) and
+  `*View` (the ONE render shape both surfaces import — a field rename is a compile error on
+  both at once). The Record -> View map is a single pure function in the vertical.
+- List responses are `{ items, nextCursor }`; `limit` defaults and caps live in the contract
+  (`NOTES_PAGE_LIMIT_*`); cursors are opaque bounded base64url strings.
 
-## Route wiring (`@hono/zod-openapi`)
+## Class-A vs Class-B — default every write to Class-B
 
-- Contracts are `createRoute` definitions with request/response schemas imported from
-  `@app/contracts`; handlers registered via `app.openapi(route, handler)` in
-  `apps/server/src/app.ts` (the composition root — new slices may factor their
-  `createRoute` definitions into `apps/server/src/routes/<feature>.ts` and register
-  from `app.ts`).
-- **Errors are ONE envelope everywhere**: `{ error: { code, message, requestId } }`
-  with a closed code enum — produced only through `src/errors.ts` (`apiError()`,
-  `app.onError`, `app.notFound`, the OpenAPI `defaultHook`, and the `bodyLimit`
-  handler). Every route DECLARES its 4xx/5xx responses (all routes declare 500;
-  guarded routes declare 400/401/409). Unknown errors return a static message —
-  internals go to the log with the requestId, never over the wire.
-- Mount under `/api/*`: the version-skew middleware (409, `code: 'version_skew'`)
-  and `requireAuth` (verified JWT → `c.set('userId', ...)`) cover exactly that
-  prefix, and a unit test walks the route table to prove coverage. `bodyLimit`
-  (1 MiB) rides the same prefix. `/healthz` and `/openapi.json` are the only
-  routes outside it.
-- Auth failures collapse to a bare 401 envelope — never leak why a credential was
-  rejected.
-- Protected routes declare `security: [{ Bearer: [] }]` so the contract documents it.
-- SSE endpoints use `streamSSE` with `stream.onAbort` stopping the producer — an
-  orphaned generator per dropped client is a slow server leak.
-  `[corpus: hono/sse-abort]`
-- After ANY route change, regenerate the committed contract: `pnpm openapi:emit`
-  (stable-stringified `apps/server/openapi.json`; the `contracts` gate re-emits and
-  fails on diff).
+- **Class-B (DEFAULT):** mobile writes through the tRPC procedure served by web. One
+  implementation, verified server-side, events emitted where the actor was verified. Reach for
+  this unless there is a stated reason not to.
+- **Class-A (opt-in):** mobile writes DIRECT to Supabase through the vertical's `./client` and
+  TanStack Query, relying on RLS `WITH CHECK` as the sole write guard. It is a
+  security-census decision (a reasoned entry, reviewed), never a reflex — it trades the
+  server-side seam (input refinement beyond the contract, event emission, a single audited
+  code path) for a round trip saved.
 
 ## Discipline
 
-- `import type` for type-only imports (`verbatimModuleSyntax`); no non-null
-  assertions on user data; sonarjs cognitive-complexity ≤ 15 is a lint ERROR —
-  refactor, never suppress.
-- New code ships with tests that hold the coverage floor (`vitest run --coverage`
-  runs in the Stop hook — a feature landing without tests reds the turn).
-- `// SOURCE: <authority> [corpus: <id>]` on every non-trivial decision — the
-  provenance gate flags unsourced decision keywords (jwtVerify, timeouts, retries,
-  set_config, ...) and requires payloads that RESOLVE (https URL, repo path, or
-  corpus id).
+- `import type` for type-only imports (`verbatimModuleSyntax`); no non-null assertions on user
+  data; cognitive complexity <= 15 is a lint ERROR — refactor, never suppress.
+- New code ships with tests that hold the per-file coverage floor (see `references/tests.md`).
+- `// SOURCE: <authority> [corpus: <id>]` on every non-trivial decision (RLS predicate, keyset
+  seek, error mapping, cursor codec) — the `provenance` gate flags unsourced decision keywords
+  and requires payloads that RESOLVE.

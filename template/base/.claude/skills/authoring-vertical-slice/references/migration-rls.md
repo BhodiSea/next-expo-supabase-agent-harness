@@ -1,102 +1,160 @@
 # Migration & RLS reference
 
-## Where things live
+## Where things live — two files that move together
 
-- Drizzle schema source: `packages/schema/src/` — `pgTable(...)` declarations with
-  four per-operation `pgPolicy(...)` entries and `.enableRLS()`. The runtime role is
-  declared `pgRole('app_api').existing()` (roles are created by the docker-compose
-  init SQL, never by migrations). Vector columns use `EMBEDDING_DIM` from
-  `@app/contracts` (asserted by a schema unit test).
-- Migrations: `packages/schema/drizzle/NNNN_<feature>.sql` — 4-digit index, next in
-  sequence; statements separated by `--> statement-breakpoint`; registered in
-  `packages/schema/drizzle/meta/_journal.json`:
+- **Declarative source of truth:** `supabase/schemas/<NN>_<slice>.sql` — the table's DESIRED
+  STATE. `<NN>` is a two-digit prefix ordering the file after its dependencies (`00_shared`,
+  `10_account`, `20_notes`, …). `supabase/schemas/20_notes.sql` is the shape every later
+  vertical is copied from.
+- **Applied history:** `supabase/migrations/<timestamp>_<slice>.sql` — a NEW, timestamped,
+  append-only file that gets the database to that state. `supabase/migrations/20260101000100_notes.sql`
+  is the worked pattern.
 
-  ```json
-  { "idx": 1, "version": "7", "when": 1767225600000, "tag": "0001_release-notes", "breakpoints": true }
-  ```
+The pair is authored together: edit the schema file, then `supabase migration new <slice>`
+(or `supabase db diff -f <slice>`), READ the generated draft, re-case its DDL (see the
+provenance note below), commit both in one change. Editing only one of the two is the drift
+this split exists to make visible.
+
+Two things the diff engine does not see, so you must:
+- DML is never captured — that is fine, data belongs in `supabase/seed.sql`, and the
+  `migrations` gate rejects DML in a migration outright.
+- policy ALTERs and column privileges are documented blind spots: a policy CHANGE reads as
+  drop+create in the draft and a RENAME may read as nothing at all.
 
 ## Append-only, write-once
 
-The write-guard denies Edit/Write on ANY existing `packages/schema/drizzle/*.sql`
-(even uncommitted). Compose the COMPLETE migration first and Write it exactly once as
-a new file. Mistakes are corrected by a further new migration. `drizzle-kit push` and
-`drizzle-kit drop` are bash-guard-blocked; verify consistency with
-`pnpm --filter @app/schema exec drizzle-kit check`.
+`supabase/migrations/*` is APPLIED history. `supabase db push` records a migration by
+filename, so a retroactive edit yields a database that no longer matches its own history and
+no diff can tell you. Compose the COMPLETE migration first and write it exactly once as a new
+timestamped file; correct a mistake with a FURTHER new migration. That is why
+`scaffold-slice.mjs` refuses to pre-create it.
+
+## Keyword case is load-bearing
+
+`supabase db diff` emits lowercase DDL, and the provenance heuristic
+(`tools/lib/provenance-rules.mjs`) matches `CREATE POLICY` and `FORCE ROW LEVEL SECURITY`
+case-SENSITIVELY — lowercase RLS statements are invisible to it, so the citation duty
+silently lapses for that table. Re-case the RLS statements to UPPERCASE when you review the
+draft.
 
 ## The RLS skeleton (per user-scoped table, all in the SAME migration)
 
 ```sql
-ALTER TABLE "t" ENABLE ROW LEVEL SECURITY;
---> statement-breakpoint
--- SOURCE: FORCE applies row security to the table owner too — no owning role can
--- silently bypass the policies. [corpus: postgres/rls-force]
-ALTER TABLE "t" FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
--- SOURCE: scalar sub-select evaluates once per statement (initPlan), not per row;
--- nullif maps both no-identity shapes (unset GUC -> NULL, post-SET-LOCAL pooled
--- session -> '') to NULL, which never equals an owner_id — no identity fails closed
--- instead of raising 22P02. [corpus: postgres/rls-initplan]
-CREATE POLICY "t_select_own" ON "t" AS PERMISSIVE FOR SELECT TO "app_api"
-  USING ("owner_id" = (select nullif(current_setting('app.user_id', true), '')::uuid));
---> statement-breakpoint
-CREATE POLICY "t_insert_own" ON "t" AS PERMISSIVE FOR INSERT TO "app_api"
-  WITH CHECK ("owner_id" = (select nullif(current_setting('app.user_id', true), '')::uuid));
---> statement-breakpoint
-CREATE POLICY "t_update_own" ON "t" AS PERMISSIVE FOR UPDATE TO "app_api"
-  USING ("owner_id" = (select nullif(current_setting('app.user_id', true), '')::uuid))
-  WITH CHECK ("owner_id" = (select nullif(current_setting('app.user_id', true), '')::uuid));
---> statement-breakpoint
-CREATE POLICY "t_delete_own" ON "t" AS PERMISSIVE FOR DELETE TO "app_api"
-  USING ("owner_id" = (select nullif(current_setting('app.user_id', true), '')::uuid));
---> statement-breakpoint
--- SOURCE: every policy filters by the owner column on EVERY statement; without a
--- leading-column index that is a per-row sequential scan at scale. The schema-rls
--- gate and the runtime EXPLAIN plan probe both require it. [corpus: postgres/rls-initplan]
-CREATE INDEX "t_owner_id_idx" ON "t" ("owner_id");
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "t" TO "app_api";
+-- <timestamp>_<slice> — one owned entity. Desired state + full reasoning live in
+-- supabase/schemas/<NN>_<slice>.sql. Append-only and DML-free.
+CREATE TABLE public.<t> (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- owner_id references auth.users DIRECTLY, not public.profiles: routing the FK via the
+  -- profile spine makes the first write after signup fail until some other path created a
+  -- profile row. DEFAULT auth.uid() is a convenience for a caller that omits the column; it
+  -- is NOT the control — a caller that SENDS someone else's id is still rejected by the
+  -- WITH CHECK below.
+  owner_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users (id) ON DELETE CASCADE,
+  -- ... slice columns. Bounds mirror the @app/contracts zod DTO (defense in depth for a
+  -- caller that reaches the table by another path), never restate it looser.
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- updated_at is maintained by the shared trigger (supabase/schemas/00_shared.sql), never by
+-- application code — the trigger is the one place all four writers (Server Action, tRPC
+-- procedure, psql, Edge Function) pass through.
+CREATE TRIGGER <t>_set_updated_at
+  BEFORE UPDATE ON public.<t>
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- owner_id LEADING. Every policy on this table filters by owner_id on every statement, so
+-- this index is what turns the policy qual into an Index Cond; owner_id in second position
+-- does not serve `owner_id = $1` and the policy degrades to a sequential scan a two-row test
+-- database can never reveal. Carry the list screen's ORDER BY columns in the SAME index so
+-- one index serves policy, sort and keyset range; id breaks ties (a keyset cursor over a
+-- non-unique key skips or repeats rows at page boundaries).
+CREATE INDEX <t>_owner_id_created_at_id_idx
+  ON public.<t> (owner_id, created_at DESC, id DESC);
+
+-- FORCE subjects the table OWNER (`postgres`, the role running this migration) to the
+-- policies too — without it the migration/seed/SQL-editor role reads and writes every row
+-- and no test notices. A BYPASSRLS role (`service_role`) still bypasses; the REVOKE below is
+-- the only lever over it.
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as well
+-- [corpus: postgres/rls-force]
+ALTER TABLE public.<t> ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.<t> FORCE ROW LEVEL SECURITY;
+
+-- Grants are the outer gate. anon has no business here; service_role's grant is revoked
+-- because BYPASSRLS makes the grant the only lever over it (see supabase/functions/README.md).
+REVOKE ALL ON TABLE public.<t> FROM anon;
+REVOKE ALL ON TABLE public.<t> FROM service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.<t> TO authenticated;
+
+-- Four per-operation policies, TO authenticated, each identity call wrapped in a scalar
+-- sub-select so the planner hoists it into an InitPlan (once per statement, not once per
+-- row). Never FOR ALL — each op stays independently auditable.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
+CREATE POLICY <t>_select_own ON public.<t>
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (owner_id = (SELECT auth.uid()));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT under another user's owner_id [corpus: postgres/rls-force]
+CREATE POLICY <t>_insert_own ON public.<t>
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (owner_id = (SELECT auth.uid()));
+
+-- USING alone would let an owner rewrite owner_id and hand the row away; WITH CHECK keeps the
+-- result owned by the same user.
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY <t>_update_own ON public.<t>
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (owner_id = (SELECT auth.uid()))
+  WITH CHECK (owner_id = (SELECT auth.uid()));
+
+-- Also the account-deletion guard: an unqualified DELETE by a signed-in user removes exactly
+-- that user's rows, because this qual is the only WHERE clause the statement has.
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
+CREATE POLICY <t>_delete_own ON public.<t>
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (owner_id = (SELECT auth.uid()));
 ```
 
-Four per-operation policies, never `FOR ALL` — each op stays independently auditable.
-Mirror the same policies in the Drizzle source (`pgPolicy`) so schema and SQL agree
-(see `packages/schema/src/index.ts` and `drizzle/0000_init.sql` +
-`0001_notes_owner_idx.sql` for the worked example). The owner column must be the
-LEADING column of an index (second position does not serve the policy's equality
-qual); index every other policy-predicate column too. When the table is
-keyset-paginated, carry the ORDER BY columns in the same index — an index on
-`(owner_id)` alone leaves a keyset list sorting the owner's whole partition on every
-page; `0002_notes_keyset_idx.sql` is the worked pattern.
+Mirror the SAME statements in the declarative `supabase/schemas/<NN>_<slice>.sql` so the two
+agree — that file carries the desired state and the fuller comments; the migration carries
+the applied history. `20_notes.sql` and `20260101000100_notes.sql` are the two halves of the
+worked example.
+
+## Identity is the verified JWT, never a GUC
+
+`auth.uid()` resolves from the caller's verified `request.jwt.claims`, set by PostgREST from
+the bearer/cookie token — the caller runs as the `authenticated` role over a real GoTrue JWT.
+There is NO `set_config('app.user_id', …)`, no `SET LOCAL app.user_id`, and no per-connection
+identity GUC anywhere in this stack; a policy that read one would be trusting a value the
+transport, not the auth server, decided. The pgTAP suites impersonate a tenant with
+`SET LOCAL "request.jwt.claims"` + `SET LOCAL ROLE authenticated` precisely because that is
+the shape a real request arrives with.
 
 ## Gates that check this layer
 
-- `schema-rls`: every `pgTable` name must be covered by ENABLE + FORCE + per-op
-  policies somewhere in the cumulative migration SQL, or exempted in the
-  write-guard-protected `tools/rls-exempt.json` (a human decision — never edit it).
-  It also requires initPlan-shaped predicates, ISOLATION_TARGETS wiring, and the
-  leading-column owner index above.
-- `pnpm test:rls` runs the EXPLAIN plan probe (`tests/rls/plan-regression.test.ts`)
-  against a scratch database (`<db>_rls` — dev data is never dropped): at 10k
-  seeded rows every isolation target must be reached through its owner index with
-  a once-per-statement InitPlan — no Seq Scan, no per-row SubPlan.
-- `migrations`: append-only vs git; no DML without `-- harness-allow-dml: <reason>`;
-  destructive DDL (DROP TABLE/COLUMN, TRUNCATE) requires `-- adr: docs/adr/<file>`
-  pointing at an existing ADR — run `/adr` BEFORE writing the migration (it cannot be
-  edited afterwards).
-- `pnpm test:rls` fresh-applies the whole chain from zero
-  (`tests/migrations/migration-apply.mjs`, migrator role), then runs the isolation
-  matrix — pair every user-scoped table with an `IsolationTarget` in
-  `tests/rls/db-context.ts` (see `tests.md`).
+- `schema-rls` (`tools/check-rls-manifest.mjs`): every user-scoped table must be covered by
+  `ENABLE` + `FORCE` + four per-op policies, a leading-column owner index, and initPlan-shaped
+  predicates, OR exempted in the write-guard-protected `tools/rls-exempt.json` (a human
+  decision — never edit it). It closes over `ISOLATION_TARGETS` in `tests/rls/db-context.ts`
+  and holds it in sync with `rls_targets` in `supabase/tests/rls_structure.test.sql`.
+- `migrations`: append-only vs git; no DML without an explicit allowance; destructive DDL
+  (`DROP TABLE`/`COLUMN`, `TRUNCATE`) requires an `-- adr: docs/adr/<file>` pointing at an
+  existing ADR — run `/adr` BEFORE writing the migration (it cannot be edited afterwards).
+- `pnpm test:rls` (`node tests/rls/run-rls.mjs`) fresh-applies the whole chain into a local
+  Supabase stack and runs BOTH twins: the pgTAP structural + isolation suites
+  (`supabase/tests/*.sql`) and the supabase-js client isolation suite (`tests/rls/`). It
+  SKIPS LOUDLY when no local stack is up and FAILS CLOSED in CI — a skip is never a pass.
 
 ## Odds and ends
 
-- pgvector: `vector(1024)` columns match `EMBEDDING_DIM`; index with HNSW and the
-  opclass matching the query operator (`vector_cosine_ops` for `<=>`).
-  `[corpus: pgvector/hnsw]`
-- GUC discipline everywhere: identity only via `set_config('app.user_id', $, true)`
-  / `SET LOCAL` inside a transaction — session-wide GUCs leak identity across pooled
-  connections. `[corpus: postgres/guc-set-local]`
-- `WITH RECURSIVE` over graph data needs a `CYCLE` clause or visited guard (the
-  write-guard blocks it otherwise). `[corpus: postgres/recursive-cycle]`
-- `MIGRATOR_DATABASE_URL` (owner role, bypasses RLS) is confined by the bash-guard to
-  drizzle-kit migrate/generate/check, `pnpm db:migrate`, and the harness RLS runners
-  (`tests/migrations/`, `tests/rls/`).
+- Service-role code is confined to an ADR-governed Edge Function
+  (`supabase/functions/<name>/index.ts`), which reaches a table only through a migration that
+  `GRANT`s it explicitly per-table. Never `GRANT ALL ON ALL TABLES`. See
+  `supabase/functions/README.md`.
+- `set_updated_at()` is `SECURITY INVOKER` with `SET search_path = ''` and spells `now()` as
+  `pg_catalog.now()` — a table planted in a caller-controlled schema cannot be resolved from
+  inside it. Reuse it; do not reimplement per table.
