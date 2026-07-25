@@ -57,7 +57,7 @@ the final call, and a weakened invariant the reviewer under-ranked is still a FA
   (`apps/mobile/src/lib/trpc/client.ts`, Class-B default) or a vertical's `./client` direct
   RLS reads (Class-A opt-in) — NEVER a `.` server barrel or a value-import of `@app/api`
   (Metro does not tree-shake, so either drags the server graph into the native binary). The
-  session lives only in `LargeSecureStore` (`apps/mobile/src/lib/supabase/large-secure-store.ts`),
+  session lives only in `LargeSecureStore` (`apps/mobile/src/host/large-secure-store.ts`),
   never plain AsyncStorage/kv or module state. No secret behind a `NEXT_PUBLIC_` OR an
   `EXPO_PUBLIC_` name (`*KEY|SECRET|TOKEN|PASSWORD|PRIVATE` — both prefixes inline into the
   shipped client bundle); the anon / publishable key is public BY DESIGN, the service-role

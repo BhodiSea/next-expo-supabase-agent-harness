@@ -71,7 +71,7 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   the tRPC client (`apps/mobile/src/lib/trpc/client.ts`, Class-B default) or a
   vertical's direct RLS reads (`./client`, Class-A opt-in).
 - **`LargeSecureStore` is the one door to the session.** The Supabase session
-  lives in `apps/mobile/src/lib/supabase/large-secure-store.ts` — a fresh
+  lives in `apps/mobile/src/host/large-secure-store.ts` — a fresh
   AES-256-CTR key per value in `expo-secure-store` (the platform keychain), the
   ciphertext in AsyncStorage. `expo-secure-store` is imported nowhere else, and a
   credential never lands in plain AsyncStorage/kv/sqlite, module state that

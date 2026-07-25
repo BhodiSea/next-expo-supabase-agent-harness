@@ -3,10 +3,10 @@
   "generatedBy": "pnpm perf:baseline",
   "gzip": {
     "chunks": {
-      "android/entry.hbc": 1685940,
-      "assets": 442434
+      "android/entry.hbc": 2145039,
+      "assets": 442505
     },
-    "total": 2129111
+    "total": 2588279
   },
   "installerBudgetBytes": 367001600,
   "ratioCap": 1.25

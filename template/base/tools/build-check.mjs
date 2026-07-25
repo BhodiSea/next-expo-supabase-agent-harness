@@ -60,7 +60,10 @@ if (!existsSync(dist)) fail(GATE, `expo export produced no ${dist}/`)
 // prefix shape — neither has any business inside a shipped bundle.
 const FORBIDDEN = [
   ['SUPABASE_SERVICE_ROLE_KEY', 'the RLS-bypassing service-role key in the client bundle'],
-  ['createServiceRoleClient_BYPASSES_RLS', 'the RLS-bypassing service-role factory in the client bundle'],
+  [
+    'createServiceRoleClient_BYPASSES_RLS',
+    'the RLS-bypassing service-role factory in the client bundle',
+  ],
   ['postgres://', 'connection string in the client bundle'],
   ['postgresql://', 'connection string in the client bundle'],
   ['EXPO_TOKEN', 'EAS credential name in the client bundle'],

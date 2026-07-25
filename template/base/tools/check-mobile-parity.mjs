@@ -63,12 +63,18 @@ try {
   )
 }
 if (!Array.isArray(inventory)) {
-  fail(GATE, `${INVENTORY} must be a JSON array of {"action","type"} rows — the inventory is malformed`)
+  fail(
+    GATE,
+    `${INVENTORY} must be a JSON array of {"action","type"} rows — the inventory is malformed`,
+  )
 }
 const actionType = new Map()
 for (const row of inventory) {
   if (row === null || typeof row !== 'object' || typeof row.action !== 'string') {
-    fail(GATE, `${INVENTORY}: every row must be {"action": string, "type": string} — got ${JSON.stringify(row)}`)
+    fail(
+      GATE,
+      `${INVENTORY}: every row must be {"action": string, "type": string} — got ${JSON.stringify(row)}`,
+    )
   }
   actionType.set(row.action, typeof row.type === 'string' ? row.type : '?')
 }
@@ -119,7 +125,9 @@ if (!existsSync(PARITY)) {
     if (!lines[i].trim().startsWith('|')) break // the table ends at the first non-`|` line
     const c = cellsOf(lines[i])
     if (c.length < 4) {
-      errs.push(`${PARITY}:${i + 1}: row has ${c.length} column(s), need 4 (\`| Action | Web | Mobile | Notes |\`)`)
+      errs.push(
+        `${PARITY}:${i + 1}: row has ${c.length} column(s), need 4 (\`| Action | Web | Mobile | Notes |\`)`,
+      )
       continue
     }
     rows.push({ action: c[0], web: c[1], mobile: c[2], notes: c[3], line: i + 1 })

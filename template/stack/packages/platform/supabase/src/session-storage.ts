@@ -15,7 +15,7 @@
  * members; this one is uniformly async so a caller never has to branch).
  *
  * ─── THE EXPECTED IMPLEMENTATION (apps/mobile) ──────────────────────────────
- * `apps/mobile/src/lib/supabase/large-secure-store.ts` implements this as a
+ * `apps/mobile/src/host/large-secure-store.ts` implements this as a
  * SPLIT store, and the split is not an optimisation — it is the only shape that
  * works:
  *

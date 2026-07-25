@@ -52,7 +52,7 @@
 
 ## Session and credentials (do not touch unless the slice is auth)
 
-The Supabase session lives in `LargeSecureStore` (`src/lib/supabase/large-secure-store.ts`): a
+The Supabase session lives in `LargeSecureStore` (`src/host/large-secure-store.ts`): a
 fresh AES-256 key per value in `expo-secure-store` (the iOS Keychain / Android Keystore, ~2 KB
 cap), the CIPHERTEXT in AsyncStorage (no size limit) — the refresh token never exists in plain
 AsyncStorage. The client is constructed ONCE at component scope in

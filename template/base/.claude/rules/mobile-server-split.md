@@ -41,7 +41,7 @@ Server Actions under `apps/web/app/actions/*`.
   Supabase through the vertical's `./client` (TanStack Query over an RLS-scoped
   client). A feature never calls `fetch()` directly.
 - **The Supabase session lives in `LargeSecureStore`, never JS-visible storage.**
-  `apps/mobile/src/lib/supabase/large-secure-store.ts` is a split store: a fresh
+  `apps/mobile/src/host/large-secure-store.ts` is a split store: a fresh
   AES-256-CTR key per value in `expo-secure-store` (the iOS Keychain / Android
   Keystore), the ciphertext in AsyncStorage. `expo-secure-store` is imported
   nowhere else, and a credential never lands in plain AsyncStorage/kv/sqlite,

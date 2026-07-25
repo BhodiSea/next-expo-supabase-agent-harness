@@ -2,7 +2,7 @@ import { type Client, createNativeClient } from '@app/supabase/client'
 import Constants from 'expo-constants'
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
 import { AppState } from 'react-native'
-import { LargeSecureStore } from './large-secure-store'
+import { LargeSecureStore } from '../../host/large-secure-store'
 
 // THE Supabase client for this app, and the one place it is constructed.
 //

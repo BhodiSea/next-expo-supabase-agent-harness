@@ -63,7 +63,14 @@ export function useListQuery<T>(fetchList: ListFetcher<T>): ListQuery<T> {
   // composer above the list. The latest-ref pattern keeps the effect keyed on
   // intent (mount, reload) while still calling the current closure.
   const latest = useRef(fetchList)
-  latest.current = fetchList
+  // Refresh the ref in a passive effect, never during render — mutating a ref
+  // mid-render is impure (react-hooks/refs). This effect has no dependency
+  // array, so it runs on every commit and is declared BEFORE the keyed effect
+  // below, so `latest.current` is the current closure by the time that effect
+  // reads it on a mount/reload.
+  useEffect(() => {
+    latest.current = fetchList
+  })
 
   useEffect(() => {
     const controller = new AbortController()

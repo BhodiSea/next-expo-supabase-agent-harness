@@ -1,4 +1,21 @@
 {
   "comment": "Human-reviewed license exceptions for the licenses gate (tools/check-licenses.mjs). Each entry is {\"package\": string, \"reason\": string} — the package is allowlisted by name even when its license is outside the permissive allowlist. Adding an entry is a human decision (this file is write-guard-protected); the gate fails LOUD on any malformed entry, never open.",
-  "exceptions": []
+  "exceptions": [
+    {
+      "package": "@img/sharp-libvips-darwin-arm64",
+      "reason": "libvips ships LGPL-3.0-or-later; sharp (next@16 image optimization) links it dynamically as an OPTIONAL, os/cpu-gated platform binary — only the current platform's variant installs. Dynamic LGPL linkage imposes no source obligation on this codebase; the binary is unmodified and separately replaceable. Covers the darwin/linux variants the validate lanes actually install (dev macOS + CI ubuntu)."
+    },
+    {
+      "package": "@img/sharp-libvips-darwin-x64",
+      "reason": "See @img/sharp-libvips-darwin-arm64 — the Intel-macOS variant of the same LGPL-3.0 libvips binary pulled by next@16's sharp."
+    },
+    {
+      "package": "@img/sharp-libvips-linux-x64",
+      "reason": "See @img/sharp-libvips-darwin-arm64 — the linux-x64 variant installed on the CI (ubuntu) validate lane."
+    },
+    {
+      "package": "@img/sharp-libvips-linux-arm64",
+      "reason": "See @img/sharp-libvips-darwin-arm64 — the linux-arm64 variant for arm CI runners."
+    }
+  ]
 }

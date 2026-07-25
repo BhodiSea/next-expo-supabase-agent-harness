@@ -78,7 +78,7 @@ export interface UserFacingError {
 /** The catalog key for a failure: fine `code` first, coarse `kind` as the floor. */
 function keyFor(error: AppError): MessageKey {
   const override = (BY_CODE as Partial<Record<string, MessageKey>>)[error.code]
-  return override ?? BY_KIND[error.kind as AppErrorKind]
+  return override ?? BY_KIND[error.kind]
 }
 
 /**

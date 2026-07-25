@@ -168,7 +168,7 @@ export default function ActionsModal() {
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              const { error } = await supabase.functions.invoke('delete-account')
+              const { error } = await supabase.functions.invoke<never>('delete-account')
               if (error !== null) {
                 // A FunctionsError is not an AppError, and translateError is
                 // built for exactly that: `isAppError` rejects it and it lands
