@@ -17,7 +17,7 @@
 // (continuous native generation — prebuild output is a build artifact, not a source tree).
 // [\\/] everywhere a separator appears: on Windows shells the same write is spelled
 // `tools\validate.mjs`, and a `/`-only pattern would fail OPEN there.
-const PROT_DIRS = String.raw`(?:\.[\\/])?(?:tools|\.claude|\.harness|\.github[\\/]workflows|packages[\\/]schema[\\/]drizzle|tests[\\/]rls|tests[\\/]migrations|apps[\\/]mobile[\\/](?:android|ios))[\\/][^\s"'|;&]*`
+const PROT_DIRS = String.raw`(?:\.[\\/])?(?:tools|\.claude|\.harness|\.github[\\/]workflows|supabase[\\/]migrations|tests[\\/]rls|tests[\\/]migrations|apps[\\/]mobile[\\/](?:android|ios))[\\/][^\s"'|;&]*`
 // tsconfig(.base).json belongs here as much as it belongs in WRITE_PROTECTED: it carries
 // the max-strict compiler surface every other type gate rests on, and while the Edit/Write
 // path was guarded, `sed -i 's/"strict": true/"strict": false/' tsconfig.base.json` was
@@ -59,11 +59,6 @@ const INTERPRETER_WRITE_RE = new RegExp(
     String.raw`|\bdd\b[^|;&]*\bof=(?:"|')?${PROT}` +
     String.raw`|\bbase64\b[^|;&]*\s-{1,2}(?:d|decode)\b[^|;&]*${PROT}`,
 )
-
-// The sanctioned uses of the RLS-bypassing migrator DSN: drizzle-kit migrate/generate/check
-// and the harness RLS runners (tests/migrations fresh-apply; tests/rls orchestrator).
-const MIGRATOR_SANCTIONED =
-  /drizzle-kit\s+(migrate|generate|check)|db:migrate|test:rls|tests[\\/](migrations|rls)[\\/]/
 
 // Each rule: { id, re | test(cmd), message, allowWhen?(cmd, ctx) }. The guard denies on the
 // FIRST matching rule (array order = message priority) unless allowWhen suppresses it. ctx
@@ -182,17 +177,6 @@ export const BASH_RULES = [
       'Blocked: the generated native dirs (android/, ios/) are never committed — native surface changes go through app.config.ts + reviewed config plugins, and CI regenerates the dirs from a clean tree.',
   },
   {
-    id: 'drizzle-kit-push',
-    re: /\bdrizzle-kit\s+push\b/,
-    message:
-      'Blocked: `drizzle-kit push` bypasses migration files. Generate a migration (drizzle-kit generate) and apply it (db:migrate) so the change is reviewed and reproducible.',
-  },
-  {
-    id: 'drizzle-kit-drop',
-    re: /\bdrizzle-kit\s+drop\b/,
-    message: 'Blocked: `drizzle-kit drop` deletes migration history — migrations are append-only.',
-  },
-  {
     id: 'knip-fix',
     re: /\bknip\b[^|;&]*--fix\b/,
     message:
@@ -203,14 +187,6 @@ export const BASH_RULES = [
     re: /\bpnpm\s+update\b/,
     message:
       'Blocked: bulk dependency updates are Renovate-owned (pinned, cooled-down, reviewed). Change one pin deliberately if needed.',
-  },
-  {
-    // The privileged migrator DSN bypasses RLS (table owner). Sanctioned uses only.
-    id: 'migrator-dsn',
-    re: /MIGRATOR_DATABASE_URL/,
-    allowWhen: (cmd) => MIGRATOR_SANCTIONED.test(cmd),
-    message:
-      'Blocked: MIGRATOR_DATABASE_URL is the RLS-bypassing role — only drizzle-kit migrate/generate/check and the tests/migrations + tests/rls runners may use it.',
   },
   {
     id: 'destructive-sql',

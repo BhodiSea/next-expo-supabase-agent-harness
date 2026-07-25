@@ -6,7 +6,7 @@
 //   - absent baseline → NOTE naming the file + command, absolute budgets intact;
 //     malformed baseline → fail closed, never open;
 //   - purity markers (postgres:// AND postgresql:// DSNs, EXPO_TOKEN, sk_live_,
-//     drizzle-orm) red in a fixture dist;
+//     SUPABASE_SERVICE_ROLE_KEY) red in a fixture dist;
 //   - the shared lib measures deterministically, keys Hermes chunks by their
 //     hash-stripped `<platform>/<basename>` logical name, aggregates content-addressed
 //     assets under one "assets" key, and the regenerator's compose/serialize path
@@ -197,7 +197,7 @@ test('purity: every forbidden marker in an emitted file reds naming file, marker
     ['fetch("postgresql://app:secret@db/prod")', 'connection string in the client bundle'],
     ['const t = process.env.EXPO_TOKEN', 'EAS credential name in the client bundle'],
     ['const k = "sk_live_abc"', 'live secret-key material reference in the client bundle'],
-    ['require("drizzle-orm")', 'ORM code in the client bundle (server/db leak)'],
+    ['const k = process.env.SUPABASE_SERVICE_ROLE_KEY', 'the RLS-bypassing service-role key in the client bundle'],
   ]
   for (const [payload, why] of cases) {
     const dist = { ...DIST_FILES, [`_expo/static/js/android/leak-${HASH_A}.hbc`]: `${payload}\n` }

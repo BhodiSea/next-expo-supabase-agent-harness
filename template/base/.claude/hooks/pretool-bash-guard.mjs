@@ -38,8 +38,8 @@ const selfEdit = process.env.HARNESS_ALLOW_SELF_EDIT === '1'
 
 if (cmd) {
   // Deny on the FIRST matching rule (array order = message priority), unless the rule's
-  // allowWhen predicate sanctions this specific command (e.g. the migrator DSN in a
-  // drizzle-kit/RLS-runner context, or a self-edit under HARNESS_ALLOW_SELF_EDIT=1).
+  // allowWhen predicate sanctions this specific command (e.g. a self-edit under
+  // HARNESS_ALLOW_SELF_EDIT=1).
   for (const rule of BASH_RULES) {
     const hit =
       typeof rule.test === 'function'

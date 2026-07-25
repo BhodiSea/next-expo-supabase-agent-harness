@@ -297,7 +297,7 @@
       "denyExamples": [
         "rm -rf node_modules",
         "git push --force origin main",
-        "psql \"$MIGRATOR_DATABASE_URL\" -c \"select 1\""
+        "psql \"$DATABASE_URL\" -c \"DROP TABLE notes\""
       ]
     },
     "pretool-write-guard.mjs": {

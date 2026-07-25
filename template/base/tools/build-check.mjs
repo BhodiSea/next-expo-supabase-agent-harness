@@ -59,8 +59,8 @@ if (!existsSync(dist)) fail(GATE, `expo export produced no ${dist}/`)
 // EXPO_TOKEN is the EAS credential name and sk_live_ the live-mode secret-key
 // prefix shape — neither has any business inside a shipped bundle.
 const FORBIDDEN = [
-  ['drizzle-orm', 'ORM code in the client bundle (server/db leak)'],
-  ['MIGRATOR_DATABASE_URL', 'privileged DSN name in the client bundle'],
+  ['SUPABASE_SERVICE_ROLE_KEY', 'the RLS-bypassing service-role key in the client bundle'],
+  ['createServiceRoleClient_BYPASSES_RLS', 'the RLS-bypassing service-role factory in the client bundle'],
   ['postgres://', 'connection string in the client bundle'],
   ['postgresql://', 'connection string in the client bundle'],
   ['EXPO_TOKEN', 'EAS credential name in the client bundle'],

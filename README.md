@@ -29,7 +29,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (74 guard-rule ids: shell-command denials, write-protected harness paths,
+   (71 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere), a PostToolUse provenance check, and a Claude
    Code `Stop` hook that refuses to end a turn until the validation chain,
    RLS isolation tests, and both unit suites pass.

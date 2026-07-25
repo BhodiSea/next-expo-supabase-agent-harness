@@ -33,8 +33,8 @@ before(() => {
   // posttool-source-check imports the shared heuristic from ../../tools/lib/ —
   // part of the rendered install layout, like harness.config.mjs above.
   cpSync(join(TEMPLATE, 'tools/lib'), join(proj, 'tools/lib'), { recursive: true })
-  mkdirSync(join(proj, 'packages/schema/drizzle'), { recursive: true })
-  writeFileSync(join(proj, 'packages/schema/drizzle/0000_init.sql'), '-- existing migration\n')
+  mkdirSync(join(proj, 'supabase/migrations'), { recursive: true })
+  writeFileSync(join(proj, 'supabase/migrations/0000_init.sql'), '-- existing migration\n')
 })
 
 function runHook(name, input, { env = {}, cwd = proj } = {}) {
@@ -162,7 +162,7 @@ const RULE_CANARIES = {
     // Patch application reconstructs arbitrary bytes at a protected path with no
     // redirect operator to match on.
     bashDeny('git apply /tmp/weaken-gate.patch tools/check-expo-policy.mjs'),
-    bashDeny('echo "-- tweak" >> packages/schema/drizzle/0000_init.sql'),
+    bashDeny('echo "-- tweak" >> supabase/migrations/0000_init.sql'),
     bashDeny('echo {} > pnpm-lock.yaml'),
     bashDeny('echo "" > eslint.config.mjs'),
     // The mobile jest config is the other half of the unit floor.
@@ -266,16 +266,8 @@ const RULE_CANARIES = {
     bashAllow('git add apps/mobile/src/App.tsx'),
     bashAllow('git add docs/ios-notes.md'),
   ],
-  'drizzle-kit-push': [bashDeny('pnpm exec drizzle-kit push')],
-  'drizzle-kit-drop': [bashDeny('pnpm exec drizzle-kit drop')],
   'knip-fix': [bashDeny('pnpm exec knip --fix')],
   'dependency-update': [bashDeny('pnpm update'), bashDeny('pnpm update --latest')],
-  'migrator-dsn': [
-    bashDeny('psql "$MIGRATOR_DATABASE_URL" -c "select 1"'),
-    // Sanctioned contexts pass (the rule's allowWhen predicate).
-    bashAllow('MIGRATOR_DATABASE_URL=$X pnpm --filter @app/schema exec drizzle-kit migrate'),
-    bashAllow('MIGRATOR_DATABASE_URL=$X node tests/rls/run-rls.mjs'),
-  ],
   'destructive-sql': [
     bashDeny('psql "$DATABASE_URL" -c "DROP TABLE notes"'),
     bashDeny('psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE"'),
@@ -493,11 +485,10 @@ test('write-guard does NOT false-positive on ordinary nested project files', () 
 for (const cmd of [
   'pnpm validate',
   'cat .env.example',
-  'MIGRATOR_DATABASE_URL=$X pnpm --filter @app/schema exec drizzle-kit migrate',
-  'node tests/migrations/migration-apply.mjs # uses MIGRATOR_DATABASE_URL',
+  'supabase migration up',
   // The RLS runner's own fail-closed hint tells the agent to do exactly this:
-  'MIGRATOR_DATABASE_URL=$X node tests/rls/run-rls.mjs',
-  'DATABASE_URL=$A MIGRATOR_DATABASE_URL=$B pnpm test:rls',
+  'node tests/rls/run-rls.mjs',
+  'pnpm test:rls',
   'git commit -m "feat: notes"',
   // Reads/derived writes that only LOOK adjacent to the protected surface:
   'node tools/validate.mjs > /tmp/validate.log',
@@ -519,14 +510,14 @@ for (const cmd of [
 test('write-guard denies edits to an EXISTING migration, allows a NEW one', () => {
   const existing = runHook('pretool-write-guard.mjs', {
     tool_input: {
-      file_path: 'packages/schema/drizzle/0000_init.sql',
+      file_path: 'supabase/migrations/0000_init.sql',
       content: 'ALTER TABLE notes ...\n',
     },
   })
   assert.ok(denied(existing), 'existing migration must be append-only')
   const fresh = runHook('pretool-write-guard.mjs', {
     tool_input: {
-      file_path: 'packages/schema/drizzle/0001_add_column.sql',
+      file_path: 'supabase/migrations/0001_add_column.sql',
       content: 'ALTER TABLE notes ADD COLUMN x text;\n',
     },
   })
@@ -578,16 +569,12 @@ for (const [label, file, content] of [
     'const q = sql`WITH RECURSIVE t AS (SELECT 1)`\n',
   ],
   [
-    'mobile importing drizzle',
+    'mobile importing @supabase/ssr (server cookies)',
     'apps/mobile/src/features/notes.ts',
-    "import { eq } from 'drizzle-orm'\n",
+    "import { createServerClient } from '@supabase/ssr'\n",
   ],
   ['mobile importing postgres', 'apps/mobile/src/data/db.ts', "import postgres from 'postgres'\n"],
-  [
-    'mobile importing @hono/*',
-    'apps/mobile/src/api/client.ts',
-    "import { hc } from '@hono/zod-validator'\n",
-  ],
+  ['mobile importing pg', 'apps/mobile/src/api/client.ts', "import { Client } from 'pg'\n"],
   ['mobile importing pino', 'apps/mobile/src/log.ts', "import pino from 'pino'\n"],
   [
     'expo-secure-store outside the host seam',
@@ -634,9 +621,9 @@ for (const [label, file, content] of [
     "import * as SecureStore from 'expo-secure-store'\n",
   ],
   [
-    'server importing drizzle (the ban is mobile-only)',
-    'apps/server/src/db/schema-glue.ts',
-    "import { eq } from 'drizzle-orm'\n",
+    'web importing @supabase/ssr (the ban is mobile-only)',
+    'apps/web/lib/supabase/server.ts',
+    "import { createServerClient } from '@supabase/ssr'\n",
   ],
   // Web surface: getUser is the CORRECT server-side call; getSession is fine inside a 'use client' component.
   [
@@ -717,14 +704,14 @@ test('source-check blocks uncited decision sites, passes cited ones (ts + sql)',
   )
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: citedTs } }).code, 0)
 
-  const uncitedSql = join(proj, 'packages/schema/drizzle/9999_x.sql')
+  const uncitedSql = join(proj, 'supabase/migrations/9999_x.sql')
   writeFileSync(uncitedSql, 'ALTER TABLE notes FORCE ROW LEVEL SECURITY;\n')
   assert.equal(
     runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedSql } }).code,
     2,
   )
 
-  const citedSql = join(proj, 'packages/schema/drizzle/9998_y.sql')
+  const citedSql = join(proj, 'supabase/migrations/9998_y.sql')
   writeFileSync(
     citedSql,
     '-- SOURCE: postgres docs [corpus: postgres/rls-force]\nALTER TABLE notes FORCE ROW LEVEL SECURITY;\n',

@@ -127,10 +127,10 @@ if (
 // Migrations are APPEND-ONLY: editing an already-committed migration file rewrites
 // history that may already be applied to a database. New migration files are fine.
 // SOURCE: docs/harness/README.md (append-only migrations)
-if (rels.some((r) => /^packages\/schema\/drizzle\/[^/]+\.sql$/.test(r)) && existsSync(path)) {
+if (rels.some((r) => /^supabase\/migrations\/[^/]+\.sql$/.test(r)) && existsSync(path)) {
   denyTool(
     'PreToolUse',
-    'migrations are append-only: never edit an existing migration — add a new one (drizzle-kit generate) that transforms the schema forward.',
+    'migrations are append-only: never edit an existing migration — add a new one (supabase migration new) that transforms the schema forward.',
   )
 }
 
@@ -203,10 +203,10 @@ for (const { re, message } of WRITE_GLOBAL_CHECKS) {
 // Mobile-bundle purity: the client never touches server/database modules, and
 // the platform keychain stays wrapped inside src/host/** (the one-door seam).
 if (anyRel(/^apps\/mobile\//)) {
-  if (/from\s+['"](postgres|drizzle-orm|pg|@hono\/[^'"]+|pino)['"]/.test(text)) {
+  if (/from\s+['"](postgres|pg|@supabase\/ssr|pino)['"]/.test(text)) {
     denyTool(
       'PreToolUse',
-      'the mobile client must never import server/database modules — talk to the API via typed contracts from @app/contracts.',
+      'the mobile client must never import server/database modules — reach data through the tRPC client (@app/api, import type) or the vertical ./client.',
     )
   }
   // The seam exemption requires EVERY spelling to sit inside it — a link named
