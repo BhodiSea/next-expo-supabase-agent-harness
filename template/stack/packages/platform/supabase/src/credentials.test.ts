@@ -67,3 +67,35 @@ describe('isSecretKey', () => {
     expect(isSecretKey('')).toBe(false)
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('requireCredentials — mutation-baseline kills', () => {
+  it('rejects a URL that merely CONTAINS http(s):// rather than starting with it', () => {
+    expect(() =>
+      requireCredentials({ publishableKey: PUBLISHABLE, url: 'see https://example.com' }, 'test'),
+    ).toThrow(/absolute/)
+  })
+
+  it('accepts a plain http:// URL, not only https://', () => {
+    expect(
+      requireCredentials({ publishableKey: PUBLISHABLE, url: 'http://localhost:54321' }, 'test')
+        .url,
+    ).toBe('http://localhost:54321')
+  })
+
+  it('treats an ABSENT publishable key the same as an empty one', () => {
+    expect(() => requireCredentials({ url: URL_OK }, 'test')).toThrow()
+  })
+
+  it('reports an ABSENT url as "not configured", not as a malformed absolute URL', () => {
+    expect(() => requireCredentials({ publishableKey: PUBLISHABLE }, 'test')).toThrow(
+      /not configured/,
+    )
+  })
+
+  it('reports an EMPTY url with the "not configured" diagnostic, distinct from the absolute-URL message', () => {
+    expect(() => requireCredentials({ publishableKey: PUBLISHABLE, url: '' }, 'test')).toThrow(
+      /not configured/,
+    )
+  })
+})

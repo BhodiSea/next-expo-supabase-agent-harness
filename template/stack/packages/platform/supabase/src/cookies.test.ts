@@ -224,3 +224,52 @@ describe('cookieSessionStorage', () => {
     expect(await storage.getItem('sb-auth')).toBe('arrived-later')
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('cookies — mutation-baseline kills', () => {
+  it('measures a 3-byte code point distinctly from a 4-byte one', () => {
+    // '中' (U+4E2D) is 3 UTF-8 bytes, '🔒' (U+1F512) is 4. At a 6-byte limit two
+    // 3-byte chars share one chunk (3+3=6, not >6) but two 4-byte chars cannot
+    // (4+4=8 > 6). Kills the 3/4-byte swap and the collapse-to-4 mutants.
+    expect(chunkCookieValue('中中', 6)).toEqual(['中中'])
+    // …and the collapse-to-3 mutant, which would pack two emoji into one chunk.
+    expect(chunkCookieValue('🔒🔒', 6)).toEqual(['🔒', '🔒'])
+  })
+
+  it('pins the 1/2-byte boundary at exactly U+0080 (two bytes)', () => {
+    expect(chunkCookieValue('', 2)).toEqual(['', ''])
+  })
+
+  it('pins the 2/3-byte boundary at exactly U+0800 (three bytes)', () => {
+    expect(chunkCookieValue('ࠀࠀ', 5)).toEqual(['ࠀ', 'ࠀ'])
+  })
+
+  it('pins the 3/4-byte boundary at exactly U+10000 (four bytes)', () => {
+    expect(chunkCookieValue('\u{10000}\u{10000}', 7)).toEqual(['\u{10000}', '\u{10000}'])
+  })
+
+  it('emits no leading empty chunk when a single code point exceeds the limit', () => {
+    // The `current !== ''` guard: a 4-byte char under a 2-byte limit lands in one
+    // chunk, never an empty chunk followed by the char.
+    expect(chunkCookieValue('🔒', 2)).toEqual(['🔒'])
+  })
+
+  it('counts only the key chunk cookies when checking for a hole, not the whole jar', () => {
+    const jar: readonly SupabaseCookie[] = [
+      { name: 'sb-auth.0', value: 'a' },
+      { name: 'sb-auth.1', value: 'b' },
+      { name: 'unrelated', value: 'z' },
+    ]
+    expect(readChunkedCookie('sb-auth', jar)).toBe('ab')
+  })
+
+  it('escapes regex metacharacters in the chunk-name pattern so a dot stays literal', () => {
+    const jar: readonly SupabaseCookie[] = [{ name: 'a.b.0', value: 'x' }]
+    expect(cookieDeletions('a.b', jar).map((cookie) => cookie.name)).toEqual(['a.b.0'])
+  })
+
+  it('carries the default path onto a deletion so the expiry matches the written cookie', () => {
+    const jar: readonly SupabaseCookie[] = [{ name: 'sb-auth', value: 'x' }]
+    expect(cookieDeletions('sb-auth', jar)[0]?.options.path).toBe('/')
+  })
+})

@@ -205,3 +205,76 @@ describe('the envelope', () => {
     expect(await toOutcomeAsync(() => Promise.resolve(7))).toEqual({ ok: true, data: 7 })
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('ratchet kills: optional-field carry, default codes, guards, observers', () => {
+  it('rateLimited carries retryAfterSeconds and omits it when unset', () => {
+    expect(appError.rateLimited({ retryAfterSeconds: 30 })).toEqual({
+      kind: 'rateLimited',
+      code: 'rate_limited',
+      retryAfterSeconds: 30,
+    })
+    expect(Object.hasOwn(appError.rateLimited(), 'retryAfterSeconds')).toBe(false)
+  })
+
+  it('notFound carries resource and omits it when unset', () => {
+    expect(appError.notFound({ resource: 'note' })).toEqual({
+      kind: 'notFound',
+      code: 'not_found',
+      resource: 'note',
+    })
+    expect(Object.hasOwn(appError.notFound(), 'resource')).toBe(false)
+  })
+
+  it('conflict carries resource, defaults its code, and omits resource when unset', () => {
+    expect(appError.conflict({ resource: 'note' })).toEqual({
+      kind: 'conflict',
+      code: 'conflict',
+      resource: 'note',
+    })
+    expect(Object.hasOwn(appError.conflict(), 'resource')).toBe(false)
+    expect(appError.conflict().code).toBe('conflict')
+  })
+
+  it('validation carries fields and omits it when unset', () => {
+    expect(appError.validation({ fields: ['title'] })).toEqual({
+      kind: 'validation',
+      code: 'validation_failed',
+      fields: ['title'],
+    })
+    expect(Object.hasOwn(appError.validation(), 'fields')).toBe(false)
+  })
+
+  it('rlsDenied carries relation and omits it when unset', () => {
+    expect(appError.rlsDenied({ relation: 'notes' })).toEqual({
+      kind: 'rlsDenied',
+      code: 'rls_denied',
+      relation: 'notes',
+    })
+    expect(Object.hasOwn(appError.rlsDenied(), 'relation')).toBe(false)
+  })
+
+  it('carries a provided message verbatim and defaults the forbidden code', () => {
+    expect(appError.unavailable({ message: 'boom' }).message).toBe('boom')
+    expect(appError.forbidden().code).toBe('forbidden')
+  })
+
+  it('isAppError rejects a callable that structurally quacks', () => {
+    expect(isAppError(Object.assign(() => {}, { kind: 'notFound', code: 'x' }))).toBe(false)
+  })
+
+  it('toOutcome collapses a throw to unknown with no observer', () => {
+    expect(
+      toOutcome(() => {
+        throw new Error('x')
+      }),
+    ).toEqual({ ok: false, error: { kind: 'unknown', code: 'unknown' } })
+  })
+
+  it('toOutcomeAsync collapses a rejection to unknown with no observer', async () => {
+    expect(await toOutcomeAsync(() => Promise.reject(new Error('x')))).toEqual({
+      ok: false,
+      error: { kind: 'unknown', code: 'unknown' },
+    })
+  })
+})

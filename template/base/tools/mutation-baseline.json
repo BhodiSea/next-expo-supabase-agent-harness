@@ -1,255 +1,765 @@
 {
-  "//": "Surviving mutants this project has ACCEPTED. Every entry needs a reason \u2014 a survivor is a place your tests would not notice the code breaking, so accepting one is a deliberate, reviewed act (the gate FAILS on an empty reason). Regenerate with `node tools/check-mutation-ratchet.mjs --write`; identity is position-independent, so line shifts never invalidate an entry. This file is write-guard-protected and hashed by gate-integrity.",
+  "//": "Surviving mutants this project has ACCEPTED. Every entry needs a reason — a survivor is a place your tests would not notice the code breaking, so accepting one is a deliberate, reviewed act (the gate FAILS on an empty reason). Regenerate with `node tools/check-mutation-ratchet.mjs --write`; identity is position-independent, so line shifts never invalidate an entry. This file is write-guard-protected and hashed by gate-integrity.",
   "survivors": [
     {
-      "id": "0ae52ed79260",
-      "file": "apps/mobile/src/lib/sse.ts",
-      "mutator": "StringLiteral",
-      "original": "''",
-      "replacement": "\"Stryker was here!\"",
-      "snippet": "let machine: SseParserState = { ...state, bomStripped, buffer: '' }",
-      "status": "Survived",
-      "reason": "GENUINELY EQUIVALENT (W5b review): the surviving instance of this id is the machine-INIT `buffer: ''` \u2014 machine.buffer is dead state inside the loop and is unconditionally overwritten by `text.slice(start)` at the return, so no value planted there is observable. The dispatch-reset instance that shares this position-independent id (same file/mutator/original/replacement) WAS killed by the parser-edge kill corpus ('dispatch resets the event type to the DEFAULT')."
-    },
-    {
-      "id": "3cd63897a8cd",
-      "file": "apps/mobile/src/lib/sse.ts",
-      "mutator": "EqualityOperator",
-      "original": "i < text.length",
-      "replacement": "i <= text.length",
-      "snippet": "for (let i = start; i < text.length; i += 1) {",
-      "status": "Survived",
-      "reason": "GENUINELY EQUIVALENT (W5b review): at i === text.length, charAt returns '' which matches neither terminator, so the extra iteration is a no-op \u2014 `<=` and `<` walk identical states. No input can distinguish them."
-    },
-    {
-      "id": "de7acc8ee6dc",
-      "file": "apps/mobile/src/lib/sse.ts",
-      "mutator": "MethodExpression",
-      "original": "state.buffer.slice(0, -1)",
-      "replacement": "state.buffer",
-      "snippet": "return feedSse({ ...state, buffer: state.buffer.slice(0, -1) }, '\\n')",
-      "status": "Survived",
-      "reason": "GENUINELY EQUIVALENT (W5b review): keeping the deferred CR and appending LF turns the flushed tail into a CRLF-terminated line, and the walk counts CRLF as ONE terminator \u2014 byte-for-byte the same lines, events and final buffer as slicing the CR off first. The neighbouring flush mutants (endsWith weakenings, slice(0,+1)) are killed by the buffered-tail kill corpus; this one is the spec's own CRLF\u2261LF equivalence."
-    },
-    {
-      "id": "e66ef899bddc",
-      "file": "apps/mobile/src/lib/sse.ts",
-      "mutator": "ConditionalExpression",
-      "original": "line.startsWith(':')",
-      "replacement": "false",
-      "snippet": "if (line.startsWith(':')) return { state, event: null }",
-      "status": "Survived",
-      "reason": "GENUINELY EQUIVALENT (W5b review): without the comment fast path, ':comment' parses as field '' (colon at 0) and falls into the default ignore arm \u2014 same state, no event, for every comment form. The fast path mirrors the spec's step order; removing it changes nothing observable."
-    },
-    {
-      "id": "f3915abe5be3",
-      "file": "apps/mobile/src/lib/sse.ts",
-      "mutator": "BlockStatement",
-      "original": "{ // Dynamic on purpose; see StreamSseOptions.fetchImpl. const mod = await import('expo/fetch') return mod.fetch }",
-      "replacement": "{}",
-      "snippet": "async function expoStreamingFetch(): Promise<FetchImplementation> {",
-      "status": "NoCoverage",
-      "reason": "the expo/fetch default-transport resolver: only reachable when streamApiSse is called WITHOUT an injected fetchImpl, i.e. on a real device. The vitest pump corpus (W5b) drives every other pump mutant through the injected transport, but evaluating the real `import('expo/fetch')` under node is not meaningful \u2014 the jest lane and the on-device flows own this arm. Accepted eyes-open."
-    },
-    {
-      "id": "4ed85cad43ce",
-      "file": "apps/server/src/app.ts",
-      "mutator": "ConditionalExpression",
-      "original": "token === ''",
-      "replacement": "false",
-      "snippet": "if (token === undefined || token === '') {",
-      "status": "Survived",
-      "reason": "empty-string bearer normalization: an `Authorization: Bearer` with an empty token 401s through jwtVerify anyway \u2014 the explicit '' check is an error-message nicety, not a security branch (verify.ts mutants are all killed). Accepted eyes-open; a targeted 401-copy test is the W5b candidate."
-    },
-    {
-      "id": "ff64033d34e2",
-      "file": "apps/server/src/app.ts",
-      "mutator": "StringLiteral",
-      "original": "''",
-      "replacement": "\"Stryker was here!\"",
-      "snippet": "if (token === undefined || token === '') {",
-      "status": "Survived",
-      "reason": "same site as the empty-token check above \u2014 the '' literal only selects the friendlier error copy; the reject path itself is proven by the verify.ts kills."
-    },
-    {
-      "id": "10b25ec321df",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ kty: z.string() }",
-      "replacement": "{}",
-      "snippet": "const JwksFileDto = z.object({ keys: z.array(z.looseObject({ kty: z.string() })) })",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "39158f5c4074",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ keys: z.array(z.looseObject({ kty: z.string() })) }",
-      "replacement": "{}",
-      "snippet": "const JwksFileDto = z.object({ keys: z.array(z.looseObject({ kty: z.string() })) })",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "4da9bd3959b5",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "BlockStatement",
-      "original": "{ return [] }",
-      "replacement": "{}",
-      "snippet": "} catch {",
-      "status": "NoCoverage",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "58198703b0a5",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ArrayDeclaration",
-      "original": "[]",
-      "replacement": "[\"Stryker was here\"]",
-      "snippet": "return []",
-      "status": "NoCoverage",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "5cbf48c1c9f1",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "StringLiteral",
-      "original": "'11111111-1111-4111-8111-111111111111'",
-      "replacement": "\"\"",
-      "snippet": "export const DEV_USER_ID = '11111111-1111-4111-8111-111111111111'",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "71b98cf1aa6c",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "MethodExpression",
-      "original": "[...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }].slice( -MAX_JWKS_KEYS, )",
-      "replacement": "[...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }]",
-      "snippet": "const keys = [...existingKeys(jwksPath), { ...publicJwk, kid, alg: 'ES256', use: 'sig' }].slice(",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "8d78cbdf142d",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "StringLiteral",
-      "original": "'utf8'",
-      "replacement": "\"\"",
-      "snippet": "raw = readFileSync(jwksPath, 'utf8')",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "8d9400ed3857",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ArithmeticOperator",
-      "original": "Date.now() / 1000",
-      "replacement": "Date.now() * 1000",
-      "snippet": "const now = Math.floor(Date.now() / 1000)",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "a81fc2ac06a4",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ArithmeticOperator",
-      "original": "8 * 60 * 60",
-      "replacement": "8 * 60 / 60",
-      "snippet": "export const DEV_TOKEN_TTL_SECONDS = 8 * 60 * 60",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "abf53b041d36",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "BlockStatement",
-      "original": "{ return JwksFileDto.parse(JSON.parse(raw)).keys }",
-      "replacement": "{}",
-      "snippet": "try {",
-      "status": "NoCoverage",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "ba3968ace5cb",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "BlockStatement",
-      "original": "{ raw = readFileSync(jwksPath, 'utf8') }",
-      "replacement": "{}",
-      "snippet": "try {",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "bfcdb4fb0e18",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "StringLiteral",
-      "original": "'JWT'",
-      "replacement": "\"\"",
-      "snippet": ".setProtectedHeader({ alg: 'ES256', typ: 'JWT', kid })",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "c97a402474ef",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "ArithmeticOperator",
-      "original": "8 * 60",
-      "replacement": "8 / 60",
-      "snippet": "export const DEV_TOKEN_TTL_SECONDS = 8 * 60 * 60",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "cd1a84c9ad23",
-      "file": "apps/server/src/auth/dev-auth.ts",
-      "mutator": "BlockStatement",
-      "original": "{ return [] }",
-      "replacement": "{}",
-      "snippet": "} catch {",
-      "status": "Survived",
-      "reason": "dev-mode token mint path (AUTH_MODE=stub; NODE_ENV=production + stub is boot-fatal, asserted by app.auth tests): behaviour is asserted at the seam \u2014 a minted token verifies and drives the DAL \u2014 not per-constant. The TTL/UUID/encoding/JWKS-merge internals are dev-lane ergonomics with no production behaviour to distinguish."
-    },
-    {
-      "id": "cea87b9c357c",
-      "file": "apps/server/src/dal/cursor.ts",
-      "mutator": "StringLiteral",
-      "original": "'utf8'",
-      "replacement": "\"\"",
-      "snippet": "return Buffer.from(JSON.stringify(key), 'utf8').toString('base64url')",
-      "status": "Survived",
-      "reason": "encoding-arg equivalence on the cursor payload: the keyset cursor JSON is ASCII by construction (uuid + ISO timestamp), for which the explicit 'utf8' and the default encoding are byte-identical."
-    },
-    {
-      "id": "eb5966489999",
-      "file": "apps/server/src/dal/cursor.ts",
+      "id": "2d75e35368e4",
+      "file": "packages/api/src/context.ts",
       "mutator": "Regex",
-      "original": "/^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
-      "replacement": "/\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
-      "snippet": "/^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}(?::?\\d{2})?)?$/",
+      "original": "/^bearer\\s+(.+)$/i",
+      "replacement": "/^bearer\\s+(.+)/i",
+      "snippet": "const BEARER = /^bearer\\s+(.+)$/i",
       "status": "Survived",
-      "reason": "anchor-drop equivalence within DTO-validated input: the timestamp string reaching this regex already passed the zod DTO shape, so no accepted input distinguishes the unanchored variant."
+      "reason": "genuinely equivalent: the `$` end-anchor sits after a greedy `(.+)` on a single-line input. An Authorization header value is newline-free by construction (HTTP forbids raw newlines in field values, and the value is `.trim()`-ed first), so greedy `.+` already captures through end-of-string and the terminal anchor constrains nothing — no valid header distinguishes `(.+)$` from `(.+)`. VERIFIED: the full bearer-extraction suite stays green under this mutant."
     },
     {
-      "id": "3008de8b0162",
-      "file": "apps/server/src/dal/notes.ts",
+      "id": "a376171b309e",
+      "file": "packages/api/src/csrf.ts",
+      "mutator": "ConditionalExpression",
+      "original": "cookie !== null",
+      "replacement": "true",
+      "snippet": "return cookie !== null && SUPABASE_AUTH_COOKIE.test(cookie)",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `cookie !== null` is a TypeScript string-narrowing necessity for `RegExp.prototype.test`. At runtime the only null case coerces via ToString to the literal string 'null', which cannot contain the `sb-…auth-token` shape, so `test(null)` is `false` — identical to the short-circuit's `false`. Every non-null cookie takes the same `.test` path in both variants; no input distinguishes them. VERIFIED: the suite (with the space-less-delimiter test added) stays green under this mutant."
+    },
+    {
+      "id": "a700c396bb99",
+      "file": "packages/api/src/csrf.ts",
+      "mutator": "ConditionalExpression",
+      "original": "origin === null",
+      "replacement": "false",
+      "snippet": "if (origin === null) {",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `selfOrigin` is typed (and documented) as a non-null origin string, so when `origin === null` the fall-through `return origin !== selfOrigin` is `null !== <string>` — unconditionally `true`, exactly the early return's value. When origin is non-null the `if` is untaken in both variants. The explicit fail-closed return is documentation of intent; no input distinguishes it from the fall-through. VERIFIED: the suite stays green under this mutant."
+    },
+    {
+      "id": "e77f1085e5c9",
+      "file": "packages/api/src/csrf.ts",
+      "mutator": "BlockStatement",
+      "original": "{ // Neither signal on a cookie-bearing request. A legitimate same-origin // browser request carries at least one of the",
+      "replacement": "{}",
+      "snippet": "if (origin === null) {",
+      "status": "Survived",
+      "reason": "genuinely equivalent: emptying the `if (origin === null)` body drops to the same `return origin !== selfOrigin`, which for a null origin against the non-null string `selfOrigin` is `true` — the identical fail-closed verdict. Same underlying reason as a700c396bb99 (a null origin can never equal a string selfOrigin); no input distinguishes the removed block. VERIFIED: the suite stays green under this mutant."
+    },
+    {
+      "id": "002d314ca140",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "EqualityOperator",
+      "original": "cMajor < mMajor",
+      "replacement": "cMajor <= mMajor",
+      "snippet": "if (cMajor !== mMajor) return cMajor < mMajor",
+      "status": "Survived",
+      "reason": "genuinely equivalent: line 110 is reached ONLY inside `if (cMajor !== mMajor)`, so `cMajor === mMajor` is unreachable here. `<=` differs from `<` solely at equality, which cannot occur, so `cMajor <= mMajor` and `cMajor < mMajor` return the identical boolean on every reachable input — a logic necessity of the preceding inequality guard, not a testable boundary."
+    },
+    {
+      "id": "133f952a9c83",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "ConditionalExpression",
+      "original": "minSupported === null || minSupported === ''",
+      "replacement": "false",
+      "snippet": "if (minSupported === null || minSupported === '') return false",
+      "status": "Survived",
+      "reason": "genuinely equivalent: replacing the whole condition with `false` only removes the fast-path early return. A `null` or `''` floor still reaches line 107 via `parseSemver(minSupported)`, which returns null for both (null coerces to the string \"null\" and fails the triple regex; '' fails too), so `min === null` returns false — the exact value the early return produced. No `minSupported` value that is null/'' can escape the line-107 backstop, and no valid floor is affected."
+    },
+    {
+      "id": "4d2ce3cb9de2",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "if (minSupported === null || minSupported === '') return false",
+      "status": "Survived",
+      "reason": "genuinely equivalent: changing the `''` comparand to `\"Stryker was here!\"` means a real empty-string floor no longer matches line 104, but it falls through to `parseSemver('')` → null → line 107 returns false — the same result. The mutated literal `\"Stryker was here!\"` is an unreachable comparand no caller ever supplies. Every real input (null, '', valid floor) yields identical output."
+    },
+    {
+      "id": "6825b277415e",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "ConditionalExpression",
+      "original": "minSupported === null",
+      "replacement": "false",
+      "snippet": "if (minSupported === null || minSupported === '') return false",
+      "status": "Survived",
+      "reason": "genuinely equivalent: mutating the left disjunct to `false` makes the condition `false || minSupported === ''`. A null floor no longer short-circuits at line 104 but falls through to `parseSemver(null)` → null → line 107 returns false, identical to before; the empty-string case is still governed by the surviving right disjunct. No input distinguishes the mutant because the null path is backstopped by the parse-null guard."
+    },
+    {
+      "id": "699a929d2485",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "StringLiteral",
+      "original": "'client version is not supported by the server'",
+      "replacement": "\"\"",
+      "snippet": "super('client version is not supported by the server')",
+      "status": "Survived",
+      "reason": "genuinely equivalent: this is a descriptive-only Error message the doctrine explicitly declares disposable — the constructor comment says it 'names neither' rejection kind and 'the client switches on `code`, not this prose', and the class docblock adds messages 'get reworded'. No test asserts `cause.message`; pinning its exact text would be the very prose-coupling the file argues against, and an empty generic message changes no behavior (identity travels on `instanceof` + `code`)."
+    },
+    {
+      "id": "a0601779c8d0",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "EqualityOperator",
+      "original": "cMinor < mMinor",
+      "replacement": "cMinor <= mMinor",
+      "snippet": "if (cMinor !== mMinor) return cMinor < mMinor",
+      "status": "Survived",
+      "reason": "genuinely equivalent: line 111 runs ONLY inside `if (cMinor !== mMinor)`, so `cMinor === mMinor` is unreachable. `<=` and `<` diverge only at equality, which the guard forbids, so both yield the same result on every reachable input. Same narrowing-guard necessity as the major comparison above it."
+    },
+    {
+      "id": "b7b83bf25ef0",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "LogicalOperator",
+      "original": "minSupported === null || minSupported === ''",
+      "replacement": "minSupported === null && minSupported === ''",
+      "snippet": "if (minSupported === null || minSupported === '') return false",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `||`→`&&` makes the early-return guard vacuous (no value is both null AND the empty string), so a null or empty floor no longer short-circuits here — but it then falls through to parseSemver(minSupported), which maps both null and '' to null, and the next line returns false, the identical result the guard produced. Same equivalence as its two ConditionalExpression siblings on this line (which the triage accepted for the same fall-through reason)."
+    },
+    {
+      "id": "cc83b183d590",
+      "file": "packages/api/src/skew.ts",
+      "mutator": "ConditionalExpression",
+      "original": "minSupported === ''",
+      "replacement": "false",
+      "snippet": "if (minSupported === null || minSupported === '') return false",
+      "status": "Survived",
+      "reason": "genuinely equivalent: mutating the right disjunct to `false` makes the condition `minSupported === null || false`. An empty-string floor no longer short-circuits at line 104 but falls through to `parseSemver('')` → null → line 107 returns false, identical to before; the null case is still governed by the surviving left disjunct. The '' path is fully backstopped by the parse-null guard, so nothing observable changes."
+    },
+    {
+      "id": "0a97c0bf09ab",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ ctx: { ...ctx, actor: ctx.actor } }",
+      "replacement": "{}",
+      "snippet": "return next({ ctx: { ...ctx, actor: ctx.actor } })",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT: `next({})` is a runtime no-op relative to `next({ ctx: { ...ctx, actor: ctx.actor } })`. tRPC v11's middleware runner merges with `nextOpts?.ctx ? { ...opts.ctx, ...nextOpts.ctx } : opts.ctx` (initTRPC dist, line 263): with no `ctx` key the existing context is carried through UNCHANGED. The original object exists ONLY to narrow `ctx.actor` from `Actor | null` to `Actor` at the TYPE level — at runtime `actor` is already the same non-null value on `ctx` after the `=== null` throw-guard, so the spread merely re-sets a field to itself. No downstream read (system.me, writeContext's `ctx.actor.userId`) can observe the difference."
+    },
+    {
+      "id": "1c58e0427348",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ /** * The one place a transport-level failure is given a stable machine-readable * name. Clients switch on `data.appCo",
+      "replacement": "{}",
+      "snippet": "const t = initTRPC.context<RequestContext>().create({",
+      "status": "Survived",
+      "reason": "GAP (not a small unit test): this is the whole `initTRPC.create({...})` config; `{}` drops the custom `errorFormatter`, so the transport `appCode` is never attached and the router falls back to tRPC's default error shape. The suite calls procedures through `createCallerFactory`, which propagates the raw TRPCError and NEVER runs `errorFormatter`, so `data.appCode` is unasserted end to end. A test SHOULD drive the HTTP shape path (fetchRequestHandler / resolveHTTPResponse) and assert a version-skew error carries `data.appCode === 'version_skew'` and an UNAUTHORIZED error `=== 'unauthorized'`. Reaching the formatter reliably needs the transport layer, not a small unit test against the current exports — advisory only."
+    },
+    {
+      "id": "65026ed37237",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ConditionalExpression",
+      "original": "error.code === 'UNAUTHORIZED'",
+      "replacement": "false",
+      "snippet": ": error.code === 'UNAUTHORIZED'",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `error.code === 'UNAUTHORIZED'` → `false` inside `errorFormatter` maps an UNAUTHORIZED transport error to `appCode: null` instead of `TransportErrorCode.enum.unauthorized`. Untested because the direct-caller path never invokes `errorFormatter` — the auth tests assert `thrown.code`, never the serialized `data.appCode`. A test should assert an anonymous caller's HTTP error shape carries `data.appCode === 'unauthorized'`; that requires the transport layer, so advisory."
+    },
+    {
+      "id": "7121f115f442",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "BlockStatement",
+      "original": "{ const appCode = isVersionSkewError(error.cause) ? TransportErrorCode.enum.version_skew : error.code === 'UNAUTHORIZED'",
+      "replacement": "{}",
+      "snippet": "errorFormatter({ error, shape }) {",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): the entire `errorFormatter` body → `{}` makes it return `undefined`, stripping the error shape (and its `appCode`) altogether. No test exercises the formatter — the direct-caller path bypasses it — so the break is invisible. A test should drive the HTTP shape path and assert the returned shape both preserves tRPC's default `data` and carries the correct `appCode`; needs the transport layer, advisory."
+    },
+    {
+      "id": "bda481181b82",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "StringLiteral",
+      "original": "'authentication required'",
+      "replacement": "\"\"",
+      "snippet": "throw new TRPCError({ code: 'UNAUTHORIZED', message: 'authentication required' })",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (descriptive-only string never asserted): the UNAUTHORIZED `message` is explicitly non-contractual — the module header states the client folds this straight into `appError.unauthorized()` off the code/`appCode`, never the prose, and envelope.test.ts asserts only `thrown.code === 'UNAUTHORIZED'`, never the message text. No consumer or test reads its exact value, so `''` changes nothing observable."
+    },
+    {
+      "id": "c0e61f864f5e",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "StringLiteral",
+      "original": "'client version is not supported by the server'",
+      "replacement": "\"\"",
+      "snippet": "message: 'client version is not supported by the server',",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT (descriptive-only string never asserted): the CONFLICT skew `message` is not part of the machine contract — identity travels on the `cause` (VersionSkewError, `code: 'version_skew'`), and skew.test.ts asserts `code === 'CONFLICT'` and `cause.code === 'version_skew'` while its own comment ('the identity is on the CAUSE, not in the message') declares the message reworded prose. Nothing asserts or switches on this string, so `''` is unobservable."
+    },
+    {
+      "id": "d2af4eb90aba",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "EqualityOperator",
+      "original": "error.code === 'UNAUTHORIZED'",
+      "replacement": "error.code !== 'UNAUTHORIZED'",
+      "snippet": ": error.code === 'UNAUTHORIZED'",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `=== 'UNAUTHORIZED'` → `!== 'UNAUTHORIZED'` inverts the map — every NON-auth error (BAD_REQUEST, INTERNAL_SERVER_ERROR) would gain `appCode: 'unauthorized'` and a genuine UNAUTHORIZED would get `null`. Untested: the caller path never runs `errorFormatter`. A test should assert an UNAUTHORIZED shape carries `appCode === 'unauthorized'` AND a BAD_REQUEST shape carries `null`; that needs the HTTP transport, so advisory."
+    },
+    {
+      "id": "d78d008395c9",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ ...ctx, actor: ctx.actor }",
+      "replacement": "{}",
+      "snippet": "return next({ ctx: { ...ctx, actor: ctx.actor } })",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT: emptying the inner `{ ...ctx, actor: ctx.actor }` makes the call `next({ ctx: {} })`. Because `{}` is truthy, tRPC v11 computes `{ ...opts.ctx, ...{} }` (initTRPC dist, line 263) — a shallow COPY of the existing context with identical keys and values, `actor` included (non-null past the guard). Every downstream handler sees the same field values; only the compile-time narrowing of `actor` is lost, and that has no runtime shadow. No input distinguishes it."
+    },
+    {
+      "id": "efe1e27b8a35",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "StringLiteral",
+      "original": "'UNAUTHORIZED'",
+      "replacement": "\"\"",
+      "snippet": ": error.code === 'UNAUTHORIZED'",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `'UNAUTHORIZED'` → `''` makes the comparison `error.code === ''`, which no TRPC_ERROR_CODE_KEY ever equals, so the unauthorized branch is dead and UNAUTHORIZED errors are mapped to `appCode: null` — the same observable break as the `false` mutant on this line. Untested for the same reason: the direct-caller path never serializes through `errorFormatter`. A test should assert an anonymous caller's shape carries `data.appCode === 'unauthorized'`; transport-layer, advisory."
+    },
+    {
+      "id": "f1767eeebda7",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ConditionalExpression",
+      "original": "error.code === 'UNAUTHORIZED'",
+      "replacement": "true",
+      "snippet": ": error.code === 'UNAUTHORIZED'",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `=== 'UNAUTHORIZED'` → `true` gives EVERY non-skew error `appCode: 'unauthorized'`, so a BAD_REQUEST input-validation failure would falsely announce itself as an auth failure. Untested — `errorFormatter` never runs on the caller path. A test should assert a non-auth HTTP error shape (e.g. BAD_REQUEST) carries `appCode: null`, not `'unauthorized'`; needs the transport layer, advisory."
+    },
+    {
+      "id": "fb986beaa955",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ ...shape.data, appCode }",
+      "replacement": "{}",
+      "snippet": "return { ...shape, data: { ...shape.data, appCode } }",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `{ ...shape.data, appCode }` → `{}` empties the error `data` — dropping not just `appCode` but tRPC's default `code`/`httpStatus`/`path` fields clients read. Untested because the formatter is never invoked on the caller path. A test should assert the serialized error `data` retains the default fields AND the computed `appCode`; transport-layer, advisory."
+    },
+    {
+      "id": "fd0df7921591",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ ...shape, data: { ...shape.data, appCode } }",
+      "replacement": "{}",
+      "snippet": "return { ...shape, data: { ...shape.data, appCode } }",
+      "status": "NoCoverage",
+      "reason": "GAP (not a small unit test): `{ ...shape, data: { ...shape.data, appCode } }` → `{}` makes `errorFormatter` return an empty object — no `shape`, no `data`, no `appCode`. Untested: the direct-caller path bypasses the formatter entirely. A test should drive the HTTP shape path and assert a well-formed shape carrying the correct `appCode`; needs the transport layer, advisory."
+    },
+    {
+      "id": "17f76e45d043",
+      "file": "packages/platform/errors/src/index.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ /** No verified identity. The mobile normalize layer folds transport 401s here. */ unauthorized: (options: AppErrorOpt",
+      "replacement": "{}",
+      "snippet": "export const appError = {",
+      "status": "Survived",
+      "reason": "NOT equivalent, but a STATIC-mutant runner artifact — accepted eyes-open. Emptying the `appError` namespace makes Object.keys(appError) — hence APP_ERROR_KINDS and KIND_SET — empty and every `appError.<kind>(…)` undefined; the test file's top-level SAMPLES construction then throws at import and the suite errors out (empirically: 0 tests collected, i.e. a hard kill IF the mutant were active). It survives only because this is a module-initialization (static) object-literal mutant: Stryker's in-process vitest runner imports @app/errors once and cannot re-activate a load-time literal after the module is cached, so the mutant switch never takes effect. No added unit test changes this — the existing `toHaveLength(9)` + full-SAMPLES closure already WOULD kill it; the limitation is the runner's, not the suite's. killable=false."
+    },
+    {
+      "id": "193d63b0e526",
+      "file": "packages/platform/errors/src/index.ts",
+      "mutator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "snippet": "const _kindClosure: _KindClosure = true",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT at runtime: `_kindClosure` is a module-private const, never read, never exported, never reaching a value position. Its entire purpose is the compile-time type `_KindClosure` (which resolves to literal `true` iff the union and the constructor namespace name the same kind set — the drift lock). Types are erased before execution, so flipping the initializer `true`→`false` changes nothing observable and no unit test can reach it. Empirically confirmed: both the existing suite and a full kill probe stay green under the mutant."
+    },
+    {
+      "id": "8999c196d0ba",
+      "file": "packages/platform/errors/src/index.ts",
+      "mutator": "ConditionalExpression",
+      "original": "typeof candidate.kind === 'string'",
+      "replacement": "true",
+      "snippet": "typeof candidate.kind === 'string' &&",
+      "status": "Survived",
+      "reason": "GENUINELY EQUIVALENT: the `typeof candidate.kind === 'string'` conjunct is redundant given the very next conjunct `KIND_SET.has(candidate.kind)`. KIND_SET holds only strings and Set#has uses SameValueZero, so a non-string kind can never match a string member — `has` already returns false and short-circuits the `&&` exactly as the typeof check would; when kind IS a string the two are trivially identical. No input distinguishes forcing the guard to `true`; it exists only to narrow unknown→string for the `.has` call at compile time. Empirically confirmed: the whole suite AND a targeted callable-with-kind probe both stay green under the mutant."
+    },
+    {
+      "id": "35fc03323960",
+      "file": "packages/platform/supabase/src/cookies.ts",
+      "mutator": "ConditionalExpression",
+      "original": "chunks[0] !== undefined",
+      "replacement": "true",
+      "snippet": "chunks.length === 1 && chunks[0] !== undefined",
+      "status": "Survived",
+      "reason": "Genuinely equivalent — a TypeScript narrowing necessity. chunkCookieValue only ever push()es string values and never yields a sparse array, so once chunks.length === 1 the element at index 0 is a defined string and `chunks[0] !== undefined` is unfalsifiable. The guard exists solely to narrow chunks[0] from `string | undefined` to `string` for the `value:` field under noUncheckedIndexedAccess; no input reaches it false, so `true` is observationally identical."
+    },
+    {
+      "id": "bc6257374ab1",
+      "file": "packages/platform/supabase/src/credentials.ts",
+      "mutator": "Regex",
+      "original": "/^https?:\\/\\/[^\\s/]+/",
+      "replacement": "/^https?:\\/\\/[^\\s/]/",
+      "snippet": "const ABSOLUTE_HTTP_URL = /^https?:\\/\\/[^\\s/]+/",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `[^\\s/]+` and `[^\\s/]` differ only in how far a match EXTENDS, never in whether one EXISTS — both require exactly one non-space, non-slash char immediately after `//`. ABSOLUTE_HTTP_URL is consumed solely via `.test()` (a boolean existence check) and is never end-anchored or captured, so greediness is unobservable. Empirically confirmed: the mutant survives even the added anchor/scheme kill-tests — no input distinguishes it."
+    },
+    {
+      "id": "07d7ec2049a9",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'the database function is not exposed by this deployment'",
+      "replacement": "\"\"",
+      "snippet": "message: 'the database function is not exposed by this deployment',",
+      "status": "Survived",
+      "reason": "equivalent: this is `message`, documented in @app/errors as developer-facing English that is NOT the user-visible string (localized copy derives from kind+code) and is never asserted for its exact value. The PGRST202 test pins kind 'unknown' + code 'rpc_not_found'; the containment test only proves driver text is ABSENT and the round-trip test compares the mutated object to itself — none pins this sentence, and emptying it flips no branch."
+    },
+    {
+      "id": "13a064f8c4b6",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'the access token was rejected'",
+      "replacement": "\"\"",
+      "snippet": "message: 'the access token was rejected',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the PGRST301 arm. The test pins kind 'unauthorized' + code 'session_expired', never the sentence; message is contractually free-form dev prose (localization is chosen from kind+code), so emptying it changes no consumer-observable behaviour."
+    },
+    {
+      "id": "22932f3a29b4",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "ConditionalExpression",
+      "original": "context.resource === undefined",
+      "replacement": "false",
+      "snippet": "...(context.resource === undefined ? {} : { resource: context.resource }),",
+      "status": "Survived",
+      "reason": "equivalent: this guard is REDUNDANT with the identical `options.resource === undefined ? {}` guard inside `appError.conflict`. Forcing the condition to `false` always passes `{ resource: context.resource }`; when context.resource is present the output is byte-identical, and when it is absent the constructor's own guard drops the resulting `resource: undefined` before it reaches the object. No input distinguishes it."
+    },
+    {
+      "id": "231ecdf90ddd",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "ConditionalExpression",
+      "original": "context.resource === undefined",
+      "replacement": "false",
+      "snippet": "...(context.resource === undefined ? {} : { resource: context.resource }),",
+      "status": "Survived",
+      "reason": "equivalent: same redundancy as its twin — the errors.ts `context.resource === undefined ? {}` guard duplicates the identical guard inside `appError.conflict`. Condition `→ false` only ever passes `{ resource: context.resource }`; a defined resource is unchanged and an undefined one becomes `resource: undefined` which the constructor strips. Fully absorbed downstream."
+    },
+    {
+      "id": "441fdf898886",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'the submitted values violate a database constraint'",
+      "replacement": "\"\"",
+      "snippet": "message: 'the submitted values violate a database constraint',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the constraint-violation arm. The `maps constraint and cast failures` test pins kind 'validation' + code 'constraint_violation'; the exact sentence is never asserted (it is dev-facing prose, not the localized copy), so emptying it is unobservable."
+    },
+    {
+      "id": "4b802acad449",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "const sqlstateClass = failure.code?.slice(0, 2) ?? ''",
+      "status": "Survived",
+      "reason": "equivalent: this `?? ''` fallback fires only when `failure.code` is nullish, and `sqlstateClass` is then consumed solely by `RETRYABLE_CLASSES.has(...)` against {'08','53','57'}. Neither '' nor the injected sentinel is a member, so both fall through identically to `appError.unknown` / 'database_rejected' — exactly what the codeless-failure test expects. The default's value is unobservable at the only consumer."
+    },
+    {
+      "id": "504ea4ed7458",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'the database was unreachable or shedding load'",
+      "replacement": "\"\"",
+      "snippet": "return appError.unavailable({ message: 'the database was unreachable or shedding load' })",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the `unavailable` arm. The transient-SQLSTATE-class test asserts only `.kind === 'unavailable'`; the message is dev-facing prose never pinned, so emptying it changes nothing a test or consumer reads."
+    },
+    {
+      "id": "57620f6019a6",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ message: 'the database was unreachable or shedding load' }",
+      "replacement": "{}",
+      "snippet": "return appError.unavailable({ message: 'the database was unreachable or shedding load' })",
+      "status": "Survived",
+      "reason": "equivalent: the object literal is message-ONLY (`{ message: '...' }`) with no `code` key, so emptying it to `{}` merely drops the descriptive message — `appError.unavailable` still yields kind 'unavailable' + default code 'unavailable'. The transient-class test asserts kind alone; the dropped message is never asserted."
+    },
+    {
+      "id": "60364036d0e3",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'a referenced record does not exist'",
+      "replacement": "\"\"",
+      "snippet": "message: 'a referenced record does not exist',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the foreign-key arm. The `maps 23503 foreign key to validation` test pins kind 'validation' + code 'foreign_key_violation'; the sentence is dev-facing prose never asserted, so emptying it is invisible."
+    },
+    {
+      "id": "68f609815039",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'a row-security policy refused the write'",
+      "replacement": "\"\"",
+      "snippet": "message: 'a row-security policy refused the write',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the 42501 rlsDenied arm. The test pins kind 'rlsDenied' + code 'rls_denied' + relation; the sentence is dev-facing prose (localization derives from kind+code) and is never asserted, so emptying it flips no branch."
+    },
+    {
+      "id": "a35ff053e6d1",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'the database rejected the request'",
+      "replacement": "\"\"",
+      "snippet": "message: 'the database rejected the request',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the terminal `unknown` arm of `unclassified`. The codeless-failure test pins kind 'unknown' + code 'database_rejected'; the sentence is dev-facing prose never asserted, so emptying it is unobservable."
+    },
+    {
+      "id": "d94ef630437e",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "ConditionalExpression",
+      "original": "context.relation === undefined",
+      "replacement": "false",
+      "snippet": "...(context.relation === undefined ? {} : { relation: context.relation }),",
+      "status": "Survived",
+      "reason": "equivalent: the relation guard is REDUNDANT with the identical `options.relation === undefined ? {}` guard inside `appError.rlsDenied`. Condition `→ false` always passes `{ relation: context.relation }`; a defined relation is unchanged and an absent one becomes `relation: undefined` which the constructor strips — so even the `omits the relation ... Object.hasOwn(mapped,'relation') === false` test still passes. No input distinguishes it."
+    },
+    {
+      "id": "ef06f0841441",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'a concurrent write won the race; re-read and retry'",
+      "replacement": "\"\"",
+      "snippet": "message: 'a concurrent write won the race; re-read and retry',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the lost-race conflict arm. The `maps lost write races to conflict` test asserts kind only; the sentence is dev-facing prose never pinned. (The code 'write_conflict' on the same arm IS a genuine gap — that is id 054534466bbf — but this message string carries no contract.)"
+    },
+    {
+      "id": "f3726e75fe4b",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "'a row with those values already exists'",
+      "replacement": "\"\"",
+      "snippet": "message: 'a row with those values already exists',",
+      "status": "Survived",
+      "reason": "equivalent: descriptive-only `message` on the unique_violation arm. The `maps 23505 unique violation to conflict` test pins kind 'conflict' + code 'unique_violation' + resource, but never the sentence — it is dev-facing prose, not localized copy — so emptying it changes nothing observable."
+    },
+    {
+      "id": "f82fabff076e",
+      "file": "packages/platform/supabase/src/errors.ts",
+      "mutator": "ConditionalExpression",
+      "original": "resource === undefined",
+      "replacement": "false",
+      "snippet": "return appError.notFound(resource === undefined ? {} : { resource })",
+      "status": "Survived",
+      "reason": "equivalent: `readMiss`'s guard is REDUNDANT with the identical `options.resource === undefined ? {}` guard inside `appError.notFound`. Condition `→ false` always passes `{ resource }`; `readMiss('note')` still carries resource 'note', and `readMiss()` passes `resource: undefined` which the constructor strips, so it still deep-equals `{ kind: 'notFound', code: 'not_found' }`. No input distinguishes it."
+    },
+    {
+      "id": "6269e9581aa9",
+      "file": "packages/platform/supabase/src/verify.ts",
+      "mutator": "StringLiteral",
+      "original": "'function'",
+      "replacement": "\"\"",
+      "snippet": "typeof _clientSatisfiesPort === 'function'",
+      "status": "Survived",
+      "reason": "equivalent in effect: `=== ''` flips the exported CLIENT_SATISFIES_VERIFICATION_PORT from true to false, but that constant is consumed by NO code path (grep-confirmed: declared in verify.ts, re-exported once from index.ts, read nowhere). Its runtime value is a compile-time tautology the source documents 'Compile-time only'; the actual lock is the type annotation on line 71, which the mutation does not touch, so tsc still reds exactly when the client stops satisfying the port. The only thing that could notice is a tautological assertion of a witness the module explicitly declares carries no runtime meaning — the same 'descriptive value never asserted for its value' category accepted elsewhere."
+    },
+    {
+      "id": "97149072b3bd",
+      "file": "packages/platform/supabase/src/verify.ts",
+      "mutator": "ConditionalExpression",
+      "original": "typeof _clientSatisfiesPort === 'function'",
+      "replacement": "true",
+      "snippet": "typeof _clientSatisfiesPort === 'function'",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `typeof _clientSatisfiesPort === 'function'` is a runtime tautology — a const bound to an arrow function is always typeof 'function' — so the expression evaluates to true in every execution, and replacing it with the literal `true` is value-identical. The real check at this seam is the compile-time TYPE annotation on line 71, which the mutant leaves untouched. No input, and no assertion, can distinguish `true` from an expression that is always true."
+    },
+    {
+      "id": "99caaf122e67",
+      "file": "packages/platform/supabase/src/verify.ts",
+      "mutator": "ArrowFunction",
+      "original": "(client) => client",
+      "replacement": "() => undefined",
+      "snippet": "const _clientSatisfiesPort: (client: Client) => VerifiedIdentitySource = (client) => client",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `_clientSatisfiesPort` is module-private and NEVER invoked at runtime — its only reference is the `typeof` on line 126, and `() => undefined` is typeof 'function' exactly as `(client) => client` is. The value exists solely to carry the compile-time type annotation `(client: Client) => VerifiedIdentitySource` (line 71) so tsc keeps checking it; the body is never evaluated, so replacing the returned value changes nothing observable."
+    },
+    {
+      "id": "b1f5d336f25b",
+      "file": "packages/platform/supabase/src/verify.ts",
+      "mutator": "ConditionalExpression",
+      "original": "typeof _clientSatisfiesPort === 'function'",
+      "replacement": "false",
+      "snippet": "typeof _clientSatisfiesPort === 'function'",
+      "status": "Survived",
+      "reason": "equivalent in effect: replacing the condition with `false` flips the exported CLIENT_SATISFIES_VERIFICATION_PORT true->false, but nothing reads that constant (grep-confirmed: declared once, re-exported once, consumed nowhere). The enforcement mechanism is the compile-time type annotation on line 71 — untouched by this runtime-value mutation — so `tsc -b` still reds when the client stops satisfying the port. The runtime boolean is a documented compile-time-only witness with no behavioral contract; only a tautological assertion of an unconsumed value could distinguish it."
+    },
+    {
+      "id": "d44f5dc53561",
+      "file": "packages/platform/supabase/src/verify.ts",
+      "mutator": "EqualityOperator",
+      "original": "typeof _clientSatisfiesPort === 'function'",
+      "replacement": "typeof _clientSatisfiesPort !== 'function'",
+      "snippet": "typeof _clientSatisfiesPort === 'function'",
+      "status": "Survived",
+      "reason": "equivalent in effect: `typeof _clientSatisfiesPort !== 'function'` is a runtime tautology that is always false, flipping the exported CLIENT_SATISFIES_VERIFICATION_PORT true->false — a constant no code reads (grep-confirmed). As with its sibling constant-flips, the guarantee lives in the compile-time type annotation on line 71 (untouched), the runtime boolean is documented compile-time-only, and only a tautological assertion of an unconsumed witness could distinguish it."
+    },
+    {
+      "id": "555344d276dc",
+      "file": "packages/verticals/notes/src/data/errors.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "const sqlstateClass = failure.code?.slice(0, 2) ?? ''",
+      "status": "Survived",
+      "reason": "Genuinely equivalent: the `?? ''` fallback for a nullish failure.code feeds ONLY `RETRYABLE_CLASSES.has(sqlstateClass)`. The empty string is a non-member of {'08','53','57'} exactly as the arbitrary 'Stryker was here!' is, so a code-less failure lands on appError.unknown('notes_store_rejected') either way. The literal is a placeholder for 'not a retryable class'; any non-member string substitutes identically. No input distinguishes the two."
+    },
+    {
+      "id": "df8f896a0f1e",
+      "file": "packages/verticals/notes/src/data/notes.ts",
       "mutator": "ConditionalExpression",
       "original": "last !== undefined",
       "replacement": "true",
-      "snippet": "rows.length > limit && last !== undefined",
+      "snippet": "records.length > limit && last !== undefined",
       "status": "Survived",
-      "reason": "genuinely equivalent: rows.length > limit (limit >= 1) implies the last row exists \u2014 the guard is a TypeScript narrowing necessity; no input can reach the mutated branch differently."
+      "reason": "Genuinely equivalent: clampPageLimit floors the page size at 1 (`Math.min(Math.max(Math.trunc(limit),1), MAX)`), so `records.length > limit` implies limit>=1 and items = records.slice(0, limit) is non-empty, which makes last = items.at(-1) necessarily defined. `last !== undefined` can never be false when the left operand `records.length > limit` is true, so replacing it with `true` changes nothing — it is a TypeScript narrowing necessity for encodeNotesCursor (last is NoteRecord | undefined from .at). No input distinguishes them."
     },
     {
-      "id": "b23a3e992ec1",
-      "file": "apps/server/src/middleware/skew.ts",
-      "mutator": "ConditionalExpression",
-      "original": "typeof handler === 'function'",
-      "replacement": "true",
-      "snippet": "return typeof handler === 'function' && guards.has(handler)",
+      "id": "d2cf487898d6",
+      "file": "packages/verticals/notes/src/data/rows.ts",
+      "mutator": "MethodExpression",
+      "original": "Object.keys(NoteRow.shape).sort()",
+      "replacement": "Object.keys(NoteRow.shape)",
+      "snippet": "export const NOTE_ROW_KEYS = Object.keys(NoteRow.shape).sort()",
       "status": "Survived",
-      "reason": "genuinely equivalent: guards.has(handler) can only hold for values that were registered as functions, so the typeof check is a narrowing guard no behaviour can distinguish."
+      "reason": "Genuinely equivalent: NoteRow's object literal already lists its keys in alphabetical order (archived_at, body, created_at, id, owner_id, title, updated_at), so Object.keys returns them already sorted and .sort() is a no-op on this fixed shape. NOTE_ROW_KEYS is a module constant with no runtime input, so both forms yield byte-identical arrays and the projection-lockstep test (`projected sorted === NOTE_ROW_KEYS`) passes against either. The .sort() is defensive against a future reordering of the literal, not behaviour on any input, so no test can distinguish the mutant without editing the source key order."
+    },
+    {
+      "id": "57ae525e3b7d",
+      "file": "packages/verticals/notes/src/domain/cursor.ts",
+      "mutator": "EqualityOperator",
+      "original": "index < ALPHABET.length",
+      "replacement": "index <= ALPHABET.length",
+      "snippet": "for (let index = 0; index < ALPHABET.length; index += 1) {",
+      "status": "Survived",
+      "reason": "`index < ALPHABET.length` → `index <= ALPHABET.length` runs one extra iteration that does `DECODE.set(ALPHABET.charAt(64), 64)`; charAt(64) on a length-64 string is the empty string, so the mutant merely adds a phantom `'' -> 64` entry to the reverse table. fromBase64Url reads DECODE via `for (const char of token)`, which yields code points — never the empty string — so the phantom entry is never consulted, and the encoder never touches DECODE at all. No input distinguishes the mutant."
+    },
+    {
+      "id": "c543c52e6b32",
+      "file": "packages/verticals/notes/src/domain/cursor.ts",
+      "mutator": "ConditionalExpression",
+      "original": "json === null",
+      "replacement": "false",
+      "snippet": "if (json === null) return null",
+      "status": "Survived",
+      "reason": "`json === null` → false drops the early return when fromBase64Url returned null; control then reaches `JSON.parse(json)` with json===null. JSON.parse(null) stringifies null to the string \"null\" and yields the value null, which CursorKey.parse rejects (not an object) by throwing, caught by the surrounding try/catch — so the function still returns null. When json is non-null the branch is untaken and behavior is identical. Every token for which the original returns null via this branch also returns null under the mutant; no input distinguishes it."
+    },
+    {
+      "id": "ce3d2da1a5cb",
+      "file": "packages/verticals/notes/src/domain/cursor.ts",
+      "mutator": "ConditionalExpression",
+      "original": "token.length === 0",
+      "replacement": "false",
+      "snippet": "if (token.length === 0 || token.length > NOTES_CURSOR_MAX) return null",
+      "status": "Survived",
+      "reason": "`token.length === 0` → false in `length===0 || length>256`. The only token for which this clause is ever true is the empty string; dropping it lets '' fall through to fromBase64Url(''), whose loop body never executes, returning '' (not null), after which JSON.parse('') throws and is caught → still null. Every non-empty token leaves this clause false regardless. No input distinguishes the mutant."
+    },
+    {
+      "id": "6e0b118da9bd",
+      "file": "packages/verticals/notes/src/domain/note.ts",
+      "mutator": "EqualityOperator",
+      "original": "a.id < b.id",
+      "replacement": "a.id <= b.id",
+      "snippet": "return a.id < b.id ? 1 : -1",
+      "status": "Survived",
+      "reason": "`a.id < b.id` → `a.id <= b.id` in `return a.id < b.id ? 1 : -1`. Control reaches this expression only after `if (a.id === b.id) return 0` has already returned, so a.id !== b.id is guaranteed; with equality excluded, `<` and `<=` produce the identical boolean for every pair. The preceding equality guard makes this a narrowing necessity, not a behavioral choice — no input distinguishes it."
+    },
+    {
+      "id": "d68c94283b25",
+      "file": "packages/verticals/notes/src/domain/note.ts",
+      "mutator": "EqualityOperator",
+      "original": "a.createdAt < b.createdAt",
+      "replacement": "a.createdAt <= b.createdAt",
+      "snippet": "if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1",
+      "status": "Survived",
+      "reason": "`a.createdAt < b.createdAt` → `a.createdAt <= b.createdAt`. The ternary executes only inside `if (a.createdAt !== b.createdAt)`, so the two operands are never equal at this point; with equality excluded, `<` and `<=` yield the identical boolean for all inputs. The enclosing inequality guard makes the distinction unobservable — no input distinguishes it."
+    },
+    {
+      "id": "07c475833add",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'notes.created'",
+      "replacement": "\"\"",
+      "snippet": "name: 'notes.created',",
+      "status": "Survived",
+      "reason": "genuinely equivalent: the wire name a sink actually receives is minted by the CONSTRUCTOR noteCreated (`{ name: 'notes.created', ... }`), whose literal IS asserted by data/notes.test.ts (`expect(emitted).toEqual([{ name: 'notes.created', ... }])`) and killed there. This position-independent id's SURVIVING instance is the catalog-DEFINITION metadata (noteCreatedEvent.name) — walked only by the contracts generator (its own generator/contract-drift gate, not this vitest lane) and, being a module-load declaration, never re-evaluated under an active mutant: its survival is itself proof of that, since defineEventCatalog's runtime key-vs-name check would otherwise throw at import and kill it. No behavioral input distinguishes it."
+    },
+    {
+      "id": "16324fc44795",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'A note was inserted by its owner.'",
+      "replacement": "\"\"",
+      "snippet": "description: 'A note was inserted by its owner.',",
+      "status": "Survived",
+      "reason": "genuinely equivalent: a descriptive-only catalog string that lives ONLY in the module-load EventDefinition (never in the constructor, so no emitted event carries it). It is walked only by the contracts generator — guarded by the generator/contract-drift gate, not this vitest lane — and is never asserted for its exact value by any behavioral test. Descriptive metadata with no behaviour to distinguish (the task's own 'descriptive-only string never asserted' case)."
+    },
+    {
+      "id": "1876646c2fc7",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'notes.updated'",
+      "replacement": "\"\"",
+      "snippet": "name: 'notes.updated',",
+      "status": "Survived",
+      "reason": "genuinely equivalent (same shape as the 'notes.created' name): the emitted wire name comes from the CONSTRUCTOR noteUpdated, whose `name: 'notes.updated'` literal is asserted by the updateNote emit `toEqual` in data/notes.test.ts and killed there. The surviving instance is the definition metadata noteUpdatedEvent.name, read only by the contracts generator, and a static module-load declaration defineEventCatalog would reject at import if it were ever re-evaluated. Nothing behavioral distinguishes it."
+    },
+    {
+      "id": "1fe9eb6be9b4",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ name: 'notes.updated', version: 1, description: 'One or more fields of an existing note changed, including archive sta",
+      "replacement": "{}",
+      "snippet": "const noteUpdatedEvent: EventDefinition<'notes.updated', NoteUpdatedPayload> = {",
+      "status": "Survived",
+      "reason": "genuinely equivalent: same as the noteCreatedEvent descriptor — noteUpdatedEvent is a module-load definition feeding only defineEventCatalog and the generator; emitted notes.updated events come from the constructor (killed). {} would leave name undefined and defineEventCatalog would throw at import if re-evaluated, but the static declaration is never re-run under a mutant and no test re-reads it. Nothing distinguishes it."
+    },
+    {
+      "id": "26a83623a416",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ name: 'notes.created', version: 1, description: 'A note was inserted by its owner.', }",
+      "replacement": "{}",
+      "snippet": "const noteCreatedEvent: EventDefinition<'notes.created', NoteCreatedPayload> = {",
+      "status": "Survived",
+      "reason": "genuinely equivalent: the EventDefinition descriptor object is a module-load declaration consumed only by defineEventCatalog + the contracts generator; the events a sink receives are built by the CONSTRUCTOR noteCreated (asserted and killed in data/notes.test.ts), not from this object. Emptying it to {} would make name undefined and trip defineEventCatalog's key-vs-name check at import IF it were re-evaluated — that it survives proves the harness evaluates this declaration once, before any mutant is active. No behavioral test re-reads the descriptor, so {} is indistinguishable."
+    },
+    {
+      "id": "30ee7abd6434",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'One or more fields of an existing note changed, including archive state.'",
+      "replacement": "\"\"",
+      "snippet": "description: 'One or more fields of an existing note changed, including archive state.',",
+      "status": "Survived",
+      "reason": "genuinely equivalent: the notes.updated description is descriptive-only analytics documentation on the module-load EventDefinition, absent from the emitted event (constructors carry name+payload, never the description). No behavioral test reads it; the contracts generator (a separate gate) is its only consumer. Nothing distinguishes it."
+    },
+    {
+      "id": "32b7d6d6758d",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ name: 'notes.deleted', version: 1, description: 'A note was removed permanently. Archiving is an update, not this.', }",
+      "replacement": "{}",
+      "snippet": "const noteDeletedEvent: EventDefinition<'notes.deleted', NoteDeletedPayload> = {",
+      "status": "Survived",
+      "reason": "genuinely equivalent: noteDeletedEvent is a module-load descriptor consumed only by defineEventCatalog and the contracts generator; the emitted notes.deleted event is built by the constructor (asserted/killed). Emptying to {} is caught by defineEventCatalog only under re-evaluation, which the harness never performs on this static declaration, and no behavioral test reads the descriptor. Indistinguishable."
+    },
+    {
+      "id": "648a6be5f808",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'notes.deleted'",
+      "replacement": "\"\"",
+      "snippet": "name: 'notes.deleted',",
+      "status": "Survived",
+      "reason": "genuinely equivalent (same shape as the other two name literals): the emitted name is the CONSTRUCTOR noteDeleted's literal, asserted by the deleteNote emit `toEqual` in data/notes.test.ts and killed there. The surviving instance is noteDeletedEvent.name in the module-load definition — generator-facing, never asserted, and unreachable to re-evaluation under a mutant (defineEventCatalog would otherwise throw). No input distinguishes it."
+    },
+    {
+      "id": "aa4202bb619a",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ 'notes.created': noteCreatedEvent, 'notes.deleted': noteDeletedEvent, 'notes.updated': noteUpdatedEvent, }",
+      "replacement": "{}",
+      "snippet": "export const noteEvents = defineEventCatalog({",
+      "status": "Survived",
+      "reason": "genuinely equivalent: noteEvents is imported by NO test — only client.ts re-exports it (a mutation-excluded barrel) and the contracts generator walks it (its own gate). defineEventCatalog({}) returns {} without throwing, and as a module-load declaration the harness never re-evaluates the catalog under an active mutant. No behavioral assertion reads noteEvents, so the empty catalog is indistinguishable."
+    },
+    {
+      "id": "d3df6b020c5e",
+      "file": "packages/verticals/notes/src/events.ts",
+      "mutator": "StringLiteral",
+      "original": "'A note was removed permanently. Archiving is an update, not this.'",
+      "replacement": "\"\"",
+      "snippet": "description: 'A note was removed permanently. Archiving is an update, not this.',",
+      "status": "Survived",
+      "reason": "genuinely equivalent: the notes.deleted description is descriptive-only catalog metadata, present only in the module-load definition and never in an emitted event. Walked solely by the contracts generator, never asserted for its exact value by any behavioral test. A descriptive string with no behaviour to distinguish."
+    },
+    {
+      "id": "122498c6cdf3",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ArrowFunction",
+      "original": "(input) => isRenderableTitle(input.title)",
+      "replacement": "() => undefined",
+      "snippet": "(input) => isRenderableTitle(input.title),",
+      "status": "Survived",
+      "reason": "gap, but not reliably killable in this lane: `() => undefined` makes the CreateNote refine falsy for every input, so CreateNoteSchema.parse would reject even a valid title — a test SHOULD assert parse ACCEPTS a renderable title and REJECTS a whitespace-only one. It cannot be killed here because (a) createNote takes CreateNoteSchema as a TYPE and calls normalizeTitle(input.title) directly, never invoking the refine, and no test in this package parses CreateNoteSchema; and (b) the ArrowFunction swap fires at schema CONSTRUCTION (the `.refine(...)` argument, module load), which the harness evaluates once before any mutant is active, so even an added parse test runs the original stored predicate. The behaviour is pinned where it can be: the wrapped predicate isRenderableTitle is exhaustively tested in domain/note.test.ts, and CreateNoteSchema.parse is exercised at the api-router seam (packages/api)."
+    },
+    {
+      "id": "2ffe70c057f3",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ConditionalExpression",
+      "original": "patch.title === undefined || isRenderableTitle(patch.title)",
+      "replacement": "true",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "NoCoverage",
+      "reason": "gap: forcing the update refine to `true` accepts every patch, so a present whitespace-only title (which clears the wire min(1) yet renders as an empty row) is admitted. A test should assert `UpdateNoteSchema.safeParse({ id, title: '   ' }).success === false`. The switch is inside the refine BODY (call-time), so a small safeParse test reliably kills it, but no test in this package parses UpdateNoteSchema (createNote/updateNote use the type only) so it is currently NoCoverage. The kill requires importing UpdateNoteSchema (advisory append block)."
+    },
+    {
+      "id": "5b7e40d88f5e",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ConditionalExpression",
+      "original": "patch.title === undefined || isRenderableTitle(patch.title)",
+      "replacement": "false",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "NoCoverage",
+      "reason": "gap: forcing the update refine to `false` rejects EVERY patch, including valid renames. A test should assert `UpdateNoteSchema.safeParse({ id, title: 'renamed' }).success === true`. Call-time body switch -> reliably killable via a safeParse test; currently NoCoverage because nothing in this package parses UpdateNoteSchema. Kill needs an UpdateNoteSchema import (advisory)."
+    },
+    {
+      "id": "62042e3feb6a",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ConditionalExpression",
+      "original": "patch.title === undefined",
+      "replacement": "false",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "NoCoverage",
+      "reason": "gap: replacing `patch.title === undefined` with `false` drops the title-absent short-circuit, so a titleless patch evaluates isRenderableTitle(patch.title) -> normalizeTitle(undefined).replace, which throws instead of validating. A test should assert a body/archive-only patch is valid: `UpdateNoteSchema.safeParse({ id, isArchived: true }).success === true`. Call-time body switch -> killable via a safeParse test; currently NoCoverage. Kill needs an UpdateNoteSchema import (advisory)."
+    },
+    {
+      "id": "7835b26806ca",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ message: 'title must contain at least one visible character' }",
+      "replacement": "{}",
+      "snippet": "const renderableTitle = { message: 'title must contain at least one visible character' }",
+      "status": "Survived",
+      "reason": "genuinely equivalent: `renderableTitle` is the SECOND argument to .refine() — the error-params object — so emptying it to {} only swaps the custom message for zod's default. Which titles are accepted or rejected is unchanged, and no test asserts the ZodError issue message. Error copy, not behaviour (cf. the app.ts empty-token '' precedent, whose '' 'only selects the friendlier error copy'). It is a module-load declaration besides, never re-evaluated under a mutant."
+    },
+    {
+      "id": "9645f2e5b588",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "ArrowFunction",
+      "original": "(patch) => patch.title === undefined || isRenderableTitle(patch.title)",
+      "replacement": "() => undefined",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "Survived",
+      "reason": "gap, but not reliably killable in this lane: `() => undefined` makes the UpdateNote refine reject every patch — a test SHOULD assert a valid patch parses and a whitespace-only title is rejected. Like the CreateNoteSchema arrow, this ArrowFunction swap fires at schema CONSTRUCTION (module load), which the harness evaluates once before any mutant is active, so an added UpdateNoteSchema.parse test would run the original stored predicate. Note the CALL-time version of this same behaviour IS coverable: the inner ConditionalExpression/LogicalOperator/EqualityOperator mutants in this exact refine body (2ffe70c057f3, 5b7e40d88f5e, 62042e3feb6a, caf79c092386, e1b592574bb0) switch per call and a safeParse test does kill them. Underlying predicate isRenderableTitle is fully tested in domain/note.test.ts and the schema is parsed at the api-router seam."
+    },
+    {
+      "id": "b6b1dd342ff6",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "StringLiteral",
+      "original": "'title must contain at least one visible character'",
+      "replacement": "\"\"",
+      "snippet": "const renderableTitle = { message: 'title must contain at least one visible character' }",
+      "status": "Survived",
+      "reason": "genuinely equivalent: the custom refine message text -> '' changes only the ZodError copy, never which titles pass or fail the refinement, and no test asserts the message for its exact value. A descriptive error string with no behaviour to distinguish."
+    },
+    {
+      "id": "caf79c092386",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "LogicalOperator",
+      "original": "patch.title === undefined || isRenderableTitle(patch.title)",
+      "replacement": "patch.title === undefined && isRenderableTitle(patch.title)",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "NoCoverage",
+      "reason": "gap: `||` -> `&&` makes the refine `title===undefined && isRenderableTitle(title)`, which rejects a present renderable title (false && true) and throws on a titleless patch (true && isRenderableTitle(undefined)). A test should assert BOTH that a present renderable title parses and that a titleless patch parses. Call-time body switch -> killable via safeParse; currently NoCoverage. Kill needs an UpdateNoteSchema import (advisory)."
+    },
+    {
+      "id": "e1b592574bb0",
+      "file": "packages/verticals/notes/src/schemas.ts",
+      "mutator": "EqualityOperator",
+      "original": "patch.title === undefined",
+      "replacement": "patch.title !== undefined",
+      "snippet": "(patch) => patch.title === undefined || isRenderableTitle(patch.title),",
+      "status": "NoCoverage",
+      "reason": "gap: `===` -> `!==` inverts the guard to `title!==undefined || ...`, which admits a present whitespace-only title (true || ...) and throws on a titleless patch (isRenderableTitle(undefined)). A test should assert `UpdateNoteSchema.safeParse({ id, title: '   ' }).success === false`. Call-time body switch -> killable via safeParse; currently NoCoverage. Kill needs an UpdateNoteSchema import (advisory)."
     }
   ]
 }

@@ -107,3 +107,12 @@ describe('hasAmbientSessionCookie — is there an ambient credential CSRF must g
     )
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('hasAmbientSessionCookie — session cookie after a space-less delimiter (mutation kill)', () => {
+  it('detects the auth cookie when it follows a semicolon with no space', () => {
+    expect(hasAmbientSessionCookie({ cookie: 'theme=dark;sb-projref01-auth-token=stored' })).toBe(
+      true,
+    )
+  })
+})

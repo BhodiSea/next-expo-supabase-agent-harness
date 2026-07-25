@@ -155,3 +155,16 @@ describe('isRlsDenied', () => {
     expect(isRlsDenied({ message: 'x' })).toBe(false)
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('the lost-race conflict carries its fine identity', () => {
+  it('maps 40001 and 40P01 to code write_conflict and carries the resource', () => {
+    for (const code of ['40001', '40P01']) {
+      expect(mapPostgresError(failure(code), { resource: 'note' })).toMatchObject({
+        kind: 'conflict',
+        code: 'write_conflict',
+        resource: 'note',
+      })
+    }
+  })
+})

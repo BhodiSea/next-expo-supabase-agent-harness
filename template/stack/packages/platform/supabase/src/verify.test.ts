@@ -98,3 +98,14 @@ describe('the port shape', () => {
     expect(Object.keys(client.auth)).toEqual(['getUser'])
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('getVerifiedUser — undefined-error normalization', () => {
+  it('treats an undefined error the same as a null one — both mean "no error"', async () => {
+    const undefinedError: UserResult = { data: { user: { id: 'user-3' } }, error: undefined }
+    expect(await getVerifiedUser(fakeClient(undefinedError))).toEqual({
+      email: null,
+      userId: 'user-3',
+    })
+  })
+})

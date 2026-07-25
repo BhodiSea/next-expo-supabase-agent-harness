@@ -244,3 +244,27 @@ describe('applyNoteUpdate', () => {
     expect(next.createdAt).toBe(record.createdAt)
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('buildExcerpt whitespace-run and truncation-floor edges', () => {
+  it('collapses interior whitespace RUNS to one space, not one-per-character', () => {
+    // /\s+/ vs /\s/: a double interior space must still collapse to a single space.
+    expect(buildExcerpt('a  b')).toBe('a b')
+  })
+
+  it('cuts at the last word boundary, dropping the trailing partial word', () => {
+    // budget 15: last space at index 11 (> half), so the boundary wins over the hard cut,
+    // and the boundary branch must SLICE at it rather than keep the whole clip.
+    expect(buildExcerpt('hello world foobar', 16)).toBe('hello world…')
+  })
+
+  it('treats exactly-half-budget as below the floor — a hard cut, not a word cut', () => {
+    // lastSpace === budget/2 (10 === 20/2): the floor is strict (>), so this hard-cuts.
+    expect(buildExcerpt('aaaaaaaaaa bbbbbbbbbbb', 21)).toBe('aaaaaaaaaa bbbbbbbbb…')
+  })
+
+  it('never leaves a space dangling before the ellipsis on a hard cut', () => {
+    // budget 2: the hard cut retains clipped's trailing space; trimEnd (not trimStart) removes it.
+    expect(buildExcerpt('a bcde', 3)).toBe('a…')
+  })
+})

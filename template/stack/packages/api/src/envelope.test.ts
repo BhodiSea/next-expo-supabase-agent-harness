@@ -260,3 +260,33 @@ describe('input validation is a CONTRACT violation, not a domain outcome', () =>
     expect(thrown).toBeInstanceOf(TRPCError)
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('seated-member writes reach the vertical (kill: gate short-circuit + writeContext assembly)', () => {
+  it('create with a seat resolves ok — writeContext must carry actor/workspace/emit, not {}', async () => {
+    // With writeContext() -> {}, ctx.emit is undefined and createNote throws on
+    // the emit call, turning this resolve into a reject. Kills e88e9329a73f.
+    const caller = await callerFor(member, fakeDatabase({ data: [NOTE_ROW], error: null }))
+    await expect(caller.notes.create({ title: 'a seated create' })).resolves.toMatchObject({
+      ok: true,
+    })
+  })
+
+  it('update with a seat returns the vertical outcome, not the membership gate', async () => {
+    // Original: no row -> notFound. Mutant `if (true) return gate` leaks the
+    // membership success outcome { ok: true, data: membership } instead.
+    const caller = await callerFor(member, fakeDatabase({ data: [], error: null }))
+    await expect(caller.notes.update({ id: NOTE_ID, title: 'x' })).resolves.toEqual({
+      ok: false,
+      error: appError.notFound({ resource: 'note' }),
+    })
+  })
+
+  it('remove with a seat returns the vertical outcome, not the membership gate', async () => {
+    const caller = await callerFor(member, fakeDatabase({ data: [], error: null }))
+    await expect(caller.notes.remove({ id: NOTE_ID })).resolves.toEqual({
+      ok: false,
+      error: appError.notFound({ resource: 'note' }),
+    })
+  })
+})

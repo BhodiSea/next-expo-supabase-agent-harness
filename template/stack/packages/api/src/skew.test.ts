@@ -323,3 +323,24 @@ describe('the minimum-supported-client floor on the wire', () => {
     expect(thrown.cause.code).toBe('version_skew')
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('skew.ts mutation-baseline kills', () => {
+  it('parseSemver stays anchored — a triple after a non-matching prefix does not parse', () => {
+    // Dropping the leading ^ lets /\d+\.\d+\.\d+/ match in the MIDDLE of the
+    // string; the anchor exists so junk like `x1.2.3` cannot smuggle a triple
+    // past the floor parser.
+    expect(parseSemver('x1.2.3')).toBeNull()
+    expect(parseSemver('junk 1.2.3')).toBeNull()
+  })
+
+  it('the skew rejection cause is named for logs and stack traces', async () => {
+    const caller = await callerFor('2.0.0')
+    const thrown: unknown = await caller.system.health().catch((cause: unknown) => cause)
+    expect(thrown).toBeInstanceOf(TRPCError)
+    if (!(thrown instanceof TRPCError)) return
+    expect(isVersionSkewError(thrown.cause)).toBe(true)
+    if (!isVersionSkewError(thrown.cause)) return
+    expect(thrown.cause.name).toBe('VersionSkewError')
+  })
+})

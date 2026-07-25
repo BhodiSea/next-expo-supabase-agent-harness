@@ -101,3 +101,92 @@ describe('readHeader — the case-insensitive reader the CSRF guard reuses', () 
     expect(readHeader(new Headers(), 'x-missing')).toBeNull()
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('createContext — bearer extraction and option wiring (mutation kills)', () => {
+  it('extracts the token past collapsed inner whitespace in the Authorization header', async () => {
+    let seen: string | undefined
+    const ctx = await createContext({
+      createClient: () => db,
+      headers: { authorization: 'Bearer   tok' },
+      resolveSession: (t) => {
+        seen = t
+        return Promise.resolve(SESSION)
+      },
+      serverVersion: SERVER_VERSION,
+    })
+    expect(seen).toBe('tok')
+    expect(ctx.actor).toEqual(SESSION.actor)
+  })
+
+  it('trims surrounding whitespace before matching, so a padded header still authenticates', async () => {
+    const ctx = await createContext({
+      createClient: () => db,
+      headers: { authorization: '  Bearer tok  ' },
+      resolveSession: () => Promise.resolve(SESSION),
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.actor).toEqual(SESSION.actor)
+  })
+
+  it('a header that merely CONTAINS bearer (not anchored at the start) is not a token', async () => {
+    const ctx = await createContext({
+      createClient: () => db,
+      headers: { authorization: 'Basic bearer sneaky' },
+      resolveSession: () => Promise.resolve(SESSION),
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.actor).toBeNull()
+  })
+
+  it('an empty-string token is anonymous and never spends a resolveSession round trip', async () => {
+    const ctx = await createContext({
+      accessToken: '',
+      createClient: () => db,
+      headers: {},
+      resolveSession: resolveMustNotRun,
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.actor).toBeNull()
+  })
+
+  it('a token with NO resolveSession port fails safe to anonymous instead of crashing', async () => {
+    const ctx = await createContext({
+      accessToken: 'a-token',
+      createClient: () => db,
+      headers: {},
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.actor).toBeNull()
+  })
+
+  it('places the injected emit sink on the context verbatim', async () => {
+    const sink = () => undefined
+    const ctx = await createContext({
+      createClient: () => db,
+      emit: sink,
+      headers: {},
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.emit).toBe(sink)
+  })
+
+  it('uses the injected now() verbatim for the request instant', async () => {
+    const ctx = await createContext({
+      createClient: () => db,
+      headers: {},
+      now: () => '2020-01-01T00:00:00.000Z',
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.now).toBe('2020-01-01T00:00:00.000Z')
+  })
+
+  it('mints a server-side UUID request id', async () => {
+    const ctx = await createContext({
+      createClient: () => db,
+      headers: {},
+      serverVersion: SERVER_VERSION,
+    })
+    expect(ctx.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+  })
+})

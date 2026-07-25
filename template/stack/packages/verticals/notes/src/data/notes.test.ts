@@ -533,3 +533,165 @@ describe('deleteNote', () => {
     expect(emitted).toEqual([])
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
+  const ref = { id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }
+
+  it('maps a CHECK constraint violation (23514) to conflict', async () => {
+    const { db } = fakeDatabase(denied('23514'))
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.conflict({
+        resource: 'note',
+        message: 'the read conflicts with the current state of the note',
+      }),
+    )
+  })
+
+  it('maps a FOREIGN KEY violation (23503) to conflict', async () => {
+    const { db } = fakeDatabase(denied('23503'))
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.conflict({
+        resource: 'note',
+        message: 'the read conflicts with the current state of the note',
+      }),
+    )
+  })
+
+  it('maps PostgREST PGRST116 (no rows) to notFound', async () => {
+    const { db } = fakeDatabase(denied('PGRST116'))
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(appError.notFound({ resource: 'note' }))
+  })
+
+  it('treats SQLSTATE class 53 as retryable → unavailable', async () => {
+    const { db } = fakeDatabase(denied('53300'))
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unavailable({ message: 'the notes store was unreachable during the read' }),
+    )
+  })
+
+  it('treats SQLSTATE class 57 as retryable → unavailable', async () => {
+    const { db } = fakeDatabase(denied('57014'))
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unavailable({ message: 'the notes store was unreachable during the read' }),
+    )
+  })
+
+  it('maps a code-less transport failure to unknown, never throwing', async () => {
+    const { db } = fakeDatabase({
+      data: null,
+      error: { message: 'transport failed with no sqlstate' },
+    })
+    const outcome = await getNote(db, ref)
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unknown({
+        code: 'notes_store_rejected',
+        message: 'the notes store rejected the read',
+      }),
+    )
+  })
+})
+
+describe('mutation kills — contract drift per operation (notes.ts)', () => {
+  const id = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+  const driftOutcome = (): PostgrestOutcome => rows([row(1, { title: undefined })])
+
+  it('names the read operation when a fetched row breaks its contract', async () => {
+    const { db } = fakeDatabase(driftOutcome())
+    const outcome = await getNote(db, { id })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unknown({
+        code: 'contract_drift',
+        message: 'a notes row did not match its contract during the read',
+      }),
+    )
+  })
+
+  it('names the create operation on contract drift and emits nothing', async () => {
+    const { db } = fakeDatabase(driftOutcome())
+    const outcome = await createNote(db, writeContext(), { title: 'note 1' })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unknown({
+        code: 'contract_drift',
+        message: 'a notes row did not match its contract during the create',
+      }),
+    )
+    expect(emitted).toEqual([])
+  })
+
+  it('names the update operation on contract drift and emits nothing', async () => {
+    const { db } = fakeDatabase(driftOutcome())
+    const outcome = await updateNote(db, writeContext(), { id, title: 'renamed' })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unknown({
+        code: 'contract_drift',
+        message: 'a notes row did not match its contract during the update',
+      }),
+    )
+    expect(emitted).toEqual([])
+  })
+
+  it('names the delete operation on contract drift and emits nothing', async () => {
+    const { db } = fakeDatabase(driftOutcome())
+    const outcome = await deleteNote(db, writeContext(), { id })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.error).toEqual(
+      appError.unknown({
+        code: 'contract_drift',
+        message: 'a notes row did not match its contract during the delete',
+      }),
+    )
+    expect(emitted).toEqual([])
+  })
+
+  it('records title in the changed-fields event by its real name', async () => {
+    const { db } = fakeDatabase(rows([row(1)]))
+    await updateNote(db, writeContext(), { id, title: 'renamed' })
+    expect(emitted).toEqual([
+      {
+        name: 'notes.updated',
+        payload: {
+          actorId: ACTOR_ID,
+          fields: ['title'],
+          noteId: id,
+          occurredAt: '2026-01-01T00:00:00.000000+00:00',
+          workspaceId: WORKSPACE_ID,
+        },
+      },
+    ])
+  })
+})
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('clampPageLimit defense-in-depth — a non-finite limit still yields a bounded scan', () => {
+  it('clamps Infinity to the safe floor rather than an unbounded probe', async () => {
+    const { calls, db } = fakeDatabase(rows([]))
+    await listNotes(db, { ...listQuery, limit: Number.POSITIVE_INFINITY })
+    // Original returns 1 -> limit(1+1); dropping the finite guard returns 200 -> limit(201).
+    expect(calls).toContainEqual(['limit', 2])
+  })
+})

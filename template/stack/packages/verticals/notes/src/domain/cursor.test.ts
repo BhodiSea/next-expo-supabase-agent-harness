@@ -153,3 +153,48 @@ describe('the independent encoder agrees with the production one', () => {
     expect(encodeAsciiForTest(json)).toBe(encodeNotesCursor(key))
   })
 })
+
+// --- R3c mutation-kill tests (added by triage) ---
+describe('length + codec guards each reject on their own, not by luck downstream', () => {
+  const inner = `"createdAt":"2026-01-01T00:00:00Z","id":"${KEY.id}"`
+  const decoded = { createdAt: '2026-01-01T00:00:00Z', id: KEY.id }
+
+  it('accepts a token whose length is EXACTLY the contract bound (the bound is inclusive)', () => {
+    // 192-byte whitespace-padded valid-cursor JSON -> exactly NOTES_CURSOR_MAX chars.
+    const token = encodeAsciiForTest(`{${' '.repeat(192 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(NOTES_CURSOR_MAX)
+    expect(decodeNotesCursor(token)).toEqual(decoded)
+  })
+
+  it('rejects a token PAST the bound purely on length — even one that would otherwise decode', () => {
+    // 195-byte payload -> 260 chars (4n, valid alphabet, decodes to a real cursor):
+    // only the length guard can reject it, so this exercises the guard the 4n+1 rule masks.
+    const token = encodeAsciiForTest(`{${' '.repeat(195 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(NOTES_CURSOR_MAX + 4)
+    expect(decodeNotesCursor(token)).toBeNull()
+  })
+
+  it('rejects a 4n+1 length outright instead of silently dropping the tail character', () => {
+    const token = encodeNotesCursor({ ...KEY, createdAt: '2026-01-01T00:00:00.1' })
+    expect(token.length % 4).toBe(0)
+    // Appending one alphabet char makes it 4n+1; those 6 bits complete no byte, so a codec
+    // that failed to reject on length would decode the SAME valid cursor.
+    expect(decodeNotesCursor(`${token}A`)).toBeNull()
+  })
+
+  it('rejects a character outside the base64url alphabet, not treating it as value 0', () => {
+    // Three JSON-legal leading spaces base64 to 'ICAg', so token[2] is the value-0 sextet 'A'.
+    const token = encodeAsciiForTest(`   {${inner}}`)
+    expect(token[2]).toBe('A')
+    const hostile = `${token.slice(0, 2)}*${token.slice(3)}`
+    expect(decodeNotesCursor(hostile)).toBeNull()
+  })
+
+  it('rejects a timestamp with a garbage prefix whose tail is a valid instant (^ anchor)', () => {
+    // Unanchored, the regex would match the trailing instant to $ while the fixed slices
+    // still see the leading canonical timestamp, letting a doubled value through.
+    expect(() =>
+      encodeNotesCursor({ ...KEY, createdAt: '2026-01-01T00:00:00Z2026-01-01T00:00:00Z' }),
+    ).toThrow()
+  })
+})
