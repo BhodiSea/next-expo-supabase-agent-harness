@@ -120,8 +120,18 @@ enabled = false
 [storage]
 enabled = false
 
-# The Edge Function runtime. No function is deployed at seed — see
-# supabase/functions/README.md for why that directory is empty and what has to
-# be true before it stops being.
+# The Edge Function runtime. The seed ships exactly ONE function —
+# `delete-account`, the store-compliance slice's elevated code — because Apple
+# 5.1.1(v) requires in-app account deletion and deleting an auth.users row is the
+# one operation no user-context policy can perform. See supabase/functions/
+# README.md for the rule every function must clear and docs/adr/
+# 20260720-account-deletion.md for this one's.
 [edge_runtime]
 enabled = true
+
+# verify_jwt = true: the platform rejects an unauthenticated request before the
+# function runs, so the function can trust that a token is present and only has to
+# resolve WHICH user it identifies (getUser). A function that turned this off
+# would be accepting anonymous calls from the public internet.
+[functions.delete-account]
+verify_jwt = true

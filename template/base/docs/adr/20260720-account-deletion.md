@@ -10,24 +10,36 @@ Apple rejects apps that support account creation but offer no in-app way to
 initiate account deletion (App Review Guideline 5.1.1(v)) — one of the most
 common hard rejections. The scaffold ships a sign-in surface, so it ships the
 deletion surface too, as the worked exemplar of the store-compliance slice.
-Constraints: this stack has NO users table (identity is the verified token's
-subject), every table is FORCE RLS with the `app.user_id` GUC as the only
-visibility filter, and the client is an untrusted bearer of a scoped token —
-deletion must be authorized in the DAL on RLS, never client-side.
+
+The identity in this stack is a Supabase `auth.users` row: there is no
+project-owned users table, and `public.profiles.id` plus every owned
+`owner_id` (`public.notes`, …) reference `auth.users(id) ON DELETE CASCADE`
+(see `supabase/schemas/10_account.sql`, `20_notes.sql`). Every owned table is
+`FORCE ROW LEVEL SECURITY` with `owner_id = (select auth.uid())` as the only
+visibility filter. Deleting the identity row therefore removes the whole
+account in ONE statement — but no policy a signed-in user runs under can touch
+`auth.users`, and `service_role` (the only credential that can) is confined to
+Edge Functions by doctrine (`supabase/functions/README.md`).
 
 ## Decision
 
-`DELETE /api/me` (Bearer-guarded, 204, idempotent) calls
-`accountDal.deleteAllOwnedData(userId)`: ONE unqualified `DELETE ... RETURNING`
-per owned table inside `withUserContext` — the RLS policy qual IS the filter,
-so the statement can only ever sweep the caller's own rows. The mobile surface
-is a command-palette action (`session.deleteAccount`) behind a native
-destructive confirm (the deliberate two-step reviewers look for); on confirm
-the client deletes server-side FIRST, then drops the local session and returns
-to sign-in. A failed deletion keeps the session and surfaces the envelope
-toast — nothing half-deletes. The expo-policy gate's account-deletion closure
-asserts the action id and the openapi DELETE operation exist whenever an auth
-surface ships.
+A **`delete-account` Edge Function** (`verify_jwt = true`) is the deletion
+backing. It reads the caller's id from their verified token via `getUser()` —
+never from the request body, so a caller can only ever delete themselves — and
+performs one elevated call, `auth.admin.deleteUser(userId)`, a HARD delete that
+removes the `auth.users` row and fires the `ON DELETE CASCADE` sweeping every
+owned table. It needs no table `GRANT` of its own: the cascade is a database
+constraint triggered by the auth delete, not a `service_role` write to
+`public.*`.
+
+The mobile surface is a command-palette action (`session.deleteAccount`) behind
+a native destructive confirm (the deliberate two-step reviewers look for); on
+confirm the client invokes the function server-side FIRST, then drops the local
+session and returns to sign-in. A failed deletion keeps the session and
+surfaces the envelope toast — nothing half-deletes. The expo-policy gate's
+account-deletion closure asserts the registry action id and the backing Edge
+Function (its `index.ts` on disk AND its `[functions.delete-account]` block in
+`config.toml`) exist whenever an auth surface ships.
 
 ## Alternatives Considered
 
@@ -36,38 +48,46 @@ surface ships.
   fabricated data states) for a surface with no primary query; the command
   palette is the scaffold's canonical home for session verbs. A real app with a
   settings screen should move the action there.
-- **Application-side `WHERE owner_id = $user`** — rejected: an app-side filter
-  can only ever mask an RLS policy regression (the notes DAL doctrine); the
-  live cross-tenant test proves the unqualified sweep kills only the caller.
-- **Soft delete / deactivation** — rejected: 5.1.1(v) requires deletion, and
-  with no users table there is nothing to deactivate — the owned rows ARE the
-  account.
+- **A tRPC procedure running as the user** — rejected: a `memberProcedure`
+  runs as `authenticated` and is bound by RLS exactly like every other write,
+  which is the point of that layer; it cannot reach `auth.users`. Deleting the
+  identity is the one operation that genuinely requires stepping outside the
+  policy wall, which is what makes it a legitimate Edge Function rather than an
+  accidental one.
+- **Per-table `DELETE` sweeps (the ancestor's DAL pattern)** — rejected: a
+  hand-maintained sweep list is a table someone forgets to add. The FK cascade
+  makes "delete my account" one statement against `auth.users` and makes a
+  forgotten new table a schema error, not a silent data leak.
+- **Soft delete / deactivation** — rejected: 5.1.1(v) requires deletion, and a
+  soft delete would tombstone the identity while leaving the owned rows orphaned
+  (the cascade only fires on a hard delete).
 
 ## Consequences
 
 Positive: the scaffold passes the account-deletion review bar out of the box,
-and the slice is the worked pattern for extending deletion to new owned tables
-(add the table's `DELETE` to the DAL + a dal-shapes probe entry). Negative:
-deletion is immediate and unrecoverable by design — an app that needs a grace
-period must add its own staging surface; and each new owned table must be
-added to `deleteAllOwnedData` explicitly (the RLS suite's per-target sweep
-case reds a table the DAL forgets only if the DAL is extended per table —
-review discipline documents this in the module docs).
+and extending deletion to a new owned table is automatic — a table whose
+`owner_id` references `auth.users(id) ON DELETE CASCADE` is swept with no change
+to the function. Negative: deletion is immediate and unrecoverable by design —
+an app that needs a grace period must add its own staging surface; and the one
+piece of elevated code in the repository is code a human must review by hand
+(which is the entire reason it lives in a separately-deployed function with a
+one-sentence blast radius rather than in the web process).
 
 ## Sources
 
 - <https://developer.apple.com/app-store/review/guidelines/#5.1.1> — Apple App
   Review Guideline 5.1.1(v): apps supporting account creation must let users
-  initiate account deletion within the app (backs the route, the registry
-  action, and the two-step confirm).
-- `[corpus: postgres/rls-initplan]` — RLS policy-qual visibility through the
-  `app.user_id` GUC (backs the unqualified DELETE: the policy is the filter).
+  initiate account deletion within the app (backs the action, the Edge
+  Function, and the two-step confirm).
+- `[corpus: postgres/rls-force]` — FORCE RLS + owner-scoped policies as the
+  authorization boundary the owned tables share (backs "the cascade, not an
+  app-side filter, is what deletes only the caller's rows").
 
 ## Traceability
 
-| Requirement | Migration / DAL / route / UI files | Test ids |
-| ----------- | ---------------------------------- | -------- |
-| In-app deletion initiation (5.1.1(v)) | `apps/mobile/src/features/actions/registry.ts` (`session.deleteAccount`), `apps/mobile/app/actions.tsx` (confirm + choreography) | `actions-modal.test.tsx` "account deletion" cases |
-| Server-side sweep under FORCE RLS | `apps/server/src/dal/account.ts`, `apps/server/src/app.ts` (`DELETE /api/me`) | `dal/account.test.ts` (statement shape), `app.routes.test.ts` "DELETE /api/me" cases |
-| Only the caller's rows die | `tests/rls/dal-shapes.ts` (`accountDal.deleteAllOwnedData` plan probe) | `tests/rls/cross-tenant-isolation.test.ts` "account deletion" sweep |
-| End-to-end against real Postgres | the whole slice | `live-api-proof.test.ts` "account deletion" |
+| Requirement | Migration / function / UI files | Test ids |
+| ----------- | ------------------------------- | -------- |
+| In-app deletion initiation (5.1.1(v)) | `apps/mobile/src/features/actions/registry.ts` (`session.deleteAccount`), `apps/mobile/app/actions.tsx` (confirm + choreography) | `actions-modal.test.tsx` account-deletion cases |
+| Elevated deletion of the identity row | `supabase/functions/delete-account/index.ts`, `supabase/config.toml` (`[functions.delete-account]`) | expo-policy account-deletion closure |
+| Owned data dies with the account | `supabase/schemas/10_account.sql`, `supabase/schemas/20_notes.sql` (`ON DELETE CASCADE`) | `supabase/tests/` cascade coverage |
+| Only the caller's account dies | `supabase/functions/delete-account/index.ts` (`getUser()`-derived id, never a parameter) | — |

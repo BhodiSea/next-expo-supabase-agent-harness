@@ -1,6 +1,10 @@
 # Edge Functions
 
-This directory is empty at seed, and that is the design — not an omission.
+The seed ships exactly ONE function — `delete-account` — and that is the design:
+it is the single operation the store-compliance slice needs that no policy a
+signed-in user runs under can perform (deleting the `auth.users` row), and it
+exists as the worked example every other function is measured against. Nothing
+else here holds the service key.
 
 ## The rule
 
@@ -94,8 +98,16 @@ Deploy with `supabase functions deploy <name>`. Secrets are set with
   procedures and Server Actions, which run as `authenticated` and go through the
   same policy wall as everything else.
 
-The seeded slice needs none of this. Profiles and notes are created by the
-signed-in user, for themselves, through the same policies that guard every read
-— `supabase/seed.sql` populates the local database that way on purpose, so
-"zero elevated code" is a property that gets exercised on every `db reset`
-rather than a claim in a document.
+The seeded slice's READS and WRITES need none of this. Profiles and notes are
+created by the signed-in user, for themselves, through the same policies that
+guard every read — `supabase/seed.sql` populates the local database that way on
+purpose, so "zero elevated code on the data path" is a property that gets
+exercised on every `db reset` rather than a claim in a document.
+
+The one exception is `delete-account`, and it earns the exception exactly the
+way this document demands: removing an `auth.users` row is a GoTrue admin
+operation no user-context policy can express, the owned tables cascade from that
+row so it needs no `GRANT` of its own, `verify_jwt` authenticates the caller,
+and the id it deletes comes from that caller's verified token — never a
+parameter — so its blast radius is one sentence. Its ADR is
+`docs/adr/20260720-account-deletion.md`.

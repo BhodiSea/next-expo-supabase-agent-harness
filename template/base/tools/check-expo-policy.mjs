@@ -455,12 +455,13 @@ function accountDeletionShapeOk(ad) {
     (ad?.surface === 'action' &&
       typeof ad.actionId === 'string' &&
       ad.actionId !== '' &&
-      typeof ad.serverPath === 'string' &&
-      ad.serverPath.startsWith('/')) ||
+      typeof ad.edgeFunction === 'string' &&
+      ad.edgeFunction !== '') ||
     (ad?.surface === 'route' &&
       typeof ad.routeId === 'string' &&
       ad.routeId !== '' &&
-      typeof ad.serverPath === 'string') ||
+      typeof ad.edgeFunction === 'string' &&
+      ad.edgeFunction !== '') ||
     (ad?.surface === 'external' &&
       typeof ad.url === 'string' &&
       ad.url.startsWith('https://') &&
@@ -530,7 +531,7 @@ function loadStorePolicy() {
   }
   if (!accountDeletionShapeOk(p.accountDeletion))
     badly(
-      'accountDeletion must be one of { surface: "action", actionId, serverPath } | { surface: "route", routeId, serverPath } | { surface: "external", url: https, reason } | { surface: "none", reason }',
+      'accountDeletion must be one of { surface: "action", actionId, edgeFunction } | { surface: "route", routeId, edgeFunction } | { surface: "external", url: https, reason } | { surface: "none", reason }',
     )
   if (p.icons?.solidColorPlaceholder !== 'warn' && p.icons?.solidColorPlaceholder !== 'error') {
     badly('icons.solidColorPlaceholder must be "warn" or "error"')
@@ -832,7 +833,7 @@ function checkAccountDeletion(policy) {
     const text = existsSync(registry) ? readFileSync(registry, 'utf8') : ''
     if (!text.includes(`id: '${ad.actionId}'`)) {
       errs.push(
-        `the app ships an auth surface but ${registry} registers no '${ad.actionId}' command — Apple 5.1.1(v): account creation requires in-app account deletion (worked pattern: the shipped session.deleteAccount action + DELETE /api/me)`,
+        `the app ships an auth surface but ${registry} registers no '${ad.actionId}' command — Apple 5.1.1(v): account creation requires in-app account deletion (worked pattern: the shipped session.deleteAccount action + the delete-account Edge Function)`,
       )
     }
   } else {
@@ -844,10 +845,24 @@ function checkAccountDeletion(policy) {
       )
     }
   }
-  const spec = readJson('apps/server/openapi.json')
-  if (spec !== null && spec.paths?.[ad.serverPath]?.delete === undefined) {
+  // The deletion must be BACKED. In this stack the backing is an Edge Function
+  // (deleting the auth.users row cascades every owned table — see supabase/
+  // schemas/10_account.sql), so assert the function exists on disk AND is
+  // declared in config.toml (an undeclared function is not deployed). This is
+  // never vacuous: the scaffold ships supabase/functions/${fn}/index.ts.
+  const fn = ad.edgeFunction
+  const fnIndex = `supabase/functions/${fn}/index.ts`
+  if (!existsSync(fnIndex)) {
     errs.push(
-      `the deletion surface points at DELETE ${ad.serverPath} but apps/server/openapi.json declares no such operation — the surface must be backed by a real, contract-visible endpoint`,
+      `the deletion surface points at the '${fn}' Edge Function but ${fnIndex} does not exist — the surface must be backed by a real, deployed function`,
+    )
+  }
+  const configText = existsSync('supabase/config.toml')
+    ? readFileSync('supabase/config.toml', 'utf8')
+    : ''
+  if (!configText.includes(`[functions.${fn}]`)) {
+    errs.push(
+      `the '${fn}' Edge Function is not declared in supabase/config.toml ([functions.${fn}]) — an undeclared function is not deployed, so the deletion surface has no backing`,
     )
   }
 }
