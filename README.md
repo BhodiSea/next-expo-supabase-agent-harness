@@ -9,21 +9,24 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release. The consolidation is complete through W9 — the stack
-> tree, gate chain, hooks, CI, and agent layer are this lineage's own.** This
-> repo was forked from
+> **Status: pre-release, stabilization in progress.** The stack tree, gate
+> chain, hooks, and agent layer are this lineage's own, and `template/stack/` is
+> now `apps/{web,mobile}` (Next 16 + Expo 57) over one shared Supabase backend.
+> This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
 > the surface-agnostic machinery was ported forward and the single-surface stack
-> replaced. `template/stack/` is now `apps/{web,mobile}` (Next 16 + Expo 57) over
-> one shared Supabase backend, and the gate chain describes THAT stack. The
-> closure wave is complete: every inherited surface that carried `hono`/`drizzle`
-> vocabulary — the guard machinery, the `apps/server`-shaped gate code, the old
-> CI workflows, and the opt-in module slices — has been retargeted to
-> Supabase/tRPC, and the `hono`/`drizzle` cross-porting detectors are now armed,
-> so re-entry is a hard red. Nothing is claimed here that the selftest matrix
-> does not prove.
+> replaced. The `hono`/`drizzle` closure wave landed and those cross-porting
+> detectors are armed, so that vocabulary is a hard red. **But the first
+> end-to-end scaffold run (`init` → `pnpm install` → `pnpm validate`) surfaced
+> real gaps the stale acceptance CI never caught:** several gates are not yet
+> green out of the box (the mobile bundle's barrel resolution, biome/eslint
+> nits, knip/depcruise config, and gate code still keyed on deleted `apps/server`
+> paths), and `.github/workflows/selftest.yml` still describes the old
+> Hono/Drizzle stack and must be ported. Stabilization is underway; **do not read
+> "green" into this repo until the selftest matrix runs against the new stack and
+> proves it.**
 
 ## What it is
 
