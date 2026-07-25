@@ -25,7 +25,9 @@
         "playwright.config.ts",
         "e2e/**/*.spec.ts"
       ],
-      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "e2e/**/*.ts", "*.{ts,mjs}"]
+      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "e2e/**/*.ts", "*.{ts,mjs}"],
+      "ignore": ["lib/app-data/notes.ts", "lib/app-data/notes-model.ts", "lib/supabase/client.ts"],
+      "ignoreDependencies": ["@app/design-system", "@supabase/ssr", "@supabase/supabase-js"]
     },
     "apps/mobile": {
       "entry": [
@@ -37,6 +39,7 @@
         "src/features/matrix/perfSubject.tsx!",
         "src/crash/redact.ts!",
         "src/testing/mock-server.ts",
+        "src/testing/mock-supabase.ts",
         "src/host/env.ts",
         "src/**/*.test.{ts,tsx}",
         "__tests__/**/*.{ts,tsx}"
@@ -47,7 +50,12 @@
         "__tests__/**/*.{ts,tsx}",
         "*.{ts,js}"
       ],
-      "ignoreDependencies": ["expo-crypto", "expo-updates", "react-native-css-interop"]
+      "ignoreDependencies": [
+        "expo-crypto",
+        "expo-updates",
+        "react-native-css-interop",
+        "expo-web-browser"
+      ]
     },
     "packages/api": {
       "entry": ["src/index.ts!", "src/**/*.test.ts"],
@@ -58,7 +66,7 @@
       "project": ["src/**/*.ts!"]
     },
     "packages/design-tokens": {
-      "entry": ["src/index.ts!", "src/client.ts!", "scripts/gen.mjs", "src/**/*.test.ts"],
+      "entry": ["src/index.ts!", "src/client.ts!", "scripts/gen.mjs!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!", "scripts/*.mjs"],
       "ignore": ["src/generated/**"]
     },
@@ -93,7 +101,8 @@
     },
     "packages/verticals/notes": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts!"]
+      "project": ["src/**/*.ts!"],
+      "ignoreDependencies": ["@app/supabase"]
     }
   }
 }

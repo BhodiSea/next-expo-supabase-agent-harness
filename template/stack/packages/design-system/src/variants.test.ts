@@ -123,7 +123,13 @@ describe('token discipline', () => {
   it('never names a raw ramp step or a hex colour', () => {
     for (const factory of factories) {
       const classes = factory()
-      expect(classes).not.toMatch(/-(?:50|100|200|300|400|500|600|700|800|900|950)\b/)
+      // A COLOR ramp step (`bg-neutral-950`) is the light/dark leak this guards —
+      // NOT every utility that shares the 50–950 scale. `opacity-50`,
+      // `duration-150`, `delay-100` are theme-invariant and legitimate, so
+      // exclude those numeric non-color utilities from the match.
+      expect(classes).not.toMatch(
+        /(?<!opacity|duration|delay)-(?:50|100|200|300|400|500|600|700|800|900|950)\b/,
+      )
       expect(classes).not.toMatch(/#[0-9a-f]{3,8}/i)
     }
   })

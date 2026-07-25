@@ -229,7 +229,9 @@ function emitWebDarkOverrides(lines: string[]): void {
   lines.push('}')
 }
 
-/** The committed bytes of src/generated/web.css. Pure: same input, same string. */
+/** The committed bytes of src/generated/web.css. Pure: same input, same string.
+ * @public — test-facing seam API: render.test.ts calls it directly for the determinism
+ * and emitted-web-theme suites; in production it is reached only through GENERATED_FILES. */
 export function renderWebCss(): string {
   assertTokenContract()
   const lines = [...WEB_HEADER, '@theme {']
@@ -387,7 +389,9 @@ function emitNativeMotion(lines: string[]): void {
   lines.push('  },', `  pressScale: ${PRESS_SCALE},`, '} as const', '')
 }
 
-/** The committed bytes of src/generated/native.ts. Pure: same input, same string. */
+/** The committed bytes of src/generated/native.ts. Pure: same input, same string.
+ * @public — test-facing seam API: render.test.ts calls it directly for the determinism
+ * and emitted-native-theme suites; in production it is reached only through GENERATED_FILES. */
 export function renderNativeModule(): string {
   assertTokenContract()
   const lines = [...NATIVE_HEADER]

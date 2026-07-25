@@ -40,7 +40,10 @@ const NoteRow = z.object({
   title: NoteRecord.shape.title,
   updated_at: NoteRecord.shape.updatedAt,
 })
-export type NoteRow = z.infer<typeof NoteRow>
+// Module-private BY the DAL law stated above: the snake_case row shape never escapes
+// this file — everything downstream deals in NoteRecord. The named alias stays only to
+// document what `NoteRow.parse` yields; nothing outside imports it.
+type NoteRow = z.infer<typeof NoteRow>
 
 /** The row schema's keys, for the projection-drift test. Derived, never listed twice. */
 export const NOTE_ROW_KEYS = Object.keys(NoteRow.shape).sort()

@@ -167,6 +167,9 @@ export function useThemedStyles<T extends NamedStyles<T>>(factory: (palette: Pal
   return styles as T
 }
 
+/** @public — seam API: the concrete painted theme's name ('light' | 'dark'), re-exported
+ * on the local token seam so a settings screen or a custom toggle narrows with it exactly
+ * as it does with ThemePreference; reached from tests today, consumer-facing by design. */
 export type { Palette, ThemeName } from '@app/design-tokens/native'
 // ---------------------------------------------------------------------------
 // THE ONE LOCAL TOKEN SEAM.

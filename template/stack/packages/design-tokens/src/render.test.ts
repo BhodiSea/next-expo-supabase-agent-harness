@@ -55,7 +55,10 @@ describe('the emitted web theme', () => {
   // that still looks correct in review.
   it('uses plain @theme so the cascade can still override the tokens', () => {
     expect(css).toContain('@theme {')
-    expect(css).not.toContain('@theme inline')
+    // The DIRECTIVE, not the substring: the file header comment legitimately
+    // spells "@theme inline" to explain why it is not used, so match the block
+    // opener (`@theme inline {`) rather than the bare phrase.
+    expect(css).not.toContain('@theme inline {')
   })
 
   // Without the :not(), the media query outranks [data-theme="light"] and a user who

@@ -46,11 +46,14 @@ export const STAMP_INPUTS = {
     'tools/generated/event-catalog.json',
   ],
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
-  // Deliberate exclusions: apps/server is mocked at the network seam (the suites
-  // stub fetch/SSE, never a live API); packages/importer + packages/eval are
-  // unreachable from the mobile graph by depcruise + bundle purity, so they
-  // cannot change a mobile e2e verdict. The Maestro device lane is CI-only and
-  // never stamped. CI always re-runs (inCI), so nothing under-tested ever ships.
+  // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the
+  // suites stub the client via src/testing/mock-server.ts, never a live API); the
+  // web app + server-only packages are unreachable from the mobile graph by
+  // depcruise + bundle purity, so they cannot change a mobile e2e verdict. The
+  // Maestro device lane is CI-only and never stamped. CI always re-runs (inCI),
+  // so nothing under-tested ever ships. packages/contracts is IN the list: its
+  // zod DTOs are the wire shape the mobile suites parse, so a contract change
+  // must invalidate a warm e2e stamp.
   e2e: [
     'apps/mobile/src',
     'apps/mobile/app',
@@ -58,8 +61,8 @@ export const STAMP_INPUTS = {
     'apps/mobile/jest.config.js',
     'apps/mobile/package.json',
     'apps/mobile/tsconfig.json',
-    'packages/schema/src',
-    'packages/schema/package.json',
+    'packages/contracts/src',
+    'packages/contracts/package.json',
     'pnpm-lock.yaml',
   ],
   // identity lock + ATS/cleartext + permissions/plugins allowlists + CNG purity +
@@ -67,9 +70,11 @@ export const STAMP_INPUTS = {
   // adapter is an input because the gate asserts the splash background color equals its
   // GENERATED dark canvas token — a retuned palette must invalidate a warm stamp or the
   // splash check would ride a stale green.
-  // The 0.1.2 store-readiness inputs join the list: the reviewed policy, the
-  // icon assets (integrity checks parse their bytes), the actions registry +
-  // openapi contract (the account-deletion closure reads both).
+  // The store-readiness inputs join the list: the reviewed policy, the icon
+  // assets (integrity checks parse their bytes), and the account-deletion
+  // closure's two reads — the actions registry (the surface) and the backing
+  // delete-account Edge Function + config.toml declaration (the endpoint). A
+  // change to any of them must invalidate a warm expo-policy stamp.
   'expo-policy': [
     'apps/mobile/app.config.ts',
     'apps/mobile/package.json',
@@ -81,7 +86,8 @@ export const STAMP_INPUTS = {
     'tools/store-policy.json',
     'apps/mobile/assets',
     'apps/mobile/src/features/actions/registry.ts',
-    'apps/server/openapi.json',
+    'supabase/functions/delete-account/index.ts',
+    'supabase/config.toml',
     'pnpm-lock.yaml',
   ],
   // `expo install --check` version alignment + the config-plugin allowlist +

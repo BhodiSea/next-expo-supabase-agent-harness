@@ -4,6 +4,10 @@
 // speed bump in front of the one credential that bypasses every policy in the
 // repository.
 import { describe, expect, it } from 'vitest'
+// ./service-role.js reaches @app/env, which parses the environment eagerly at
+// import — the unit-node vitest project seeds hygiene-safe placeholder env so
+// this module LOADS (see vitest.config.ts). These tests only exercise the
+// warrant gate, never a live connection.
 import { createServiceRoleClient_BYPASSES_RLS, type ServiceRoleWarrant } from './service-role.js'
 
 const WARRANT: ServiceRoleWarrant = {

@@ -101,6 +101,20 @@ export default defineConfig({
         test: {
           name: 'unit-node',
           environment: 'node',
+          // @app/env parses the whole environment EAGERLY at import (fail-fast
+          // doctrine), so any module that reaches it — e.g. the service-role
+          // factory — throws at load without these. They are hygiene-safe
+          // placeholders (loopback DB with the dev password; non-key-shaped
+          // secrets), NOT real credentials, and exist only so those modules
+          // LOAD; the tests that assert env-parsing behaviour set their own
+          // values per-test via setHostEnv and restore afterwards.
+          env: {
+            SUPABASE_DB_URL: 'postgres://postgres:postgres@127.0.0.1:5432/postgres',
+            SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_unit_test_placeholder_do_not_use',
+            NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co',
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE: 'sb_publishable_unit_test_placeholder',
+            NEXT_PUBLIC_WEB_ORIGIN: 'http://localhost:3000',
+          },
           include: [
             'packages/*/src/**/*.test.ts',
             'packages/*/tests/unit/**/*.test.ts',

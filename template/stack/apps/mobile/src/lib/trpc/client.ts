@@ -31,7 +31,11 @@ import Constants from 'expo-constants'
 // ---------------------------------------------------------------------------
 type IsAny<T> = 0 extends 1 & T ? true : false
 type AssertRouterTyped = IsAny<AppRouter> extends true ? never : true
-/** Compile-time only: reds `tsc -b` if AppRouter ever silently degrades to `any`. */
+/** Compile-time only: reds `tsc -b` if AppRouter ever silently degrades to `any`.
+ * @public — the export is the mechanism: a non-exported sentinel is a value no
+ * pruner (eslint no-unused-vars, knip) may keep, and the whole guard is a value
+ * that must survive to carry its type annotation. Not a consumer seam; it is
+ * imported by nothing on purpose. */
 export const APP_ROUTER_IS_TYPED: AssertRouterTyped = true
 
 // The version string the server's skew middleware compares against. Read from
@@ -63,8 +67,9 @@ function webOrigin(): string {
   return process.env.EXPO_PUBLIC_WEB_ORIGIN || (typeof configured === 'string' ? configured : '')
 }
 
-/** The tRPC endpoint apps/web mounts at `app/api/trpc/[trpc]/route.ts`. */
-export function trpcEndpoint(): string {
+/** The tRPC endpoint apps/web mounts at `app/api/trpc/[trpc]/route.ts`.
+ * Module-private: the only caller is createApiClient below. */
+function trpcEndpoint(): string {
   return `${webOrigin()}/api/trpc`
 }
 
