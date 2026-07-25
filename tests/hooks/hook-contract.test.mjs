@@ -722,15 +722,14 @@ test('source-check blocks uncited decision sites, passes cited ones (ts + sql)',
   )
 })
 
-test('source-check skips json, tests, and generated theme tokens', () => {
-  // tokens.gen.ts is the generated-module skip for THIS stack (the token emitter's
-  // output — the analogue of the old IPC bindings skip); drizzle/meta is drizzle's
-  // own metadata tree.
+test('source-check skips json, tests, and machine-generated adapters', () => {
+  // The design-tokens adapter (src/generated/*) and the Supabase type mirror
+  // (database.types.ts) are machine-written and regen-diffed, never cited.
   for (const f of [
     'x.config.json',
-    'apps/server/src/auth.test.ts',
-    'apps/mobile/src/theme/tokens.gen.ts',
-    'packages/schema/drizzle/meta/snapshot.ts',
+    'apps/web/lib/auth.test.ts',
+    'packages/design-tokens/src/generated/native.ts',
+    'packages/platform/supabase/src/database.types.ts',
   ]) {
     const p = join(proj, f)
     mkdirSync(join(proj, f.split('/').slice(0, -1).join('/') || '.'), { recursive: true })

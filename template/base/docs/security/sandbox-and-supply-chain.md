@@ -19,10 +19,10 @@ If an agent has all three, an attacker can trick it into exfiltrating private da
 - **No standing exfiltration.** `.claude/settings.json` denies `curl`/`wget`,
   force-push, hard reset, `.env*` and `.dev-auth/` reads, and ssh keys; `WebFetch` is
   allow-listed to a few documentation domains.
-- **No privileged-role exposure.** `MIGRATOR_DATABASE_URL` (the RLS-bypassing schema
-  owner) is confined by the bash guard to drizzle-kit migrate/generate/check and
-  `tests/migrations/`; the API runs as `app_api` (NOSUPERUSER, NOBYPASSRLS — asserted
-  from pg_catalog by the RLS suite). Store and build credentials (`EXPO_TOKEN`,
+- **No privileged-role exposure.** The `service_role` key (the RLS-bypassing role)
+  lives only in ADR-governed Edge Functions and is kept out of the client bundle and
+  the mobile graph; the authenticated caller runs under RLS (`auth.uid()`), asserted by
+  the pgTAP + supabase-js isolation suites. Store and build credentials (`EXPO_TOKEN`,
   keystores, Apple submission keys) exist only in CI secrets; any shell contact with
   them is denied. The mobile app itself holds nothing but a scoped bearer token in the
   platform keychain. RLS is the backstop.

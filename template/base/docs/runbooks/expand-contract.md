@@ -23,7 +23,7 @@ re-emit the committed contract (`contracts` gate).
   into an additive **expand** phase and a destructive **contract** phase, with deploys,
   store rollout, and data migration in between.
 
-## Phase 1 — EXPAND (additive migration; new file via `drizzle-kit generate`)
+## Phase 1 — EXPAND (additive migration; new file via `supabase migration new`)
 
 Add the new shape alongside the old. Allowed: new tables, new nullable-or-defaulted
 columns, new indexes, widened types. Never remove or rename anything here.
@@ -34,7 +34,7 @@ columns, new indexes, widened types. Never remove or rename anything here.
   `tests/rls/dal-shapes.ts` so the runtime suite probes it.
 - New column that replaces an old one? Make it nullable or defaulted so old-server
   INSERTs still succeed.
-- Update the Drizzle schema + DAL to **write both** (dual-write) and **read new,
+- Update the declarative schema + the vertical's data layer to **write both** (dual-write) and **read new,
   fall back to old**. DTOs in `@app/contracts` stay backward-compatible (additive Zod
   fields, optional).
 - Gate check: `pnpm validate` + `pnpm test:rls` green; `pnpm openapi:emit` if routes

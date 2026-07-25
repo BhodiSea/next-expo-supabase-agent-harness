@@ -41,9 +41,9 @@ FORCE). The API never uses this role, and the mobile app never sees ANY database
 credential — it holds only a scoped bearer token. Sanctioned uses, enforced by the
 bash guard:
 
-1. `drizzle-kit migrate` / `generate` / `check` (`pnpm db:migrate`),
-2. `tests/migrations/migration-apply.mjs` (the fresh-apply runner behind the RLS
-   suite, including the plan probe's seeding + ANALYZE).
+1. `supabase migration new` / `supabase db diff` / `supabase db reset` (`pnpm db:reset`, `pnpm db:test`),
+2. `tests/rls/run-rls.mjs` (the isolation runner behind the RLS suite — pgTAP + the
+   supabase-js client suite).
 
 Anything else that wants the migrator DSN needs a governing ADR (`docs/adr/`), a row in
 this registry, and CODEOWNERS sign-off — there is no other sanctioned home for

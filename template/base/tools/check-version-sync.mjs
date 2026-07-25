@@ -23,13 +23,13 @@
 //      build.base pins the SAME Node major plus the EXACT pnpm from packageManager —
 //      EAS ignores package.json packageManager entirely, so the eas.json fields are
 //      the only pin a cloud build obeys (design record: EXPO-FACTS, eas.json).
-//   4. expo / expo-router / react-native / babel-preset-expo / drizzle-kit are
+//   4. expo / expo-router / react-native / babel-preset-expo are
 //      EXACT-pinned in the catalog: since SDK 55 the expo-* majors ride the SDK in
 //      lockstep and `expo install --check` (the native-deps gate) expects the bundled
 //      pins verbatim — a caret or tilde on any of them flaps regenerate-and-diff
 //      gates repo-wide (Renovate bumps them deliberately).
 //   5. zod resolves to exactly one version across the workspace (two instances break
-//      instanceof checks in @hono/zod-openapi with incomprehensible errors)
+//      instanceof checks in the tRPC/zod input parsers with incomprehensible errors)
 //   6. react resolves to exactly one version WITHIN each surface's graph. Unlike zod
 //      (one version workspace-wide), React is split ON PURPOSE — apps/web tracks Next's
 //      floor while apps/mobile stays on Expo's bundled pin, and the two never share a
@@ -139,7 +139,7 @@ if (existsSync(EAS_JSON)) {
 // Exact pins for SDK-lockstep tools in the workspace catalog
 if (existsSync('pnpm-workspace.yaml')) {
   const ws = readFileSync('pnpm-workspace.yaml', 'utf8')
-  for (const tool of ['expo', 'expo-router', 'react-native', 'babel-preset-expo', 'drizzle-kit']) {
+  for (const tool of ['expo', 'expo-router', 'react-native', 'babel-preset-expo']) {
     const m = ws.match(new RegExp(`^\\s*['"]?${tool}['"]?:\\s*(\\S+)`, 'm'))
     if (m && /^[\^~]/.test(m[1])) {
       errs.push(
@@ -222,7 +222,7 @@ if (resolved.runtimeVersion?.policy !== 'appVersion') {
 // process with its own module graph — the Expo CLI embeds a zod of its own deep in
 // @expo/cli, and that copy can never `instanceof`-interact with the schemas the app
 // and server share — so the walk deliberately does not descend into those subtrees.
-// A second zod anywhere else (contracts/server/@hono interop) still reds.
+// A second zod anywhere else (the contracts + tRPC router share one zod) still reds.
 const BUILD_TOOL_SUBTREE = /^(?:expo(?:-|$)|@expo\/|jest-expo$|babel-|@babel\/|metro(?:-|$))/
 try {
   const out = runCmd('pnpm list -r --depth Infinity zod --json')

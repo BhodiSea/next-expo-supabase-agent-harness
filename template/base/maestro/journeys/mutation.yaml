@@ -1,7 +1,7 @@
 # maestro/journeys/mutation.yaml — the on-device MUTATION flow: sign in through the
 # app's own screen, create a note through the real composer, relaunch, and prove the
-# note SURVIVED. This is the one device flow that exercises the full stack — keychain
-# token, api-client bearer path, Hono, Postgres under FORCE RLS — where every sweep
+# note SURVIVED. This is the one device flow that exercises the full stack — the
+# Supabase session, the tRPC client path, Postgres under FORCE RLS — where every sweep
 # flow tolerates the signed-out error states.
 #
 # PRECONDITIONS (the workflow's job): the DEV build is installed (the stub sign-in is

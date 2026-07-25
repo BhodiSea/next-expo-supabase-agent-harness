@@ -195,8 +195,8 @@ test('RED: a bare-URL SOURCE on a non-allowlisted host fails naming the host and
 test('GREEN: an allowlisted host grounds a bare-URL citation', () => {
   const r = runGate(fixture({
     files: {
-      'apps/server/src/limits.ts':
-        '// SOURCE: https://hono.dev/docs/helpers/streaming\nconst opts = { timeoutMs: 5000 }\n',
+      'apps/web/lib/limits.ts':
+        '// SOURCE: https://react.dev/reference/react\nconst opts = { timeoutMs: 5000 }\n',
     },
   }))
   assert.equal(r.code, 0, r.out)

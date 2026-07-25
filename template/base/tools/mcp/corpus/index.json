@@ -91,30 +91,12 @@
   },
   {
     "groups": [],
-    "id": "drizzle/migrations-append-only",
-    "sha256": "674ad14c52d09c2d479ea8aa81faf4be4240b613e0359b969fae257e1b817260",
-    "text": "Generated migrations are ordered, immutable steps; editing an already-applied migration desynchronizes databases that ran the original. Schema changes go through a NEW migration (drizzle-kit generate) — never edit an existing file, never `drizzle-kit push` outside local prototyping.",
-    "title": "Migration discipline: append-only files, generate over push",
-    "url": "https://orm.drizzle.team/docs/migrations",
-    "version": "1.0"
-  },
-  {
-    "groups": [],
     "id": "microsoft/api-guidelines",
     "sha256": "0bb0dad4565d23e1518bc2def252d1099bad62fef80938de5c423236eacdab1f",
     "text": "The Microsoft Azure REST API Guidelines require error responses to be a single JSON object with a top-level error property carrying a stable machine-readable code and a human-readable message (plus optional details). Clients branch on the code, never the message text, so codes are a documented stable contract while messages may change; every non-2xx body uses the one envelope shape.",
     "title": "Microsoft Azure REST API Guidelines: the { error: { code, message } } error envelope",
     "url": "https://github.com/microsoft/api-guidelines/blob/vNext/azure/Guidelines.md",
     "version": "vNext"
-  },
-  {
-    "groups": ["tuning-constants"],
-    "id": "hono/sse-abort",
-    "sha256": "9756948f10e02db0b11538b6d819c598465ceb0ef774b509ec48c5b9e2b433dd",
-    "text": "When streaming (SSE) from Hono, honor request abort: the streaming helper's onAbort / the request signal must terminate the generator and release resources, otherwise disconnected clients leak server work — critical for long-lived LLM token streams.",
-    "title": "Hono streaming: propagate client abort into the generator",
-    "url": "https://hono.dev/docs/helpers/streaming",
-    "version": "4"
   },
   {
     "groups": [],

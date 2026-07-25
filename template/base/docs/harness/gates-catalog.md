@@ -46,9 +46,9 @@ here deliberately rather than papered over:
 ### 1. format — `pnpm exec biome ci .`
 
 Formatting, import organization, read-only (CI-grade `ci`, not `check --write`).
-Fix with `pnpm format`. Generated-but-committed artifacts (tokens.gen.ts,
-openapi.json, drizzle SQL) are excluded — byte-stability there belongs to their
-regen-diff gates.
+Fix with `pnpm format`. Generated-but-committed artifacts (the design-tokens adapters,
+the Supabase type mirror, the committed contract inventories) are excluded —
+byte-stability there belongs to their regen-diff gates.
 **Anti-vacuity:** mis-indent any `.ts` file → FAIL naming the file.
 
 ### 2. gate-integrity — `node tools/check-gate-integrity.mjs`
@@ -203,7 +203,7 @@ has not is a breaking client). `runtimeVersion.policy` stays `appVersion`; Node 
 agree across `.nvmrc`/`.node-version`/`engines` AND `eas.json` pins the same Node plus
 the EXACT pnpm from `packageManager` (EAS ignores package.json's packageManager — the
 eas.json fields are the only pin a cloud build obeys); expo / expo-router /
-react-native / babel-preset-expo / drizzle-kit EXACT-pinned in the catalog; exactly one
+react-native / babel-preset-expo EXACT-pinned in the catalog; exactly one
 zod instance resolves workspace-wide, and exactly one `react` resolves WITHIN each
 surface's graph (web and mobile pin React independently — separate bundles — so two
 versions across surfaces is correct; two within one bundle break the hooks dispatcher).
@@ -318,11 +318,11 @@ auto-deletes with false positives.
 
 ### 18. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
-The dependency law: no cycles; mobile resolves no `postgres|drizzle-orm|pino|@hono/*`,
-nothing in `apps/server`, and NOT `@app/schema` (wire contracts come from
-`@app/contracts` only); drizzle confined to schema+server; the postgres driver only
-under `apps/server/src/db/`; `withUserContext` importable only from the DAL;
-`expo-secure-store` only under `src/host/**` + `src/auth/**`; LLM SDKs only from
+The dependency law: no cycles; `verticals ⊥ verticals`; `shared ↛ verticals`;
+`platform/* → {errors,events}` only; `packages/api ↛ next/*` (the reversibility wall);
+`apps/mobile ↛ web-only packages` (no `next`/`react-dom`/`@app/design-system`) and
+`apps/web ↛ react-native`; the `@supabase/ssr` server client stays out of the mobile
+graph; `expo-secure-store` only under `src/lib/supabase/**`; LLM SDKs only from
 `packages/eval` adapters.
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
@@ -492,8 +492,8 @@ pooled-connection GUC-leak detector (pool max=1), and the pg_catalog gate (FORCE
 RLS flags, per-op policies, leading-column owner indexes, initPlan-shaped
 predicates, patched pgvector, non-BYPASSRLS role). The plan-regression probe then
 bulk-seeds at scale and EXPLAINs both a bare policy-shape SELECT and every query
-the DAL ACTUALLY ISSUES (captured through a drizzle pg-proxy, registered in the
-seeded `tests/rls/dal-shapes.ts`), redding on any `Seq Scan`, `Sort`, or per-row
+the app ACTUALLY ISSUES (captured through the supabase-js client suite, registered in
+the seeded `tests/rls/db-context.ts`), redding on any `Seq Scan`, `Sort`, or per-row
 `SubPlan` — the index must carry the ORDERING, not just the filter
 (`0002_notes_keyset_idx.sql` is the worked pattern). Unreachable database → loud
 SKIP locally; in CI with migrations present, unreachable = FAIL.

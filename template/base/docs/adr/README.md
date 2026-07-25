@@ -22,8 +22,8 @@ pointing at an existing record.
 The chain runs corpus -> code -> check -> ADR -> verification -> gate
 (SOURCE: docs/harness/README.md — the provenance pipeline):
 
-1. **corpus / authority** — a version-pinned authority (Expo / React Native / Postgres /
-   Drizzle / Hono docs, or an entry in `tools/mcp/corpus/index.json`) grounds a decision.
+1. **corpus / authority** — a version-pinned authority (Expo / React Native / Next /
+   Supabase / Postgres docs, or an entry in `tools/mcp/corpus/index.json`) grounds a decision.
 2. **`// SOURCE:`** — an inline comment on the decision line cites that authority,
    with `[corpus: <id>]` when pinned.
 3. **posttool-source-check hook + `provenance` gate** — flag any decision site that

@@ -127,11 +127,12 @@ export const SOURCE_WINDOW_LINES = 3
 // check-expo-policy).
 export const SCANNABLE_FILE = /\.(ts|tsx|sql)$/
 
-// Excluded everywhere: tests, generated theme tokens, drizzle metadata.
+// Excluded everywhere: tests and machine-generated adapters (the design-tokens
+// output under src/generated/, the Supabase type mirror).
 export const SCAN_EXCLUDES = [
   /\.(test|spec)\.tsx?$/,
-  /\/theme\/tokens\.gen\.ts$/,
-  /\/drizzle\/meta\//,
+  /\/generated\//,
+  /\/database\.types\.ts$/,
 ]
 
 // Hook-only exclusion: harness tooling under .claude/ (the gate's globs below never

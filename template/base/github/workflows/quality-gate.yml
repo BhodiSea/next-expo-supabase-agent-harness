@@ -292,9 +292,9 @@ jobs:
   # The mobile<->server seam. Every other lane mocks the network, which is how a
   # client ships sending no Authorization header at all while every mocked suite
   # stays green. This lane stubs nothing but the native keystore (no hardware in
-  # CI): the app's own auth provider mints a REAL dev token from the REAL Hono
-  # server, api-client attaches it, FORCE RLS filters rows, and streamApiSse
-  # parses a real SSE stream — the live-api-proof suite under LIVE_PROOF=1.
+  # CI): the app's own auth provider signs in against the REAL Supabase stack, the
+  # verified session attaches to each tRPC request, FORCE RLS filters rows, and the
+  # app renders real data — the live-api-proof suite under LIVE_PROOF=1.
   # tools/check-e2e.mjs strips these env vars, so this can NEVER run in the
   # agent-time chain.
   # ---------------------------------------------------------------------------

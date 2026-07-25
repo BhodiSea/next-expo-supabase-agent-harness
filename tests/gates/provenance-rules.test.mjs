@@ -54,7 +54,7 @@ test('gateFileMatch: apps/packages .ts/.tsx and packages .sql are in scope', () 
   assert.equal(gateFileMatch('apps/server/src/auth.ts'), true)
   assert.equal(gateFileMatch('packages/schema/src/index.ts'), true)
   assert.equal(gateFileMatch('packages/schema/src/x.tsx'), true)
-  assert.equal(gateFileMatch('packages/schema/drizzle/0001_x.sql'), true)
+  assert.equal(gateFileMatch('packages/api/src/schema.sql'), true)
 })
 
 test('gateFileMatch: out-of-scope trees, wrong extensions, and apps/*.sql are excluded', () => {
@@ -79,7 +79,7 @@ test('gateFileMatch: WIDENING — files DIRECTLY under apps/ or packages/ are in
 
 test('gateFileMatch: Windows backslash paths are POSIX-normalized before matching', () => {
   assert.equal(gateFileMatch('apps\\mobile\\src\\App.tsx'), true)
-  assert.equal(gateFileMatch('packages\\schema\\drizzle\\0001_x.sql'), true)
+  assert.equal(gateFileMatch('packages\\api\\src\\schema.sql'), true)
   // Normalization must not widen scope: apps\...\*.sql is still out (packages-only).
   assert.equal(gateFileMatch('apps\\mobile\\src\\query.sql'), false)
 })
@@ -103,19 +103,20 @@ test('DECISION matches one representative token per group and is case-sensitive'
 test('hookScansFile: scannable extensions in-scope; non-code files out', () => {
   assert.equal(hookScansFile('apps/server/src/auth.ts'), true)
   assert.equal(hookScansFile('apps/mobile/src/App.tsx'), true)
-  assert.equal(hookScansFile('packages/schema/drizzle/0001_x.sql'), true)
+  assert.equal(hookScansFile('supabase/migrations/0001_x.sql'), true)
   // Only .ts/.tsx/.sql carry the comments the heuristic reads.
   assert.equal(hookScansFile('apps/server/src/config.json'), false)
   assert.equal(hookScansFile('tools/notes.md'), false)
   assert.equal(hookScansFile('apps/mobile/src/main.js'), false)
 })
 
-test('hookScansFile: SCAN_EXCLUDES drop tests, generated theme tokens, and drizzle meta', () => {
-  assert.equal(hookScansFile('apps/server/src/auth.test.ts'), false)
+test('hookScansFile: SCAN_EXCLUDES drop tests and machine-generated adapters', () => {
+  assert.equal(hookScansFile('apps/web/lib/app-data/notes.test.ts'), false)
   assert.equal(hookScansFile('apps/mobile/src/App.spec.tsx'), false)
-  // The generated token file is regen-diffed by the styleguide gate, never cited.
-  assert.equal(hookScansFile('apps/mobile/src/theme/tokens.gen.ts'), false)
-  assert.equal(hookScansFile('packages/schema/drizzle/meta/0000_snapshot.sql'), false)
+  // The generated token adapter is regen-diffed by the styleguide gate, never cited.
+  assert.equal(hookScansFile('packages/design-tokens/src/generated/native.ts'), false)
+  // The Supabase type mirror is `supabase gen types` output, never cited.
+  assert.equal(hookScansFile('packages/platform/supabase/src/database.types.ts'), false)
 })
 
 test('hookScansFile: HOOK_EXCLUDES drop .claude tooling ONLY when nested (leading slash required)', () => {
@@ -128,11 +129,11 @@ test('hookScansFile: HOOK_EXCLUDES drop .claude tooling ONLY when nested (leadin
 })
 
 test('hookScansFile: Windows backslash paths are POSIX-normalized before the /-based excludes run', () => {
-  // The whole point of toPosix at this boundary — `apps\...\theme\tokens.gen.ts`
-  // must still hit the `/theme/tokens.gen.ts$` exclude on windows-latest.
-  assert.equal(hookScansFile('apps\\mobile\\src\\theme\\tokens.gen.ts'), false)
+  // The whole point of toPosix at this boundary — `packages\...\src\generated\native.ts`
+  // must still hit the `/generated/` exclude on windows-latest.
+  assert.equal(hookScansFile('packages\\design-tokens\\src\\generated\\native.ts'), false)
   assert.equal(hookScansFile('apps\\mobile\\src\\App.test.tsx'), false)
-  assert.equal(hookScansFile('packages\\schema\\drizzle\\meta\\0000_snap.sql'), false)
+  assert.equal(hookScansFile('packages\\platform\\supabase\\src\\database.types.ts'), false)
   assert.equal(hookScansFile('C:\\proj\\.claude\\hooks\\posttool.ts'), false)
   // A normal Windows path that is NOT excluded still scans (normalization must
   // not break the happy path).
@@ -143,8 +144,8 @@ test('hookScansFile: Windows backslash paths are POSIX-normalized before the /-b
 test('gateScansFile applies SCAN_EXCLUDES but NOT scannability or HOOK_EXCLUDES', () => {
   assert.equal(gateScansFile('apps/server/src/auth.ts'), true)
   assert.equal(gateScansFile('apps/server/src/auth.test.ts'), false)
-  assert.equal(gateScansFile('apps/mobile/src/theme/tokens.gen.ts'), false)
-  assert.equal(gateScansFile('packages/schema/drizzle/meta/x.sql'), false)
+  assert.equal(gateScansFile('packages/design-tokens/src/generated/native.ts'), false)
+  assert.equal(gateScansFile('packages/platform/supabase/src/database.types.ts'), false)
   // Excludes-only: the gate trusts its git globs to only feed .ts/.tsx/.sql, so
   // a non-code path is "not excluded" -> true, and `.claude` is not a gate
   // exclude (its globs never reach there). Contrast hookScansFile above.
@@ -278,7 +279,7 @@ test('payloadResolves: corpus refs and ALLOWLISTED https URLs ground; other host
   assert.equal(payloadResolves('pinned [corpus: entra/jwt-verify]'), true)
   // A bare URL grounds only when its host is on the shared allowlist in
   // tools/lib/citation-domains.mjs.
-  assert.equal(payloadResolves('see https://hono.dev/docs/helpers/streaming'), true)
+  assert.equal(payloadResolves('see https://react.dev/reference/react'), true)
   assert.equal(payloadResolves('see https://www.postgresql.org/docs/current/sql-set.html'), true)
   // learn.microsoft.com IS allowlisted in this stack (Entra ID / API guidelines)
   // — the source harness kept it off; the port added it deliberately.
@@ -292,7 +293,7 @@ test('payloadResolves: corpus refs and ALLOWLISTED https URLs ground; other host
   )
   // Only https:// counts as a URL — a plain http:// token is skipped by the
   // `^https?:` guard in the path loop and grounds nothing (even on an allowlisted host).
-  assert.equal(payloadResolves('see http://hono.dev/x'), false)
+  assert.equal(payloadResolves('see http://react.dev/x'), false)
   // Presence-only prose ("trust me") is not provenance.
   assert.equal(payloadResolves('trust me'), false)
   // The `<id>` placeholder is not a resolvable corpus ref.
@@ -301,14 +302,14 @@ test('payloadResolves: corpus refs and ALLOWLISTED https URLs ground; other host
 
 // ── citation-domains: the shared bare-URL host allowlist ──────────────────────
 test('isAllowedCitationHost: exact match, subdomain match, case/trailing-dot normalization; no suffix spoofing', () => {
-  assert.ok(CITATION_DOMAINS.includes('hono.dev'))
-  assert.equal(isAllowedCitationHost('hono.dev'), true)
+  assert.ok(CITATION_DOMAINS.includes('react.dev'))
+  assert.equal(isAllowedCitationHost('react.dev'), true)
   assert.equal(isAllowedCitationHost('www.postgresql.org'), true) // subdomain of postgresql.org
-  assert.equal(isAllowedCitationHost('HONO.DEV'), true)
-  assert.equal(isAllowedCitationHost('hono.dev.'), true) // FQDN trailing dot normalized
+  assert.equal(isAllowedCitationHost('REACT.DEV'), true)
+  assert.equal(isAllowedCitationHost('react.dev.'), true) // FQDN trailing dot normalized
   // A registrable domain that merely ENDS with an allowlisted string is not a match.
-  assert.equal(isAllowedCitationHost('evilhono.dev'), false)
-  assert.equal(isAllowedCitationHost('hono.dev.attacker.io'), false)
+  assert.equal(isAllowedCitationHost('evilreact.dev'), false)
+  assert.equal(isAllowedCitationHost('react.dev.attacker.io'), false)
   assert.equal(isAllowedCitationHost('github.com'), false) // user content — corpus-pin instead
 })
 
@@ -332,8 +333,8 @@ test("isAllowedCitationHost: this stack's platform docs hosts are ON; their apex
 
 test('extractHttpsUrlHosts: lowercased, deduplicated hosts; glued punctuation stripped; junk yields none', () => {
   assert.deepEqual(
-    extractHttpsUrlHosts('see https://hono.dev/a and https://HONO.dev/b, then https://www.w3.org/TR/.'),
-    ['hono.dev', 'www.w3.org'],
+    extractHttpsUrlHosts('see https://react.dev/a and https://REACT.dev/b, then https://www.w3.org/TR/.'),
+    ['react.dev', 'www.w3.org'],
   )
   assert.deepEqual(extractHttpsUrlHosts('no urls here, only prose and http://x.dev'), [])
 })

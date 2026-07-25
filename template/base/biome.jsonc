@@ -20,8 +20,6 @@
       "!**/tools/generated/**",
       // Installer-written manifest (JSON.stringify shape, hash-verified by doctor).
       "!**/.harness/manifest.json",
-      "!**/packages/schema/drizzle",
-      "!**/packages/schema/drizzle/**",
       // Harness-owned hook/tool internals are not project code.
       "!**/.claude",
       "!**/.claude/**"

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-migrations.mjs', import.meta.url),
 )
-const DRIZZLE = 'packages/schema/drizzle'
+const MIGRATIONS = 'supabase/migrations'
 
 const CLEAN_MIGRATION = [
   '-- 0000_init — structure only, nothing destructive.',
@@ -33,14 +33,14 @@ function git(dir, ...args) {
   assert.equal(res.status, 0, `git ${args.join(' ')} failed: ${res.stderr}`)
 }
 
-// A scratch project with the drizzle dir committed — the gate diffs the working
+// A scratch project with the migrations dir committed — the gate diffs the working
 // tree against HEAD (locally) exactly like a real checkout, so committed state
 // must come from a real git repo, not from file layout alone.
-function fixture({ migration = CLEAN_MIGRATION, drizzleDir = true, commit = true } = {}) {
+function fixture({ migration = CLEAN_MIGRATION, migrationsDir = true, commit = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-miggate-'))
-  if (drizzleDir) {
-    mkdirSync(join(dir, DRIZZLE), { recursive: true })
-    if (migration !== null) writeFileSync(join(dir, DRIZZLE, '0000_init.sql'), migration)
+  if (migrationsDir) {
+    mkdirSync(join(dir, MIGRATIONS), { recursive: true })
+    if (migration !== null) writeFileSync(join(dir, MIGRATIONS, '0000_init.sql'), migration)
   }
   git(dir, 'init', '-q')
   git(dir, 'config', 'user.email', 'gate-test@example.invalid')
@@ -58,7 +58,7 @@ function fixture({ migration = CLEAN_MIGRATION, drizzleDir = true, commit = true
 // trips append-only (untracked files are not M/D in the diff) but the content
 // rules still run over it.
 function appendMigration(dir, name, text) {
-  writeFileSync(join(dir, DRIZZLE, name), text)
+  writeFileSync(join(dir, MIGRATIONS, name), text)
 }
 
 function addAdr(dir, name) {
@@ -94,7 +94,7 @@ test('RED: INSERT INTO without the harness-allow-dml marker', () => {
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('contains DML'), r.out)
-  assert.ok(r.out.includes(`${DRIZZLE}/0001_seed.sql`), r.out)
+  assert.ok(r.out.includes(`${MIGRATIONS}/0001_seed.sql`), r.out)
   assert.ok(r.out.includes('harness-allow-dml'), r.out)
 })
 
@@ -154,7 +154,7 @@ test('RED: DROP TABLE without an `-- adr:` comment', () => {
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('destructive DDL requires an ADR'), r.out)
-  assert.ok(r.out.includes(`${DRIZZLE}/0001_drop.sql`), r.out)
+  assert.ok(r.out.includes(`${MIGRATIONS}/0001_drop.sql`), r.out)
 })
 
 test('RED: TRUNCATE is destructive DDL too', () => {
@@ -195,19 +195,19 @@ test('RED: `-- adr:` pointing at a missing file names the dangling path', () => 
 test('RED: editing a committed migration is an append-only violation', () => {
   const dir = fixture()
   writeFileSync(
-    join(dir, DRIZZLE, '0000_init.sql'),
+    join(dir, MIGRATIONS, '0000_init.sql'),
     `${CLEAN_MIGRATION}ALTER TABLE "notes" ADD COLUMN "extra" text;\n`,
   )
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('modified'), r.out)
   assert.ok(r.out.includes('append-only'), r.out)
-  assert.ok(r.out.includes(`${DRIZZLE}/0000_init.sql`), r.out)
+  assert.ok(r.out.includes(`${MIGRATIONS}/0000_init.sql`), r.out)
 })
 
 test('RED: deleting a committed migration is an append-only violation', () => {
   const dir = fixture()
-  rmSync(join(dir, DRIZZLE, '0000_init.sql'))
+  rmSync(join(dir, MIGRATIONS, '0000_init.sql'))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('deleted'), r.out)
@@ -241,11 +241,11 @@ test('local: a failed diff skips append-only LOUDLY and the content rules still 
 // ---- surface-absent asymmetry ----------------------------------------------------
 
 test('missing migrations dir: SKIPPED locally, FAIL in CI', () => {
-  const local = runGate(fixture({ drizzleDir: false }), { ci: false })
+  const local = runGate(fixture({ migrationsDir: false }), { ci: false })
   assert.equal(local.code, 0, local.out)
   assert.ok(local.out.includes('SKIPPED'), local.out)
 
-  const ci = runGate(fixture({ drizzleDir: false }))
+  const ci = runGate(fixture({ migrationsDir: false }))
   assert.equal(ci.code, 1, ci.out)
   assert.ok(ci.out.includes('FAIL'), ci.out)
 })

@@ -95,9 +95,7 @@ Deterministic regex denial of the commands permission pattern-matching handles
 unreliably. A high-value tripwire, NOT a sandbox — obfuscated commands can evade
 substring checks; the settings.json deny list and CI are the primary controls. Denies:
 `rm -rf`, force-push, hard reset, `--no-verify` commits, fork bombs, reading `.env*` /
-`.dev-auth/`, `drizzle-kit push` (schema change with no reviewable file), `drizzle-kit
-drop` (deletes history), `knip --fix`, bulk `pnpm update` (Renovate-owned),
-`MIGRATOR_DATABASE_URL` outside drizzle-kit and the migration/RLS runners, destructive
+`.dev-auth/`, `knip --fix`, bulk `pnpm update` (Renovate-owned), destructive
 raw SQL via psql, and any shell contact with store/signing credentials (`EXPO_TOKEN`,
 keystore/keychain material, store API keys — those live in CI secrets only).
 
@@ -106,7 +104,7 @@ keystore/keychain material, store API keys — those live in CI secrets only).
 The only reliable place to stop forbidden code being **written**. Three duties:
 (1) tamper protection — denies edits to the PROTECTED list without
 `HARNESS_ALLOW_SELF_EDIT=1`; (2) append-only migrations — editing an existing
-`packages/schema/drizzle/*.sql` is denied outright; (3) content checks on the written
+`supabase/migrations/*.sql` is denied outright; (3) content checks on the written
 text: security-surface weakenings in `app.config.ts`/`eas.json` (cleartext/ATS
 exceptions, identity or runtimeVersion drift, secret-shaped `extra` keys),
 EXPO_PUBLIC_-prefixed secret-shaped names, session-scoped GUCs, `WITH RECURSIVE`
@@ -182,8 +180,8 @@ Doctrine notes for the citations:
   survives the transaction and LEAKS the previous user's identity to whoever gets the
   pooled connection next. [corpus: postgres/guc-set-local]
 - **append-only migrations** — editing an already-committed migration desynchronizes
-  every database that ran the original. New state = new migration; `push`/`drop` are
-  blocked. [corpus: drizzle/migrations-append-only]
+  every database that ran the original. New state = a new timestamped migration; never
+  edit or delete an applied one.
 - **migration discipline** — migrations carry structure, not data (DML needs
   `-- harness-allow-dml: <reason>`); destructive DDL must reference an ADR. Two-phase
   changes follow `docs/runbooks/expand-contract.md` — and the mobile fleet skews HARDER
@@ -312,9 +310,9 @@ leg for any agent that touches real data (see
 
 - **No standing exfiltration** — Bash network commands denied; `WebFetch` allow-listed
   to a small set of documentation domains.
-- **No privileged-role exposure** — `MIGRATOR_DATABASE_URL` is confined to
-  drizzle-kit/migration-runners (bash-guard); store/signing credentials exist only in
-  CI secrets; the app role is provably non-BYPASSRLS (catalog gate). RLS is the
+- **No privileged-role exposure** — the `service_role` key (RLS-bypassing) lives only
+  in ADR-governed Edge Functions and is kept out of the client bundle (build-check) and
+  the mobile graph (depcruise); store/signing credentials exist only in CI secrets. RLS is the
   backstop.
 - **Read-only reviewers** — the subagents most exposed to untrusted content cannot
   write or execute.

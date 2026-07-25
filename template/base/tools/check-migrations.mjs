@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 // Gate: migrations — migration files are append-only, DML-free, and destructive
 // changes are ADR-coupled. Checks (all static; the schema↔migration drift check via
-// drizzle-kit runs in CI's db lane where an install exists):
+// `supabase db diff` runs in CI's db lane where an install exists):
 //   1. append-only: no committed migration is modified or deleted in the working tree
 //      or (in CI) relative to the PR base
 //   2. no DML: INSERT/UPDATE/DELETE in migrations only with an explicit
 //      `-- harness-allow-dml: <reason>` marker (reference data is a deliberate act)
 //   3. destructive DDL (DROP TABLE/COLUMN, TRUNCATE) requires `-- adr: docs/adr/<file>`
 //      pointing at an existing ADR
-// SOURCE: docs/harness/README.md (migration discipline) [corpus: drizzle/migrations-append-only]
+// SOURCE: docs/harness/README.md (migration discipline)
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fail, failures, inCI, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'migrations'
-const DIR = 'packages/schema/drizzle'
+const DIR = 'supabase/migrations'
 
 if (!existsSync(DIR)) skipOrFail(GATE, `${DIR} not found (no migrations surface yet)`)
 const errs = []

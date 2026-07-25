@@ -47,7 +47,6 @@ const EXACT_CATALOG = [
   '  expo-router: 7.0.3',
   '  react-native: 0.83.1',
   '  babel-preset-expo: 15.0.0',
-  '  drizzle-kit: 0.30.0',
   '',
 ].join('\n')
 
@@ -332,7 +331,7 @@ test('RED: eas.json build.base.pnpm drifts from packageManager — EAS ignores p
 })
 
 test('RED: a caret/tilde on any SDK-lockstep catalog tool reds naming the tool + EXACT-pinned', () => {
-  for (const tool of ['expo', 'expo-router', 'react-native', 'babel-preset-expo', 'drizzle-kit']) {
+  for (const tool of ['expo', 'expo-router', 'react-native', 'babel-preset-expo']) {
     const workspace = EXACT_CATALOG.replace(`  ${tool}: `, `  ${tool}: ^`)
     const r = runGate(fixture({ workspace }))
     assert.equal(r.code, 1, `${tool} must red\n${r.out}`)
@@ -340,10 +339,10 @@ test('RED: a caret/tilde on any SDK-lockstep catalog tool reds naming the tool +
     assert.ok(r.out.includes('EXACT-pinned'), r.out)
   }
   const tilde = runGate(
-    fixture({ workspace: ['catalog:', '  drizzle-kit: ~0.30.0', ''].join('\n') }),
+    fixture({ workspace: ['catalog:', '  expo: ~57.0.0', ''].join('\n') }),
   )
   assert.equal(tilde.code, 1, tilde.out)
-  assert.ok(tilde.out.includes('drizzle-kit'), tilde.out)
+  assert.ok(tilde.out.includes('expo'), tilde.out)
 })
 
 test('skip asymmetry: no root package.json → loud local SKIP (exit 0), CI fail-closed (exit 1)', () => {

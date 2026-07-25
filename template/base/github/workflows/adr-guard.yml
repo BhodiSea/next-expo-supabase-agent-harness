@@ -40,7 +40,7 @@ jobs:
         run: |
           changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
           guarded=$(echo "$changed" | grep -E \
-            '^(packages/schema/drizzle/|apps/server/src/auth/)|^(apps/mobile/app\.config\.ts|apps/mobile/eas\.json|tools/identity\.lock\.json|tools/expo-permissions\.json|tools/expo-plugins\.json)$' \
+            '^(supabase/migrations/|packages/platform/supabase/src/)|^(apps/mobile/app\.config\.ts|apps/mobile/eas\.json|tools/identity\.lock\.json|tools/expo-permissions\.json|tools/expo-plugins\.json)$' \
             || true)
           if [ -z "$guarded" ]; then
             echo 'no ADR-guarded surface touched'

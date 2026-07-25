@@ -22,8 +22,6 @@ export const CITATION_DOMAINS = [
   // Named authoritative by .claude/agents/citation-verifier.md since v0.1.0.
   'code.claude.com',
   'react.dev',
-  'hono.dev',
-  'orm.drizzle.team',
   'postgresql.org',
   'developer.mozilla.org',
   // This stack's platform documentation hosts.
@@ -43,7 +41,7 @@ export const CITATION_DOMAINS = [
 ]
 
 // Case-insensitive exact-or-subdomain match against the allowlist. A trailing
-// dot (rare but valid FQDN spelling) is normalized away so `hono.dev.` cannot
+// dot (rare but valid FQDN spelling) is normalized away so `react.dev.` cannot
 // dodge — nor spoof — the match.
 export function isAllowedCitationHost(host) {
   const h = String(host).toLowerCase().replace(/\.$/, '')

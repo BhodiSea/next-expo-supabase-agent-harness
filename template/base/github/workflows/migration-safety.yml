@@ -1,4 +1,4 @@
-# Migration safety — three independent nets over packages/schema/drizzle/**:
+# Migration safety — three independent nets over supabase/migrations/**:
 #   1. squawk lints every NEW migration for classic Postgres footguns (lock-taking
 #      DDL, unsafe type changes) — added files only; modified files are already an
 #      append-only violation.
@@ -13,7 +13,7 @@ name: migration-safety
 on:
   pull_request:
     paths:
-      - 'packages/schema/drizzle/**'
+      - 'supabase/migrations/**'
   workflow_dispatch:
 
 permissions:
@@ -50,13 +50,13 @@ jobs:
         shell: bash
         run: |
           mapfile -t added < <(git diff --name-only --diff-filter=A \
-            "origin/${GITHUB_BASE_REF}...HEAD" -- 'packages/schema/drizzle/*.sql')
+            "origin/${GITHUB_BASE_REF}...HEAD" -- 'supabase/migrations/*.sql')
           if [ "${#added[@]}" -eq 0 ]; then
             echo 'no new migration files in this PR — nothing for squawk to lint'
             exit 0
           fi
           printf 'linting: %s\n' "${added[@]}"
-          # --assume-in-transaction: drizzle-kit migrate wraps each migration in a
+          # --assume-in-transaction: Supabase applies each migration inside a
           # transaction, so per-statement robustness rules would be false positives.
           pnpm dlx squawk-cli@2.59.0 --assume-in-transaction "${added[@]}"
 
@@ -87,7 +87,7 @@ jobs:
         shell: bash
         run: |
           mapfile -t added < <(git diff --name-only --diff-filter=A \
-            "origin/${GITHUB_BASE_REF}...HEAD" -- 'packages/schema/drizzle/*.sql')
+            "origin/${GITHUB_BASE_REF}...HEAD" -- 'supabase/migrations/*.sql')
           adr_changes=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- 'docs/adr/' | wc -l)
           status=0
           for f in "${added[@]}"; do

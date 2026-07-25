@@ -38,4 +38,4 @@ The RTM fragment: requirement -> implementation files -> test ids.
 
 | Requirement | Migration / DAL / route / UI files | Test ids |
 | ----------- | ---------------------------------- | -------- |
-| R1: ...     | `packages/schema/drizzle/...`, `apps/server/src/dal/<feature>.ts`, `apps/mobile/src/features/<feature>/...` | `tests/rls/... > isolates ...`, `<feature>.test.ts > ...` |
+| R1: ...     | `supabase/migrations/<ts>_<feature>.sql`, `packages/api/src/routers/<feature>.ts`, `apps/{web,mobile}/...` | `supabase/tests/... > isolates ...`, `<feature>.test.ts > ...` |
