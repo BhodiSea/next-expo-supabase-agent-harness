@@ -21,9 +21,11 @@
         "next.config.ts",
         "postcss.config.mjs",
         "app/**/*.test.{ts,tsx}",
-        "lib/**/*.test.{ts,tsx}"
+        "lib/**/*.test.{ts,tsx}",
+        "playwright.config.ts",
+        "e2e/**/*.spec.ts"
       ],
-      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "*.{ts,mjs}"]
+      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "e2e/**/*.ts", "*.{ts,mjs}"]
     },
     "apps/mobile": {
       "entry": [

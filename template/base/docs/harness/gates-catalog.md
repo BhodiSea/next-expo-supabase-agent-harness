@@ -191,20 +191,27 @@ expo's own fix list; commit a file under `apps/mobile/android/` → FAIL CNG pur
 
 ### 9. version-sync — `node tools/check-version-sync.mjs`
 
-One version everywhere — root/server/mobile package.json agree AND the RESOLVED
-Expo config equals the app.config.ts derivation formulas (`ios.buildNumber` =
-version; `android.versionCode` = maj·1e6 + min·1e3 + pat), so replacing the
-derivation with literals reds on the next bump, not at store review;
-`runtimeVersion.policy` stays `appVersion`; Node majors agree across
-`.nvmrc`/`.node-version`/`engines` AND `eas.json` pins the same Node plus the
-EXACT pnpm from `packageManager` (EAS ignores package.json's packageManager — the
+Root and `apps/mobile` move in LOCKSTEP AND the RESOLVED Expo config equals the
+app.config.ts derivation formulas (`ios.buildNumber` = version; `android.versionCode`
+= maj·1e6 + min·1e3 + pat), so replacing the derivation with literals reds on the
+next bump, not at store review. `apps/web` is DELIBERATELY excluded from that lockstep
+— it deploys on Vercel's push-to-main cadence (~1000× the store cadence), so coupling
+it would force a web hotfix to cut a store submission or red the gate; its independence
+is bounded instead by `apps/web`'s MAJOR == `@app/api`'s MAJOR (the tRPC skew middleware
+rejects an x-client-version major mismatch, so a web release crossing a major the router
+has not is a breaking client). `runtimeVersion.policy` stays `appVersion`; Node majors
+agree across `.nvmrc`/`.node-version`/`engines` AND `eas.json` pins the same Node plus
+the EXACT pnpm from `packageManager` (EAS ignores package.json's packageManager — the
 eas.json fields are the only pin a cloud build obeys); expo / expo-router /
-react-native / babel-preset-expo / drizzle-kit EXACT-pinned in the catalog;
-exactly one zod instance resolves workspace-wide. Stamped for warm runs; CI
-always re-runs.
-**Anti-vacuity:** bump only `apps/server/package.json` → FAIL listing the
-disagreeing versions; replace the versionCode derivation with a literal → FAIL on
-the next version bump.
+react-native / babel-preset-expo / drizzle-kit EXACT-pinned in the catalog; exactly one
+zod instance resolves workspace-wide, and exactly one `react` resolves WITHIN each
+surface's graph (web and mobile pin React independently — separate bundles — so two
+versions across surfaces is correct; two within one bundle break the hooks dispatcher).
+Stamped for warm runs; CI always re-runs.
+**Anti-vacuity:** drift `apps/mobile/package.json` from root → FAIL listing the
+disagreeing versions; set `apps/web`'s major off `@app/api`'s → FAIL the skew-contract
+check; resolve two `react` versions inside one surface → FAIL naming the project;
+replace the versionCode derivation with a literal → FAIL on the next version bump.
 
 ### 10. prompts — `node tools/check-prompts-lock.mjs`
 
@@ -618,6 +625,21 @@ flow and budget row; leave a stale row for a deleted route → FAIL.
   injecting native source would break CNG purity) — the median + warm split is
   the managed replacement, and the parse stays armed for consumers that add a
   native binding.
+- **Web browser lane** (`web-e2e`) — the ONLY browser-side accessibility net in
+  the harness (the mobile a11y floor is lint + RNTL; neither renders the DOM).
+  `tools/check-web-e2e.mjs` fails closed FIRST on a missing `playwright.config`,
+  an EMPTY `apps/web/e2e` suite (Playwright exits 0 on an empty run — the reason
+  the lane runs a runner, not a bare `playwright test`), an assertion-free spec,
+  or a spec set with no axe scan; then it runs Playwright, whose `webServer` boots
+  `next dev` against the Supabase local stack (started in the job; its URL +
+  publishable key exported from `supabase status` at runtime — no key is
+  committed). The seeded `home.spec.ts` asserts the landing heading renders and
+  axe finds no critical/serious WCAG 2 A/AA violations. Path-filtered (the `web`
+  arm covers `apps/web` + the packages it bundles) + nightly, like the device
+  lanes; the Playwright report uploads on failure. Falsifiability:
+  `tests/gates/check-web-e2e.test.mjs` spawns the runner against a fake `pnpm` and
+  proves each closure above reds (the browser run itself is CI-only, like the
+  Maestro half of `mobile-e2e`).
 - **mutation** — `pnpm mutation` (StrykerJS over the critical surface —
   authorization and transport boundary code), a SET-based ratchet against
   `tools/mutation-baseline.json`: a NEW surviving mutant reds; accepting one is a
@@ -645,11 +667,12 @@ flow and budget row; leave a stale row for a deleted route → FAIL.
 
 `npx next-expo-supabase-agent-harness enable <module>` copies the module's files and
 records it in `.harness/manifest.json`. Tiers: `core` = none, `standard` =
-ci-provenance + ci-mobile-release, `strict` = all.
+ci-provenance + ci-mobile-release + ci-web-deploy, `strict` = all.
 
 | Module | What it adds | Why not default-on |
 |---|---|---|
 | `ci-mobile-release` | the EAS release DAG: store-credentialed builds, submission, signed-artifact checks | needs store credentials and a release cadence |
+| `ci-web-deploy` | tag-triggered rebuild of the web `next build` + SLSA L2 attestation + in-CI verify of the GitHub-built artifact (the host deploys separately) | attesting a rebuild is meaningful once you ship to a host and want an independent provenance record; needs the public `NEXT_PUBLIC_*` build vars set |
 | `device-e2e` | the extended on-device Maestro matrix beyond the base lane | slow emulator runners; the base lane covers the floor |
 | `eas-update` | OTA update channel wiring + staged-rollout runbooks | OTA is a policy decision (runtimeVersion reach, rollback story) |
 | `store-metadata` | store listing metadata as reviewable JSON in-repo (+ iOS privacy manifests) | meaningful once a listing exists |

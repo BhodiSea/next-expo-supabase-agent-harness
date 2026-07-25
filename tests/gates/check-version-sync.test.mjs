@@ -1,18 +1,20 @@
 // Can-fail proofs for the version-sync gate (template/base/tools/check-version-sync.mjs).
 // Ported from the tauri harness's suite and re-aimed at the mobile rewrite: the gate now
-// has a STATIC half (version lockstep across package.json manifests, node-major agreement,
-// eas.json build.base toolchain pins, SDK-lockstep catalog pins) that runs without an
-// install, and a RESOLVED half (re-computing app.config.ts's derivation formulas through
-// `pnpm exec expo config`, the versionCode encoding bound, and the single-zod-instance
-// walk over `pnpm list`) that only runs when node_modules exists. Fixtures without
-// node_modules exercise the static half exactly as a bare scaffold would; the resolved
-// half is driven by a fake `pnpm` shim on PATH (sh + .cmd twins, so the selftest matrix
-// can run this file on windows-latest) that serves canned `expo config` / `pnpm list`
-// output from files beside the shim.
+// has a STATIC half (root+mobile version lockstep, apps/web-major == @app/api-major,
+// node-major agreement, eas.json build.base toolchain pins, SDK-lockstep catalog pins)
+// that runs without an install, and a RESOLVED half (re-computing app.config.ts's
+// derivation formulas through `pnpm exec expo config`, the versionCode encoding bound, and
+// the single-zod-instance + single-React-per-surface walks over `pnpm list`) that only runs
+// when node_modules exists. Fixtures without node_modules exercise the static half exactly
+// as a bare scaffold would; the resolved half is driven by a fake `pnpm` shim on PATH (sh +
+// .cmd twins, so the selftest matrix can run this file on windows-latest) that serves canned
+// `expo config` / `pnpm list … zod` / `pnpm list … react` output from files beside the shim.
 // Dropped vs SRC: tauri.conf.json drift and the rc-churn tools (babel-plugin-react-compiler,
 // @tauri-apps/cli) — neither surface exists here. Added: every mobile-only rule (eas.json
-// pins, resolved-config derivation, near-999 bound NOTE/red, zod walk incl. the
-// build-tool-subtree exemption, banner-tolerant JSON parse).
+// pins, resolved-config derivation, near-999 bound NOTE/red, zod + react walks incl. their
+// build-tool-subtree exemptions, banner-tolerant JSON parse). W8: apps/server dropped from
+// this lineage — the version machinery now targets apps/web (independent cadence, major-
+// bounded) and @app/api instead.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
@@ -52,14 +54,15 @@ const EXACT_CATALOG = [
 // Every knob is optional; an undefined field means "do not write that file", which is
 // exactly how a real scaffold looks before the corresponding surface exists.
 /**
- * @param {{ version?: string, serverVersion?: string, mobileVersion?: string,
- *   packageManager?: string, nvmrc?: string, nodeVersion?: string, enginesNode?: string,
- *   eas?: Record<string, unknown>, workspace?: string }} [knobs]
+ * @param {{ version?: string, mobileVersion?: string, webVersion?: string,
+ *   apiVersion?: string, packageManager?: string, nvmrc?: string, nodeVersion?: string,
+ *   enginesNode?: string, eas?: Record<string, unknown>, workspace?: string }} [knobs]
  */
 function fixture({
   version = '1.2.3',
-  serverVersion,
   mobileVersion,
+  webVersion,
+  apiVersion,
   packageManager,
   nvmrc,
   nodeVersion,
@@ -73,18 +76,27 @@ function fixture({
   if (packageManager !== undefined) root.packageManager = packageManager
   if (enginesNode !== undefined) root.engines = { node: enginesNode }
   writeFileSync(join(dir, 'package.json'), JSON.stringify(root, null, 2))
-  if (serverVersion !== undefined) {
-    mkdirSync(join(dir, 'apps/server'), { recursive: true })
-    writeFileSync(
-      join(dir, 'apps/server/package.json'),
-      JSON.stringify({ name: 'server', version: serverVersion }),
-    )
-  }
   if (mobileVersion !== undefined) {
     mkdirSync(join(dir, 'apps/mobile'), { recursive: true })
     writeFileSync(
       join(dir, 'apps/mobile/package.json'),
       JSON.stringify({ name: 'mobile', version: mobileVersion }),
+    )
+  }
+  // apps/web (independent cadence) + @app/api (the major web must track). Both are
+  // written only when their knob is set, mirroring a scaffold before either surface lands.
+  if (webVersion !== undefined) {
+    mkdirSync(join(dir, 'apps/web'), { recursive: true })
+    writeFileSync(
+      join(dir, 'apps/web/package.json'),
+      JSON.stringify({ name: 'web', version: webVersion }),
+    )
+  }
+  if (apiVersion !== undefined) {
+    mkdirSync(join(dir, 'packages/api'), { recursive: true })
+    writeFileSync(
+      join(dir, 'packages/api/package.json'),
+      JSON.stringify({ name: '@app/api', version: apiVersion }),
     )
   }
   if (eas !== undefined) {
@@ -104,7 +116,8 @@ function fixture({
 /**
  * @param {string} dir
  * @param {{ resolved?: Record<string, unknown>, banner?: string,
- *   zodList?: object[], expoExit?: number, zodExit?: number }} [knobs]
+ *   zodList?: object[]|string, reactList?: object[]|string,
+ *   expoExit?: number, zodExit?: number, reactExit?: number }} [knobs]
  */
 function armResolved(
   dir,
@@ -112,8 +125,15 @@ function armResolved(
     resolved,
     banner = 'Scope: all 3 workspace projects',
     zodList = [{ name: 'root', dependencies: { zod: { version: '4.1.0' } } }],
+    // Default: the deliberate two-surface split — web on its own patch, mobile on Expo's
+    // bundled pin. Each project resolves ONE react, so the per-surface walk stays green.
+    reactList = [
+      { name: 'web', dependencies: { react: { version: '19.2.4' } } },
+      { name: 'mobile', dependencies: { react: { version: '19.2.3' } } },
+    ],
     expoExit = 0,
     zodExit = 0,
+    reactExit = 0,
   } = {},
 ) {
   mkdirSync(join(dir, 'node_modules'), { recursive: true })
@@ -128,12 +148,20 @@ function armResolved(
     typeof zodList === 'string' ? zodList : JSON.stringify(zodList),
   )
   writeFileSync(
+    join(bin, 'react-list.json'),
+    typeof reactList === 'string' ? reactList : JSON.stringify(reactList),
+  )
+  // The gate now issues TWO `pnpm list` calls (…zod…, …react…). The shim discriminates on
+  // the package name in the argv so each walk reads its own canned tree; expo config stays
+  // first. Order matters in the sh `case`: the zod pattern is checked before react.
+  writeFileSync(
     join(bin, 'pnpm'),
     [
       '#!/bin/sh',
       'case "$*" in',
       `  *"expo config"*) cat "$(dirname "$0")/expo-config.out"; exit ${expoExit} ;;`,
-      `  *"list"*) cat "$(dirname "$0")/zod-list.json"; exit ${zodExit} ;;`,
+      `  *"list"*"zod"*) cat "$(dirname "$0")/zod-list.json"; exit ${zodExit} ;;`,
+      `  *"list"*"react"*) cat "$(dirname "$0")/react-list.json"; exit ${reactExit} ;;`,
       'esac',
       'exit 0',
       '',
@@ -150,10 +178,18 @@ function armResolved(
       `  exit /b ${expoExit}`,
       ')',
       'echo %* | findstr /C:"list" >nul',
+      'if errorlevel 1 goto done',
+      'echo %* | findstr /C:"zod" >nul',
       'if not errorlevel 1 (',
       '  type "%~dp0zod-list.json"',
       `  exit /b ${zodExit}`,
       ')',
+      'echo %* | findstr /C:"react" >nul',
+      'if not errorlevel 1 (',
+      '  type "%~dp0react-list.json"',
+      `  exit /b ${reactExit}`,
+      ')',
+      ':done',
       'exit /b 0',
       '',
     ].join('\r\n'),
@@ -185,8 +221,11 @@ function runGate(dir, { ci = true, bin } = {}) {
 function greenFixture(version = '1.2.3', overrides = {}) {
   const dir = fixture({
     version,
-    serverVersion: version,
     mobileVersion: version,
+    // web + api ride their own cadence (major 0), deliberately unequal to root/mobile —
+    // a green greenFixture is itself proof that web's version floating free stays green.
+    webVersion: '0.1.0',
+    apiVersion: '0.1.0',
     packageManager: 'pnpm@11.11.0',
     nvmrc: '22\n',
     nodeVersion: '22\n',
@@ -202,18 +241,32 @@ function greenFixture(version = '1.2.3', overrides = {}) {
 // ── the static half (no node_modules: reds still report, greens skip loudly) ─────
 
 test('RED: version drift between root and apps/mobile reds naming the drift', () => {
-  const r = runGate(fixture({ version: '1.2.3', serverVersion: '1.2.3', mobileVersion: '1.2.2' }))
+  const r = runGate(fixture({ version: '1.2.3', mobileVersion: '1.2.2' }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('version drift'), r.out)
   assert.ok(r.out.includes('apps/mobile=1.2.2'), r.out)
   assert.ok(r.out.includes('bump them together'), r.out)
 })
 
-test('RED: an apps/server version behind root reds', () => {
-  const r = runGate(fixture({ version: '1.2.3', serverVersion: '1.2.2' }))
+test('GREEN static: apps/web version far from root/mobile does NOT red — independent cadence', () => {
+  // root+mobile locked at 1.2.3; web at 4.9.1, api at 4.0.0 (same MAJOR 4). The version
+  // lockstep excludes web, and the major check passes — no install, static half only.
+  const r = runGate(
+    fixture({ version: '1.2.3', mobileVersion: '1.2.3', webVersion: '4.9.1', apiVersion: '4.0.0' }),
+    { ci: false },
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('SKIPPED'), r.out)
+  assert.ok(!r.out.includes('version drift'), r.out)
+})
+
+test('RED: apps/web MAJOR diverges from @app/api MAJOR — the skew contract reds', () => {
+  const r = runGate(
+    fixture({ version: '1.2.3', mobileVersion: '1.2.3', webVersion: '3.0.0', apiVersion: '2.7.1' }),
+  )
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('version drift'), r.out)
-  assert.ok(r.out.includes('apps/server=1.2.2'), r.out)
+  assert.ok(r.out.includes('apps/web major (3.0.0) != @app/api major (2.7.1)'), r.out)
+  assert.ok(r.out.includes('share a MAJOR'), r.out)
 })
 
 test('RED: node major disagreement (.nvmrc vs .node-version; .nvmrc vs engines.node)', () => {
@@ -303,7 +356,7 @@ test('skip asymmetry: no root package.json → loud local SKIP (exit 0), CI fail
 })
 
 test('CI fail-closed: a static-green tree without node_modules cannot pass in CI', () => {
-  const r = runGate(fixture({ version: '1.2.3', serverVersion: '1.2.3' }), { ci: true })
+  const r = runGate(fixture({ version: '1.2.3', mobileVersion: '1.2.3' }), { ci: true })
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('node_modules absent'), r.out)
 })
@@ -422,6 +475,81 @@ test('RED: a failing `expo config` reds naming the command — never a silent ha
   assert.ok(r.out.includes('`expo config --json --type public` failed'), r.out)
 })
 
+// ── single-React-instance walk (per surface; the deliberate web/mobile split is green) ──
+
+test('GREEN: two React versions across DIFFERENT surfaces is correct — the split does not red', () => {
+  // web@19.2.4 (Next's floor), mobile@19.2.3 (Expo's pin): two projects, each resolving one
+  // react. Separate bundles never share a process, so this is the intended state, not a bug.
+  const { dir, bin } = greenFixture('1.2.3', {
+    resolved: {
+      reactList: [
+        { name: 'web', dependencies: { react: { version: '19.2.4' } } },
+        { name: 'mobile', dependencies: { react: { version: '19.2.3' } } },
+      ],
+    },
+  })
+  const r = runGate(dir, { bin })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('in lockstep'), r.out)
+})
+
+test('RED: two React versions WITHIN one surface red naming the project + versions', () => {
+  const { dir, bin } = greenFixture('1.2.3', {
+    resolved: {
+      reactList: [
+        {
+          name: 'mobile',
+          dependencies: {
+            react: { version: '19.2.3' },
+            'some-rogue-lib': {
+              version: '1.0.0',
+              dependencies: { react: { version: '18.3.1' } },
+            },
+          },
+        },
+      ],
+    },
+  })
+  const r = runGate(dir, { bin })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('react resolves to multiple versions within a single surface'), r.out)
+  assert.ok(r.out.includes('mobile → 19.2.3, 18.3.1'), r.out)
+  assert.ok(r.out.includes('break the hooks dispatcher'), r.out)
+})
+
+test("GREEN: a second React inside the test renderer subtree is exempt (never ships in a bundle)", () => {
+  const { dir, bin } = greenFixture('1.2.3', {
+    resolved: {
+      reactList: [
+        {
+          name: 'mobile',
+          dependencies: {
+            react: { version: '19.2.3' },
+            'react-test-renderer': {
+              version: '19.2.5',
+              dependencies: { react: { version: '19.2.5' } },
+            },
+          },
+        },
+      ],
+    },
+  })
+  const r = runGate(dir, { bin })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('in lockstep'), r.out)
+})
+
+test('react walk failure: loud NOTE locally, red in CI — the invariant never silently vacates', () => {
+  const local = greenFixture('1.2.3', { resolved: { reactExit: 1, reactList: '' } })
+  const l = runGate(local.dir, { bin: local.bin, ci: false })
+  assert.equal(l.code, 0, l.out)
+  assert.ok(l.out.includes('react single-instance check skipped'), l.out)
+  const ci = greenFixture('1.2.3', { resolved: { reactExit: 1, reactList: '' } })
+  const c = runGate(ci.dir, { bin: ci.bin, ci: true })
+  assert.equal(c.code, 1, c.out)
+  assert.ok(c.out.includes('cannot verify the single-React-instance invariant'), c.out)
+})
+
 // ── content-addressed stamp: kills both subprocesses on a warm unchanged run ──────
 
 test('stamp: a green run records .harness/version-sync.ok; a warm re-run skips WITHOUT the shim', () => {
@@ -446,15 +574,19 @@ test('stamp: CI=true ignores a present stamp and re-runs the real check', () => 
   assert.ok(!inCi.out.includes('inputs unchanged'), inCi.out)
 })
 
-test('stamp: mutating a version input invalidates the stamp — the warm run re-checks and reds', () => {
+test('stamp: mutating apps/web (a new input class) invalidates the stamp — warm run re-checks and reds', () => {
+  // Retargeted off the dropped apps/server: apps/web/package.json + packages/api/package.json
+  // are now declared version-sync inputs. Bumping web's MAJOR past @app/api's must (1) bust
+  // the warm stamp and (2) re-run the major check — proving both the input coverage and the
+  // new assertion, exactly as the stamp doctrine's "mutate a representative of each class".
   const { dir, bin } = greenFixture('1.2.3')
   assert.equal(runGate(dir, { bin, ci: false }).code, 0)
   writeFileSync(
-    join(dir, 'apps/server/package.json'),
-    JSON.stringify({ name: 'server', version: '1.2.2' }),
+    join(dir, 'apps/web/package.json'),
+    JSON.stringify({ name: 'web', version: '9.0.0' }),
   )
   const r = runGate(dir, { bin, ci: false })
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('version drift'), r.out)
+  assert.ok(r.out.includes('apps/web major (9.0.0) != @app/api major (0.1.0)'), r.out)
   assert.ok(!r.out.includes('inputs unchanged'), r.out)
 })

@@ -394,6 +394,13 @@
         "ref": "Canary 20: a 300ms busy-loop on the actions ranking path → the perf-harness marker must go RED",
         "note": "the wall-clock canary on a REAL emulator (maestro-smoke, schedule/dispatch): a 300ms stall injected into rankCommands must flip the dev perf-harness screen's self-measured marker to perf-fail and red the journey, then green again after the revert — the interaction floor has been SEEN failing, so it is not decoration"
       }
+    ],
+    "web-e2e": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-web-e2e.test.mjs",
+        "note": "the lane runner's own falsifiability, spawned for real against a fake pnpm: a missing playwright.config reds, an empty e2e suite reds (playwright exits 0 on an empty run — the whole reason the lane runs a runner, not a bare `playwright test`), an assertion-free spec reds, a spec set with no axe scan reds, a failing `playwright test` reds, and the skip-local/fail-closed-CI asymmetry holds. The browser run itself is CI-only (needs Chromium), like the Maestro emulator half of mobile-e2e."
+      }
     ]
   }
 }

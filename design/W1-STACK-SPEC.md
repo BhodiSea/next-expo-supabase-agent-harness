@@ -143,10 +143,17 @@ upgrade cadence in both directions. A future Next major that demands a React
 version Expo has not yet bundled forces a real decision (hold the upgrade, or
 split the pin and amend the doctrine) rather than a silent divergence.
 
-`version-sync` gains a **single-React-instance assertion**, modelled on the
-existing single-zod check and its documented carve-out. Two React copies in one
-workspace break the hooks dispatcher for any package rendering on both surfaces
-and nothing currently notices.
+`version-sync` **now carries** a single-React-instance assertion (W8), modelled on
+the existing single-zod check but **scoped per surface**: it reds only when one
+workspace project's own graph resolves more than one `react`. That scoping is
+deliberate — it verifies the single pin *today* (every project resolves 19.2.3, so
+it is trivially green) while leaving the escape hatch above genuinely open: should a
+future Next major ever outgrow Expo's bundled React, splitting the pin becomes a
+catalog-only change, because two Reacts *across* independent bundles is already
+tolerated and only two *within* one bundle red. Two React copies in one bundle break
+the hooks dispatcher for any package rendering on that surface; before W8, nothing
+noticed. (This closes landmine 2's real concern — an undetected dual React — without
+the gratuitous divergence a pin split would have introduced under the current facts.)
 
 ## 7. Catalog changes
 

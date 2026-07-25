@@ -1,0 +1,119 @@
+# ci-web-deploy module — SLSA Build L2 provenance for the GitHub-built web artifact.
+# The web host (e.g. Vercel) runs its OWN build pipeline off your git push; this
+# workflow does NOT deploy. It reproduces the production `next build` on a GitHub
+# runner, attests THAT artifact (GitHub OIDC — no long-lived keys), uploads it, and
+# verifies the attestation IN CI. The result is a signed, independently-rebuilt record
+# of what the tagged commit produces — to compare against (or supplement) whatever the
+# host deployed. Rationale: Vercel runs its own build pipeline; this attests the
+# GitHub-built artifact.
+#   - build: `pnpm --filter web run build` (the Next production build)
+#   - attest: actions/attest-build-provenance over the tarball'd build output
+#   - verify: `gh attestation verify` runs IN CI — producing an attestation nobody
+#     checks is theater.
+# Honest limits (see docs/modules/ci-web-deploy/README.md):
+#   - This is NOT the deploy. The host builds and serves independently, so a matching
+#     attestation here does not prove the host shipped the same bytes (a different build
+#     environment) — it proves the tagged SOURCE rebuilds to a signed artifact.
+#   - SLSA L2, not L3: a valid attestation proves BUILD-PATH integrity, not SOURCE
+#     integrity — a stolen OIDC token mints valid attestations. For L3, move the build
+#     into an isolated reusable workflow (slsa-github-generator).
+#   - Build-time NEXT_PUBLIC_* values must be provided (as repo Variables) or `next
+#     build` reds when @app/env parses them — they are PUBLIC by construction (the
+#     browser bundle inlines them; see .env.example, block (b)).
+# SOURCE: docs/harness/gates-catalog.md (ci-web-deploy module)
+name: web-deploy
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC -> Fulcio short-lived signing cert (Sigstore, logged to Rekor)
+  attestations: write
+
+concurrency:
+  group: web-deploy-${{ github.ref }}
+  # Never cancel a release attestation mid-flight; queue instead.
+  cancel-in-progress: false
+
+jobs:
+  attest-web:
+    name: build web + attest + verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # cache-poisoning is suppressed for this file in .github/zizmor.yml: no dependency
+      # cache is configured and the workflow is tag-triggered only (not reachable from PRs).
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The production build. NEXT_PUBLIC_* are PUBLIC (inlined into the browser bundle):
+      # set them as repo Variables, never Secrets. @app/env parses them at import, so an
+      # unset value reds the build — that is the point (a misconfigured release fails here,
+      # not in production). Add any further NEXT_PUBLIC_* your env schema requires.
+      - name: Build the web app (production)
+        run: pnpm --filter web run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE }}
+          NEXT_PUBLIC_WEB_ORIGIN: ${{ vars.NEXT_PUBLIC_WEB_ORIGIN }}
+
+      # One tarball of the Next build output — the subject the attestation binds to. If
+      # your next.config uses `output: 'standalone'`, narrow this to apps/web/.next/standalone.
+      - name: Package the build output
+        shell: bash
+        run: |
+          mkdir -p dist-web
+          tar -czf dist-web/web-build.tgz -C apps/web .next
+          ls -l dist-web/
+
+      - name: Attest build provenance (SLSA Build L2)
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist-web/web-build.tgz
+
+      - name: Upload the attested web build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-build
+          path: dist-web/
+          if-no-files-found: error
+
+      # Prove the attestation is verifiable IN CI — the release gates on it. The
+      # attestation can lag a few seconds after attest-*, so retry briefly; the final
+      # attempt's exit code is the gate.
+      - name: Verify attestation (in-CI gate)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tarball=dist-web/web-build.tgz
+          for attempt in 1 2 3 4 5; do
+            if gh attestation verify "$tarball" -R "$GITHUB_REPOSITORY"; then
+              exit 0
+            fi
+            echo "attestation for $tarball not yet queryable (attempt $attempt/5) — retrying in 10s"
+            sleep 10
+          done
+          echo "::error::attestation for $tarball failed to verify after retries"
+          exit 1
+
+# Verify locally with the GitHub CLI:
+#   gh attestation verify dist-web/web-build.tgz -R <org>/<repo>

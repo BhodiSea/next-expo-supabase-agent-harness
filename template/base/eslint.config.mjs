@@ -39,6 +39,11 @@ export default tseslint.config(
       'tools/**', // gate scripts (incl. the custom-rules plugin): plain node, guarded by the harness itself
       'tests/**', // root-level RLS runner surface (gates wave)
       'supabase/**', // SQL migrations/schemas/seed — owned by the schema-rls + migrations gates
+      // The web-e2e browser toolchain (Playwright transpiles + runs these with its own
+      // esbuild; they are NOT in apps/web/tsconfig, so type-aware lint would error "not in
+      // project"). tools/check-web-e2e.mjs holds them to a non-vacuous, axe-bearing suite.
+      'apps/web/e2e/**',
+      'apps/web/playwright.config.ts',
     ],
   },
   {

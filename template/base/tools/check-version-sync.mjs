@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Gate: version-sync — one version, everywhere, and SDK-lockstep tools pinned exactly.
-//   1. root package.json / apps/server / apps/mobile versions match, AND the RESOLVED
+// Gate: version-sync — root+mobile in lockstep, apps/web on an independent cadence,
+// SDK-lockstep tools pinned exactly.
+//   1. root package.json and apps/mobile versions move in LOCKSTEP, AND the RESOLVED
 //      expo config agrees: `expo config --json --type public` is what a build actually
 //      ships, so the gate re-computes app.config.ts's derivation formulas
 //      (ios.buildNumber = pkg.version; android.versionCode = maj*1e6 + min*1e3 + pat)
@@ -8,6 +9,13 @@
 //      derivation with literals goes red on the next bump, not at store review.
 //      The skew middleware compares x-client-version majors, so a drifted manifest
 //      would make the mobile client lie about itself.
+//   1a. apps/web is DELIBERATELY excluded from the lockstep set: it ships on Vercel's
+//      push-to-main cadence (~minutes), ~1000x the store cadence (~weeks), so coupling
+//      the two would force a web hotfix to either cut a store submission or red this
+//      gate. Web's independence is bounded instead by a MAJOR-agreement check: web's
+//      major must equal @app/api's, because the tRPC skew middleware rejects an
+//      x-client-version MAJOR mismatch — a web deploy that crosses a major the router
+//      has not is a breaking client. Minor/patch cadence stays free.
 //   2. runtimeVersion.policy stays 'appVersion' — the OTA compatibility boundary is
 //      PR-reviewable exactly because it is derived from the same version surface
 //      (the fingerprint policy was considered and rejected; see the design record).
@@ -22,6 +30,12 @@
 //      gates repo-wide (Renovate bumps them deliberately).
 //   5. zod resolves to exactly one version across the workspace (two instances break
 //      instanceof checks in @hono/zod-openapi with incomprehensible errors)
+//   6. react resolves to exactly one version WITHIN each surface's graph. Unlike zod
+//      (one version workspace-wide), React is split ON PURPOSE — apps/web tracks Next's
+//      floor while apps/mobile stays on Expo's bundled pin, and the two never share a
+//      process (separate Next/Metro bundles), so two versions ACROSS surfaces is correct.
+//      Two React copies in ONE bundle break the hooks dispatcher, so the walk is scoped
+//      per workspace project: each project's own subtree must resolve exactly one react.
 // SOURCE: docs/harness/README.md (version-sync gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { failures, inCI, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
@@ -44,20 +58,39 @@ if (!existsSync('package.json')) skipOrFail(GATE, 'no root package.json')
 const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 const root = readJson('package.json')
+// Root and apps/mobile move in lockstep because app.config.ts derives every store-facing
+// number (ios.buildNumber, android.versionCode) from apps/mobile/package.json — a drift
+// there desyncs the binary's identity from the release. apps/web is NOT in this set: it
+// ships on Vercel's independent cadence (see the header, 1a), bounded only by the
+// major-agreement check below.
 const versions = { 'package.json': root.version }
-for (const [label, path] of [
-  ['apps/server', 'apps/server/package.json'],
-  ['apps/mobile', 'apps/mobile/package.json'],
-]) {
-  if (existsSync(path)) versions[label] = readJson(path).version
+if (existsSync('apps/mobile/package.json')) {
+  versions['apps/mobile'] = readJson('apps/mobile/package.json').version
 }
 const distinct = new Set(Object.values(versions).filter(Boolean))
 if (distinct.size > 1) {
   errs.push(
     `version drift: ${Object.entries(versions)
       .map(([k, v]) => `${k}=${v ?? 'MISSING'}`)
-      .join(', ')} — bump them together`,
+      .join(', ')} — bump them together (apps/web is excluded: independent Vercel cadence)`,
   )
+}
+
+// apps/web rides its own cadence, but the skew contract still binds it: the tRPC skew
+// middleware rejects an x-client-version MAJOR mismatch, and @app/api is the router both
+// surfaces speak. So web's MAJOR must track the API's MAJOR — a web deploy that crosses a
+// major boundary the API has not is a breaking client. Minor/patch stay free. Both paths
+// are existsSync-guarded so a scaffold missing either surface skips cleanly.
+if (existsSync('apps/web/package.json') && existsSync('packages/api/package.json')) {
+  const webVersion = String(readJson('apps/web/package.json').version ?? '')
+  const apiVersion = String(readJson('packages/api/package.json').version ?? '')
+  const webMajor = webVersion.split('.')[0]
+  const apiMajor = apiVersion.split('.')[0]
+  if (webMajor !== apiMajor) {
+    errs.push(
+      `apps/web major (${webVersion || 'MISSING'}) != @app/api major (${apiVersion || 'MISSING'}) — web deploys on its own cadence, but the x-client-version skew contract requires apps/web and the tRPC router (@app/api) to share a MAJOR; bump @app/api's major in lockstep with a breaking web release`,
+    )
+  }
 }
 
 // Node version agreement (major)
@@ -220,6 +253,62 @@ try {
   } else {
     console.log(
       `${GATE}: NOTE — zod single-instance check skipped (pnpm list failed on this partial install; CI verifies it)`,
+    )
+  }
+}
+
+// Single React instance PER SURFACE (see header, item 6). React is deliberately split —
+// apps/web pins its own 19.2.x (Next's floor), apps/mobile stays on Expo's bundled pin —
+// and the two never share a process, so two versions ACROSS surfaces is CORRECT and must
+// NOT red. The hazard is two React copies WITHIN one surface's bundle: a component and the
+// renderer holding different `react` instances silently break the hooks dispatcher. So the
+// walk scopes to each workspace PROJECT and reds only when a single project's own subtree
+// resolves more than one react. Test/build tooling that runs out-of-bundle (jest/metro/
+// babel + the test renderer) is exempt — its react never ships and may legitimately differ.
+const REACT_TOOL_SUBTREE =
+  /^(?:expo(?:-|$)|@expo\/|jest(?:-|$)|babel-|@babel\/|metro(?:-|$)|react-test-renderer$|@testing-library\/|react-native-css-interop$)/
+try {
+  const out = runCmd('pnpm list -r --depth Infinity react --json')
+  const reactsIn = (node) => {
+    const found = new Set()
+    ;(function collect(n) {
+      if (Array.isArray(n)) return n.forEach(collect)
+      if (n === null || typeof n !== 'object') return
+      for (const deps of [n.dependencies, n.devDependencies]) {
+        if (deps?.react?.version) found.add(deps.react.version)
+        for (const [name, v] of Object.entries(deps ?? {})) {
+          if (!REACT_TOOL_SUBTREE.test(name)) collect(v)
+        }
+      }
+    })(node)
+    return found
+  }
+  const parsed = JSON.parse(out)
+  const projects = Array.isArray(parsed) ? parsed : [parsed]
+  const offenders = []
+  for (const proj of projects) {
+    const found = reactsIn(proj)
+    if (found.size > 1) {
+      offenders.push(
+        `${proj.name ?? proj.path ?? 'a workspace project'} → ${[...found].join(', ')}`,
+      )
+    }
+  }
+  if (offenders.length) {
+    errs.push(
+      `react resolves to multiple versions within a single surface (${offenders.join('; ')}) — two React instances in one bundle break the hooks dispatcher; keep each surface on one react (a package rendering on both surfaces must not carry its own)`,
+    )
+  }
+} catch (e) {
+  // Same asymmetry as the zod walk: a partial local install may break `pnpm list`, but
+  // CI (full install) must never swallow the single-instance assertion.
+  if (inCI()) {
+    errs.push(
+      `pnpm list failed — cannot verify the single-React-instance invariant: ${(e.stderr?.toString() ?? e.message).slice(0, 300)}`,
+    )
+  } else {
+    console.log(
+      `${GATE}: NOTE — react single-instance check skipped (pnpm list failed on this partial install; CI verifies it)`,
     )
   }
 }

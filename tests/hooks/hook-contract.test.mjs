@@ -430,6 +430,18 @@ for (const [id, cases] of Object.entries(RULE_CANARIES)) {
   })
 }
 
+// `lefthook` and `tsconfig` are the only rule ids that are valid JS identifiers, so their
+// RULE_CANARIES keys above render UNQUOTED (biome strips unnecessary key quotes) — and
+// scripts/check-canary-coverage.mjs scans the source for a QUOTED id to prove coverage.
+// Naming them here as string LITERALS (biome preserves value quotes) keeps that static
+// closure honest about the canaries these ids genuinely carry above; the runtime closure
+// below asserts every id has an entry regardless of key spelling.
+for (const id of ['lefthook', 'tsconfig']) {
+  test(`identifier-shaped write-protected rule ${id} carries a canary`, () => {
+    assert.ok(RULE_CANARIES[id]?.length, `rule ${id} must have a pathDeny canary`)
+  })
+}
+
 test('every guard rule id has a behavioral canary (per-rule falsifiability closure)', async () => {
   const { BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS } = await import(GUARD_RULES.href)
   const ids = [...BASH_RULES, ...WRITE_PROTECTED, ...WRITE_GLOBAL_CHECKS].map((r) => r.id)

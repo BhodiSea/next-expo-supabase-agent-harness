@@ -4,8 +4,9 @@
 // Ported from the tauri-postgres-agent-harness suite and adapted to this
 // repo's layout truth (installer/lib/layout.mjs): apps/mobile Expo app,
 // APP_IDENTIFIER store identity (identity.lock.json), empty RETIRED_MODULES,
-// and the 11 W7 opt-in module trees (the pre-W7 skip guards armed when the
-// module files landed; shippedModules() keeps them honest about the tree).
+// and the opt-in module trees (11 from W7 + ci-web-deploy in W8; the pre-W7 skip
+// guards armed when the module files landed; shippedModules() keeps them honest
+// about the tree, so the count is derived, never hard-coded here).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -53,9 +54,9 @@ function placeholderResidue(dir) {
   return `${res.stdout ?? ''}${res.stderr ?? ''}`.trim().split('\n').slice(1)
 }
 
-// Module trees that actually ship files. template/modules/ is empty until W7
-// lands the 11 opt-in modules — the module tests below skip until then and
-// self-arm the day the first module directory gains content.
+// Module trees that actually ship files. template/modules/ was empty until W7
+// landed the opt-in modules — the module tests below skipped until then and
+// self-arm the day a module directory gains content (count-agnostic by design).
 function shippedModules() {
   const modulesRoot = join(TEMPLATE, 'modules')
   if (!existsSync(modulesRoot)) return []
@@ -351,7 +352,7 @@ test('init fails loud when a tier module resolves to zero files; healthy tiers a
   const manifest = JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8'))
   assert.deepEqual(
     [...manifest.modules].sort(),
-    ['ci-mobile-release', 'ci-provenance'],
+    ['ci-mobile-release', 'ci-provenance', 'ci-web-deploy'],
     'standard tier must record exactly its modules',
   )
   for (const m of manifest.modules) {

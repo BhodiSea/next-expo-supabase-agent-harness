@@ -10,6 +10,8 @@ rules:
     # artifact-producing path, so there is no attacker-poisoned cache to taint them:
     #   - release-mobile.yml (ci-mobile-release module)
     #   - provenance.yml (ci-provenance module)
+    #   - web-deploy.yml (ci-web-deploy module)
     ignore:
       - release-mobile.yml
       - provenance.yml
+      - web-deploy.yml

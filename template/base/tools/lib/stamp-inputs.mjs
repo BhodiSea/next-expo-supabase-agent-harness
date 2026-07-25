@@ -104,18 +104,20 @@ export const STAMP_INPUTS = {
     'LICENSE',
     'CITATION.cff',
   ],
-  // one-version-everywhere + node-major agreement + rc-pin + single-zod-instance.
-  // Every version the gate reads (root/server/mobile package.json, app.config.ts —
-  // it derives version/buildNumber/versionCode — and eas.json's appVersionSource
-  // pin), both node-version files, and the catalog. The zod single-instance check
-  // reads the INSTALLED graph, but that graph is fully determined by
-  // pnpm-lock.yaml — hashing the lockfile (not node_modules) captures every
-  // resolution that could flip the verdict, and lets a warm run skip WITHOUT
-  // spawning `pnpm list -r`. CI always re-runs.
+  // root+mobile lockstep + web/api major agreement + node-major agreement + rc-pin +
+  // single-zod-instance + single-react-per-surface. Every version the gate reads
+  // (root/mobile package.json for the lockstep; apps/web + packages/api package.json for
+  // the web-major==api-major check; app.config.ts — it derives version/buildNumber/
+  // versionCode — and eas.json's appVersionSource pin), both node-version files, and the
+  // catalog. The zod AND react single-instance walks read the INSTALLED graph, but that
+  // graph is fully determined by pnpm-lock.yaml — hashing the lockfile (not node_modules)
+  // captures every resolution that could flip either verdict, and lets a warm run skip
+  // WITHOUT spawning `pnpm list -r`. CI always re-runs.
   'version-sync': [
     'package.json',
     'apps/mobile/package.json',
-    'apps/server/package.json',
+    'apps/web/package.json',
+    'packages/api/package.json',
     'apps/mobile/app.config.ts',
     'apps/mobile/eas.json',
     '.nvmrc',

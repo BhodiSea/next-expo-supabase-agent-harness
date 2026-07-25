@@ -20,6 +20,7 @@ export const RENAMES = new Map([
 // Opt-in modules under template/modules/<name>/ (same storage conventions).
 export const MODULES = [
   'ci-mobile-release',
+  'ci-web-deploy',
   'device-e2e',
   'eas-update',
   'store-metadata',
@@ -39,7 +40,7 @@ export const RETIRED_MODULES = new Map([])
 
 export const TIERS = {
   core: [],
-  standard: ['ci-provenance', 'ci-mobile-release'],
+  standard: ['ci-provenance', 'ci-mobile-release', 'ci-web-deploy'],
   strict: [...MODULES],
 }
 

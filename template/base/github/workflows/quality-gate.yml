@@ -375,6 +375,7 @@ jobs:
     outputs:
       mobile-native: ${{ steps.filter.outputs.mobile-native }}
       mobile: ${{ steps.filter.outputs.mobile }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -408,6 +409,21 @@ jobs:
               - 'tools/gen-maestro-flows.mjs'
               - 'tools/lib/maestro-flows.mjs'
               - 'tools/lib/mobile-app-meta.mjs'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            # The browser lane (web-e2e): the web app, the packages it bundles
+            # (next.config transpilePackages), the lane runner + its specs, and the
+            # lockfiles. Disjoint from apps/mobile, so a mobile-only PR skips this lane.
+            web:
+              - 'apps/web/**'
+              - 'packages/api/**'
+              - 'packages/contracts/**'
+              - 'packages/design-system/**'
+              - 'packages/design-tokens/**'
+              - 'packages/platform/errors/**'
+              - 'packages/platform/supabase/**'
+              - 'packages/verticals/notes/**'
+              - 'tools/check-web-e2e.mjs'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
 
@@ -767,4 +783,84 @@ jobs:
           name: perf-results
           path: artifacts/perf-results.json
           retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Web browser lane — the ONLY browser-side axe accessibility sweep in the chain
+  # (the mobile a11y net is lint + RNTL, neither of which sees the DOM). Playwright
+  # exits 0 on an empty run, so the lane invokes tools/check-web-e2e.mjs, which fails
+  # closed on a missing config, an empty suite, an assertion-free spec, or a spec set
+  # with no axe scan BEFORE handing off to the browser. Path-filtered (web arm) + the
+  # nightly/dispatch net, like the device lanes — expensive, and irrelevant to a
+  # mobile-only PR. Playwright's own webServer boots `next dev`; the local Supabase
+  # env is exported at runtime so no publishable key is committed.
+  # ---------------------------------------------------------------------------
+  web-e2e:
+    name: web e2e (playwright + axe browser lane)
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.web == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: development
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start the Supabase local stack
+        run: supabase start
+
+      # The landing route reaches the auth server (getVerifiedUser), and the browser
+      # bundle parses the NEXT_PUBLIC_* env, so the local URL + publishable key must be
+      # present. Extract them from the running stack at runtime — never a committed key
+      # (the hygiene gate rejects JWT-shaped strings in the template anyway). API_URL has
+      # its trailing slash stripped: the env Origin validator rejects one.
+      - name: Publish the local Supabase env to the job
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Chromium (+ OS deps)
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      # The runner enforces the non-vacuous, axe-bearing closure, then runs the suite;
+      # Playwright's webServer boots `next dev` against the stack above.
+      - name: Web browser lane (closure + playwright + axe)
+        run: node tools/check-web-e2e.mjs
+
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14
           if-no-files-found: ignore

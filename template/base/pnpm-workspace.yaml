@@ -87,6 +87,11 @@ catalog:
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   tailwind-merge: ^3.6.0
+  # The web-e2e browser lane (apps/web/e2e, CI-only via tools/check-web-e2e.mjs). Caret so
+  # Renovate carries them forward; @playwright/test also gates the browser binaries that
+  # `playwright install` fetches, so the pin and the browsers stay in lockstep.
+  '@playwright/test': ^1.44.0
+  '@axe-core/playwright': ^4.9.0 # the only browser-side axe a11y net in the harness
   # ---- mobile -----------------------------------------------------------------
   # react/react-dom exact: expo@57's bundledNativeModules expects 19.2.3 —
   # `expo install --check` (the native-deps gate) reds any drift, so the
@@ -102,8 +107,9 @@ catalog:
   # directions. A future Next major demanding a React that Expo has not yet bundled
   # forces a deliberate decision (hold the upgrade, or split the pin and amend the
   # doctrine above) instead of a silent divergence. `version-sync` carries a
-  # single-React-instance assertion so two copies cannot coexist undetected — two
-  # Reacts break the hooks dispatcher for any package rendering on both surfaces.
+  # single-React-instance assertion — SCOPED PER SURFACE, so it verifies this single
+  # pin today yet would tolerate a deliberate split — so two copies cannot coexist
+  # undetected within one bundle, where two Reacts break the hooks dispatcher.
   react: 19.2.3
   react-dom: 19.2.3 # web (Next) + the Expo web preview via react-native-web
   '@types/react': ^19.2.17
