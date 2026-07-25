@@ -23,7 +23,7 @@ that carry them, the service-role grants, and the data layer's refusal to hand b
 row RLS would have hidden. Review ONLY the diff (`git diff` vs the base branch) plus the
 files it touches. The `schema-rls` gate (`tools/check-rls-manifest.mjs`), the
 `migrations` gate, and the runtime twins (`supabase/tests/*.sql` pgTAP + `tests/rls/`
-client suite via `pnpm test:rls`) enforce a mechanical floor; you judge on top of it.
+client suite via `node tests/rls/run-rls.mjs`) enforce a mechanical floor; you judge on top of it.
 Report by severity with `file:line` refs. When the local Supabase stack is up you may
 probe mid-turn with `rls_verify { table, userA, userB }` (optional `ownerColumn`) — it
 returns `ISOLATED / LEAK / SKIPPED`, and `SKIPPED` is NO evidence, never a pass. Two

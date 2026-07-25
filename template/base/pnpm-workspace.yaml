@@ -175,3 +175,7 @@ catalog:
   '@formatjs/intl-relativetimeformat': ^12.3.13
   # ---- harness runtime (root tools/mcp + tests/rls) -----------------------------
   '@modelcontextprotocol/sdk': ^1.29.0
+  # postgres.js: dev-only tooling for the rls_verify MCP probe (direct SQL with
+  # request.jwt.claims impersonation). The APP never uses it — it reaches the
+  # database through supabase-js/PostgREST; this is not shipped in any bundle.
+  postgres: ^3.4.5

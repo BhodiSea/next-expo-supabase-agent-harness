@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // rls_verify MCP server — mid-turn cross-tenant isolation probe.
-// Connects with the app's own unprivileged role (DATABASE_URL → app_api, which is
-// RLS-subject under FORCE ROW LEVEL SECURITY), impersonates a user via the app.user_id
-// GUC, and asserts another user's rows are invisible. Read-only, always rolled back.
-// Never a false green: anything that prevents a real probe returns SKIPPED, and the CI
-// suite (`pnpm test:rls`) stays authoritative.
+// Connects to the local database (SUPABASE_DB_URL) and, inside a read-only
+// transaction, impersonates a user the SUPABASE way: `SET LOCAL ROLE
+// authenticated` (so RLS applies — the authenticated role is policy-subject,
+// never BYPASSRLS) plus a transaction-local `request.jwt.claims` whose `sub` is
+// the user's id, which is exactly what `auth.uid()` reads. It then asserts
+// another user's rows are invisible. Read-only, always rolled back.
+// Never a false green: anything that prevents a real probe returns SKIPPED, and
+// the CI suite (`node tests/rls/run-rls.mjs`) stays authoritative.
 // SOURCE: docs/harness/README.md (mid-turn RLS probe) [corpus: harness/doctrine]
-import { createRequire } from 'node:module'
 import process from 'node:process'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -24,11 +26,13 @@ async function assertKnownColumn(sql, table, column) {
 const quoteIdent = (name) => `"${name.replaceAll('"', '""')}"`
 
 // Count `ownerValue`'s rows in `table` while impersonating `asUser`. Runs in its own
-// read-only transaction; the GUC is transaction-local so nothing leaks.
-// SOURCE: transaction-local GUCs, unset returns NULL with the two-arg form [corpus: postgres/guc-set-local]
+// read-only transaction; ROLE and the GUC are transaction-local so nothing leaks.
+// SOURCE: request.jwt.claims + SET LOCAL ROLE authenticated is Supabase's RLS
+// impersonation model — auth.uid() reads the claims' `sub` [corpus: postgres/rls-force]
 async function countAs(sql, { table, ownerColumn, asUser, ownerValue }) {
   const rows = await sql.begin('read only', async (tx) => {
-    await tx`SELECT set_config('app.user_id', ${asUser}, true)`
+    await tx`SET LOCAL ROLE authenticated`
+    await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: asUser, role: 'authenticated' })}, true)`
     return tx.unsafe(
       `SELECT count(*)::int AS n FROM ${quoteIdent(table)} WHERE ${quoteIdent(ownerColumn)} = $1`,
       [ownerValue],
@@ -43,9 +47,9 @@ async function runProbe(sql, { table, ownerColumn, userA, userB }) {
   }
   // Positive control: as userB, userB's own rows must be visible. Under FORCE RLS even
   // the table owner is policy-subject, so the only honest baseline is self-visibility on
-  // the same unprivileged connection. Zero baseline rows → SKIPPED, never green — an
-  // empty table or mistyped id would otherwise make the probe vacuous and report
-  // ISOLATED even with RLS broken.
+  // the same `authenticated` role. Zero baseline rows → SKIPPED, never green — an empty
+  // table or mistyped id would otherwise make the probe vacuous and report ISOLATED even
+  // with RLS broken.
   // SOURCE: docs/harness/README.md (seeded positive control) [corpus: harness/doctrine]
   const baseline = await countAs(sql, { table, ownerColumn, asUser: userB, ownerValue: userB })
   if (baseline === 0) {
@@ -58,18 +62,19 @@ async function runProbe(sql, { table, ownerColumn, userA, userB }) {
 }
 
 async function rlsVerify(args) {
-  const dbUrl = process.env['DATABASE_URL']
-  if (!dbUrl) return 'RLS: SKIPPED (DATABASE_URL not set — start the local db: pnpm db:up)'
+  const dbUrl = process.env['SUPABASE_DB_URL']
+  if (!dbUrl) return 'RLS: SKIPPED (SUPABASE_DB_URL not set — start the local stack: supabase start)'
   const { table, userA, userB } = args
   const ownerColumn = args.ownerColumn || 'owner_id'
   if (typeof table !== 'string' || typeof userA !== 'string' || typeof userB !== 'string') {
     return 'RLS: SKIPPED (table, userA and userB must all be strings)'
   }
-  // The postgres.js driver is a dependency of apps/server, not the workspace root —
-  // resolve it from the server package's context so the probe uses the app's own driver.
+  // The `postgres` driver is dev-only tooling for this probe (the app talks to the
+  // database through supabase-js/PostgREST). Load it lazily so a missing install is a
+  // clean skip, never a crash.
   let postgres
   try {
-    postgres = createRequire(new URL('../../apps/server/package.json', import.meta.url))('postgres')
+    ;({ default: postgres } = await import('postgres'))
   } catch {
     return 'RLS: SKIPPED (the `postgres` driver is not installed — run pnpm install)'
   }
@@ -90,7 +95,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       description:
-        "Probe cross-user RLS isolation for a table: as userA, assert 0 rows of userB are visible. userB must already own at least one visible row (positive control, checked by impersonating userB) or the probe returns SKIPPED — a vacuous probe is never reported green. Runs on the app's unprivileged role with transaction-local app.user_id GUCs. Returns RLS: ISOLATED / RLS: LEAK / SKIPPED. Read-only, always rolled back. The CI suite (pnpm test:rls) is authoritative.",
+        "Probe cross-user RLS isolation for a table: as userA, assert 0 rows of userB are visible. userB must already own at least one visible row (positive control, checked by impersonating userB) or the probe returns SKIPPED — a vacuous probe is never reported green. Runs on the `authenticated` role with a transaction-local request.jwt.claims (auth.uid() reads its `sub`). Returns RLS: ISOLATED / RLS: LEAK / SKIPPED. Read-only, always rolled back. The CI suite (node tests/rls/run-rls.mjs) is authoritative.",
       inputSchema: {
         properties: {
           table: { type: 'string' },

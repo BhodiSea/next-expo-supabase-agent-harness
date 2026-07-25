@@ -20,9 +20,9 @@
   {
     "groups": ["rls-policy", "guc-identity"],
     "id": "postgres/rls-initplan",
-    "sha256": "49d376b43e99bfe73a51fea54c78330c2895d0619433d5413e8254977b97fd3b",
-    "text": "Wrapping a stable function call as (select current_setting('app.user_id', true)) lets Postgres evaluate it once per statement as an initPlan instead of once per row — orders of magnitude faster on large tables. The second argument true returns NULL instead of erroring when the GUC is unset, so unauthenticated sessions match no rows rather than failing.",
-    "title": "RLS performance: wrap current_setting() in (select ...) for an initPlan",
+    "sha256": "f1acec30dee4a1a12627c00f2b50985a00eecd3fe04cb856a42774e35a8c84bb",
+    "text": "Wrapping a stable function call as (select auth.uid()) lets Postgres evaluate it once per statement as an initPlan instead of once per row — orders of magnitude faster on large tables. auth.uid() reads the request's JWT via current_setting('request.jwt.claims', true), whose two-argument true form returns NULL instead of erroring when the claim is unset, so unauthenticated sessions match no rows rather than failing.",
+    "title": "RLS performance: wrap auth.uid() in (select ...) for an initPlan",
     "url": "https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SET",
     "version": "16"
   },
