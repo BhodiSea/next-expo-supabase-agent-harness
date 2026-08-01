@@ -362,7 +362,19 @@ jobs:
       - name: 'Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
-          sed -i '/^### 21\. docs-sync/d' docs/harness/gates-catalog.md
+          # The heading NUMBER is deliberately not pinned. docs-sync is the last gate,
+          # and the chain grows: a number-pinned sed silently deletes nothing once the
+          # chain changes length, the gate then correctly stays green, and the canary
+          # blames the gate for a tamper that never landed. (That is exactly what a
+          # stale `### 21.` did here — the chain is 24 steps in this lineage.) Assert
+          # the injection changed the file BEFORE reading anything into the gate's verdict.
+          before=$(git hash-object docs/harness/gates-catalog.md)
+          # BRE `[0-9][0-9]*`, not ERE `[0-9]+`: identical under GNU and BSD sed, so the
+          # same injection can be rehearsed locally before it is trusted in CI.
+          sed -i '/^### [0-9][0-9]*\. docs-sync — /d' docs/harness/gates-catalog.md
+          if [ "$(git hash-object docs/harness/gates-catalog.md)" = "$before" ]; then
+            echo '::error::CANARY SETUP: the docs-sync catalog heading was never removed — the injection is stale, not the gate'; exit 1
+          fi
           if env -u GITHUB_BASE_REF node tools/check-docs-sync.mjs; then
             echo '::error::CANARY: docs-sync PASSED with a gate missing from the catalog — the lockstep cannot fail'; exit 1
           fi
@@ -585,14 +597,17 @@ jobs:
         working-directory: .selftest/boot
         env:
           HARNESS_REQUIRE_TOOLCHAINS: '1'
-          # The scaffold is a DIFFERENT repository — a fresh `git init` with one commit
-          # and no remote. GITHUB_BASE_REF names the base branch of the PR against THIS
-          # repo, so leaking it inward makes the append-only migrations check diff
-          # against an `origin/main` that does not exist there and fail closed on a
-          # correct scaffold. The canary job already unsets it per gate for the same
-          # reason (see the baseline step); this is the same rule for the whole chain.
-          GITHUB_BASE_REF: ''
-        run: node tools/validate.mjs --min-floor
+        # The scaffold is a DIFFERENT repository — a fresh `git init` with one commit
+        # and no remote. GITHUB_BASE_REF names the base branch of the PR against THIS
+        # repo, so leaking it inward makes the append-only migrations check diff
+        # against an `origin/main` that does not exist there and fail closed on a
+        # correct scaffold.
+        # It MUST be unset with `env -u`, not with a step-level `GITHUB_BASE_REF: ''`:
+        # the runner re-applies its own GITHUB_* defaults on top of step env, so the
+        # empty string never reaches the child (proven — the step env printed empty
+        # while the gate still resolved `origin/main`). The canary job unsets it this
+        # way per gate; this is the same rule for the whole chain.
+        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
         env:
@@ -601,10 +616,11 @@ jobs:
           # (which just happened above). Stamps were recorded by the cold run.
           CI: 'false'
           HARNESS_REQUIRE_TOOLCHAINS: ''
-          GITHUB_BASE_REF: '' # see THE GATE above — the scaffold is a different repo
         run: |
+          # env -u GITHUB_BASE_REF: see THE GATE above — the scaffold is a different
+          # repo, and a step-level empty string does not survive the runner's GITHUB_* defaults.
           start=$(date +%s)
-          node tools/validate.mjs | tee warm-validate.log
+          env -u GITHUB_BASE_REF node tools/validate.mjs | tee warm-validate.log
           elapsed=$(( $(date +%s) - start ))
           echo "warm validate wall time: ${elapsed}s"
           {
