@@ -28,7 +28,7 @@ unsourced — that is an automatic problem (the `provenance` gate will fail it t
 Pass 2 — EXISTENCE-RESOLVE: resolve every cited source by its kind.
 
 - **Corpus reference** (`[corpus: <id>]`, e.g. `postgres/rls-initplan`,
-  `expo/app-config`, `entra/jwt-verify`, `harness/doctrine`): call
+  `expo/app-config`, `supabase/verify-user`, `harness/doctrine`): call
   `corpus_resolve` (or `corpus_search`) and confirm the id is pinned in
   `tools/mcp/corpus/index.json`. An id the corpus does not know is UNRESOLVABLE
   — new corpus entries must be added deliberately in the same PR that first

@@ -160,15 +160,16 @@ test('GREEN: payloads ground via allowlisted https URL, existing repo-relative p
   const r = runGate(fixture({
     files: {
       'docs/decisions.md': '# decisions\n',
-      'apps/server/src/auth.ts': [
+      'apps/web/lib/supabase/server.ts': [
         // developer.mozilla.org is on the tools/lib/citation-domains.mjs allowlist
         // (a bare URL grounds only on an allowlisted host).
         '// SOURCE: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization',
         'const claims = await jwtVerify(token, jwks)',
         '// SOURCE: rationale recorded in docs/decisions.md',
         'const tolerance = { clockTolerance: 300 }',
-        '// SOURCE: jose is the reference implementation — the corpus tail lands on',
-        '// a continuation line, like real wrapped citations [corpus: entra/jwt-verify]',
+        '// SOURCE: getClaims verifies locally against the published key — the corpus',
+        '// tail lands on a continuation line, like real wrapped citations',
+        '// [corpus: supabase/asymmetric-keys]',
         'const keys = createRemoteJWKSet(url)',
         '',
       ].join('\n'),

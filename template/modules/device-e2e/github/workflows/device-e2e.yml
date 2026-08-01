@@ -86,14 +86,16 @@ jobs:
 
       # EXPO_PUBLIC_ vars are inlined at BUNDLE time, so they belong to this step's env,
       # not to any device. Boot-shape dummies, NOT credentials (same discipline as the
-      # base mobile-e2e job): entraConfigured() must answer yes so the release binary
-      # installs its real auth provider and boots to its signed-out surfaces — no flow
-      # in this lane attempts an interactive sign-in.
+      # base perf lane): the public config must be syntactically valid or the release
+      # binary fails its configuration check before the first frame. No flow in this
+      # lane attempts an interactive sign-in, and the client factory REFUSES a secret
+      # key, so a publishable-shaped placeholder is safe by construction.
       - name: Prebuild + assembleRelease (unsigned — no store credentials anywhere)
         working-directory: apps/mobile
         env:
-          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
-          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+          EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321'
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE: 'sb_publishable_device_lane_placeholder'
+          EXPO_PUBLIC_WEB_ORIGIN: 'http://127.0.0.1:3000'
         run: |
           npx expo prebuild -p android --no-install
           cd android

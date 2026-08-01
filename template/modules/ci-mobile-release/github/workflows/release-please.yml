@@ -1,6 +1,6 @@
 # ci-mobile-release module — release automation. release-please maintains a running
 # release PR from conventional commits; merging it bumps every version surface in
-# lockstep (root + apps/server + apps/mobile package.json — the version-sync gate
+# lockstep (root + apps/web + apps/mobile package.json — the version-sync gate
 # would fail anything less), tags vX.Y.Z, and creates the GitHub release that
 # release-mobile.yml then builds and attaches store artifacts to. There is NO native
 # config file in that list on purpose: app.config.ts DERIVES version, ios.buildNumber,

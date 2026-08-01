@@ -57,16 +57,19 @@ floor mechanically; your job is judgment on top of it. Report by severity with
    outside that seam, any token written to kv/sqlite/AsyncStorage or module state
    that outlives the session, and any token value reaching a log line.
    SOURCE: https://docs.expo.dev/versions/latest/sdk/securestore/
-8. **Auth flow stays code + PKCE**: sign-in is authorization-code + PKCE (S256 is
-   expo-auth-session's default for the code response type;
-   `src/auth/providers/entra.ts` is the shipped provider), with the verifier
-   pairing the token exchange to OUR authorize request — custom-scheme redirects
-   are claimable by any installed app, and PKCE is what makes an intercepted code
-   worthless. Flag any implicit/hybrid response type delivering tokens in the
-   redirect itself, any redirect URI hand-typed instead of derived from the locked
-   `scheme` (`entraRedirectUri()`), and any refresh path outside the provider — no
+8. **Auth goes through the Supabase seam, and PKCE stays on for any redirect flow**:
+   the session is minted by GoTrue and reaches the app only through
+   `src/lib/supabase/**`. Flag any hand-rolled token exchange, any client
+   constructed outside that seam, and any use of `getSession()` where identity is
+   being DECIDED rather than read (it does not verify the signature — server-side
+   that is `getUser()`/`getClaims()`). If the app adds an OAuth provider, the flow
+   must be authorization-code + PKCE with `detectSessionInUrl` handled explicitly:
+   custom-scheme redirects are claimable by any installed app, and PKCE is what
+   makes an intercepted code worthless. Flag any implicit/hybrid response type
+   delivering tokens in the redirect itself, any redirect URI hand-typed instead of
+   derived from the locked `scheme`, and any refresh path outside the seam — no
    token value ever transits a URL, a log line, or navigation state.
-   SOURCE: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
+   SOURCE: https://supabase.com/docs/guides/auth/sessions/pkce-flow
 9. **Secret hygiene**: no `EXPO_PUBLIC_`-prefixed secret-shaped names (KEY / SECRET /
    TOKEN / PASSWORD / PRIVATE — the prefix is inlined into the shipped bundle); the
    `extra` block carries transport config only, never a credential; no keystore /

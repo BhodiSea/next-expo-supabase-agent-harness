@@ -13,7 +13,7 @@
         },
         {
           "type": "json",
-          "path": "apps/server/package.json",
+          "path": "apps/web/package.json",
           "jsonpath": "$.version"
         }
       ]

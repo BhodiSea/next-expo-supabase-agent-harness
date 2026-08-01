@@ -31,7 +31,7 @@ export const CITATION_DOMAINS = [
   'reactnative.dev', // React Native docs
   'developer.android.com', // Android platform docs (permissions, network security)
   'developer.apple.com', // Apple developer docs (HIG, App Review Guidelines, Info.plist keys)
-  'learn.microsoft.com', // Microsoft Learn (Entra ID, API guidelines) — not microsoft.com at large
+  'learn.microsoft.com', // Microsoft Learn (the REST API guidelines) — not microsoft.com at large
   // Genuine authorities the template tree itself cites by bare URL.
   'w3.org', // WCAG / WAI-ARIA / CSS specifications
   'rfc-editor.org', // IETF RFCs (e.g. RFC 4180 CSV grammar)

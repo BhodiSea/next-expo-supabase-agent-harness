@@ -25,9 +25,11 @@ adb shell settings put system font_scale 1.0
 adb uninstall {{APP_IDENTIFIER}}
 adb install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 adb reverse tcp:8081 tcp:8081
-adb reverse tcp:8787 tcp:8787
-CI=1 EXPO_PUBLIC_API_ORIGIN=http://127.0.0.1:8787 \
-  pnpm --filter mobile exec expo start --port 8081 > /tmp/metro.log 2>&1 &
+# 3000 = the Next app, which HOSTS the tRPC API; 54321 = the Supabase local stack the
+# mobile client reaches directly for its session and its `./client` reads.
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:54321 tcp:54321
+CI=1 pnpm --filter mobile exec expo start --port 8081 > /tmp/metro.log 2>&1 &
 for _ in $(seq 1 60); do
   if curl -fsS -m 2 "http://127.0.0.1:8081/status" > /dev/null; then break; fi
   sleep 2

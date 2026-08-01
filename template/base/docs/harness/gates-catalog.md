@@ -537,7 +537,7 @@ wrote: the vitest map for server/packages/pure-mobile files, the jest map for
 (absent = no test imports it) and clear the per-file floors declared next to that
 runner's config. A missing map FAILS CLOSED (the chain was reordered or the
 artifact deleted); an empty diff passes with a note.
-**Anti-vacuity:** add an untracked `apps/server/src/` file with an exported
+**Anti-vacuity:** add an untracked `apps/web/src/` file with an exported
 function and no test → FAIL naming the file as absent from the coverage map.
 
 ### duplication — `node tools/check-duplication.mjs`

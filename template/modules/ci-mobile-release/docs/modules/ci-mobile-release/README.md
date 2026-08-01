@@ -15,7 +15,7 @@ a label-gated EAS preview build.
 | `.github/workflows/release-mobile.yml` | the tag-triggered gates → build → verify/attach → submit pipeline |
 | `.github/workflows/release-please.yml` | conventional-commit release automation |
 | `.github/workflows/preview-mobile.yml` | PR fingerprint diff (every PR) + EAS preview build (`preview-build` label) |
-| `release-please-config.json` / `release-please-manifest.json` | version-bump config: root + apps/mobile + apps/server `package.json` move together |
+| `release-please-config.json` / `release-please-manifest.json` | version-bump config: root + apps/mobile + apps/web `package.json` move together |
 
 ## The version story (why extra-files is so short)
 
@@ -28,7 +28,7 @@ The source harness bumped four files per release; this one bumps three
 through the resolved Expo config on every run, so a literal smuggled into a
 native surface goes red at the next bump, not at store review. What release-please
 must keep in lockstep is exactly what the gate asserts as equal: the root,
-`apps/mobile`, and `apps/server` `package.json` versions — the root is bumped
+`apps/mobile`, and `apps/web` `package.json` versions — the root is bumped
 natively by the `node` release type, the other two by `extra-files`.
 
 ## Prerequisites

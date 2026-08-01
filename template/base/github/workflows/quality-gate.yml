@@ -535,9 +535,9 @@ jobs:
   # Android emulator. Path-filtered + nightly like the native job (emulators are
   # expensive), and TWO installs, deliberately:
   #
-  #   RELEASE half (no credentials — the EXPO_PUBLIC_ENTRA_* values below are
-  #   syntactically-valid DUMMIES so the release binary boots to its signed-out
-  #   surfaces instead of failing its no-auth-provider boot check; the dev stub
+  #   RELEASE half (no credentials — the EXPO_PUBLIC_SUPABASE_* values come from
+  #   the LOCAL stack via `supabase status`, so the binary boots to its signed-out
+  #   surfaces against a real backend and no committed key is involved; the dev stub
   #   stays __DEV__-only and this lane must never weaken that): the per-route
   #   flows, the generated route sweep, then the sweep re-run under a flipped OS
   #   theme (the store's `system` preference tracks Appearance live) and under
@@ -635,18 +635,24 @@ jobs:
           done
           echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
 
+      # The device reaches the host through adb reverse, so the app's public config
+      # must point at loopback. `supabase status -o env` is the source for the local
+      # stack's URL and publishable key — never a committed literal (the hygiene gate
+      # rejects JWT-shaped strings in the template, and these rotate per `supabase start`).
+      - name: Publish the local Supabase env for the bundle
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+          } >> "$GITHUB_ENV"
+
       # Both binaries up front (the emulator step below only installs + drives).
-      # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so the dummies and
-      # the loopback API origin must be in the gradle step's env, not the device's.
+      # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so they must be set on
+      # the gradle step, not on the device.
       - name: Prebuild + assemble (release for the sweeps, debug for the dev half)
         working-directory: apps/mobile
-        env:
-          EXPO_PUBLIC_API_ORIGIN: 'http://127.0.0.1:8787'
-          # Boot-shape dummies, NOT credentials: entraConfigured() must answer yes
-          # so the release binary installs its real (Entra) provider and boots
-          # signed-out. No flow attempts an interactive sign-in on this half.
-          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
-          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
         run: |
           npx expo prebuild -p android --no-install
           cd android
@@ -754,10 +760,15 @@ jobs:
       - name: Prebuild + assembleRelease
         working-directory: apps/mobile
         env:
-          # Same boot-shape dummies as mobile-e2e (see that job's comment): the
-          # release binary must boot signed-out; cold-start is what is measured.
-          EXPO_PUBLIC_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000000'
-          EXPO_PUBLIC_ENTRA_CLIENT_ID: '00000000-0000-0000-0000-000000000000'
+          # Boot-shape dummies, NOT credentials. This lane measures COLD START, so it
+          # never talks to a backend and starts no Supabase stack — but the public
+          # config must still be syntactically valid or the release binary fails its
+          # configuration check before the first frame and measures nothing. A
+          # publishable-shaped placeholder is safe by construction: the client factory
+          # REFUSES a secret key, and row-level security is the access boundary anyway.
+          EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321'
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE: 'sb_publishable_perf_lane_placeholder'
+          EXPO_PUBLIC_WEB_ORIGIN: 'http://127.0.0.1:3000'
         run: |
           npx expo prebuild -p android --no-install
           cd android

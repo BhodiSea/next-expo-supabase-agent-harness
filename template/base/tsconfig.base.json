@@ -6,7 +6,7 @@
     "target": "ES2023",
     "lib": ["ES2023"],
 
-    // Node-ESM resolution is the default: apps/server and packages/* run under Node 22
+    // Node-ESM resolution is the default: apps/web and packages/* run under Node 22
     // or are consumed through project references. apps/mobile (Metro-bundled) overrides
     // these two to "Preserve"/"bundler" in its own tsconfig — the only sanctioned split.
     "module": "NodeNext",

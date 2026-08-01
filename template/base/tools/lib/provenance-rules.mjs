@@ -18,7 +18,10 @@ const BUILTIN_DECISION_GROUPS = [
   {
     key: 'rls-policy',
     description: 'RLS policy SQL — row-security enablement and policy declarations',
-    patterns: [/FORCE ROW LEVEL SECURITY/, /CREATE POLICY/, /pgPolicy/],
+    // SQL-first schema: `supabase/schemas/*.sql` is the declarative source and
+    // `supabase/migrations/*.sql` the append-only record, so the decision sites are
+    // the SQL statements themselves — there is no ORM policy builder in this path.
+    patterns: [/FORCE ROW LEVEL SECURITY/, /CREATE POLICY/, /auth\.uid\(\)/],
   },
   {
     key: 'guc-identity',
