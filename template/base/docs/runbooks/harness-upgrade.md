@@ -66,8 +66,8 @@ In this harness the pattern covers, among others:
 - **`tools/startup-budget.json`** — `seedOnInitOnly`: its rows name YOUR routes,
   so `update` withholds it and the mobile-perf floor self-disables with an
   adoption NOTE until you write rows for your own screens.
-- **`tests/rls/dal-shapes.ts`** — `seedOnInitOnly`: it names YOUR DAL methods;
-  absent, the DAL plan probe self-disables with an adoption NOTE.
+- **`tests/rls/db-context.ts`** — `seedOnInitOnly`: its `ISOLATION_TARGETS` name
+  YOUR tables; absent, the runtime isolation suite has nothing to iterate.
 - **`tools/mutation-baseline.json`** — `seedOnInitOnly`: one project's accepted
   survivors must never become another's; the mutation ratchet notes its absence.
 

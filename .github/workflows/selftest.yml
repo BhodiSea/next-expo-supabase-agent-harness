@@ -252,13 +252,35 @@ jobs:
           echo 'canary OK: gate-integrity went red'
       - name: 'Canary 7: tamper a hash-locked prompt → prompts must FAIL'
         working-directory: ${{ runner.temp }}/canary
+        # The base scaffold ships ZERO prompts (they arrive with the eval-live module),
+        # so this canary SEEDS one and locks it before tampering. That is stronger than
+        # the previous form, which appended to a path that does not exist here: the file
+        # was created rather than modified, nothing was in the lock, and the gate stayed
+        # green — a canary that could never have caught a regression. Seeding also gives
+        # the proof a positive control: the gate must go GREEN on the locked prompt
+        # first, or "it went red" would say nothing.
         run: |
-          echo ' ' >> packages/eval/prompts/extract.v1.md
+          set -euo pipefail
+          mkdir -p packages/contracts/prompts
+          printf 'Extract the fields named in the schema. Return JSON only.\n' \
+            > packages/contracts/prompts/extract.v1.md
+          node -e '
+            const { createHash } = require("node:crypto")
+            const { readFileSync, writeFileSync } = require("node:fs")
+            const p = "packages/contracts/prompts/extract.v1.md"
+            const sha = createHash("sha256").update(readFileSync(p)).digest("hex")
+            writeFileSync("tools/prompts.lock.json", JSON.stringify({ [p]: sha }, null, 2) + "\n")
+          '
+          if ! env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs; then
+            echo '::error::CANARY SETUP: prompts red on a correctly locked prompt — the positive control failed'; exit 1
+          fi
+          echo ' ' >> packages/contracts/prompts/extract.v1.md
           if env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs; then
             echo '::error::CANARY: prompts PASSED a tampered hash-locked prompt — the gate cannot fail'; exit 1
           fi
           git checkout -q -- .
-          echo 'canary OK: prompts went red'
+          rm -rf packages/contracts/prompts
+          echo 'canary OK: prompts green when locked, red when tampered'
       - name: 'Canary 8: raw hex + inline-style literals in a screen → styleguide must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -563,6 +585,13 @@ jobs:
         working-directory: .selftest/boot
         env:
           HARNESS_REQUIRE_TOOLCHAINS: '1'
+          # The scaffold is a DIFFERENT repository — a fresh `git init` with one commit
+          # and no remote. GITHUB_BASE_REF names the base branch of the PR against THIS
+          # repo, so leaking it inward makes the append-only migrations check diff
+          # against an `origin/main` that does not exist there and fail closed on a
+          # correct scaffold. The canary job already unsets it per gate for the same
+          # reason (see the baseline step); this is the same rule for the whole chain.
+          GITHUB_BASE_REF: ''
         run: node tools/validate.mjs --min-floor
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
@@ -572,6 +601,7 @@ jobs:
           # (which just happened above). Stamps were recorded by the cold run.
           CI: 'false'
           HARNESS_REQUIRE_TOOLCHAINS: ''
+          GITHUB_BASE_REF: '' # see THE GATE above — the scaffold is a different repo
         run: |
           start=$(date +%s)
           node tools/validate.mjs | tee warm-validate.log

@@ -226,10 +226,12 @@ suite. Per
   exactly the session-GUC bug class this exists to catch.
 - **Catalog gate** — facts from `pg_catalog`, not vibes: FORCE RLS flags, per-operation
   policies, leading-column owner indexes, patched pgvector, non-BYPASSRLS role.
-- **Plan probes** — EXPLAIN at seeded scale, as `authenticated`: the bare policy-shape
-  SELECT AND every query the DAL actually issues (captured through a pg-proxy, registered
-  in the seeded `tests/rls/dal-shapes.ts` — a DAL method with no shape reds). The index
-  must carry the ORDERING, not just the filter.
+- **Index shape, asserted statically** — the owner index must carry the ORDERING, not just
+  the filter: `(owner_id, <ORDER BY columns, direction>)`, so one index serves the policy,
+  the sort and the cursor range. The pgTAP structural suite and the `schema-rls` gate read
+  that from `pg_catalog`. There is deliberately **no EXPLAIN plan probe** in this lineage:
+  a plan is a planner opinion at one statistics snapshot, and gating on it made the suite
+  flap with row counts. The catalog facts do not flap.
 
 Tests impersonate the Supabase way — `SET LOCAL ROLE authenticated` plus a
 transaction-local `request.jwt.claims` whose `sub` is the user id (exactly what

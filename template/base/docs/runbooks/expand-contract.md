@@ -30,15 +30,17 @@ columns, new indexes, widened types. Never remove or rename anything here.
 
 - New table? ENABLE + FORCE ROW LEVEL SECURITY + four per-operation policies in the
   SAME migration (the `schema-rls` gate rejects the migration without them), plus an
-  `ISOLATION_TARGETS` entry in `tests/rls/db-context.ts` and shapes in
-  `tests/rls/dal-shapes.ts` so the runtime suite probes it.
+  `ISOLATION_TARGETS` entry in `tests/rls/db-context.ts` so the runtime isolation suite
+  covers it and a pgTAP case in `supabase/tests/` for its structure.
 - New column that replaces an old one? Make it nullable or defaulted so old-server
   INSERTs still succeed.
 - Update the declarative schema + the vertical's data layer to **write both** (dual-write) and **read new,
   fall back to old**. DTOs in `@app/contracts` stay backward-compatible (additive Zod
   fields, optional).
-- Gate check: `pnpm validate` + `pnpm test:rls` green; `pnpm openapi:emit` if routes
-  changed (additive contract changes only — an old client must still validate).
+- Gate check: `pnpm validate` + `pnpm test:rls` green; `pnpm gen` if the router or the
+  event catalogs changed, so the committed action/event inventories the `contracts` gate
+  regen-diffs stay in lockstep (additive contract changes only — an old client must
+  still validate).
 
 ## Phase 2 — DEPLOY + ROLL OUT
 
@@ -87,12 +89,13 @@ oldest version still calling the API, remembering the store-review lag means the
 
 | Step | Migration file | Gates that hold the line |
 |---|---|---|
-| Expand | new, additive | `migrations` (append-only), `schema-rls` (FORCE RLS + policies), `contracts` (additive OpenAPI), `rls-isolation` |
+| Expand | new, additive | `migrations` (append-only), `schema-rls` (FORCE RLS + policies), `contracts` (additive inventories), `rls-isolation` |
 | Deploy + rollout | — | `version-sync` (manifests move together), skew middleware (majors), staged rollout telemetry |
 | Backfill | none (runner) or `-- harness-allow-dml:` | `migrations` (DML marker), `rls-isolation` (owner columns) |
 | Contract | new, destructive | `migrations` (`-- adr:` required), `dead-code`, `contracts` |
 
 Worked example — renaming `notes.body` → `notes.content`: expand adds `content`
-(nullable) + dual-write in `dal/notes.ts`; deploy the server, submit + roll out the
-client; backfill copies `body` → `content` in batches; contract migration drops `body`
+(nullable) + dual-write in the vertical's data layer
+(`packages/verticals/notes/src/data/`); deploy the web app (which hosts the API),
+submit + roll out the mobile client; backfill copies `body` → `content` in batches; contract migration drops `body`
 with `-- adr:` after telemetry shows the pre-dual-write versions gone from the fleet.
