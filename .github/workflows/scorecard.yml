@@ -17,6 +17,11 @@ jobs:
   analysis:
     runs-on: ubuntu-latest
     permissions:
+      # A job-level block REPLACES the workflow-level `read-all` rather than
+      # merging with it, so every scope this job needs must be spelled here —
+      # omitting `contents: read` is what made checkout 404 while the repo was
+      # private, and it is what the Token-Permissions check wants to see anyway.
+      contents: read
       security-events: write
       id-token: write
     steps:

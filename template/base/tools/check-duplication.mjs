@@ -121,9 +121,14 @@ for (const root of SCAN_ROOTS) {
     filter: (p) => /\.(ts|tsx)$/.test(p) && !/\.(test|spec)\.tsx?$/.test(p) && !/\.d\.ts$/.test(p),
   })) {
     const path = `${root}/${rel}`
-    // Generated modules (the committed theme tokens, any *.gen.ts output) are
-    // machine-written; never a maintainability concern.
-    if (/\.gen\.tsx?$/.test(path)) continue
+    // Generated modules are machine-written; never a maintainability concern —
+    // by construction they RESTATE their source, so scanning them reports the
+    // generator's own output as a clone of its input. Two shapes are excluded:
+    // a `*.gen.ts` suffix, and anything under a `generated/` directory, which is
+    // where the design-tokens compiler writes (`src/generated/{native.ts,web.css}`).
+    // The suffix rule alone matched NOTHING in the shipped scaffold, so this gate
+    // reported native.ts duplicating typography.ts on a clean tree.
+    if (/\.gen\.tsx?$/.test(path) || /(^|\/)generated\//.test(path)) continue
     files.push({ path, tokens: tokenize(readFileSync(path, 'utf8')) })
   }
 }
@@ -150,14 +155,32 @@ const hashWindow = (tokens, start) => {
 // Eight is comfortably below any function worth extracting (`const`, a name, `=`, `(`, `)`,
 // `{`, `return`, `}` is already eight) and far above any key/value table, which has two or
 // three (`S`, `N`, `:`, `,`, and the braces).
+// A NAME IS NOT STRUCTURE. Counting every non-literal token undercounts nothing but
+// OVERCOUNTS the one case this heuristic exists to catch: a table whose values are
+// member expressions rather than bare literals. `canvas: ramps.neutral[950],` repeated
+// eight times is as much a data table as `'nav.primary': 'Primary',` repeated ninety —
+// but it contributes `canvas`, `surface`, `edge`, `ink`, `ramps`, `.`, `neutral`, … and
+// sails past the threshold. That is exactly how the shipped design-tokens palette
+// (`color.ts` themes.dark / themes.light) reported itself as a clone on a clean tree.
+//
+// So two token positions are DATA, not code, and are discounted:
+//   - an object-literal key   (`canvas` in `canvas: …`)     — the name of a slot
+//   - a member property name  (`neutral` in `ramps.neutral`) — the name of a slot
+// What survives is genuine structure: keywords, operators, calls, and the identifiers
+// being operated ON (`ramps` still counts once). Real code keeps its score; a lookup
+// table collapses to two or three.
 const CODE_TOKEN_MIN = 8
-const LITERAL = new Set(['S', 'N', ':', ',', '{', '}', '[', ']', '(', ')', ';'])
+const LITERAL = new Set(['S', 'N', ':', ',', '{', '}', '[', ']', '(', ')', ';', '.'])
 
 function looksLikeData(tokens, start, len) {
   const distinct = new Set()
   for (let k = 0; k < len; k += 1) {
     const value = tokens[start + k].value
-    if (!LITERAL.has(value)) distinct.add(value)
+    if (LITERAL.has(value)) continue
+    // Slot names carry no structure: skip `X` in `X:` and in `.X`.
+    if (tokens[start + k + 1]?.value === ':') continue
+    if (tokens[start + k - 1]?.value === '.') continue
+    distinct.add(value)
   }
   return distinct.size < CODE_TOKEN_MIN
 }

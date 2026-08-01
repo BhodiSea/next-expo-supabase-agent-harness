@@ -44,7 +44,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -53,6 +52,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa # v0.5.7
+        with:
+          # Fail the job on findings instead of uploading SARIF — the same choice the
+          # template makes in its shipped actions-lint.yml, and for the same reason:
+          # upload-sarif needs `actions: read` AND GitHub Advanced Security, so the
+          # SARIF path cannot work on a private repo and adds a scope this job does
+          # not otherwise need. Failing on findings is what a release gate wants.
+          advanced-security: false
 
   # The dual-license claim (Apache-2.0 repo-wide, Apache-2.0 OR 0BSD under
   # template/**) is machine-verifiable: the real reuse tool asserts REUSE spec

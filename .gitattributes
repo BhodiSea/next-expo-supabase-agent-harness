@@ -12,4 +12,6 @@
 *.icns binary
 
 # Generated-but-committed artifacts inside the shipped template
-template/stack/apps/server/openapi.json linguist-generated=true
+template/stack/packages/design-tokens/src/generated/** linguist-generated=true
+template/stack/packages/platform/supabase/src/types.ts linguist-generated=true
+template/base/tools/generated/** linguist-generated=true

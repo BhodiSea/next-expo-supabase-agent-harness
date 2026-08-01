@@ -224,6 +224,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The Supabase CLI is a catalog-pinned devDependency, so it lives in
+      # node_modules/.bin — which a `run:` step's PATH does not include (only
+      # package-manager script execution adds it). Put it on PATH in its own step
+      # ($GITHUB_PATH only affects LATER steps) rather than prefixing each call
+      # site: tests/rls/run-rls.mjs spawns `supabase` as a bare command from inside
+      # node, so an outer `pnpm exec` would not reach it. Deliberately not
+      # supabase/setup-cli — that would float a second, un-catalogued CLI version.
+      - name: Put the workspace-local Supabase CLI on PATH
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+
       # `supabase start` applies supabase/migrations from scratch, so a migration
       # that cannot fresh-apply fails HERE rather than on someone's next deploy.
       # The stack ships its own postgres, auth schema and GoTrue — the same shape
@@ -330,6 +340,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # See runtime-rls: the catalog-pinned CLI lives in node_modules/.bin.
+      - name: Put the workspace-local Supabase CLI on PATH
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       # Starting the stack applies supabase/migrations and seeds deterministically.
       - name: Start the Supabase local stack
@@ -601,6 +615,10 @@ jobs:
           unzip -q maestro.zip -d "$HOME/.maestro-dist"
           echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
 
+      # See runtime-rls: the catalog-pinned CLI lives in node_modules/.bin.
+      - name: Put the workspace-local Supabase CLI on PATH
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+
       - name: Start the Supabase local stack
         run: supabase start
 
@@ -826,6 +844,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # See runtime-rls: the catalog-pinned CLI lives in node_modules/.bin.
+      - name: Put the workspace-local Supabase CLI on PATH
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Start the Supabase local stack
         run: supabase start

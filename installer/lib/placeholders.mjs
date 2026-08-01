@@ -1,14 +1,16 @@
 // Placeholder registry. Every {{TOKEN}} used anywhere under template/ MUST be
 // declared here (scripts/hygiene.mjs enforces closure in both directions).
 // Declaration order is prompt order — identity first, deployment last.
-// NOTE: Entra tenant/client IDs are deliberately NOT placeholders — they are
-// per-environment deployment config and live in .env (see env.example).
-// Baking placeholder GUIDs into committed files invites real IDs into git.
+// NOTE: the Supabase anon/publishable key and service-role key are deliberately
+// NOT placeholders — they are per-environment deployment config and live in
+// .env (see env.example). Baking key-shaped strings into committed files
+// invites real credentials into git; only the project REF (a public, non-secret
+// identifier) is a placeholder.
 // Each entry may carry `validate(value) -> string | null` (an error message,
 // or null when acceptable). Invalid answers are rejected up front: the
 // APP_IDENTIFIER is store identity on BOTH stores (iOS bundleIdentifier and
 // android.package) and immutable after first release (identity.lock.json pins
-// it), and a malformed API_ORIGIN is baked into the committed transport policy.
+// it), and a malformed WEB_ORIGIN is baked into the committed transport policy.
 export const PLACEHOLDERS = {
   PROJECT_NAME: {
     prompt: 'Human-readable project name (e.g. "Acme Curriculum")',
@@ -45,7 +47,7 @@ export const PLACEHOLDERS = {
       return null
     },
   },
-  // Deep-link scheme: expo-router linking + the expo-auth-session redirect URI.
+  // Deep-link scheme: expo-router linking + the Supabase Auth redirect URI.
   // A scheme is registered OS-wide, so collisions hijack redirects — derive it
   // from the slug and keep it plain lowercase alphanumerics.
   APP_SCHEME: {

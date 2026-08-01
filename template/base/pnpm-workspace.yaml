@@ -116,14 +116,15 @@ catalog:
   '@types/react-dom': ^19.2.3
   # Expo SDK 57 line. Since SDK 55 every expo-* package's MAJOR tracks the SDK
   # number, so the whole set rides one ~57 line and upgrades move together
-  # (design record: EXPO-FACTS; pins verified against npm 2026-07-18).
-  expo: 57.0.8 # exact: version-sync's exact-pin set (expo/expo-router/react-native/babel-preset-expo)
+  # (design record: EXPO-FACTS; pins verified against expo@57.0.9's own
+  # bundledNativeModules.json 2026-08-01).
+  expo: 57.0.9 # exact: version-sync's exact-pin set (expo/expo-router/react-native/babel-preset-expo)
   expo-constants: ~57.0.6
   expo-crypto: ~57.0.1 # CSPRNG for the LargeSecureStore AES key (native module, no config plugin)
   expo-haptics: ~57.0.1 # the one haptics door (src/lib/haptics.ts): selection/success/warning vocabulary, wired only into PressableScale + Toast
   expo-linking: ~57.0.3
   expo-localization: ~57.0.1
-  expo-router: 57.0.8 # exact: version-sync's exact-pin set
+  expo-router: 57.0.9 # exact: version-sync's exact-pin set
   expo-secure-store: ~57.0.1 # holds the AES key; the ciphertext lives in AsyncStorage (SecureStore caps value size)
   expo-splash-screen: ~57.0.4
   # Kept for `expo-sqlite/kv-store` ONLY — the one SYNCHRONOUS key-value seam
@@ -138,11 +139,20 @@ catalog:
   # knip.json carries the matching ignoreDependencies entry until then).
   expo-web-browser: ~57.0.1 # the auth-session browser surface; its config plugin is a no-op without props, so it is NOT in app.config plugins
   babel-preset-expo: 57.0.3 # exact: version-sync's exact-pin set
-  jest-expo: ~57.0.2
+  # EXACT, not `~`: jest-expo declares `@react-native/jest-preset` as a
+  # NON-optional peer, and a floating patch silently RAISES that floor. 57.0.2 →
+  # 57.0.3 moved it ^0.86.0 → ^0.86.2, and because the scaffold ships no lockfile
+  # (CI installs with --no-frozen-lockfile) that landed on a green tree overnight
+  # and killed the mobile jest lane at preset load. Bump this deliberately, with
+  # the peer below and the react-native pin, as one reviewed move.
+  jest-expo: 57.0.3
+  # jest-expo's non-optional peer. react-native pins it EXACTLY to its own version
+  # (RN 0.86.2 → "0.86.2"), so this tracks react-native, not the expo line.
+  '@react-native/jest-preset': 0.86.2
   # react-native + native companions: pinned exactly as expo@57's own
   # bundledNativeModules.json expects them — `expo install --check` (the
   # native-deps gate) reds drift, so the catalog mirrors its ranges verbatim.
-  react-native: 0.86.0
+  react-native: 0.86.2
   react-native-safe-area-context: ~5.7.0
   react-native-screens: 4.26.0 # exact: bundledNativeModules pins it exact
   react-native-svg: 15.15.4 # exact: bundledNativeModules pins it exact; one-door'd to src/components/icons (the closed glyph set)

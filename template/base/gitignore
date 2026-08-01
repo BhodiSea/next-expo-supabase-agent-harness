@@ -25,7 +25,10 @@ artifacts/
 .env
 .env.*
 !.env.example
-# dev-only JWKS + minted tokens (the mint-dev-token CLI and the /auth/dev-token route)
+# local auth material a developer may stage by hand while working against the
+# Supabase local stack (service-role keys from `supabase status`, minted JWTs).
+# Nothing generates this directory; it is ignored + guarded (guard rule
+# `dev-auth-access`) so staged secrets can never be committed or shelled out.
 .dev-auth/
 # store/signing material must never enter the tree (EAS credentials service owns it)
 *.keystore

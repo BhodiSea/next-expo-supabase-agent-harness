@@ -46,7 +46,15 @@ const IS_TEST = /\.(?:test|spec)\.tsx?$/
 // suites factor out (`assertRouteIsClean(screen)`, `expectNoViolations(results)`). Deliberately
 // generous: this layer's job is catching the EMPTY test body, not adjudicating assertion
 // style, and a false red here would just push people to write worse tests.
-const ASSERTION = /\b(?:expect|assert)\w*\s*[.(]/
+//
+// The optional `<…>` is the TYPE-ARGUMENT form, and it is not cosmetic: a pure type test
+// reads `expectTypeOf<Payload>().toEqualTypeOf<Other>()`, where the `<` sits exactly where
+// a call paren would be. Without this branch every type-only test in the tree scored as
+// "contains NO assertion" — which is what the shipped platform/events suite did.
+// The generic must be attached with NO leading space, so an ordinary comparison
+// (`expected < 5`) cannot masquerade as a call; `[^;{}()]*` is greedy so nested type
+// arguments (`expectTypeOf<Foo<Bar>>()`) still close on the final `>`.
+const ASSERTION = /\b(?:expect|assert)\w*(?:<[^;{}()]*>)?\s*[.(]/
 
 // `it(` / `test(` — and `it.each(table)(...)`, whose test body is in the SECOND call.
 // Deliberately does NOT match `test.step(`, `test.describe(`, or `test.extend(`.

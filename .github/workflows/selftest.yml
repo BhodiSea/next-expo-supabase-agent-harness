@@ -541,6 +541,16 @@ jobs:
       - name: pnpm install
         working-directory: .selftest/boot
         run: pnpm install --no-frozen-lockfile
+      # The Supabase CLI ships as a CATALOG-PINNED devDependency of the scaffold, so
+      # it lives at node_modules/.bin — which a `run:` step's PATH does not include
+      # (only package-manager script execution adds it). Put it on PATH once, rather
+      # than prefixing each call site with `pnpm exec`: tests/rls/run-rls.mjs spawns
+      # `supabase` as a BARE command from inside node (execFileSync), so an outer
+      # prefix would not reach it. A setup-cli action is deliberately not used — it
+      # would float a second, un-catalogued CLI version past the one-version catalog.
+      - name: Put the workspace-local Supabase CLI on PATH
+        working-directory: .selftest/boot
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       # Soft assertion: on a re-run with an unchanged catalog the store cache
       # should hit. A miss is a warning (first run / catalog bump are
       # legitimate); a cache CONFIG error already failed the job above.
@@ -758,6 +768,11 @@ jobs:
       - name: pnpm install
         working-directory: .selftest/app
         run: pnpm install --no-frozen-lockfile
+      # See the bootstrap-linux job: the catalog-pinned CLI lives in node_modules/.bin,
+      # which a `run:` step's PATH does not carry.
+      - name: Put the workspace-local Supabase CLI on PATH
+        working-directory: .selftest/app
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Start the Supabase local stack
         working-directory: .selftest/app
         run: supabase start
@@ -901,6 +916,11 @@ jobs:
       - name: pnpm install
         working-directory: .selftest/app
         run: pnpm install --no-frozen-lockfile
+      # See the bootstrap-linux job: the catalog-pinned CLI lives in node_modules/.bin,
+      # which a `run:` step's PATH does not carry.
+      - name: Put the workspace-local Supabase CLI on PATH
+        working-directory: .selftest/app
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Start the Supabase local stack
         working-directory: .selftest/app
         run: supabase start

@@ -86,6 +86,45 @@ test('duplication: generated *.gen.ts modules are excluded (machine-written, e.g
   assert.equal(r.code, 0, r.out)
 })
 
+test('duplication: a generated/ DIRECTORY is excluded too — the shape the scaffold actually emits', () => {
+  // Regression proof. The exclusion used to be the `*.gen.ts` SUFFIX alone, which
+  // matched nothing in the shipped scaffold: the design-tokens compiler writes to
+  // packages/design-tokens/src/generated/{native.ts,web.css}. So the gate reported
+  // the generator's own output as a clone of its source on a clean tree, and the
+  // test above passed only because it fabricated a filename the generator never emits.
+  const r = runReal({
+    'packages/design-tokens/src/generated/native.ts': BLOCK('summariseAlpha'),
+    'packages/design-tokens/src/typography.ts': BLOCK('summariseBeta'),
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('duplication: a data table of MEMBER EXPRESSIONS is not a clone (the palette-map shape)', () => {
+  // Regression proof. `looksLikeData` counted every non-literal token, so a lookup
+  // table whose values are member expressions — `canvas: ramps.neutral[950],` — was
+  // scored as code: each slot name and each property name inflated the distinct
+  // count past the threshold. That is exactly the shipped design-tokens palette
+  // (color.ts themes.dark / themes.light), which reported itself as a clone.
+  const palette = (theme, a, b) => `
+export const ${theme} = {
+  canvas: ramps.neutral[${a}],
+  surface: ramps.neutral[${b}],
+  edge: ramps.neutral[700],
+  ink: ramps.neutral[100],
+  accent: ramps.accent[300],
+  danger: ramps.danger[400],
+  success: ramps.success[400],
+  warning: ramps.warning[400],
+  info: ramps.info[400],
+}
+`
+  const r = runReal({
+    'packages/design-tokens/src/dark.ts': palette('dark', 950, 900),
+    'packages/design-tokens/src/light.ts': palette('light', 50, 100),
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
 test('duplication: a reviewed allowlist fingerprint mutes an accepted clone', () => {
   const found = runReal({
     'apps/mobile/src/a.ts': BLOCK('summariseAlpha'),

@@ -1,4 +1,29 @@
 {
-  "comment": "Reviewed accepted code clones for the duplication gate (G17). A genuinely-irreducible repetition goes here as {\"fingerprint\": \"<12-hex from the gate output>\", \"reason\": \"...\"}. Keyed by content fingerprint, so an accepted clone stays accepted after it moves lines. Write-guard-protected + gate-integrity-hashed: widening it is a reviewed human act. Empty by design — the shipped scaffold is DRY.",
-  "allow": []
+  "comment": "Reviewed accepted code clones for the duplication gate (G17). A genuinely-irreducible repetition goes here as {\"fingerprint\": \"<12-hex from the gate output>\", \"reason\": \"...\"}. Keyed by content fingerprint, so an accepted clone stays accepted after it moves lines. Write-guard-protected and listed in check-gate-integrity's ESCAPE_LISTS: widening it must be COMMITTED, so it appears in the PR diff under CODEOWNERS. The seeded entries below are the web/native design-system mirror — the ONE deliberate dual implementation in the scaffold. Everything else must be extracted, not exempted.",
+  "allow": [
+    {
+      "fingerprint": "12a39a2e631a",
+      "reason": "design-system/EmptyState.tsx vs design-system-native/EmptyState.tsx — the deliberate web/native mirror. The two design systems share a variant CONTRACT (identical variant and option names, so a feature can move a screen between surfaces) but cannot share an implementation: web is Tailwind v4, mobile is Tailwind v3 via NativeWind 4, and the two majors do not share a class vocabulary. See the header of design-system-native/src/variants.ts for the full rationale."
+    },
+    {
+      "fingerprint": "eaafc99e4bdc",
+      "reason": "design-system/Field.tsx vs design-system-native/Field.tsx — the same web/native mirror. React Native has no cascade and no pseudo-classes, so the web's `focus-visible:` / `placeholder:` / `disabled:` variants have no native equivalent; the native side expresses them as props and conditional classes."
+    },
+    {
+      "fingerprint": "4bdbc117162b",
+      "reason": "design-system/Input.tsx vs design-system-native/Input.tsx (first region) — the same web/native mirror. The box models differ: RN flex defaults to column and has no `inline-flex`, so layout intent that the web inherits must be stated explicitly on the native side."
+    },
+    {
+      "fingerprint": "35a3e73e03d2",
+      "reason": "design-system/Input.tsx vs design-system-native/Input.tsx (second region) — same mirror, same reason as 4bdbc117162b."
+    },
+    {
+      "fingerprint": "acb4413e7a4a",
+      "reason": "design-system/index.ts vs design-system-native/index.ts — the two public barrels. They export the SAME names by design; that symmetry is the parity contract, and collapsing the barrels would put DOM components on the mobile import graph, which the boundary rules forbid."
+    },
+    {
+      "fingerprint": "26b8aaec6dd1",
+      "reason": "design-system/variants.ts vs design-system-native/variants.ts (the cva card/input region) — the mirror's core. design-system-native/src/variants.ts documents in-source why this is deliberately NOT an import of the web file: differing Tailwind majors, no RN cascade or pseudo-classes, and differing box models. The variant names are the contract; the class strings cannot be shared."
+    }
+  ]
 }

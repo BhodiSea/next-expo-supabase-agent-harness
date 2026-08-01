@@ -91,6 +91,45 @@ test('home screen is a11y-clean', async () => {
   assert.equal(r.code, 0, r.out)
 })
 
+test('a TYPE-ONLY test asserts through `expectTypeOf<T>()` — not a false red', () => {
+  // Regression proof. The assertion pattern required `.` or `(` after the callee, but
+  // the type-argument form puts `<` exactly there, so every type-only test in the tree
+  // scored as "contains NO assertion" — which is what the shipped platform/events suite
+  // did, reddening the mutation canary's control gate on a clean scaffold.
+  const r = run(
+    fixture({
+      files: {
+        'packages/platform/events/src/index.test.ts': `import { expectTypeOf } from 'vitest'
+test('recovers the payload type from the declaration', () => {
+  expectTypeOf<CreatedPayload>().toEqualTypeOf<NoteCreatedPayload>()
+  expectTypeOf<SurfacedPayload['kind']>().toEqualTypeOf<string>()
+})
+`,
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: a bare comparison is NOT an assertion — the type-argument branch stays tight', () => {
+  // The guard on the branch above: `expected < 5` must not read as `expected<…>(`.
+  const r = run(
+    fixture({
+      files: {
+        'packages/api/src/skew.test.ts': `test('compares two numbers and proves nothing', () => {
+  const expected = 5
+  if (expected < 5) {
+    console.log('nope')
+  }
+})
+`,
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /NO assertion/)
+})
+
 test('RED: `.only` is fatal and has NO escape — it disables the whole suite', () => {
   const dir = fixture({
     files: {
