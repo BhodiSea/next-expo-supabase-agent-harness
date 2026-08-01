@@ -15,7 +15,7 @@
 //      length-bounded with `.max(N)`. An unbounded wire string is a
 //      memory-amplification vector — the server accepts a 50 MB "title" the client
 //      never meant to send. The app.errors spec-walk already proves the ENVELOPE on
-//      every OpenAPI route; this closes the other half (a new field's `z.string()`
+//      every tRPC procedure; this closes the other half (a new field's `z.string()`
 //      passed every gate). Reviewed exceptions live in tools/dto-bounds-allow.json.
 // SOURCE: docs/harness/README.md (contracts gate) [corpus: harness/doctrine]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

@@ -1,0 +1,80 @@
+name: Gate proposal
+description: Propose a new gate for the validation chain
+title: '[gate-proposal] '
+labels: [gate-proposal]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CONTRIBUTING.md rule 6 asks for this issue **before** the PR. A gate that
+        arrives already written is harder to say no to, and the bar below is the
+        expensive part — not the code.
+
+        Projects grow into gates; gates never block a fresh install.
+  - type: textarea
+    id: failure
+    attributes:
+      label: What real failure does this catch?
+      description: >-
+        A concrete defect that shipped, or could ship, and that no existing gate
+        catches. Not a style preference.
+      placeholder: |
+        e.g. "A new table can be added with RLS enabled but no per-operation
+        policy, so it reads as protected while every authenticated user can
+        select every row."
+    validations:
+      required: true
+  - type: textarea
+    id: anti-vacuity
+    attributes:
+      label: Anti-vacuity proof — inject the violation, show the red
+      description: >-
+        The exact edit that must make the gate fail, and the message it prints.
+        A gate that cannot be made to fail is not coverage. This becomes its
+        entry in `template/base/docs/harness/gates-catalog.md` and
+        `tests/canary/injections.json`.
+      placeholder: |
+        injection: drop `FORCE ROW LEVEL SECURITY` from the notes migration
+        expected: schema-rls: FAIL — public.notes: RLS not FORCEd …
+    validations:
+      required: true
+  - type: checkboxes
+    id: bar
+    attributes:
+      label: The bar
+      description: All four are required. If one does not hold, say so below rather than ticking it.
+      options:
+        - label: >-
+            **Deterministic** — same tree in, same verdict out. No wall-clock,
+            no network flake, no ordering dependence.
+        - label: >-
+            **Hermetic** — resolves its expectations from the repo, not from a
+            live third-party endpoint. A gate that asks the network what "correct"
+            means turns an untouched commit red overnight; this repo has already
+            paid for that once.
+        - label: >-
+            **Fast** — or explicitly placed late in the chain, with its cost
+            stated. The chain runs cheap-to-expensive.
+        - label: >-
+            **Green on a fresh scaffold** — `init` → `pnpm install` →
+            `pnpm validate` still passes with zero edits.
+  - type: textarea
+    id: toolchain
+    attributes:
+      label: Toolchain needs (if any)
+      description: >-
+        Docker/Postgres, an Android emulator, the Maestro binary? Those gates
+        self-skip **loudly** without their prerequisite locally and fail closed
+        in CI (`HARNESS_REQUIRE_TOOLCHAINS=1`). A skip must never be mistakable
+        for a pass.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Why not an existing gate, a lint rule, or a hook?
+      description: >-
+        Extending something that already runs is usually better than adding a
+        step to the chain.
+    validations:
+      required: true

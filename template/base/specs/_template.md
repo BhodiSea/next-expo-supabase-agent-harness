@@ -22,7 +22,8 @@ expand/contract phase? auth verification? keychain seam (`src/host`/`src/auth`)?
 `app.config.ts` / `eas.json` / permission or config-plugin change? new screen (routes
 manifest + Maestro flow + startup budget)? prompt/lock change?):
 
-**Contract impact** (`openapi.json` diff? Older mobile clients still work — store
+**Contract impact** (`tools/generated/action-inventory.json` /
+`event-catalog.json` diff after `pnpm gen`? Older mobile clients still work — store
 review lags and staged rollouts mean a long skew tail; see
 `docs/runbooks/expand-contract.md`?):
 

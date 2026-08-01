@@ -159,8 +159,12 @@ the gratuitous divergence a pin split would have introduced under the current fa
 
 **Removed** (the self-hosted server half leaves with `apps/server`):
 `hono`, `@hono/node-server`, `@hono/zod-openapi`, `pino`, `pino-pretty`,
-`postgres`, `drizzle-orm`, `drizzle-zod`, `drizzle-kit`, `expo-auth-session`,
-`expo-sqlite`.
+`postgres`, `drizzle-orm`, `drizzle-zod`, `drizzle-kit`, `expo-auth-session`.
+
+> **Correction (0.1.3).** This list originally also named `expo-sqlite`. It was
+> not removed and must not be: it is the one SYNCHRONOUS key-value seam
+> (`expo-sqlite/kv-store`, behind `apps/mobile/src/lib/kv.ts`), and the catalog
+> pin records that narrowed purpose. The spec line was wrong, not the catalog.
 
 **Added** (web + shared backend):
 `next`, `@supabase/supabase-js`, `@supabase/ssr`, `@trpc/server`,
@@ -204,6 +208,15 @@ A scaffold produced at the end of W1 must `pnpm install` and `tsc -b` cleanly.
 It is NOT expected to pass the full 21-gate chain until W6.
 
 ## 10. Hygiene — arming is sequenced LAST, not here
+
+> **RESOLVED in the closure wave (`2ef755c`), shipped in 0.1.3.** The detectors
+> `/\bhono\b/i` and `/drizzle/i` are armed in `scripts/hygiene.mjs` and every
+> carrier below has been retargeted. The section is kept in its original
+> pending voice as the design record of *why* arming was sequenced last; read
+> it as history, not as outstanding work. The accepted risk at the bottom
+> closed exactly as described — arming the detectors proved the window clean,
+> and they have since caught a real re-entry (a comment in the provenance rules
+> naming the ancestor's ORM while explaining its own removal).
 
 The original plan armed `/\bhono\b/i` and `/drizzle/i` in this wave. **Measured
 during W1, that is not possible.** 65 files under `template/` still carry that

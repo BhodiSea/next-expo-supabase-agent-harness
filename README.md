@@ -137,6 +137,8 @@ in a copy is the checklist of repo-root sites that hardcode the upstream owner:
 - `CONTRIBUTING.md` — rule 2 names the vocabulary your lineage owns
 - `SECURITY.md` — the advisories URL and the `update` command
 - `.github/CODEOWNERS` — every owner handle
+- `.github/ISSUE_TEMPLATE/config.yml` — the advisory, discussions, and repro URLs
+  (and `bug-report.yml`'s `npx` line)
 - `.claude/settings.json` — you inherit the upstream maintainer's permissions;
   review the default mode before your first agent turn
 - `.claude-plugin/plugin.json` — the npx command in `description`, `author`,

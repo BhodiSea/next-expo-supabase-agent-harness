@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/BhodiSea/next-expo-supabase-agent-harness/security/advisories/new
+    about: Report privately via a GitHub security advisory — never in a public issue.
+  - name: Questions and ideas
+    url: https://github.com/BhodiSea/next-expo-supabase-agent-harness/discussions
+    about: Usage questions, stack choices, and "should the harness do X?" belong in Discussions.

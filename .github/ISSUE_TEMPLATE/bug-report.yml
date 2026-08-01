@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the harness, the installer, or a scaffolded project is wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do **not** report security vulnerabilities here — see
+        [SECURITY.md](../blob/main/SECURITY.md) for private disclosure.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      options:
+        - The installer CLI (init / update / doctor / enable / graduate)
+        - A gate in a scaffolded project (`pnpm validate`)
+        - The Claude Code hooks / agents / rules
+        - CI in a scaffolded project
+        - This harness repo's own machinery
+        - Docs
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >-
+        Please start from a clean scaffold where possible — it is the tree every
+        gate is calibrated against.
+      value: |
+        ```sh
+        npx --yes github:BhodiSea/next-expo-supabase-agent-harness init --tier core --yes --dir /tmp/repro
+        cd /tmp/repro && pnpm install
+        # then:
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: >-
+        For a gate, paste its full output. Gate messages are meant to name the
+        fix; if one did not, that is itself worth reporting.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      value: |
+        - harness version (`.harness/manifest.json` → `version`, or the tag):
+        - OS + arch:
+        - node / pnpm:
+    validations:
+      required: true

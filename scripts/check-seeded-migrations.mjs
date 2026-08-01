@@ -78,14 +78,50 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       // fall through to the reachability failure below with prev still null
     }
   }
-  // Fail LOUD when no tag is reachable: diffing against nothing would pass
-  // vacuously, which is exactly the false green this gate exists to prevent.
+  // No tag resolved. Two very different situations hide behind that, and only
+  // one of them is safe to skip:
+  //   - a COMPLETE clone carrying zero tags has genuinely never been released
+  //     (this repo before its first tag; any fresh "Use this template" copy).
+  //     There is no previous release to diff against, so the check is vacuous
+  //     rather than failing — skip LOUDLY.
+  //   - a SHALLOW clone cannot tell "no releases" from "tags not fetched", so
+  //     it keeps failing closed. Diffing against nothing would pass vacuously,
+  //     which is the exact false green this gate exists to prevent.
+  if (prev === null) {
+    const shallow = (() => {
+      try {
+        return git(['rev-parse', '--is-shallow-repository']).trim() === 'true'
+      } catch {
+        return true // cannot establish completeness -> treat as shallow -> fail closed
+      }
+    })()
+    let tagCount = 0
+    try {
+      tagCount = git(['tag', '--list']).split('\n').filter(Boolean).length
+    } catch {
+      /* leave at 0; the shallow branch below decides */
+    }
+    if (!shallow && tagCount === 0) {
+      console.log(
+        'SEEDED-MIGRATIONS: SKIP — this clone is complete and carries no tags, so there is no ' +
+          'previous release to diff against. Expected before the first release and in a fresh ' +
+          'template copy; the check engages on its own from the next release onward.',
+      )
+      process.exit(0)
+    }
+    console.error(
+      'SEEDED-MIGRATIONS: FAIL — no previous release tag in this clone, and it is ' +
+        `${shallow ? 'SHALLOW' : 'carrying tags that did not resolve'} — "no releases yet" cannot be ` +
+        'distinguished from "tags were never fetched". Fetch tags first (`git fetch --tags`; in CI ' +
+        'check out with fetch-depth: 0) or set PREVIOUS_RELEASE_TAG.',
+    )
+    process.exit(1)
+  }
   try {
-    if (prev === null) throw new Error('no tag')
     git(['rev-parse', '--verify', `${prev}^{commit}`])
   } catch {
     console.error(
-      `SEEDED-MIGRATIONS: FAIL — previous release tag ${prev ? `'${prev}' is not reachable` : 'not found'} in this clone. ` +
+      `SEEDED-MIGRATIONS: FAIL — previous release tag '${prev}' is not reachable in this clone. ` +
         'Fetch tags first (`git fetch --tags`; in CI check out with fetch-depth: 0) or set PREVIOUS_RELEASE_TAG.',
     )
     process.exit(1)
