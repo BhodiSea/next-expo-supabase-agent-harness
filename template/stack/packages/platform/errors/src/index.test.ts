@@ -260,7 +260,10 @@ describe('ratchet kills: optional-field carry, default codes, guards, observers'
   })
 
   it('isAppError rejects a callable that structurally quacks', () => {
-    expect(isAppError(Object.assign(() => {}, { kind: 'notFound', code: 'x' }))).toBe(false)
+    // `noop` rather than `() => {}`: an empty arrow body is a lint error, and the point
+    // here is only that the value is CALLABLE while structurally quacking like an AppError.
+    const noop = (): void => undefined
+    expect(isAppError(Object.assign(noop, { kind: 'notFound', code: 'x' }))).toBe(false)
   })
 
   it('toOutcome collapses a throw to unknown with no observer', () => {

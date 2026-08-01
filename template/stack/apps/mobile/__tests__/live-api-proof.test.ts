@@ -28,7 +28,7 @@
 
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { type ApiClient, createApiClient } from '../src/lib/trpc/client'
 
 // ---------------------------------------------------------------------------
@@ -45,15 +45,26 @@ import { type ApiClient, createApiClient } from '../src/lib/trpc/client'
 // as `globalThis.fetch` BEFORE any client is built, so the REAL createApiClient
 // picks it up with no injection — the bearer-attachment code stays untouched.
 // ---------------------------------------------------------------------------
-type HeaderInit = Headers | Record<string, string> | ReadonlyArray<readonly [string, string]>
-function headerEntries(init: HeaderInit | undefined): Array<[string, string]> {
+// Takes `RequestInit['headers']` verbatim so the call site needs no assertion: whatever
+// shape fetch accepts, this flattens.
+function headerEntries(init: RequestInit['headers']): [string, string][] {
   if (init === undefined) return []
-  if (typeof (init as Headers).forEach === 'function' && !Array.isArray(init)) {
-    const out: Array<[string, string]> = []
+  if (Array.isArray(init)) {
+    // `Array.isArray` narrows to `any[]`, so the element type has to be re-stated or the
+    // inferred `[any, any][]` escapes as the return value. `readonly string[]` (not a
+    // 2-tuple) is the honest element type — it accepts both the `string[][]` and the
+    // readonly-tuple spellings of HeadersInit without an unsound tuple assertion.
+    const out: [string, string][] = []
+    for (const [k, v] of init as readonly (readonly string[])[]) {
+      if (k !== undefined && v !== undefined) out.push([k, v])
+    }
+    return out
+  }
+  if (typeof (init as Headers).forEach === 'function') {
+    const out: [string, string][] = []
     ;(init as Headers).forEach((v, k) => out.push([k, v]))
     return out
   }
-  if (Array.isArray(init)) return init.map(([k, v]) => [k, v])
   return Object.entries(init as Record<string, string>)
 }
 
@@ -61,8 +72,12 @@ function nodeFetch(input: string | URL, init: RequestInit = {}): Promise<Respons
   const url = new URL(String(input))
   const send = url.protocol === 'https:' ? httpsRequest : httpRequest
   const headers: Record<string, string> = {}
-  for (const [k, v] of headerEntries(init.headers as HeaderInit | undefined)) headers[k] = v
-  const body = init.body === undefined || init.body === null ? undefined : String(init.body)
+  for (const [k, v] of headerEntries(init.headers)) headers[k] = v
+  // The clients under test (supabase-js and the tRPC httpBatchLink) both send JSON STRING
+  // bodies. Narrowing rather than blind-stringifying keeps that assumption visible: a
+  // stream or FormData would silently become "[object Object]" on the wire and the proof
+  // would assert against a request nobody meant to send.
+  const body = typeof init.body === 'string' ? init.body : undefined
   if (body !== undefined && headers['content-length'] === undefined) {
     headers['content-length'] = String(Buffer.byteLength(body))
   }
@@ -115,10 +130,32 @@ const LIVE = process.env['LIVE_PROOF'] === '1'
 // An all-skipped file is a clean jest outcome; a failing/vacuous one is not.
 const suite = LIVE ? describe : describe.skip
 
+// Every client in this proof is built the same way: no session persistence, no refresh
+// timer, no URL detection — three long-lived clients in one jest process would otherwise
+// race each other's token refreshes.
+//
+// The factory exists for its TYPE as much as its body. Annotating the holders as bare
+// `SupabaseClient` applies that alias's DEFAULT type arguments, which are not the ones
+// `createClient` actually returns, and the mismatch reds as an unsafe assignment.
+// `ReturnType<typeof createClient>` is not the fix either — `createClient` is generic, so
+// ReturnType erases its parameters instead of applying their defaults. A NON-generic
+// wrapper has exactly one return type, and that is the one every holder wants.
+const NO_SESSION = {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+} as const
+
+function makeSupabase(url: string, key: string) {
+  return createClient(url, key, NO_SESSION)
+}
+type PlainSupabase = ReturnType<typeof makeSupabase>
+
 /** Fail loudly at setup rather than emit a misleading assertion later. */
 function requireEnv(...names: readonly string[]): string {
   for (const name of names) {
-    const value = process.env[name]
+    // `process.env[name]` is typed `any` under the RN/jest lib set, and an `any` SENDER
+    // reds no-unsafe-assignment regardless of what the receiver is annotated as — only
+    // an assertion (or an `unknown` receiver plus narrowing) closes it.
+    const value = process.env[name] as string | undefined
     if (value !== undefined && value !== '') return value
   }
   throw new Error(`live-api-proof requires one of [${names.join(', ')}] to be set`)
@@ -166,9 +203,9 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // A no-session client, used both to construct the admin client below and as the
   // NEGATIVE CONTROL: created but never signed in, so `getSession()` returns null
   // and the client attaches no bearer at all.
-  let admin: SupabaseClient
-  let authedSb: SupabaseClient
-  let anonSb: SupabaseClient
+  let admin: PlainSupabase
+  let authedSb: PlainSupabase
+  let anonSb: PlainSupabase
   let authedApi: ApiClient
   let anonApi: ApiClient
   let userId = ''
@@ -181,12 +218,8 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     // fetch) both reach the live stack.
     globalThis.fetch = nodeFetch as typeof globalThis.fetch
 
-    const noSession = {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    }
-
     // (a) Fresh, pre-confirmed user via the service-role admin API.
-    admin = createClient(API_URL, SERVICE_ROLE_KEY, noSession)
+    admin = makeSupabase(API_URL, SERVICE_ROLE_KEY)
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true })
     if (created.error !== null) throw new Error(`admin.createUser failed: ${created.error.message}`)
     userId = created.data.user.id
@@ -194,13 +227,13 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     // (b) Sign that user in with a PLAIN supabase-js client to mint a real GoTrue
     // session, then hand THIS client to the mobile factory — so the token flows
     // through client.ts's `headers()` callback (client.ts:~102), never hand-rolled.
-    authedSb = createClient(API_URL, ANON_KEY, noSession)
+    authedSb = makeSupabase(API_URL, ANON_KEY)
     const signedIn = await authedSb.auth.signInWithPassword({ email, password })
     if (signedIn.error !== null)
       throw new Error(`signInWithPassword failed: ${signedIn.error.message}`)
 
     // (e) Negative control: a session-less client -> no bearer on the wire.
-    anonSb = createClient(API_URL, ANON_KEY, noSession)
+    anonSb = makeSupabase(API_URL, ANON_KEY)
 
     // (c) Both clients point at the web origin via EXPO_PUBLIC_WEB_ORIGIN (read
     // inside client.ts), defaulting to http://127.0.0.1:3000.
@@ -246,7 +279,7 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     const title = `live-proof note ${runId}`
     const inserted = await authedSb.from('notes').insert({ title }).select('id, owner_id').single()
     expect(inserted.error).toBeNull()
-    const row = inserted.data as { id: string; owner_id: string } | null
+    const row = inserted.data
     expect(row?.owner_id).toBe(userId)
 
     const visible = await authedSb
@@ -291,7 +324,7 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // permanent, always-on mirror of what C01 forces onto the authed client.
   it('a session-less client attaches no bearer and its create is rejected as unauthenticated', async () => {
     const cause = await anonApi.notes.create.mutate({ title: 'unauth' }).then(
-      () => null as unknown,
+      () => null,
       (error: unknown) => error,
     )
     expect(cause).not.toBeNull()

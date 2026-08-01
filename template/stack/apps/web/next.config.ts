@@ -1,5 +1,15 @@
 import type { NextConfig } from 'next'
 
+// The narrowest shape of webpack's config this file touches. Next types its `webpack`
+// callback parameter as `any` (it re-exports webpack's own loose config type), which
+// under strictTypeChecked makes every property access an unsafe-member-access and the
+// return an unsafe-return. Declaring only `resolve.extensionAlias` keeps the callback
+// type-safe AND documents its entire blast radius; it stays assignable to Next's
+// signature because an `any` parameter is bivariant.
+interface WebpackConfigShim {
+  resolve?: { extensionAlias?: Record<string, string[]> }
+}
+
 // The web app is BOTH the browser client and the API host: app/api/trpc/[trpc]/route.ts
 // mounts the same @app/api router the Expo app calls over HTTP. Everything in this file
 // exists to keep that dual role honest.
@@ -54,8 +64,12 @@ const nextConfig: NextConfig = {
   // and the Metro shim all become unnecessary. That is a wider change (every package + its
   // tests) and it forfeits the packages' valid-Node-ESM emit, which is why the shipped default
   // keeps NodeNext and shims the two bundlers instead.
-  webpack: (config) => {
-    config.resolve = config.resolve ?? {}
+  // Next types this callback's `config` as `any`, and `any` spreads: every touch below
+  // would red under strictTypeChecked's no-unsafe-* family. Naming the ONE field this
+  // block actually reaches is both the fix and the honest documentation of its scope —
+  // the object is returned unchanged, so runtime behaviour is identical.
+  webpack: (config: WebpackConfigShim): WebpackConfigShim => {
+    config.resolve ??= {}
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,
       '.js': ['.ts', '.tsx', '.js', '.jsx'],

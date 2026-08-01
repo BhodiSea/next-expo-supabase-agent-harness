@@ -1,11 +1,23 @@
 # gitleaks.toml (installed as .gitleaks.toml) — secret scanning policy.
 # Extends the gitleaks default ruleset and adds the shapes this stack actually
-# handles: Expo access tokens, App Store Connect API keys, Play service-account
-# JSON, Android keystore passwords, Sentry auth tokens, and Entra client secrets.
+# handles: the Supabase service-role/secret key, Expo access tokens, App Store
+# Connect API keys, Play service-account JSON, Android keystore passwords, and
+# Sentry auth tokens.
 title = "harness secret-scanning policy"
 
 [extend]
 useDefault = true
+
+# The default `generic-api-key` rule keys on the WORD "key", which YAML uses for
+# every cache key. The Android emulator lane names its AVD cache
+# `key: avd-<api>-<target>-<arch>`, and that high-entropy-looking string blocked the
+# very first `git commit` in a fresh scaffold. Scoped to the one file and the one
+# shape on purpose — a blanket `generic-api-key` suppression would also drop real
+# findings, and a bare path exclusion would stop scanning the CI workflow entirely.
+[allowlist]
+description = "CI cache keys are not credentials"
+regexes = ['''key:\s*avd-\d+-[a-z0-9_-]+''']
+paths = ['''\.github/workflows/quality-gate\.yml''']
 
 [[rules]]
 id = "expo-token-assignment"
@@ -40,7 +52,17 @@ regex = '''sntrys_[A-Za-z0-9_+/=.-]{16,}'''
 keywords = ["sntrys_"]
 
 [[rules]]
-id = "entra-client-secret"
-description = "Entra (Azure AD) client-secret value shape"
-regex = '''[A-Za-z0-9_~.]{3}8Q~[A-Za-z0-9_~.\-]{20,40}'''
-keywords = ["8q~"]
+id = "supabase-secret-key"
+description = "Supabase secret / service-role key (the one credential that BYPASSES RLS)"
+# This stack's crown jewel: `service_role` is constrained by no policy in the repo and the
+# RLS suite cannot cover it, so it must never reach the tree. Matches the `sb_secret_`
+# key FORMAT only — an env-var reference (`process.env.SUPABASE_SERVICE_ROLE_KEY`) is how
+# the code is SUPPOSED to read it, so keying on the variable name would red correct code.
+# The legacy JWT form (an `eyJ…` whose payload carries "role":"service_role") is already
+# caught by the default ruleset's JWT rule.
+regex = '''sb_secret_[A-Za-z0-9_-]{16,}'''
+keywords = ["sb_secret_"]
+# Fixtures must LOOK like the real shape to be worth testing against, so they are
+# distinguished by saying so in the value rather than by living somewhere special.
+[rules.allowlist]
+regexes = ['''(?i)sb_secret_[A-Za-z0-9_-]*(example|placeholder|not[-_]a[-_]real|do[-_]not[-_]use|dummy|fake)''']
