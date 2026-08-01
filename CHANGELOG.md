@@ -94,6 +94,31 @@ Counts, all machine-derived: the chain is **24 gates** (21 → 24 — `boundarie
   `upload-sarif` (which needs Advanced Security) — the template's own
   `actions-lint.yml` already documented the fix. **`scorecard`** failed because a
   job-level `permissions:` block REPLACES the workflow-level one.
+- **The `provenance` gate never scanned a single RLS policy.** Its file matcher
+  admitted SQL only under `packages/**` — the ancestor's ORM layout — so every
+  file under `supabase/` was invisible to it. The authorization boundary, the one
+  place where a wrong line silently exposes another tenant's rows, carried
+  `SOURCE:` citations that nothing verified. It now scans `supabase/**.sql`, and
+  the decision-site patterns for policies were narrowed to `CREATE POLICY` and
+  `FORCE ROW LEVEL SECURITY` (`auth.uid()` appears in every predicate and in the
+  owner-column default, so keying on it would have demanded a citation on every
+  correct line and taught authors to paste one anywhere).
+- **Two canaries could not have caught a regression.** Canary 7 targeted a prompt
+  file that only exists with an opt-in module, so it asserted on an absent file;
+  Canary 13 pinned the gates-catalog heading `### 21. docs-sync` from the
+  ancestor's 21-gate chain, and this one is 24 steps — the tamper deleted nothing,
+  the gate correctly stayed green, and the canary blamed the gate. Both now assert
+  a GREEN positive control first and prove the injection actually changed the file
+  before any verdict is read, so a stale injection fails as a SETUP error naming
+  itself instead of masquerading as a broken gate.
+- **`check-seeded-migrations.mjs` ran in no workflow**, despite guarding the
+  `update` hazard this release is the first to expose publicly: an unregistered
+  seeded template addition auto-plants into every EXISTING install on their next
+  update. It could not run — it diffs against the previous release tag, and an
+  untagged repo (this one until now; every fresh template copy) failed closed
+  forever. It now distinguishes a COMPLETE clone with zero tags (no prior release
+  to diff against — skip loudly) from a SHALLOW one (cannot tell "no releases"
+  from "tags not fetched" — keep failing closed), and runs in `lint.yml`.
 
 ### Changed
 
@@ -111,6 +136,11 @@ Counts, all machine-derived: the chain is **24 gates** (21 → 24 — `boundarie
   read as coverage while running never.
 - `CODEOWNERS` now exists at the repo root — `SECURITY.md` names CODEOWNERS review
   as one of the three backstops behind the tamper-evident guard hooks.
+- `.github/ISSUE_TEMPLATE/` now exists — `CONTRIBUTING.md` rule 6 has always sent
+  gate proposals to a `gate-proposal`-labelled issue, with no template behind it.
+  The form asks for the anti-vacuity proof and the deterministic / hermetic / fast
+  / green-on-a-fresh-scaffold bar up front, because that is the expensive part of
+  a gate, not its code.
 
 ## [0.1.2] — 2026-07-20
 
