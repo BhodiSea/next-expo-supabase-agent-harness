@@ -9,24 +9,25 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release, stabilization in progress.** The stack tree, gate
-> chain, hooks, and agent layer are this lineage's own, and `template/stack/` is
-> now `apps/{web,mobile}` (Next 16 + Expo 57) over one shared Supabase backend.
-> This repo was forked from
+> **Status: pre-release (0.1.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
 > the surface-agnostic machinery was ported forward and the single-surface stack
-> replaced. The `hono`/`drizzle` closure wave landed and those cross-porting
-> detectors are armed, so that vocabulary is a hard red. **But the first
-> end-to-end scaffold run (`init` → `pnpm install` → `pnpm validate`) surfaced
-> real gaps the stale acceptance CI never caught:** several gates are not yet
-> green out of the box (the mobile bundle's barrel resolution, biome/eslint
-> nits, knip/depcruise config, and gate code still keyed on deleted `apps/server`
-> paths), and `.github/workflows/selftest.yml` still describes the old
-> Hono/Drizzle stack and must be ported. Stabilization is underway; **do not read
-> "green" into this repo until the selftest matrix runs against the new stack and
-> proves it.**
+> replaced. The stack tree, gate chain, hooks, and agent layer are this lineage's
+> own, and the `hono`/`drizzle` cross-porting detectors are armed, so that
+> vocabulary is a hard red anywhere under `template/`.
+>
+> **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
+> fresh scaffold with zero edits — all 24 gates — and the selftest matrix proves
+> it on every push, including the live-Supabase RLS suite and the 16 can-fail
+> canaries. Nothing is claimed here that that matrix does not run.
+>
+> **Honest limits.** No wall-clock timings appear in this README: none have been
+> measured on this port, and unmeasured numbers do not ship. The device lanes
+> (Android emulator + Maestro) are schedule- and dispatch-gated, so a PR does not
+> pay for them — which also means they are proven nightly, not per-commit. The
+> gate chain contains no on-device proof at agent time.
 
 ## What it is
 
@@ -145,13 +146,12 @@ in a copy is the checklist of repo-root sites that hardcode the upstream owner:
   whose stack *is* that vocabulary reds on its own first file. Drop only the
   words your lineage now owns, and add the words of the lineage you forked
   away from — never delete a pattern to make a run pass. (This fork dropped
-  `/supabase/i` and `/vercel/i` immediately, and arms `/\bhono\b/i` +
-  `/drizzle/i` in the final closure wave. W9 retargeted the `.claude` authoring
-  surface and deleted the design-token gate-side tooling; the detectors arm once
-  the remaining carriers — the `push-notifications`/`observability`/
-  `crash-reporting` module slices, the `apps/server`-shaped gate code, and the
-  old CI workflows — are retargeted too. Expect this: a lineage fork's detectors
-  arm last, once every consumer has been retargeted.)
+  `/supabase/i` and `/vercel/i` immediately, and armed `/\bhono\b/i` +
+  `/drizzle/i` once every carrier had been retargeted. Expect that ordering: a
+  lineage fork's detectors arm LAST, because until the port is complete they
+  would red on the code you are still porting. They earn their keep afterwards —
+  the first draft of one commit in this release named the ancestor's ORM in a
+  comment explaining its own removal, and the detector caught it.)
 
 Then prove closure the way the harness proves everything else:
 

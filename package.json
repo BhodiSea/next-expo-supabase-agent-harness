@@ -1,8 +1,13 @@
 {
   "name": "next-expo-supabase-agent-harness",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Deterministic agent harness for pnpm monorepos that ship a Next.js 16 web app AND an Expo (React Native) mobile app over one shared Supabase backend: Claude Code hooks, security-invariant lint gates, RLS isolation tests, cross-surface parity and design-token gates, provenance pipeline, and supply-chain-hardened CI — installable into any new or existing project.",
   "license": "Apache-2.0",
+  "author": "Cogvera Labs",
+  "homepage": "https://github.com/BhodiSea/next-expo-supabase-agent-harness#readme",
+  "bugs": {
+    "url": "https://github.com/BhodiSea/next-expo-supabase-agent-harness/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BhodiSea/next-expo-supabase-agent-harness.git"

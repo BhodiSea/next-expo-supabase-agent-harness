@@ -4,6 +4,114 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+**Lineage note.** This harness was forked from
+[`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
+and the version line continues from it. Entries at **0.1.2 and below are the
+ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
+server and are kept for provenance, not because this repository shipped them.
+This lineage's own history starts at 0.1.3.
+
+## [0.1.3] — 2026-08-01
+
+The first release of this lineage, and the first one whose claims the selftest
+matrix actually proves. `next-expo-supabase-agent-harness` was forked from
+`expo-postgres-agent-harness` and retargeted workstream by workstream to a
+two-surface shape: a Next.js 16 web app and an Expo 57 mobile app over ONE shared
+Supabase backend, with row-level security as the single authorization boundary
+both clients reach. The entries below 0.1.3 are the ANCESTOR's history, kept for
+provenance; they describe an Expo-only app over a self-hosted server and do not
+describe this repository.
+
+Honest limit up front: this release contains no wall-clock timings, because none
+have been measured on this port. The device lanes are schedule- and
+dispatch-gated, so they are proven nightly rather than per-commit, and the gate
+chain still contains no on-device proof at agent time.
+
+Counts, all machine-derived: the chain is **24 gates** (21 → 24 — `boundaries`,
+`types-drift` and `parity` are new) and the guard table **71 rule ids**.
+
+### Added
+
+- **The two-surface stack** (W1–W2): `template/stack/apps/{web,mobile}` over one
+  `supabase/` backend — SQL-first schemas + append-only migrations + pgTAP. The web
+  app HOSTS the API (`app/api/trpc/[trpc]/route.ts` mounts `@app/api`), so there is
+  no standalone server; `packages/api` imports no `next/*`, which is the wall that
+  keeps that reversible. Backend seam hardened with cookie identity, CSRF, a real
+  skew version and a minimum-client floor.
+- **`schema-rls` and `types-drift` on Supabase** (W3): every table FORCE RLS with
+  per-operation policies keyed on the `(SELECT auth.uid())` initPlan form, dual
+  isolation-registry coverage, and a committed Supabase type mirror that must match
+  the live schema.
+- **The boundary triad** (W4): one `tools/exports-walls.json` census feeding the
+  `./client` wall and the declared-dependency allow-matrix, plus dependency-cruiser
+  layering laws and four custom ESLint rules.
+- **`contracts` and `parity`** (W5): the dead OpenAPI leg replaced by regen-diff
+  over generated tRPC action + event inventories, and a two-way surface-parity
+  ledger — every action ↔ a `PARITY.md` row, in both directions.
+- **One token source** (W6): the design-system gate retargeted to
+  `@app/design-tokens`, compiling to the web and native adapters.
+- **The web arm** (W7–W9): guards extended over `NEXT_PUBLIC_` and `apps/web`, a
+  `web-e2e` lane, `ci-web-deploy`, decoupled release trains, a `web-security-reviewer`,
+  and the `.claude` authoring surface rewritten for Supabase/tRPC.
+- **Cross-porting detectors armed**: `hono` and `drizzle` are now a hard red
+  anywhere under `template/`.
+
+### Fixed
+
+- **The scaffold is green out of the box** — `init` → `pnpm install` →
+  `pnpm validate` passes all 24 gates with zero edits. It was not: 21 lint errors
+  sat in `template/stack`, which the harness's own ESLint config ignores (the
+  consumer config owns that tree), so the shipped payload was only ever linted
+  AFTER scaffolding.
+- **A fresh scaffold could not make its first commit.** The pre-commit secret scan
+  flagged the Android emulator lane's AVD cache key — `key: avd-33-…`, matched by
+  gitleaks' `generic-api-key` rule because YAML spells cache keys with the word
+  "key" — in the CI workflow the harness itself ships. The shipped `.gitleaks.toml`
+  carried no allowlist at all.
+- **Every consumer's CI was born broken**: `quality-gate.yml` called `supabase`
+  bare in four jobs, but the CLI is a catalog-pinned devDependency in
+  `node_modules/.bin`, which a `run:` step's PATH does not carry.
+- **Three gate bugs, fixed rather than allowlisted.** `duplication` excluded
+  generated code by a `*.gen.ts` suffix that matched NOTHING in the scaffold (the
+  token compiler writes to `src/generated/`) and scored member-expression lookup
+  tables as code — it had never been green on the tree it ships. `test-quality`
+  could not see `expectTypeOf<T>()`, so every type-only test read as
+  assertion-free. Both now carry can-fail proofs in both directions.
+- **`native-deps` is hermetic.** It shelled out to `expo install --check`, which
+  resolves the SDK-blessed map from Expo's LIVE service — so an untouched commit
+  went green→red overnight when Expo published a patch, under a gate whose own
+  header claimed hermeticity. It now reads `bundledNativeModules.json` from the
+  installed package.
+- **The mobile jest lane** died at preset load: the scaffold ships no lockfile and
+  CI installs with `--no-frozen-lockfile`, so `jest-expo: ~57.0.2` floated to
+  57.0.3 and raised its non-optional `@react-native/jest-preset` peer. Coordinated
+  SDK bump (expo/expo-router 57.0.9, react-native 0.86.2, jest-preset 0.86.2) and
+  `jest-expo` is now pinned EXACT so a patch cannot silently raise a peer floor.
+- **The Windows leg** of the selftest matrix: one gate fixture was never ported —
+  a POSIX-only `:` PATH separator, a hard-coded `PATH` key where Windows spells it
+  `Path`, and a `#!/bin/sh` fake CLI with no `.cmd` twin.
+- **`zizmor` found zero issues** yet failed the lint workflow, dying in
+  `upload-sarif` (which needs Advanced Security) — the template's own
+  `actions-lint.yml` already documented the fix. **`scorecard`** failed because a
+  job-level `permissions:` block REPLACES the workflow-level one.
+
+### Changed
+
+- The ancestor's auth and server vocabulary is gone from what ships: the Entra +
+  `expo-auth-session` PKCE instructions in `mobile-security-reviewer` (which named
+  a provider file that does not exist), the `EXPO_PUBLIC_ENTRA_*` and port-8787
+  values in the shipped CI and device lane, the `apps/server` paths in
+  release-please and ci-provenance, and the `entra`/`jose` corpus entries — which
+  were the ONLY two in the `token-verification` group, leaving a Supabase consumer
+  with no correct authority to cite. Replaced with `supabase/verify-user` and
+  `supabase/asymmetric-keys`.
+- The dead OpenAPI breaking-change workflow (`api-contract.yml`) is removed rather
+  than left in place: it ran `pnpm --filter server openapi:emit` against a package
+  that no longer exists, behind a `paths:` filter that could never match, so it
+  read as coverage while running never.
+- `CODEOWNERS` now exists at the repo root — `SECURITY.md` names CODEOWNERS review
+  as one of the three backstops behind the tamper-evident guard hooks.
+
 ## [0.1.2] — 2026-07-20
 
 The four-pillar wave (W10): the reference app gains a design system with

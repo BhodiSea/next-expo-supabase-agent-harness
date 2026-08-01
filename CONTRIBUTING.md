@@ -9,9 +9,11 @@
    the box.
 2. **Nothing project-specific in `template/`.** The hygiene gate greps for
    leaked strings (real tenant IDs, DSNs, signing material, store credentials)
-   and for cross-porting residue from the sibling harnesses (Tauri/cargo/Vite
-   and Next.js/Supabase vocabulary must never appear in the shipped template);
-   add to `scripts/hygiene.mjs` if you spot a class it misses.
+   and for cross-porting residue from the SIBLING harnesses — Hono, Drizzle,
+   Tauri, cargo, Vite vocabulary must never appear in the shipped template. Next,
+   Expo, Supabase and Vercel are this lineage's OWN stack and are expected there;
+   they were deliberately dropped from the inherited deny set (see the comment
+   block in `scripts/hygiene.mjs`). Add to that file if you spot a class it misses.
 3. **Zero runtime dependencies in `installer/`.** Node built-ins only — the
    installer must never itself be a supply-chain vector.
 4. **Placeholder closure.** Every `{{TOKEN}}` used in `template/` must be
@@ -21,11 +23,14 @@
    npm versions via the workspace catalog (the Expo SDK and its
    `expo install --check` compatibility map are the native-side pin).
    Renovate maintains the pins with a cooldown.
-6. **Gate proposals**: open a `gate-proposal` issue first. A gate must be
-   deterministic, fast, and pass on the fresh scaffold — projects grow into
-   gates; gates never block a fresh install. Every gate lands with its
-   anti-vacuity proof (inject the violation, show the red) recorded in
-   `docs/harness/gates-catalog.md`.
+6. **Gate proposals**: open an issue first, labelled `gate-proposal`. A gate must
+   be deterministic, HERMETIC, fast, and pass on the fresh scaffold — projects
+   grow into gates; gates never block a fresh install. Hermetic is not a nicety:
+   a gate that resolves its expectations from a live third-party endpoint will
+   turn an untouched commit red overnight, and this repo has already paid for
+   that once. Every gate lands with its anti-vacuity proof (inject the violation,
+   show the red) recorded in `template/base/docs/harness/gates-catalog.md` and
+   registered in `tests/canary/injections.json`.
 7. **Toolchain asymmetry is doctrine.** Gates that need Docker/Postgres, an
    Android emulator, or the Maestro binary self-skip **loudly** when the
    prerequisite is absent locally and fail closed in CI
@@ -35,17 +40,31 @@
 
 ## Local development
 
+This list is the whole of what CI blocks on. Run all of it — a subset is how four
+of these came to be red at once behind a single early failure.
+
 ```sh
-node scripts/check-syntax.mjs   # syntax over installer + template (.tmpl aware)
-node scripts/hygiene.mjs        # leaked-string + placeholder closure
-node scripts/check-reuse.mjs    # REUSE dual-license structure (offline mirror of `reuse lint`)
-node --test tests/              # installer lifecycle + hook contracts
-node installer/cli.mjs init --dir /tmp/scratch --yes   # manual smoke test
+node scripts/check-syntax.mjs           # syntax over installer + template (.tmpl aware)
+node scripts/hygiene.mjs                # leaked-string + placeholder closure + cross-porting detectors
+node scripts/check-reuse.mjs            # REUSE dual-license structure (offline mirror of `reuse lint`)
+node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
+node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
+node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
+node scripts/check-canary-coverage.mjs  # every gate has a registered, RUNNING red-proof
+node --test "tests/**/*.test.mjs"       # gate proofs + installer lifecycle + hook contracts
 
 # The machinery under its own bar (pnpm install once at the repo root):
-pnpm exec eslint .              # complexity <= 15 (ratcheted) + no-unused-vars over the machinery
-pnpm exec tsc --noEmit          # checkJs over installer/, scripts/, tests/, template gate scripts + hooks
-pnpm exec knip                  # dead exports/files/deps in the machinery
+pnpm exec eslint . --max-warnings 0     # no-unused-vars + complexity <= 15 over the machinery
+pnpm exec tsc --noEmit                  # checkJs over installer/, scripts/, tests/, gate scripts + hooks
+pnpm exec knip                          # dead exports/files/deps in the machinery
+node scripts/check-complexity-ratchet.mjs  # re-lints with --no-inline-config: a disable cannot hide growth
+node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot be deleted or narrowed
+
+# The one that matters most — the scaffold must be green with ZERO edits:
+node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
+cd /tmp/scratch && pnpm install && git init -q && git add -A \
+  && git -c user.email=x@y.z -c user.name=x commit -qm "chore: baseline" \
+  && node tools/validate.mjs --report-all
 ```
 
 Root `devDependencies` are exact-pinned and never ship: the npm `files` list

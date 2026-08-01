@@ -133,7 +133,10 @@ function satisfies(version, range) {
 }
 
 if (!existsSync(BNM)) {
-  skipOrFail(GATE, `${BNM} missing — run pnpm install (the version check reads expo's own blessed map)`)
+  skipOrFail(
+    GATE,
+    `${BNM} missing — run pnpm install (the version check reads expo's own blessed map)`,
+  )
 }
 
 const blessed = JSON.parse(readFileSync(BNM, 'utf8'))

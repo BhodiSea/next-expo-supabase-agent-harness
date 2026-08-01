@@ -21,7 +21,10 @@ const BUILTIN_DECISION_GROUPS = [
     // SQL-first schema: `supabase/schemas/*.sql` is the declarative source and
     // `supabase/migrations/*.sql` the append-only record, so the decision sites are
     // the SQL statements themselves — there is no ORM policy builder in this path.
-    patterns: [/FORCE ROW LEVEL SECURITY/, /CREATE POLICY/, /auth\.uid\(\)/],
+    // Deliberately NOT `auth.uid()`: it appears in every policy predicate and in the
+    // owner-column default, so keying on it would demand a citation per LINE of a
+    // policy rather than per policy, and red a correct migration.
+    patterns: [/FORCE ROW LEVEL SECURITY/, /CREATE POLICY/],
   },
   {
     key: 'guc-identity',
@@ -149,9 +152,19 @@ export const HOOK_EXCLUDES = [/\/\.claude\//]
 // never dodge the `/`-anchored match. Same apps|packages scope as before, so the gate
 // stays narrower than the hook's whole-tree SCANNABLE_FILE by design; gateScansFile
 // still applies the test/tokens/meta excludes on top.
+//
+// `supabase/**.sql` is load-bearing, not a nicety. In this lineage the schema is
+// SQL-FIRST — `supabase/schemas/*.sql` declares it and `supabase/migrations/*.sql`
+// is the append-only record — so the RLS policies, the FORCE statements and the
+// initPlan predicates all live there. The inherited scope only covered
+// `packages/**.sql`, where the ancestor kept its ORM schema, which meant the most
+// security-critical decision surface in the stack carried `SOURCE:` comments that
+// NOTHING verified. Widening this is what makes the provenance canary bite.
 export function gateFileMatch(file) {
   const posix = toPosix(file)
-  return /^(apps|packages)\/.+\.(ts|tsx)$/.test(posix) || /^packages\/.+\.sql$/.test(posix)
+  return (
+    /^(apps|packages)\/.+\.(ts|tsx)$/.test(posix) || /^(packages|supabase)\/.+\.sql$/.test(posix)
+  )
 }
 
 // Per-edit scope check used by the PostToolUse hook. The hook receives the

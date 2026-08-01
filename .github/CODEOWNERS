@@ -1,0 +1,32 @@
+# Review ownership for the harness itself. SECURITY.md names CODEOWNERS review as
+# one of the three backstops behind the guard hooks (the others being CI parity via
+# `tools/validate.mjs --min-floor` and manifest hashing via `doctor`) — the guards
+# are tamper-EVIDENT, not tamper-proof, so the human review of a widening is the
+# thing that actually holds.
+#
+# The scaffold ships its own CODEOWNERS to consumers from
+# template/base/github/CODEOWNERS, parameterised by {{SECURITY_OWNERS}}. This file
+# governs THIS repository.
+
+*                                   @BhodiSea
+
+# The enforcement surface. A change here can silently widen what an agent is
+# allowed to do, in every downstream install, so it never rides along in a
+# large diff unreviewed.
+/scripts/                           @BhodiSea
+/template/base/tools/               @BhodiSea
+/template/base/.claude/hooks/       @BhodiSea
+/template/base/eslint.config.mjs    @BhodiSea
+/template/base/dependency-cruiser.cjs @BhodiSea
+
+# Escape hatches: every file here EXEMPTS something from a gate or raises a
+# budget. check-gate-integrity refuses to let them be modified-but-uncommitted
+# precisely so the widening shows up in a reviewed diff.
+/template/base/tools/*-allow.json   @BhodiSea
+/template/base/tools/*-exempt.json  @BhodiSea
+/template/base/tools/*-budget.json  @BhodiSea
+
+# Supply chain and release.
+/.github/workflows/                 @BhodiSea
+/renovate.json                      @BhodiSea
+/package.json                       @BhodiSea

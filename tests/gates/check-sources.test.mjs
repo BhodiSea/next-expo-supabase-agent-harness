@@ -121,6 +121,38 @@ test('WIDENING: a decision site DIRECTLY under apps/ is scanned (old `apps/**/*.
   assert.ok(r.out.includes('lack an inline'), r.out)
 })
 
+test('WIDENING: RLS policy SQL under supabase/ is scanned — the schema is SQL-FIRST here', () => {
+  // The regression this encodes. The inherited scope admitted `packages/**.sql`,
+  // where the ancestor kept its ORM schema. This lineage declares the schema in
+  // `supabase/schemas/*.sql` and records it in `supabase/migrations/*.sql`, so the
+  // RLS policies — the authorization boundary, the single most security-critical
+  // decision surface in the stack — were carrying SOURCE comments that NOTHING
+  // verified, and the provenance canary could not bite.
+  const policy = [
+    'ALTER TABLE public.notes FORCE ROW LEVEL SECURITY;',
+    'CREATE POLICY notes_select_own ON public.notes',
+    '  FOR SELECT TO authenticated',
+    '  USING (owner_id = (SELECT auth.uid()));',
+    '',
+  ].join('\n')
+
+  const red = runGate(fixture({ files: { 'supabase/migrations/0001_notes.sql': policy } }))
+  assert.equal(red.code, 1, red.out)
+  assert.ok(red.out.includes('supabase/migrations/0001_notes.sql:1'), red.out)
+  assert.ok(red.out.includes('lack an inline'), red.out)
+
+  // …and a cited one passes, so the widening is not simply "always red".
+  const green = runGate(
+    fixture({
+      files: {
+        'supabase/migrations/0001_notes.sql':
+          '-- SOURCE: https://www.postgresql.org/docs/17/ddl-rowsecurity.html\n' + policy,
+      },
+    }),
+  )
+  assert.equal(green.code, 0, green.out)
+})
+
 test('gate scope stays apps/packages: an uncited decision in a root/tools .ts is NOT flagged', () => {
   // The gate is deliberately narrower than the hook's whole-tree SCANNABLE_FILE —
   // gateFileMatch only admits apps/ and packages/. A decision site in tools/ is out

@@ -86,7 +86,7 @@ test('gateFileMatch: Windows backslash paths are POSIX-normalized before matchin
 
 test('DECISION matches one representative token per group and is case-sensitive', () => {
   const reps = [
-    'FORCE ROW LEVEL SECURITY', 'CREATE POLICY', 'auth.uid()',
+    'FORCE ROW LEVEL SECURITY', 'CREATE POLICY',
     'current_setting(', 'set_config(', 'SET LOCAL',
     'jwtVerify', 'createRemoteJWKSet', 'createLocalJWKSet', 'clockTolerance',
     'USING hnsw', 'USING ivfflat', 'vector_cosine_ops',

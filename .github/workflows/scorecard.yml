@@ -1,6 +1,8 @@
 # OpenSSF Scorecard — third-party attestation of this repo's process hygiene.
-# Honest caveat (see README): scores signal process rigor, not vulnerability
-# absence.
+# Honest caveat: a Scorecard number signals PROCESS rigor (pinned actions, branch
+# protection, a security policy), not the absence of vulnerabilities and not that
+# the gates this harness ships actually work. The selftest matrix is the evidence
+# for that claim; this is evidence about how the repo is run.
 name: scorecard
 
 on:

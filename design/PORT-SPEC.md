@@ -1,4 +1,17 @@
-# PORT-SPEC — next-expo-supabase-agent-harness
+# PORT-SPEC — the ANCESTOR's port record (superseded)
+
+> ⚠️ **Historical. This document does not describe this repository.** It is the
+> design record for the port that produced the SIBLING harness
+> [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
+> — Tauri → Expo, over a Hono/Drizzle backend — and is kept because the
+> surface-agnostic machinery it specifies was ported forward into this lineage
+> unchanged. Everything it says about the BACKEND ("Backend unchanged: Hono +
+> Drizzle", the 21-gate chain, the server app) is false here: this lineage runs
+> Next.js 16 web + Expo mobile over one shared Supabase backend, with a 24-gate
+> chain and no standalone server.
+>
+> **The design record for THIS repository's stack is
+> [`W1-STACK-SPEC.md`](./W1-STACK-SPEC.md).** Read that one.
 
 The design record for porting `tauri-postgres-agent-harness` (the "source
 harness") to Expo (React Native) + EAS. This repo mirrors the source harness's
