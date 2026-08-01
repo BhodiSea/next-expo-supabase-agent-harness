@@ -1,17 +1,17 @@
 // Can-fail proofs for the native-deps gate (template/base/tools/check-native-deps.mjs).
-// Fixture-driven: build a scaffold-shaped tree with a REAL scratch git repo (CNG
-// purity reads `git ls-files`), a stub apps/mobile/node_modules/.bin/expo (the gate
-// requires the CLI's presence) and a fake `pnpm` shim prepended to PATH that stands
-// in for `pnpm exec expo install --check` (a .cmd twin rides along so the shim works
-// on the Windows selftest matrix). Pins: version drift surfaced verbatim, CNG purity
-// red BEFORE the content stamp (a warm stamp cannot hide a staged native dir), the
-// expo-plugins.json integrity half, the local config-plugin test closure, and the
-// skip-local/fail-closed-CI asymmetry.
+// Fixture-driven: build a scaffold-shaped tree with a REAL scratch git repo (CNG purity
+// reads `git ls-files`) plus the two things the version half actually reads — the
+// installed expo package's bundledNativeModules.json and each dependency's own
+// package.json. No PATH shim and no fake package manager: the gate reaches nothing but
+// the filesystem, and the HERMETIC test below is what holds it to that. Pins: version
+// drift named with both versions, CNG purity red BEFORE the content stamp (a warm stamp
+// cannot hide a staged native dir), the expo-plugins.json integrity half, the local
+// config-plugin test closure, and the skip-local/fail-closed-CI asymmetry.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -23,47 +23,6 @@ const SHIPPED_PLUGINS = readFileSync(
   'utf8',
 )
 
-// The fake package manager: reads fakebin/behavior.json and impersonates the one
-// command this gate runs (`pnpm exec expo install --check`). Node implements the
-// behavior so the same shim works on POSIX (sh wrapper) and Windows (.cmd twin).
-const IMPL = `import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-const spec = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'behavior.json'), 'utf8'),
-)
-const args = process.argv.slice(2).join(' ')
-if (args.includes('expo config')) {
-  if (spec.banner) console.log(spec.banner)
-  console.log(JSON.stringify(spec.config))
-  process.exit(0)
-}
-if (args.includes('expo install')) {
-  if (spec.installDrift) {
-    console.error(spec.installDrift)
-    process.exit(1)
-  }
-  console.log('Dependencies are up to date')
-  process.exit(0)
-}
-console.error('fake pnpm: unexpected invocation: ' + args)
-process.exit(1)
-`
-
-function writeShims(dir, behavior) {
-  const bin = join(dir, 'fakebin')
-  mkdirSync(bin, { recursive: true })
-  writeFileSync(join(bin, 'impl.mjs'), IMPL)
-  writeFileSync(join(bin, 'behavior.json'), JSON.stringify(behavior))
-  writeFileSync(
-    join(bin, 'pnpm'),
-    `#!/bin/sh\nexec "${process.execPath}" "$(dirname "$0")/impl.mjs" "$@"\n`,
-  )
-  chmodSync(join(bin, 'pnpm'), 0o755)
-  writeFileSync(join(bin, 'pnpm.cmd'), `@echo off\r\n"${process.execPath}" "%~dp0impl.mjs" %*\r\n`)
-  return bin
-}
-
 function git(dir, ...args) {
   const res = spawnSync('git', args, { cwd: dir, encoding: 'utf8' })
   assert.equal(res.status, 0, `git ${args.join(' ')} failed: ${res.stderr}`)
@@ -71,22 +30,50 @@ function git(dir, ...args) {
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
-/** @param {{ nodeModules?: boolean, expoBin?: boolean, pluginsFile?: any, gitignore?: any, behavior?: Record<string, any>, files?: Record<string, string> }} [opts] */
+// The SDK-blessed map the gate reads out of the installed expo package, and the
+// versions actually on disk. Keeping them equal is the GREEN case; skewing one entry
+// is the RED case. This is the whole input surface of the version half now that the
+// gate no longer shells out to Expo's live versions service.
+const BLESSED = { expo: '57.0.9', 'expo-crypto': '~57.0.1', 'react-native': '0.86.2' }
+const INSTALLED = { expo: '57.0.9', 'expo-crypto': '57.0.4', 'react-native': '0.86.2' }
+
+/** @param {{ nodeModules?: boolean, blessed?: Record<string,string> | null, installed?: Record<string,string>, pluginsFile?: any, gitignore?: any, files?: Record<string, string> }} [opts] */
 function fixture({
   nodeModules = true,
-  expoBin = true,
+  blessed = BLESSED,
+  installed = INSTALLED,
   pluginsFile = SHIPPED_PLUGINS,
   gitignore = 'node_modules/\napps/mobile/android/\napps/mobile/ios/\n',
-  behavior = {},
   files = {},
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-nativedeps-'))
   mkdirSync(join(dir, 'apps/mobile'), { recursive: true })
   mkdirSync(join(dir, 'tools'), { recursive: true })
-  writeFileSync(join(dir, 'apps/mobile/package.json'), '{ "name": "mobile" }\n')
+  // Every dep is `catalog:` in the real scaffold — the gate reads the NAMES here and
+  // the VERSIONS off disk, exactly as pnpm lays them out.
+  writeFileSync(
+    join(dir, 'apps/mobile/package.json'),
+    JSON.stringify({
+      name: 'mobile',
+      dependencies: Object.fromEntries(Object.keys(installed).map((k) => [k, 'catalog:'])),
+    }),
+  )
   if (nodeModules) {
     mkdirSync(join(dir, 'apps/mobile/node_modules/.bin'), { recursive: true })
-    if (expoBin) writeFileSync(join(dir, 'apps/mobile/node_modules/.bin/expo'), '')
+    for (const [name, version] of Object.entries(installed)) {
+      mkdirSync(join(dir, `apps/mobile/node_modules/${name}`), { recursive: true })
+      writeFileSync(
+        join(dir, `apps/mobile/node_modules/${name}/package.json`),
+        JSON.stringify({ name, version }),
+      )
+    }
+    if (blessed !== null) {
+      mkdirSync(join(dir, 'apps/mobile/node_modules/expo'), { recursive: true })
+      writeFileSync(
+        join(dir, 'apps/mobile/node_modules/expo/bundledNativeModules.json'),
+        JSON.stringify(blessed),
+      )
+    }
   }
   if (pluginsFile !== null) writeFileSync(join(dir, 'tools/expo-plugins.json'), asText(pluginsFile))
   if (gitignore !== null) writeFileSync(join(dir, '.gitignore'), gitignore)
@@ -96,7 +83,6 @@ function fixture({
     writeFileSync(abs, content)
   }
   git(dir, 'init', '-q')
-  writeShims(dir, behavior)
   return dir
 }
 
@@ -106,8 +92,6 @@ function runGate(dir, { ci = true } = {}) {
   delete env.HARNESS_REQUIRE_TOOLCHAINS
   delete env.GITHUB_BASE_REF
   if (ci) env.CI = 'true'
-  const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
-  env[pathKey] = `${join(dir, 'fakebin')}${delimiter}${env[pathKey] ?? ''}`
   const res = spawnSync(process.execPath, [GATE], { cwd: dir, encoding: 'utf8', env })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
@@ -120,15 +104,35 @@ test('GREEN: clean versions, pure CNG, reasoned allowlist, zero local plugins (w
   assert.ok(r.out.includes('zero local config plugins found (test closure arms with the first)'), r.out)
 })
 
-test('RED: `expo install --check` drift is surfaced VERBATIM with the --fix command', () => {
-  const drift =
-    'expo@54.0.10 - expected version: 57.0.3\nreact-native-svg@15.0.0 - expected version: 16.1.1'
-  const r = runGate(fixture({ behavior: { installDrift: drift } }))
+test('RED: an installed version outside the SDK-blessed range is named with both versions', () => {
+  const r = runGate(
+    fixture({ installed: { ...INSTALLED, 'expo-crypto': '56.0.1', 'react-native': '0.86.0' } }),
+  )
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('expo install --check found version drift'), r.out)
-  assert.ok(r.out.includes('expo@54.0.10 - expected version: 57.0.3'), r.out)
-  assert.ok(r.out.includes('react-native-svg@15.0.0 - expected version: 16.1.1'), r.out)
-  assert.ok(r.out.includes('pnpm --filter mobile exec expo install --fix'), r.out)
+  assert.ok(r.out.includes('expo-managed version drift'), r.out)
+  assert.ok(r.out.includes('expo-crypto@56.0.1 - expected version: ~57.0.1'), r.out)
+  assert.ok(r.out.includes('react-native@0.86.0 - expected version: 0.86.2'), r.out)
+  // The fix is a CATALOG edit — the app manifests are all `catalog:`, so pointing a
+  // reader at the manifest would send them to a file with no version in it.
+  assert.ok(r.out.includes('pnpm-workspace.yaml'), r.out)
+})
+
+test('the version half is HERMETIC — no network, no CLI, just the installed blessed map', () => {
+  // The regression this encodes: the gate used to shell out to `expo install --check`,
+  // which resolves the blessed map from Expo's LIVE versions service. The identical
+  // commit went green→red overnight when Expo published a patch. Deleting the map is
+  // now the ONLY way to lose the answer; nothing reaches the network.
+  const r = runGate(fixture({ blessed: null }))
+  assert.equal(r.code, 1, r.out) // CI: fail closed
+  assert.ok(r.out.includes('bundledNativeModules.json'), r.out)
+})
+
+test('a `~` range accepts a higher PATCH but not a higher MINOR', () => {
+  const ok = runGate(fixture({ installed: { ...INSTALLED, 'expo-crypto': '57.0.99' } }))
+  assert.equal(ok.code, 0, ok.out)
+  const bad = runGate(fixture({ installed: { ...INSTALLED, 'expo-crypto': '57.1.0' } }))
+  assert.equal(bad.code, 1, bad.out)
+  assert.ok(bad.out.includes('expo-crypto@57.1.0'), bad.out)
 })
 
 test('RED: CNG purity runs BEFORE the stamp — a staged native dir reds even on a warm green stamp', () => {
@@ -203,11 +207,11 @@ test('skip asymmetry: node_modules missing → loud local SKIP (exit 0), CI fail
   assert.ok(ci.out.includes('skips are not allowed in CI'), ci.out)
 })
 
-test('skip asymmetry: node_modules present but no expo CLI → SKIP local, fail CI', () => {
-  const dir = fixture({ expoBin: false })
+test('skip asymmetry: node_modules present but no blessed map → SKIP local, fail CI', () => {
+  const dir = fixture({ blessed: null })
   const local = runGate(dir, { ci: false })
   assert.equal(local.code, 0, local.out)
-  assert.ok(local.out.includes('expo CLI not installed'), local.out)
+  assert.ok(local.out.includes('bundledNativeModules.json'), local.out)
   const ci = runGate(dir, { ci: true })
   assert.equal(ci.code, 1, ci.out)
 })

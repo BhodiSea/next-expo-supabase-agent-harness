@@ -10,8 +10,7 @@
     "template/base/.claude/hooks/*.mjs",
     "template/base/.claude/statusline.mjs",
     "template/base/.claude/skills/*/scripts/*.mjs",
-    "template/base/tests/rls/run-rls.mjs",
-    "template/base/tests/migrations/migration-apply.mjs"
+    "template/base/tests/rls/run-rls.mjs"
   ],
   "project": [
     "installer/**/*.mjs",
@@ -33,6 +32,17 @@
     "template/modules/**",
     "template/base/**/*.ts"
   ],
-  "ignoreDependencies": ["@modelcontextprotocol/sdk", "@stryker-mutator/api"],
-  "ignoreBinaries": ["biome", "vitest", "stryker"]
+  // Specifiers that resolve only inside an installed scaffold, never in this repo:
+  // the inventory generators lazily import the CONSUMER's router/catalogs, and the
+  // rls-verify MCP probe takes postgres.js as a scaffold devDependency. `supabase`
+  // is likewise the consumer's catalog-pinned CLI, spawned by the RLS runner.
+  "ignoreDependencies": [
+    "@modelcontextprotocol/sdk",
+    "@stryker-mutator/api",
+    "@app/api",
+    "@app/events",
+    "@app/notes",
+    "postgres"
+  ],
+  "ignoreBinaries": ["biome", "vitest", "stryker", "supabase"]
 }

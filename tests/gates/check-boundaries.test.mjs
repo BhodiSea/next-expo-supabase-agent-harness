@@ -59,6 +59,11 @@ const WEB = {
   },
 }
 
+/**
+ * Fixture manifests are deliberately arbitrary shapes — each test varies one field to
+ * make one wall red — so they are typed loosely on purpose.
+ * @param {{ census?: any, packages?: any[][], mobile?: any, web?: any }} [opts]
+ */
 function fixture({ census = CENSUS, packages = PACKAGES, mobile = MOBILE, web = WEB } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-bounds-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })

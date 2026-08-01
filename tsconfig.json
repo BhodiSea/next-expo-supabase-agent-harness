@@ -31,6 +31,12 @@
     // servers / stryker configs import scaffold-only dependencies. ESLint
     // still lints all of these as repo source.
     "template/modules/**",
-    "template/base/tools/mcp/**"
+    "template/base/tools/mcp/**",
+    // Same class: the inventory generators lazily `await import()` the CONSUMER's
+    // own packages (@app/api, @app/events, a vertical's ./client) to read the live
+    // router and catalogs. Those specifiers exist only once the scaffold is
+    // installed; here they are unresolvable by construction.
+    "template/base/tools/gen-action-inventory.mjs",
+    "template/base/tools/gen-event-catalog.mjs"
   ]
 }

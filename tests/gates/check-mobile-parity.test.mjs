@@ -31,6 +31,9 @@ function run(dir, extraEnv = {}) {
 }
 
 // { actions? } omitted → no inventory written (skip path). { parity? } omitted → no ledger.
+/**
+ * @param {{ actions?: any, parity?: string, files?: string[], manifest?: any }} [opts]
+ */
 function scaffold({ actions, parity, files = [], manifest } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'parity-'))
   if (actions !== undefined) {

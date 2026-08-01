@@ -43,7 +43,11 @@ if (cmd === '--version') {
 process.exit(0)
 `
 
-// { committed?: string, genOutput?: string, ...envFlags } → { code, out }
+/**
+ * @param {{ committed?: string, genOutput?: string } & Record<string, string>} [opts]
+ *   Anything beyond `committed`/`genOutput` is passed through as an env flag.
+ * @returns {{ code: number | null, out: string }}
+ */
 function run({ committed, genOutput = GEN_OUTPUT, ...flags } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-typesdrift-'))
   const bin = join(dir, 'bin')
