@@ -25,6 +25,7 @@
     "template",
     "CHANGELOG.md",
     "REUSE.toml",
+    "LICENSE",
     "LICENSES"
   ],
   "scripts": {
