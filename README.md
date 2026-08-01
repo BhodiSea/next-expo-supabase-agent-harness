@@ -128,13 +128,22 @@ The shipped `template/` tree needs no rebranding — it is placeholder-clean, an
 the hygiene gate denies upstream references inside it. What does need rewriting
 in a copy is the checklist of repo-root sites that hardcode the upstream owner:
 
-- `package.json` — `repository.url`
+- `package.json` — `repository.url`, `homepage`, `bugs.url`, `author`
 - `README.md` — the npx command above, the sibling-harness link in the status
   note, and this checklist
 - `CITATION.cff` — `title`, `authors`, `repository-code`
+- `CHANGELOG.md` — the lineage note at the top (it names THIS repo as the
+  ancestor of yours) and the version line you continue from
+- `CONTRIBUTING.md` — rule 2 names the vocabulary your lineage owns
 - `SECURITY.md` — the advisories URL and the `update` command
-- `.claude-plugin/plugin.json` — the npx command in `description`, `author`
+- `.github/CODEOWNERS` — every owner handle
+- `.claude/settings.json` — you inherit the upstream maintainer's permissions;
+  review the default mode before your first agent turn
+- `.claude-plugin/plugin.json` — the npx command in `description`, `author`,
+  `homepage`, `repository`
 - `.claude-plugin/marketplace.json` — `owner`
+- `REUSE.toml` and `LICENSES/` — keep the upstream copyright and append yours
+- `tests/gates/check-reuse.test.mjs` — it asserts the upstream copyright string
 - `scripts/check-corpus-fidelity.mjs` — the User-Agent contact URL
 - `installer/lib/detect.mjs` — the sibling-harness redirect messages
 - `scripts/hygiene.mjs` — two edits, and the second is the one that bites.

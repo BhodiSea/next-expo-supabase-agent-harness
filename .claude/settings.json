@@ -1,9 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "_readme": [
-    "Harness-repo development settings: maximally permissive so routine work never prompts.",
-    "Only truly irreversible or outward-destructive actions sit in ask/deny; everything else is allowed.",
-    "Scratch-tree cleanup under /private/tmp stays prompt-free; recursive deletes aimed at the home tree or the repo cwd prompt first."
+    "Settings for working ON THE HARNESS ITSELF — not the policy a scaffolded app gets, and not this project's security posture.",
+    "A scaffolded app is governed by template/base/.claude/settings.json plus the PreToolUse guard hooks (the pure-data rule table in .claude/hooks/lib/guard-rules.mjs). Those hooks are the deterministic layer; a permissions file is convenience, and it is not installed here because this repo is the harness, not a consumer of it.",
+    "So this file is deliberately permissive: routine work on the machinery never prompts. Only truly irreversible or outward-destructive actions sit in ask/deny.",
+    "Scratch-tree cleanup under /private/tmp stays prompt-free; recursive deletes aimed at the home tree or the repo cwd prompt first.",
+    "FORKING THIS TEMPLATE: review this file before your first agent turn — you inherit it, and you may want a tighter default than the one the upstream maintainer runs."
   ],
   "permissions": {
     "defaultMode": "acceptEdits",
