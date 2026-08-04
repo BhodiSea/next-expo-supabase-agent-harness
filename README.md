@@ -19,9 +19,19 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 24 gates — and the selftest matrix proves
-> it on every push, including the live-Supabase RLS suite and the 16 can-fail
+> fresh scaffold with zero edits — all 29 gates — and the selftest matrix proves
+> it on every push, including the live-Supabase RLS suite and the 21 can-fail
 > canaries. Nothing is claimed here that that matrix does not run.
+>
+> **Honest losses.** Rate limiting binds the two application seams (the tRPC router
+> and the Next Server Action layer) and does **not** bind a client calling PostgREST
+> directly with the publishable key and its own JWT, nor sign-in/sign-up, which go to
+> GoTrue; the controls that bind every path are the per-org quota trigger and the
+> per-role statement timeouts. The limiter **fails open** when its backend is
+> unavailable — a recorded decision, which means a Redis outage is a window with no
+> rate limiting at all. Statement timeouts bound duration, not concurrency. SELECT
+> auditing is out of scope (the trail covers mutations). DSR export/erase is not
+> shipped, though the schema invariants that make it cheap later are.
 >
 > **Honest limits.** No wall-clock timings appear in this README: none have been
 > measured on this port, and unmeasured numbers do not ship. The device lanes
@@ -35,10 +45,11 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (71 guard-rule ids: shell-command denials, write-protected harness paths,
-   banned content everywhere), a PostToolUse provenance check, and a Claude
-   Code `Stop` hook that refuses to end a turn until the validation chain,
-   RLS isolation tests, and both unit suites pass.
+   (91 guard-rule ids: shell-command denials, write-protected harness paths,
+   banned content everywhere, and the schema/migration SQL surface), a
+   PostToolUse provenance check, and a Claude Code `Stop` hook that refuses to
+   end a turn until the validation chain, RLS isolation tests, and both unit
+   suites pass.
 2. **Commit-time checks** — lefthook + commitlint + gitleaks.
 3. **CI** — the same validation chain, fail-closed, plus device lanes
    (Android emulator + Maestro) and release automation (release-please +
@@ -49,7 +60,7 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-24 gates, cheap → expensive:
+29 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks —
 tampering is turn-fatal) → types (`tsc -b`) → lint (typescript-eslint
@@ -64,13 +75,46 @@ purity, secret-shaped `extra` ban, splash-color lockstep, eas.json sanity) →
 version-sync → prompts (hash-locked LLM prompts) → licenses → **schema-rls**
 (every `supabase/schemas` table FORCE RLS + per-operation policies + initPlan
 predicates + dual isolation-registry coverage, or a reviewed exemption) →
+**tenancy** (the multi-tenant contract as data: every tenant-table policy's
+top-level OR arms match the closed predicate-form set in `tools/tenancy.json`,
+helpers stay zero-argument/STABLE/INVOKER, tenant keys stay `NOT NULL` FKs,
+uniques stay partition-ready, freeze triggers hold, and the membership table
+stays self-only-read/deny-all-write — schema-rls proves a predicate is REAL,
+this proves it scopes by TENANT) →
 **types-drift** (the committed Supabase type mirror matches the live schema) →
-migrations (append-only, DML-free) → contracts → **parity** (two-way
+migrations (append-only, DML-free) →
+**db-limits** (the blast-radius ceilings asserted as data: every role×knob pair
+in `tools/db-limits.json` present in an `ALTER ROLE … SET`, inside its ceiling,
+and folded in *statement order* so a later re-set decides; the per-org quota
+trigger is `FOR EACH STATEMENT … REFERENCING NEW TABLE` with a release twin and
+an unscoped reconciler; `[api].max_rows` bounded; any `[db.pooler]` in
+transaction mode; every `postgres(` construction `prepare: false`) →
+contracts →
+**query-shapes** (every statement the DALs actually issue is bounded and
+index-served, judged against `tools/generated/query-shapes.json` — a manifest
+written by EXECUTING each DAL function through a harness-owned recording port,
+never by describing it. An index must carry the equality set as its leading
+columns and then the `ORDER BY` columns in order and in one scan direction, so
+the sort disappears rather than happening in memory; OFFSET pagination, an
+unbounded read, a cursor that disagrees with its sort, and a tenant table read
+without a leading tenant key all red) →
+**rate-limits** (the rate-limit budget as reviewed data: every MUTATION in the
+generated action inventory maps to a declared bucket or carries a reasoned
+exemption — both ways — and `apps/web/lib/rate-limit.ts` is evaluated and diffed
+against `tools/rate-limit-budget.json` by value, so a limit changed in code
+without a reviewed diff reds and so does the reverse; both seams are asserted
+wired, because a policy nothing consults is a policy in name only) →
+**parity** (two-way
 surface-parity ledger: every action ↔ a `PARITY.md` row, both ways) →
 dead-code (`knip --strict`) →
 architecture (dependency-cruiser: mobile never imports server code or the
 server stack, driver confined to the db layer, `db/context` DAL-only) → build →
 styleguide (OKLCH token manifest regen-diff) → perf-budget → route-manifest →
+**security-headers** (the web response posture asserted BY VALUE: the gate
+evaluates `apps/web/lib/security-headers.ts` and diffs what it returns against
+`tools/security-headers.json` — CSP directives, the nonce/strict-dynamic rule,
+framing-control agreement, and `private, no-store` + `Vary` on authenticated
+responses) →
 e2e (the jest-expo + RNTL fast lane) → docs-sync.
 
 CI runs the same chain against the frozen snapshot `tools/validate.floor.json`

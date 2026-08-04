@@ -1,0 +1,53 @@
+{
+  "comment": "SECURITY DEFINER functions reviewed and accepted. A definer function runs as its OWNER, so it is the one construct in this schema that can read or write rows the caller's policies forbid. Each entry is a human decision recorded in the PR diff under CODEOWNERS. An entry now does TWO things: it records the function as reviewed, and it AUTHORIZES `GRANT EXECUTE ... TO authenticated` on it — which is the only way a PostgREST RPC can be reached at all, since PostgREST switches to the JWT's role before calling and there is no 'dedicated role' path for a client call. EXECUTE to anon or PUBLIC is never legal, allowlisted or not. The schema-rls gate additionally requires every definer function to pin `SET search_path = ''`, to take no identity-shaped parameter (a definer derives the caller from auth.uid() internally; it never accepts who-am-I as an argument), and to show a REVOKE from PUBLIC and anon in its migration — because PostgreSQL grants EXECUTE to PUBLIC at creation and Supabase's default privileges add anon, so a migration that names no grants at all still ships an anon-callable definer function.",
+  "allow": [
+    {
+      "function": "public.create_org",
+      "reason": "Creates an org and its founding rank-40 seat in ONE transaction. Elevated because seat writes are denied to authenticated; the caller is read from auth.uid() internally and the orgs INSERT policy binds the new row to that same id, so no caller can create an org attributed to anyone else."
+    },
+    {
+      "function": "public.ensure_personal_org",
+      "reason": "Idempotently creates the caller's personal org and re-ensures its owner seat on every call. Replaces an AFTER INSERT trigger on auth.users, which would run identity-less (GoTrue inserts as supabase_auth_admin, so auth.uid() is NULL there) and whose failure would block every signup."
+    },
+    {
+      "function": "public.create_invitation",
+      "reason": "Mints a bearer token server-side, returns the plaintext exactly once and stores only its sha256 digest. Elevated because invitation writes are denied to authenticated; it refuses to mint a seat at or above the caller's own rank, which is what stops an admin inviting an owner and redeeming it from a second account."
+    },
+    {
+      "function": "public.accept_invitation",
+      "reason": "Consumes an invitation and inserts the caller's seat atomically. Elevated because the redeemer holds NO seat in the target org yet, so no rank or scope predicate can be true for them: this is the one write in the system authorized by token possession. Consumption is a DELETE, so a redeemed token cannot be replayed."
+    },
+    {
+      "function": "public.set_member_role",
+      "reason": "Changes another member's rank. Elevated because seat writes are denied to authenticated; the escalation rules live in the UPDATE policy (caller rank at least 30 AND target rank strictly below the caller's, on both USING and WITH CHECK), and the function raises when the policy matched no row rather than reporting a silent zero-row success."
+    },
+    {
+      "function": "public.remove_member",
+      "reason": "Removes a seat. Elevated for the same reason as set_member_role; the DELETE policy permits removing someone strictly below the caller's rank, or leaving voluntarily below rank 40, which makes the last-owner rule structural rather than a count nobody can perform under self-only reads."
+    },
+    {
+      "function": "audit.write_row",
+      "reason": "The audit trail's only writer, and a TRIGGER function rather than an RPC — nothing calls it by name. Elevated because layer 2 of the trail's append-only design revokes every client grant on audit.events, so an INVOKER trigger would insert as the calling user and fail 42501 on every audited write. It is owned by app_audit_writer, a NOLOGIN role whose entire authority is INSERT on one table, and it accepts no identity: actor_id is derived internally from the verified caller and re-checked by the table's INSERT policy against the database's own opinion, so a row blaming somebody else is refused. Per-table configuration travels as trigger ARGUMENTS fixed in the DDL, never as parameters a caller could choose. EXECUTE is revoked from PUBLIC and anon, which costs nothing because the executor does not re-check EXECUTE when firing a trigger (verified) and removes POST /rest/v1/rpc/write_row entirely."
+    },
+    {
+      "function": "public.org_audit_events",
+      "reason": "The trail's only read path, and the one client-callable definer here: schema `audit` grants USAGE to no client role, so a rank-30 admin cannot reach audit.events by any other route. Elevated to app_audit_reader, a NOLOGIN role holding SELECT and nothing else — it cannot write the trail it can read, which is why the writer and reader are separate roles. Authorization is NOT in this function: its `_org` argument is a selector, and the SELECT policy on audit.events (rank >= 30, evaluated with the human caller's identity still resolving through the JWT GUC) is what decides. Naming an org the caller does not administer returns the empty set, verified in both directions against a live database — rank 30 sees rows, the same user at rank 20 sees none. The result is clamped to 200 rows because a caller-supplied limit is a caller-supplied amount of work."
+    },
+    {
+      "function": "private.rpc_admin_org_ids",
+      "reason": "The recursion base case, and the ONLY read-path definer in the schema. PostgreSQL AND-s a table's SELECT policies onto any UPDATE/DELETE whose WHERE clause reads it, so the seat table's rpc-role SELECT policy has to admit the seats an admin may change or every promotion matches zero rows. Widening it through the ordinary INVOKER helpers is the recursive case (they read the seat table as the querying role and re-enter the policy that called them). This function is owned by app_tenancy_reader instead, whose seat policy is self-only and calls nothing, so the chain terminates in one hop. It returns org ids only — never seat rows, never another user's identity — is EXECUTE-granted to app_tenancy_rpc alone, and can write nothing."
+    },
+    {
+      "function": "private.enforce_org_quota",
+      "reason": "The quota increment, and a TRIGGER function rather than an RPC — nothing calls it by name. Elevated because `authenticated` holds no write grant on public.org_usage (a tenant that can edit its own counter has no quota), so an INVOKER trigger would fail 42501 on every metered insert. Owned by app_quota_writer, a NOLOGIN role whose entire authority is SELECT/INSERT/UPDATE on two tables, and its policies use the ordinary reviewed scope form: the trigger runs inside the caller's transaction, so it can only move a counter for an org RLS already admitted them to. Per-table configuration travels as trigger ARGUMENTS fixed in the DDL, never as parameters a caller could choose."
+    },
+    {
+      "function": "private.release_org_quota",
+      "reason": "The decrement twin of enforce_org_quota, elevated for the identical reason and holding the identical authority. It never raises: freeing rows can only move usage down, and a DELETE that failed because a counter looked wrong would turn a bookkeeping fault into an outage."
+    },
+    {
+      "function": "public.reconcile_org_usage",
+      "reason": "Nightly drift repair, recomputing every org's usage from count(*). Elevated AND deliberately left owned by the migration role rather than reassigned to app_quota_writer: reconciliation is inherently a whole-database read, and a tenant-scoped owner would resolve its policies through auth.uid() — which pg_cron does not have. The scope would come back empty, the truth set empty, and every counter in the database would be silently set to zero on a schedule. Safety is unreachability: EXECUTE is revoked from PUBLIC, anon and authenticated, so no client can call it by any path, and tools/check-db-limits.mjs reds if an ALTER FUNCTION ever reassigns it."
+    }
+  ]
+}

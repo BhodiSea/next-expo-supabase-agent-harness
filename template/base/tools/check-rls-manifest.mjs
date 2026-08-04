@@ -12,194 +12,138 @@
 // or UNIQUE on that column counts). Or the table is explicitly exempted in
 // tools/rls-exempt.json (write-guard-protected, human-reviewed, reasons required).
 //
-// Static and <100ms: statement-level SQL parsing, not substring vibes — an early
-// regex version was defeated by the shipped migration's own `AS PERMISSIVE` syntax
-// and never looked at predicates at all. The runtime twins re-assert isolation and
-// the index/initPlan facts from pg_catalog against `supabase start`:
-// supabase/tests/*.sql (pgTAP) and tests/rls/ (the client), both via
-// tests/rls/run-rls.mjs.
+// FOUR CHECKS ADDED IN 0.2.0, each closing a hole this gate provably had:
+//
+//   1. NEGATION (unramped). The gate collected ENABLE and FORCE and nothing else, so
+//      a later migration containing `ALTER TABLE x DISABLE ROW LEVEL SECURITY` — or
+//      `NO FORCE`, or `DISABLE TRIGGER` — matched no pattern, left the table in the
+//      `enabled` set, and the gate reported the table fully covered. Unramped
+//      deliberately: no legitimate install has ever turned RLS off, so ramping this
+//      would protect only a tampered tree.
+//   2. HELPER-BODY RESOLUTION. The initPlan check read the policy text alone, so
+//      moving `auth.uid()` into a plain SQL helper and calling the helper bare
+//      vacated it. Predicates now resolve one hop through locally-defined function
+//      bodies.
+//   3. CORRELATED-SUBQUERY BAN. `EXISTS (SELECT 1 FROM memberships m WHERE
+//      m.org_id = notes.org_id AND m.user_id = (SELECT auth.uid()))` satisfies both
+//      the old vacuity check and the old initPlan regex — it does contain
+//      `(select ... auth.uid()`. It is also a per-row SubPlan that re-enters the
+//      referenced table's own policies. Only uncorrelated forms hoist to an InitPlan.
+//   4. SECURITY DEFINER DISCIPLINE. A definer function is the standard Supabase
+//      privilege-escalation footgun. Each one must be allowlisted with a reason in
+//      tools/security-definer-allow.json, pin `SET search_path = ''`, and take no
+//      identity-shaped parameter (a caller who can say WHO THEY ARE is not
+//      authenticated, they are trusted). On the EXECUTE surface the rule is not
+//      "no wide grant" but "prove the default was undone": PostgreSQL grants
+//      EXECUTE to PUBLIC at creation and Supabase's default privileges add anon, so
+//      a migration that names no grants at all still ships an anon-callable definer
+//      function. Every definer function must therefore show a REVOKE from PUBLIC and
+//      anon; EXECUTE to `authenticated` is legal only for an allowlisted function,
+//      because PostgREST switches to the JWT's role before calling and there is no
+//      other way for a client-callable RPC to exist.
+//
+// Static and <100ms: statement-level SQL parsing via tools/lib/sql-parse.mjs, not
+// substring vibes — an early regex version was defeated by the shipped migration's
+// own `AS PERMISSIVE` syntax and never looked at predicates at all. The runtime
+// twins re-assert isolation and the index/initPlan facts from pg_catalog against
+// `supabase start`: supabase/tests/*.sql (pgTAP) and tests/rls/ (the client), both
+// via tests/rls/run-rls.mjs.
 // SOURCE: docs/harness/README.md (schema-rls gate) [corpus: postgres/rls-force]
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
+import { existsSync, readFileSync } from 'node:fs'
+import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  parseFunctions,
+  parseGrants,
+  parseIndexes,
+  parsePolicies,
+  parseRlsToggles,
+  readSqlDir,
+  readSqlDirByFile,
+  splitStatements,
+  stripSchema,
+} from './lib/sql-parse.mjs'
 
 const GATE = 'schema-rls'
 const SCHEMAS_DIR = 'supabase/schemas'
 const MIGRATIONS_DIR = 'supabase/migrations'
 const EXEMPT = 'tools/rls-exempt.json'
+const DEFINER_ALLOW = 'tools/security-definer-allow.json'
 const DB_CONTEXT = 'tests/rls/db-context.ts'
 const PGTAP_STRUCTURE = 'supabase/tests/rls_structure.test.sql'
+const CONFIG_TOML = 'supabase/config.toml'
+const RAMP = '0.2.0'
 
 if (!existsSync(SCHEMAS_DIR)) skipOrFail(GATE, `${SCHEMAS_DIR} not found (no schema surface yet)`)
 
-// Concatenate every .sql in a directory in filename order — the cumulative text is
-// what the database ends up running.
-function readSqlDir(dir) {
-  if (!existsSync(dir)) return ''
-  let raw = ''
-  for (const f of readdirSync(dir)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()) {
-    raw += `\n${readFileSync(join(dir, f), 'utf8')}`
-  }
-  return raw
-}
-
-// Strip line comments (they legally contain SQL keywords), drop double quotes, and
-// collapse each statement to one whitespace-normalized line. Dollar-quoted function
-// bodies split into fragments that match none of the DDL patterns below — harmless.
-function statementsOf(raw) {
-  return raw
-    .split('\n')
-    .filter((l) => !/^\s*--/.test(l))
-    .join('\n')
-    .replace(/"/g, '')
-    .split(/;|--> statement-breakpoint/)
-    .map((s) => s.replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
-}
-
-const stripSchema = (t) => t.replace(/^public\./, '')
-
-// 1. Declared tables = the DESIRED state (supabase/schemas). This is the pgTable
-//    analogue: the inventory every other check is closed over.
+// 1. Declared tables = the DESIRED state (supabase/schemas). The inventory every
+//    other check is closed over.
 const declaredTables = new Set()
-for (const stmt of statementsOf(readSqlDir(SCHEMAS_DIR))) {
+for (const stmt of splitStatements(readSqlDir(SCHEMAS_DIR))) {
   const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
-  if (m) declaredTables.add(stripSchema(m[1].toLowerCase()))
+  if (m) declaredTables.add(stripSchema(m[1]))
 }
 if (declaredTables.size === 0) skipOrFail(GATE, `no CREATE TABLE found in ${SCHEMAS_DIR} yet`)
 
 // 2. Exemptions — the ONE escape hatch, so its parse fails LOUD, never open.
 //    Canonical shape: { "comment": string, "exempt": [{ "table": string, "reason": string }] }
-const exempt = new Set()
-if (existsSync(EXEMPT)) {
+function reviewedList(path, key, itemKey) {
+  const out = new Map()
+  if (!existsSync(path)) return out
   let parsed
   try {
-    parsed = JSON.parse(readFileSync(EXEMPT, 'utf8'))
+    parsed = JSON.parse(readFileSync(path, 'utf8'))
   } catch (e) {
+    fail(GATE, `${path} is not valid JSON (${e.message}) — the list must be reviewable data`)
+  }
+  if (!Array.isArray(parsed[key])) {
     fail(
       GATE,
-      `${EXEMPT} is not valid JSON (${e.message}) — the exemption list must be reviewable data`,
+      `${path} must carry a "${key}" ARRAY of {${itemKey}, reason} entries — got ${JSON.stringify(Object.keys(parsed))}`,
     )
   }
-  if (!Array.isArray(parsed.exempt)) {
-    fail(
-      GATE,
-      `${EXEMPT} must carry an "exempt" ARRAY of {table, reason} entries — got ${JSON.stringify(Object.keys(parsed))}`,
-    )
-  }
-  for (const entry of parsed.exempt) {
+  for (const entry of parsed[key]) {
     const okShape =
       entry !== null &&
       typeof entry === 'object' &&
-      typeof entry.table === 'string' &&
+      typeof entry[itemKey] === 'string' &&
       typeof entry.reason === 'string' &&
       entry.reason.trim().length > 0
     if (!okShape) {
       fail(
         GATE,
-        `${EXEMPT}: every exemption must be {"table": string, "reason": non-empty string} — got ${JSON.stringify(entry)}`,
+        `${path}: every entry must be {"${itemKey}": string, "reason": non-empty string} — got ${JSON.stringify(entry)}`,
       )
     }
-    exempt.add(entry.table)
+    out.set(entry[itemKey].toLowerCase(), entry)
   }
+  return out
 }
+
+const exempt = new Set(reviewedList(EXEMPT, 'exempt', 'table').keys())
+const definerAllow = reviewedList(DEFINER_ALLOW, 'allow', 'function')
 
 // 3. Statement-level parse of the APPLIED migration SQL — the history a database
 //    actually replays. RLS is only real once it is in a migration; a policy that
-//    lives only in the declarative schema never ran.
-const enabled = new Set()
-const forced = new Set()
-const createdTables = new Set()
-// table -> Set of leading index columns (CREATE INDEX / PK / UNIQUE)
-const indexedLeading = new Map()
-// table -> op -> [{ name, using, check }]
-const policies = new Map()
+//    lives only in the declarative schema never ran. Parsed PER FILE so a negation
+//    can name the migration that introduced it.
+const perFile = readSqlDirByFile(MIGRATIONS_DIR)
+const allStatements = perFile.flatMap((f) => f.statements)
 
-function registerLeading(table, col) {
-  const c = col.toLowerCase()
-  if (!indexedLeading.has(table)) indexedLeading.set(table, new Set())
-  indexedLeading.get(table).add(c)
+const { enabled, forced, disabled, unforced, triggersDisabled } = parseRlsToggles(allStatements)
+const { policies } = parsePolicies(allStatements)
+const { leading: indexedLeading } = parseIndexes(allStatements)
+const functions = parseFunctions(allStatements)
+const grants = parseGrants(allStatements)
+
+const createdTables = new Set()
+for (const stmt of allStatements) {
+  const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
+  if (m) createdTables.add(stripSchema(m[1]))
 }
 
-for (const stmt of statementsOf(readSqlDir(MIGRATIONS_DIR))) {
-  let m = stmt.match(/^ALTER TABLE (?:ONLY )?([a-z0-9_.]+) ENABLE ROW LEVEL SECURITY$/i)
-  if (m) {
-    enabled.add(stripSchema(m[1].toLowerCase()))
-    continue
-  }
-  m = stmt.match(/^ALTER TABLE (?:ONLY )?([a-z0-9_.]+) FORCE ROW LEVEL SECURITY$/i)
-  if (m) {
-    forced.add(stripSchema(m[1].toLowerCase()))
-    continue
-  }
-  m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
-  if (m) {
-    const table = stripSchema(m[1].toLowerCase())
-    createdTables.add(table)
-    // An INLINE primary key is the owner index for a table whose owner column IS
-    // its id (e.g. public.profiles): `id uuid PRIMARY KEY` creates the index the
-    // policy qual rides, with no separate CREATE INDEX. Parse the column list so
-    // that counts. The list is everything between the first `(` and the final `)`.
-    const cols = stmt.match(/^CREATE TABLE[^(]*\((.*)\)\s*$/is)?.[1]
-    if (cols !== undefined) {
-      // Column-level `<col> <type> ... PRIMARY KEY|UNIQUE` (not the table-level
-      // `PRIMARY KEY (...)` form, which the negative lookahead excludes).
-      for (const cm of cols.matchAll(
-        /(?:^|,)\s*([a-z0-9_]+)\b[^,]*?\b(?:PRIMARY KEY|UNIQUE)\b(?!\s*\()/gi,
-      )) {
-        registerLeading(table, cm[1])
-      }
-      // Table-level `[CONSTRAINT x] PRIMARY KEY|UNIQUE (<col>, ...)` — leading col.
-      for (const cm of cols.matchAll(/\b(?:PRIMARY KEY|UNIQUE)\s*\(\s*([a-z0-9_]+)/gi)) {
-        registerLeading(table, cm[1])
-      }
-    }
-    continue
-  }
-  // CREATE [UNIQUE] INDEX [CONCURRENTLY] [IF NOT EXISTS] <name> ON [ONLY] <table>
-  //   [USING <method>] (<col> [...], ...) — record the LEADING column only; a
-  //   second-position owner column does not serve the policy's equality qual.
-  m = stmt.match(
-    /^CREATE (?:UNIQUE )?INDEX (?:CONCURRENTLY )?(?:IF NOT EXISTS )?[a-z0-9_]+ ON (?:ONLY )?([a-z0-9_.]+)(?: USING [a-z0-9_]+)? ?\((.+)\)/i,
-  )
-  if (m === null) {
-    // ALTER TABLE <t> ADD CONSTRAINT <n> PRIMARY KEY|UNIQUE (<col>, ...) backs an
-    // index too — count its leading column the same way.
-    m = stmt.match(
-      /^ALTER TABLE (?:ONLY )?([a-z0-9_.]+) ADD CONSTRAINT [a-z0-9_]+ (?:PRIMARY KEY|UNIQUE) ?\((.+?)\)/i,
-    )
-  }
-  if (m) {
-    const table = stripSchema(m[1].toLowerCase())
-    // First bare identifier of the first column item; an expression index
-    // (e.g. lower(col)) yields the function name and correctly never matches —
-    // it cannot serve the policy's plain equality qual.
-    const leading = m[2]
-      .split(',')[0]
-      .trim()
-      .toLowerCase()
-      .match(/^[a-z0-9_]+/)?.[0]
-    if (leading !== undefined) registerLeading(table, leading)
-    continue
-  }
-  // CREATE POLICY <name> ON <table> [AS PERMISSIVE|RESTRICTIVE] [FOR <op>]
-  //   [TO <roles>] [USING (...)] [WITH CHECK (...)]
-  m = stmt.match(/^CREATE POLICY ([a-z0-9_]+) ON ([a-z0-9_.]+)(.*)$/i)
-  if (m) {
-    const [, name, tableRaw, rest] = m
-    const table = stripSchema(tableRaw.toLowerCase())
-    const op = (
-      rest.match(/\bFOR (ALL|SELECT|INSERT|UPDATE|DELETE)\b/i)?.[1] ?? 'ALL'
-    ).toUpperCase()
-    const using = rest.match(/\bUSING \((.*?)\)(?: WITH CHECK|$)/is)?.[1] ?? null
-    const check = rest.match(/\bWITH CHECK \((.*)\)$/is)?.[1] ?? null
-    if (!policies.has(table)) policies.set(table, new Map())
-    const byOp = policies.get(table)
-    if (!byOp.has(op)) byOp.set(op, [])
-    byOp.get(op).push({ name, using, check })
-  }
+/** Which migration file a statement came from — for negation messages that name it. */
+function fileOf(stmt) {
+  return perFile.find((f) => f.statements.includes(stmt))?.file ?? MIGRATIONS_DIR
 }
 
 // 4. Runtime-matrix closure. TWO registries the runtime suites drive, which the gate
@@ -234,12 +178,60 @@ if (existsSync(PGTAP_STRUCTURE)) {
 
 const OPS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
 const errs = []
+// New-in-0.2.0 findings, held separately so the ramp can downgrade them to NOTEs on
+// an install whose seeded content predates the check.
+const rampedErrs = []
+
+// ---------------------------------------------------------------------------
+// Predicate analysis
+// ---------------------------------------------------------------------------
 
 // A predicate is vacuous when it always passes; a per-row identity call (no initPlan
 // sub-select) is a correctness-adjacent perf failure the runtime suite cannot see (it
 // tests 2 rows, production has 2 million).
 const IDENTITY_CALL = /\b(?:auth\.uid|auth\.jwt|current_setting)\s*\(/i
 const IDENTITY_IN_SUBSELECT = /\(\s*select\b[^)]*(?:auth\.uid|auth\.jwt|current_setting)\s*\(/i
+
+// Locally-defined function bodies, so a predicate that calls a helper is judged on
+// what the helper DOES, not on the fact that it is a call.
+// The body's EXPRESSION, not its statement: a SQL-language helper is written
+// `SELECT auth.uid()`, and that leading SELECT belongs to the function definition,
+// not to the value it returns. Inlining it verbatim would manufacture the very
+// `(SELECT ...)` sub-select the initPlan rule is looking for and green the bare call.
+const fnBodies = new Map()
+for (const f of functions) {
+  if (f.body === null) continue
+  const expr = f.body
+    .trim()
+    .replace(/;+\s*$/, '')
+    .replace(/^select\s+/i, '')
+  fnBodies.set(f.qualified, expr)
+  fnBodies.set(f.name, expr)
+}
+
+/**
+ * The predicate with every local helper call replaced, IN PLACE, by that helper's
+ * body (one hop). Substituting at the call site rather than appending is what keeps
+ * the initPlan check positional: `owner_id = helper()` inlines to a bare identity
+ * call and reds, while `owner_id = (SELECT helper())` inlines to the sub-select form
+ * and passes. Appending the body would have judged both identically.
+ */
+function resolved(body) {
+  let text = body
+  // Longest name first, so `public.f` is consumed before a bare `f` can match inside it.
+  for (const name of [...fnBodies.keys()].sort((a, b) => b.length - a.length)) {
+    const re = new RegExp(`\\b${name.replace(/\./g, '\\.')}\\s*\\([^()]*\\)`, 'gi')
+    text = text.replace(re, `(${fnBodies.get(name).trim()})`)
+  }
+  return text
+}
+
+// A sub-select that reads a RELATION is a SubPlan when it references the outer row and
+// a join when it does not; either way it is not the uncorrelated scalar the planner
+// hoists once per statement. `(select auth.uid())` and `(select private.member_org_ids())`
+// have no FROM and are exactly the shape that hoists.
+const SUBSELECT_WITH_FROM = /\(\s*select\b[^()]*(?:\([^()]*\)[^()]*)*\bfrom\b/i
+
 function checkPredicate(table, policyName, kind, body) {
   if (body === null) return
   const trimmed = body.trim().toLowerCase()
@@ -247,18 +239,46 @@ function checkPredicate(table, policyName, kind, body) {
     errs.push(`${table}: policy ${policyName} has a vacuous ${kind} (true) — it permits every row`)
     return
   }
-  if (IDENTITY_CALL.test(body) && !IDENTITY_IN_SUBSELECT.test(body)) {
+  const full = resolved(body)
+  if (IDENTITY_CALL.test(full) && !IDENTITY_IN_SUBSELECT.test(full)) {
     errs.push(
       `${table}: policy ${policyName} calls an identity function per row — wrap it in a scalar sub-select (initPlan pattern): (select auth.uid())`,
     )
   }
+  if (SUBSELECT_WITH_FROM.test(body)) {
+    rampedErrs.push(
+      `${table}: policy ${policyName} ${kind} contains a sub-select over a relation — a correlated SubPlan is evaluated PER ROW and re-enters that table's own policies. Use an uncorrelated scalar helper, e.g. \`= ANY((SELECT private.member_org_ids())::uuid[])\`. Predicate: ${body.trim()}`,
+    )
+  }
 }
+
+// ---------------------------------------------------------------------------
+// Per-table checks
+// ---------------------------------------------------------------------------
 
 for (const table of [...declaredTables].sort()) {
   if (exempt.has(table)) continue
   if (!enabled.has(table)) errs.push(`${table}: no ENABLE ROW LEVEL SECURITY in any migration`)
   if (!forced.has(table))
     errs.push(`${table}: no FORCE ROW LEVEL SECURITY (owner would bypass policies)`)
+
+  // The negation set — unramped. A table that is ever turned off is not covered,
+  // whatever an earlier migration said.
+  if (disabled.has(table)) {
+    errs.push(
+      `${table}: RLS is DISABLED by a later migration (${fileOf(disabled.get(table))}) — an ENABLE in an earlier migration does not survive it. Re-enable it in a NEW migration, or remove the DISABLE.`,
+    )
+  }
+  if (unforced.has(table)) {
+    errs.push(
+      `${table}: FORCE is removed by NO FORCE ROW LEVEL SECURITY in ${fileOf(unforced.get(table))} — the table owner then bypasses every policy.`,
+    )
+  }
+  if (triggersDisabled.has(table)) {
+    errs.push(
+      `${table}: triggers are DISABLED in ${fileOf(triggersDisabled.get(table))} — a disabled trigger silently stops enforcing whatever it guarded (updated_at, org freeze, audit).`,
+    )
+  }
 
   const byOp = policies.get(table) ?? new Map()
   for (const op of OPS) {
@@ -327,6 +347,145 @@ for (const table of [...createdTables].sort()) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// SECURITY DEFINER discipline
+// ---------------------------------------------------------------------------
+// A definer function runs as its OWNER. That is the correct tool for the one job RLS
+// cannot do (letting a caller read rows they may not read directly, under a rule the
+// function itself enforces) and a privilege-escalation primitive everywhere else.
+// SOURCE: https://www.postgresql.org/docs/17/sql-createfunction.html (writing SECURITY DEFINER functions safely)
+
+// Anchored, so a TARGET-shaped parameter (`p_target_user_id` — who the caller is
+// acting ON) is distinguishable from an IDENTITY-shaped one (`user_id` — who the
+// caller claims to BE). The first is a legitimate argument; the second is the
+// footgun, because a definer function that accepts who-am-I is not authenticating
+// anyone, it is trusting them.
+const IDENTITY_PARAM = /^_?(uid|user_id|actor|actor_id|caller|caller_id|current_user_id|auth_uid)$/i
+
+for (const fn of functions) {
+  if (!fn.securityDefiner) continue
+  const allowed = definerAllow.get(fn.qualified) ?? definerAllow.get(fn.name)
+  if (allowed === undefined) {
+    rampedErrs.push(
+      `${fn.qualified}: SECURITY DEFINER with no entry in ${DEFINER_ALLOW} — a definer function runs as its owner and bypasses the caller's policies; register it with a reason, or make it SECURITY INVOKER`,
+    )
+    continue
+  }
+  if (fn.searchPath !== '') {
+    rampedErrs.push(
+      `${fn.qualified}: SECURITY DEFINER without \`SET search_path = ''\` (got ${fn.searchPath === null ? 'no SET at all' : `'${fn.searchPath}'`}) — a caller who controls search_path resolves your unqualified names to their own objects and runs them as the owner`,
+    )
+  }
+  for (const p of fn.params) {
+    if (IDENTITY_PARAM.test(p.name)) {
+      rampedErrs.push(
+        `${fn.qualified}: SECURITY DEFINER takes an identity-shaped parameter '${p.name}' — a definer function must derive the caller from auth.uid() internally, never accept who-am-I as an argument`,
+      )
+    }
+  }
+}
+
+// THE ABSENCE OF A REVOKE IS THE EXPOSURE, which is why this half is unramped and
+// why "no GRANT statement anywhere" is not evidence of safety.
+//
+// PostgreSQL grants EXECUTE to PUBLIC on every function at creation, and Supabase's
+// default privileges additionally grant anon/authenticated in `public`. So a
+// SECURITY DEFINER function created by a migration that says nothing about grants is
+// already callable by an unauthenticated caller over PostgREST — and a gate that
+// only inspects GRANT statements sees a clean migration and reports green. The
+// REVOKE is the only evidence a migration can carry that the default was undone.
+//
+// Unramped, for the reason the 0.2.0 security-headers bug taught: the subject here is
+// a file the HARNESS ships (the tenancy spine's RPCs). Ramping it would make the rule
+// advisory on precisely the tree that has definer functions, and the shipped 0.1.3
+// scaffold has none — so no legitimate legacy install has one to sweep, and the ramp
+// would protect only a tree that added one.
+const revokedFrom = new Map() // bare/qualified fn name -> Set<role>
+for (const g of grants) {
+  if (g.kind !== 'REVOKE') continue
+  if (!g.privileges.includes('EXECUTE') && !g.privileges.includes('ALL')) continue
+  const target = g.target.replace(/\(.*$/, '').trim()
+  if (!revokedFrom.has(target)) revokedFrom.set(target, new Set())
+  for (const r of g.roles) revokedFrom.get(target).add(r)
+}
+
+const grantedExecute = new Map() // bare/qualified fn name -> Set<role>
+for (const g of grants) {
+  if (g.kind !== 'GRANT' || !g.privileges.includes('EXECUTE')) continue
+  const target = g.target.replace(/\(.*$/, '').trim()
+  if (!grantedExecute.has(target)) grantedExecute.set(target, new Set())
+  for (const r of g.roles) grantedExecute.get(target).add(r)
+}
+
+for (const fn of functions) {
+  if (!fn.securityDefiner) continue
+  const allowed = definerAllow.get(fn.qualified) ?? definerAllow.get(fn.name)
+  const revoked = revokedFrom.get(fn.qualified) ?? revokedFrom.get(fn.name) ?? new Set()
+  const granted = grantedExecute.get(fn.qualified) ?? grantedExecute.get(fn.name) ?? new Set()
+
+  for (const role of ['public', 'anon']) {
+    if (granted.has(role)) {
+      errs.push(
+        `${fn.qualified}: EXECUTE granted to ${role} on a SECURITY DEFINER function — a definer function runs as its owner, so this hands an unauthenticated caller the owner's authority through POST /rest/v1/rpc/${fn.name}`,
+      )
+    } else if (!revoked.has(role)) {
+      errs.push(
+        `${fn.qualified}: no \`REVOKE EXECUTE ON FUNCTION … FROM ${role.toUpperCase()}\` in any migration — PostgreSQL grants EXECUTE to PUBLIC on every new function and Supabase's default privileges additionally grant anon, so a definer function that names no grants is ALREADY callable by an unauthenticated caller. Add: REVOKE ALL ON FUNCTION ${fn.qualified}(…) FROM PUBLIC, anon;`,
+      )
+    }
+  }
+
+  // EXECUTE to `authenticated` is the ONLY way a PostgREST RPC can be reached —
+  // PostgREST switches to the JWT's role before calling, so there is no "dedicated
+  // role reached through a narrow policy" path for a client-callable function. It is
+  // therefore legal, but only as a recorded decision: the allowlist entry IS the
+  // review, and the write-guard + escape-list registration make editing it an act
+  // that lands in the PR diff.
+  if (granted.has('authenticated') && allowed === undefined) {
+    errs.push(
+      `${fn.qualified}: EXECUTE granted to authenticated on a SECURITY DEFINER function with no entry in ${DEFINER_ALLOW} — a client-callable definer function is a deliberate privilege-escalation surface and must be registered with a reason`,
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Non-public schemas
+// ---------------------------------------------------------------------------
+// A table outside `public` is legal — it is how the audit trail stays unreachable by
+// PostgREST — but only when it is declared like every other table AND its schema is
+// absent from [api].schemas. A non-public table exposed over the API is strictly
+// worse than a public one, because no reviewer thinks to look for it.
+if (existsSync(CONFIG_TOML)) {
+  const apiSchemas = readFileSync(CONFIG_TOML, 'utf8')
+    .match(/^\s*schemas\s*=\s*\[([^\]]*)\]/m)?.[1]
+    ?.split(',')
+    .map((s) => s.trim().replace(/["']/g, '').toLowerCase())
+    .filter(Boolean)
+  if (apiSchemas !== undefined) {
+    for (const table of [...declaredTables, ...createdTables]) {
+      if (!table.includes('.')) continue
+      const schema = table.slice(0, table.indexOf('.'))
+      if (apiSchemas.includes(schema)) {
+        errs.push(
+          `${table}: schema '${schema}' is listed in [api].schemas (${CONFIG_TOML}) — a table kept out of \`public\` to be unreachable by PostgREST must not then be published by it`,
+        )
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+if (rampedErrs.length > 0) {
+  const ramped = rampNote(
+    GATE,
+    RAMP,
+    `${rampedErrs.length} finding(s) from the 0.2.0 checks (correlated policy predicates, SECURITY DEFINER discipline)`,
+  )
+  if (ramped) for (const e of rampedErrs) console.log(`${GATE}: NOTE — ${e}`)
+  else errs.push(...rampedErrs)
+}
+
 failures(
   GATE,
   errs,
@@ -334,5 +493,5 @@ failures(
 )
 ok(
   GATE,
-  `${declaredTables.size} table(s): FORCE RLS + per-op policies + real predicates + owner-column indexes + dual isolation-registry coverage`,
+  `${declaredTables.size} table(s): FORCE RLS (never disabled) + per-op policies + real, uncorrelated predicates + owner-column indexes + dual isolation-registry coverage${functions.some((f) => f.securityDefiner) ? ` + ${functions.filter((f) => f.securityDefiner).length} reviewed definer function(s)` : ''}`,
 )

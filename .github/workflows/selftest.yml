@@ -427,12 +427,34 @@ jobs:
           fi
           rm apps/mobile/src/oops-i18n.tsx
           echo 'canary OK: the static i18n gate went red'
+      - name: 'Canary 21: delete a CSP directive → security-headers must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          sed -i "/frame-ancestors 'none'/d" apps/web/lib/security-headers.ts
+          if env -u GITHUB_BASE_REF node tools/check-security-headers.mjs; then
+            echo '::error::CANARY: security-headers PASSED a CSP with no frame-ancestors — the value check cannot fail'; exit 1
+          fi
+          git checkout -q -- apps/web/lib/security-headers.ts
+          echo 'canary OK: security-headers went red'
+      - name: 'Canary 22: RLS turned OFF by a later migration → schema-rls must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        # The 0.1.3 gate collected ENABLE and FORCE and matched no negation, so this
+        # exact statement left `notes` in the enabled set and the gate reported the
+        # table fully covered. Unramped, because no legitimate install disables RLS.
+        run: |
+          printf 'ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY;\n' > supabase/migrations/29990101000000_canary_disable_rls.sql
+          if env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs; then
+            echo '::error::CANARY: schema-rls PASSED a migration that DISABLES row level security — the negation set cannot fail'; exit 1
+          fi
+          rm supabase/migrations/29990101000000_canary_disable_rls.sql
+          echo 'canary OK: schema-rls went red on the negation'
       - name: Restore sanity — gates green again after the last restore
         working-directory: ${{ runner.temp }}/canary
         run: |
           env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs
           env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
           env -u GITHUB_BASE_REF node tools/check-i18n.mjs
+          env -u GITHUB_BASE_REF node tools/check-security-headers.mjs
 
   canary-mutation:
     name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
@@ -679,15 +701,18 @@ jobs:
         if: matrix.node == 22
         working-directory: .selftest/boot
         run: |
-          # notes_owner_id_created_at_id_idx is the ONLY index whose leading column is
-          # notes.owner_id — the one that turns each policy qual into an Index Cond
-          # instead of a whole-partition scan and carries the keyset ORDER BY tail. The
-          # pgTAP structure suite asserts every owner column leads SOME index; drop it
-          # live and `supabase test db` must red on that invariant — proof the assertion
-          # is wired to the real schema, not a statement nobody runs. The drop is applied
-          # directly (not via a migration edit) and persists across the test run.
+          # notes.org_id is the tenant key every policy qual filters on, and TWO indexes
+          # lead with it since the org re-scope: notes_org_id_created_at_id_idx (which
+          # also carries the keyset ORDER BY tail) and notes_pkey, which became
+          # (org_id, id) so the table is partition-ready. The pgTAP structure suite
+          # asserts every owner column leads SOME index, so BOTH have to go for the
+          # invariant to be exercised — dropping only the secondary one leaves the PK
+          # satisfying it and the canary silently stops biting, which is the exact shape
+          # of rot this job exists to catch. Applied directly (not via a migration edit)
+          # and restored below.
           eval "$(supabase status -o env)"
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_owner_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes DROP CONSTRAINT notes_pkey'
           if supabase test db > plan-canary.log 2>&1; then
             tail -n 60 plan-canary.log
             echo '::error::PLAN CANARY: the RLS structure suite PASSED with notes.owner_id leading no index — the owner-column-index invariant cannot fail, the exact defect it exists to catch'
@@ -700,10 +725,122 @@ jobs:
             echo '::error::the suite failed, but NOT on the owner-column-index invariant — the canary is not exercising the index-structure surface (log above)'
             exit 1
           fi
-          grep -Ei 'Failed test|LEADING column of some index|owner_id' plan-canary.log | tail -n 6 || true
-          # Restore the index so the job's remaining steps see the intended schema.
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_owner_id_created_at_id_idx ON public.notes (owner_id, created_at DESC, id DESC)'
+          grep -Ei 'Failed test|LEADING column of some index|org_id' plan-canary.log | tail -n 6 || true
+          # Restore both so the job's remaining steps see the intended schema.
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes ADD CONSTRAINT notes_pkey PRIMARY KEY (org_id, id)'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'
           echo 'canary OK: the RLS structure test went red on the dropped keyset index'
+      - name: 'Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)'
+        if: matrix.node == 22
+        working-directory: .selftest/boot
+        run: |
+          # The static db-limits gate reads migration text; it cannot see a database. This
+          # canary removes the ceiling FROM THE LIVE DATABASE — no file changes — so the
+          # only layer that can notice is the one that asks the database what is in force.
+          #
+          # Both runtime layers red on this edit (pgTAP asserts the pg_db_role_setting row
+          # exists; the SDK runner asserts PostgREST APPLIED it), which is why the grep
+          # below pins the SDK layer's own message rather than accepting any red. That
+          # distinction is the whole reason the runner exists beside the pgTAP assertion:
+          # `ALTER ROLE x SET` binds at session start and `SET ROLE` does not re-apply it,
+          # so the ceilings bind API traffic only because PostgREST reads
+          # pg_db_role_setting for the role it impersonates and applies it per request.
+          # A PostgREST upgrade that dropped that behaviour would leave the catalog
+          # assertion green and every ceiling gone.
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER ROLE anon RESET statement_timeout'
+          if CI=true node tests/rls/run-rls.mjs > limits-canary.log 2>&1; then
+            tail -n 60 limits-canary.log
+            echo '::error::LIMITS CANARY: the RLS suite PASSED with anon carrying no statement_timeout — the per-role ceilings cannot fail, the exact defect the runner exists to catch'
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
+            exit 1
+          fi
+          if ! grep -q 'in force but' limits-canary.log; then
+            tail -n 60 limits-canary.log
+            echo '::error::the suite failed, but NOT on the in-force ceiling assertion — the SDK resource-limits layer is not biting (log above)'
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
+            exit 1
+          fi
+          grep -E 'in force but|statement_timeout' limits-canary.log | tail -n 4 || true
+          # Restore, so the remaining steps see the intended ceilings.
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
+          echo 'canary OK: the resource-limits runner went red on a ceiling that exists in every migration and in no live session'
+      # The db-scale lane's own falsifiability, and the reason that lane exists at all.
+      # Every structural check in this repo is TRUE of a two-row table, and a planner
+      # correctly ignores an index on one — so until this ran, the claim the whole
+      # tenancy design rests on had nothing that could contradict it.
+      - name: 'Scale-seed the stack (the db-scale lane needs cardinality no other lane has)'
+        if: matrix.node == 22
+        working-directory: .selftest/boot
+        run: |
+          eval "$(supabase status -o env)"
+          # Below the reviewed floor in tools/db-perf-baseline.json the probe SKIPS rather
+          # than certifying, so the row count here is not a tuning knob — it is the
+          # minimum at which the gate will speak at all.
+          time psql "$DB_URL" -q -v ON_ERROR_STOP=1 -v scale_rows=1100000 -f supabase/seeds/scale.sql
+      - name: 'Canary 24: drop the keyset index from the live database → db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN'
+        if: matrix.node == 22
+        working-directory: .selftest/boot
+        run: |
+          eval "$(supabase status -o env)"
+          export SUPABASE_DB_URL="$DB_URL"
+          # POSITIVE CONTROL FIRST. Its own output is the design's central claim made
+          # visible for the first time: an InitPlan node with loops=1, and the policy's
+          # `org_id = ANY((InitPlan 1).col1)` sitting INSIDE the Index Cond rather than in
+          # a Filter — the membership set resolved once per statement, not once per row.
+          CI=true node tools/check-db-perf.mjs 2>&1 | tee perf-baseline.log
+          grep -q 'db-perf: OK' perf-baseline.log \
+            || { echo '::error::the plan probe is not green on the seeded database — the canary below would be meaningless'; exit 1; }
+          # THE EDIT: live, no files touched. The index is still declared in the migration
+          # and in supabase/schemas, so every gate that reads TEXT is looking at a tree
+          # where nothing changed. Only the planner knows.
+          #
+          # It is NOT the same edit as Canary 17, and the difference is the point: that one
+          # drops the keyset index AND the primary key, because pgTAP's leading-column
+          # assertion is satisfied by either. This one drops ONLY the keyset index, so the
+          # PK still carries org_id, pgTAP still passes all 109 tests, and every list page
+          # in the product becomes a filter plus an in-memory sort of the tenant's rows.
+          #
+          # (The release plan sketched a `org_id::text = $1::text` policy rewrite for this
+          # proof; it was tried and does not degrade the plan, because a cast in the POLICY
+          # leaves the DAL's own indexable equality in place. Making the tenancy helper
+          # VOLATILE was tried too — an uncorrelated sub-select becomes an InitPlan
+          # regardless of volatility. This edit is the one that was measured.)
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          restore() { psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX IF NOT EXISTS notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'; }
+          if CI=true node tools/check-db-perf.mjs > perf-canary.log 2>&1; then
+            tail -n 40 perf-canary.log
+            restore
+            echo '::error::PLAN CANARY: db-perf PASSED with the keyset index gone — the one claim the tenancy design rests on cannot fail, the exact defect this lane exists to catch'
+            exit 1
+          fi
+          if ! grep -q 'Sort node' perf-canary.log; then
+            tail -n 40 perf-canary.log
+            restore
+            echo '::error::db-perf failed, but NOT on the Sort assertion — the plan-shape rule is not biting (log above)'
+            exit 1
+          fi
+          grep -E 'Sort node|expected the planner to choose|shared buffers' perf-canary.log | tail -n 6 || true
+          # THE OTHER HALF OF THE PROOF, and the half that justifies the lane's cost: with
+          # the defect still in place, every check that reads FILES must stay green. If one
+          # of them reds here, it is not a stricter harness — it means this canary is not
+          # isolating the layer it claims to, and the lane is not proving what it says.
+          for gate in check-rls-manifest check-tenancy check-query-shapes; do
+            if ! node "tools/$gate.mjs" > "static-$gate.log" 2>&1; then
+              cat "static-$gate.log"
+              restore
+              echo "::error::$gate reddened on a database-only defect — the canary is not isolating the plan layer"
+              exit 1
+            fi
+          done
+          if ! supabase test db > static-pgtap.log 2>&1; then
+            tail -n 40 static-pgtap.log
+            restore
+            echo '::error::the pgTAP suite reddened on a dropped SECONDARY index — notes_pkey still leads with org_id, so this is a different break'
+            exit 1
+          fi
+          restore
+          echo 'canary OK: only db-perf saw it — schema-rls, tenancy, query-shapes and 109 pgTAP tests were all green with the keyset index gone'
       - name: 'Canary 18: a config plugin emitting run-dependent output → the prebuild ×2 tree compare must FAIL'
         if: matrix.node == 22
         working-directory: .selftest/boot

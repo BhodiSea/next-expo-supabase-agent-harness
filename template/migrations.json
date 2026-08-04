@@ -1,3 +1,75 @@
 {
-  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS — the floor chain — and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content — `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs."
+  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS — the floor chain — and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content — `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). seedOnInitOnly is a PURE list of path patterns read by a matcher — never put a comment string in it; a stray entry ending in '/' would silently withhold an entire subtree (scripts/check-seeded-migrations.mjs asserts every pattern names a path the template actually ships). Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs.",
+
+  "0.2.0": {
+    "//": [
+      "THE MULTI-TENANCY RELEASE. The governing rule for this record is one sentence: an `update` must leave an existing install GREEN. Five gates are injected, and every one carries an adoption seam keyed on the manifest's baseVersion — so what this record has to get right is which FILES arrive.",
+
+      "Two failure modes, in opposite directions. Plant a migration and `update` has put unapplied DDL in front of a live database, which check-migrations.mjs's append-only git-diff check then reads as history appearing out of order, and which the next `supabase db push` would apply to production. Withhold a file a gate FAILS CLOSED on and the injected step reds on the first validate after the upgrade. So every path below was classified by one question, answered by READING the gate: what does it do when this file is absent?",
+
+      "PLANTED (three files, deliberately absent from seedOnInitOnly). tools/tenancy.json and tools/db-limits.json are hard failures when missing — the contract and the ceilings must exist as reviewable data before any schema is judged against them, and that check runs before any ramp. tools/security-headers.json is planted so that an install which later pulls apps/web/lib/security-headers.ts with --refresh-seeded gets a gate that judges it, instead of one that fails closed on a missing policy. None of the three names a project-specific table, column or procedure; all three are contracts, ceilings and posture.",
+
+      "WITHHELD — DDL. supabase/migrations/*, supabase/schemas/*, supabase/seeds/ and the audit pgTAP suite. The tenancy-adoption runbook (expand->contract, dual-scoped policies alongside the owner-scoped ones, an expiring `until`) is the sanctioned path in. The db-scale CI lane reads baseVersion for exactly this reason: pre-0.2.0 skips loudly, 0.2.0+ FAILS if the seed is missing, so withholding cannot become a way to switch the plan probe off.",
+
+      "WITHHELD — reviewed data whose ROWS name this project's own tables, columns, procedures and functions. security-definer-allow.json, audit-columns.json and pii-columns.json all read absent-as-empty, which is the safe default in each case (no definer registered; metadata-only audit capture). A deny-list of columns another schema does not have denies nothing, and thirteen paragraphs about functions another database never created is thirteen paragraphs of foreign prose in someone else's PR. rate-limit-budget.json is withheld for a STRONGER reason: check-rate-limits.mjs ramps on its ABSENCE, so planting it would both hand the install a budget naming procedures it does not have AND switch off the ramp that was protecting it. db-perf-baseline.json carries per-TABLE cardinality floors, and the template's names `notes`.",
+
+      "WITHHELD — generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record — which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
+
+      "WITHHELD — the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately — both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
+    ],
+
+    "removed": [
+      "apps/mobile/__tests__/a11y-deep.test.tsx"
+    ],
+
+    "removedWhy": "Not a deletion — a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome — a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
+
+    "configSteps": [
+      { "name": "tenancy", "cmd": "node tools/check-tenancy.mjs", "after": "schema-rls" },
+      { "name": "db-limits", "cmd": "node tools/check-db-limits.mjs", "after": "migrations" },
+      { "name": "query-shapes", "cmd": "node tools/check-query-shapes.mjs", "after": "contracts" },
+      { "name": "rate-limits", "cmd": "node tools/check-rate-limits.mjs", "after": "query-shapes" },
+      {
+        "name": "security-headers",
+        "cmd": "node tools/check-security-headers.mjs",
+        "after": "route-manifest"
+      }
+    ],
+
+    "seedOnInitOnly": [
+      "apps/web/app/(protected)/",
+      "apps/web/app/actions/orgs.ts",
+      "apps/web/app/api/csp-report/",
+      "apps/web/app/sign-in/",
+      "apps/web/e2e/security-headers.spec.ts",
+      "apps/web/e2e/tenancy.spec.ts",
+      "apps/web/lib/auth/",
+      "apps/web/lib/error-copy.ts",
+      "apps/web/lib/rate-limit-runtime.ts",
+      "apps/web/lib/rate-limit.ts",
+      "apps/web/lib/security-headers.ts",
+      "packages/api/src/ratelimit.test.ts",
+      "packages/api/src/ratelimit.ts",
+      "packages/platform/ratelimit/",
+      "packages/platform/supabase/src/database.types.ts",
+      "packages/verticals/notes/src/data/query-probes.ts",
+      "supabase/migrations/20260201000000_tenancy_spine.sql",
+      "supabase/migrations/20260201000100_notes_org_scope.sql",
+      "supabase/migrations/20260201000200_service_role_org_sweep.sql",
+      "supabase/migrations/20260202000000_audit.sql",
+      "supabase/migrations/20260203000000_quota.sql",
+      "supabase/migrations/20260203000100_resource_limits.sql",
+      "supabase/schemas/05_tenancy.sql",
+      "supabase/schemas/30_quota.sql",
+      "supabase/schemas/40_audit.sql",
+      "supabase/seeds/",
+      "supabase/tests/audit_immutability.test.sql",
+      "tools/audit-columns.json",
+      "tools/db-perf-baseline.json",
+      "tools/generated/query-shapes.json",
+      "tools/pii-columns.json",
+      "tools/rate-limit-budget.json",
+      "tools/security-definer-allow.json"
+    ]
+  }
 }

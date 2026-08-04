@@ -122,18 +122,20 @@ test('GREEN: DML keywords inside `--` comment lines are not code', () => {
   appendMigration(
     dir,
     '0001_note.sql',
-    '-- INSERT INTO notes was considered and rejected here\nALTER TABLE "notes" ADD COLUMN "extra" text;\n',
+    // The lock_timeout preamble is the 0.2.0 rule, not this test's subject: ALTER
+    // TABLE on a pre-existing table takes ACCESS EXCLUSIVE, so a migration without
+    // it reds for an unrelated reason and this fixture would stop testing comments.
+    '-- INSERT INTO notes was considered and rejected here\nSET lock_timeout = \'3s\';\nALTER TABLE "notes" ADD COLUMN "extra" text;\n',
   )
   const r = runGate(dir)
   assert.equal(r.code, 0, r.out)
 })
 
-test('ODDITY (pinned): unquoted multi-char UPDATE target slips past the DML rule', () => {
-  // The regex `UPDATE\s+[a-z"]` + trailing `\b` only matches a quoted identifier
-  // or a single-character table name. Drizzle-generated SQL always quotes, so
-  // `UPDATE "notes"` reds — but a hand-written unquoted UPDATE is a false
-  // negative. Pinned as current behavior (ported unchanged from the source
-  // harness); see the suite's bug report.
+test('FIXED (0.2.0): the unquoted multi-char UPDATE false negative is closed', () => {
+  // The ancestor regex `UPDATE\s+[a-z"]` + trailing \b only ever matched a quoted
+  // identifier or a single-character table name, so `UPDATE notes SET ...` slipped
+  // past the DML rule entirely — pinned here as an ODDITY until the statement-level
+  // rewrite. Both spellings must now red identically.
   const quoted = fixture()
   appendMigration(quoted, '0001_fix.sql', 'UPDATE "notes" SET "title" = \'x\';\n')
   const rq = runGate(quoted)
@@ -143,7 +145,44 @@ test('ODDITY (pinned): unquoted multi-char UPDATE target slips past the DML rule
   const unquoted = fixture()
   appendMigration(unquoted, '0001_fix.sql', "UPDATE notes SET title = 'x';\n")
   const ru = runGate(unquoted)
-  assert.equal(ru.code, 0, ru.out)
+  assert.equal(ru.code, 1, ru.out)
+  assert.ok(ru.out.includes('contains DML'), ru.out)
+})
+
+test('GREEN: DML inside a CREATE FUNCTION body is not the migration\'s DML', () => {
+  // A SECURITY DEFINER RPC's body legitimately writes tables; the migration only
+  // DEFINES it. The old raw-text grep false-positived exactly this, which would have
+  // forced a bogus `-- harness-allow-dml` marker onto every RPC-bearing migration.
+  const dir = fixture()
+  appendMigration(
+    dir,
+    '0001_rpc.sql',
+    [
+      'CREATE FUNCTION public.join_org(_org uuid) RETURNS void',
+      "LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''",
+      'AS $$',
+      'BEGIN',
+      "  INSERT INTO public.memberships (user_id, org_id) VALUES (auth.uid(), _org);",
+      "  DELETE FROM public.invitations WHERE org_id = _org;",
+      'END;',
+      '$$;',
+      '',
+    ].join('\n'),
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: DML smuggled through a leading CTE still reds', () => {
+  const dir = fixture()
+  appendMigration(
+    dir,
+    '0001_cte.sql',
+    "WITH doomed AS (SELECT id FROM notes) DELETE FROM notes WHERE id IN (SELECT id FROM doomed);\n",
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('contains DML'), r.out)
 })
 
 // ---- rule 3: destructive DDL is ADR-coupled -------------------------------------
@@ -172,6 +211,63 @@ test('GREEN: DROP TABLE with `-- adr:` pointing at an existing ADR file', () => 
     dir,
     '0001_drop.sql',
     '-- adr: docs/adr/0001-drop-widgets.md\nDROP TABLE "widgets";\n',
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+// ---------------------------------------------------------------------------
+// 0.2.0 — statements that remove an authorization control without removing the
+// object it guarded. All of these shipped ADR-free: none matches
+// DROP TABLE|DROP COLUMN|TRUNCATE, so the destructive-DDL rule never saw them.
+// ---------------------------------------------------------------------------
+
+for (const [label, sql] of [
+  ['DROP POLICY', 'DROP POLICY notes_select_own ON public.notes;'],
+  ['DISABLE ROW LEVEL SECURITY', 'ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY;'],
+  ['NO FORCE ROW LEVEL SECURITY', 'ALTER TABLE public.notes NO FORCE ROW LEVEL SECURITY;'],
+  ['DROP FUNCTION', 'DROP FUNCTION public.set_updated_at();'],
+  ['DISABLE TRIGGER', 'ALTER TABLE public.notes DISABLE TRIGGER notes_audit;'],
+  ['REVOKE FROM authenticated', 'REVOKE ALL ON TABLE public.notes FROM authenticated;'],
+]) {
+  test(`RED (0.2.0): ${label} without an \`-- adr:\` is an unrecorded authorization removal`, () => {
+    const dir = fixture()
+    appendMigration(dir, '0001_authz.sql', `SET lock_timeout = '3s';\n${sql}\n`)
+    const r = runGate(dir)
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('removes an authorization control'), r.out)
+  })
+}
+
+test('GREEN (0.2.0): the same removal WITH a resolvable `-- adr:` is a recorded decision', () => {
+  const dir = fixture()
+  addAdr(dir, '0001-drop-widgets.md')
+  appendMigration(
+    dir,
+    '0001_authz.sql',
+    "-- adr: docs/adr/0001-drop-widgets.md\nSET lock_timeout = '3s';\nDROP POLICY notes_select_own ON public.notes;\n",
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.2.0): ALTER TABLE on a pre-existing table with no lock timeout', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', 'ALTER TABLE public.notes ADD COLUMN body text;\n')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('ACCESS EXCLUSIVE'), r.out)
+  assert.ok(r.out.includes('notes'), 'names the table it would lock')
+})
+
+test('GREEN (0.2.0): a table CREATED in the same migration needs no lock preamble', () => {
+  // Nothing can be reading a table that did not exist a statement ago — this is why
+  // the seeded account-spine and notes migrations pass untouched.
+  const dir = fixture()
+  appendMigration(
+    dir,
+    '0001_new.sql',
+    'CREATE TABLE public.widgets (id uuid PRIMARY KEY);\nALTER TABLE public.widgets ENABLE ROW LEVEL SECURITY;\n',
   )
   const r = runGate(dir)
   assert.equal(r.code, 0, r.out)

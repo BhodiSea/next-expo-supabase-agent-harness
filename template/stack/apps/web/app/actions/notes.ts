@@ -1,12 +1,13 @@
 'use server'
 
-import type { NewNoteInput, NoteView } from '@app/contracts'
+import { type NewNoteInput, type NoteView, OrgSlug } from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import { appError, outcomeErr } from '@app/errors'
 import { CreateNoteSchema, createNote, type NotesDatabase, type NoteWriteContext } from '@app/notes'
 import { revalidatePath } from 'next/cache'
+import { requireOrgContext } from '../../lib/auth/session'
+import { enforceActionRateLimit } from '../../lib/rate-limit-runtime'
 import { actionClient } from '../../lib/safe-action'
-import { createRequestScopedClient, getVerifiedUser } from '../../lib/supabase/server'
 
 // The web write path. Its twin is the `notes.create` tRPC procedure that apps/mobile calls,
 // and the two share EVERYTHING that matters: the same zod contract, the same @app/notes
@@ -29,16 +30,33 @@ import { createRequestScopedClient, getVerifiedUser } from '../../lib/supabase/s
 // enforce one rule set. Not exported: a 'use server' module may only export async functions,
 // and this is the private half.
 const runCreateNote = actionClient
+  // The org selector, parsed as strictly as any wire input — anchored shape, bounded
+  // length — BEFORE it reaches the seat lookup. A bind arg is still untrusted input; the
+  // only thing binding buys is that it cannot be confused with the note's own fields.
+  .bindArgsSchemas<[orgSlug: typeof OrgSlug]>([OrgSlug])
   .inputSchema(CreateNoteSchema)
-  .action(async ({ parsedInput }): Promise<ActionOutcome<NoteView>> => {
-    // The DAL's create takes THREE arguments — the client, a NoteWriteContext, and the input —
-    // because `owner_id` comes from the VERIFIED actor and never from the wire (the contract
-    // does not even carry the field). So identity is resolved here, server-side, behind the
-    // action's error boundary: getVerifiedUser() authenticates against the auth server
-    // (getUser under the hood — never getSession), and an anonymous caller is refused on the
-    // data channel rather than left to be caught by the INSERT policy as an opaque RLS denial.
-    const user = await getVerifiedUser()
-    if (user === null) return outcomeErr(appError.unauthorized())
+  .action(async ({ parsedInput, bindArgsParsedInputs }): Promise<ActionOutcome<NoteView>> => {
+    // THE ORG IS A BOUND ARGUMENT, NOT A PAYLOAD FIELD, and the distinction is the whole
+    // point of this line. `CreateNoteSchema` carries no org and never will: a tenant a
+    // request can NAME in its body is a tenant the first careless handler will TRUST. What
+    // arrives here is a route-derived SLUG — the segment of `/o/[orgSlug]/notes` the form was
+    // rendered under — which requireOrgContext looks up in the caller's real seats. The id
+    // that reaches the INSERT is the LOOKED-UP org's, never the caller's string, so a forged
+    // slug resolves to nothing rather than to somebody else's org.
+    //
+    // It is a bind arg rather than a second parameter because next-safe-action validates
+    // bound arguments with their own schema too — the slug is parsed against
+    // `OrgSlugSchema` before this body runs, so a hostile value cannot reach the lookup as
+    // an unbounded string.
+    const [orgSlug] = bindArgsParsedInputs
+
+    // Identity AND scope in one call, server-side, behind the action's error boundary.
+    // getVerifiedUser is inside it (authenticating against the auth server — never
+    // getSession), so an anonymous caller is refused on the DATA channel rather than left to
+    // be caught by the INSERT policy as an opaque RLS denial, and a caller with no seat in
+    // this org gets `org_context_required` rather than a silent empty write.
+    const gate = await requireOrgContext(orgSlug)
+    if (!gate.ok) return gate
 
     // Narrowed to the DAL's structural port via `as unknown as`. This is the sanctioned
     // escape for a vendor client that is too deeply generic to check structurally: supabase-js's
@@ -49,26 +67,23 @@ const runCreateNote = actionClient
     // real supabase client. RLS is unchanged: the same request-scoped client, viewed through the
     // narrower port. The double-cast (never a single `as NotesDatabase`) is deliberate — it
     // documents that the two types are not directly comparable, which is the whole reason.
-    const supabase = (await createRequestScopedClient()) as unknown as NotesDatabase
-    // workspaceId is the caller's OWN id and events are dropped BY DESIGN on this host. Every
-    // verified user owns a PERSONAL workspace keyed by their user id — the single-tenant seat
-    // the tRPC host resolves in sessionForVerifiedUser, shipped in place of the workspaces table
-    // the seed omits — so both surfaces stamp the same workspace onto a write. apps/web wires no
-    // event sink, so events are dropped here exactly as createContext's own `dropEvents` default
-    // does. createNote uses NEITHER for the write itself — it sets owner_id from actorId and
-    // takes the database's own created_at — so the workspace id and the no-op sink only shape the
-    // event nobody consumes yet, never the row that lands.
+    const supabase = gate.data.client as unknown as NotesDatabase
+    // `orgId` is the RESOLVED org's id; `actorId` is the VERIFIED user's. Neither is reachable
+    // from `parsedInput`, which is what makes this function's scope a server fact rather than a
+    // request assertion. apps/web wires no event sink, so events are dropped here exactly as
+    // createContext's own `dropEvents` default does.
     const context: NoteWriteContext = {
-      actorId: user.id,
+      actorId: gate.data.userId,
       emit: () => undefined,
       now: new Date().toISOString(),
-      workspaceId: user.id,
+      orgId: gate.data.org.id,
     }
     const outcome = await createNote(supabase, context, parsedInput)
     // Only on success, and only after the write has actually landed. Invalidating on the
     // failure path would refetch identical data and make a rejected write look like a slow
     // one. RLS decides what the refetch can see; this just says the cached answer is stale.
-    if (outcome.ok) revalidatePath('/notes')
+    // The path is the ORG's, so one tenant's write never invalidates another's cache entry.
+    if (outcome.ok) revalidatePath(`/o/${gate.data.org.slug}/notes`)
     return outcome
   })
 
@@ -82,9 +97,17 @@ const runCreateNote = actionClient
  * site. Collapsing them here means the public signature is honest: one Promise, one union,
  * no framework types leaking into the UI layer.
  */
-export async function createNoteAction(input: NewNoteInput): Promise<ActionOutcome<NoteView>> {
+export async function createNoteAction(
+  orgSlug: string,
+  input: NewNoteInput,
+): Promise<ActionOutcome<NoteView>> {
+  // The rate-limit seam. FIRST, before any work and before the identity round trip: an
+  // unauthenticated flood at a Server Action id is the flood worth stopping, and a limit
+  // applied after `getUser()` still pays an auth call per abusive request.
+  const limited = await enforceActionRateLimit('createNoteAction')
+  if (limited !== null) return limited
   try {
-    const result = await runCreateNote(input)
+    const result = await runCreateNote(orgSlug, input)
     // `data` is the action's own return — already the ActionOutcome<NoteView> envelope — so it
     // rides back unchanged. The other two arms are next-safe-action's out-of-band channels,
     // and this is where they are folded ONTO the data channel so the caller only ever sees one

@@ -86,6 +86,21 @@ export const BASH_RULES = [
     allowWhen: (_cmd, ctx) => ctx.selfEdit,
   },
   {
+    // Without this the agent-surface lock is DECORATIVE. Every other write path to
+    // `.claude/**` is denied (the write-guard covers the Write/Edit tools, PROT_DIRS
+    // covers shell redirects), but regenerating the lock is not a write to the surface —
+    // it is one ordinary subprocess that makes an edit to the surface invisible. The
+    // generator refuses without HARNESS_ALLOW_SELF_EDIT=1 on its own; this is the second
+    // layer, denying the INVOCATION rather than trusting one env var to be the whole
+    // control. Matched by name shape (`gen-*lock*.mjs … --write`) so a future lock
+    // generator is covered the day it is added rather than the day someone remembers.
+    id: 'gen-lock-writer',
+    re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*\bgen-[\w-]*lock[\w-]*\.mjs\b[^|;&]*--write/,
+    message:
+      'Blocked: regenerating a hash lock is how an edit to the locked files becomes invisible — the lock is a hash OF the thing being checked, not a derivation from something else the gates judge. Review the diff to the locked surface first, then update the lock as a human act (HARNESS_ALLOW_SELF_EDIT=1) so it lands in the PR.',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
     id: 'git-hookspath-repoint',
     re: /git\s+(?:-[a-zA-Z]+\s+)*config\b[^|;&]*core\.hooksPath|git\s+-c\s*core\.hooksPath/,
     message: 'Blocked: repointing core.hooksPath disables the lefthook commit-time layer.',
@@ -215,6 +230,56 @@ export const WRITE_PROTECTED = [
   { id: 'tools-mcp', re: /^tools\/mcp\// }, // corpus + MCP servers the provenance gate resolves against
   { id: 'lock-json', re: /^tools\/(identity|prompts)\.lock\.json$/ },
   { id: 'rls-exempt', re: /^tools\/rls-exempt\.json$/ }, // exempting a table from RLS is a human decision
+  // The tenancy contract. predicateForms IS the definition of a correct tenant
+  // predicate and rpcWriterRole names the one role that may write a seat — an agent
+  // that could append to this file could legalize its own broken policy mid-turn,
+  // which is the difference between a closed form set and a suggestion.
+  { id: 'tenancy-contract', re: /^tools\/tenancy\.json$/ },
+  // Allowlisting a SECURITY DEFINER function now AUTHORIZES EXECUTE to authenticated
+  // (0.2.0), so this file grants privilege-escalation reach rather than merely
+  // silencing a nag. Same posture as rls-exempt.json, for the same reason.
+  { id: 'security-definer-allow', re: /^tools\/security-definer-allow\.json$/ },
+  // The audit contract, both halves. audit-columns.json AUTHORIZES value capture into
+  // the trail and pii-columns.json is the deny-list that refuses it — an agent that
+  // could edit either could approve copying a column it was about to leak into a
+  // second, less-policied table, or delete the entry that forbade it.
+  { id: 'audit-columns', re: /^tools\/audit-columns\.json$/ },
+  { id: 'pii-columns', re: /^tools\/pii-columns\.json$/ },
+  // The blast-radius ceilings. Every value here is the number the db-limits gate
+  // judges the migrations against, so raising one in this file makes a widened
+  // statement_timeout or a raised [api].max_rows pass as reviewed.
+  { id: 'db-limits', re: /^tools\/db-limits\.json$/ },
+  // The rate-limit budget. Raising a number here raises what a single caller may cost
+  // everyone else on the deployment, and the gate judges the running code against it —
+  // so an agent that could edit this file could widen its own limit and stay green.
+  { id: 'rate-limit-budget', re: /^tools\/rate-limit-budget\.json$/ },
+  // The plan-probe floor and budgets. `minRows` is the anti-vacuity floor: lower it and
+  // tools/check-db-perf.mjs happily certifies a plan against a four-row table, which is
+  // the exact state every structural check in the repo is already green in. An agent
+  // that could edit this file could make the one gate that measures reality measure
+  // nothing, and the run would still print OK.
+  { id: 'db-perf-baseline', re: /^tools\/db-perf-baseline\.json$/ },
+  // GENERATED, and protected for the opposite reason to a budget: nothing may hand-edit
+  // it, ever. It is the record of what the DALs actually asked the database for, and the
+  // `query-shapes` gate judges index service against it — so an agent that could edit it
+  // could describe a query it did not write and be believed. `pnpm gen` is the only
+  // author; `contracts` reds the moment the file and the code disagree.
+  { id: 'query-shapes-manifest', re: /^tools\/generated\/query-shapes\.json$/ },
+  // THE AGENT SURFACE — the most privileged prose in the repository, and until 0.2.0 the
+  // least protected. `.claude/rules/` is loaded into every turn; `.claude/agents/` decides
+  // which reviewers exist and what they may touch; `.claude/commands/` and
+  // `.claude/skills/` are the recipes a turn follows. An agent that can edit these can
+  // rewrite its own instructions, and the `docs-sync` roster check reads only frontmatter
+  // (name, model, tools) — never the body, where the instructions actually are. Layer 3
+  // (prevention) did not exist for any of them.
+  { id: 'claude-rules', re: /^\.claude\/rules\// },
+  { id: 'claude-agents', re: /^\.claude\/agents\// },
+  { id: 'claude-commands', re: /^\.claude\/commands\// },
+  { id: 'claude-skills', re: /^\.claude\/skills\// },
+  // The hash OF that surface. Write-protected for the sharper reason: regenerating it
+  // after an edit is precisely how the edit becomes invisible, so it is the one file
+  // whose modification is never routine.
+  { id: 'agents-lock', re: /^tools\/agents\.lock\.json$/ },
   { id: 'provenance-overrides', re: /^tools\/provenance-overrides\.json$/ }, // cross-group citation escapes are a human decision
   { id: 'decision-groups', re: /^tools\/decision-groups\.json$/ }, // extending the citation taxonomy is a human decision
   { id: 'license-exceptions', re: /^tools\/license-exceptions\.json$/ }, // license exceptions are a human decision
@@ -246,7 +311,13 @@ export const WRITE_PROTECTED = [
   { id: 'i18n-allow', re: /^tools\/i18n-allow\.json$/ }, // letting a string bypass the catalog is a human decision
   { id: 'test-quality-allow', re: /^tools\/test-quality-allow\.json$/ }, // letting a disabled or assertion-free test stand is a human decision
   { id: 'rls-runner', re: /^tests\/rls\/run-rls\.mjs$/ }, // the RLS runner the Stop hook invokes directly
-  { id: 'migration-apply-runner', re: /^tests\/migrations\/migration-apply\.mjs$/ },
+  // REMOVED in 0.2.0: 'migration-apply-runner', protecting tests/migrations/migration-apply.mjs
+  // — a file no template has ever shipped and nothing has ever invoked. It had a rule, a
+  // hook-contract case, a settings.json allow entry and a slot in check-gate-integrity's
+  // SURFACE, and all four passed, because a deny rule over a path that cannot exist is
+  // trivially satisfied. That is the exact "green but bad" shape this repo exists to
+  // eliminate: coverage counted it, the canary registry counted it, and it guarded nothing.
+  // Migrations are covered by tools/check-migrations.mjs and replayed by `supabase db reset`.
   { id: 'lefthook', re: /^lefthook\.yml$/ },
   { id: 'github-workflows', re: /^\.github\/workflows\// },
   // The lint/architecture config surface — weakening any of these weakens the gate.
@@ -316,9 +387,112 @@ export const WRITE_GLOBAL_CHECKS = [
       'RLS identity GUCs must be SET LOCAL inside a transaction, never session-wide (pooling leak).',
   },
   {
+    // THE TIMEOUT TWIN of set-config-session-wide, with its own id so its canary is
+    // specific. `SET statement_timeout` (no LOCAL) mutates the SESSION, and under
+    // Supavisor transaction mode the session is a pooled backend that the next
+    // request — belonging to another tenant — is handed. A request that raises its
+    // own ceiling to run one slow report leaves that ceiling behind it, so the
+    // blast-radius control the migration installs per role is quietly gone for
+    // whoever comes next. `SET LOCAL` reverts at COMMIT and is the only safe form.
+    //
+    // pathRe scopes this to runtime code that talks to the pooled database. A gate
+    // script under tools/ that PRINTS `SET lock_timeout` as remediation advice is
+    // discussing the statement, not executing it — and check-migrations.mjs's own
+    // fix message does exactly that.
+    id: 'pg-session-timeout-set',
+    pathRe: /^(?:apps|packages|supabase)\//,
+    re: /(?<!\bALTER\s+(?:ROLE|DATABASE)\s+[\w"]+\s+)\bSET\s+(?!LOCAL\b)(?:SESSION\s+)?(?:statement_timeout|lock_timeout|idle_in_transaction_session_timeout)\s*(?:=|TO)/i,
+    message:
+      "SET statement_timeout / lock_timeout / idle_in_transaction_session_timeout without LOCAL changes the SESSION, and a pooled session is handed to the NEXT tenant's request with your ceiling still on it. Use `SET LOCAL` inside the transaction, or change the reviewed per-role ceiling in tools/db-limits.json and the resource-limits migration. SOURCE: https://www.postgresql.org/docs/17/sql-set.html (SET LOCAL is undone at transaction end)",
+  },
+  {
+    // pg_advisory_lock holds until the SESSION ends or it is explicitly unlocked.
+    // On a pooled connection the session outlives the request, so a handler that
+    // takes one and then throws leaks a lock nobody holds a reference to — every
+    // later caller of that key blocks forever, and the pool has no way to notice.
+    // pg_advisory_xact_lock is released at COMMIT or ROLLBACK, always, including
+    // on the error path.
+    id: 'pg-advisory-session-lock',
+    re: /\bpg_advisory_(?:un)?lock(?:_shared)?\s*\(/i,
+    message:
+      'pg_advisory_lock is SESSION-scoped: on a pooled connection it survives the request that took it, so an error path leaks a lock that blocks every later caller of that key and no pool release can clear. Use pg_advisory_xact_lock / pg_advisory_xact_lock_shared, which the transaction end releases unconditionally. SOURCE: https://www.postgresql.org/docs/17/explicit-locking.html (advisory locks)',
+  },
+  {
+    // Supavisor's transaction mode multiplexes many clients over few backends, so a
+    // named prepared statement created on one request is not there on the next —
+    // and the driver, believing it cached it, sends the name instead of the SQL.
+    // The failure is 26000 "prepared statement does not exist", intermittent, and
+    // load-dependent: it passes every local test against a direct connection.
+    //
+    // File-scoped on purpose (the presence of `prepare: false` anywhere in the
+    // file clears it). This is the layer-3 tripwire at the moment of the edit;
+    // tools/check-db-limits.mjs does the per-construction closure over the tree.
+    id: 'pg-prepared-statement',
+    re: /(?:[=(,]|\bawait\b|\breturn\b)\s*postgres\s*\(\s*(?!\?)(?![\s\S]*prepare\s*:\s*false)/,
+    message:
+      "a postgres() connection with prepared statements left on breaks under Supavisor transaction mode: the backend that holds the prepared statement is not the backend the next request gets, and the driver sends the cached NAME — an intermittent 26000 that no local test against a direct connection reproduces. Pass `prepare: false`. SOURCE: https://supabase.com/docs/guides/database/connecting-to-postgres (transaction mode does not support prepared statements)",
+  },
+  {
     id: 'vitest-workspace-file',
     re: /defineWorkspace|vitest\.workspace/,
     message:
       'vitest workspace files are banned — projects are defined in the root vitest.config.ts (single gate surface).',
+  },
+]
+
+// ---- SQL content checks (schema + migration surface) ----------------------------
+//
+// WHY THIS TABLE EXISTS. The write-guard police source code from one line down:
+// `if (!anyRel(/\.(ts|tsx|...)$/)) pass()`. Everything above it is path protection
+// and two hand-written checks. The consequence was that a `.sql` file — the ONE
+// file class where this codebase's authorization boundary actually lives — reached
+// no content rule at all except the WITH RECURSIVE guard. An agent could write
+// `CREATE POLICY ... USING (true)` into a migration and the only thing standing
+// between that and a merged PR was a gate that runs later, after the write landed.
+//
+// These are PREVENTION (layer 3), not detection. Every rule here is also enforced
+// tree-wide by check-rls-manifest.mjs, deliberately: the hook stops the edit at the
+// moment it is made and the gate proves the property over the whole tree. A hook
+// alone is a tripwire an obfuscated write can step over; a gate alone lets the bad
+// edit land and be forgotten.
+//
+// `pathRe` scopes a rule to the surface it means something on. The same bytes under
+// supabase/tests/** are a TEST of the bad shape, not the bad shape — a fixture
+// asserting that `USING (true)` is rejected must be writable.
+export const WRITE_SQL_CHECKS = [
+  {
+    id: 'rls-disable-or-noforce',
+    pathRe: /^supabase\/(migrations|schemas)\//,
+    re: /\b(?:DISABLE\s+ROW\s+LEVEL\s+SECURITY|NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY)\b/i,
+    message:
+      'turning RLS off is not a schema change, it is the removal of this codebase\'s only authorization boundary — every table keeps ENABLE + FORCE ROW LEVEL SECURITY. If a table genuinely needs no per-caller policy, exempt it with a reviewed reason in tools/rls-exempt.json instead. SOURCE: .claude/rules/security-invariants.md (RLS is THE authorization boundary)',
+  },
+  {
+    // `TO public` and `TO anon` are the two spellings that hand rows to an
+    // unauthenticated caller. The policy still looks like a policy in review.
+    id: 'policy-to-public-role',
+    pathRe: /^supabase\/(migrations|schemas)\//,
+    re: /\bCREATE\s+POLICY\b[\s\S]*?\bTO\s+(?:public|anon)\b/i,
+    message:
+      'a policy granted TO public or TO anon applies to unauthenticated callers — policies are TO authenticated, and anon holds no grants at all. SOURCE: .claude/rules/security-invariants.md',
+  },
+  {
+    // A predicate that is literally `true` permits every row of every tenant. It
+    // reads as "RLS is on" to anyone skimming the migration.
+    id: 'policy-using-true',
+    pathRe: /^supabase\/(migrations|schemas)\//,
+    re: /\b(?:USING|WITH\s+CHECK)\s*\(\s*true\s*\)/i,
+    message:
+      'USING (true) / WITH CHECK (true) is a policy that permits every row — RLS is enabled and enforcing nothing. Key the predicate on the caller: (SELECT auth.uid()), or the org scope helper.',
+  },
+  {
+    // SECURITY DEFINER runs as the function OWNER. Without a pinned search_path a
+    // caller who controls their own schema resolves your unqualified names to their
+    // objects and executes them with the owner's privileges.
+    id: 'security-definer-no-search-path',
+    pathRe: /^supabase\/(migrations|schemas|functions)\//,
+    re: /\bSECURITY\s+DEFINER\b(?![\s\S]*?\bSET\s+search_path\s*(?:=|TO)\s*'')/i,
+    message:
+      "SECURITY DEFINER without `SET search_path = ''` is the standard privilege-escalation footgun: the caller controls name resolution and your function runs as its owner. Pin the search_path and schema-qualify every reference. SOURCE: https://www.postgresql.org/docs/17/sql-createfunction.html (writing SECURITY DEFINER functions safely)",
   },
 ]

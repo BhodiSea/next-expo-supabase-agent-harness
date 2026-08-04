@@ -7,9 +7,11 @@ import {
   isCrossSiteRequest,
 } from '@app/api'
 import type { NotesDatabase } from '@app/notes'
-import type { SupabaseServerClient, VerifiedUser } from '@app/supabase'
-import { getVerifiedUser } from '@app/supabase'
+import type { SupabaseServerClient } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
+import { resolveHostSession } from '../../../../lib/auth/session'
+import { bucketForProcedure } from '../../../../lib/rate-limit'
+import { clientKeyFromHeaders, spendRateLimit } from '../../../../lib/rate-limit-runtime'
 import {
   createBearerScopedClient,
   createRequestScopedClient,
@@ -65,30 +67,16 @@ const SERVER_VERSION: string = process.env['APP_VERSION'] ?? pkg.version
 // Bracket access for the same index-signature reason as APP_VERSION above.
 const MIN_SUPPORTED_CLIENT: string | null = process.env['MIN_SUPPORTED_CLIENT'] ?? null
 
-/**
- * A verified user → the router's Session, or null. ONE builder, shared by both credential
- * shapes, so a cookie caller and a bearer caller resolve to the SAME actor shape — the "two
- * callers, one operation" rule reaching all the way down to identity.
- *
- * The seed ships no workspace/membership vertical, so there is no membership TABLE to resolve a
- * seat from. Every verified user is instead the `owner` of their own PERSONAL workspace, keyed
- * by their user id — the single-tenant default that lets the seeded notes vertical (whose writes
- * ride `memberProcedure`) work end to end without inventing a workspaces table the scaffold does
- * not have. This is a real resolution, NOT a bypass: the member gate still runs, an anonymous
- * caller still gets no session at all (null in → null out), and a consumer that adds a real
- * membership vertical replaces this one expression with a lookup that CAN return null — the
- * seatless state the `Membership | null` type, `memberGate` and context.test.ts all still model.
- * workspaceId is the user id because a personal workspace has exactly one member and no separate
- * identity of its own. displayName falls back to the verified email then the id; Actor.displayName
- * only needs a non-empty string and both are.
- */
-function sessionForVerifiedUser(user: VerifiedUser | null): Session | null {
-  if (user === null) return null
-  return {
-    actor: { displayName: user.email ?? user.userId, email: user.email, userId: user.userId },
-    membership: { role: 'owner', workspaceId: user.userId },
-  }
-}
+// WHERE THE SESSION IS BUILT, and why it is not here any more. This file used to hold a
+// `sessionForVerifiedUser` that minted `{ role: 'owner', workspaceId: user.userId }` — a
+// hardcode standing in for a membership table the seed did not have. There is one now, so
+// the seats are READ, and the read lives in lib/auth/session.ts because this host has two
+// callers of it: this route and every Server Action. Two copies of "which orgs is this
+// person in" is two answers, and the one that disagrees is the one that writes.
+//
+// resolveHostSession reads public.memberships THROUGH the caller's own policies, so what it
+// returns is by construction a subset of what the database would let them touch. The acting
+// org is then chosen from that set by @app/api's createContext, from the `x-org-id` header.
 
 /**
  * One endpoint, two credential shapes.
@@ -143,13 +131,13 @@ const handler = async (request: Request): Promise<Response> => {
     // curl health check, a signed-out browser) makes no auth round trip — mirroring
     // createContext's own skip for a tokenless caller, and keeping the public health procedure
     // as cheap as the skew doctrine requires.
-    session = ambient ? sessionForVerifiedUser(await getVerifiedUser(db)) : null
+    session = ambient ? await resolveHostSession(db) : null
   } else {
     // BEARER (apps/mobile) path. ONE client, minted from the token so RLS sees the caller, and
     // the same client verifies the token (passed explicitly — a bearer client persists no
     // session for a no-arg getUser to read).
     db = createBearerScopedClient(token)
-    session = sessionForVerifiedUser(await getVerifiedUser(db, token))
+    session = await resolveHostSession(db, token)
   }
 
   // Narrowed to the DAL's structural port. `as unknown as`: checking a full SupabaseServerClient
@@ -162,6 +150,15 @@ const handler = async (request: Request): Promise<Response> => {
   // SOURCE: apps/web/app/actions/notes.ts (the same NotesDatabase-subset cast, full rationale)
   const notesDb = db as unknown as NotesDatabase
 
+  // The rate-limit port, closed over what only the HOST knows: which budget a procedure
+  // spends from (lib/rate-limit.ts, the reviewed policy) and how to identify an anonymous
+  // caller (the proxy's forwarded-for). The router asks; it does not decide.
+  //
+  // `clientKey` is read ONCE per request rather than per procedure: a batched tRPC call
+  // is several procedures inside one HTTP request, and re-parsing the same header for
+  // each of them would be the same answer computed N times.
+  const clientKey = clientKeyFromHeaders(request.headers)
+
   return fetchRequestHandler({
     // Must match this route's own path. tRPC strips it to recover the procedure name, so a
     // mismatch turns every call into a "no procedure found" 404 that reads like a router bug.
@@ -173,6 +170,21 @@ const handler = async (request: Request): Promise<Response> => {
         createClient: () => notesDb,
         headers: request.headers,
         minSupportedClient: MIN_SUPPORTED_CLIENT,
+        // SOURCE: docs/adr/20260204-rate-limiting.md (both seams, and what neither bounds)
+        rateLimit: async ({ orgId, path, userId }) => {
+          const decision = await spendRateLimit(bucketForProcedure(path), {
+            clientKey,
+            orgId,
+            userId,
+          })
+          // `null` — a deliberately unlimited procedure — is passed through as null
+          // rather than flattened to `{ allowed: true }`: the router treats the two
+          // differently on purpose, and collapsing them here would make an exemption
+          // indistinguishable from a healthy hit in everything downstream.
+          return decision === null
+            ? null
+            : { allowed: decision.allowed, retryAfterSeconds: decision.retryAfterSeconds }
+        },
         // Identity is injected, already verified — no resolveSession port, because the router
         // cannot read a cookie jar and the bearer path already verified with the client above.
         session,

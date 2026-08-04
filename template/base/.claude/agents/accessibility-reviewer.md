@@ -72,5 +72,8 @@ CANNOT run tests — the primitives a11y suite and the per-route states sweep ru
 inside `pnpm test:mobile` (jest-expo); recommend the main thread run them as
 evidence (the deep sweep is the opt-in `gate-a11y-deep` module: a jest-expo
 manifest-keyed sweep plus the manual TalkBack/VoiceOver runbook — there is
-deliberately no device-side ATF lane). Flag only genuine conformance gaps. End
-with a single line: `PASS` or `FAIL`.
+deliberately no device-side ATF lane). Flag only genuine conformance gaps.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

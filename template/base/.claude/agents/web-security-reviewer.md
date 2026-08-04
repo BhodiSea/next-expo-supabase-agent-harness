@@ -89,4 +89,8 @@ by severity with `file:line` refs.
 
 Flag ONLY genuine weakenings or gaps in these invariants — a new Server Action or a new
 public env var is routine slice work when it verifies identity and stays server/client
-clean. End with a single line: `PASS` or `FAIL`.
+clean.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

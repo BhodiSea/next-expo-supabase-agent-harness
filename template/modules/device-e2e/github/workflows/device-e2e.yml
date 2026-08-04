@@ -139,21 +139,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # avd-key mirrors the base quality-gate lane's AVD cache key exactly, so
+          # avd-cache-name mirrors the base quality-gate lane's AVD cache key exactly, so
           # this leg and the base lane share one warmed snapshot instead of paying
           # for two.
+          #
+          # NOT `avd-key`, which is what it was called until 0.2.0. gitleaks'
+          # generic-api-key rule keys on the IDENTIFIER, so `avd-key: avd-33-…` read as
+          # a secret assignment and the pre-commit secrets hook blocked the FIRST COMMIT
+          # of every strict-tier scaffold — the exact step `init` tells you to take next.
+          # The tempting fix is a .gitleaks.toml allowlist; this one is better, because
+          # the finding was correct about the shape and only wrong about the name. An
+          # allowlist would have taught the scanner to ignore a shape it should catch,
+          # and taught the reader that the first thing you do with a secrets scanner is
+          # get around it. Verified: the VALUE alone trips nothing.
           - api-level: 33
             target: aosp_atd
-            avd-key: avd-33-aosp-atd-x86_64
+            avd-cache-name: avd-33-aosp-atd-x86_64
             rtl-release: true
             measure: true
           - api-level: 34
             target: google_apis
-            avd-key: avd-34-google-apis-x86_64
+            avd-cache-name: avd-34-google-apis-x86_64
             font-scales: '1.3 2.0'
           - api-level: 35
             target: google_apis
-            avd-key: avd-35-google-apis-x86_64
+            avd-cache-name: avd-35-google-apis-x86_64
             font-scales: '1.3 2.0'
     steps:
       - name: Harden runner (egress audit)
@@ -208,7 +218,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: ${{ matrix.avd-key }}
+          key: ${{ matrix.avd-cache-name }}
 
       - name: Create AVD snapshot (cache miss only)
         if: steps.avd-cache.outputs.cache-hit != 'true'

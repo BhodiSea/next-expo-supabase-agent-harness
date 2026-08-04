@@ -1,0 +1,42 @@
+-- 20260201000200_service_role_org_sweep — the ONE grant the account-deletion
+-- Edge Function holds, and nothing more.
+--
+-- adr: docs/adr/20260201-org-scoped-tenancy.md
+--
+-- APPLIED HISTORY, NOT DESIRED STATE. Reasoning lives in supabase/schemas/05_tenancy.sql.
+--
+-- ── WHY THIS EXISTS ────────────────────────────────────────────────────────
+-- 20260201000100 demoted public.notes.owner_id to nullable attribution with ON
+-- DELETE SET NULL, because in B2B the data controller is the organization: an
+-- employee deleting their account must not delete the company's rows. That
+-- change also deleted the old one-statement account sweep — under the previous
+-- single-root FK graph, removing the auth.users row cascaded everything the
+-- user owned, and "delete user X" and "what belongs to X" were the same query.
+--
+-- What is left of the subject's own data after seats cascade and attribution
+-- nulls is their PERSONAL org: a single-seat organization nobody else can ever
+-- join. Deleting it cascades its memberships, invitations and notes. That
+-- deletion is the account sweep now, and it happens in the delete-account Edge
+-- Function because `auth.admin.deleteUser` is a GoTrue admin operation no
+-- policy-bound caller can perform.
+--
+-- ── WHY THE ORDER IS LOAD-BEARING, AND WHY THE GRANT IS SO NARROW ──────────
+-- public.orgs.created_by is `ON DELETE SET NULL`. If deleteUser ran while a
+-- personal org still existed, the FK action would null the very column the
+-- sweep filters on — the org would become permanently unsweepable, and with the
+-- auth user gone no retry could even authenticate to try again. So the function
+-- sweeps FIRST, verifies the sweep's error AND its row count, and refuses to
+-- call deleteUser on any mismatch.
+--
+-- service_role BYPASSES row security by role attribute: no policy in this repo
+-- constrains it, and the RLS suite structurally cannot cover it. The GRANT is
+-- therefore the only lever that exists, which is why 20260201000000 revoked
+-- everything from it on all three seat tables and why this file hands back
+-- exactly two privileges on exactly one table. SELECT so the function can
+-- verify what it is about to remove and confirm afterwards that nothing
+-- remains; DELETE to remove it. No INSERT, no UPDATE, and nothing at all on
+-- public.memberships or public.invitations — those rows leave by FK cascade,
+-- and referential-integrity actions bypass row security on their own.
+-- SOURCE: PostgreSQL row security — referential integrity checks bypass row
+-- security, so the FK cascade needs no grant of its own [corpus: postgres/rls-force]
+GRANT SELECT, DELETE ON TABLE public.orgs TO service_role;

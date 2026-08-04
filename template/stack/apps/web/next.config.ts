@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { authenticatedCacheHeaders, staticSecurityHeaders } from './lib/security-headers'
 
 // The narrowest shape of webpack's config this file touches. Next types its `webpack`
 // callback parameter as `any` (it re-exports webpack's own loose config type), which
@@ -32,8 +33,10 @@ const WORKSPACE_PACKAGES = [
   '@app/contracts',
   '@app/design-system',
   '@app/design-tokens',
+  '@app/env',
   '@app/errors',
   '@app/notes',
+  '@app/observability',
   '@app/supabase',
 ]
 
@@ -102,6 +105,29 @@ const nextConfig: NextConfig = {
     // assumption — this app is inside the same strict-TS cage as every other workspace
     // (tsconfig.base.json), and the build is the last place that cage may be opened.
     ignoreBuildErrors: false,
+  },
+
+  // The request-independent half of the security posture. It lives HERE rather than in
+  // proxy.ts because these headers must reach responses the proxy never sees: its matcher
+  // excludes api/trpc, .well-known and every static asset, and CVE-2025-29927 is the
+  // standing reminder that a request-interception layer is one framework bug away from not
+  // running at all. A header set that depends on middleware executing is a header set that
+  // is sometimes absent.
+  //
+  // The per-request half (the nonce CSP) cannot live here — `headers()` is evaluated at
+  // build time and has no request to mint a nonce for. That split is why the gate reads
+  // BOTH staticSecurityHeaders() and contentSecurityPolicy() out of the same module.
+  // SOURCE: apps/web/lib/security-headers.ts · tools/security-headers.json (the reviewed policy)
+  // Not `async`: this function awaits nothing, and an async function with no await is a
+  // promise wrapper pretending to be IO. Next's type wants a Promise, so return one.
+  headers() {
+    return Promise.resolve([
+      { source: '/:path*', headers: [...staticSecurityHeaders()] },
+      // The API surface carries tenant rows in every response. `private, no-store` plus a
+      // Vary naming the acting-org selector is what stops a shared cache keying two
+      // tenants' responses to the same URL.
+      { source: '/api/:path*', headers: [...authenticatedCacheHeaders()] },
+    ])
   },
 }
 

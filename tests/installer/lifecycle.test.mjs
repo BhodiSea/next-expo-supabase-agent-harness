@@ -794,6 +794,51 @@ test('doctor: seeded divergence from the current template is an info advisory, n
   assert.ok(r.out.includes('apps/mobile/src/routes.ts'), r.out)
 })
 
+test('a module that plants a workspace package is referenced by the root solution file', () => {
+  // The `contracts` gate closes three topologies over each other: pnpm workspace deps,
+  // tsconfig project references, and the knip map. eval-live plants packages/eval, so
+  // without the injection a strict scaffold reds on `contracts` before anyone edits it.
+  // The reference cannot live in the template: a core install has no packages/eval and
+  // `tsc -b` fails outright on a reference to a project that does not exist — which is
+  // why both directions are asserted here.
+  const strict = mkdtempSync(join(tmpdir(), 'epah-tsref-strict-'))
+  assert.equal(run(['init', '--dir', strict, '--yes', '--tier', 'strict', ...SETS]).code, 0)
+  const strictText = readFileSync(join(strict, 'tsconfig.json'), 'utf8')
+  assert.ok(
+    strictText.includes('{ "path": "packages/eval" }'),
+    `strict tier installs packages/eval but the root solution file does not reference it:\n${strictText}`,
+  )
+  assert.ok(existsSync(join(strict, 'packages/eval/tsconfig.json')))
+  // Exactly one — a second init pass, or a second call to the injector, must not
+  // double-write the entry.
+  assert.equal(strictText.split('{ "path": "packages/eval" }').length - 1, 1)
+  // The comment block below the list carries the layering law and the reasoned absence
+  // of apps/web + apps/mobile. A JSON round-trip would have deleted it silently.
+  assert.ok(strictText.includes('DELIBERATELY absent'), 'the JSONC commentary must survive injection')
+
+  const core = mkdtempSync(join(tmpdir(), 'epah-tsref-core-'))
+  assert.equal(run(['init', '--dir', core, '--yes', '--tier', 'core', ...SETS]).code, 0)
+  const coreText = readFileSync(join(core, 'tsconfig.json'), 'utf8')
+  assert.ok(
+    !coreText.includes('packages/eval'),
+    'a core scaffold has no packages/eval directory — a reference to it would fail `tsc -b` outright',
+  )
+})
+
+test('update does not strip a module package reference from the owned solution file', () => {
+  // tsconfig.json is OWNED, so update rewrites it from the template every run. Without
+  // the same injection on that path the reference would be planted at init and removed
+  // by the first update, redding `contracts` on a tree nobody touched.
+  const dir = mkdtempSync(join(tmpdir(), 'epah-tsref-update-'))
+  assert.equal(run(['init', '--dir', dir, '--yes', '--tier', 'strict', ...SETS]).code, 0)
+  const r = run(['update', '--dir', dir])
+  assert.notEqual(r.code, 1, r.out)
+  assert.ok(
+    readFileSync(join(dir, 'tsconfig.json'), 'utf8').includes('{ "path": "packages/eval" }'),
+    'update rewrote tsconfig.json from the template and dropped the module reference',
+  )
+})
+
 test('the template ships validate.floor.json in lockstep with VALIDATE_STEPS', async () => {
   // The CI floor is the frozen snapshot tools/validate.floor.json; the
   // installer's concern is that the template actually ships it and it matches.

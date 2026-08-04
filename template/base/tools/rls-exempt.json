@@ -1,4 +1,21 @@
 {
-  "comment": "Tables exempt from the FORCE-RLS + per-operation policy manifest gate (tools/check-rls-manifest.mjs). Every entry must be {\"table\": string, \"reason\": string} and be approved by {{SECURITY_OWNERS}} — an exemption without a reviewed reason is a gate bypass. Empty by design: the demo `notes` table is fully policied.",
-  "exempt": []
+  "comment": "Tables exempt from the FORCE-RLS + per-operation policy manifest gate (tools/check-rls-manifest.mjs). Every entry must be {\"table\": string, \"reason\": string} and be approved by {{SECURITY_OWNERS}} — an exemption without a reviewed reason is a gate bypass. The only entries are the audit trail's, and they are exempt from THAT GATE'S MODEL, not from scrutiny: an append-only table must have no UPDATE or DELETE policy, which is the opposite of what a per-operation manifest requires. tools/check-tenancy.mjs judges them instead, by rules that are strictly stronger. Note that schema-rls still checks one thing about them unconditionally, because its non-public-schema rule does not consult this list: that `audit` is absent from [api].schemas.",
+  "exempt": [
+    {
+      "table": "audit.events",
+      "reason": "Append-only by design, so the four-per-operation policy model this gate enforces is the wrong shape: it has an INSERT policy (for app_audit_writer, asserting the row's actor matches the database's own opinion of who is acting), a SELECT policy (rank >= 30, for app_audit_reader), and DELIBERATELY NO UPDATE OR DELETE POLICY — that absence is layer 1 of four. It is also unreachable by the supabase-js client suite by construction (schema `audit` is absent from [api].schemas, so PostgREST will not serve it), which is why it cannot be an ISOLATION_TARGETS row. Enforcement lives in tools/check-tenancy.mjs (the four immutability layers, the writer/reader split, the audit trigger on every org-scoped table) and in the pgTAP suite, which asserts UPDATE, DELETE and TRUNCATE all raise 42501 against a live database. See docs/adr/20260202-audit-trail.md."
+    },
+    {
+      "table": "audit.events_default",
+      "reason": "The DEFAULT partition of audit.events, and a partition is never independently policied: RLS is enabled and FORCEd on it with ZERO policies on purpose, which makes direct access deny-all while writes routed through the parent are judged by the parent's policies (verified against PostgreSQL 17). Requiring per-operation policies here would mean adding policies whose only effect is to WEAKEN it. The monthly partitions are created at runtime by audit.ensure_partitions() and never appear in migration text at all; this one is exempted explicitly because it is the single partition a migration creates."
+    },
+    {
+      "table": "quota_defaults",
+      "reason": "Global reference data with no tenant dimension, so the isolation matrix has nothing to prove about it: an ISOLATION_TARGETS row needs an owner column, and there is none — every signed-in caller sees the same published ceilings. It IS fully policied (ENABLE + FORCE, SELECT true to authenticated, deny-all INSERT/UPDATE/DELETE) and clients hold only SELECT; changing a default is a migration. The exemption is from the per-tenant isolation registries, not from RLS."
+    },
+    {
+      "table": "org_quota",
+      "reason": "Holds only NEGOTIATED OVERRIDES, so it is empty in every fresh database and in every CI run — which means the isolation matrix has no row to prove anything with, and its positive control ('A must see its own row') could never pass. It is fully policied (ENABLE + FORCE, member-scoped SELECT, deny-all INSERT/UPDATE/DELETE to authenticated) and clients hold SELECT only; the counter it caps, public.org_usage, IS in the matrix and shares the identical scope predicate, so the read boundary is proven on the table that actually has rows."
+    }
+  ]
 }

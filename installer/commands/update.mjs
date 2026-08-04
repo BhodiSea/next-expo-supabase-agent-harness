@@ -33,6 +33,8 @@ import {
 } from '../lib/migrations.mjs'
 import { classifyDrift } from '../lib/reconcile.mjs'
 import { printReport } from '../lib/report.mjs'
+import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
+import { writeAgentsLock } from '../lib/agents-lock.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
@@ -89,6 +91,11 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     throw new Error('template plan is empty — refusing to record an update over a packaging regression')
   }
   const plan = entries.map((e) => ({ ...e, content: renderEntry(e, answers) }))
+  // Same closure as init: an enabled module's workspace package must be in the root
+  // solution file. `tsconfig.json` is an OWNED file, so update rewrites it from the
+  // template on every run — without this the reference would be planted at init and
+  // silently removed by the first `update`, redding `contracts` on a tree nobody touched.
+  injectModuleProjectReferences(plan, report, 'kept')
 
   // Version migrations FIRST: removals/renames prune stale files before the
   // plan loop writes the current tree, and gate promotions must reach the
@@ -107,6 +114,12 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
   // note fires once per matched cluster — dedup by the matched pattern.
   const seededExemplars = seedOnInitOnlyPatterns(migrations)
   const notedExemplars = new Set()
+
+  // And the mirror of the injection above: the root solution file must not NAME a project
+  // this run is about to withhold. It runs here rather than beside the injection because
+  // the answer depends on `seededExemplars` — plan membership is not the same question as
+  // "will this file exist", and a reference to a withheld package kills `tsc -b` outright.
+  pruneMissingProjectReferences(plan, targetDir, report, seededExemplars)
 
   for (const entry of plan) {
     const ip = entry.installPath
@@ -210,6 +223,12 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     if (!opts.dryRun) writeInstallFile(join(targetDir, pending), entry.content)
     report.drift.push({ path: ip, pending })
   }
+
+  // ADOPT, never refresh: an install with no lock gets one written from its own current
+  // files (fully-locked, zero drift, no ramp needed); an install that HAS one keeps it,
+  // because rewriting it here would launder every edit made since — the exact act the
+  // lock exists to make visible.
+  writeAgentsLock(targetDir, report, 'adopt', { dryRun: opts.dryRun })
 
   if (!opts.dryRun) {
     writeManifest(targetDir, {

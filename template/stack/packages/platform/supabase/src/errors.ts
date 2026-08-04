@@ -79,6 +79,16 @@ const NOT_NULL_VIOLATION = '23502'
 const CHECK_VIOLATION = '23514'
 /** 22P02 invalid_text_representation — a malformed uuid, enum or number. */
 const INVALID_TEXT_REPRESENTATION = '22P02'
+/**
+ * 53400 configuration_limit_exceeded — a per-org quota trigger refused the write.
+ *
+ * IT MUST BE MATCHED EXPLICITLY, and the reason is three lines below: `53` is in
+ * RETRYABLE_CLASSES, so without its own case this code falls through to
+ * `unavailable` and every client is told to retry. Waiting does not free a quota —
+ * only deleting rows or raising the ceiling does — so the retry can never succeed,
+ * and the storm it produces lands on a database that just said it was full.
+ */
+const QUOTA_EXCEEDED = '53400'
 /** 40001 serialization_failure — a concurrent transaction won the race. */
 const SERIALIZATION_FAILURE = '40001'
 /** 40P01 deadlock_detected — two transactions waited on each other; one was shot. */
@@ -135,6 +145,17 @@ export function mapPostgresError(
       return appError.rlsDenied({
         ...(context.relation === undefined ? {} : { relation: context.relation }),
         message: 'a row-security policy refused the write',
+      })
+
+    case QUOTA_EXCEEDED:
+      // Placed above the class-53 retryable fallback deliberately: the fallback
+      // would call this transient and hand the caller a retry that cannot work.
+      // The metric and ceiling are NOT parsed out of the driver message — that
+      // message quotes the org id and the raw counts, and the rule for this whole
+      // module is that no driver text crosses to a screen. A caller that wants the
+      // numbers reads public.org_usage, which it is allowed to.
+      return appError.quotaExceeded({
+        message: 'a per-org quota refused the write',
       })
 
     case PGRST_NO_ROWS:

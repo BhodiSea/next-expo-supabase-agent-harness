@@ -9,9 +9,10 @@
 // canary; a DELETED gate cannot leave a stale registry entry.
 //   usage: node scripts/check-canary-coverage.mjs [registry-path] [hook-contract-path]
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { walkTemplate } from '../installer/lib/copy.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // Flags and positionals are separated so `--no-spawn` may appear anywhere without being
@@ -209,7 +210,7 @@ const hookContract = readFileSync(HOOK_CONTRACT, 'utf8')
 const guardRules = await import(
   pathToFileURL(join(ROOT, 'template/base/.claude/hooks/lib/guard-rules.mjs')).href
 )
-const ruleTables = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS']
+const ruleTables = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS', 'WRITE_SQL_CHECKS']
 const ruleIds = []
 for (const table of ruleTables) {
   if (!Array.isArray(guardRules[table]) || guardRules[table].length === 0) {
@@ -227,6 +228,57 @@ for (const table of ruleTables) {
 for (const id of ruleIds) {
   if (!hookContract.includes(`'${id}'`) && !hookContract.includes(`"${id}"`)) {
     errs.push(`guard rule id '${id}' has no behavioral canary in tests/hooks/hook-contract.test.mjs — every rule must have a deny/allow case (add a RULE_CANARIES entry)`)
+  }
+}
+
+// 3a. GROUNDEDNESS: a WRITE_PROTECTED rule naming ONE exact file must name a file the
+//     template actually ships.
+//
+// The per-id closure above cannot see this, and neither can the hook-contract canary,
+// because a deny rule over a path that cannot exist is trivially satisfied: the canary
+// feeds it the synthetic path, the hook denies, the test passes. 0.1.3 shipped exactly
+// that — `migration-apply-runner` over tests/migrations/migration-apply.mjs, a file no
+// template has ever contained. It had a rule, a canary, a settings.json allow entry and
+// a slot in check-gate-integrity's SURFACE, and all four were green while it guarded
+// nothing. An inert rule with a passing canary is the "green but bad" shape this whole
+// registry exists to eliminate, so the registry has to be able to see it.
+//
+// Only FULLY-ANCHORED LITERAL patterns are judged (^…$ with no regex metacharacters
+// beyond escaped dots). A prefix rule like ^\.github/workflows/ or ^apps/mobile/android/
+// legitimately covers files a consumer authors and the template does not ship, so it is
+// skipped — this asks the one question that is decidable, and asks it of every rule for
+// which it is decidable.
+// A regex LITERAL escapes its slashes, so the source of /^a\/b\.mjs$/ is `^a\/b\.mjs$`.
+// Both escapes have to be accepted or this matches nothing and skips silently — which it
+// did on the first draft, and the ghost-rule proof below is what caught it.
+const LITERAL_RULE = /^\^((?:[A-Za-z0-9_.\-/]|\\[./])+)\$$/
+
+// The template is not the only legitimate producer of a file an install carries, so
+// "the template ships it" is too narrow a test for "this path can exist". Exactly two
+// other producers exist, and each entry needs a named one — that is what keeps this from
+// becoming a place to park inert rules. A third entry is a reviewable act, and the
+// question to answer in review is always the same: WHO writes this file, and when?
+const GROUNDED_ELSEWHERE = {
+  'tools/agents.lock.json':
+    'written by the INSTALLER, not shipped: init and update run tools/gen-agents-lock.mjs --write against the install\'s own .claude/{agents,commands,skills} (installer/lib/agents-lock.mjs). Shipping a lock from the template would pin the template\'s agent files, which is the opposite of what the lock is for.',
+  '.claude/settings.local.json':
+    "Claude Code writes it per developer and it is gitignored — a template that shipped one would be shipping one machine's local permission grants to every consumer. The rule exists precisely because it is the file an agent would reach for to widen its own permissions.",
+}
+
+const shippedPaths = new Set(
+  ['base', 'stack']
+    .concat(readdirSync(join(ROOT, 'template', 'modules')).sort().map((m) => `modules/${m}`))
+    .flatMap((tree) => walkTemplate(tree))
+    .map((e) => e.installPath),
+)
+for (const rule of guardRules.WRITE_PROTECTED ?? []) {
+  const m = LITERAL_RULE.exec(String(rule.re?.source ?? ''))
+  if (m === null) continue
+  const literal = m[1].split('\\.').join('.').split('\\/').join('/')
+  if (!shippedPaths.has(literal) && GROUNDED_ELSEWHERE[literal] === undefined) {
+    errs.push(
+      `guard rule '${rule.id}' write-protects ${literal}, which NO template tree ships — a deny over a path that cannot exist is satisfied by every input, so its canary passes while the rule guards nothing. Delete the rule, or ship the file it was written for.`,
+    )
   }
 }
 

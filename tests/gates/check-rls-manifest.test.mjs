@@ -18,6 +18,13 @@ const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-rls-manifest.mjs', import.meta.url),
 )
 const STACK_SUPABASE = fileURLToPath(new URL('../../template/stack/supabase', import.meta.url))
+const SHIPPED_DB_CONTEXT = fileURLToPath(new URL('../../template/base/tests/rls/db-context.ts', import.meta.url))
+const SHIPPED_DEFINER_ALLOW = fileURLToPath(
+  new URL('../../template/base/tools/security-definer-allow.json', import.meta.url),
+)
+const SHIPPED_EXEMPT = fileURLToPath(
+  new URL('../../template/base/tools/rls-exempt.json', import.meta.url),
+)
 
 const EXEMPT_EMPTY = '{"comment":"x","exempt":[]}\n'
 
@@ -70,16 +77,30 @@ function fixture({
   exempt = EXEMPT_EMPTY,
   dbContext = dbctx(THING_TARGET),
   structureRows = THING_STRUCT,
+  definerAllow = '{"comment":"x","allow":[]}\n',
+  configToml = null,
   shipped = false,
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-rlsgate-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   mkdirSync(join(dir, 'tests/rls'), { recursive: true })
   writeFileSync(join(dir, 'tools/rls-exempt.json'), exempt)
-  writeFileSync(join(dir, 'tests/rls/db-context.ts'), dbContext)
   if (shipped) {
+    // The REAL registries, not fixture stand-ins. A shipped-scaffold regression test
+    // that supplies its own ISOLATION_TARGETS and definer allowlist is not tracking
+    // the shipped tree at all — it would stay green through exactly the drift it
+    // exists to catch.
+    cpSync(SHIPPED_DB_CONTEXT, join(dir, 'tests/rls/db-context.ts'))
+    cpSync(SHIPPED_DEFINER_ALLOW, join(dir, 'tools/security-definer-allow.json'))
+    // The REAL exemption list too, for the same reason as the two above: the shipped
+    // tree's audit trail is exempt from THIS gate's per-operation model on purpose
+    // (an append-only table must have no UPDATE or DELETE policy), and substituting an
+    // empty list here would make the test assert a tree nobody ships.
+    cpSync(SHIPPED_EXEMPT, join(dir, 'tools/rls-exempt.json'))
     cpSync(STACK_SUPABASE, join(dir, 'supabase'), { recursive: true })
   } else {
+    writeFileSync(join(dir, 'tools/security-definer-allow.json'), definerAllow)
+    writeFileSync(join(dir, 'tests/rls/db-context.ts'), dbContext)
     mkdirSync(join(dir, 'supabase/schemas'), { recursive: true })
     mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
     mkdirSync(join(dir, 'supabase/tests'), { recursive: true })
@@ -87,6 +108,7 @@ function fixture({
     if (mig !== null) writeFileSync(join(dir, 'supabase/migrations/0001_thing.sql'), mig)
     writeFileSync(join(dir, 'supabase/tests/rls_structure.test.sql'), structure(structureRows))
   }
+  if (configToml !== null) writeFileSync(join(dir, 'supabase/config.toml'), configToml)
   return dir
 }
 
@@ -101,12 +123,7 @@ function runGate(dir) {
 
 test('GREEN: the untouched shipped supabase/ scaffold passes (profiles inline-PK + notes)', () => {
   const r = runGate(
-    fixture({
-      shipped: true,
-      dbContext: dbctx(
-        "{ table: 'profiles', ownerColumn: 'id' }, { table: 'notes', ownerColumn: 'owner_id' }",
-      ),
-    }),
+    fixture({ shipped: true }),
   )
   assert.equal(r.code, 0, r.out)
 })
@@ -242,4 +259,226 @@ test('exemptions: canonical entries work; malformed entries fail LOUD, never ope
   const wrongShape = runGate(fixture({ exempt: JSON.stringify({ tables: { thing: 'nope' } }) }))
   assert.equal(wrongShape.code, 1, wrongShape.out)
   assert.ok(wrongShape.out.includes('ARRAY'), wrongShape.out)
+})
+
+// ---------------------------------------------------------------------------
+// 0.2.0 — the four checks this gate provably did not have.
+//
+// Each RED case below was GREEN on the 0.1.3 gate. That is the point of the block:
+// the injections are not hypothetical shapes, they are the specific SQL an agent can
+// write today that turns RLS off, defeats the initPlan rule, or escalates privilege,
+// while every gate in the chain reports the tree fully covered.
+// ---------------------------------------------------------------------------
+
+test('RED (0.2.0): a later migration DISABLEs row level security', () => {
+  // GREEN on 0.1.3: the gate collected ENABLE and FORCE and matched no negation, so
+  // `thing` stayed in the enabled set forever.
+  const r = runGate(
+    fixture({ migration: `${migration()}\nALTER TABLE public.thing DISABLE ROW LEVEL SECURITY;` }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('RLS is DISABLED'), r.out)
+  assert.ok(r.out.includes('0001_thing.sql'), 'must name the migration file, not just the table')
+})
+
+test('RED (0.2.0): NO FORCE ROW LEVEL SECURITY removes the owner coverage', () => {
+  const r = runGate(
+    fixture({
+      migration: `${migration()}\nALTER TABLE public.thing NO FORCE ROW LEVEL SECURITY;`,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('NO FORCE'), r.out)
+})
+
+test('RED (0.2.0): DISABLE TRIGGER silently stops whatever the trigger enforced', () => {
+  const r = runGate(
+    fixture({ migration: `${migration()}\nALTER TABLE public.thing DISABLE TRIGGER thing_audit;` }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('triggers are DISABLED'), r.out)
+})
+
+test('RED (0.2.0): a correlated EXISTS predicate — the shape that passed every 0.1.3 check', () => {
+  // This satisfies the vacuity check (not `true`) AND the initPlan regex (it does
+  // contain `(select ... auth.uid()`), and is a per-row SubPlan that re-enters
+  // public.other's own policies.
+  const r = runGate(
+    fixture({
+      migration: migration({
+        usingSelect:
+          'USING (EXISTS (SELECT 1 FROM public.other o WHERE o.thing_id = thing.id AND o.user_id = (SELECT auth.uid())))',
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('correlated SubPlan'), r.out)
+})
+
+test('GREEN (0.2.0): the uncorrelated scalar-helper form is the one that hoists', () => {
+  const helper =
+    "CREATE FUNCTION private.member_org_ids() RETURNS uuid[] LANGUAGE sql STABLE SECURITY INVOKER SET search_path = '' AS $$ SELECT array_agg(org_id) FROM public.memberships WHERE user_id = (SELECT auth.uid()) $$;"
+  const r = runGate(
+    fixture({
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = ANY((SELECT private.member_org_ids())::uuid[]))',
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.2.0): moving auth.uid() into a helper called BARE no longer vacates the initPlan rule', () => {
+  // GREEN on 0.1.3: the predicate text contained no identity call at all, so the
+  // per-row check had nothing to look at.
+  const helper =
+    'CREATE FUNCTION public.current_uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT auth.uid() $$;'
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: helper, usingSelect: 'USING (owner_id = public.current_uid())' }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('per row'), r.out)
+})
+
+test('GREEN (0.2.0): the SAME helper wrapped in a scalar sub-select passes — resolution is positional', () => {
+  const helper =
+    'CREATE FUNCTION public.current_uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT auth.uid() $$;'
+  const r = runGate(
+    fixture({
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = (SELECT public.current_uid()))',
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.2.0): SECURITY DEFINER with no reviewed allowlist entry', () => {
+  const fn =
+    "CREATE FUNCTION public.escalate() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;"
+  const r = runGate(fixture({ migration: migration({ extra: fn }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('security-definer-allow.json'), r.out)
+})
+
+test('RED (0.2.0): an allowlisted SECURITY DEFINER that does not pin search_path', () => {
+  const fn =
+    'CREATE FUNCTION public.escalate() RETURNS void LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;'
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: fn }),
+      definerAllow: JSON.stringify({
+        comment: 'x',
+        allow: [{ function: 'public.escalate', reason: 'reviewed' }],
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('search_path'), r.out)
+})
+
+test('RED (0.2.0): a SECURITY DEFINER that accepts who-am-I as an argument', () => {
+  const fn =
+    "CREATE FUNCTION public.rows_for(_user_id uuid) RETURNS setof public.thing LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT * FROM public.thing $$;"
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: fn }),
+      definerAllow: JSON.stringify({
+        comment: 'x',
+        allow: [{ function: 'public.rows_for', reason: 'reviewed' }],
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('identity-shaped parameter'), r.out)
+})
+
+test('RED (0.2.0): EXECUTE to authenticated on an UNREVIEWED definer function', () => {
+  // EXECUTE to authenticated is how a PostgREST RPC is reached at all — PostgREST
+  // switches to the JWT's role before calling, so there is no "dedicated role"
+  // alternative. It is therefore legal, but only as a recorded decision.
+  const fn = `CREATE FUNCTION public.priv() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;
+REVOKE ALL ON FUNCTION public.priv() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.priv() TO authenticated;`
+  const r = runGate(fixture({ migration: migration({ extra: fn }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('EXECUTE granted to authenticated'), r.out)
+  assert.ok(r.out.includes('no entry in'), r.out)
+})
+
+test('RED (0.2.0): a definer function with NO grant statements is anon-callable by default', () => {
+  // THE FAILURE MODE THE OLD RULE COULD NOT SEE. PostgreSQL grants EXECUTE to PUBLIC
+  // on every new function and Supabase's default privileges additionally grant anon,
+  // so a migration that mentions no grants at all still ships an anon-callable
+  // privilege-escalation primitive. A gate that only inspects GRANT statements reads
+  // that migration as clean. The REVOKE is the only evidence a migration can carry.
+  const fn =
+    "CREATE FUNCTION public.priv() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;"
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: fn }),
+      definerAllow: JSON.stringify({
+        comment: 'x',
+        allow: [{ function: 'public.priv', reason: 'reviewed for this fixture' }],
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('REVOKE EXECUTE'), r.out)
+})
+
+test('RED (0.2.0): EXECUTE granted to anon is never legal, allowlisted or not', () => {
+  const fn = `CREATE FUNCTION public.priv() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;
+REVOKE ALL ON FUNCTION public.priv() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.priv() TO anon;`
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: fn }),
+      definerAllow: JSON.stringify({
+        comment: 'x',
+        allow: [{ function: 'public.priv', reason: 'reviewed for this fixture' }],
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('EXECUTE granted to anon'), r.out)
+})
+
+test('GREEN (0.2.0): a reviewed, revoked, search_path-pinned definer RPC passes', () => {
+  const fn = `CREATE FUNCTION public.org_members(p_org_id uuid) RETURNS setof public.thing LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT * FROM public.thing $$;
+REVOKE ALL ON FUNCTION public.org_members(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.org_members(uuid) TO authenticated;`
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: fn }),
+      definerAllow: JSON.stringify({
+        comment: 'x',
+        allow: [
+          { function: 'public.org_members', reason: 'the colleague directory read; verifies the callers own membership from auth.uid() before returning rows' },
+        ],
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.2.0): a non-public table whose schema is published by PostgREST', () => {
+  // The audit trail is kept out of `public` precisely so PostgREST cannot reach it.
+  // Listing that schema in [api].schemas gives the rows back to every caller.
+  const r = runGate(
+    fixture({
+      schema: `${SCHEMA_THING}CREATE TABLE audit.events (id bigint PRIMARY KEY);\n`,
+      exempt: JSON.stringify({
+        comment: 'x',
+        exempt: [{ table: 'audit.events', reason: 'append-only trail, no per-caller policy' }],
+      }),
+      configToml: 'project_id = "x"\n\n[api]\nenabled = true\nschemas = ["public", "audit"]\n',
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('[api].schemas'), r.out)
 })

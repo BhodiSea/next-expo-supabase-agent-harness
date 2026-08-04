@@ -18,6 +18,7 @@
     { "path": "packages/platform/events" },
     { "path": "packages/platform/env" },
     { "path": "packages/platform/observability" },
+    { "path": "packages/platform/ratelimit" },
     { "path": "packages/platform/supabase" },
     { "path": "packages/contracts" },
     { "path": "packages/design-tokens" },

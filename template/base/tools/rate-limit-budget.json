@@ -1,0 +1,50 @@
+{
+  "comment": "The reviewed rate-limit budget. apps/web/lib/rate-limit.ts is the code that RUNS; this file is what a human approved, and `node tools/check-rate-limits.mjs` evaluates that module and diffs it against this one BY VALUE — so a number changed in code without a reviewed diff here reds, and so does the reverse. Two closures make it non-vacuous: every MUTATION in tools/generated/action-inventory.json (which is generated from the composed router, not hand-written) must map to a declared bucket or appear in `exemptProcedures` with a reason, and every declared bucket must be referenced by something. The ceilings exist because a bucket of 100000/second is not a limit while reading exactly like one in review. HONEST SCOPE, restated here because this is where someone will look for it: these budgets bind the application seams — the tRPC router and the Next Server Action layer. They do NOT bind a client that calls PostgREST directly with the publishable key and its own JWT, and they do not bind sign-in or sign-up, which go to GoTrue. The controls that bind every path are the per-org quota trigger and the per-role statement timeouts (tools/db-limits.json).",
+  "buckets": [
+    {
+      "name": "read",
+      "limit": 300,
+      "windowSeconds": 60,
+      "reason": "Five reads a second sustained. Past any human's navigation, inside what a page that fans out to several queries and then revalidates does on a fast connection. Reads are cheap and leave nothing behind, so the budget is loose on purpose — a tight read limit produces support tickets, not security."
+    },
+    {
+      "name": "write",
+      "limit": 60,
+      "windowSeconds": 60,
+      "reason": "One write a second sustained: no interactive user reaches it and every runaway retry loop exceeds it immediately. Deliberately much tighter than reads because a write costs a transaction, an audit row and a quota check, and it is the direction that leaves damage behind."
+    },
+    {
+      "name": "provisioning",
+      "limit": 10,
+      "windowSeconds": 3600,
+      "reason": "Org creation and invitation redemption, per HOUR rather than per minute. Both are once-in-a-lifetime operations for a real user and attractive to abuse: creating orgs manufactures tenants, and invitation redemption is the one endpoint that accepts a credential from someone who is not yet a member of anything. A per-minute window would let a token be ground all day at 59-second intervals. private.create_org's per-user/day cap is the enforcement; this stops the grinding reaching the database."
+    }
+  ],
+  "ceilings": {
+    "limit": 1000,
+    "windowSeconds": 86400
+  },
+  "procedures": {
+    "notes.create": "write",
+    "notes.get": "read",
+    "notes.list": "read",
+    "notes.remove": "write",
+    "notes.update": "write",
+    "system.me": "read"
+  },
+  "exemptProcedures": [
+    {
+      "action": "system.health",
+      "reason": "What a load balancer and the deploy smoke check call to decide whether this instance is alive. Rate-limiting it inverts the control: a traffic spike would throttle the health probe, the instance would be marked unhealthy and pulled from rotation, and the remaining instances would take its load — the outage the limiter existed to prevent, caused by the limiter. It is a query, it touches no tenant data, and it is the one endpoint whose availability must not depend on anyone's budget."
+    }
+  ],
+  "actions": {
+    "acceptInvitationAction": "provisioning",
+    "createNoteAction": "write",
+    "ensurePersonalOrgAction": "provisioning"
+  },
+  "failOpen": {
+    "decided": true,
+    "reason": "When the limiter cannot answer — Redis unreachable, a REST timeout, a provider 500 — the request is ALLOWED and the decision is marked `degraded`. A limiter that fails closed converts a dependency outage into a total outage of a product that was working a second earlier, at exactly the moment an operator is least able to react, and it does so for a control that is a courtesy layer rather than the authorization boundary. The cost is real and stated: during a limiter outage there is no rate limiting. The `degraded` flag is what makes that a metric instead of a silence."
+  }
+}

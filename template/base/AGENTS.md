@@ -51,7 +51,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 24-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 29-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -76,11 +76,13 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 24 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
+- The 29 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
   `provenance`, `boundaries`, `expo-policy`, `native-deps`, `version-sync`,
-  `prompts`, `licenses`, `schema-rls`, `types-drift`, `migrations`, `contracts`,
+  `prompts`, `licenses`, `schema-rls`, `tenancy`, `types-drift`, `migrations`,
+  `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
   `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
-  `route-manifest`, `e2e`, `docs-sync` (docs/harness/gates-catalog.md documents each).
+  `route-manifest`, `security-headers`, `e2e`, `docs-sync`
+  (docs/harness/gates-catalog.md documents each).
 - **Toolchain asymmetry:** gates needing a live database, an install, or a
   network-verified toolchain SKIP LOUDLY locally when the prerequisite is
   absent and FAIL CLOSED in CI (`CI=true` / `HARNESS_REQUIRE_TOOLCHAINS=1`).
@@ -119,6 +121,28 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   {errors,events}` only; `packages/api ↛ next/*` (reversibility wall); `apps/mobile ↛
   web-only packages`; `apps/web ↛ react-native`. The dual-barrel `exports` census is
   `tools/exports-walls.json`; `@app/api` is absent (mobile `import type` only).
+- **Every org-scoped table carries an audit trigger** in the migration that creates it:
+  `AFTER INSERT OR UPDATE OR DELETE ... FOR EACH ROW EXECUTE FUNCTION
+  audit.write_row('<tenant col>', '<identity col>')`, **never with a `WHEN` clause**.
+  The trail is `audit.events` — a schema absent from `[api].schemas` with no client
+  USAGE (RLS on a partitioned parent does not cascade to partitions, so a `public`
+  audit table is one URL per month away from every tenant's history). Append-only in
+  four layers: no update/delete policy, no client grant, a `BEFORE UPDATE OR DELETE`
+  row trigger (the only one that binds `BYPASSRLS`), and a `BEFORE TRUNCATE` statement
+  trigger on the parent AND every partition (TRUNCATE triggers are not cloned).
+  Metadata by default; value capture is a reviewed `tools/audit-columns.json` entry and
+  is refused for `tools/pii-columns.json` columns. ADR: `docs/adr/20260202-audit-trail.md`.
+- **A metered table carries a per-org quota** in the migration that creates it: an
+  `AFTER INSERT ... REFERENCING NEW TABLE ... FOR EACH STATEMENT` trigger executing
+  `private.enforce_org_quota('<metric>', '<tenant col>')`, plus the `AFTER DELETE`
+  release twin. **Never FOR EACH ROW** (it serializes every insert behind the org's
+  one usage tuple) and **never a RESTRICTIVE policy over a `STABLE` count** (the
+  planner hoists it to one evaluation per statement against the PRE-statement count,
+  so a single multi-row INSERT of any size passes wholesale — it fails OPEN). Clients
+  hold `SELECT` only on `org_usage`/`org_quota`: a tenant that can raise its own limit
+  has none. Overflow is SQLSTATE `53400` → `appError.quotaExceeded()`, which is
+  deliberately NOT `rateLimited` — waiting never clears a quota, so a client that
+  conflates them retries forever. ADR: `docs/adr/20260203-resource-limits.md`.
 - **Migrations are append-only.** Never edit or delete a committed migration — add a
   new timestamped `supabase/migrations/<timestamp>_<slice>.sql`. Destructive DDL
   (DROP/TRUNCATE) needs `-- adr: docs/adr/<file>`; DML in a migration needs

@@ -50,8 +50,11 @@ major_version = 17
 # sorted lexicographically, so the numeric prefixes keep new files predictable).
 schema_paths = [
   "./schemas/00_shared.sql",
+  "./schemas/05_tenancy.sql",
   "./schemas/10_account.sql",
   "./schemas/20_notes.sql",
+  "./schemas/30_quota.sql",
+  "./schemas/40_audit.sql",
   "./schemas/*.sql",
 ]
 

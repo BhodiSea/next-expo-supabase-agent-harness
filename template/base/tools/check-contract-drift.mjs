@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Gate: contracts — the committed API contract and the project graph cannot drift.
-//   1. contract inventory regen-diff: regenerate the two committed inventories —
-//      tools/generated/action-inventory.json (every tRPC procedure the appRouter exposes)
-//      and tools/generated/event-catalog.json (every event the platform + vertical catalogs
-//      declare) — from the LIVE values and diff against the committed copies, so adding or
-//      removing an action/event without regenerating reds. Requires an install (tsx, to walk
-//      the runtime router/catalogs); skips loudly without one, fails closed in CI.
+//   1. contract inventory regen-diff: regenerate the three committed inventories —
+//      tools/generated/action-inventory.json (every tRPC procedure the appRouter exposes),
+//      tools/generated/event-catalog.json (every event the platform + vertical catalogs
+//      declare) and tools/generated/query-shapes.json (every statement the DALs issue,
+//      recorded by driving them through the harness-owned recording port) — from the LIVE
+//      values and diff against the committed copies, so adding or removing an action, event
+//      or query without regenerating reds. Requires an install (tsx, to walk the runtime
+//      router/catalogs/DALs); skips loudly without one, fails closed in CI.
 //   2. tsconfig project-references sync: the solution tsconfig and each package's
 //      references must mirror the pnpm workspace dependency graph — three parallel
 //      topologies (workspace deps, project refs, knip map) desynchronize into
@@ -40,7 +42,7 @@ const posix = (p) => p.split(sep).join('/')
 const pkgDirs = []
 for (const scope of ['apps', 'packages']) {
   if (!existsSync(scope)) continue
-  for (const d of readdirSync(scope)) {
+  for (const d of readdirSync(scope).sort()) {
     if (existsSync(join(scope, d, 'package.json'))) pkgDirs.push(join(scope, d))
   }
 }
@@ -96,6 +98,12 @@ if (existsSync('tsconfig.json')) {
 const INVENTORIES = [
   ['tools/gen-action-inventory.mjs', 'tools/generated/action-inventory.json'],
   ['tools/gen-event-catalog.mjs', 'tools/generated/event-catalog.json'],
+  // The query-shape manifest is regen-diffed here for the same reason as the other two,
+  // and it matters more: the `query-shapes` gate that runs immediately after judges
+  // index service against this file, so a stale copy would certify the statements the
+  // DAL USED to send. Its generator drives each DAL function through the recording port,
+  // which is why it needs the install like the others.
+  ['tools/gen-query-shapes.mjs', 'tools/generated/query-shapes.json'],
 ]
 if (INVENTORIES.some(([gen]) => existsSync(gen))) {
   if (!existsSync('node_modules')) {

@@ -1,7 +1,9 @@
+import { webEnv } from '@app/env'
 import type { SupabaseCookieAdapter } from '@app/supabase'
 import { createServerSupabaseClient } from '@app/supabase'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { contentSecurityPolicy, contentSecurityPolicyReportOnly } from './lib/security-headers'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THIS FILE IS NOT AN AUTHORIZATION BOUNDARY. IT REFRESHES A SESSION. THAT IS ALL.
@@ -31,14 +33,51 @@ import { NextResponse } from 'next/server'
 // signed in without a round trip through a signed-out render.
 // SOURCE: docs/security/sandbox-and-supply-chain.md (defence in depth; the boundary is the
 // data layer and RLS, never a request-interception layer) docs/harness/README.md
+/**
+ * A fresh 128-bit nonce per document response, base64 as CSP requires.
+ *
+ * Per REQUEST, never per build or per process: a nonce reused across responses is
+ * not a nonce, and an attacker who can read one page's nonce could then inject a
+ * script that any other page's CSP would accept.
+ * SOURCE: https://www.w3.org/TR/CSP3/#security-nonces (nonces must be unpredictable and per-response)
+ */
+function mintNonce(): string {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
+}
+
 export default async function proxy(request: NextRequest): Promise<NextResponse> {
+  // The CSP nonce rides DOCUMENT responses only. A nonce on a JSON or asset response
+  // governs nothing — the document's policy is what decides whether a script runs —
+  // and minting one per subresource is pure cost.
+  const isDocument = request.headers.get('sec-fetch-dest') === 'document'
+  const nonce = isDocument ? mintNonce() : null
+  const csp = nonce === null ? null : contentSecurityPolicy(nonce, webEnv.NEXT_PUBLIC_SUPABASE_URL)
+
   // The canonical @supabase/ssr dance, and every line of it is load-bearing. `response` is
   // reassigned inside setAll because a refreshed cookie has to reach TWO different places:
   // the downstream render (which reads `request.cookies`, so the request object is mutated
   // first) and the browser (which reads `Set-Cookie`, so a NextResponse rebuilt from the
   // mutated request carries the new value forward). Skip either half and the refresh
   // "works" for exactly one hop before the stale cookie comes back.
-  let response = NextResponse.next({ request })
+  //
+  // The nonce is threaded through the REQUEST headers as well as the response, and that
+  // half is not optional: Next reads `content-security-policy` off the incoming request to
+  // discover the nonce it must stamp onto its own inline bootstrap script. Set it only on
+  // the response and the header is correct, the page is blank, and the browser console
+  // blames a script Next generated. This is the single most common way a nonce CSP ships
+  // broken — the Playwright violation collector in e2e/security-headers.spec.ts exists to
+  // make that state unshippable rather than merely documented.
+  // SOURCE: https://nextjs.org/docs/app/guides/content-security-policy (nonce propagation via request headers)
+  const buildResponse = (): NextResponse => {
+    const headers = new Headers(request.headers)
+    if (nonce !== null && csp !== null) {
+      headers.set('x-nonce', nonce)
+      headers.set('content-security-policy', csp)
+    }
+    return NextResponse.next({ request: { headers } })
+  }
+
+  let response = buildResponse()
 
   // The adapter is the whole of apps/web's obligation to @app/supabase: that package owns
   // the client construction and the env resolution and imports NOTHING framework-specific,
@@ -49,7 +88,9 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
     getAll: () => request.cookies.getAll(),
     setAll: (cookiesToSet) => {
       for (const { name, value } of cookiesToSet) request.cookies.set(name, value)
-      response = NextResponse.next({ request })
+      // buildResponse() re-reads request.headers AFTER the mutation above, so the
+      // rebuilt response carries both the refreshed cookie and the nonce.
+      response = buildResponse()
       for (const { name, value, options } of cookiesToSet) {
         response.cookies.set({ name, value, ...options })
       }
@@ -66,6 +107,19 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
   // SOURCE: docs/security/sandbox-and-supply-chain.md (never trust an unverified token)
   // apps/web/lib/supabase/server.ts (the same getSession ban, restated at the data seam)
   await supabase.auth.getClaims()
+
+  // The enforcing policy on the way out, plus a report-only twin pointed at the
+  // in-app collector. Report-only is not redundant: the enforcing header tells the
+  // browser what to block, and nothing tells YOU that it blocked something. A
+  // violation in production is otherwise invisible until a user reports a blank page,
+  // and a local Playwright run only proves the routes it visits.
+  if (nonce !== null && csp !== null) {
+    response.headers.set('content-security-policy', csp)
+    response.headers.set(
+      'content-security-policy-report-only',
+      contentSecurityPolicyReportOnly(nonce, webEnv.NEXT_PUBLIC_SUPABASE_URL),
+    )
+  }
 
   return response
 }

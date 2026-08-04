@@ -112,6 +112,11 @@ catalog:
   # undetected within one bundle, where two Reacts break the hooks dispatcher.
   react: 19.2.3
   react-dom: 19.2.3 # web (Next) + the Expo web preview via react-native-web
+  # The `import 'server-only'` poison pill: a module that imports it fails the BUILD
+  # if it is ever pulled into a client bundle. 0.0.1 is the package's only release and
+  # its entire content is a package.json whose exports map resolves to a throwing file
+  # in the browser condition — there is nothing to upgrade.
+  server-only: 0.0.1
   '@types/react': ^19.2.17
   '@types/react-dom': ^19.2.3
   # Expo SDK 57 line. Since SDK 55 every expo-* package's MAJOR tracks the SDK

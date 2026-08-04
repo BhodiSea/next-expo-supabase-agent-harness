@@ -3,13 +3,30 @@
 //
 // WHAT IT DOES THAT RLS CANNOT. Deleting a row in `auth.users` is a GoTrue admin
 // operation: no policy a signed-in user runs under can touch that table, and the
-// `service_role` key is the only credential that reaches the admin API. Every
-// owned row (`public.profiles`, `public.notes`, …) references `auth.users(id) ON
-// DELETE CASCADE`, so removing the identity row sweeps the account in ONE
-// statement — the schema is built for exactly this (see supabase/schemas/
-// 10_account.sql). There is nothing here to express as a policy or a
-// user-context tRPC procedure, which is the bar the functions README sets for a
-// function existing at all.
+// `service_role` key is the only credential that reaches the admin API. There is
+// nothing here to express as a policy or a user-context tRPC procedure, which is
+// the bar the functions README sets for a function existing at all.
+//
+// WHAT DELETION MEANS UNDER ORG SCOPE. It is no longer one statement. Since the
+// org re-scope (docs/adr/20260201-org-scoped-tenancy.md) the data controller for
+// `public.notes` is the ORGANIZATION, not the author: `owner_id` is nullable
+// attribution with `ON DELETE SET NULL`, so an employee closing their account
+// must not delete the company's rows. Deleting the identity row still cascades
+// `public.profiles` and revokes every seat (`memberships.user_id` is ON DELETE
+// CASCADE). What it does NOT reach is the caller's PERSONAL org — a single-seat
+// organization nobody else can join — whose deletion cascades its own
+// memberships, invitations and notes. Sweeping that org is this function's
+// second job, and it happens FIRST.
+//
+// WHY THE ORDER IS LOAD-BEARING. `public.orgs.created_by` is `ON DELETE SET
+// NULL`. If `deleteUser` ran while a personal org still existed, the FK action
+// would null the very column the sweep filters on: the org would become
+// permanently unsweepable, and with the auth user gone no retry could even
+// authenticate to try again. One misordering is therefore not a retryable
+// failure, it is unrecoverable orphaned tenant data. So the sweep runs first and
+// is VERIFIED — error and row count both — and any mismatch returns 500 WITHOUT
+// calling deleteUser. A caller who sees 500 still has their account and can try
+// again; that is the recoverable side of the trade, and it is the side to be on.
 //
 // WHO IT CAN DELETE. Only the caller, and only themselves. `verify_jwt = true`
 // (config.toml) means the platform rejects an unauthenticated request before
@@ -72,13 +89,71 @@ Deno.serve(async (req) => {
   if (userErr || !userData.user) return json({ error: 'unauthorized' }, 401)
   const userId = userData.user.id
 
-  // The one elevated call. `shouldSoftDelete` defaults to false → a HARD delete,
-  // which removes the auth.users row and fires the ON DELETE CASCADE that sweeps
-  // every owned table. A soft delete would tombstone the identity and leave the
-  // owned rows orphaned, so it is deliberately not used.
+  // The elevated client. Its ENTIRE reach over application data is
+  // `GRANT SELECT, DELETE ON public.orgs` (migration 20260201000200) — it holds
+  // nothing on memberships, invitations, notes or profiles, because those rows
+  // leave by FK cascade and referential-integrity actions bypass row security on
+  // their own.
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+
+  // ── step 1: what are we about to remove? ───────────────────────────────────
+  // Read before write, so "deleted nothing because there was nothing" and
+  // "deleted nothing because the grant is missing" are distinguishable. The
+  // partial unique index orgs_personal_creator_key makes this at most one row.
+  const { data: before, error: beforeErr } = await admin
+    .from('orgs')
+    .select('id')
+    .eq('created_by', userId)
+    .eq('kind', 'personal')
+  if (beforeErr) {
+    console.error(`delete-account: personal-org lookup failed for ${userId}: ${beforeErr.message}`)
+    return json({ error: 'deletion_failed' }, 500)
+  }
+  const expected = before?.length ?? 0
+
+  // ── step 2: sweep, and count what actually went ───────────────────────────
+  // `.select()` on a delete returns the rows PostgREST actually removed, which
+  // is the only trustworthy row count available here.
+  const { data: swept, error: sweepErr } = await admin
+    .from('orgs')
+    .delete()
+    .eq('created_by', userId)
+    .eq('kind', 'personal')
+    .select('id')
+  if (sweepErr) {
+    console.error(`delete-account: personal-org sweep failed for ${userId}: ${sweepErr.message}`)
+    return json({ error: 'deletion_failed' }, 500)
+  }
+
+  // ── step 3: verify, and refuse to proceed on ANY mismatch ─────────────────
+  // A silent partial sweep is the failure this whole ordering exists to
+  // prevent, so the check is an equality against the pre-count, not a
+  // "greater than zero". Re-reading afterwards additionally catches a delete
+  // that reported rows while leaving some behind.
+  const sweptCount = swept?.length ?? 0
+  const { data: after, error: afterErr } = await admin
+    .from('orgs')
+    .select('id')
+    .eq('created_by', userId)
+    .eq('kind', 'personal')
+  if (afterErr || sweptCount !== expected || (after?.length ?? 0) !== 0) {
+    console.error(
+      `delete-account: personal-org sweep unverified for ${userId} ` +
+        `(expected ${expected}, swept ${sweptCount}, remaining ${after?.length ?? '?'}` +
+        `${afterErr ? `, recheck failed: ${afterErr.message}` : ''}) — ` +
+        'refusing to delete the auth user, because created_by is ON DELETE SET NULL ' +
+        'and deleting it now would orphan the org beyond recovery',
+    )
+    return json({ error: 'deletion_failed' }, 500)
+  }
+
+  // ── step 4: the one irreversible call ─────────────────────────────────────
+  // `shouldSoftDelete` defaults to false → a HARD delete, which removes the
+  // auth.users row, cascades public.profiles, and revokes every remaining seat.
+  // A soft delete would tombstone the identity and leave the seats live, so it
+  // is deliberately not used.
   const { error: deleteErr } = await admin.auth.admin.deleteUser(userId)
   if (deleteErr) {
     console.error(`delete-account: admin.deleteUser failed for ${userId}: ${deleteErr.message}`)

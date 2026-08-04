@@ -16,8 +16,10 @@
 // classification reuses fileMode + seedOnInitOnlyPatterns/matchSeedOnInitOnly —
 // zero duplicated rename or mode logic, so this gate cannot drift from `update`.
 import { execFileSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { storageToInstall } from '../installer/lib/copy.mjs'
+import { storageToInstall, walkTemplate } from '../installer/lib/copy.mjs'
 import { fileMode } from '../installer/lib/manifest.mjs'
 import {
   matchSeedOnInitOnly,
@@ -32,7 +34,61 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // carry them for a gate to keep working). Each entry needs the git path exactly
 // as `git diff` prints it plus a written reason — an empty reason is a review
 // reject. Example: { file: 'template/stack/tools/new-budget.json', reason: '…' }
-const DELIBERATE_PLANT = []
+const DELIBERATE_PLANT = [
+  {
+    file: 'template/base/tools/tenancy.json',
+    reason:
+      'check-tenancy.mjs FAILS CLOSED when the contract is missing, and that check runs before any ramp — an install with the `tenancy` step injected and no contract reds on its first validate. The file is a contract (the closed predicate-form set, the rank ladder, the two helper names), not project data: nothing in it names a consumer table. Planting it is what makes the injected step ramp instead of fail.',
+  },
+  {
+    file: 'template/base/tools/db-limits.json',
+    reason:
+      'Identical reasoning to tenancy.json: check-db-limits.mjs fails closed on a missing ceiling list before it can ramp. The rows are role x knob ceilings and the quota trigger shape — universal, not project-specific.',
+  },
+  {
+    file: 'template/base/tools/security-headers.json',
+    reason:
+      'The gate ramps on the absent MODULE (apps/web/lib/security-headers.ts, which IS withheld), so this file is never read by an un-adopted install. It is planted so that pulling the module later with `--refresh-seeded` yields a gate that judges the headers immediately, rather than one that fails closed on a missing policy. The policy is a web response posture; it names no consumer route.',
+  },
+  {
+    file: 'template/modules/eval-live/packages/eval/package.json.tmpl',
+    reason:
+      'The eval-live module shipped src/adapters/live.ts with NO package.json — `@app/eval` never resolved, so every install that enabled the module had a workspace package pnpm could not link. Planting completes it. There is nothing of the consumer\'s to clobber: the file has never existed in any install.',
+  },
+  {
+    file: 'template/modules/eval-live/packages/eval/tsconfig.json',
+    reason:
+      'Same gap as the package.json above — the module had no project reference, so `tsc -b` never type-checked its one source file. Planting is the fix, not an exemplar.',
+  },
+  {
+    file: 'template/modules/eval-live/packages/eval/src/providers.ts',
+    reason:
+      "adapters/live.ts imports `../providers.js` and that module did not exist: the module did not compile. This is a repair to a shipped package, so every install with eval-live enabled needs it — withholding it would leave the import dangling exactly as it is today.",
+  },
+]
+
+// Every seedOnInitOnly pattern must name something the template ACTUALLY SHIPS.
+//
+// The field is a pure list read by a prefix/exact matcher, and both ways it can be
+// wrong are silent. A typo or a path left behind by a rename withholds NOTHING while
+// reading as protection, and `update` cheerfully plants the file the entry was meant to
+// hold back. A comment string accidentally added to the array is the same bug wearing
+// prose — and one ending in '/' would withhold an entire subtree, which is worse.
+// Neither shows up in any other check, because both are perfectly valid JSON.
+//
+// `shipped` is derived from walkTemplate + storageToInstall — the installer's own
+// mapping, so a .tmpl strip or a top-level dotless rename can never make this disagree
+// with what `update` computes. Directory prefixes are included so a subtree pattern
+// resolves against the tree it covers.
+export function findUngroundedPatterns({ patterns, shippedInstallPaths }) {
+  const dirs = new Set()
+  for (const ip of shippedInstallPaths) {
+    const parts = ip.split('/')
+    for (let i = 1; i < parts.length; i += 1) dirs.add(`${parts.slice(0, i).join('/')}/`)
+  }
+  const files = new Set(shippedInstallPaths)
+  return patterns.filter((p) => (p.endsWith('/') ? !dirs.has(p) : !files.has(p)))
+}
 
 // Pure core (unit-tested without git): given the template paths ADDED since the
 // previous release, the parsed template/migrations.json, and an allowlist,
@@ -69,6 +125,33 @@ export function findUnregisteredSeededAdditions({ addedTemplatePaths, migrations
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const git = (args) =>
     execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+
+  // Grounding first — it needs no git, and a pattern that names nothing is wrong
+  // whether or not there is a previous release to diff against.
+  const migrations = readTemplateMigrations()
+  const trees = ['base', 'stack']
+  for (const name of readdirSync(join(ROOT, 'template', 'modules')).sort()) {
+    trees.push(`modules/${name}`)
+  }
+  const shipped = trees.flatMap((t) => walkTemplate(t)).map((e) => e.installPath)
+  const ungrounded = findUngroundedPatterns({
+    patterns: seedOnInitOnlyPatterns(migrations),
+    shippedInstallPaths: shipped,
+  })
+  if (ungrounded.length > 0) {
+    console.error(
+      `SEEDED-MIGRATIONS: FAIL (${ungrounded.length}) — seedOnInitOnly pattern(s) in template/migrations.json name nothing the template ships:`,
+    )
+    for (const p of ungrounded) {
+      console.error(
+        `  - ${JSON.stringify(p)} — ${p.endsWith('/') ? 'no shipped file installs under this directory' : 'no shipped file installs to this exact path'}`,
+      )
+    }
+    console.error(
+      '  why: the field is read by a prefix/exact matcher, so a typo, a path left behind by a rename, or a comment string added to the array withholds NOTHING while reading as protection — and `update` plants the file the entry was meant to hold back. Fix the pattern or delete it.',
+    )
+    process.exit(1)
+  }
 
   let prev = process.env.PREVIOUS_RELEASE_TAG || null
   if (prev === null) {
@@ -134,7 +217,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
   const violations = findUnregisteredSeededAdditions({
     addedTemplatePaths: added,
-    migrations: readTemplateMigrations(),
+    migrations,
     allowlist: DELIBERATE_PLANT,
   })
 

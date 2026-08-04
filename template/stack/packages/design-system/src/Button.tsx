@@ -1,3 +1,7 @@
+'use client'
+
+// 'use client': useId is a hook, and the press handler is a browser event listener.
+
 import { useId } from 'react'
 import { cn } from './cn'
 import { Spinner } from './Spinner'

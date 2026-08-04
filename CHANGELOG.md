@@ -11,6 +11,477 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+## [0.2.0] — 2026-08-03
+
+**The multi-tenancy release.** Every scaffold is B2B org-scoped from `init`, with
+isolation enforced in PostgreSQL and proven by gates that can go red. The chain
+goes 24 → 29 steps; the Stop chain is unchanged at 9 (two of its steps deepen).
+
+Read the **Fixed** section first. Every defect in it was GREEN on 0.1.3 — not
+because a rule judged the input safe, but because no rule looked at it — and
+every one was found by EXECUTING the machinery against a real database or a real
+scaffold, never by reading it.
+
+### Fixed
+
+Defects in the enforcement surface itself, each verified against the shipped 0.1.3
+tree before it was closed. Every one of these was GREEN on 0.1.3 — not because a
+rule judged the input safe, but because no rule looked at it.
+
+- **`gate-integrity` reds on the first feature a consumer ships.** Its SURFACE is
+  `/^tools\//`, and `tools/generated/*` is regenerated from the consumer's own
+  router, event catalogs and DALs — so adding one tRPC procedure changed
+  `action-inventory.json` and the gate reported `sha256 mismatch … (tampered or
+  hand-edited)`, prescribing a remedy (`restore the file(s) from git`) that undoes
+  the feature. Reproduced against a real install: one regenerated inventory is
+  enough. A pin guaranteed to break on correct use is not evidence — it is a gate
+  everyone learns to ignore, and the habit it teaches is what makes a real mismatch
+  invisible. `tools/generated/` is now excluded from the hash surface (113 owned
+  files checked, down from 116) and nothing is lost: `contracts` REGENERATES each
+  inventory and diffs it every validate, which proves the bytes are TRUE rather
+  than merely old, and the write-guard still denies an agent editing them. Verified
+  in both directions — the regenerated inventory passes, a touched
+  `check-migrations.mjs` still reds.
+- **Six escape lists were `owned`, so the harness demanded two contradictory
+  things at once.** `db-limits.json`, `security-headers.json`, `audit-columns.json`,
+  `pii-columns.json`, `rate-limit-budget.json` and `db-perf-baseline.json` shipped
+  outside `SEEDED_FILES`, which put them under the same `/^tools\//` hash pin. The
+  gates that read them tell the consumer in their own failure text to edit them and
+  commit the widening under CODEOWNERS; `gate-integrity` then told them their hash
+  had moved and to restore it from git; and `update` reverted the edit regardless.
+  All six are now seeded, which is what `check-gate-integrity`'s own ESCAPE_LISTS
+  header always claimed they were. `pii-columns.json` is the one that matters most:
+  it is the deny list that decides what the audit trail may copy, and a consumer's
+  additions to it were being silently reverted on every upgrade.
+- **`update` planted the template's query-shape manifest into repos that could
+  never regenerate it.** `tools/generated/query-shapes.json` was `owned` while the
+  probes that produce it are seedOnInitOnly, so an upgraded install received a
+  recording of the TEMPLATE's DAL and a regen-diff that cannot converge — you
+  cannot reproduce it from zero probes. The manifest is now seeded and withheld
+  alongside its probes, and `gen-query-shapes.mjs` treats "no probes and no
+  manifest" as nothing to record. `check-query-shapes` draws the same line from the
+  same shared `probeModules()`, so the tree the generator exits 0 on is exactly the
+  tree the gate ramps — the two verdicts that must never diverge are "there is
+  nothing to record" and "there is something and it is missing".
+- **An inert guard rule with a passing canary.** `migration-apply-runner`
+  write-protected `tests/migrations/migration-apply.mjs`, a file no template has
+  ever shipped and nothing has ever invoked. It had a rule, a hook-contract canary,
+  a `settings.json` allow entry and a slot in `check-gate-integrity`'s SURFACE — and
+  all four were green, because a deny over a path that cannot exist is satisfied by
+  every input. Removed (91 guard-rule ids, down from 92), and `check-canary-coverage`
+  now closes the hole structurally: every fully-anchored literal `WRITE_PROTECTED`
+  path must name a file the template ships, or a producer recorded by name in
+  `GROUNDED_ELSEWHERE` (two entries: the installer writes `tools/agents.lock.json`,
+  Claude Code writes `.claude/settings.local.json`). Proven by reconstructing the
+  0.1.3 shape — an inert rule WITH a passing canary — and watching it red. The
+  closure's own first draft matched nothing, because a regex literal escapes its
+  slashes; the ghost-rule proof is what caught it.
+- **`update` planted a tsconfig project reference to a package it deliberately
+  withheld**, and `tsc -b` died on the first line it read. `tsconfig.json` is a solution
+  file and harness-OWNED, so `update` rewrites it from the template — including the new
+  `packages/platform/ratelimit` reference — while the package itself is seedOnInitOnly
+  (a new Upstash dependency nobody opted into). The result is
+  `error TS5083: Cannot read file …/tsconfig.json`, which takes the WHOLE typecheck with
+  it, every healthy package included. Found by running the real 0.1.3 → 0.2.0 upgrade,
+  not by reading the plan. `pruneMissingProjectReferences` now drops any reference whose
+  project will not exist when the run finishes — and "will not exist" is deliberately not
+  "is not in the plan", because every withheld file IS in the plan and is skipped later
+  in the write loop. That distinction was the bug's second form, caught the same way: by
+  re-running the upgrade and seeing the reference still there.
+- **A stale harness-authored test no `update` could reach.** The gate-a11y-deep module's
+  `apps/mobile/__tests__/a11y-deep.test.tsx` imported `MockRouteHandler` from a
+  mock-server that has never exported it. The file is seeded (it lives under `apps/`), so
+  `update` skips it forever and the consumer keeps a test that cannot compile. Fixed in
+  the template and reached via a sha-guarded `removed` record — deleted before the plan
+  loop, re-planted corrected by it. Verified both ways: an untouched copy is replaced, and
+  a copy with a local edit is left in place with a note naming the conflict, because a
+  hand-tuned accessibility test is the consumer's.
+- **The docs disagreed about the plan probe, and nothing could see it.**
+  `README.md` said there is deliberately no EXPLAIN plan probe while
+  `gates-catalog.md` documented one in detail, alongside a capturing pg-proxy and a
+  `0002_notes_keyset_idx.sql` that existed in neither tree. Both halves of the real
+  answer are true and now stated in both files (no plan assertion in the RLS suite,
+  where the cardinality is wrong; the real probe in the path-filtered `db-scale`
+  lane), and `docs-sync` asserts the agreement so the contradiction cannot return.
+- **A "considered and rejected" record for something the repo had adopted.**
+  `gates-catalog.md` still listed **pgTAP** as rejected on the grounds that plain
+  SQL checks the same facts — while three pgTAP suites shipped, `pnpm db:test` ran
+  them, and CI blocked on them. A rejection record kept after adoption is worse than
+  no record: it tells the next reader not to look.
+- **`injections.json`'s header mislabelled Canary 17** as a plan-probe red for two
+  releases. It is pgTAP's owner-leading-column assertion, and the difference is the
+  entire reason Canary 24 exists: Canary 17 must drop the keyset index AND the
+  primary key, because either satisfies a leading-column check, while Canary 24
+  drops only the secondary index and reds `db-perf` on plan shape with Canary 17
+  still green.
+
+- **Six unsorted directory listings in the enforcement surface**, found by the new
+  determinism sweep (see Added): `check-contract-drift`, `check-duplication`, `check-prompts-lock`,
+  `check-release-lockstep`, `check-reuse` and `installer/lib/detect`. Each fed a list
+  whose ORDER reaches an output — package directories, scan roots, prompt files, hook
+  files, license files — so error ordering and derived manifests were filesystem-dependent.
+  The sweep's own first draft reported four correct call sites out of ten (deferred sorts
+  through a try/catch, emptiness tests) and was fixed before the code was: a check that is
+  40% noise is a check whose findings get exempted rather than read.
+- **The keyset seek was O(page number) — found by the new plan probe, not by review.**
+  The shipped DAL expressed its cursor the way every keyset tutorial does, as one
+  disjunction covering both lexicographic cases. It is logically correct, it cited
+  `use-the-index-luke.com/no-offset` for avoiding exactly this cost, and PostgreSQL
+  cannot turn a top-level `OR` into an index range — so the whole predicate lands in
+  `Filter:` and the scan still starts at the tenant's newest row. Measured against 1.1M
+  seeded rows at page 1000: **1115 rows discarded to return 21, 1798 buffers, 43ms**.
+  With the range sent as its own predicate alongside the tie-break: **3 rows discarded,
+  8 buffers, 0.1ms**. That is OFFSET's cost wearing a keyset costume, and it was
+  invisible to every check in the chain — the index existed, its leading column was the
+  tenant key, and its tail was the sort order. `query-shapes` now reds any keyset seek
+  carrying no range predicate on its leading sort column; the static rule exists because
+  the live probe earned it.
+- **`parseIndexes` could not see a constraint added in a multi-action `ALTER TABLE`.**
+  `ALTER TABLE t DROP CONSTRAINT c, ADD CONSTRAINT c PRIMARY KEY (…)` — the shape the
+  tenant re-scope uses to swap `PRIMARY KEY (id)` for `PRIMARY KEY (org_id, id)` —
+  parsed as a pure DROP, because the drop half scanned the whole statement while the add
+  half was anchored to the table name. Every consumer of that parser therefore believed
+  `notes` had no primary key, silently vacating the leading-column and partition-ready-
+  unique rules that depend on it.
+- **`schema-rls` collected `ENABLE` and `FORCE` and no negation.** A later
+  migration containing `ALTER TABLE x DISABLE ROW LEVEL SECURITY` — or
+  `NO FORCE`, or `DISABLE TRIGGER` — matched no pattern, left the table in the
+  `enabled` set, and the gate reported it fully covered. The negation set ships
+  **unramped**: no legitimate install has ever turned RLS off, so ramping it
+  would protect only a tampered tree.
+- **`.sql` files reached no write-guard content rule at all.** The guard polices
+  source code from `if (!anyRel(/\.(ts|tsx|…)$/)) pass()` down, so the one file
+  class where this codebase's authorization boundary is written was checked for
+  exactly one thing (`WITH RECURSIVE`). New pure-data table `WRITE_SQL_CHECKS`
+  (4 ids, path-scoped) now runs above that gate. Guard table: **71 → 75 rule
+  ids**.
+- **`migrations` treated only `DROP TABLE|DROP COLUMN|TRUNCATE` as destructive.**
+  `DROP POLICY`, `DISABLE ROW LEVEL SECURITY`, `NO FORCE`, `DROP FUNCTION`,
+  `DISABLE TRIGGER` and `REVOKE … FROM authenticated` each remove an
+  authorization control while leaving the object in place — all shipped
+  ADR-free, and all are strictly harder to spot in review than a dropped column
+  because the table still exists and every query still returns rows.
+- **`check-claims.mjs` counted a hardcoded list of three rule tables.** Adding a
+  fourth left the README's number technically true about a surface it no longer
+  described. It now derives every rule table from the module's exports.
+- **A ramped gate is advisory on FRESH installs, not just legacy ones.** Caught on
+  `security-headers` before release: a new scaffold's manifest records the release
+  it was built from, which is older than a `0.2.0` ramp until the version bumps —
+  so every finding printed as a NOTE and the gate could not go red at all. The
+  distinction that was missing: a ramp protects CONSUMER-AUTHORED content from a
+  new check, but this gate's subject is a file the HARNESS ships, where there is no
+  legacy to protect. The ramp now covers ADOPTION only (the module is absent on an
+  upgrading install); once the module is present, wrong values are a hard red
+  regardless of vintage. Pinned by a regression test.
+- **`gates-catalog.md` claimed a "21-step chain"** while the chain was 24. Stale
+  since the 0.1.3 port.
+- **The `migrations` DML rule grepped raw text, so it judged function bodies —
+  and missed unquoted UPDATEs.** A SECURITY DEFINER RPC's body legitimately
+  contains `INSERT`/`DELETE` the migration never executes; the raw-text grep
+  would have forced a bogus `-- harness-allow-dml` marker onto every RPC-bearing
+  migration. Meanwhile the ancestor regex `UPDATE\s+[a-z"]` + trailing `\b` only
+  ever matched a quoted or single-letter table name, so `UPDATE notes SET ...`
+  was invisible to the rule entirely (pinned as an ODDITY since the port). DML is
+  now judged per STATEMENT via the shared parser: a dollar-quoted body rides
+  inside its `CREATE FUNCTION` statement and can never start one, both UPDATE
+  spellings red identically, and a leading-CTE `WITH ... DELETE` still reds.
+
+### Added
+
+- **`template/migrations.json` gains its first real record** — it was literally `{}`,
+  which meant the upgrade machinery had been shipped but never exercised. The `0.2.0`
+  entry injects the five new steps into `VALIDATE_STEPS` (`harness.config.mjs` is
+  SEEDED, so injection is the only path into an existing install) and registers 33
+  `seedOnInitOnly` patterns. Every path was classified by one question, answered by
+  READING the gate: what does it do when this file is absent? Withhold something a gate
+  fails closed on and the injected step reds on the first validate after the upgrade;
+  plant a migration and `update` has put unapplied DDL in front of a live database.
+  So the six new migrations, three schema files, the scale seed, the audit pgTAP suite,
+  the whole 0.2.0 web surface, the rate-limit package and the generated artifacts are
+  withheld, while `tenancy.json`, `db-limits.json` and `security-headers.json` are
+  planted — the first two because their gates fail closed before they can ramp, the
+  third so that adopting the module later yields a gate that judges rather than one
+  that dies on a missing policy. `rate-limit-budget.json` is withheld for a stronger
+  reason than the rest: its ABSENCE is what the gate's ramp keys on, so planting it
+  would switch off the protection it was supposed to provide.
+- **Every `seedOnInitOnly` pattern must name a path the template ships**
+  (`scripts/check-seeded-migrations.mjs`, derived from the installer's own
+  `walkTemplate` + `storageToInstall`, so it cannot drift from what `update` computes).
+  The field is a pure list read by a prefix/exact matcher and both ways it can be wrong
+  are silent: a typo or a path left behind by a rename withholds NOTHING while reading
+  as protection. The check was written because the first draft of the 0.2.0 record put
+  explanatory comment strings in the array — perfectly valid JSON, and one ending in
+  `/` would have silently withheld an entire subtree.
+- **The `db-scale` lane asks the manifest whether this install has adopted the surface**
+  before it runs, because the workflow file is harness-OWNED (so `update` ships it) while
+  the seed and budgets it drives are seedOnInitOnly. It reads `baseVersion` —
+  the one record `check-gate-integrity` pins against git history and never lets regress —
+  and the asymmetry is what keeps it from being a hole: a pre-0.2.0 baseVersion may skip
+  with a `::notice::`, but a 0.2.0+ install MUST carry all three files, so deleting the
+  seed to quiet the lane FAILS instead. It runs before `pnpm install`, so an un-adopted
+  install spends seconds rather than minutes.
+- **`query-shapes`, the 29th gate** (`tools/check-query-shapes.mjs`) — every statement
+  the DALs actually issue is BOUNDED and SERVED BY AN INDEX, judged against
+  `tools/generated/query-shapes.json`. The manifest is **generated by executing the
+  DAL**: `tools/gen-query-shapes.mjs` drives each function through a harness-owned
+  recording port and records the builder chain it produced, and `contracts` regen-diffs
+  the result. A hand-authored query manifest is a tautology — the same turn writes the
+  DAL and the manifest, and the cheapest repair for a red is to edit the manifest.
+  The recorder is a **Proxy**, not a fake with methods: it records every call by name,
+  so `.range()`/`.offset()` red BY NAME instead of crashing the instrument into being
+  taught to ignore them. Two closures keep it honest — generation fails if any exported
+  DAL function has no probe (the probe module re-exports its DAL as a namespace, so the
+  comparison is against the functions that exist), and fails if a probe issues no query.
+  Rules: bounded; no unreviewed builder method; an index whose leading columns are the
+  equality set followed by the ORDER BY columns in order and in ONE scan direction (a
+  btree walks backwards, so all-reversed is served and MIXED is not); cursor/sort
+  agreement; the tenant column present and leading; and no LIMIT above `[api].max_rows`,
+  which PostgREST truncates to silently.
+- **`db-perf`** (`tools/check-db-perf.mjs`, the new path-filtered **`db-scale`** CI lane)
+  — the live half. It applies `supabase/seeds/scale.sql` (2M deterministic rows, a 3%
+  whale, `ANALYZE`), impersonates a real member of the largest tenant, and runs
+  `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on each read shape. It asserts **shape,
+  never milliseconds**: the planner chose the index the static gate resolved, no Sort
+  above a keyset leaf, no per-row SubPlan, and buffers in the right order of magnitude.
+  `SET enable_seqscan = off` is deliberately NOT used — with it the planner uses any
+  index, so a table whose only index is useless still yields an Index Scan node.
+  **Anti-vacuity:** below `minRows` in `tools/db-perf-baseline.json` it SKIPS loudly and
+  FAILS in CI. The seed's row count is overridable; the floor is what stops that knob
+  buying a green. **Canary 24** proves it is not redundant: drop the keyset index from
+  the live database, change no file, and `schema-rls`, `tenancy`, `query-shapes` and all
+  109 pgTAP tests stay green while db-perf reds three ways at once.
+- **`query-budget`** (`tools/check-query-budget.mjs`, folded into the existing
+  integration lane) — the **N+1 detector**, the one defect `query-shapes` and `db-perf`
+  are structurally blind to because both are per-statement. It wraps the live-api-proof
+  suite, resets `pg_stat_statements`, and reads the delta filtered to
+  `userid = 'authenticator'::regrole`. Anti-vacuity in both directions: a non-zero
+  pre-count fails (the reset did not take) and a ZERO post-count fails (the workload
+  never reached PostgREST — a budget met by a disconnected instrument is not a budget).
+- **The agent surface is hash-locked** (`tools/gen-agents-lock.mjs` → `tools/agents.lock.json`,
+  judged by the extended `prompts` gate). `.claude/{agents,commands,skills}` is the most
+  privileged prose in the repository — which reviewers exist, what they may touch, what a
+  slash command does — and **nothing in the chain noticed it changing**: the `docs-sync`
+  roster check reads reviewer FRONTMATTER (name, model, tools) and never the body, where
+  the instructions are. Each agent's pinned **model id** is recorded beside its hash,
+  because a roster repointed from a frontier model to a cheap one leaves every byte
+  identical. The asymmetry is the design: "not in the lock" is RAMPED (an install
+  predating it has files nobody covered), "in the lock and the hash moved" is UNRAMPED at
+  every vintage. In practice no install sees the ramp — the installer writes the lock from
+  the install's own files at `init`, and at `update` only when there is none yet. An
+  update never rewrites one: that would launder every edit since.
+  **Three layers, because one env var is not a control:** the generator refuses `--write`
+  without `HARNESS_ALLOW_SELF_EDIT=1`, the bash-guard denies invoking any
+  `gen-*lock*.mjs … --write` by name shape, and the lock plus all four `.claude`
+  directories are write-guard-protected. The distinction from the other three generators
+  is deliberate and NOT "guard every generator": `gen-action-inventory`,
+  `gen-event-catalog` and `gen-query-shapes` derive their output from something else the
+  gates judge, so running them launders nothing. This one's output is a hash OF the files
+  being checked.
+- **Write-protection for `.claude/rules|agents|commands|skills`** — layer 3 (prevention)
+  did not exist for any of them. Plus `.claude/rules/` and `.claude/statusline.mjs` in
+  `gate-integrity`'s hashed surface, **ramped to 0.2.0**: they are `owned`, so unramped
+  this would red every install that tuned `security-invariants.md` and the prescribed
+  remedy (`update`) would clobber the tuning it pointed at.
+- **A machine-readable reviewer verdict.** All seven reviewers now end with exactly
+  `VERDICT: PASS` or `VERDICT: BLOCK`, asserted by `docs-sync`. Six of them asked for a
+  bare `PASS` before, which is unparseable — the word occurs in prose, in a quoted
+  requirement, in "PASS or FAIL" — so a caller could not tell a verdict from a sentence
+  about one. `citation-verifier` keeps its documented `CITATIONS: CLEAN` line as the
+  detail and adds the verdict as the summary.
+- **`local/no-unsorted-readdir`**, a sixth custom ESLint rule, plus the factory
+  determinism sweep in `scripts/hygiene.mjs`. `readdir` returns entries in the
+  filesystem's order, so anything derived from one is machine-dependent — stable on the
+  machine that wrote it, reordered on somebody else's, and read as flakiness. **Honest
+  scope, stated because the release plan assumed otherwise:** `eslint.config.mjs` ignores
+  `tools/**` by design, so the lint rule cannot reach the gate scripts, which is where all
+  six real offenders were. The sweep covers `template/base/tools`, the hooks, `scripts/`
+  and `installer/` — the surface that enforces determinism for everyone else would
+  otherwise be the one surface exempt from it.
+- **The factory eats its own dog food** (`.claude/settings.json` at the harness root, its
+  own revertable commit). `pretool-bash-guard.mjs` is a three-line **re-export** of the
+  shipped guard — never a fork, because a fork drifts and the maintainer working on the
+  guard is the one person it stops guarding. `pretool-write-guard.mjs` cannot be shimmed
+  (its subject is paths; a consumer's `tools/` is this repo's `template/base/tools/`), so
+  it reuses the shipped `hookio` plumbing with a factory path table over the gate scripts,
+  hooks, `scripts/`, `installer/lib/`, the workflows and the canary registry.
+  `stop-factory-gate.mjs` runs the closure checks nobody remembers to run — hygiene,
+  canary coverage, rule integrity, claims, floor lockstep, the complexity ratchet, syntax
+  — in ~7s. **It blocks maintenance turns, which is the feature:** a blocked maintainer
+  turn means a consumer would have been blocked too.
+- **`security-headers`, the 25th gate** (`tools/check-security-headers.mjs`) — the
+  web response posture asserted BY VALUE. The gate EVALUATES
+  `apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
+  bundler, no tsx, no `node_modules`, no new dependency) and diffs what the module
+  returns against the reviewed policy in `tools/security-headers.json`. Grepping
+  the source would have been satisfied by a directive that appears in a comment.
+  Covers every static header by exact value, `permissions-policy` features denied
+  by an explicitly empty allowlist rather than by omission, the CSP directives that
+  must hold exact values, the rule that `'unsafe-inline'` never appears in
+  `script-src` without `'strict-dynamic'`, that `X-Frame-Options` and
+  `frame-ancestors` AGREE, and that authenticated responses are `private, no-store`
+  with a `Vary` naming the acting-org selector.
+- **A nonce CSP that is actually wired.** `apps/web/proxy.ts` mints a per-request
+  nonce for document responses and sets the policy on BOTH the forwarded request
+  headers and the response — the request-header half is how Next propagates the
+  nonce to its own inline bootstrap, and omitting it is the standard way a nonce
+  CSP ships broken (perfect header, blank page). `apps/web/e2e/security-headers.spec.ts`
+  asserts Next actually STAMPED the minted nonce onto a script tag, and collects
+  `securitypolicyviolation` events so a policy that blanks the app cannot ship green.
+- **`check-web-e2e`: the `anySecurityHeaders` closure.** A spec set that never reads
+  `response.headers()` AND collects `securitypolicyviolation` reds the lane, exactly
+  as a spec set with no axe scan does — a correct config behind a header-stripping
+  CDN is invisible to a static value check.
+- **A CSP violation sink** (`app/api/csp-report/route.ts`) — bounded on every axis,
+  because the body is unauthenticated attacker-controlled input: a size cap before
+  parsing, a field allowlist after, no echo, nothing persisted.
+- **`tools/lib/sql-parse.mjs`** — the one statement-level SQL reader the SQL
+  gates share. Dollar-quote aware (so a `;` inside a PL/pgSQL body no longer
+  tears the statement apart, which is why no gate could previously look inside a
+  function), balanced-paren clause extraction (the old `USING (…)` regex was
+  non-greedy and survived only because every shipped policy happened to end
+  where its anchors expected), and string-literal aware.
+- **`schema-rls`: correlated-subquery ban.** `EXISTS (SELECT 1 FROM memberships
+  m WHERE m.org_id = notes.org_id AND m.user_id = (SELECT auth.uid()))` passes
+  the vacuity check and the initPlan regex — it does contain `(select …
+  auth.uid()` — while being a per-row SubPlan that re-enters the referenced
+  table's own policies. Ramped at 0.2.0.
+- **`schema-rls`: helper-body resolution.** Moving `auth.uid()` into a plain SQL
+  helper and calling it bare vacated the initPlan check. Predicates now resolve
+  one hop through local function bodies, substituted **at the call site** so the
+  check stays positional: `owner_id = helper()` reds and
+  `owner_id = (SELECT helper())` passes.
+- **`schema-rls`: SECURITY DEFINER discipline** — allowlisted with a reason in
+  the new `tools/security-definer-allow.json`, `SET search_path = ''` required,
+  no `EXECUTE` to anon/authenticated/PUBLIC, and no identity-shaped parameter (a
+  definer function derives the caller from `auth.uid()`; it never accepts
+  who-am-I as an argument). Ramped at 0.2.0.
+- **`migrations`: lock discipline.** `ALTER TABLE` on a table the migration did
+  not itself create requires a `SET LOCAL lock_timeout` preamble — ACCESS
+  EXCLUSIVE on a populated table queues every reader behind it. `DROP TABLE` and
+  `TRUNCATE` are deliberately excluded (already ADR-gated), as is `CREATE INDEX`
+  (it takes SHARE, and `CONCURRENTLY` cannot run inside the transaction Supabase
+  wraps a migration in — mandating it would make indexing an existing table
+  impossible via any migration, forever).
+- **`tenancy`, the 26th gate** (`tools/check-tenancy.mjs` + `tools/tenancy.json`) —
+  the multi-tenant contract as reviewed data, landed BEFORE the schema so the
+  0.2.0 tenancy spine gets written under the gate rather than retrofitted to it.
+  `schema-rls` proves a predicate is REAL; this proves it scopes by TENANT:
+  `org_id = (SELECT auth.uid())` — a tenant column compared to a user id — passes
+  every schema-rls rule and isolates nothing. `predicateForms` is a CLOSED set of
+  two reviewed shapes (`org_id = ANY((SELECT private.member_org_ids()))` and the
+  jsonb rank-floor form), both uncorrelated scalar sub-selects that hoist to one
+  InitPlan per statement; every top-level `OR` arm of every tenant policy must
+  carry one (an AND can only narrow; `… OR owner_id = (SELECT auth.uid())` is as
+  open as its weakest arm), and failures print the exact normalized predicate so
+  admitting a new form is a copy-paste CODEOWNERS diff to owned data — never an
+  escape hatch. Also enforced: the correlated-argument ban
+  (`(SELECT private.member_rank(org_id)) >= 30` is wrapped in `(SELECT` and passes
+  every wrapper check while being a per-row SubPlan), rank floors on the
+  configured role scale, `NOT NULL` FK tenant keys folded across the whole
+  history (the expand→contract adoption path lands green), partition-ready
+  uniques with per-constraint reasoned escapes, no-`WHEN` freeze triggers,
+  zero-argument STABLE INVOKER helpers pinned to `search_path = ''`, the
+  membership table held to the OPPOSITE shape (self-only SELECT, deny-all writes,
+  no helper calls — the recursion smell test; the executable recursion probe is the
+  proof, and it asserts the reads LIVE rather than naming a SQLSTATE, because with
+  `search_path = ''` pinned the failure is 54001 stack-depth and not the 42P17 every
+  reference leads you to expect), and `nonPublicSchemas` kept out of `[api].schemas`. The `0.2.0` ramp
+  covers ADOPTION only — the fresh-install ramp bug fixed on `security-headers`
+  is pinned here by a regression test from day one.
+- **`sql-parse.mjs` grew the primitives the tenancy gate needed** — and every SQL
+  gate now shares them: `splitTopLevelOr` / `splitTopLevelCommas` (paren- and
+  literal-aware, so `numeric(10,2)` and nested `CHECK (… IN (…))` no longer tear
+  a definition apart), `parseColumnFacts` (per-column `NOT NULL`/`REFERENCES`
+  folded across `CREATE`/`ALTER … SET/DROP NOT NULL`/`ADD CONSTRAINT`), and
+  `parseIndexes` now surfaces inline and table-level `PRIMARY KEY`/`UNIQUE`
+  groups from `CREATE TABLE` under PostgreSQL's own default constraint names
+  (`<table>_pkey`, `<table>_<col>_key`), fixing a nested-comma edge where the old
+  inline-PK regex could register a numeric literal as a leading column.
+
+- **An adoption path for installs that already hold rows** —
+  `docs/runbooks/tenancy-adoption.md` plus the one escape in the harness with a
+  deadline. A populated database cannot become org-scoped in a single migration:
+  `org_id` must arrive NULLable, be backfilled out of band, and only then take
+  `NOT NULL`, with the owner-scoped policies alive beside the new ones throughout
+  (permissive policies OR, so dropping the old set early blanks the product). A
+  `tools/tenancy.json` `dualScopedTables` entry licenses exactly that state on
+  exactly the named table and carries an `until` harness version — compared against
+  the manifest's `harnessVersion`, **not** `baseVersion`, because `baseVersion`
+  moves only when a human graduates a ramp and a deadline measured against it is one
+  the escape's own author controls. It also reds the instant the tenant key becomes
+  `NOT NULL`, so on the happy path the escape is stale before its deadline is ever
+  reached and the deadline only fires for a transition that stalled. One entry
+  covers the whole transition state — including the pre-tenancy tenant-blind primary
+  key — deliberately, because a second escape in a list that does not expire would
+  have outlived the thing it was written for. Every SQL statement in the runbook was
+  executed against PostgreSQL 17 before it was written down; the backfill as first
+  drafted did not parse (`invalid reference to FROM-clause entry` — an UPDATE target
+  cannot be referenced from a JOIN condition in its own `FROM` list).
+- **`private.freeze_org_id()` is set-once, not never-set.** The strict
+  `NEW.org_id IS DISTINCT FROM OLD.org_id` form refused `NULL -> value`, which is
+  every row of the backfill — and refused it for `postgres` too, because a trigger
+  fires regardless of `BYPASSRLS` (verified: `postgres` holds `BYPASSRLS`, the
+  freeze still raised). The relaxation closes itself: after `SET NOT NULL` the
+  `OLD.org_id IS NULL` branch is unreachable, and a fresh scaffold is never in the
+  relaxed state for a single statement. Three new pgTAP assertions pin the
+  asymmetry on a scratch table, since every shipped table has the column `NOT NULL`
+  and that is exactly the state the property is invisible in.
+
+### Changed
+
+Three corrections to the 0.2.0 gates, each forced by a defect an adversarial design
+review proved against the real gate code **before** the schema was written. All three
+were unimplementable-or-broken as originally specified, and two fail silently.
+
+- **`tenancy`: the rpc writer role, and the pairing rule that makes it work.**
+  Every table ships `FORCE ROW LEVEL SECURITY`, so a `SECURITY DEFINER` function's
+  writes are policy-checked against the role that OWNS it — the owner is not exempt.
+  Combined with the seat table's mandatory deny-all write policies, that left a
+  database in which **no role could ever write a membership row**: the first
+  `create_org` would fail 42501 and `supabase db reset` would die at seed. The
+  contract now names one reviewed `rpcWriterRole` whose policies are judged by the
+  same closed form set. Admitting the role is not enough, though, and the naive
+  version fails *silently*: a rank-scoped write policy TO that role calls the rank
+  helper, which is `SECURITY INVOKER` and therefore reads the seat table AS THE RPC
+  ROLE — with no SELECT policy for it the read hits RLS default-deny, the helper
+  returns an empty map, every rank comparison is false, and the write **matches zero
+  rows and reports success**. Every promotion in production would look fine and change
+  nothing, with valid SQL, a present policy and a reviewed predicate shape. The gate
+  now requires the pair.
+- **`tenancy`: the org table is judged explicitly.** `public.orgs` carries no tenant
+  column, so column-driven discovery never reached the root of the model:
+  `USING (created_by = (SELECT auth.uid()) OR name IS NOT NULL)` passed every static
+  gate in the repo while publishing every org row to every signed-in user. It is now
+  matched against the same forms with its own primary key substituted as the scope
+  column. Predicate forms may also be narrowed to specific `tables` (with a reason) —
+  that is how the two writes performed by someone who is **not yet a member** (creating
+  an org, redeeming an invitation) stay reviewable instead of becoming a general
+  licence.
+- **`schema-rls`: the definer EXECUTE rule was both impossible and unsound.** As
+  shipped it redded any `EXECUTE` grant to `authenticated`, and prescribed "grant it to
+  a dedicated role reached through a narrow policy instead" — which cannot exist for a
+  PostgREST RPC, since PostgREST switches to the JWT's role before calling. So the rule
+  made every client-callable RPC unimplementable. It also checked the wrong thing:
+  PostgreSQL grants `EXECUTE` to `PUBLIC` on every new function and Supabase's default
+  privileges additionally grant `anon`, so a migration naming no grants at all still
+  ships an anon-callable privilege-escalation primitive — and a gate inspecting only
+  `GRANT` statements reads that migration as clean. The rule is now "prove the default
+  was undone": a `REVOKE` from `PUBLIC` and `anon` is required for every definer
+  function, `EXECUTE` to `anon`/`PUBLIC` is never legal, and `EXECUTE` to
+  `authenticated` is legal only for an allowlisted one. Unramped, by the negation-set
+  reasoning: the shipped scaffold has no definer functions, so ramping would protect
+  only a tree that added one.
+- **Both tenancy contracts are now registered in all three layers.**
+  `tools/tenancy.json` and `tools/security-definer-allow.json` join `SEEDED_FILES`
+  (an `owned` file is sha-pinned by `gate-integrity` and overwritten by `update`, so
+  taking either gate's *own prescribed remedy* would have redded the next validate and
+  then been silently reverted on the next upgrade), `WRITE_PROTECTED` (allowlisting a
+  definer function now authorizes `EXECUTE`-to-`authenticated`, so the file grants
+  privilege-escalation reach rather than silencing a nag), and `ESCAPE_LISTS`. Guard
+  table: **75 → 77 rule ids**.
+
 ## [0.1.3] — 2026-08-01
 
 The first release of this lineage, and the first one whose claims the selftest

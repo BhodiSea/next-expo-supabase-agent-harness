@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 
 // Direct reads.
-export { getNote, listNotes } from './data/notes.js'
+export { getNote, listNotes, type NoteScope } from './data/notes.js'
 // The database port — a type, so it costs nothing at runtime, and it is what
 // lets a caller pass its own RLS-scoped client without importing the DAL's
 // internals.

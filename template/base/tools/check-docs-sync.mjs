@@ -133,6 +133,38 @@ if (catalogErrs.length > 0) {
   }
 }
 
+// 4b. THE TWO DOCS MUST AGREE ABOUT THE PLAN PROBE.
+//
+// README.md and gates-catalog.md both describe where query plans are judged, and for two
+// releases they contradicted each other: the README said there is deliberately no EXPLAIN
+// plan probe, while the catalog described one in detail — along with a capturing pg-proxy
+// and a `0002_notes_keyset_idx.sql` that existed in neither tree. A reader who consulted
+// one doc got the opposite answer from the other, and nothing could see it, because each
+// file was internally consistent and neither claim was checked against the repo.
+//
+// Both halves of the real answer are true and must stay stated together: there is no plan
+// assertion in the RLS suite (a plan over seed.sql's handful of rows is a planner opinion
+// that would flap or pass for the wrong reason), AND the probe exists in the path-filtered
+// db-scale lane where the cardinality is. So the closure is: while the probe SCRIPT exists,
+// both documents must name it and name the lane that runs it. Delete the probe and the
+// assertion lifts with it; delete the paragraph from either doc and this reds.
+const PROBE = 'tools/check-db-perf.mjs'
+const PROBE_LANE = 'db-scale'
+const README = 'docs/harness/README.md'
+if (existsSync(PROBE)) {
+  for (const doc of [README, CATALOG]) {
+    if (!existsSync(doc)) continue
+    const text = readFileSync(doc, 'utf8')
+    for (const needle of ['check-db-perf.mjs', PROBE_LANE]) {
+      if (!text.includes(needle)) {
+        errs.push(
+          `${doc} does not mention '${needle}' while ${PROBE} exists — README.md and ${CATALOG} must agree about where query plans are judged. They once did not: one said there was deliberately no EXPLAIN probe while the other documented one, plus a pg-proxy and an index migration that were in no tree. Say both halves in both files: no plan assertion in the RLS suite (wrong cardinality), and the real probe in the path-filtered ${PROBE_LANE} lane.`,
+        )
+      }
+    }
+  }
+}
+
 // 5. Agent roster. Every roster file must parse (fail-open here would let a
 //    malformed reviewer hide a write grant) and carry the universal fields;
 //    the seven reviewers may hold only read-only tools and must disallow
@@ -174,6 +206,19 @@ for (const file of rosterFiles) {
   }
   if (!REVIEWER_AGENTS.includes(stem)) continue
   reviewersChecked += 1
+  // A reviewer's OUTPUT CONTRACT, not just its permissions. The rest of this loop proves a
+  // reviewer cannot write; this proves the main thread can tell what it decided. A bare
+  // `PASS` — which six of the seven asked for before 0.2.0 — is unparseable: the word
+  // occurs in prose, in a quoted requirement, in "PASS or FAIL", so a caller cannot
+  // distinguish a verdict from a sentence about one, and neither could any future gate
+  // that wanted to bind a merge to a review. The prefixed form is the whole point, and it
+  // is asserted here because an agent file is prose that nothing else in the chain reads.
+  const body = readFileSync(path, 'utf8')
+  if (!/`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/.test(body.replace(/\s+/g, ' '))) {
+    errs.push(
+      `${path}: reviewer does not require a machine-readable verdict — its instructions must end by demanding exactly one final line, \`VERDICT: PASS\` or \`VERDICT: BLOCK\`. A bare PASS/FAIL cannot be told apart from prose.`,
+    )
+  }
   if (!fm.tools?.trim()) {
     errs.push(
       `${path}: reviewer declares no 'tools' list — an absent list inherits EVERY tool; ${DOCTRINE}. Pin tools to a subset of: ${REVIEWER_READONLY_TOOLS.join(', ')}`,

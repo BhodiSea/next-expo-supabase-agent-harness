@@ -226,12 +226,18 @@ suite. Per
   exactly the session-GUC bug class this exists to catch.
 - **Catalog gate** — facts from `pg_catalog`, not vibes: FORCE RLS flags, per-operation
   policies, leading-column owner indexes, patched pgvector, non-BYPASSRLS role.
-- **Index shape, asserted statically** — the owner index must carry the ORDERING, not just
-  the filter: `(owner_id, <ORDER BY columns, direction>)`, so one index serves the policy,
+- **Index shape, asserted statically** — the tenant index must carry the ORDERING, not just
+  the filter: `(org_id, <ORDER BY columns, direction>)`, so one index serves the policy,
   the sort and the cursor range. The pgTAP structural suite and the `schema-rls` gate read
-  that from `pg_catalog`. There is deliberately **no EXPLAIN plan probe** in this lineage:
-  a plan is a planner opinion at one statistics snapshot, and gating on it made the suite
-  flap with row counts. The catalog facts do not flap.
+  that from `pg_catalog`, and the `query-shapes` gate closes it against the statements the
+  DALs actually issue. There is deliberately **no EXPLAIN plan probe in THIS suite** — a
+  plan is a planner opinion at one statistics snapshot, and against the handful of rows
+  `seed.sql` writes it is not merely noisy but wrong: the planner correctly reads one page
+  rather than using an index, so an assertion here would flap or pass for the wrong reason.
+  The probe lives where the cardinality does — `tools/check-db-perf.mjs` in the
+  path-filtered `db-scale` CI lane, over `supabase/seeds/scale.sql`. It asserts plan SHAPE
+  (which index the planner chose, no Sort above a keyset leaf, no per-row SubPlan) and
+  never milliseconds, and it refuses to certify a table below the reviewed row floor.
 
 Tests impersonate the Supabase way — `SET LOCAL ROLE authenticated` plus a
 transaction-local `request.jwt.claims` whose `sub` is the user id (exactly what

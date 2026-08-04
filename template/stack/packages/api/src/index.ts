@@ -44,15 +44,20 @@ export type {
   EventSink,
   HeaderReader,
   HeaderSource,
-  Membership,
   RequestContext,
   Session,
 } from './context.js'
-export { createContext } from './context.js'
+export { createContext, resolveActiveOrg } from './context.js'
 // The CSRF guard for the ambient (cookie) transport. Framework-neutral header
 // logic — a host applies it, the router does not — so it lives beside the context
 // those hosts build, and a standalone apps/api would reuse it unchanged.
 export { CSRF_REJECTED_CODE, hasAmbientSessionCookie, isCrossSiteRequest } from './csrf.js'
+// The rate-limit port. The TYPES are what a host needs to wire one; RateLimitedError and
+// its guard are exported because the error formatter is not the only place a `cause` is
+// inspected — a host that logs 429s reads it too, and `instanceof` across a duplicated
+// class is silently false.
+export type { RateLimitPort, RateLimitRequest, RateLimitVerdict } from './ratelimit.js'
+export { isRateLimitedError, RATE_LIMITED_CODE, RateLimitedError } from './ratelimit.js'
 export {
   isVersionSkewError,
   parseMajor,
@@ -61,11 +66,11 @@ export {
   VERSION_SKEW_CODE,
   VersionSkewError,
 } from './skew.js'
-export type { AuthedContext, MemberContext } from './trpc.js'
+export type { AuthedContext, OrgContext } from './trpc.js'
 export {
   authedProcedure,
   createCallerFactory,
-  memberProcedure,
+  orgProcedure,
   publicProcedure,
   router,
 } from './trpc.js'

@@ -41,9 +41,12 @@ export const STAMP_INPUTS = {
     'tools/dto-bounds-allow.json',
     'tools/gen-action-inventory.mjs',
     'tools/gen-event-catalog.mjs',
+    'tools/gen-query-shapes.mjs',
     'tools/lib/inventory.mjs',
+    'tools/lib/query-recorder.mjs',
     'tools/generated/action-inventory.json',
     'tools/generated/event-catalog.json',
+    'tools/generated/query-shapes.json',
   ],
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the

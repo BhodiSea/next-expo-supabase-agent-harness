@@ -56,6 +56,13 @@ export interface PostgrestQuery extends PromiseLike<PostgrestOutcome> {
   eq(column: string, value: string): PostgrestQuery
   is(column: string, value: null): PostgrestQuery
   limit(count: number): PostgrestQuery
+  /**
+   * The RANGE half of the keyset seek — the predicate the planner can push into
+   * the index condition. It is declared here rather than folded into the `or()`
+   * disjunction because a top-level OR cannot bound an index scan; see
+   * `keysetTieBreak` in notes.ts for the measurement.
+   */
+  lte(column: string, value: string): PostgrestQuery
   or(filters: string): PostgrestQuery
   order(column: string, options: { readonly ascending: boolean }): PostgrestQuery
   select(columns: string): PostgrestQuery

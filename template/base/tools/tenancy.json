@@ -1,0 +1,109 @@
+{
+  "comment": "The tenancy contract tools/check-tenancy.mjs enforces. predicateForms IS THE DEFINITION OF CORRECT — owned, hash-pinned data, not an escape hatch: adding a form widens what every tenant policy may look like and is a CODEOWNERS-reviewed diff. Every form is an uncorrelated scalar the planner hoists to ONE InitPlan per statement; the obvious-looking `(SELECT private.member_rank(org_id)) >= N` is banned because passing a column of the row under test makes it a correlated SubPlan evaluated per row. `{rank}` matches an integer that must be one of the values in roles. A form may be narrowed to specific tables (`tables`), which is how the two structural exceptions stay reviewable instead of becoming general licence. The only per-table escapes are exemptTables and uniqueWithoutTenantColumn — both require reasons, fail closed when malformed, and red when stale.",
+  "tenantColumn": "org_id",
+  "orgTable": "public.orgs",
+  "membershipTable": "public.memberships",
+  "membershipUserColumn": "user_id",
+  "membershipRankColumn": "role_rank",
+  "scopeHelper": "private.member_org_ids",
+  "rankHelper": "private.member_ranks",
+  "freezeFunction": "private.freeze_org_id",
+  "membershipFreezeFunction": "private.freeze_membership_identity",
+  "directoryRpcComment": "EXPLICITLY NULL — a recorded decision, not an omission, and the gate treats the two differently. A member directory needs one caller to read OTHER members' rows, i.e. a seat-table SELECT policy broader than self-only. Every such policy is structurally recursive: the only way to express 'rows in orgs I belong to' is a helper that reads the seat table, and a seat-table SELECT policy that calls it is re-entered by it (54001 stack depth exceeded). Widening the read for a definer-owner role fails the same way, and elevating past it would need BYPASSRLS, which hosted Supabase's postgres does not hold and which this design refuses to depend on. A non-recursive directory needs a separate materialized membership index maintained by trigger — real machinery with its own consistency story — so it is deferred to v0.3 rather than faked. v0.2.0's minimum-viable web surface ships no member-management UI, so nothing depends on it.",
+  "directoryRpc": null,
+  "rpcWriterRoleComment": "THE ONE ROLE THAT MAY WRITE A SEAT, and the reason it must exist. Every table ships FORCE ROW LEVEL SECURITY, which subjects even the table owner to policies — so a SECURITY DEFINER function's writes are policy-checked against the role that OWNS the function. With membership writes denied to authenticated (as they must be: a self-keyed INSERT policy lets any user grant themselves any seat), a database in which NO role holds a write policy is a database where create_org and accept_invitation fail 42501 and `supabase db reset` dies at seed. This role is that writer: NOLOGIN, reachable only by executing an allowlisted definer RPC, and holding policies the gate checks by the same closed-form rules as everything else. requireSelfSelectPolicy is load-bearing — see the key below.",
+  "rpcWriterRole": "app_tenancy_rpc",
+  "readerRoleComment": "THE RECURSION BASE CASE, AND WHY A SECOND ROLE EXISTS. PostgreSQL applies a table's SELECT policies as an extra row filter to any UPDATE/DELETE whose WHERE clause reads that table's columns — RETURNING is not required. With a self-only SELECT policy on the seat table, an admin's promotion therefore matched ZERO ROWS: verified by promoting a rank-10 seat as a rank-40 owner and watching it fail. The rpc role must be able to SEE the seats it may change, but the obvious widening (a rank term over rankHelper) is exactly what cannot work, because rankHelper READS the seat table and a seat SELECT policy calling it is re-entered by it. app_tenancy_reader breaks the cycle by owning a SECURITY DEFINER scope helper: its read is judged against the READER's policy, which is self-only and calls nothing, so the chain is finite by construction. The reader owns exactly that one function, holds one SELECT grant, and can write nothing.",
+  "readerRole": "app_tenancy_reader",
+  "readerScopeHelper": "private.rpc_admin_org_ids",
+  "rpcWriterSelfSelectComment": "WITHOUT THIS PAIRING THE WRITE POLICIES ARE RUNTIME-DEAD, SILENTLY. A rank-floor write policy TO the rpc role calls private.member_ranks(), which is SECURITY INVOKER — so during definer execution it reads public.memberships AS THE RPC ROLE. If the rpc role has no SELECT policy on that table, the read hits RLS default-deny, returns the empty map, coalesce(...,0) >= 30 is false for every row, and the UPDATE matches ZERO rows AND RETURNS SUCCESS. Every promotion in production would report OK and change nothing. The paired policy must be the SELF-ONLY scalar (never a helper call, which would be 54001/42P17 recursion): auth.uid() is GUC-derived and role-switch-independent, so as the rpc role it still resolves to the human caller.",
+  "requireSelfSelectPolicy": true,
+  "auditComment": "THE TRAIL, AND THE ONE TABLE JUDGED BY DIFFERENT RULES THAN EVERY OTHER TENANT TABLE — because for this one the ordinary rules are WRONG, not merely inconvenient. Its tenant key must NOT be a foreign key (an ON DELETE CASCADE would make deleting an org delete the record of what was done inside it, so the evidence is destroyed by the act most likely to need investigating). It must carry no freeze trigger, because it forbids UPDATE outright, which is strictly stronger than freezing one column. And it must have NO update or delete policy at all, which is the opposite of what the per-operation manifest in schema-rls requires — hence the reviewed entries in tools/rls-exempt.json, which move the judgment here rather than removing it. What the gate demands instead: four immutability layers (no write policies, no client grants, a BEFORE UPDATE OR DELETE row trigger, a BEFORE TRUNCATE statement trigger), an actor derived inside the writer rather than from a column DEFAULT, a writer and a reader that are separate roles, and — the closure that makes the whole thing non-vacuous — an audit trigger on EVERY org-scoped table with no WHEN clause. Runbook: docs/adr/20260202-audit-trail.md.",
+  "auditSchema": "audit",
+  "auditTable": "audit.events",
+  "auditWriteFunction": "audit.write_row",
+  "auditDenyFunction": "audit.deny_mutation",
+  "auditWriterRole": "app_audit_writer",
+  "auditReaderRole": "app_audit_reader",
+  "auditPartitionColumn": "occurred_at",
+  "auditActorColumn": "actor_id",
+  "auditReadRank": 30,
+  "roles": {
+    "viewer": 10,
+    "member": 20,
+    "admin": 30,
+    "owner": 40
+  },
+  "predicateForms": [
+    {
+      "name": "scope-any",
+      "sql": "org_id = ANY((SELECT private.member_org_ids())::uuid[])"
+    },
+    {
+      "name": "rank-floor",
+      "sql": "coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= {rank}"
+    },
+    {
+      "name": "self-row",
+      "sql": "user_id = (SELECT auth.uid())",
+      "tables": ["memberships"],
+      "reason": "The recursion terminator. memberships' own SELECT policy must not call the scope helpers — they read memberships, so a helper-bearing SELECT policy re-enters itself (54001 stack depth exceeded). A self-only scalar is what makes SECURITY INVOKER helpers safe, and it is why no seat table needs a definer read."
+    },
+    {
+      "name": "rank-below-caller",
+      "sql": "role_rank < coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0)",
+      "tables": ["memberships"],
+      "reason": "Admin-escalation closure expressed as a predicate rather than as procedural logic in an RPC. USING sees the OLD row and WITH CHECK sees the NEW one, so `strictly below the caller's rank` on both clauses means an admin can neither promote anyone to or past their own rank nor touch a peer. It also makes the last-owner rule structural: rank 40 is below nobody, so an owner seat can never be removed or demoted — including one's own. Ownership transfer is therefore a deliberate v0.3 feature, not an accident of a missing count."
+    },
+    {
+      "name": "org-self-created",
+      "sql": "created_by = (SELECT auth.uid())",
+      "tables": ["orgs"],
+      "reason": "Creating an org is the other write performed by someone who is not yet a member of the row they are writing — at INSERT time no membership exists, so `id = ANY(member_org_ids())` is false by construction and a scope form would make org creation impossible. Binding the new row to the caller's own id is the strongest property available at that instant."
+    },
+    {
+      "name": "invitation-live",
+      "sql": "expires_at > now()",
+      "tables": ["invitations"],
+      "reason": "Acceptance is the ONE write in the system performed by someone who is not yet a member, so no rank or scope term can be true for them — they hold a bearer token and nothing else. The predicate carries the only property that is checkable without a membership: the invitation has not expired. Consumption is a DELETE (never an accepted_at stamp), so redemption is atomic and a consumed token cannot be replayed — the row is gone."
+    },
+    {
+      "name": "rpc-admin-scope",
+      "sql": "org_id = ANY((SELECT private.rpc_admin_org_ids())::uuid[])",
+      "tables": ["memberships"],
+      "reason": "The admin arm of the seat table's rpc-role SELECT policy, and the only place readerScopeHelper may appear. It is what lets set_member_role and remove_member reach a colleague's seat at all: PostgreSQL AND-s this SELECT policy onto their UPDATE/DELETE WHERE clauses, so without it every promotion matches zero rows and raises. Narrowed to the seat table because nothing else needs it — every other tenant table scopes through the ordinary member_org_ids form."
+    }
+  ],
+  "knownPureFunctions": ["coalesce", "nullif", "now", "lower"],
+  "nonPublicSchemas": ["private", "audit"],
+  "exemptTables": [],
+  "untenantedTablesComment": "TABLES WITH NO TENANT KEY AT ALL, which is a different escape from exemptTables (that one is for tables that DO carry the column but sit outside the predicate rules). Every other check in this gate is discovered BY the tenant column, so without this list the way to pass is to omit the column entirely. A per-user table in a B2B product is a design regression that no isolation test can catch, because per-user isolation is strictly TIGHTER than per-org: every cross-tenant assertion passes while the colleagues who are supposed to share the data cannot see it.",
+  "untenantedTables": [
+    {
+      "table": "profiles",
+      "reason": "Account metadata — display name and avatar for one human being, not org data. It is keyed on auth.users(id) and deliberately survives org membership changes: a user who leaves every org still has a profile, and a user in six orgs has one. Giving it an org_id would mean either six rows per person or an arbitrary choice of which org owns their name."
+    },
+    {
+      "table": "quota_defaults",
+      "reason": "The global ceiling per metric, applying to any org with no negotiated override. Giving it an org_id would mean one row per org per metric holding the same value everywhere, and the first org created without those rows would silently have no limit. It is read-only to clients (four policies: SELECT true, deny-all writes) and changing a default is a migration."
+    }
+  ],
+  "dualScopedTablesComment": "THE ONLY ESCAPE THAT EXPIRES BY ITSELF, and the only one that may exist on a table whose tenant key is still NULLable. An install already in production cannot adopt org scope atomically: org_id has to arrive nullable on a table full of pre-tenancy rows, get backfilled out of band, and only then take NOT NULL — and throughout that window the OLD owner-scoped policies must keep working alongside the new org-scoped ones (permissive policies OR, so nothing breaks for anyone mid-flight). An entry here licenses exactly that state on exactly that table: the arm `<ownerColumn> = (SELECT auth.uid())` becomes a legal form FOR THIS TABLE ONLY, and the NOT NULL requirement on the tenant key is suspended. `until` is a harness version compared against the install's harnessVersion (the field that advances on every `installer update`, NOT baseVersion, which the same human who wrote the escape controls) — when the install passes it the entry reds and the transition can no longer be forgotten. Empty for a fresh scaffold: it ships NOT NULL from the first migration and is never in this state for a single statement. Runbook: docs/runbooks/tenancy-adoption.md.",
+  "dualScopedTables": [],
+  "uniqueWithoutTenantColumn": [
+    {
+      "table": "invitations",
+      "index": "invitations_token_digest_key",
+      "reason": "Redemption looks the invitation up by token ALONE — the acceptor knows no org id, which is the entire point of a bearer invite — so the uniqueness that matters is global. The column stores sha256(token), never the token, so the two risks a tenant-blind unique normally carries do not apply: the value is server-minted 256-bit randomness rather than tenant data, and a duplicate-key failure discloses nothing about another org."
+    }
+  ],
+  "quotaWriterRoleComment": "THE THIRD AND LAST ROLE THAT MAY HOLD A TENANT POLICY, and it exists for the same structural reason as the other two: FORCE ROW LEVEL SECURITY subjects a SECURITY DEFINER function's owner to policies, and the quota counter must not be writable by the tenant it counts (a tenant that can UPDATE org_usage or raise org_quota has no quota). Its policies use the ORDINARY scope form rather than anything wider, because the enforcement trigger runs inside the caller's own transaction: auth.uid() is still the human, so private.member_org_ids() returns exactly the orgs whose rows the statement was already allowed to write. That also means it is bound by requireSelfSelectPolicy like every other helper-bearing role.",
+  "quotaWriterRole": "app_quota_writer",
+  "auditExemptTablesComment": "THE ONE ESCAPE FROM THE AUDIT CLOSURE, and it is narrow on purpose: 'every org-scoped table is audited' is the rule that makes the whole trail non-vacuous, so an exemption has to earn itself. It reds when it names a table that does not exist, and it does NOT suspend any other rule — an exempt table is still tenant-scoped, still policied, still frozen. Use it only where auditing would record MACHINE bookkeeping rather than a human act, and where the human act is already in the trail through the table that caused it.",
+  "auditExemptTables": [
+    {
+      "table": "org_usage",
+      "reason": "A derived counter, not a fact about what anyone did. It moves on every metered write, and the write that moved it is already in the trail via the metered table's own audit trigger — so auditing it records the same event a second time and roughly doubles the trail's volume with rows nobody would ever read. The LIMIT (org_quota) is audited, because changing a customer's ceiling is a commercial act with no other record."
+    }
+  ]
+}

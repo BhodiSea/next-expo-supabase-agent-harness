@@ -55,6 +55,14 @@ UNSUPPORTED if the source is real but does not back the decision (e.g. citing
 `postgres/rls-initplan` for a keyset-pagination index choice, or `apple/ats` for
 an Android `usesCleartextTraffic` exception — that surface is `android/cleartext`).
 
-Output a table of `{ site, source, EXISTS?, SUPPORTS? }` and a final single line:
-`CITATIONS: CLEAN`, or `CITATIONS: REJECTED` listing every hallucinated /
-unresolvable / unsupported entry.
+Output a table of `{ site, source, EXISTS?, SUPPORTS? }`, then the citation verdict
+`CITATIONS: CLEAN` or `CITATIONS: REJECTED` (listing every hallucinated / unresolvable /
+unsupported entry) — that line is the documented protocol `/verify-citations` and the
+provenance rule both name, so it stays.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.
+
+`CITATIONS: REJECTED` is always `VERDICT: BLOCK`; the two lines are the detail and the
+summary of one judgement, never two independent ones.

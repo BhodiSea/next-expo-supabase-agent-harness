@@ -37,24 +37,70 @@ case-SENSITIVELY — lowercase RLS statements are invisible to it, so the citati
 silently lapses for that table. Re-case the RLS statements to UPPERCASE when you review the
 draft.
 
-## The RLS skeleton (per user-scoped table, all in the SAME migration)
+## The RLS skeleton (per ORG-scoped table, all in the SAME migration)
+
+**The tenant key is `org_id`, not `owner_id`.** This scaffold is B2B: the data controller is
+the organization, and `owner_id` is nullable ATTRIBUTION that decides nothing. A table keyed
+on the user instead is not merely a different choice — it is a regression no test can catch,
+because per-user isolation is strictly TIGHTER than per-org: every cross-tenant assertion
+passes while the colleagues who are supposed to share the row cannot see it. The `tenancy`
+gate reds a new table that carries no `org_id` (escape: a reasoned `untenantedTables` entry
+in `tools/tenancy.json`, as `profiles` has).
+
+**Only two predicate shapes are legal**, both uncorrelated zero-argument scalar sub-selects
+the planner hoists into ONE InitPlan per statement:
 
 ```sql
--- <timestamp>_<slice> — one owned entity. Desired state + full reasoning live in
+-- scope
+org_id = ANY((SELECT private.member_org_ids())::uuid[])
+-- rank floor
+coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+```
+
+The `::uuid[]` cast is **not cosmetic**. `ANY` followed by a parenthesized SELECT binds to the
+grammar's subquery form, so `ANY((SELECT private.member_org_ids()))` compares `uuid = uuid[]`
+and the `CREATE POLICY` fails outright — the cast is what makes it the ARRAY form. The
+alternative `ANY(SELECT unnest(private.member_org_ids()))` parses but plans as a hashed
+SubPlan over a Seq Scan; only the cast form yields an InitPlan **and** an Index Cond.
+
+`(SELECT private.member_rank(org_id)) >= 20` looks almost identical and is **banned**:
+passing a column of the row under test makes it a correlated SubPlan evaluated per row, which
+also re-enters the membership table's own policies. It is syntactically wrapped in `(SELECT`,
+so it passes every wrapper check — `tools/check-tenancy.mjs` inverts the rule and reds it.
+Ranks are `viewer 10, member 20, admin 30, owner 40`.
+
+```sql
+-- <timestamp>_<slice> — one org-owned entity. Desired state + full reasoning live in
 -- supabase/schemas/<NN>_<slice>.sql. Append-only and DML-free.
 CREATE TABLE public.<t> (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  -- owner_id references auth.users DIRECTLY, not public.profiles: routing the FK via the
-  -- profile spine makes the first write after signup fail until some other path created a
-  -- profile row. DEFAULT auth.uid() is a convenience for a caller that omits the column; it
-  -- is NOT the control — a caller that SENDS someone else's id is still rejected by the
-  -- WITH CHECK below.
-  owner_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users (id) ON DELETE CASCADE,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- THE TENANT KEY. NOT NULL with a declared FK, both required by the tenancy gate: a
+  -- nullable org_id is invisible to everyone (`= ANY(array)` is NULL-false, including for
+  -- its own author), and the first fix anyone writes for that is `OR org_id IS NULL` — a
+  -- global leak.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  -- ATTRIBUTION, not authorization. Nullable with ON DELETE SET NULL: an employee closing
+  -- their account must not delete the company's rows. It appears in exactly one policy arm
+  -- ("an author may delete their own"), always alongside a rank term.
+  owner_id uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   -- ... slice columns. Bounds mirror the @app/contracts zod DTO (defense in depth for a
   -- caller that reaches the table by another path), never restate it looser.
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  -- (org_id, id): partition-ready, and it makes org_id the leading indexed column. EVERY
+  -- unique on a tenant table must carry the tenant column — partitioning by tenant requires
+  -- it, and a tenant-blind unique is a cross-org information channel, because an insert
+  -- failure discloses another org's value. Escape: a reasoned `uniqueWithoutTenantColumn`
+  -- entry in tools/tenancy.json.
+  PRIMARY KEY (org_id, id)
 );
+
+-- A row may not change tenant. Without this every scope predicate above is advisory: an
+-- UPDATE that passes its policy could rewrite org_id and walk the row into another org. No
+-- WHEN clause — a freeze that can be conditioned away is not a freeze.
+CREATE TRIGGER <t>_freeze_org
+  BEFORE UPDATE ON public.<t>
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
 
 -- updated_at is maintained by the shared trigger (supabase/schemas/00_shared.sql), never by
 -- application code — the trigger is the one place all four writers (Server Action, tRPC
@@ -63,14 +109,14 @@ CREATE TRIGGER <t>_set_updated_at
   BEFORE UPDATE ON public.<t>
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- owner_id LEADING. Every policy on this table filters by owner_id on every statement, so
--- this index is what turns the policy qual into an Index Cond; owner_id in second position
--- does not serve `owner_id = $1` and the policy degrades to a sequential scan a two-row test
+-- org_id LEADING. Every policy on this table filters by org_id on every statement, so this
+-- index is what turns the policy qual into an Index Cond; org_id in second position does not
+-- serve `org_id = ANY($1)` and the policy degrades to a sequential scan a two-row test
 -- database can never reveal. Carry the list screen's ORDER BY columns in the SAME index so
 -- one index serves policy, sort and keyset range; id breaks ties (a keyset cursor over a
 -- non-unique key skips or repeats rows at page boundaries).
-CREATE INDEX <t>_owner_id_created_at_id_idx
-  ON public.<t> (owner_id, created_at DESC, id DESC);
+CREATE INDEX <t>_org_id_created_at_id_idx
+  ON public.<t> (org_id, created_at DESC, id DESC);
 
 -- FORCE subjects the table OWNER (`postgres`, the role running this migration) to the
 -- policies too — without it the migration/seed/SQL-editor role reads and writes every row
@@ -87,37 +133,58 @@ REVOKE ALL ON TABLE public.<t> FROM anon;
 REVOKE ALL ON TABLE public.<t> FROM service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.<t> TO authenticated;
 
--- Four per-operation policies, TO authenticated, each identity call wrapped in a scalar
--- sub-select so the planner hoists it into an InitPlan (once per statement, not once per
--- row). Never FOR ALL — each op stays independently auditable.
+-- Four per-operation policies, TO authenticated, each resolving through the uncorrelated
+-- zero-argument helpers so the planner hoists them into one InitPlan per statement (once per
+-- statement, not once per row). Never FOR ALL — each op stays independently auditable.
+-- Reading is MEMBERSHIP; writing is RANK.
 -- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
 -- [corpus: postgres/rls-initplan]
-CREATE POLICY <t>_select_own ON public.<t>
+CREATE POLICY <t>_select_org ON public.<t>
   AS PERMISSIVE FOR SELECT TO authenticated
-  USING (owner_id = (SELECT auth.uid()));
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
 
 -- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
--- INSERT under another user's owner_id [corpus: postgres/rls-force]
-CREATE POLICY <t>_insert_own ON public.<t>
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
+CREATE POLICY <t>_insert_org ON public.<t>
   AS PERMISSIVE FOR INSERT TO authenticated
-  WITH CHECK (owner_id = (SELECT auth.uid()));
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
 
--- USING alone would let an owner rewrite owner_id and hand the row away; WITH CHECK keeps the
--- result owned by the same user.
+-- USING sees the OLD row and WITH CHECK the NEW one. Both carry the rank term so a member
+-- cannot move a row out of reach; the freeze trigger above is what stops org_id changing
+-- at all.
 -- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
-CREATE POLICY <t>_update_own ON public.<t>
+CREATE POLICY <t>_update_org ON public.<t>
   AS PERMISSIVE FOR UPDATE TO authenticated
-  USING (owner_id = (SELECT auth.uid()))
-  WITH CHECK (owner_id = (SELECT auth.uid()));
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
 
--- Also the account-deletion guard: an unqualified DELETE by a signed-in user removes exactly
--- that user's rows, because this qual is the only WHERE clause the statement has.
+-- Two independently-scoped arms: an admin cleaning up anything in the org, or an author
+-- removing their own row. EVERY arm carries a rank term — the tenancy gate reds a top-level
+-- OR whose arm omits the scope, because such a policy is as open as its weakest arm and
+-- `OR owner_id = (SELECT auth.uid())` quietly restores per-user scope on top of org scope.
 -- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
 -- [corpus: postgres/rls-force]
-CREATE POLICY <t>_delete_own ON public.<t>
+CREATE POLICY <t>_delete_org ON public.<t>
   AS PERMISSIVE FOR DELETE TO authenticated
-  USING (owner_id = (SELECT auth.uid()));
+  USING (
+    coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
+    OR (
+      owner_id = (SELECT auth.uid())
+      AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+    )
+  );
 ```
+
+**Seat tables are not authored this way.** `orgs`, `memberships` and `invitations` are the
+tenancy spine itself: they are read-only to `authenticated`, every write goes through an
+allowlisted `SECURITY DEFINER` RPC running as `app_tenancy_rpc`, and their policies obey
+extra rules (`memberships`' SELECT policy must stay self-only, or the scope helpers that read
+it are re-entered by it — and because those helpers pin `SET search_path = ''`, the planner
+will not inline them, the rewriter's cycle check never sees a cycle, and you get
+`54001 stack depth limit exceeded` rather than the tidy `42P17 infinite recursion detected in
+policy` you would search for). Do not copy this skeleton onto them; see
+`supabase/migrations/20260201000000_tenancy_spine.sql` and
+`docs/adr/20260201-org-scoped-tenancy.md`.
 
 Mirror the SAME statements in the declarative `supabase/schemas/<NN>_<slice>.sql` so the two
 agree — that file carries the desired state and the fuller comments; the migration carries

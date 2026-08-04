@@ -17,7 +17,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
-import { fail, failures, ok, runCmd, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'gate-integrity'
 const MANIFEST = '.harness/manifest.json'
@@ -33,8 +33,40 @@ const SURFACE = [
   /^\.claude\/settings\.json$/,
   /^\.github\/workflows\//,
   /^tests\/rls\/run-rls\.mjs$/,
-  /^tests\/migrations\/migration-apply\.mjs$/,
 ]
+
+// The one carve-out from /^tools\//, and it is not a weakening — it is the difference
+// between a file the HARNESS wrote and a file the CONSUMER'S CODE wrote.
+//
+// tools/generated/* is regenerated from the project's own router, event catalogs and
+// DALs. Hash-pinning it to the bytes installed at `init` meant the FIRST tRPC procedure
+// a consumer added reds this gate as "tampered or hand-edited", with a prescribed remedy
+// (`restore it from git`) that undoes their feature. Verified against a real install:
+// one regenerated action-inventory.json is enough. A pin that is guaranteed to break on
+// correct use is not evidence; it is a gate everyone learns to ignore, and the habit it
+// teaches — that a gate-integrity mismatch is routine — is what makes a real mismatch
+// invisible.
+//
+// Nothing is lost. These files are covered better than a hash could: `contracts`
+// REGENERATES each one and diffs it on every validate, so a hand-edit that does not
+// match what the code actually does reds there (and fails closed in CI), and the
+// write-guard denies an agent editing them at all (guard-rules.mjs: 'action-inventory',
+// 'query-shapes-manifest'). A hash proves the bytes are old; the regen-diff proves they
+// are TRUE, which is the property that matters.
+const SURFACE_EXCLUDE = [/^tools\/generated\//]
+
+// RAMPED ADDITIONS (0.2.0). `.claude/rules/` is loaded into every turn — it is the
+// always-on statement of the security invariants — and `.claude/statusline.mjs` runs on
+// the developer's machine every prompt. Both are as much enforcement surface as a hook.
+//
+// They are ramped, and this is the single riskiest thing in the release if it is not.
+// Their manifest mode is `owned`, so an install that TUNED `security-invariants.md` for
+// its own product — an entirely reasonable thing the file invites — reds the instant this
+// lands, and the prescribed remedy (`update`, which re-records the hashes) clobbers the
+// tuning it was pointing at. The ramp gives those installs a release to converge in; a
+// fresh scaffold has no legacy and is covered from day one.
+const RAMPED_SURFACE = [/^\.claude\/rules\//, /^\.claude\/statusline\.mjs$/]
+const SURFACE_RAMP = '0.2.0'
 
 // The escape hatches: reviewed human data that EXEMPTS code from a gate or RAISES a
 // budget. They are 'seeded' (a project tunes them deliberately), so their content is
@@ -43,6 +75,14 @@ const SURFACE = [
 // the working tree at gate time is how an agent buys itself a green turn.
 const ESCAPE_LISTS = [
   'tools/rls-exempt.json', // exempting a table from FORCE RLS — the security one
+  'tools/tenancy.json', // the closed predicate-form set + the one seat-writer role
+  'tools/security-definer-allow.json', // authorizes EXECUTE-to-authenticated on a definer fn
+  'tools/audit-columns.json', // opting a column's VALUES into the audit trail
+  'tools/pii-columns.json', // the deny list that opt-in is checked against
+  'tools/db-limits.json', // the per-role blast-radius ceilings + the quota trigger shape
+  'tools/security-headers.json', // the web response posture, asserted by value
+  'tools/rate-limit-budget.json', // raising a budget is raising what one caller may cost everyone
+  'tools/db-perf-baseline.json', // the plan-probe floor + budgets — lowering minRows is how a plan probe becomes vacuous
   'tools/provenance-overrides.json', // cross-group citation escapes
   'tools/license-exceptions.json',
   'tools/route-allowlist.json',
@@ -77,19 +117,34 @@ const errs = []
 
 // ── 1. the owned enforcement surface still hashes to what was installed ──────────
 let checked = 0
+// Resolved once: the ramp is a property of the INSTALL, not of each file.
+const surfaceRamped = rampNote(
+  GATE,
+  SURFACE_RAMP,
+  'hash coverage of .claude/rules/ and .claude/statusline.mjs',
+)
+const rampedFindings = []
+
 for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
   if (meta?.mode !== 'owned') continue // config + seeded are human-tunable by design
-  if (!SURFACE.some((re) => re.test(ip))) continue
+  if (SURFACE_EXCLUDE.some((re) => re.test(ip))) continue // generated FROM the project's code
+  const core = SURFACE.some((re) => re.test(ip))
+  const ramped = !core && RAMPED_SURFACE.some((re) => re.test(ip))
+  if (!core && !ramped) continue
+  const into = ramped && surfaceRamped ? rampedFindings : errs
   checked += 1
   if (!existsSync(ip)) {
-    errs.push(`${ip}: missing from disk (the manifest records it as harness-owned)`)
+    into.push(`${ip}: missing from disk (the manifest records it as harness-owned)`)
     continue
   }
   // RAW bytes — the installer hashes the exact content it writes.
   const current = createHash('sha256').update(readFileSync(ip)).digest('hex')
   if (current !== meta.sha256) {
-    errs.push(`${ip}: sha256 mismatch against ${MANIFEST} (tampered or hand-edited)`)
+    into.push(`${ip}: sha256 mismatch against ${MANIFEST} (tampered or hand-edited)`)
   }
+}
+for (const f of rampedFindings) {
+  console.log(`${GATE}: NOTE — (ramp ${SURFACE_RAMP}) ${f}`)
 }
 
 // A manifest that records zero owned enforcement files is itself mangled — a

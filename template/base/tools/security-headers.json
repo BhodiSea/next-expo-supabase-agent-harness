@@ -1,0 +1,62 @@
+{
+  "comment": "The response security posture as reviewed policy. tools/check-security-headers.mjs EVALUATES apps/web/lib/security-headers.ts (node --experimental-strip-types, no bundler, no node_modules) and diffs the values it actually returns against this file. Values, not text: a gate that greps a source file for directive names is satisfied by a directive that appears in a comment. Widening anything here is a CODEOWNERS-reviewed act — the file is git-clean-enforced by check-gate-integrity.mjs, so the change appears in the PR diff.",
+
+  "staticHeaders": {
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "x-frame-options": "DENY",
+    "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin"
+  },
+
+  "permissionsPolicyDenied": [
+    "camera",
+    "microphone",
+    "geolocation",
+    "payment",
+    "usb",
+    "browsing-topics",
+    "interest-cohort",
+    "display-capture"
+  ],
+
+  "cspRequiredDirectives": {
+    "default-src": "'self'",
+    "object-src": "'none'",
+    "base-uri": "'self'",
+    "form-action": "'self'",
+    "frame-ancestors": "'none'"
+  },
+
+  "cspRequiredTokens": {
+    "script-src": ["'nonce-", "'strict-dynamic'"],
+    "connect-src": ["'self'"]
+  },
+
+  "cspBannedTokens": {
+    "script-src": ["'unsafe-eval'"],
+    "default-src": ["*"],
+    "connect-src": ["*"]
+  },
+
+  "authenticatedCache": {
+    "cache-control": "private, no-store",
+    "varyMustInclude": ["Cookie", "x-org-id"]
+  },
+
+  "decisions": {
+    "hstsPreload": {
+      "value": true,
+      "reason": "Two years with includeSubDomains and preload. Recorded because it is close to irreversible: removal from the browser preload list takes months, so a consumer serving any subdomain over plain HTTP must change this BEFORE first deploy, not after."
+    },
+    "coep": {
+      "value": null,
+      "reason": "Cross-Origin-Embedder-Policy ships UNSET. require-corp breaks every third-party embed and image that does not send its own CORP header, and the failure mode is a silently blank subresource. A gate that produces a broken app is a gate everyone exempts. Revisit when the app needs crossOriginIsolated (SharedArrayBuffer, precise timers) — nothing in the seed does."
+    },
+    "styleSrcUnsafeInline": {
+      "value": true,
+      "reason": "Next injects critical CSS as inline <style> with no nonce hook, so this is structural rather than chosen. Materially smaller than the script-src equivalent: CSS injection cannot execute, and selector-based exfiltration is bounded by connect-src and img-src."
+    }
+  }
+}

@@ -14,12 +14,36 @@ import { fileURLToPath } from 'node:url'
 
 const GATE = fileURLToPath(new URL('../../template/base/tools/check-web-e2e.mjs', import.meta.url))
 
+// Carries BOTH closure markers the runner requires of a spec SET: an axe scan and
+// the live security-header assertion (0.2.0). The gate is closed over the set, not
+// per file, so one fixture spec satisfying both keeps the other cases focused on
+// the single rule each is actually testing.
 const VALID_SPEC = [
   "import { test, expect } from '@playwright/test'",
   "import AxeBuilder from '@axe-core/playwright'",
   "test('home renders + is accessible', async ({ page }) => {",
-  "  await page.goto('/')",
+  "  const response = await page.goto('/')",
   "  await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible()",
+  '  const results = await new AxeBuilder({ page }).analyze()',
+  '  expect(results.violations).toEqual([])',
+  "  expect(response?.headers()['x-content-type-options']).toBe('nosniff')",
+  '})',
+  "test('csp does not block the page', async ({ page }) => {",
+  '  await page.addInitScript(() => {',
+  "    document.addEventListener('securitypolicyviolation', () => {})",
+  '  })',
+  "  await page.goto('/')",
+  '  expect(true).toBe(true)',
+  '})',
+  '',
+].join('\n')
+
+/** A spec that satisfies the axe closure but NOT the security-headers one. */
+const AXE_ONLY_SPEC = [
+  "import { test, expect } from '@playwright/test'",
+  "import AxeBuilder from '@axe-core/playwright'",
+  "test('home is accessible', async ({ page }) => {",
+  "  await page.goto('/')",
   '  const results = await new AxeBuilder({ page }).analyze()',
   '  expect(results.violations).toEqual([])',
   '})',
@@ -134,6 +158,28 @@ test('RED: specs present but none runs an axe scan — the a11y net is missing',
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('axe scan'), r.out)
+})
+
+test('RED (0.2.0): an axe-bearing spec set with no live security-header assertion', () => {
+  // tools/check-security-headers.mjs proves the CONFIG is right. A correct config
+  // behind a header-stripping CDN, or a nonce that never reaches Next's inline
+  // bootstrap, is invisible to it — so the lane must carry the live half or the
+  // static gate stands alone believing it has covered the property.
+  const r = runGate(fixture({ specs: [{ name: 'a11y.spec.ts', content: AXE_ONLY_SPEC }] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('securitypolicyviolation'), r.out)
+})
+
+test('RED (0.2.0): reading headers WITHOUT collecting violations is not the live half', () => {
+  // Both markers required. A spec that asserts headers arrive but never watches the
+  // browser enforce the policy cannot tell a working CSP from one that blanks the app.
+  const headersOnly = AXE_ONLY_SPEC.replace(
+    "  await page.goto('/')",
+    "  const response = await page.goto('/')\n  expect(response?.headers()['x-frame-options']).toBe('DENY')",
+  )
+  const r = runGate(fixture({ specs: [{ name: 'a11y.spec.ts', content: headersOnly }] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('securitypolicyviolation'), r.out)
 })
 
 test('skip asymmetry: a static-green tree without node_modules → loud local SKIP, CI fail-closed', () => {

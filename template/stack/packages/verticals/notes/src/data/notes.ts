@@ -41,13 +41,46 @@ import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
 //   3. It returns outcomes, never throws for a domain failure. Callers get a
 //      value they can switch on; the transport layer stays uniform.
 //
-// And one absence that is load-bearing: no function here adds an `owner_id`
-// filter. Visibility is the RLS policies' job, enforced by the database against
-// `auth.uid()`. Filtering in the application too would MASK a policy
-// regression — the tests would pass, the isolation suite would pass, and the
-// day a policy is dropped the only thing standing between two tenants would be
-// a WHERE clause nobody remembered was load-bearing.
+// And one distinction that is load-bearing, which the org re-scope makes subtle
+// enough to be worth spelling out — because the wrong reading of it is how a
+// tenant boundary quietly becomes decorative.
+//
+// EVERY FUNCTION HERE FILTERS BY `org_id`. NO FUNCTION HERE FILTERS BY
+// `owner_id`. Those look like the same kind of statement and are opposites.
+//
+//   `org_id` is a SELECTOR. Its value originates at the client (the `x-org-id`
+//   header), is resolved server-side against the caller's real memberships
+//   before it reaches this file, and can only ever NARROW the set the policies
+//   already admit — a user in three orgs is looking at one of them. Remove the
+//   filter and nothing becomes visible that was not visible before; the user
+//   simply sees three orgs' notes at once. It is a product decision, enforced
+//   where product decisions belong.
+//
+//   `owner_id` would be an AUTHORIZATION DERIVATION. Its value would come from
+//   the verified identity, and it would restate — in TypeScript — exactly what
+//   the RLS policy already says in SQL. That is the dangerous shape: with it in
+//   place, the day a policy is dropped or widened, every test still passes, the
+//   isolation suite still passes, and the only thing between two tenants is a
+//   WHERE clause nobody remembered was load-bearing. The application must not be
+//   able to compensate for a broken policy, because a compensation that works is
+//   indistinguishable from a boundary that works.
+//
+// The test: could this filter be deleted and the database still refuse? For
+// `org_id`, no — and it does not need to, because the policies already refuse
+// the rows it is not narrowing. For `owner_id`, yes — which is exactly why it is
+// absent.
 // ---------------------------------------------------------------------------
+
+/**
+ * The acting organization, resolved from the caller's real seats. Non-nullable
+ * by construction: the rung above (`orgProcedure` / `requireOrgContext`) turns
+ * "no active org" into a returned outcome, so by the time a call reaches this
+ * file the question has already been answered. A nullable field here would push
+ * that decision into five call sites that would each answer it differently.
+ */
+export interface NoteScope {
+  readonly orgId: string
+}
 
 /**
  * What a write needs beyond its input.
@@ -58,19 +91,52 @@ import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
  * use it — the `created_at` column default keeps the database's own clock,
  * which is authoritative. The asymmetry is deliberate and stated here so nobody
  * "fixes" one path to match the other.
+ *
+ * `actorId` remains ATTRIBUTION, not authorization, and the org re-scope is what
+ * made that literal: `notes.owner_id` is now nullable and `ON DELETE SET NULL`,
+ * because in B2B the data controller is the org — an employee leaving must not
+ * delete the company's rows. It still comes from the verified actor and never
+ * from the wire.
  */
-export interface NoteWriteContext {
+export interface NoteWriteContext extends NoteScope {
   readonly actorId: string
   readonly emit: NoteEventSink
   readonly now: string
-  readonly workspaceId: string | null
 }
 
 /**
- * Keyset seek for `ORDER BY created_at DESC, id DESC`: everything strictly
- * after the cursor position, expressed as PostgREST's `or(...)` of the two
- * lexicographic cases. Never OFFSET — an offset scan re-reads and re-discards
- * every skipped row.
+ * The TIE-BREAK half of the keyset seek. It is deliberately not the whole
+ * predicate, and the split is the single most load-bearing thing in this file.
+ *
+ * The obvious spelling — one disjunction covering both lexicographic cases,
+ * `created_at.lt.X, and(created_at.eq.X, id.lt.Y)` — is correct, portable, and
+ * quietly O(page number). PostgreSQL cannot turn a top-level OR into an index
+ * range, so the whole thing lands in `Filter:` and the scan still starts at the
+ * tenant's newest row. Measured against 1.1M seeded rows, page 1000:
+ *
+ *   one disjunction     Index Cond: (org_id = $1)
+ *                       Rows Removed by Filter: 1115     39 buffers
+ *   range + disjunction Index Cond: (org_id = $1 AND created_at <= $2)
+ *                       Rows Removed by Filter: 3         6 buffers
+ *
+ * The first form re-reads and discards every row it has already shown — which
+ * is exactly the OFFSET cost this function's name says it avoids, wearing a
+ * keyset costume. Nothing about it looks wrong; it is fast on a seeded test
+ * database and gets slower with every page a real customer scrolls.
+ *
+ * So the seek is written as TWO predicates, and `listNotes` sends both:
+ *
+ *   created_at <= X            an indexable range that positions the scan
+ *   AND (created_at < X OR id < Y)   the tie-break, evaluated on the few rows
+ *                                    the range could not already exclude
+ *
+ * which is exactly equivalent to `(created_at, id) < (X, Y)`: a row with
+ * `created_at < X` satisfies the disjunction by its first arm whatever its id,
+ * and a row at the cursor's instant survives only if its id sorts below the
+ * cursor's. The row-constructor form PostgreSQL would prefer is not reachable
+ * from here — PostgREST's filter grammar has no row comparison — so this is the
+ * closest expressible thing, and `tools/check-query-shapes.mjs` reds a keyset
+ * seek that carries no range predicate on its leading sort column.
  * SOURCE: https://use-the-index-luke.com/no-offset
  *
  * The interpolated values are safe for a reason that has to stay true:
@@ -81,9 +147,8 @@ export interface NoteWriteContext {
  * depend on it ALONE.
  * SOURCE: https://docs.postgrest.org/en/v12/references/api/tables_views.html#logical-operators
  */
-function keysetFilter(cursor: NoteCursor): string {
-  const at = `"${cursor.createdAt}"`
-  return `created_at.lt.${at},and(created_at.eq.${at},id.lt."${cursor.id}")`
+function keysetTieBreak(cursor: NoteCursor): string {
+  return `created_at.lt."${cursor.createdAt}",id.lt."${cursor.id}"`
 }
 
 /**
@@ -94,6 +159,7 @@ function keysetFilter(cursor: NoteCursor): string {
  */
 export async function listNotes(
   db: NotesDatabase,
+  scope: NoteScope,
   query: ListNotesSchema,
 ): Promise<ActionOutcome<NotesPage>> {
   const limit = clampPageLimit(query.limit)
@@ -104,11 +170,21 @@ export async function listNotes(
     if (cursor === null) return outcomeErr(invalidCursor())
   }
 
-  let builder = db.from(NOTES_TABLE).select(NOTE_COLUMNS)
+  // org_id FIRST, before the archive predicate and the keyset seek, because it
+  // is the leading column of notes_org_id_created_at_id_idx — the index that
+  // serves the policy, the sort and the cursor range in one pass. PostgREST
+  // sends filters in call order and the planner is free to reorder them, but the
+  // ordering here matches the index so the intended plan is the readable one.
+  let builder = db.from(NOTES_TABLE).select(NOTE_COLUMNS).eq('org_id', scope.orgId)
   // Archived notes are excluded by default: the list is a working surface, and
   // an archive that keeps showing up is not an archive.
   if (!query.includeArchived) builder = builder.is('archived_at', null)
-  if (cursor !== null) builder = builder.or(keysetFilter(cursor))
+  // The range FIRST: it is the half the planner can push into the Index Cond, and
+  // sending it separately from the tie-break is what keeps the seek O(1) per page
+  // rather than O(page number). See keysetTieBreak.
+  if (cursor !== null) {
+    builder = builder.lte('created_at', cursor.createdAt).or(keysetTieBreak(cursor))
+  }
 
   const result = await builder
     .order('created_at', { ascending: false })
@@ -146,9 +222,15 @@ export async function listNotes(
  */
 export async function getNote(
   db: NotesDatabase,
+  scope: NoteScope,
   ref: NoteRefSchema,
 ): Promise<ActionOutcome<NoteView>> {
-  const result = await db.from(NOTES_TABLE).select(NOTE_COLUMNS).eq('id', ref.id).limit(1)
+  const result = await db
+    .from(NOTES_TABLE)
+    .select(NOTE_COLUMNS)
+    .eq('org_id', scope.orgId)
+    .eq('id', ref.id)
+    .limit(1)
   if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'read'))
 
   const row = asRowArray(result.data)[0]
@@ -181,6 +263,14 @@ export async function createNote(
       // rather than left to the database so the returned row is the same shape
       // whichever path inserted it.
       body: input.body ?? '',
+      // The tenant key, from the RESOLVED acting org — never from `input`, which
+      // carries no org field and never will (see @app/contracts ORG_ID_HEADER).
+      // The INSERT policy re-checks it against the caller's real memberships, so
+      // a bug here is a 42501 from the database, not a row in someone else's org.
+      org_id: context.orgId,
+      // Attribution. Nullable and ON DELETE SET NULL since the org re-scope, so
+      // it is stated explicitly rather than left to a column default that no
+      // longer exists.
       owner_id: context.actorId,
       title: normalizeTitle(input.title),
     })
@@ -240,6 +330,7 @@ export async function updateNote(
   const result = await db
     .from(NOTES_TABLE)
     .update(patch)
+    .eq('org_id', context.orgId)
     .eq('id', input.id)
     .select(NOTE_COLUMNS)
     .limit(1)
@@ -271,7 +362,13 @@ export async function deleteNote(
   context: NoteWriteContext,
   ref: NoteRefSchema,
 ): Promise<ActionOutcome<NoteDeletion>> {
-  const result = await db.from(NOTES_TABLE).delete().eq('id', ref.id).select(NOTE_COLUMNS).limit(1)
+  const result = await db
+    .from(NOTES_TABLE)
+    .delete()
+    .eq('org_id', context.orgId)
+    .eq('id', ref.id)
+    .select(NOTE_COLUMNS)
+    .limit(1)
 
   if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'delete'))
 

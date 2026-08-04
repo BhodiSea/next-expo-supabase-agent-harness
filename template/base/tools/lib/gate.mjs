@@ -80,7 +80,7 @@ export function failures(gate, list, hint) {
 
 // Numeric dotted compare (the harness releases plain x.y.z tags); non-numeric
 // fields compare as plain strings so a mangled version cannot compare as newest.
-function cmpDotted(a, b) {
+export function cmpDotted(a, b) {
   const pa = String(a).split('.')
   const pb = String(b).split('.')
   for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
@@ -95,18 +95,37 @@ function cmpDotted(a, b) {
   return 0
 }
 
-export function rampNote(gate, minVersion, detail) {
+function readManifest(gate) {
   const manifestPath = join('.harness', 'manifest.json')
-  if (!existsSync(manifestPath)) return false // no install record -> the check is live
-  let manifest
+  if (!existsSync(manifestPath)) return null
   try {
-    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    return JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch (e) {
     fail(
       gate,
       `${manifestPath} is not valid JSON (${e.message}) — it is write-guard-protected, so a corrupt manifest is tampering; restore it from git history`,
     )
   }
+}
+
+// The version of the harness CODE this install currently runs, or null when there is
+// no install record (template dev tree, gate fixtures). Deliberately NOT baseVersion:
+// baseVersion only moves when a human graduates a ramp, so a deadline measured
+// against it is a deadline its own beneficiary controls. harnessVersion advances on
+// every `installer update`, which is what makes an expiring escape actually expire.
+// SOURCE: installer/lib/manifest.mjs (harnessVersion advances on update; baseVersion
+// is a deliberate human graduation) [corpus: harness/doctrine]
+export function installedHarnessVersion(gate) {
+  const manifest = readManifest(gate)
+  if (manifest === null) return null
+  const v = manifest.harnessVersion ?? manifest.baseVersion
+  return typeof v === 'string' && /^\d+\.\d+\.\d+/.test(v) ? v : null
+}
+
+export function rampNote(gate, minVersion, detail) {
+  const manifestPath = join('.harness', 'manifest.json')
+  const manifest = readManifest(gate)
+  if (manifest === null) return false // no install record -> the check is live
   const base = manifest.baseVersion ?? manifest.harnessVersion
   if (typeof base !== 'string' || !/^\d+\.\d+\.\d+/.test(base)) {
     fail(

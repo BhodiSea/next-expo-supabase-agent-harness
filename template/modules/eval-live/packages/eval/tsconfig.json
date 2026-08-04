@@ -1,0 +1,26 @@
+{
+  // @app/eval — the eval-live module's only workspace package. It exists so `tsc -b` and
+  // the ESLint project service can both SEE these files: without a tsconfig here the module
+  // shipped source that was never typechecked and that typescript-eslint refused to parse
+  // ("was not found by the project service"), which is a lint error in a lane most consumers
+  // only meet after enabling the module.
+  //
+  // It is deliberately NOT referenced from the root tsconfig: that file is shared by every
+  // tier, and a reference to a path that only exists when this module is enabled would break
+  // `tsc -b` for core and standard installs. `tsc -b packages/eval` builds it directly; the
+  // ESLint project service finds it by walking up from the file.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // The adapter speaks HTTP through global fetch — so it needs the WHATWG globals
+    // (fetch/Request/Response/URL). `"types": []` plus a DOM-less lib is what left this
+    // package with `Cannot find name 'fetch'` on every line that talks to a model.
+    "lib": ["ES2023", "DOM"],
+    "types": []
+  },
+  "include": ["src"]
+}

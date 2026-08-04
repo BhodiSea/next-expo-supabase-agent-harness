@@ -18,7 +18,7 @@ const SESSION: Session = {
     email: 'rae@example.test',
     userId: '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d',
   },
-  membership: null,
+  orgs: [],
 }
 
 // The resolveSession port as a TRIP-WIRE: every test that expects the token path to be skipped
@@ -41,7 +41,7 @@ describe('createContext — identity resolution priority', () => {
       serverVersion: SERVER_VERSION,
     })
     expect(ctx.actor).toEqual(SESSION.actor)
-    expect(ctx.membership).toBeNull()
+    expect(ctx.activeOrg).toBeNull()
   })
 
   it('an injected null session is anonymous — and still skips resolveSession', async () => {
@@ -56,7 +56,7 @@ describe('createContext — identity resolution priority', () => {
       serverVersion: SERVER_VERSION,
     })
     expect(ctx.actor).toBeNull()
-    expect(ctx.membership).toBeNull()
+    expect(ctx.activeOrg).toBeNull()
   })
 
   it('with NO session field and a token, the resolveSession port IS used', async () => {
@@ -68,7 +68,7 @@ describe('createContext — identity resolution priority', () => {
       serverVersion: SERVER_VERSION,
     })
     expect(ctx.actor).toEqual(SESSION.actor)
-    expect(ctx.membership).toBeNull()
+    expect(ctx.activeOrg).toBeNull()
   })
 
   it('with no session field and no token, no resolveSession round trip happens', async () => {

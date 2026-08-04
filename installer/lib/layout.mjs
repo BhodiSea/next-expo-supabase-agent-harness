@@ -99,6 +99,34 @@ export const SEEDED_FILES = new Set([
   'tools/duplication-allow.json',
   'tools/decision-groups.json',
   'tools/i18n-allow.json',
+  // The 0.2.0 reviewed-data files, ALL of them. SEEDED, not owned, because every
+  // gate that reads one tells the consumer in its own failure text to edit it
+  // ("register the constraint in tools/tenancy.json", "register it with a reason",
+  // "raise the bucket") — and check-gate-integrity's SURFACE is /^tools\//, so an
+  // `owned` file here is sha-pinned. Leaving the last six owned made the harness
+  // issue two contradictory demands at once: the gate says "edit this file and
+  // commit the widening so it lands under CODEOWNERS", gate-integrity says "your
+  // hash moved, restore it from git", and `update` reverted the edit anyway. Every
+  // one of these is in check-gate-integrity's ESCAPE_LISTS, whose own header states
+  // the rule this list now actually implements — escape hatches are seeded so their
+  // CONTENT is not hash-pinned, and the reviewed act is the commit.
+  'tools/tenancy.json',
+  'tools/security-definer-allow.json',
+  'tools/audit-columns.json',
+  'tools/pii-columns.json',
+  'tools/db-limits.json',
+  'tools/security-headers.json',
+  'tools/rate-limit-budget.json',
+  'tools/db-perf-baseline.json',
+  // The query-shape manifest is GENERATED from the consumer's own DAL by the probes in
+  // packages/verticals/*/src/data/query-probes.ts — which are themselves seedOnInitOnly.
+  // Shipping it `owned` meant `update` planted a description of the TEMPLATE's DAL into a
+  // repo whose DAL is different and whose probes were deliberately withheld: the
+  // regen-diff then reds forever, because regenerating from no probes can never
+  // reproduce it. Seeded + seedOnInitOnly is the honest pairing — the artifact arrives
+  // with the code that produces it, or not at all. Its integrity is the `contracts`
+  // regen-diff plus the write-guard, never a mode.
+  'tools/generated/query-shapes.json',
   // Reviewed platform-capability data: every entry carries a reason. The
   // expo-policy/native-deps gates read them; a project extends them
   // deliberately — write-guard-protected against agents.

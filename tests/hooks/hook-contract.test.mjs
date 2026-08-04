@@ -205,6 +205,18 @@ const RULE_CANARIES = {
     // Human-in-the-loop escape hatch, same as every other tamper rule.
     bashAllow(`node -e "require('fs').writeFileSync('tools/validate.mjs','x')"`, SELF_EDIT),
   ],
+  // Regenerating a hash lock launders an edit to the files it protects. Denied by
+  // NAME SHAPE, so a lock generator added later is covered the day it appears; the
+  // human escape is the same HARNESS_ALLOW_SELF_EDIT=1 every other rule honours.
+  'gen-lock-writer': [
+    bashDeny('node tools/gen-agents-lock.mjs --write'),
+    bashDeny('pnpm exec node tools/gen-agents-lock.mjs --write'),
+    bashDeny('node tools/gen-prompts-lock.mjs --write'),
+    // Reading what the lock WOULD say is fine — only writing it is the laundering act.
+    bashAllow('node tools/gen-agents-lock.mjs --check'),
+    bashAllow('node tools/gen-agents-lock.mjs'),
+    bashAllow('node tools/gen-agents-lock.mjs --write', SELF_EDIT),
+  ],
   'git-hookspath-repoint': [
     bashDeny('git config core.hooksPath /tmp/nohooks'),
     bashDeny('git -c core.hooksPath=/dev/null commit -m x'),
@@ -300,6 +312,37 @@ const RULE_CANARIES = {
   'tools-mcp': [pathDeny('tools/mcp/corpus-search-server.mjs')],
   'lock-json': [pathDeny('tools/identity.lock.json'), pathDeny('tools/prompts.lock.json')],
   'rls-exempt': [pathDeny('tools/rls-exempt.json')],
+  // The tenancy contract: predicateForms IS the definition of a correct tenant
+  // predicate, so an agent that could append to it could legalize its own broken
+  // policy in the same turn it wrote the policy.
+  'tenancy-contract': [pathDeny('tools/tenancy.json')],
+  // Allowlisting a definer function now AUTHORIZES EXECUTE-to-authenticated on it
+  // (0.2.0), so this file hands out privilege-escalation reach.
+  'security-definer-allow': [pathDeny('tools/security-definer-allow.json')],
+  // One authorizes value capture into the trail, the other refuses it — an agent that
+  // could edit either could approve copying the column it was about to leak.
+  'audit-columns': [pathDeny('tools/audit-columns.json')],
+  'pii-columns': [pathDeny('tools/pii-columns.json')],
+  // Raising a ceiling here makes a widened statement_timeout pass as reviewed.
+  'db-limits': [pathDeny('tools/db-limits.json')],
+  'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
+  // `minRows` in here is the anti-vacuity floor for the plan probe: lower it and
+  // db-perf certifies a plan against a table small enough that every structural
+  // check is already green, while still printing OK.
+  'db-perf-baseline': [pathDeny('tools/db-perf-baseline.json')],
+  // Generated, and hand-editable by nobody: it is the record of what the DALs
+  // actually asked the database for, and `query-shapes` judges index service
+  // against it. `pnpm gen` is the only author.
+  'query-shapes-manifest': [pathDeny('tools/generated/query-shapes.json')],
+  // The agent surface: the prose the coding agent runs under. Layer 3 (prevention) did
+  // not exist for any of these before 0.2.0 — an agent could rewrite its own reviewers,
+  // rules, commands and skills, and only the hash lock would notice.
+  'claude-rules': [pathDeny('.claude/rules/security-invariants.md')],
+  'claude-agents': [pathDeny('.claude/agents/security-reviewer.md')],
+  'claude-commands': [pathDeny('.claude/commands/new-feature.md')],
+  'claude-skills': [pathDeny('.claude/skills/authoring-vertical-slice/SKILL.md')],
+  // The hash OF that surface: regenerating it is how an edit to it becomes invisible.
+  'agents-lock': [pathDeny('tools/agents.lock.json')],
   'provenance-overrides': [pathDeny('tools/provenance-overrides.json')],
   'decision-groups': [pathDeny('tools/decision-groups.json')],
   'license-exceptions': [pathDeny('tools/license-exceptions.json')],
@@ -327,7 +370,6 @@ const RULE_CANARIES = {
   'i18n-allow': [pathDeny('tools/i18n-allow.json')],
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],
-  'migration-apply-runner': [pathDeny('tests/migrations/migration-apply.mjs')],
   lefthook: [pathDeny('lefthook.yml')],
   'github-workflows': [pathDeny('.github/workflows/quality-gate.yml')],
   'eslint-config': [pathDeny('eslint.config.mjs')],
@@ -407,8 +449,142 @@ const RULE_CANARIES = {
     contentDeny('apps/server/src/db/context.ts', 'await sql`SET SESSION app.user_id = ${id}`\n'),
     contentDeny('apps/server/src/db/context.ts', 'await sql`SET app.user_id = ${id}`\n'),
   ],
+  'pg-session-timeout-set': [
+    contentDeny(
+      'packages/platform/supabase/src/pool.ts',
+      "await sql`SET statement_timeout = '30s'`\n",
+    ),
+    contentDeny('packages/platform/supabase/src/pool.ts', 'await sql`SET SESSION lock_timeout TO 0`\n'),
+    contentDeny(
+      'supabase/functions/report/index.ts',
+      "await client.query(\"SET idle_in_transaction_session_timeout = '10min'\")\n",
+    ),
+    // The safe spelling: reverted at transaction end, so the pooled backend goes
+    // back to the reviewed per-role ceiling before the next tenant gets it.
+    contentAllow(
+      'packages/platform/supabase/src/pool.ts',
+      "await sql`SET LOCAL statement_timeout = '3s'`\n",
+    ),
+    // The carve-out. `ALTER ROLE x SET ...` writes pg_db_role_setting — it is the
+    // mechanism the per-role ceilings are BUILT from, not a session mutation.
+    contentAllow(
+      'supabase/functions/provision/index.ts',
+      "await sql`ALTER ROLE authenticated SET statement_timeout = '8s'`\n",
+    ),
+    // Path-scoped: a gate script that PRINTS the statement as remediation advice is
+    // discussing it, not executing it (check-migrations.mjs's fix message does).
+    contentAllow(
+      'e2e/support/db-notes.ts',
+      "const advice = `add \\`SET lock_timeout = '3s';\\` as the first statement`\n",
+    ),
+  ],
+  'pg-advisory-session-lock': [
+    contentDeny('packages/platform/supabase/src/lock.ts', 'await sql`select pg_advisory_lock(${key})`\n'),
+    contentDeny(
+      'packages/platform/supabase/src/lock.ts',
+      'await sql`select pg_advisory_unlock(${key})`\n',
+    ),
+    contentDeny(
+      'packages/platform/supabase/src/lock.ts',
+      'await sql`select pg_advisory_lock_shared(${key})`\n',
+    ),
+    // Released at COMMIT *and* at ROLLBACK — including the error path that leaks the
+    // session-scoped one forever.
+    contentAllow(
+      'packages/platform/supabase/src/lock.ts',
+      'await sql`select pg_advisory_xact_lock(${key})`\n',
+    ),
+  ],
+  'pg-prepared-statement': [
+    contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url, { max: 5 })\n'),
+    contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url)\n'),
+    contentAllow(
+      'packages/platform/supabase/src/driver.ts',
+      'const sql = postgres(url, { max: 5, prepare: false })\n',
+    ),
+    // `postgres(?:ql)?://` in a URL-validating regex is not a driver construction —
+    // the shipped env validator and the secret scanner both contain exactly this.
+    contentAllow(
+      'packages/platform/env/src/index.ts',
+      'const DB_URL = /^postgres(?:ql)?:\\/\\/\\S+$/\n',
+    ),
+  ],
   'vitest-workspace-file': [
     contentDeny('vitest.workspace.mts', "import { defineWorkspace } from 'vitest/config'\n"),
+  ],
+
+  // ── write-guard: SQL schema + migration surface ──
+  // Every case below was ALLOWED before 0.2.0 — not because a rule judged it safe,
+  // but because the source-extension gate ended the hook for .sql files before any
+  // content rule ran. The paired allow-cases are the load-bearing half: each rule is
+  // path-scoped, so the identical bytes under supabase/tests/** must still be
+  // writable or the fixtures that prove these shapes get rejected cannot exist.
+  'rls-disable-or-noforce': [
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY;\n',
+    ),
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'ALTER TABLE public.notes NO FORCE ROW LEVEL SECURITY;\n',
+    ),
+    contentDeny('supabase/schemas/20_notes.sql', 'alter table notes disable row level security;\n'),
+    // A test asserting the database rejects this shape must be able to contain it.
+    contentAllow(
+      'supabase/tests/rls_structure.test.sql',
+      "SELECT throws_ok($$ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY$$, '42501');\n",
+    ),
+    contentAllow(
+      'supabase/migrations/20260301000000_fine.sql',
+      'ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.notes FORCE ROW LEVEL SECURITY;\n',
+    ),
+  ],
+  'policy-to-public-role': [
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'CREATE POLICY notes_read ON public.notes FOR SELECT TO public USING (owner_id = (SELECT auth.uid()));\n',
+    ),
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'CREATE POLICY notes_read ON public.notes FOR SELECT TO anon USING (owner_id = (SELECT auth.uid()));\n',
+    ),
+    contentAllow(
+      'supabase/migrations/20260301000000_fine.sql',
+      'CREATE POLICY notes_read ON public.notes FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));\n',
+    ),
+  ],
+  'policy-using-true': [
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'CREATE POLICY notes_read ON public.notes FOR SELECT TO authenticated USING (true);\n',
+    ),
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'CREATE POLICY notes_ins ON public.notes FOR INSERT TO authenticated WITH CHECK ( TRUE );\n',
+    ),
+    contentAllow(
+      'supabase/tests/rls_structure.test.sql',
+      "SELECT is_empty($$SELECT 1 FROM pg_policies WHERE qual = 'true'$$, 'no policy USING (true)');\n",
+    ),
+  ],
+  'security-definer-no-search-path': [
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      'CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;\n',
+    ),
+    // A non-empty search_path is still caller-influenced — only '' is pinned.
+    contentDeny(
+      'supabase/migrations/20260301000000_oops.sql',
+      "CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT 1 $$;\n",
+    ),
+    contentAllow(
+      'supabase/migrations/20260301000000_fine.sql',
+      "CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;\n",
+    ),
+    contentAllow(
+      'supabase/migrations/20260301000000_fine.sql',
+      "CREATE FUNCTION private.f() RETURNS void LANGUAGE sql STABLE SECURITY INVOKER SET search_path = '' AS $$ SELECT 1 $$;\n",
+    ),
   ],
 }
 
@@ -434,8 +610,15 @@ for (const id of ['lefthook', 'tsconfig']) {
 }
 
 test('every guard rule id has a behavioral canary (per-rule falsifiability closure)', async () => {
-  const { BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS } = await import(GUARD_RULES.href)
-  const ids = [...BASH_RULES, ...WRITE_PROTECTED, ...WRITE_GLOBAL_CHECKS].map((r) => r.id)
+  const { BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS, WRITE_SQL_CHECKS } = await import(
+    GUARD_RULES.href
+  )
+  const ids = [
+    ...BASH_RULES,
+    ...WRITE_PROTECTED,
+    ...WRITE_GLOBAL_CHECKS,
+    ...WRITE_SQL_CHECKS,
+  ].map((r) => r.id)
   for (const id of ids) {
     assert.ok(
       RULE_CANARIES[id]?.length,

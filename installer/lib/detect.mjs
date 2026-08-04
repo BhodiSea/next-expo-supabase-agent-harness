@@ -10,7 +10,9 @@ export function detect(targetDir) {
   const pkgPath = join(targetDir, 'package.json')
   if (!existsSync(pkgPath)) {
     const entries = existsSync(targetDir)
-      ? readdirSync(targetDir).filter((e) => e !== '.git' && e !== '.DS_Store')
+      ? readdirSync(targetDir)
+          .filter((e) => e !== '.git' && e !== '.DS_Store')
+          .sort()
       : []
     return { mode: 'bootstrap', empty: entries.length === 0 }
   }

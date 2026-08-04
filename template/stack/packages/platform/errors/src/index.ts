@@ -108,6 +108,16 @@ export type AppError =
   // SOURCE: 429 carries Retry-After as delta-seconds — back-pressure is its own
   // kind, never folded into `unavailable`. https://www.rfc-editor.org/rfc/rfc9110#field.retry-after
   | (AppErrorCore<'rateLimited'> & { readonly retryAfterSeconds?: number })
+  /** A tenant-scoped resource ceiling was reached (Postgres 53400). DELIBERATELY
+   * NOT `rateLimited`, and the distinction is behavioural rather than taxonomic:
+   * a rate limit clears by WAITING, so retrying is the correct client response,
+   * while a quota clears only by DELETING rows or buying more — so a client that
+   * treats the two alike enters a retry loop that can never succeed. `metric`
+   * and `limit` are the two facts a useful message needs. */
+  | (AppErrorCore<'quotaExceeded'> & {
+      readonly metric?: string
+      readonly limit?: number
+    })
   /** A database row-security policy refused the write (Postgres 42501). Kept
    * separate from `forbidden` so an operator can tell "the app said no" from
    * "the database said no" — they have completely different fixes. */
@@ -138,6 +148,12 @@ export interface ResourceErrorOptions extends AppErrorOptions {
 /** `validation` options: which dot-paths failed. */
 export interface ValidationErrorOptions extends AppErrorOptions {
   readonly fields?: readonly string[]
+}
+
+/** `quotaExceeded` options: which ceiling was hit, and what it is. */
+export interface QuotaErrorOptions extends AppErrorOptions {
+  readonly metric?: string
+  readonly limit?: number
 }
 
 /** `rateLimited` options: how long the caller should wait, in whole seconds. */
@@ -213,6 +229,16 @@ export const appError = {
     ...(options.retryAfterSeconds === undefined
       ? {}
       : { retryAfterSeconds: options.retryAfterSeconds }),
+  }),
+
+  // A per-org ceiling, not back-pressure. There is no Retry-After here on purpose:
+  // waiting changes nothing, so offering a duration would be a lie the client acts on.
+  // SOURCE: PostgreSQL error codes — 53400 configuration_limit_exceeded
+  // https://www.postgresql.org/docs/17/errcodes-appendix.html
+  quotaExceeded: (options: QuotaErrorOptions = {}) => ({
+    ...core('quotaExceeded', 'quota_exceeded', options),
+    ...(options.metric === undefined ? {} : { metric: options.metric }),
+    ...(options.limit === undefined ? {} : { limit: options.limit }),
   }),
 
   /** A row-security policy refused the write. @see @app/supabase mapPostgresError. */

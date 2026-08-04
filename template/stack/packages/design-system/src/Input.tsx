@@ -1,3 +1,7 @@
+'use client'
+
+// 'use client': it reads Field's React context, which only exists on the client.
+
 import { cn } from './cn'
 import { useFieldContext } from './field-context'
 import { inputVariants } from './variants'

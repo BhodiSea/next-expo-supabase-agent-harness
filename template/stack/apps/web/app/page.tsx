@@ -25,16 +25,18 @@ export default async function HomePage(): Promise<ReactNode> {
         deployment.
       </p>
       {user === null ? (
-        <p className="text-ink-muted">
-          Sign in to continue. Session state is refreshed on every navigation, and every read is
-          scoped by row-level security in Postgres — not by this page.
-        </p>
-      ) : (
         <Link
-          href="/notes"
+          href="/sign-in"
           className="bg-accent text-canvas inline-flex w-fit items-center rounded-lg px-4 py-2 font-medium"
         >
-          Go to your notes
+          Sign in
+        </Link>
+      ) : (
+        <Link
+          href="/o"
+          className="bg-accent text-canvas inline-flex w-fit items-center rounded-lg px-4 py-2 font-medium"
+        >
+          Go to your organizations
         </Link>
       )}
     </main>

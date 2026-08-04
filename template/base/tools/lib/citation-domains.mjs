@@ -26,7 +26,9 @@ export const CITATION_DOMAINS = [
   'developer.mozilla.org',
   // This stack's platform documentation hosts.
   'docs.expo.dev', // Expo SDK / EAS / config reference — NOT the expo.dev apex
+  'nextjs.org', // Next.js's OWN docs — the WEB surface's platform reference, exactly parallel to docs.expo.dev for mobile. Added in 0.2.0 when the nonce-CSP work needed to cite the request-header nonce-propagation contract, which is documented nowhere else authoritative.
   'supabase.com', // Supabase's OWN docs (supabase.com/docs — auth, api keys, RN quickstart): the data/identity tier of this stack
+  'upstash.com', // Upstash's OWN docs (the REST + pipeline API the rate limiter speaks): the vendor of the one optional runtime service this stack talks to, and the authority for a protocol we implement by hand rather than by SDK
   'docs.postgrest.org', // PostgREST's OWN docs — the error codes and query grammar Supabase serves the DB through
   'reactnative.dev', // React Native docs
   'developer.android.com', // Android platform docs (permissions, network security)

@@ -48,6 +48,10 @@ function fakeDatabase(outcome: PostgrestOutcome): { calls: Call[]; db: NotesData
       record('limit', count)
       return query
     },
+    lte: (column: string, value: string): PostgrestQuery => {
+      record('lte', column, value)
+      return query
+    },
     or: (filters: string): PostgrestQuery => {
       record('or', filters)
       return query
@@ -98,7 +102,7 @@ const denied = (code: string): PostgrestOutcome => ({
 })
 
 const ACTOR_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
-const WORKSPACE_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
 const NOW = '2026-06-01T12:00:00.000+00:00'
 
 function row(index: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -122,8 +126,11 @@ const writeContext = (): NoteWriteContext => ({
     emitted.push(event)
   },
   now: NOW,
-  workspaceId: WORKSPACE_ID,
+  orgId: ORG_ID,
 })
+
+/** The read half of the same scope, for the two functions that take no write context. */
+const scope = { orgId: ORG_ID }
 
 beforeEach(() => {
   emitted = []
@@ -134,7 +141,7 @@ const listQuery = { includeArchived: false, limit: 50 }
 describe('listNotes', () => {
   it('returns the render shape, never a raw row', async () => {
     const { db } = fakeDatabase(rows([row(1, { body: 'hello world' })]))
-    const outcome = await listNotes(db, listQuery)
+    const outcome = await listNotes(db, scope, listQuery)
 
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
@@ -155,7 +162,7 @@ describe('listNotes', () => {
 
   it('builds the query the keyset index was created for', async () => {
     const { calls, db } = fakeDatabase(rows([]))
-    await listNotes(db, listQuery)
+    await listNotes(db, scope, listQuery)
 
     expect(calls).toContainEqual(['from', 'notes'])
     expect(calls).toContainEqual(['select', NOTE_COLUMNS])
@@ -167,28 +174,28 @@ describe('listNotes', () => {
 
   it('hides archived notes by default and includes them on request', async () => {
     const hidden = fakeDatabase(rows([]))
-    await listNotes(hidden.db, listQuery)
+    await listNotes(hidden.db, scope, listQuery)
     expect(hidden.calls).toContainEqual(['is', 'archived_at', null])
 
     const shown = fakeDatabase(rows([]))
-    await listNotes(shown.db, { ...listQuery, includeArchived: true })
+    await listNotes(shown.db, scope, { ...listQuery, includeArchived: true })
     expect(shown.calls.some(([method]) => method === 'is')).toBe(false)
   })
 
   it('clamps the page size below the DAL — no caller can demand an unbounded scan', async () => {
     const { calls, db } = fakeDatabase(rows([]))
-    await listNotes(db, { ...listQuery, limit: 10_000 })
+    await listNotes(db, scope, { ...listQuery, limit: 10_000 })
     expect(calls).toContainEqual(['limit', 201])
   })
 
   it('mints a next cursor only when the sentinel row came back', async () => {
     const page = Array.from({ length: 3 }, (_, index) => row(index + 1))
     const short = fakeDatabase(rows(page))
-    const shortOutcome = await listNotes(short.db, { ...listQuery, limit: 3 })
+    const shortOutcome = await listNotes(short.db, scope, { ...listQuery, limit: 3 })
     expect(shortOutcome.ok && shortOutcome.data.nextCursor).toBeNull()
 
     const full = fakeDatabase(rows([...page, row(4)]))
-    const fullOutcome = await listNotes(full.db, { ...listQuery, limit: 3 })
+    const fullOutcome = await listNotes(full.db, scope, { ...listQuery, limit: 3 })
     expect(fullOutcome.ok).toBe(true)
     if (!fullOutcome.ok) return
     expect(fullOutcome.data.items).toHaveLength(3)
@@ -200,23 +207,30 @@ describe('listNotes', () => {
     })
   })
 
-  it('turns a cursor into the row-wise keyset filter, quoted', async () => {
+  it('sends the cursor as an indexable RANGE plus a tie-break, never as one disjunction', async () => {
     const cursor = encodeNotesCursor({
       createdAt: '2026-01-03T00:00:00.000000+00:00',
       id: '3f2504e0-4f89-41d3-9a0c-0305e82c3303',
     })
     const { calls, db } = fakeDatabase(rows([]))
-    await listNotes(db, { ...listQuery, cursor })
+    await listNotes(db, scope, { ...listQuery, cursor })
 
+    // BOTH predicates, and the split is the assertion. The single-disjunction
+    // spelling this replaced (`created_at.lt.X, and(created_at.eq.X, id.lt.Y)`)
+    // is logically identical and quietly O(page number): PostgreSQL cannot turn
+    // a top-level OR into an index range, so the scan still starts at the
+    // tenant's newest row and discards everything already shown. Measured on
+    // 1.1M rows at page 1000: 1115 rows removed by filter, versus 3.
+    expect(calls).toContainEqual(['lte', 'created_at', '2026-01-03T00:00:00.000000+00:00'])
     expect(calls).toContainEqual([
       'or',
-      'created_at.lt."2026-01-03T00:00:00.000000+00:00",and(created_at.eq."2026-01-03T00:00:00.000000+00:00",id.lt."3f2504e0-4f89-41d3-9a0c-0305e82c3303")',
+      'created_at.lt."2026-01-03T00:00:00.000000+00:00",id.lt."3f2504e0-4f89-41d3-9a0c-0305e82c3303"',
     ])
   })
 
   it('rejects a cursor that is not one we minted, and never queries', async () => {
     const { calls, db } = fakeDatabase(rows([]))
-    const outcome = await listNotes(db, { ...listQuery, cursor: 'AAAA' })
+    const outcome = await listNotes(db, scope, { ...listQuery, cursor: 'AAAA' })
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -237,7 +251,7 @@ describe('listNotes', () => {
     // one means the application said no, the other means the database said no,
     // and they have completely different fixes.
     const { db } = fakeDatabase(denied('42501'))
-    const outcome = await listNotes(db, listQuery)
+    const outcome = await listNotes(db, scope, listQuery)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -250,7 +264,7 @@ describe('listNotes', () => {
 
   it('reports a row that no longer matches its contract as an internal fault', async () => {
     const { db } = fakeDatabase(rows([row(1, { title: undefined })]))
-    const outcome = await listNotes(db, listQuery)
+    const outcome = await listNotes(db, scope, listQuery)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -263,7 +277,7 @@ describe('listNotes', () => {
 
   it('survives a protocol surprise in the data channel', async () => {
     const { db } = fakeDatabase({ data: 'not rows', error: null })
-    const outcome = await listNotes(db, listQuery)
+    const outcome = await listNotes(db, scope, listQuery)
     expect(outcome.ok && outcome.data.items).toEqual([])
   })
 })
@@ -273,7 +287,7 @@ describe('getNote', () => {
 
   it('returns the view for a visible note', async () => {
     const { calls, db } = fakeDatabase(rows([row(1)]))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok && outcome.data.id).toBe(ref.id)
     expect(calls).toContainEqual(['eq', 'id', ref.id])
     expect(calls).toContainEqual(['limit', 1])
@@ -284,7 +298,7 @@ describe('getNote', () => {
     // same empty result. Distinguishing them would turn every uuid in the table
     // into an existence oracle.
     const { db } = fakeDatabase(rows([]))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(appError.notFound({ resource: 'note' }))
@@ -292,7 +306,7 @@ describe('getNote', () => {
 
   it('maps a rejected JWT to unauthorized (re-authenticating CAN fix it)', async () => {
     const { db } = fakeDatabase(denied('PGRST301'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -308,7 +322,7 @@ describe('getNote', () => {
       data: null,
       error: { code: '08006', message: 'connection to server at "10.0.0.4" failed' },
     })
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(JSON.stringify(outcome.error)).not.toContain('10.0.0.4')
@@ -323,7 +337,7 @@ describe('getNote', () => {
     // Telling a client to retry a permanent failure just multiplies the load
     // that caused it.
     const { db } = fakeDatabase({ data: null, error: { code: '42P01', message: 'no such table' } })
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -336,13 +350,33 @@ describe('getNote', () => {
 })
 
 describe('createNote', () => {
+  it('takes the tenant key and the attribution from CONTEXT, never from the input', async () => {
+    // The smuggle probe. `CreateNoteSchema` carries neither field, so a caller
+    // that supplies them is doing something the contract cannot express — and the
+    // insert must still carry the CONTEXT's values. This is the unit-level twin of
+    // the supabase-js suite's cross-tenant INSERT assertion: there the database
+    // refuses, here the DAL never even offers it the chance.
+    const { calls, db } = fakeDatabase(rows([row(1)]))
+    const hostile = {
+      org_id: '00000000-0000-4000-8000-0000000000ff',
+      owner_id: '00000000-0000-4000-8000-0000000000fe',
+      title: 'smuggled',
+    } as unknown as Parameters<typeof createNote>[2]
+    await createNote(db, writeContext(), hostile)
+
+    expect(calls).toContainEqual([
+      'insert',
+      { body: '', org_id: ORG_ID, owner_id: ACTOR_ID, title: 'smuggled' },
+    ])
+  })
+
   it('takes owner_id from the verified actor and never from the input', async () => {
     const { calls, db } = fakeDatabase(rows([row(1)]))
     await createNote(db, writeContext(), { body: 'hello', title: '  spaced   title ' })
 
     expect(calls).toContainEqual([
       'insert',
-      { body: 'hello', owner_id: ACTOR_ID, title: 'spaced title' },
+      { body: 'hello', org_id: ORG_ID, owner_id: ACTOR_ID, title: 'spaced title' },
     ])
     expect(calls).toContainEqual(['select', NOTE_COLUMNS])
   })
@@ -350,7 +384,10 @@ describe('createNote', () => {
   it('substitutes the empty body so both insert paths return the same shape', async () => {
     const { calls, db } = fakeDatabase(rows([row(1)]))
     await createNote(db, writeContext(), { title: 'no body' })
-    expect(calls).toContainEqual(['insert', { body: '', owner_id: ACTOR_ID, title: 'no body' }])
+    expect(calls).toContainEqual([
+      'insert',
+      { body: '', org_id: ORG_ID, owner_id: ACTOR_ID, title: 'no body' },
+    ])
   })
 
   it('emits notes.created carrying the DATABASE timestamp, not the request one', async () => {
@@ -364,7 +401,7 @@ describe('createNote', () => {
           actorId: ACTOR_ID,
           noteId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
           occurredAt: '2026-01-01T00:00:00.000000+00:00',
-          workspaceId: WORKSPACE_ID,
+          orgId: ORG_ID,
         },
       },
     ])
@@ -440,7 +477,7 @@ describe('updateNote', () => {
           fields: ['body', 'isArchived'],
           noteId: id,
           occurredAt: '2026-07-07T07:07:07.000000+00:00',
-          workspaceId: WORKSPACE_ID,
+          orgId: ORG_ID,
         },
       },
     ])
@@ -504,7 +541,7 @@ describe('deleteNote', () => {
           actorId: ACTOR_ID,
           noteId: ref.id,
           occurredAt: '2026-01-01T00:00:00.000000+00:00',
-          workspaceId: WORKSPACE_ID,
+          orgId: ORG_ID,
         },
       },
     ])
@@ -540,7 +577,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
 
   it('maps a CHECK constraint violation (23514) to conflict', async () => {
     const { db } = fakeDatabase(denied('23514'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -553,7 +590,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
 
   it('maps a FOREIGN KEY violation (23503) to conflict', async () => {
     const { db } = fakeDatabase(denied('23503'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -566,7 +603,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
 
   it('maps PostgREST PGRST116 (no rows) to notFound', async () => {
     const { db } = fakeDatabase(denied('PGRST116'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(appError.notFound({ resource: 'note' }))
@@ -574,7 +611,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
 
   it('treats SQLSTATE class 53 as retryable → unavailable', async () => {
     const { db } = fakeDatabase(denied('53300'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -584,7 +621,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
 
   it('treats SQLSTATE class 57 as retryable → unavailable', async () => {
     const { db } = fakeDatabase(denied('57014'))
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -597,7 +634,7 @@ describe('mutation kills — SQLSTATE taxonomy (errors.ts)', () => {
       data: null,
       error: { message: 'transport failed with no sqlstate' },
     })
-    const outcome = await getNote(db, ref)
+    const outcome = await getNote(db, scope, ref)
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -615,7 +652,7 @@ describe('mutation kills — contract drift per operation (notes.ts)', () => {
 
   it('names the read operation when a fetched row breaks its contract', async () => {
     const { db } = fakeDatabase(driftOutcome())
-    const outcome = await getNote(db, { id })
+    const outcome = await getNote(db, scope, { id })
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.error).toEqual(
@@ -679,7 +716,7 @@ describe('mutation kills — contract drift per operation (notes.ts)', () => {
           fields: ['title'],
           noteId: id,
           occurredAt: '2026-01-01T00:00:00.000000+00:00',
-          workspaceId: WORKSPACE_ID,
+          orgId: ORG_ID,
         },
       },
     ])
@@ -690,7 +727,7 @@ describe('mutation kills — contract drift per operation (notes.ts)', () => {
 describe('clampPageLimit defense-in-depth — a non-finite limit still yields a bounded scan', () => {
   it('clamps Infinity to the safe floor rather than an unbounded probe', async () => {
     const { calls, db } = fakeDatabase(rows([]))
-    await listNotes(db, { ...listQuery, limit: Number.POSITIVE_INFINITY })
+    await listNotes(db, scope, { ...listQuery, limit: Number.POSITIVE_INFINITY })
     // Original returns 1 -> limit(1+1); dropping the finite guard returns 200 -> limit(201).
     expect(calls).toContainEqual(['limit', 2])
   })

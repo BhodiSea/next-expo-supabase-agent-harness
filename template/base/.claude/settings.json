@@ -84,7 +84,6 @@
       "Bash(pnpm exec expo-doctor*)",
       "Bash(node tools/validate.mjs*)",
       "Bash(node tests/rls/run-rls.mjs*)",
-      "Bash(node tests/migrations/migration-apply.mjs*)",
       "Bash(pnpm db:up)",
       "Bash(pnpm db:reset)",
       "Bash(pnpm db:test)",

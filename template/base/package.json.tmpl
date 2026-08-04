@@ -29,9 +29,11 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "db:types": "supabase gen types typescript --local --schema public > packages/platform/supabase/src/database.types.ts",
+    "db:scale": "psql \"$SUPABASE_DB_URL\" -v ON_ERROR_STOP=1 -f supabase/seeds/scale.sql",
+    "db:perf": "node tools/check-db-perf.mjs",
     "dev:web": "pnpm --filter web run dev",
     "dev:mobile": "pnpm --filter mobile run dev",
-    "gen:contracts": "pnpm exec tsx tools/gen-action-inventory.mjs && pnpm exec tsx tools/gen-event-catalog.mjs",
+    "gen:contracts": "pnpm exec tsx tools/gen-action-inventory.mjs && pnpm exec tsx tools/gen-event-catalog.mjs && pnpm exec tsx tools/gen-query-shapes.mjs",
     "gen": "pnpm db:types && pnpm --filter @app/design-tokens run gen && pnpm gen:contracts",
     "prepare": "lefthook install"
   },

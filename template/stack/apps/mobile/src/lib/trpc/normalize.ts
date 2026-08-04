@@ -37,7 +37,11 @@ const VERSION_SKEW_CODE = TransportErrorCode.enum.version_skew
  * tRPC owns this enum and adds to it, and an unknown code must degrade to
  * "something failed" rather than red a typecheck the router did not change.
  */
-function fromTrpcCode(code: string, message: string): ActionOutcome<never> {
+function fromTrpcCode(
+  code: string,
+  message: string,
+  retryAfterSeconds: number | null,
+): ActionOutcome<never> {
   switch (code) {
     // The auth middleware is the one procedure layer permitted to throw
     // (transport-level UNAUTHORIZED). Folding it back to the kernel's own
@@ -66,7 +70,19 @@ function fromTrpcCode(code: string, message: string): ActionOutcome<never> {
       return { ok: false, error: appError.notFound({ message }) }
     // SOURCE: https://www.rfc-editor.org/rfc/rfc6585#section-4 (429 Too Many Requests)
     case 'TOO_MANY_REQUESTS':
-      return { ok: false, error: appError.rateLimited({ message }) }
+      return {
+        ok: false,
+        // The wait is carried ONLY when the server actually sent one. Spreading a
+        // conditional object rather than passing `retryAfterSeconds ?? undefined` is
+        // load-bearing under exactOptionalPropertyTypes — and the kernel's own contract
+        // is that the field is ABSENT when unknown, because a screen that renders
+        // "try again in 0 seconds" invites the retry loop the limit exists to stop.
+        // SOURCE: https://www.rfc-editor.org/rfc/rfc9110#field.retry-after (the wait is advisory)
+        error: appError.rateLimited({
+          message,
+          ...(retryAfterSeconds === null ? {} : { retryAfterSeconds }),
+        }),
+      }
     // The ONLY thing that throws CONFLICT on this router is the version-skew
     // guard on the base of the procedure ladder (@app/api src/skew.ts): a
     // DOMAIN conflict rides the envelope like every other domain failure, so it
@@ -99,6 +115,20 @@ function shapedCode(data: unknown): string | null {
 }
 
 /**
+ * The rate-limit wait the server put on `data`, or null.
+ *
+ * Guarded the same way `shapedCode` is, and for the same reason: this is the SERVER's
+ * error formatter, which this app does not own. It is additionally checked for finiteness
+ * and sign — a negative or NaN wait would reach a screen as a countdown that never ends,
+ * and JSON is perfectly happy to carry either.
+ */
+function shapedRetryAfter(data: unknown): number | null {
+  if (typeof data !== 'object' || data === null || !('retryAfterSeconds' in data)) return null
+  const seconds = (data as { readonly retryAfterSeconds?: unknown }).retryAfterSeconds
+  return typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0 ? seconds : null
+}
+
+/**
  * Await a procedure call and guarantee an ActionOutcome comes back.
  *
  * Every read and every write goes through here. The generic is the procedure's
@@ -125,7 +155,11 @@ export async function callProcedure<T>(call: Promise<ActionOutcome<T>>): Promise
       // the advice a tunnel deserves.
       if (code === null)
         return { ok: false, error: appError.unavailable({ message: cause.message }) }
-      return fromTrpcCode(code, cause.message)
+      return fromTrpcCode(
+        code,
+        cause.message,
+        shapedRetryAfter((cause as TRPCClientError<never>).data),
+      )
     }
     // Not a tRPC error at all: a bug in a link, an aborted request, a throw from
     // inside the client. Unknown by nature, so it says exactly that — and keeps

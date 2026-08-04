@@ -257,7 +257,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     problems = reuseProblems({
       reuse,
       trackedPaths,
-      licenseFiles: readdirSync(licensesDir),
+      licenseFiles: readdirSync(licensesDir).sort(),
       readme: readFileSync(join(ROOT, 'README.md'), 'utf8'),
       citation: readFileSync(join(ROOT, 'CITATION.cff'), 'utf8'),
       packageJson: JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')),

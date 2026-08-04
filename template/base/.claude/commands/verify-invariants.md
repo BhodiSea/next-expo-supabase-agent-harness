@@ -15,7 +15,7 @@ Files changed in the working tree:
 
 Run the `torvalds-reviewer` subagent over that diff (it runs `git diff` against the
 base itself, ranks every finding CRITICAL / HIGH / MEDIUM / LOW with a `file:line`
-ref, and ends `VERDICT: SHIP` or `VERDICT: BLOCK`). Then RECONCILE its findings against
+ref, and ends `VERDICT: PASS` or `VERDICT: BLOCK`). Then RECONCILE its findings against
 each invariant family below — a `SHIP` verdict is necessary but not sufficient; you own
 the final call, and a weakened invariant the reviewer under-ranked is still a FAIL.
 

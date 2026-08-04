@@ -1,5 +1,6 @@
-import { CLIENT_VERSION_HEADER, type MembershipRole } from '@app/contracts'
+import { CLIENT_VERSION_HEADER, ORG_ID_HEADER, type OrgSummary } from '@app/contracts'
 import type { NotesDatabase } from '@app/notes'
+import type { RateLimitPort } from './ratelimit.js'
 import { requireServerMajor } from './skew.js'
 
 // ---------------------------------------------------------------------------
@@ -30,21 +31,30 @@ export interface Actor {
   readonly userId: string
 }
 
-/** The caller's standing in the active workspace, or the absence of one. */
-export interface Membership {
-  readonly role: MembershipRole
-  readonly workspaceId: string
-}
-
 /**
- * `membership` is nullable on purpose: an authenticated user with no active
- * membership is a real, reachable state (invitation pending, seat revoked,
- * trial lapsed). Modelling it as impossible is how a signed-in user ends up
- * looking at a crash screen.
+ * The verified caller plus EVERY seat they actually hold, resolved by the host
+ * from public.memberships on this request.
+ *
+ * A LIST, not a single membership, and that is the whole shape of the change
+ * from the pre-org model. The old `Membership | null` said a user is in one
+ * workspace or none — which was only ever true because the field was a hardcode
+ * (`{ role: 'owner', workspaceId: user.userId }`) and no membership table
+ * existed. With a real table the common case is several seats, and a type that
+ * can hold one forces the org choice to happen somewhere upstream and arrive
+ * here already collapsed — which is exactly where an org the caller does not
+ * belong to gets to slip in unchecked.
+ *
+ * Empty is a first-class value: mid-invitation, or last seat revoked. Modelling
+ * it as impossible is how a signed-in user ends up looking at a crash screen.
+ *
+ * Resolved PER REQUEST rather than read from a token claim, so revocation takes
+ * effect on the next request instead of at the next token refresh. That is the
+ * same argument the RLS policies make by keying on the table rather than on
+ * auth.jwt(), applied one layer up so both layers agree.
  */
 export interface Session {
   readonly actor: Actor
-  readonly membership: Membership | null
+  readonly orgs: readonly OrgSummary[]
 }
 
 /**
@@ -84,6 +94,17 @@ export interface CreateContextOptions {
   /** Where domain events go. Defaults to dropping them, so a test needs no sink. */
   readonly emit?: EventSink
   readonly headers: HeaderSource
+  /**
+   * The rate-limit port, or omitted when this deployment does not limit.
+   *
+   * OPTIONAL AND NULL-BY-DEFAULT on purpose. A worker, a test and a CLI caller have no
+   * budget to spend and no Redis to spend it against, and a context that demanded one
+   * would make every one of them wire an infrastructure concern to call a procedure.
+   * The web host wires it; everything else gets an unlimited router, which is the
+   * correct default for a caller the deployment already trusts.
+   */
+  // SOURCE: docs/adr/20260204-rate-limiting.md (the port is injected; the router never picks a limiter)
+  readonly rateLimit?: RateLimitPort
   /**
    * The instant the request started, ISO-8601 UTC. Injected so a write path is
    * deterministic under test — and so ONE instant is shared by every write in a
@@ -138,14 +159,26 @@ export interface CreateContextOptions {
 }
 
 export interface RequestContext {
+  /**
+   * The org this request acts in, or null. ALWAYS an element of `orgs` — it is
+   * produced by looking the `x-org-id` header up in that list, so there is no
+   * reachable state in which a handler holds an active org the caller is not a
+   * member of. That invariant is the reason this field is resolved here rather
+   * than by each host.
+   */
+  readonly activeOrg: OrgSummary | null
   readonly actor: Actor | null
   readonly clientVersion: string | null
   readonly db: NotesDatabase
   readonly emit: EventSink
-  readonly membership: Membership | null
+  /** Every seat the caller holds right now. Empty for a seatless authenticated user. */
+  readonly orgs: readonly OrgSummary[]
   /** The minimum-supported-client floor, or null when none is set. See CreateContextOptions. */
   readonly minSupportedClient: string | null
   readonly now: string
+  /** The rate-limit port the host wired, or null for an unlimited router. */
+  // SOURCE: docs/adr/20260204-rate-limiting.md
+  readonly rateLimit: RateLimitPort | null
   readonly requestId: string
   readonly serverMajor: number
   readonly serverVersion: string
@@ -204,6 +237,49 @@ function newRequestId(): string {
 const dropEvents: EventSink = () => undefined
 
 /**
+ * Resolve the acting org from the `x-org-id` header against the caller's REAL
+ * seats. The only function in this package that reads a caller-supplied value
+ * and turns it into an authorization-adjacent fact, so every branch is spelled
+ * out rather than folded into a `??` chain.
+ *
+ *   header names a held seat   -> that org
+ *   header names anything else -> null   (unknown id, malformed, another
+ *                                         tenant's org, empty string)
+ *   header absent, ONE seat    -> that org
+ *   header absent, 0 or 2+     -> null
+ *
+ * Three of those deserve their reasons on the record.
+ *
+ * A MISS IS NULL, NEVER A FALLBACK. It is tempting to fall back to the caller's
+ * only org when the header does not match — it would make a stale bookmark
+ * "just work". It is precisely wrong: a request that explicitly said "act in
+ * org B" would then execute against org A, and the caller would be told it
+ * succeeded. Whatever the client meant, it did not mean that. Null is the
+ * honest answer and the rung above turns it into a good error.
+ *
+ * A MISS IS NOT AN ERROR EITHER. Raising would make the header a probe: an
+ * attacker distinguishes "org exists but is not yours" from "no such org" by
+ * the shape of the failure, which is the same existence disclosure the RLS
+ * suites exist to prevent one layer down. Unknown and not-yours are
+ * indistinguishable here by construction, because both are simply absent from
+ * `orgs`.
+ *
+ * ABSENT + EXACTLY ONE is a convenience with no judgement in it — there is one
+ * possible answer and it is a seat the caller holds. ABSENT + SEVERAL is null
+ * because picking "the first" would make the acting tenant a function of array
+ * order, and a write landing in whichever org happened to sort first is a data
+ * corruption nobody would think to look for.
+ */
+export function resolveActiveOrg(
+  orgs: readonly OrgSummary[],
+  header: string | null,
+): OrgSummary | null {
+  const requested = header?.trim().toLowerCase() ?? ''
+  if (requested === '') return orgs.length === 1 ? (orgs[0] ?? null) : null
+  return orgs.find((o) => o.id.toLowerCase() === requested) ?? null
+}
+
+/**
  * Build the context for one request.
  *
  * Ordering matters: the server version is validated FIRST, before any IO. A
@@ -232,18 +308,22 @@ export async function createContext(options: CreateContextOptions): Promise<Requ
         ? await options.resolveSession(token)
         : null
 
+  const orgs = session?.orgs ?? []
   return {
+    activeOrg: resolveActiveOrg(orgs, readHeader(options.headers, ORG_ID_HEADER)),
     actor: session?.actor ?? null,
     clientVersion: readHeader(options.headers, CLIENT_VERSION_HEADER),
     // The client is minted with the SAME token the session was resolved from,
     // so RLS sees exactly the identity the router believes it is serving.
     db: options.createClient(token),
     emit: options.emit ?? dropEvents,
-    membership: session?.membership ?? null,
+    orgs,
     // Carried, never parsed here: an unparseable floor is inert, not fatal (unlike
     // serverVersion), so the parse lives at the point of use in `isBelowMinimum`.
     minSupportedClient: options.minSupportedClient ?? null,
     now: options.now?.() ?? new Date().toISOString(),
+    // SOURCE: docs/adr/20260204-rate-limiting.md (absent port = unlimited, for workers and tests)
+    rateLimit: options.rateLimit ?? null,
     requestId: newRequestId(),
     serverMajor,
     serverVersion: options.serverVersion,

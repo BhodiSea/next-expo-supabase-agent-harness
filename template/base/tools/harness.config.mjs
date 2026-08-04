@@ -35,9 +35,36 @@ export const VALIDATE_STEPS = [
   ['prompts', 'node tools/check-prompts-lock.mjs'],
   ['licenses', 'node tools/check-licenses.mjs'],
   ['schema-rls', 'node tools/check-rls-manifest.mjs'],
+  // The tenancy contract, judged as data: schema-rls proves every predicate is REAL;
+  // this proves it scopes by TENANT — a closed set of reviewed predicate forms
+  // (tools/tenancy.json) that every top-level OR arm must carry, the correlated-
+  // argument ban, NOT NULL FK tenant keys, partition-ready uniques, freeze triggers,
+  // and the membership table's self-only/deny-all shape. Runs right after schema-rls
+  // on the migration text it just parsed.
+  ['tenancy', 'node tools/check-tenancy.mjs'],
   ['types-drift', 'node tools/check-types-drift.mjs'],
   ['migrations', 'node tools/check-migrations.mjs'],
+  // The resource ceilings and the quota machinery, judged as data. It runs right after
+  // `migrations` because it reads the same migration text that step just parsed (warm
+  // page cache) and because its subject is the same: what the applied history does to a
+  // running database. Its most valuable rule is INVERTED — `temp_file_limit` and
+  // `CONNECTION LIMIT` must NEVER appear, because on this platform they bind nothing
+  // and a number that cannot bind reads to a reviewer as a control that exists.
+  ['db-limits', 'node tools/check-db-limits.mjs'],
   ['contracts', 'node tools/check-contract-drift.mjs'],
+  // The one claim the whole tenancy design rests on, finally falsifiable: that the
+  // statements the DALs issue are ORDERED INDEX SCANS and not filters over every
+  // tenant's rows followed by a Sort. It runs after `contracts` because `contracts` is
+  // what proves tools/generated/query-shapes.json is byte-fresh — judging index
+  // service against a stale manifest would certify the queries the app used to send.
+  // The live half (a real planner, real statistics, 2M rows) is tools/check-db-perf.mjs
+  // in the path-filtered `db-scale` CI lane; neither half subsumes the other.
+  ['query-shapes', 'node tools/check-query-shapes.mjs'],
+  // After `contracts`, because the closure this step's whole value rests on is over
+  // tools/generated/action-inventory.json — and `contracts` is the step that proves that
+  // file is not stale. Judging a budget against a stale inventory would report full
+  // coverage of a router that no longer exists.
+  ['rate-limits', 'node tools/check-rate-limits.mjs'],
   // Two-way surface parity: every action in the contracts-verified inventory maps to exactly
   // one PARITY.md row (a web screen, a mobile screen, or a reasoned —), and every row names a
   // LIVE action. Runs right after `contracts` so the inventory it contains against is proven
@@ -49,6 +76,13 @@ export const VALIDATE_STEPS = [
   ['styleguide', 'node tools/check-styleguide-manifest.mjs'],
   ['perf-budget', 'node tools/check-perf-budget.mjs'],
   ['route-manifest', 'node tools/check-route-manifest.mjs'],
+  // The web response posture, asserted BY VALUE: the gate evaluates
+  // apps/web/lib/security-headers.ts under node's type stripping (no bundler, no
+  // node_modules, no new dependency) and diffs what it returns against the reviewed
+  // policy in tools/security-headers.json. It cannot prove the DEPLOYED response —
+  // that half is the web-e2e lane's security-headers spec, which check-web-e2e.mjs
+  // holds present the same way it holds the axe scan present.
+  ['security-headers', 'node tools/check-security-headers.mjs'],
   ['e2e', 'node tools/check-e2e.mjs'],
   ['docs-sync', 'node tools/check-docs-sync.mjs'],
 ]

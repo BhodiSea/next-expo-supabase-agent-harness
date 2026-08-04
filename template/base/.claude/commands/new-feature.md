@@ -80,7 +80,7 @@ surface, the API contract), write `specs/$1.md` first and get sign-off before im
 
 Before you finish (provenance is REQUIRED — the turn is not done without it):
 
-- run the `torvalds-reviewer` subagent and require `VERDICT: SHIP`;
+- run the `torvalds-reviewer` subagent and require `VERDICT: PASS`;
 - run the `security-reviewer` if migrations / RLS / a data function / auth changed (or run
   `/rls-check`);
 - run the `web-security-reviewer` if `apps/web/app/actions/**`, `apps/web/lib/supabase/**`,

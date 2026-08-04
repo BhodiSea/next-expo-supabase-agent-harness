@@ -1,0 +1,25 @@
+{
+  // @app/ratelimit — a third kernel-adjacent leaf. It imports NOTHING, not even
+  // @app/errors: the limiter answers "allowed / not allowed, and for how long",
+  // and turning a denial into an AppError is the CALLER's decision because the
+  // two seams make it differently (the router throws TOO_MANY_REQUESTS, the
+  // Server Action returns an envelope). A dependency on the error taxonomy here
+  // would force both to agree on a shape neither of them wants.
+  // Extends the repo-wide max-strict base; NodeNext restated so the package
+  // typechecks identically from either resolution mode.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    // The Upstash adapter calls `fetch`, `AbortSignal` and `setTimeout` — the
+    // WinterCG set every host this package runs on provides (Node 22, the Edge
+    // runtime, a browser). "dom" would also pull `window` and `document`, which
+    // a server-only package must not be able to reach for by accident, so the
+    // handful of globals it does use are declared locally in src/index.ts.
+    "types": []
+  },
+  "include": ["src"]
+}

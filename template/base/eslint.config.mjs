@@ -12,7 +12,7 @@ import reactNative from 'eslint-plugin-react-native'
 import reactNativeA11y from 'eslint-plugin-react-native-a11y'
 import sonarjs from 'eslint-plugin-sonarjs'
 import tseslint from 'typescript-eslint'
-// The harness's four custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
+// The harness's six custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
 // JS/TS-shared syntax nodes, scoped by the blocks at the bottom of this config.
 import localRules from './tools/eslint-rules/index.mjs'
 
@@ -29,6 +29,11 @@ export default tseslint.config(
     // Build outputs, generated code, and non-app surfaces owned by other gates.
     ignores: [
       '**/dist/**',
+      // Next's build output, including the app/**/page.ts route types it generates. Not in
+      // any tsconfig, so type-aware lint reports every one of them as "not found by the
+      // project service" — which makes `pnpm lint` red for anyone who ran `pnpm build`
+      // first. Generated output, ignored for the same reason dist is.
+      '**/.next/**',
       '**/coverage/**',
       '**/*.tsbuildinfo',
       '**/.expo/**',
@@ -272,5 +277,39 @@ export default tseslint.config(
     ignores: ['**/*.test.ts'],
     plugins: { local: localRules },
     rules: { 'local/zod-schema-module-scope': 'error' },
+  },
+  {
+    // org-id-from-session-only — the acting org is a transport selector, never a payload field
+    // and never a value read out of request input.
+    //
+    // TWO GLOBS, because the rule has two arms and they belong in different places. The
+    // contract glob catches `orgId` growing onto a wire schema. The data + action globs catch
+    // an `org_id:` written into a row from `input`/`parsedInput`/`body`/… — the literal shape
+    // of the caller choosing its own tenant. The test files are excluded deliberately: the
+    // notes DAL's smuggle probe CONSTRUCTS exactly the forbidden shape in order to prove the
+    // DAL ignores it, and a rule that forbade writing that test would forbid proving the
+    // property.
+    files: [
+      'packages/contracts/**/*.ts',
+      'packages/verticals/**/src/data/**/*.ts',
+      'apps/web/app/actions/**/*.ts',
+    ],
+    ignores: ['**/*.test.ts'],
+    plugins: { local: localRules },
+    rules: { 'local/org-id-from-session-only': 'error' },
+  },
+  {
+    // no-unsorted-readdir — a directory listing is in the filesystem's order, so anything
+    // derived from one is machine-dependent. Every linted surface, including tests: a test
+    // that enumerates a fixture directory unsorted is exactly the flaky test this rule
+    // exists to prevent, and it is the one place the failure gets blamed on the runner.
+    //
+    // HONEST SCOPE: `tools/**` is in this config's `ignores` (gate scripts are plain node,
+    // deliberately outside type-aware lint), so this rule cannot reach them. The harness
+    // holds ITS OWN gate scripts, hooks, installer and factory scripts to the same rule in
+    // scripts/hygiene.mjs — see the determinism sweep there.
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
+    plugins: { local: localRules },
+    rules: { 'local/no-unsorted-readdir': 'error' },
   },
 )

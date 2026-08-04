@@ -74,5 +74,8 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
 
 Flag ONLY gaps that affect correctness, a stated requirement, or an invariant — do
 not over-report style nits as blockers. Be specific and merciless; do not soften; do
-not modify code. End with a single line `VERDICT: SHIP` or `VERDICT: BLOCK`, followed
-by the top 3 fixes.
+not modify code.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence. Follow it with the top 3 fixes.

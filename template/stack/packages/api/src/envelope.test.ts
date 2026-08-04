@@ -1,3 +1,4 @@
+import type { OrgSummary } from '@app/contracts'
 import { appError } from '@app/errors'
 import type { NotesDatabase, PostgrestOutcome, PostgrestQuery, PostgrestTable } from '@app/notes'
 import { TRPCError } from '@trpc/server'
@@ -20,7 +21,7 @@ import { createCallerFactory } from './trpc.js'
 
 const SERVER_VERSION = '1.2.3'
 const ACTOR_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
-const WORKSPACE_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
 const NOTE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
 const NOW = '2026-06-01T12:00:00.000Z'
 
@@ -34,12 +35,16 @@ const NOTE_ROW = {
   updated_at: '2026-01-01T00:00:00.000000+00:00',
 }
 
+const ORG: OrgSummary = { id: ORG_ID, name: 'Acme', role: 'owner', slug: 'acme' }
+
+// ONE seat, so createContext's "header absent, exactly one org" default resolves it
+// without every test having to set an x-org-id header.
 const member: Session = {
   actor: { displayName: 'Sam', email: 'sam@example.test', userId: ACTOR_ID },
-  membership: { role: 'owner', workspaceId: WORKSPACE_ID },
+  orgs: [ORG],
 }
 
-const seatless: Session = { actor: member.actor, membership: null }
+const seatless: Session = { actor: member.actor, orgs: [] }
 
 /** A PostgREST client scripted with one outcome — see the vertical's own tests. */
 function fakeDatabase(outcome: PostgrestOutcome): NotesDatabase {
@@ -47,6 +52,7 @@ function fakeDatabase(outcome: PostgrestOutcome): NotesDatabase {
     eq: (): PostgrestQuery => query,
     is: (): PostgrestQuery => query,
     limit: (): PostgrestQuery => query,
+    lte: (): PostgrestQuery => query,
     or: (): PostgrestQuery => query,
     order: (): PostgrestQuery => query,
     select: (): PostgrestQuery => query,
@@ -67,10 +73,15 @@ const untouchableDb: NotesDatabase = {
   },
 }
 
-async function callerFor(session: Session | null, db: NotesDatabase) {
+async function callerFor(
+  session: Session | null,
+  db: NotesDatabase,
+  extraHeaders: Record<string, string> = {},
+) {
   const ctx = await createContext({
     createClient: () => db,
-    headers: session === null ? {} : { authorization: 'Bearer test-token' },
+    headers:
+      session === null ? extraHeaders : { authorization: 'Bearer test-token', ...extraHeaders },
     now: () => NOW,
     resolveSession: () => Promise.resolve(session),
     serverVersion: SERVER_VERSION,
@@ -114,59 +125,93 @@ describe('the auth rung THROWS — the one sanctioned transport-level rejection'
     await expect(caller.system.me()).resolves.toEqual({
       ok: true,
       data: {
+        // Resolved by createContext's "header absent, exactly one seat" default —
+        // the one case where an absent selector has exactly one possible answer.
+        activeOrg: ORG,
         displayName: 'Sam',
         email: 'sam@example.test',
         id: ACTOR_ID,
-        role: 'owner',
-        workspaceId: WORKSPACE_ID,
+        orgs: [ORG],
       },
     })
   })
 
-  it('models a signed-in caller with no membership rather than failing', async () => {
+  it('models a signed-in caller with no seat rather than failing', async () => {
     // Invitation pending, seat revoked, trial lapsed — all reachable, none of
-    // them a crash.
+    // them a crash. `system.me` stays on authedProcedure precisely so this caller
+    // can still ask what orgs they have; a gate here would leave the org switcher
+    // with nothing to switch between.
     const caller = await callerFor(seatless, untouchableDb)
     await expect(caller.system.me()).resolves.toEqual({
       ok: true,
       data: {
+        activeOrg: null,
         displayName: 'Sam',
         email: 'sam@example.test',
         id: ACTOR_ID,
-        role: null,
-        workspaceId: null,
+        orgs: [],
       },
     })
   })
+
+  it('a caller in SEVERAL orgs and no x-org-id header has NO active org', async () => {
+    // Not "the first one". Picking one would make the acting tenant a function of
+    // array order, and a write landing in whichever org sorted first is a data
+    // corruption nobody would think to look for.
+    const other: OrgSummary = { id: NOTE_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
+    const caller = await callerFor({ ...member, orgs: [ORG, other] }, untouchableDb)
+    const outcome = await caller.system.me()
+    expect(outcome.ok && outcome.data.activeOrg).toBeNull()
+    expect(outcome.ok && outcome.data.orgs).toHaveLength(2)
+  })
 })
 
-describe('the member rung does NOT throw — authorization rides the envelope', () => {
+describe('the org rung does NOT throw — authorization rides the envelope', () => {
+  const denied = {
+    ok: false,
+    error: appError.forbidden({
+      code: 'org_context_required',
+      message: 'an active organization is required',
+    }),
+  }
+
   it('returns forbidden on the data channel and never touches the database', async () => {
     const caller = await callerFor(seatless, untouchableDb)
-    await expect(caller.notes.create({ title: 'blocked' })).resolves.toEqual({
-      ok: false,
-      error: appError.forbidden({
-        code: 'membership_required',
-        message: 'an active workspace membership is required',
-      }),
-    })
+    await expect(caller.notes.create({ title: 'blocked' })).resolves.toEqual(denied)
   })
 
   it('gates every write, not just create', async () => {
     const caller = await callerFor(seatless, untouchableDb)
-    const denied = {
-      ok: false,
-      error: appError.forbidden({
-        code: 'membership_required',
-        message: 'an active workspace membership is required',
-      }),
-    }
     await expect(caller.notes.update({ id: NOTE_ID, title: 'x' })).resolves.toEqual(denied)
     await expect(caller.notes.remove({ id: NOTE_ID })).resolves.toEqual(denied)
   })
 
-  it('leaves READS open to any authenticated caller — a lapsed seat keeps its data', async () => {
-    const caller = await callerFor(seatless, fakeDatabase({ data: [NOTE_ROW], error: null }))
+  it('gates READS too — under org scope a read without an org is not a narrower read', () => {
+    // A CHANGE from the pre-org model, where reads rode authedProcedure because
+    // "their own notes are always in that set". With several orgs, RLS admits all
+    // of them at once and an ungated read would interleave tenants with no way to
+    // tell which row came from where. The acting org is not an extra permission on
+    // top of the read — it is WHICH DATA the read is about.
+    return callerFor(seatless, untouchableDb).then(async (caller) => {
+      await expect(caller.notes.list({ includeArchived: false, limit: 50 })).resolves.toEqual(
+        denied,
+      )
+      await expect(caller.notes.get({ id: NOTE_ID })).resolves.toEqual(denied)
+    })
+  })
+
+  it('an x-org-id naming an org the caller does not hold is NOT an elevation', async () => {
+    // Not an error either: raising would make the header a probe that distinguishes
+    // "exists but not yours" from "no such org" — the same existence disclosure the
+    // RLS suites refuse one layer down.
+    const caller = await callerFor(member, untouchableDb, {
+      'x-org-id': '00000000-0000-4000-8000-000000000000',
+    })
+    await expect(caller.notes.create({ title: 'blocked' })).resolves.toEqual(denied)
+  })
+
+  it('a caller WITH a seat reaches the vertical', async () => {
+    const caller = await callerFor(member, fakeDatabase({ data: [NOTE_ROW], error: null }))
     const outcome = await caller.notes.list({ includeArchived: false, limit: 50 })
     expect(outcome.ok).toBe(true)
   })

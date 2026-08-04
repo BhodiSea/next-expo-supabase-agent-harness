@@ -1,0 +1,20 @@
+{
+  "comment": "The per-column opt-in for VALUE capture in the audit trail, mirroring the trailing arguments of each audit.write_row(...) trigger. The trail records WHICH columns changed by default, never what they became; an entry here is a deliberate decision to store values too. tools/check-tenancy.mjs closes it BOTH ways — an entry with no matching trigger argument is stale, and a trigger argument with no entry here is an unreviewed capture — and refuses anything listed in tools/pii-columns.json. Keep this list short: every entry makes the audit table a second home for the data it audits, readable by every rank-30 admin, and every table's confidentiality becomes the audit table's. SOURCE: docs/adr/20260202-audit-trail.md",
+  "capture": [
+    {
+      "table": "memberships",
+      "column": "role_rank",
+      "reason": "WHO was promoted TO WHAT is the question asked after an incident, and `changed_columns = {role_rank}` without the rank does not answer it — it says a seat moved but not whether someone became an owner. A small integer from a closed set (10/20/30/40), not personal data, and the seat table is the highest-value audit target in the system."
+    },
+    {
+      "table": "invitations",
+      "column": "role_rank",
+      "reason": "The rank an invitation would confer, captured for the same reason as the seat itself: an invitation is a seat grant with a delay, so a trail that records the grant but not the rank cannot answer whether an outsider was invited as a viewer or as an owner. The invitee's email is deliberately NOT captured — it is in tools/pii-columns.json."
+    },
+    {
+      "table": "org_quota",
+      "column": "hard_limit",
+      "reason": "Changing a customer's ceiling is a commercial act, and `changed_columns = {hard_limit}` without the value cannot answer the question anyone actually asks after a billing dispute: what was it raised FROM and TO. A bigint from a reviewed table, not personal data."
+    }
+  ]
+}

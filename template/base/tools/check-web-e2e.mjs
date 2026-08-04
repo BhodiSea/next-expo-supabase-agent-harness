@@ -47,16 +47,29 @@ if (specs.length === 0) {
   )
 }
 let anyAxe = false
+let anySecurityHeaders = false
 for (const spec of specs) {
   const text = readFileSync(spec, 'utf8')
   if (!/\bexpect\s*\(/.test(text)) {
     errs.push(`${spec} carries no \`expect(\` — a spec with no assertion cannot go red`)
   }
   if (/@axe-core\/playwright|AxeBuilder/.test(text)) anyAxe = true
+  // The live half of the security-headers gate. Both markers required: reading
+  // response.headers() proves the headers arrive, and collecting
+  // securitypolicyviolation proves the CSP does not blank the app it protects. A
+  // spec that asserts only the first ships a policy nobody has watched run.
+  if (/response\??\.headers\(\)/.test(text) && /securitypolicyviolation/.test(text)) {
+    anySecurityHeaders = true
+  }
 }
 if (specs.length > 0 && !anyAxe) {
   errs.push(
     `no spec under ${E2E_DIR} runs an axe scan (@axe-core/playwright / AxeBuilder) — the accessibility net must exist, not just the smoke test`,
+  )
+}
+if (specs.length > 0 && !anySecurityHeaders) {
+  errs.push(
+    `no spec under ${E2E_DIR} reads response.headers() AND collects securitypolicyviolation — tools/check-security-headers.mjs proves the CONFIG is right, and a correct config behind a header-stripping CDN or a broken nonce propagation looks identical to it. The live assertion is the only thing that can tell them apart.`,
   )
 }
 

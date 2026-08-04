@@ -82,5 +82,8 @@ floor mechanically; your job is judgment on top of it. Report by severity with
     stay; no plaintext secret values in profile `env` blocks.
 
 Flag ONLY genuine weakenings or gaps in these invariants — adding a permission or a
-plugin is routine slice work when justified and allowlisted. End with a single line:
-`PASS` or `FAIL`.
+plugin is routine slice work when justified and allowlisted.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

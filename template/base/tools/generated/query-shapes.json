@@ -1,0 +1,190 @@
+[
+  {
+    "id": "notes.createNote#insert",
+    "vertical": "notes",
+    "fn": "createNote",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [],
+    "is": [],
+    "limit": 1,
+    "op": "insert",
+    "or": null,
+    "orColumns": [],
+    "order": [],
+    "payload": [
+      "body",
+      "org_id",
+      "owner_id",
+      "title"
+    ],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "write"
+  },
+  {
+    "id": "notes.deleteNote#byId",
+    "vertical": "notes",
+    "fn": "deleteNote",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id",
+      "id"
+    ],
+    "is": [],
+    "limit": 1,
+    "op": "delete",
+    "or": null,
+    "orColumns": [],
+    "order": [],
+    "payload": [],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "write"
+  },
+  {
+    "id": "notes.getNote#byId",
+    "vertical": "notes",
+    "fn": "getNote",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id",
+      "id"
+    ],
+    "is": [],
+    "limit": 1,
+    "op": "select",
+    "or": null,
+    "orColumns": [],
+    "order": [],
+    "payload": [],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "single"
+  },
+  {
+    "id": "notes.listNotes#archived",
+    "vertical": "notes",
+    "fn": "listNotes",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id"
+    ],
+    "is": [],
+    "limit": 21,
+    "op": "select",
+    "or": null,
+    "orColumns": [],
+    "order": [
+      {
+        "ascending": false,
+        "column": "created_at"
+      },
+      {
+        "ascending": false,
+        "column": "id"
+      }
+    ],
+    "payload": [],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "keyset"
+  },
+  {
+    "id": "notes.listNotes#page",
+    "vertical": "notes",
+    "fn": "listNotes",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id"
+    ],
+    "is": [
+      "archived_at"
+    ],
+    "limit": 21,
+    "op": "select",
+    "or": null,
+    "orColumns": [],
+    "order": [
+      {
+        "ascending": false,
+        "column": "created_at"
+      },
+      {
+        "ascending": false,
+        "column": "id"
+      }
+    ],
+    "payload": [],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "keyset"
+  },
+  {
+    "id": "notes.listNotes#seek",
+    "vertical": "notes",
+    "fn": "listNotes",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id"
+    ],
+    "is": [
+      "archived_at"
+    ],
+    "limit": 21,
+    "op": "select",
+    "or": "created_at.lt.?,id.lt.?",
+    "orColumns": [
+      "created_at",
+      "id"
+    ],
+    "order": [
+      {
+        "ascending": false,
+        "column": "created_at"
+      },
+      {
+        "ascending": false,
+        "column": "id"
+      }
+    ],
+    "payload": [],
+    "range": [
+      {
+        "column": "created_at",
+        "op": "lte"
+      }
+    ],
+    "table": "notes",
+    "extra": [],
+    "kind": "keyset"
+  },
+  {
+    "id": "notes.updateNote#patch",
+    "vertical": "notes",
+    "fn": "updateNote",
+    "columns": "id, owner_id, title, body, created_at, updated_at, archived_at",
+    "eq": [
+      "org_id",
+      "id"
+    ],
+    "is": [],
+    "limit": 1,
+    "op": "update",
+    "or": null,
+    "orColumns": [],
+    "order": [],
+    "payload": [
+      "title",
+      "updated_at"
+    ],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "write"
+  }
+]

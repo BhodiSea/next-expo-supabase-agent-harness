@@ -4,6 +4,12 @@ dist/
 dist-types/
 *.tsbuildinfo
 coverage/
+# next build output — the compiled server, the client chunks, and the app/**/page.ts
+# route types Next generates. Never committed and never linted (eslint.config.mjs
+# ignores it for the same reason): without this line the first `pnpm build` in a fresh
+# scaffold leaves a few thousand generated files staged for the next `git add -A`.
+.next/
+
 # expo / metro artifacts
 .expo/
 # CNG purity: prebuild output is generated, never committed (the native-deps

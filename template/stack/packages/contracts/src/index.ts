@@ -42,6 +42,16 @@ export const NOTE_EXCERPT_MAX = 160
 export const EMAIL_MAX = 320
 /** Display names are UI labels, not prose. */
 export const DISPLAY_NAME_MAX = 120
+/**
+ * Both mirror a CHECK constraint in supabase/schemas/05_tenancy.sql, and both
+ * must stay >= the database's bound rather than merely near it. A wire bound
+ * TIGHTER than the column's turns a legal stored row into a parse failure on
+ * read — the org exists, the policy admits it, and the client cannot render it.
+ * `orgs_name_length` is 1..120; `orgs_slug_shape` admits 2..48 characters (the 48
+ * is arithmetic, not taste: ensure_personal_org mints a 41-character slug).
+ */
+export const ORG_NAME_MAX = 120
+export const ORG_SLUG_MAX = 48
 /** Semver-ish release strings; 64 chars leaves room for a build metadata tail. */
 export const VERSION_MAX = 64
 /**
@@ -78,14 +88,40 @@ export const NOTES_CURSOR_MAX = 256
 export const CLIENT_VERSION_HEADER = 'x-client-version'
 
 /**
+ * The header carrying WHICH org the caller is acting in. Here for the same
+ * reason as the version header — both ends must agree on the spelling — and in a
+ * HEADER rather than a payload field for a reason worth stating once, loudly:
+ *
+ * A header is a transport selector. It travels beside the request, applies to
+ * the whole of it, and is resolved server-side against the caller's real
+ * memberships before it means anything — so the worst a forged one can do is
+ * select an org the caller does not belong to, which resolves to no active org
+ * at all. A body field is DATA: it is parsed, it flows into handlers, and the
+ * first handler that passes it to a query has made the client the author of its
+ * own tenant boundary. The database would still refuse (the policies key on
+ * public.memberships, not on anything the request said), but the application
+ * would have stopped being a place where that mistake is visible.
+ *
+ * The `org-id-from-session-only` ESLint rule enforces the payload half; the
+ * pgTAP + supabase-js suites prove the database is indifferent to this header.
+ */
+export const ORG_ID_HEADER = 'x-org-id'
+
+/**
  * Transport-level failure codes. These are NOT domain errors — domain failures
  * ride the data channel as the `ActionOutcome` envelope from `@app/errors` and
- * never appear here. This closed set is exactly the two conditions that are
- * rejected BEFORE any handler runs, so a client cannot receive an envelope for
- * them; the client normalize layer switches on these strings to fold them back
- * into the same discriminated union the screens already handle.
+ * never appear here. This closed set is exactly the conditions that are rejected
+ * BEFORE any handler runs, so a client cannot receive an envelope for them; the
+ * client normalize layer switches on these strings to fold them back into the
+ * same discriminated union the screens already handle.
+ *
+ * `rate_limited` joined the set with the rate-limit seam. It belongs here for
+ * the same structural reason as the other two and not by analogy: the guard runs
+ * as middleware, and tRPC middleware has exactly two exits — call next(), or
+ * throw. There is no third exit that returns a value on the data channel, so a
+ * limit that refuses the work before the handler runs cannot ride the envelope.
  */
-export const TransportErrorCode = z.enum(['unauthorized', 'version_skew'])
+export const TransportErrorCode = z.enum(['rate_limited', 'unauthorized', 'version_skew'])
 export type TransportErrorCode = z.infer<typeof TransportErrorCode>
 
 // ---------------------------------------------------------------------------
@@ -111,13 +147,91 @@ export const WireTimestamp = z
 export type WireTimestamp = z.infer<typeof WireTimestamp>
 
 /**
- * Workspace roles, ordered least to most privileged. A closed enum rather than
- * a free string: role checks are authorization decisions, and an unrecognised
- * role must fail parsing loudly rather than silently landing in a `default`
- * branch that grants nothing (or, worse, everything).
+ * Org roles, ordered least to most privileged. A closed enum rather than a free
+ * string: role checks are authorization decisions, and an unrecognised role must
+ * fail parsing loudly rather than silently landing in a `default` branch that
+ * grants nothing (or, worse, everything).
+ *
+ * `viewer` exists here and did not in the pre-org enum, because the database's
+ * ladder has four rungs (10/20/30/40) and a wire enum missing one of them makes
+ * every viewer's ActorView fail to parse — a signed-in user staring at a crash
+ * screen for the crime of being read-only.
  */
-export const MembershipRole = z.enum(['member', 'admin', 'owner'])
-export type MembershipRole = z.infer<typeof MembershipRole>
+export const OrgRole = z.enum(['viewer', 'member', 'admin', 'owner'])
+export type OrgRole = z.infer<typeof OrgRole>
+
+/**
+ * The rank each role carries in `public.memberships.role_rank`. THE DATABASE IS
+ * THE AUTHORITY — these are not the enforcement, they are the client-side mirror
+ * that lets a screen hide a button the policy would refuse anyway. Kept as a
+ * total map (`Record<OrgRole, …>`, not a partial one) so adding a rung to OrgRole
+ * without a rank is a compile error rather than an `undefined` that compares
+ * false against every floor and silently disables the feature for that role.
+ *
+ * The values match `tools/tenancy.json` `roles`, which the `tenancy` gate holds
+ * every policy's rank floor against. Two records, one scale: drift between them
+ * is a UI that offers an action the database then refuses — annoying — or hides
+ * one it would have allowed — invisible.
+ */
+export const ORG_ROLE_RANK: Readonly<Record<OrgRole, number>> = Object.freeze({
+  viewer: 10,
+  member: 20,
+  admin: 30,
+  owner: 40,
+})
+
+/** Rank-first ordering helper, so a screen never re-derives `>=` from the map. */
+export function atLeastRole(held: OrgRole, floor: OrgRole): boolean {
+  return ORG_ROLE_RANK[held] >= ORG_ROLE_RANK[floor]
+}
+
+/**
+ * One org as both surfaces render it, including the caller's own standing in it.
+ * `slug` rides along because the web app routes on it (`/o/[orgSlug]/…`) and a
+ * screen that had to fetch the org again just to build its own href would make
+ * every navigation a round trip.
+ */
+/**
+ * An org slug, shaped exactly like `orgs_slug_shape` in
+ * supabase/schemas/05_tenancy.sql. ANCHORED at both ends, because unlike
+ * `WireTimestamp` (which validates driver OUTPUT and may loosen as Postgres adds
+ * precision) this validates wire INPUT that is re-bound into a lookup: a slug
+ * arrives in a URL segment and in a Server Action's bound argument, and a loose
+ * tail on a value that gets compared against a list is how a near-miss becomes a
+ * match. It is the tighter of the two bounds by construction — a value this
+ * rejects could never have been stored.
+ */
+export const OrgSlug = z
+  .string()
+  .min(2)
+  .max(ORG_SLUG_MAX)
+  .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/)
+export type OrgSlug = z.infer<typeof OrgSlug>
+
+/**
+ * The bearer invitation token as it travels in a URL. A uuid and nothing else: the table
+ * stores only sha256(token), so a value that is not a uuid can never hash to a stored digest
+ * — rejecting it here saves a round trip and, more usefully, keeps the malformed case
+ * indistinguishable from the expired and already-used ones in every message the UI shows.
+ */
+export const InvitationToken = z.uuid()
+/**
+ * An org id as it comes BACK from the database — a definer RPC's return value, a row's
+ * tenant key. It exists because @app/supabase's client is deliberately untyped by a
+ * generated `Database` (rows are `unknown` at the entrance and re-parsed at the exit), so an
+ * `.rpc()` result is `any` and re-parsing it here is the same law the DAL follows for rows.
+ */
+export const OrgId = z.uuid()
+export type OrgId = z.infer<typeof OrgId>
+export type InvitationToken = z.infer<typeof InvitationToken>
+
+export const OrgSummary = z.object({
+  id: z.uuid(),
+  name: z.string().min(1).max(ORG_NAME_MAX),
+  role: OrgRole,
+  slug: OrgSlug,
+})
+export type OrgSummary = z.infer<typeof OrgSummary>
 
 // ---------------------------------------------------------------------------
 // Note — the seeded reference entity
@@ -239,17 +353,33 @@ export type NoteDeletion = z.infer<typeof NoteDeletion>
 // ---------------------------------------------------------------------------
 
 /**
- * The signed-in caller as both surfaces render it. `role`/`workspaceId` are
- * nullable because an authenticated user with no active membership is a real,
- * reachable state (invitation pending, seat revoked, trial lapsed) — modelling
- * it as impossible is how a signed-in user ends up staring at a crash screen.
+ * The signed-in caller as both surfaces render it.
+ *
+ * `orgs` is the caller's REAL seat list, resolved server-side from
+ * public.memberships on every request — never from a token claim, so revoking a
+ * seat takes effect on the next request rather than at the next token refresh.
+ * It may be empty: a user mid-invitation, or one whose last seat was revoked, is
+ * a reachable state and modelling it as impossible is how a signed-in user ends
+ * up staring at a crash screen.
+ *
+ * `activeOrg` is nullable for the same reason AND for a second one: the acting
+ * org arrives as a TRANSPORT SELECTOR (the `x-org-id` header), and a selector
+ * naming an org the caller does not belong to resolves to `null` — never to an
+ * error, and never to an elevation. It is always an element of `orgs` or null;
+ * there is no third case, which is what makes "the caller can act here" a lookup
+ * rather than a judgement.
+ *
+ * NOTE THE ABSENCE: no `orgId` field on any input contract in this file. The
+ * acting org is a header, never a payload — a request body that could name its
+ * own tenant is one parse away from being trusted, and the
+ * `org-id-from-session-only` ESLint rule reds any zod object here that grows one.
  */
 export const ActorView = z.object({
+  activeOrg: OrgSummary.nullable(),
   displayName: z.string().min(1).max(DISPLAY_NAME_MAX),
   email: z.string().max(EMAIL_MAX).nullable(),
   id: z.uuid(),
-  role: MembershipRole.nullable(),
-  workspaceId: z.uuid().nullable(),
+  orgs: z.array(OrgSummary),
 })
 export type ActorView = z.infer<typeof ActorView>
 

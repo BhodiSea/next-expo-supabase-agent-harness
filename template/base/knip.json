@@ -18,7 +18,7 @@
       "entry": [
         "app/**/*.{ts,tsx}!",
         "proxy.ts!",
-        "next.config.ts",
+        "next.config.ts!",
         "postcss.config.mjs",
         "app/**/*.test.{ts,tsx}",
         "lib/**/*.test.{ts,tsx}",
@@ -94,13 +94,17 @@
       "entry": ["src/index.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     },
+    "packages/platform/ratelimit": {
+      "entry": ["src/index.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
     "packages/platform/supabase": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"],
       "ignore": ["src/database.types.ts"]
     },
     "packages/verticals/notes": {
-      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
+      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts", "src/data/query-probes.ts!"],
       "project": ["src/**/*.ts!"],
       "ignoreDependencies": ["@app/supabase"]
     }

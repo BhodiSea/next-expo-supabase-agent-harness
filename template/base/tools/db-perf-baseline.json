@@ -1,0 +1,20 @@
+{
+  "comment": "The plan-probe budgets, as reviewed data. tools/check-db-perf.mjs asserts plan SHAPE (which index the planner chose, no Sort above a keyset leaf, no per-row SubPlan beneath a tenant scan) and these two magnitudes. It never asserts milliseconds: a wall-clock threshold on a shared CI runner is a coin flip, and a flaky perf gate is a deleted perf gate. SOURCE: docs/harness/gates-catalog.md (db-perf)",
+  "minRowsComment": "THE ANTI-VACUITY FLOOR, and the most important number in this file. A plan probe against a small table certifies nothing — the planner correctly reads one page rather than using an index, so every assertion below would either pass for the wrong reason or fail for one. Below the floor the gate SKIPS LOUDLY locally and FAILS in CI; it never reports OK. supabase/seeds/scale.sql lets a constrained runner lower its row count, and this floor is what stops that knob from buying a green.",
+  "minRows": {
+    "notes": 1000000
+  },
+  "budgetsComment": "maxActualRows is the row count the TOP node returned — a bound the manifest already claims, re-checked against a real execution. maxSharedBlocks is the inclusive buffer count for the whole plan; it is the magnitude check that catches the plan which uses an index and still reads most of the table. For scale: a sequential scan of the seeded 2M-row notes table touches roughly 30,000 blocks, and an ordered index scan for one page of 21 touches tens. A budget in the hundreds separates those two by three orders of magnitude, which is the kind of margin that does not flap.",
+  "initPlanComment": "WHY THE BUDGET IS IN THE HUNDREDS AND NOT THE TENS, measured rather than guessed. Most of a probe's buffers are not the query at all — they are the InitPlan that resolves the actor's memberships, and its cost scales with how many orgs the ACTOR belongs to, not with how many rows the statement returns. Against the seeded stack an actor holding 43 seats cost 85 blocks in the InitPlan and 4 in the index scan itself. That number is also the design's central claim made visible: `Buffers` on the InitPlan node with `loops=1`, and the policy's `org_id = ANY((InitPlan 1).col1)` sitting inside the Index Cond rather than in a Filter — resolved ONCE per statement, not once per candidate row.",
+  "budgets": {
+    "default": {
+      "maxActualRows": 200,
+      "maxSharedBlocks": 900
+    }
+  },
+  "queryBudgetComment": "tools/check-query-budget.mjs, in the integration lane. maxStatements bounds the whole measured workload (the live-api-proof suite: sign-in, a list, a create, a read-back, a delete); maxCallsPerQuery is the N+1 detector — pg_stat_statements normalizes literals away, so a hundred point reads of a hundred different ids collapse into ONE row with calls=100, which is the only signature an N+1 has. The per-query bound is the one that matters; the total is a coarse net for a workload that grew a whole extra round trip.",
+  "queryBudget": {
+    "maxCallsPerQuery": 40,
+    "maxStatements": 400
+  }
+}

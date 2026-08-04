@@ -1,3 +1,12 @@
+'use client'
+
+// 'use client' because this module calls createContext/useContext. Without it, ANY server
+// module importing the @app/design-system barrel fails the build — Next traces the barrel's
+// re-exports and refuses a React context in the RSC graph. The directive does not make the
+// consumer a client component; it marks THIS module as a client boundary the server may
+// reference. Text/Card/EmptyState/Skeleton/Spinner deliberately stay universal, so a page
+// that only needs copy and layout still renders entirely on the server.
+
 import { createContext, useContext } from 'react'
 
 /**

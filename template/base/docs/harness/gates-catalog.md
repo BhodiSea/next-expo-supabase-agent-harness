@@ -1,7 +1,7 @@
 # Gates catalog
 
 Companion to [the harness doctrine](./README.md). One section per default-on gate (the
-21-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
+26-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
 suites, the CI-only lanes, every opt-in module, and the gates we considered and rejected.
 
 Every section carries an **anti-vacuity proof**: how to inject a violation and watch the
@@ -15,6 +15,17 @@ the resolved Expo toolchain, the surface itself) is absent locally, and fail clo
 "skip-local / fail-closed-CI asymmetry".
 
 ## Honest losses (stated plainly, so nobody discovers them in an incident)
+
+- **The audit trail covers mutations only.** `audit.events` records every INSERT,
+  UPDATE and DELETE on every org-scoped table, and nothing at all about reads. A user
+  who only *looks* leaves no trace, so the trail cannot answer "who saw this" — the
+  question a data-access investigation usually starts from. `SELECT` auditing needs
+  `pgaudit` configuration that is not expressible in a migration and is out of scope
+  for 0.2.0. Related: `request_id` on an audit row is a **correlation** field, not
+  evidence — it is server-minted on the paths the server controls and forgeable by a
+  client talking straight to PostgREST. `actor_id` is the field with integrity,
+  because it comes from the verified JWT and the insert policy re-checks it against
+  the database's own opinion. Do not build an investigation on the wrong one.
 
 Two things the desktop original's chain had that this chain does NOT have, recorded
 here deliberately rather than papered over:
@@ -215,12 +226,47 @@ replace the versionCode derivation with a literal → FAIL on the next version b
 
 ### 10. prompts — `node tools/check-prompts-lock.mjs`
 
-Every prompt file under `packages/*/prompts/` / `apps/*/prompts/` is sha256-locked
-in `tools/prompts.lock.json` and versioned in its filename (`extract.v1.md`). Pass
-by creating a NEW `.vN` file, re-running the eval, then deliberately updating the
-lock (write-guard-protected — a human act).
-**Anti-vacuity:** edit one word in `packages/eval/prompts/extract.v1.md` → FAIL
-hash mismatch.
+Two surfaces, locked for the same reason and judged with different strictness.
+
+**LLM prompts.** Every file under `packages/*/prompts/` / `apps/*/prompts/` is
+sha256-locked in `tools/prompts.lock.json` and versioned in its filename
+(`extract.v1.md`). Pass by creating a NEW `.vN` file, re-running the eval, then
+deliberately updating the lock (write-guard-protected — a human act).
+
+**The agent surface (0.2.0).** `.claude/{agents,commands,skills}` — sha256 per file in
+`tools/agents.lock.json`, plus each agent's pinned model id. This is the most privileged
+prose in the repository: which reviewers exist, what they may touch, what a slash command
+does, what the skills prescribe. Before the lock, **nothing in the chain noticed it
+changing** — the `docs-sync` roster check reads reviewer FRONTMATTER (name, model, tools)
+and never the body, which is where the instructions actually are. An agent could soften
+`security-reviewer.md`, widen a skill or repoint a command and stay green.
+
+The model id is recorded beside the hash because they answer different questions: a hash
+proves the file did not change, and a roster silently repointed from a frontier model to a
+cheap one leaves every byte identical.
+
+**The asymmetry is the design.** "Not in the lock" is RAMPED — an install predating the
+lock has files nobody has covered, and ambushing it on upgrade would break the harness's
+own promise that projects grow into gates. "In the lock and the hash moved" is UNRAMPED at
+every vintage: that is not a vintage gap, it is an edit to instructions somebody already
+reviewed. In practice no install sees the ramp at all, because the installer **writes the
+lock from the install's own current files** — at `init` always, at `update` only when
+there is no lock yet. An update never REWRITES one: doing so would launder every edit made
+since, which is the act the lock exists to make visible.
+
+**Three layers, because one env var is not a control.** `tools/gen-agents-lock.mjs`
+refuses `--write` without `HARNESS_ALLOW_SELF_EDIT=1`; the bash-guard denies invoking any
+`gen-*lock*.mjs … --write` by name shape; the lock file and all four `.claude` directories
+are write-guard-protected. The distinction from the other three generators is worth
+keeping straight: `gen-action-inventory`, `gen-event-catalog` and `gen-query-shapes` derive
+their output from something else the gates check, so running them launders nothing. This
+one's output is a hash OF the files being checked, so running it after an edit is exactly
+how the edit disappears.
+**Anti-vacuity:** edit one word in `packages/eval/prompts/extract.v1.md` → FAIL hash
+mismatch; append one line to `.claude/agents/security-reviewer.md` → FAIL, unramped, at
+every vintage; delete a locked reviewer → FAIL (removing an agent is a reviewed act, not a
+cleanup); `node tools/gen-agents-lock.mjs --write` without the env var → the generator
+refuses, and the bash-guard denies the invocation before it runs.
 
 ### 11. licenses — `node tools/check-licenses.mjs`
 
@@ -243,12 +289,180 @@ in BOTH runtime registries — `ISOLATION_TARGETS` (`tests/rls/db-context.ts`) a
 that owner column must be the LEADING column of some migration-declared index (an inline
 `PRIMARY KEY` counts). Existence proof only — the runtime twins prove isolation and the
 access path.
+Four checks joined in 0.2.0, each closing a hole the gate provably had: the RLS
+**negation set** (a later `DISABLE ROW LEVEL SECURITY` / `NO FORCE` / `DISABLE TRIGGER`
+reds naming the migration — unramped, because no legitimate install ever turned RLS off);
+**helper-body resolution** (a predicate calling a locally-defined SQL helper is judged on
+the helper's inlined body, so relocating `auth.uid()` into a function no longer vacates
+the initPlan rule); the **correlated-subquery ban** (a sub-select with a `FROM` is a
+per-row SubPlan, not a hoisted InitPlan — ramped `0.2.0`); and **SECURITY DEFINER
+discipline** (allowlisted with a reason in `tools/security-definer-allow.json`,
+`SET search_path = ''`, no identity-shaped parameter — ramped `0.2.0`; the EXECUTE
+half below is not). On the EXECUTE surface the rule is not "no wide grant" but
+**prove the default was undone**: PostgreSQL grants `EXECUTE` to `PUBLIC` on every
+new function and Supabase's default privileges additionally grant `anon`, so a
+migration that names no grants at all still ships an anon-callable definer function
+— and a gate that only inspects `GRANT` statements reads it as clean. Every definer
+function must therefore show a `REVOKE … FROM PUBLIC` **and** `FROM anon`; `EXECUTE`
+to `authenticated` is legal only for an allowlisted function, because PostgREST
+switches to the JWT's role before calling and there is no other way a client-callable
+RPC can exist. Unramped, by the same reasoning as the negation set: the shipped
+scaffold has no definer functions, so ramping would protect only a tree that added
+one.
 **Anti-vacuity:** declare a table with no migration → FAIL (no ENABLE, no FORCE, missing
 policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth.uid()` →
 FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
-to one registry but not the other → FAIL naming the gap.
+to one registry but not the other → FAIL naming the gap; append a `DISABLE ROW LEVEL
+SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22).
 
-### 13. types-drift — `node tools/check-types-drift.mjs`
+### 13. tenancy — `node tools/check-tenancy.mjs`
+
+The multi-tenant contract as reviewed data. schema-rls proves a predicate is REAL;
+this proves it scopes by TENANT — `org_id = (SELECT auth.uid())` (a tenant column
+compared to a user id) passes every schema-rls rule and isolates nothing, which is
+the exact hole this gate exists to close. The contract is `tools/tenancy.json`:
+`predicateForms` is a CLOSED set of reviewed predicate shapes (owned, hash-pinned
+data — the definition of correct, never an escape hatch), and every policy on every
+tenant table (any table carrying `tenantColumn`) must carry one of them in EVERY
+top-level `OR` arm after normalization — an AND inside an arm can only narrow, but
+`<scope> OR owner_id = (SELECT auth.uid())` is as open as its weakest arm. Failures
+print the exact normalized predicate, so admitting a new reviewed form is a
+copy-paste CODEOWNERS diff. On top of the form match: the **correlated-argument
+ban** (`(SELECT private.member_rank(org_id)) >= 30` is wrapped in `(SELECT` and
+passes every wrapper check, but passing a column of the row under test makes it a
+per-row SubPlan that re-enters the membership table's own policies); a rank floor
+must be one of the configured `roles` values; tenant keys must be `NOT NULL` FKs to
+the org table (folded across the whole history, so the expand→contract adoption
+path — nullable `ADD COLUMN`, later `SET NOT NULL` — lands green); every UNIQUE/PK
+on a tenant table must include the tenant column (partition-ready; per-constraint
+escapes in `uniqueWithoutTenantColumn` with reasons) and each tenant table needs a
+no-`WHEN` `BEFORE UPDATE` freeze trigger; the helpers must be zero-argument STABLE
+SECURITY INVOKER with `search_path = ''` reading the membership table; the
+membership table itself is held to the opposite shape — self-only SELECT, deny-all
+writes *to authenticated*, no helper calls in a SELECT policy (the recursion SMELL
+TEST; the executable recursion probe in `supabase/tests` is the proof — it asserts the
+reads LIVE rather than naming a SQLSTATE, because with `search_path = ''` pinned the
+failure arrives as 54001 stack-depth, not the 42P17 the docs lead you to expect); and
+`nonPublicSchemas` must stay out of `[api].schemas`.
+
+Two structural rules exist because the alternative fails **silently**. First, the
+**rpc writer role**: every table ships `FORCE ROW LEVEL SECURITY`, so a
+`SECURITY DEFINER` function's writes are policy-checked against the role that OWNS
+it — the owner is not exempt. With seat writes denied to `authenticated` (as they
+must be — a self-keyed INSERT policy is a self-service seat grant), a database in
+which no *other* role holds a write policy is one where no seat can ever be created:
+the first `create_org` fails 42501 and `supabase db reset` dies at seed. The
+reviewed `rpcWriterRole` is that writer, and its policies are judged by the same
+closed form set. Admitting it is not sufficient, though: a rank-scoped write policy
+TO that role calls the rank helper, which is `SECURITY INVOKER` and therefore reads
+the seat table *as the rpc role*. Give the role no SELECT policy and the read hits
+RLS default-deny, the helper returns an empty map, every rank comparison is false,
+and the write matches **zero rows and reports success** — every promotion in
+production looks fine and changes nothing. So the gate requires the **pair**: any
+helper-bearing write policy TO the rpc role obliges a self-only SELECT policy for
+that role on the seat table (self-only because `auth.uid()` is GUC-derived and
+role-switch-independent, and because a helper-bearing SELECT policy here would be
+re-entered by the helper that called it).
+
+Second, the **org table** is judged explicitly, with its own primary key
+substituted as the scope column. It carries no tenant column, so column-driven
+discovery never reaches the root of the whole model — `USING (created_by = (SELECT
+auth.uid()) OR name IS NOT NULL)` would otherwise pass every static gate in the repo
+while publishing every org row to every signed-in user.
+
+A predicate form may be narrowed to specific `tables` (which obliges a reason): that
+is how the two writes performed by someone who is **not yet a member** — creating an
+org, redeeming an invitation — stay reviewable instead of becoming a general licence
+every tenant table can claim. The `0.2.0` ramp covers ADOPTION only (a pre-0.2.0
+install with no tenant column NOTEs instead of failing); once any table carries the
+tenant column, findings are hard reds regardless of manifest vintage.
+
+`dualScopedTables` is the one escape in the harness **with a deadline**, and it exists
+because an install that already holds production rows cannot become org-scoped in a
+single migration: `org_id` must arrive NULLable on populated tables, be backfilled out
+of band, and only then take `NOT NULL` — with the old owner-scoped policies alive
+beside the new ones throughout, since permissive policies OR and dropping the old set
+early blanks the product. An entry licenses exactly that state on exactly the named
+table (the arm `<ownerColumn> = (SELECT auth.uid())` becomes legal *for that table*, the
+tenant key may be NULLable, and its pre-tenancy tenant-blind uniques stand) and carries
+an `until` harness version. That version is compared against the manifest's
+`harnessVersion`, **not** `baseVersion`: `baseVersion` moves only when a human
+graduates a ramp, so a deadline measured against it is one the escape's own author
+controls. On the happy path the entry never reaches its deadline — it reds the moment
+the tenant key becomes `NOT NULL`, because from there it is pure widening.
+`docs/runbooks/tenancy-adoption.md` is the procedure.
+
+**The audit trail (0.2.0).** The same gate owns `audit.events`, and judges it by
+different rules than every other tenant table because for this one the ordinary rules
+are *wrong* rather than merely inconvenient: its tenant key must **not** be a foreign
+key (an `ON DELETE CASCADE` makes deleting an org delete the record of what was done
+inside it — the evidence destroyed by the act most likely to need investigating), and
+it carries no freeze trigger, because it refuses `UPDATE` outright, which is strictly
+stronger than freezing one column. It is correspondingly listed in
+`tools/rls-exempt.json`, which moves its judgment *here* rather than removing it: the
+per-operation policy manifest `schema-rls` enforces is the opposite of what an
+append-only table needs, since **the absence of an UPDATE/DELETE policy is itself
+layer 1 of four**.
+
+What is required instead: no update/delete policy and no client grant (layers 1–2); a
+`BEFORE UPDATE OR DELETE` row trigger (layer 3 — the only layer that binds a role
+holding `BYPASSRLS`, and `postgres` on Supabase holds it); a `BEFORE TRUNCATE`
+**statement** trigger on the parent *and on every partition a migration creates*,
+because PostgreSQL clones row triggers to partitions (including ones created later)
+but never `TRUNCATE` triggers, so a parent-only guard leaves the trail emptiable one
+month at a time; an actor derived **inside** the writer rather than from a column
+`DEFAULT` (a default is applied only when the writer omits the column, so it records
+whoever the writer says they are); a writer and a reader that are **separate roles**;
+and — the closure that makes all of the above non-vacuous — an `AFTER INSERT OR UPDATE
+OR DELETE ... FOR EACH ROW` trigger with **no `WHEN` clause** on every org-scoped
+table. Without that last rule every other audit check is satisfiable by a beautifully
+built trail that records nothing.
+
+Value capture is closed both ways against `tools/audit-columns.json` and
+`tools/pii-columns.json`: an undeclared capture is unreviewed, a declared capture with
+no trigger argument is stale, and a capture of anything on the PII list is refused.
+The deny list is itself checked against the live schema, so an entry naming a renamed
+column reds instead of silently protecting nothing.
+
+The pairing rule generalized in the same change. It previously covered only the rpc
+writer; it now covers **every** non-`authenticated` role in a helper-bearing policy,
+because the audit reader has the identical failure with the opposite consequence — a
+write that silently changes nothing versus a read that silently returns nothing, which
+an admin reads as "no activity" rather than as a fault.
+
+**Adoption ramps, correctness does not.** A pre-0.2.0 install has no audit schema (the
+migration is `seedOnInitOnly`, so `update` never plants it) and gets a NOTE. The moment
+the table exists, every rule above is a hard red regardless of manifest vintage.
+
+**Anti-vacuity:** change a notes policy USING to `org_id = (SELECT auth.uid())` →
+FAIL printing the normalized predicate; append `OR owner_id = (SELECT auth.uid())`
+→ FAIL naming the scope-free OR arm; call `private.member_rank(org_id)` → FAIL
+naming the correlated argument; delete the rpc role's self-only SELECT policy while
+leaving its rank-scoped writes → FAIL naming the zero-rows-and-succeeds failure mode;
+rewrite the orgs SELECT policy to `created_by = (SELECT auth.uid()) OR name IS NOT
+NULL` → FAIL naming the scope-free OR arm; an empty `predicateForms`, malformed JSON,
+a missing section, a table-narrowed form with no reason, or a reasonless/stale escape
+entry → FAIL (never fail-open); a `dualScopedTables` entry whose `until` the install
+has passed, whose tenant key is already `NOT NULL`, whose `ownerColumn` does not
+exist, or that has no `.harness/manifest.json` to measure its deadline against → FAIL
+(and the licensed owner arm on any OTHER table still FAILs, so the escape cannot leak
+into the general form set); and `tests/gates/check-tenancy.test.mjs` pins that an
+ancient `baseVersion` cannot downgrade findings to NOTEs once the surface exists, nor
+shelter an overdue transition. For the trail: delete the audit trigger on one
+org-scoped table → FAIL naming the table; add a `WHEN` clause to it → FAIL; drop one
+operation from its event list → FAIL naming the operation; make it `BEFORE` → FAIL;
+remove the layer-3 row trigger → FAIL naming BYPASSRLS; remove a partition's TRUNCATE
+guard → FAIL naming the non-cloning; give the tenant key a foreign key, or `actor_id` a
+`DEFAULT` → FAIL; grant `service_role` on the trail → FAIL; make the writer
+`SECURITY INVOKER`, or have it read the actor from the row → FAIL; set
+`auditReaderRole` equal to `auditWriterRole`, or drop `audit` from `nonPublicSchemas`
+→ FAIL closed. The runtime twin is `supabase/tests/audit_immutability.test.sql`, whose
+26 assertions prove what no parser can: that the trigger fires *for a BYPASSRLS role*,
+that `TRUNCATE` on a partition raises, and that the read path admits rank 40 and
+refuses a rank-20 member **of the same org** — the bidirectional pair that separates a
+working floor from one that refuses everybody.
+
+### 14. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
 running local stack and byte-diffs it against the committed
@@ -264,7 +478,7 @@ compile-time licence to skip validation.
 FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
 while the stack is up".
 
-### 14. migrations — `node tools/check-migrations.mjs`
+### 15. migrations — `node tools/check-migrations.mjs`
 
 Append-only (no committed migration modified/deleted vs HEAD, or vs the PR base in
 CI); no DML without `-- harness-allow-dml: <reason>`; destructive DDL requires
@@ -273,14 +487,94 @@ migration; follow `docs/runbooks/expand-contract.md` for destructive phases.
 **Anti-vacuity:** append a comment to an existing migration file (editor) → FAIL
 append-only; add `DROP TABLE notes;` in a new migration without an ADR line → FAIL.
 
-### 15. contracts — `node tools/check-contract-drift.mjs`
+### 16. db-limits — `node tools/check-db-limits.mjs`
 
-(1) Contract-inventory regen-diff: regenerate the two committed inventories —
-`tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes)
-and `tools/generated/event-catalog.json` (every event the platform + vertical
-catalogs declare) — from the LIVE values and diff against the committed copies, so
-adding OR removing an action/event without `pnpm gen` reds. Needs an install (tsx,
-to walk the runtime router/catalogs); skips loudly without one, fails closed in CI.
+The per-role resource ceilings and the per-org quota machinery, judged as data
+(`tools/db-limits.json`). Runs right after `migrations` because it reads the same
+migration text that step just parsed, and because its subject is the same: what the
+applied history does to a running database.
+
+**The role×knob matrix** is folded in statement order, not collected — `ALTER ROLE x
+RESET y` after a `SET` is legal, and the LAST word is what the database holds, so a
+gate that only gathered `SET`s would report a ceiling a later `RESET` had removed.
+Each value must equal the contract's and sit under the contract's ceiling; raising a
+ceiling is therefore a reviewed diff rather than a one-line migration edit.
+
+**What makes those settings bind is PostgREST, not PostgreSQL**, and the gate's scope
+is honest about it. `ALTER ROLE x SET y` writes a `pg_db_role_setting` row that
+PostgreSQL applies when role `x` *starts a session*, and `SET ROLE` does not start
+one — verified: as `authenticator`, `SET LOCAL ROLE authenticated` left
+`statement_timeout` at the authenticator's value. They bind because PostgREST reads
+`pg_db_role_setting` for the role it impersonates and applies it per request; verified
+end to end, a 5-second RPC as `anon` (2s) was cancelled at **2.03s** with SQLSTATE
+57014. So these ceilings bound traffic arriving **through PostgREST** — every
+supabase-js call from web and mobile — and do **not** bound a direct connection, which
+gets its own login role's settings. That is why the runtime twin is a client-side
+assertion via `public.effective_limits()` rather than only a pgTAP read of the catalog:
+the row proves what PostgREST will read, never that PostgREST applied it.
+
+**The inverted half is the one that matters most.** `temp_file_limit` and
+`CONNECTION LIMIT` must NEVER appear, and the gate reds when they do. Both read as
+obvious hardening, both were in this release's plan, and both bind nothing here:
+`temp_file_limit` is superuser-only so `postgres` cannot set it at all, and a
+connection limit binds at LOGIN — the only role that logs in is `authenticator`, which
+is reserved. A number that cannot bind is worse than no number, because a reviewer
+reads it as a control.
+
+**The quota's shape** is asserted structurally because both wrong implementations are
+one word away and neither fails loudly. `FOR EACH ROW` serializes every insert behind
+the org's single usage tuple; a RESTRICTIVE policy over a `STABLE` count is hoisted to
+one evaluation per statement against the **pre-statement** count, so a single
+multi-row `INSERT` of any size passes wholesale — it fails **open**. The gate requires
+`FOR EACH STATEMENT` with `REFERENCING NEW TABLE`, the `AFTER DELETE` release twin, no
+`WHEN` clause, and no client write grant on the counter. It also reds if
+`reconcile_org_usage` is ever reassigned to the tenant-scoped writer role: pg_cron has
+no JWT, so a scoped owner would read an empty scope, produce an empty truth set, and
+set **every counter in the database to zero** on a schedule.
+
+**Pooled-connection discipline** is the fifth section, and it walks the source tree
+rather than a list of known files — a gate that names `tools/mcp/rls-verify-server.mjs`
+and `tests/rls/db-context.ts` is green by construction the moment someone adds a third
+client. Three shapes red: a `postgres()` construction without `prepare: false` (a
+prepared statement lives on a backend the next request does not get, so the driver
+sends the cached name — an intermittent 26000 no test against a direct connection
+reproduces), a timeout GUC set without `LOCAL` (a pooled backend carries the widened
+ceiling into the next tenant's request), and `pg_advisory_lock` (session-scoped, so an
+error path leaks a lock that blocks every later caller of that key and no pool release
+clears it). The write-guard denies all three at the moment of the edit
+(`pg-prepared-statement`, `pg-session-timeout-set`, `pg-advisory-session-lock`); this
+is the half that judges a file the hook never watched being written. The `prepare:
+false` search is per-construction within a 600-character window, not per file, so a
+compliant client later in the same file cannot clear a non-compliant one above it —
+which is exactly what the hook's file-scoped tripwire cannot decide.
+
+**Anti-vacuity:** drop one `ALTER ROLE ... SET` → FAIL naming the role and knob;
+`RESET` it later → FAIL; disagree with the contract, or exceed a ceiling → FAIL; add
+`temp_file_limit` or `CONNECTION LIMIT 60` → FAIL (the inverted rule); make the quota
+trigger `FOR EACH ROW`, drop its `REFERENCING NEW TABLE`, delete the release trigger,
+or add a RESTRICTIVE counting policy → FAIL, each naming the specific failure mode;
+reassign the reconciler's owner, or grant it to `authenticated` → FAIL; grant a client
+`UPDATE` on `org_usage` → FAIL; raise `[api].max_rows`, or set a session-mode pooler →
+FAIL; build a `postgres()` client with prepared statements on, `SET statement_timeout`
+without `LOCAL`, or take a `pg_advisory_lock` → FAIL, with `SET LOCAL`, `ALTER ROLE x
+SET`, `pg_advisory_xact_lock` and a `postgres(?:ql)?://` URL regex all proven to stay
+green; malformed JSON, an empty role matrix, a knob with no declared ceiling, or an
+`unavailable` entry with a thin reason → FAIL closed.
+`tests/gates/check-db-limits.test.mjs` carries 31 cases; the runtime twins are the
+pg_db_role_setting + quota block in `supabase/tests/rls_structure.test.sql` and
+`tests/rls/resource-limits.test.ts`, which proves the ceilings are in FORCE through
+PostgREST rather than merely present in the catalog.
+
+### 17. contracts — `node tools/check-contract-drift.mjs`
+
+(1) Contract-inventory regen-diff: regenerate the three committed inventories —
+`tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
+`tools/generated/event-catalog.json` (every event the platform + vertical
+catalogs declare) and `tools/generated/query-shapes.json` (every statement the DALs
+issue, recorded by driving them through the harness-owned recording port) — from the
+LIVE values and diff against the committed copies, so adding OR removing an action,
+event or query without `pnpm gen` reds. Needs an install (tsx, to walk the runtime
+router/catalogs/DALs); skips loudly without one, fails closed in CI.
 (2) tsconfig project references mirror the pnpm workspace dependency graph —
 parallel topologies desynchronize into confusing type errors otherwise. (3) Bounded
 wire strings (G18): every `z.string()` in `@app/contracts` carries `.max(N)`, or a
@@ -290,7 +584,109 @@ memory-amplification vector.
 `references` entry from a package tsconfig → FAIL naming the missing ref; add an
 unbounded `z.string()` to a wire DTO → FAIL naming the site.
 
-### 16. parity — `node tools/check-mobile-parity.mjs`
+### 18. query-shapes — `node tools/check-query-shapes.mjs`
+
+Every statement the DALs actually issue is BOUNDED and SERVED BY AN INDEX — judged
+against `tools/generated/query-shapes.json`, which is written by executing the DALs
+rather than by describing them. `tools/gen-query-shapes.mjs` drives each DAL function
+through a harness-owned recording port (`tools/lib/query-recorder.mjs`) and records the
+builder chain it produced; the `contracts` step immediately before proves that file is
+byte-fresh. A hand-authored query manifest would be a tautology — the same turn writes
+the DAL and the manifest, and the cheapest repair for a red is to edit the manifest.
+
+The recording port is a **Proxy**, not a fake with methods: it records every call by
+name, including ones no port declares, so `.range()`/`.offset()` arrive as `extra` and
+red **by name** instead of crashing the instrument into being taught to ignore them.
+Two closures keep it non-vacuous: generation fails if any exported DAL function has no
+probe (the probe module re-exports its DAL as a namespace, so the comparison is against
+the functions that exist, not a list), and fails if a probe issues no query at all.
+
+The rules, each catching something the others cannot: **bounded** (a read with no LIMIT
+and no aggregate costs the tenant's whole row count — fine on the day it ships,
+forever); **no unreviewed builder method** (OFFSET pagination re-reads and discards
+every skipped row, so page 500 costs 500 pages); **served** — an index whose leading
+columns are the equality set followed by the ORDER BY columns in order and in one scan
+direction (PostgreSQL walks a btree backwards, so an all-reversed sort is served too; a
+MIXED order is not); **cursor/sort agreement** (a keyset cursor whose columns disagree
+with the ORDER BY skips or repeats rows at every page boundary); **tenant-led** (on a
+tenant table the tenant column must be in the equality set and lead the serving index —
+a performance rule with an authorization shadow: the policy filters by org either way,
+but without the leading column it filters by SCANNING); and **ceiling** (no LIMIT above
+`[api].max_rows`, which PostgREST truncates to silently, so the sentinel row a keyset
+page uses to detect "has more" never arrives).
+
+This is the static half. It cannot prove the planner CHOOSES the index it found — that
+is `tools/check-db-perf.mjs` in the path-filtered `db-scale` CI lane, against 2M seeded
+rows. Neither subsumes the other: this one is decidable from migration text in ~60ms,
+and that one needs a real planner, real statistics and real cardinality.
+**Anti-vacuity:** delete `notes_org_id_created_at_id_idx` → FAIL naming the shape and
+printing the exact `CREATE INDEX` that would serve it; swap the index's sort tail to
+`(created_at DESC, id ASC)` → FAIL on the mixed direction while `schema-rls` and pgTAP
+stay green (both only see the leading column); drop the `.limit()` from a list DAL →
+FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL function with
+no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
+manifest passes every rule above without judging anything).
+
+### 19. rate-limits — `node tools/check-rate-limits.mjs`
+
+The rate-limit budget as reviewed data (`tools/rate-limit-budget.json`), closed against
+the router the deployment actually exposes. Runs right after `contracts`, and the order is
+load-bearing rather than cosmetic: this gate's whole value rests on
+`tools/generated/action-inventory.json`, and `contracts` is the step that proves that file
+is not stale. Judging a budget against a stale inventory reports full coverage of a router
+that no longer exists.
+
+**The vacuity it exists to prevent is not "the numbers are wrong."** It is a limiter that
+is wired, tested, and reaches nothing: a new mutation lands, nobody adds it to the policy,
+and the seam happily limits the five procedures it already knew about while the newest
+write path runs unbounded — everything green. So the load-bearing rule is a CLOSURE against
+a GENERATED inventory (walked out of the composed router, never hand-written): every
+mutation is mapped to a bucket or carries a reasoned exemption, **in both directions**, and
+a mapping or exemption naming a procedure the router no longer exposes reds as stale.
+
+**The budget is diffed BY VALUE.** `apps/web/lib/rate-limit.ts` is the code that runs; the
+JSON is what a human approved. The gate evaluates the module under node's type stripping —
+the same technique `security-headers` uses, and the reason that module has zero value
+imports — and compares bucket limits, windows, and both resolvers. A number changed in code
+without a reviewed diff reds; so does a number changed in the JSON that the code does not
+honour, and so does a documented exemption the code fails to apply.
+
+**An unknown name must NOT resolve to null.** The resolvers fall back to the write bucket,
+so a procedure added without touching the policy is limited (wrongly, in the harmless
+direction) for the seconds between writing a router and running the chain. A gate that
+allowed `null` there would make "forgot to map it" and "deliberately unlimited" the same
+value.
+
+**Both seams are asserted wired**, because a policy nothing consults is a policy in name
+only: the tRPC host must pass a `rateLimit` port to `createContext` (`@app/api` treats a
+missing port as an UNLIMITED router — correct for a worker or a test, silent total loss for
+the web host), and every Server Action the budget names must call
+`enforceActionRateLimit('<name>')`. The reverse also reds: an exported `*Action` with no
+budget entry is the same hole as an unmapped mutation, because a Server Action is a public
+HTTP endpoint with a generated id.
+
+**Anti-vacuity:** delete a mutation's bucket → FAIL naming it; map and exempt the same
+procedure → FAIL (the two say opposite things and the gate will not choose); name a bucket
+`buckets` does not declare, or declare one nothing spends from → FAIL; exceed the reviewed
+`ceilings` → FAIL (a budget nobody can exceed is not a budget, and neither is a window long
+enough never to close); change a limit in code only, or in the JSON only → FAIL with both
+numbers printed; return `null` for an unknown name → FAIL; drop the `rateLimit` port from
+the route, or the guard from an action → FAIL naming the seam; malformed JSON, an empty
+bucket set, a bucket with a thin reason, an exemption with a thin reason, or a `failOpen`
+decision that was never recorded → FAIL closed. `tests/gates/check-rate-limits.test.mjs`
+carries the fixture proofs; `packages/api/src/ratelimit.test.ts` proves the router refuses
+BEFORE any handler runs against a database that throws if touched.
+
+**Honest loss, stated here because this is where someone will look for it:** these budgets
+bind the two APPLICATION seams. They do not bind a client that POSTs straight to
+`/rest/v1/notes` with the publishable key and its own JWT, and they do not bind sign-in or
+sign-up, which go to GoTrue. The controls that bind every path are the per-org quota
+trigger and the per-role statement timeouts (`db-limits`). The limiter also FAILS OPEN when
+its backend is unavailable — an explicit, recorded decision (see
+`docs/adr/20260204-rate-limiting.md`), which means a Redis outage is a window with no rate
+limiting at all.
+
+### 20. parity — `node tools/check-mobile-parity.mjs`
 
 Two-way surface parity: every action in the contracts-verified inventory
 (`tools/generated/action-inventory.json`) maps to EXACTLY ONE row in the seeded
@@ -307,7 +703,7 @@ forces strict anywhere.
 the action; leave a row for a removed action → FAIL naming the stale row; set a
 surface cell to `—` with an empty Notes cell → FAIL demanding the reason.
 
-### 17. dead-code — `pnpm exec knip --strict`
+### 21. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
@@ -316,7 +712,7 @@ visible, greppable claim, reviewed like code. NEVER `knip --fix` (blocked): it
 auto-deletes with false positives.
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 18. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 22. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; `verticals ⊥ verticals`; `shared ↛ verticals`;
 `platform/* → {errors,events}` only; `packages/api ↛ next/*` (the reversibility wall);
@@ -327,7 +723,7 @@ graph; `expo-secure-store` only under `src/lib/supabase/**`; LLM SDKs only from
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 19. build — `node tools/build-check.mjs`
+### 23. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -344,7 +740,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 20. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 24. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
 (the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
@@ -383,7 +779,7 @@ naming the literal; call `Animated.timing` from a screen → FAIL pointing at th
 spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
 home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
-### 21. perf-budget — `node tools/check-perf-budget.mjs`
+### 25. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -410,7 +806,7 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 22. route-manifest — `node tools/check-route-manifest.mjs`
+### 26. route-manifest — `node tools/check-route-manifest.mjs`
 
 Every screen is REGISTERED: `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -427,7 +823,58 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-### 23. e2e — `node tools/check-e2e.mjs`
+### 27. security-headers — `node tools/check-security-headers.mjs`
+
+The web response posture, asserted BY VALUE. The gate EVALUATES
+`apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
+bundler, no tsx, no `node_modules`, no new dependency) and diffs what the module
+actually returns against the reviewed policy in `tools/security-headers.json`.
+
+The cheaper implementation — grep the source for `frame-ancestors 'none'` — is
+satisfied by a directive that appears in a comment, in a disabled branch, or in a
+string that is never joined into the header. Evaluating is what makes this a check
+of the value rather than a check of the text, and it is the same reason the
+telemetry-redaction gate was cut in design review: a text parse of a value is not a
+check of the value.
+
+Covers: every static header by exact value (HSTS, nosniff, referrer-policy,
+X-Frame-Options, COOP, CORP); every `permissions-policy` feature denied by an
+EXPLICITLY EMPTY allowlist rather than by omission; the CSP directives that must
+hold exact values (`default-src`, `object-src`, `base-uri`, `form-action`,
+`frame-ancestors`); required and banned CSP tokens; that `'unsafe-inline'` in
+`script-src` never appears WITHOUT `'strict-dynamic'` (with it, a CSP3 browser
+ignores it and it is a CSP2 fallback — without it, it is an open door); that
+X-Frame-Options and `frame-ancestors` AGREE, so the answer does not depend on which
+control the browser honours; that the report-only twin carries a `report-uri`; and
+that authenticated responses are `private, no-store` with a `Vary` naming the acting
+-org selector — same URL, same edge cache key, different tenant's rows is the shape
+of a cross-tenant CDN poisoning bug.
+
+Two decisions are RECORDED rather than omitted, and the gate requires each to carry
+a non-trivial reason: `hstsPreload` (close to irreversible — removal from the browser
+preload list takes months) and `coep` (ships UNSET, because `require-corp` breaks
+every third-party embed that does not send its own CORP header, and a gate that
+produces a broken app is a gate everyone exempts).
+
+**Honest limit.** It cannot prove the DEPLOYED response carries these headers. A
+correct config behind a header-stripping CDN, or a nonce that never reaches Next's
+inline bootstrap, is invisible from here. That half is the `web-e2e` lane's
+`security-headers.spec.ts`, which reads real `response.headers()`, asserts Next
+actually STAMPED the minted nonce onto its bootstrap script, and collects
+`securitypolicyviolation` events so a policy that blanks the app cannot ship green.
+`check-web-e2e.mjs` holds that spec present via its `anySecurityHeaders` closure, the
+same way it holds the axe scan present.
+
+**Anti-vacuity:** delete the `frame-ancestors 'none'` entry → FAIL naming the missing
+directive AND the framing disagreement; swap `'strict-dynamic'` for `'unsafe-eval'` →
+FAIL on the banned token; remove `'strict-dynamic'` leaving `'unsafe-inline'` → FAIL;
+shorten the HSTS `max-age` → FAIL; drop `camera=()` → FAIL; drop `x-org-id` from
+`Vary` → FAIL; make authenticated responses `public, max-age=60` → FAIL; drop the
+`report-uri` → FAIL. Anti-vacuity on the POLICY itself: a `tools/security-headers.json`
+missing a section FAILS rather than silently skipping the checks that section governed,
+and a `decisions.coep` reason shorter than 20 characters FAILS.
+
+### 28. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -446,7 +893,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 24. docs-sync — `node tools/check-docs-sync.mjs`
+### 29. docs-sync — `node tools/check-docs-sync.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -490,18 +937,19 @@ first). Seeded positive control (a deny-all database must NOT pass), zero-row
 cross-user SELECT/UPDATE/DELETE, SQLSTATE 42501 on INSERT smuggling,
 pooled-connection GUC-leak detector (pool max=1), and the pg_catalog gate (FORCE
 RLS flags, per-op policies, leading-column owner indexes, initPlan-shaped
-predicates, patched pgvector, non-BYPASSRLS role). The plan-regression probe then
-bulk-seeds at scale and EXPLAINs both a bare policy-shape SELECT and every query
-the app ACTUALLY ISSUES (captured through the supabase-js client suite, registered in
-the seeded `tests/rls/db-context.ts`), redding on any `Seq Scan`, `Sort`, or per-row
-`SubPlan` — the index must carry the ORDERING, not just the filter
-(`0002_notes_keyset_idx.sql` is the worked pattern). Unreachable database → loud
+predicates, patched pgvector, non-BYPASSRLS role). Unreachable database → loud
 SKIP locally; in CI with migrations present, unreachable = FAIL.
+
+**There is no plan probe in THIS suite, and that is a placement decision, not an
+omission.** A plan is a planner opinion at one statistics snapshot; against the
+handful of rows `supabase/seed.sql` writes it is not merely noisy but WRONG — the
+planner correctly reads one page rather than using an index, so a plan assertion
+here would either flap or be satisfied for the wrong reason. The probe therefore
+lives where the cardinality does: `tools/check-db-perf.mjs`, in the path-filtered
+`db-scale` CI lane, against `supabase/seeds/scale.sql`. See **db-perf** below.
 **Anti-vacuity:** drop one policy in a new migration → catalog gate + isolation
 matrix FAIL; break the impersonation helper → the positive control fails, proving
-the suite cannot green vacuously; delete the keyset index migration → the DAL plan
-probe FAILs on a `Sort` while the policy-shape probe stays green — the proof the
-simpler check was structurally blind.
+the suite cannot green vacuously.
 
 ### unit — `pnpm exec vitest run --coverage --silent`
 
@@ -596,6 +1044,51 @@ lane's `artifacts/perf-results.json`: cold-start `am start -W` TotalTime,
 flow and budget row; leave a stale row for a deleted route → FAIL.
 
 ## CI-only lanes (outside the chain and the Stop hook)
+
+- **db-perf** (`db-scale` lane) — `node tools/check-db-perf.mjs`, after
+  `supabase/seeds/scale.sql` has written two million rows and ANALYZEd. It is the
+  live half of `query-shapes` and the only check here that can falsify the claim
+  the tenancy design rests on. For each read shape in the generated manifest it
+  rebuilds the statement, impersonates a real member of the largest tenant
+  (`SET LOCAL ROLE authenticated` + a transaction-local `request.jwt.claims`, so
+  RLS is live underneath), and runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
+  It asserts **shape, never milliseconds**: the planner chose the index the static
+  gate resolved, no `Sort`/`Incremental Sort` above a keyset leaf, no node whose
+  parent relationship is `SubPlan` (a correlated helper re-evaluated per row), and
+  the returned rows and buffer count inside `tools/db-perf-baseline.json`. Timings
+  are printed and never compared — a wall-clock threshold on a shared runner is a
+  coin flip, and a flaky perf gate is a deleted perf gate.
+  **`SET enable_seqscan = off` is deliberately not used**: with it, the planner
+  will use any index at all, so a table whose only index is useless still yields an
+  Index Scan node and the assertion becomes a statement about the flag.
+  **Anti-vacuity, and it is the most important line in this entry:** below
+  `minRows` in the baseline the gate SKIPS LOUDLY locally and FAILS in CI. A plan
+  probe against a small table certifies nothing, because the planner correctly
+  ignores an index on one — so the seed's row count is overridable and the floor is
+  what stops that knob from buying a green.
+  **The proof it is not redundant** (Canary 24, measured): drop
+  `notes_org_id_created_at_id_idx` from the live database and leave every file
+  alone. `schema-rls`, `tenancy`, `query-shapes` and all 109 pgTAP tests stay
+  green — the index is still in the migration, and `notes_pkey` still satisfies the
+  leading-column assertion — while db-perf reds on all three ordered shapes at once
+  (a Sort node, the planner falling back to `notes_pkey`, and 1491 buffers against
+  a 900 budget). Deliberately a different edit from Canary 17, which must drop the
+  primary key too before pgTAP notices anything.
+
+- **query-budget** (`integration-lane`) — `node tools/check-query-budget.mjs -- <workload>`.
+  It wraps the live-api-proof suite rather than issuing its own requests, resets
+  `pg_stat_statements`, and reads the delta filtered to
+  `userid = 'authenticator'::regrole` (so GoTrue/Realtime/Storage traffic, none of
+  which the application controls, is excluded). This is the **N+1 detector**, and it
+  is the only thing here that can see one: `query-shapes` and `db-perf` are
+  per-statement, and an N+1 is a defect of COUNT — a hundred perfectly-indexed point
+  reads in one request. pg_stat_statements normalizes literals away, so a hundred
+  reads of a hundred ids collapse into one row with `calls = 100`, which is the
+  only signature the shape has.
+  **Anti-vacuity, both directions:** a non-zero count immediately after the reset
+  fails (the reset did not take, so every delta carries an unknown constant), and a
+  ZERO count after the workload fails (the workload never reached PostgREST — a
+  budget met by an instrument that is not connected is not a budget).
 
 - **Maestro device lane** (`mobile-e2e`) — credential-free: `expo prebuild -p
   android` → gradle assemble → install on a GH-hosted emulator → the per-route
@@ -702,8 +1195,19 @@ in the design record; the enduring ones repeat here):
 - **A second SSE dependency** — an XHR-based client would bypass the api-client
   one-door; the SSE client is a hand-rolled pure parser driven through injected
   streaming fetch, unit-tested at every chunk boundary.
-- **pgTAP** — the plain-SQL catalog assertions inside the RLS suite check the
-  same pg_catalog facts without a second test toolchain.
+- ~~**pgTAP**~~ — **ADOPTED, and this entry was stale ancestor text.** The claim
+  it made ("plain-SQL catalog assertions check the same facts without a second
+  toolchain") is false in this tree and had been for some time: pgTAP is shipped
+  and load-bearing. `supabase/tests/rls_structure.test.sql`,
+  `rls_isolation.test.sql` and `audit_immutability.test.sql` all
+  `CREATE EXTENSION IF NOT EXISTS pgtap`, `pnpm db:test` runs them, and CI's
+  runtime-rls lane blocks on them. It earns the toolchain because plain SQL
+  cannot do the two things the suite exists for: `lives_ok` / `throws_ok`
+  (asserting that a read SUCCEEDS, or that a write raises a specific SQLSTATE,
+  is how the recursion probe and the audit-immutability suite work at all) and
+  a plan count, which is what makes a *silently truncated* test set a red
+  instead of a shorter green. A rejection record kept after the thing was
+  adopted is worse than no record — it tells the next reader not to look.
 - **ts-prune / lockfile-lint / type-coverage / markdownlint** — superseded by
   `knip --strict`, pnpm strict lockfiles + frozen CI installs, the type-aware
   ESLint bans, and Biome respectively.

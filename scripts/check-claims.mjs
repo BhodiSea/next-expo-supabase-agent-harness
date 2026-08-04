@@ -37,11 +37,14 @@ const injections = existsSync(injectionsPath)
   ? JSON.parse(readFileSync(injectionsPath, 'utf8'))
   : null
 
-const ruleIds = [
-  ...guards.BASH_RULES.map((r) => r.id),
-  ...guards.WRITE_PROTECTED.map((r) => r.id),
-  ...guards.WRITE_GLOBAL_CHECKS.map((r) => r.id),
-]
+// DERIVED, not enumerated. A hardcoded table list is how the claim silently stops
+// being a claim about all the rules: adding WRITE_SQL_CHECKS to the guard module and
+// to the hooks left this file counting the old three tables, so the README's number
+// stayed "true" while covering only part of the surface it named. Every array export
+// whose entries carry a string `id` is a rule table by construction.
+const ruleIds = Object.values(guards)
+  .filter((v) => Array.isArray(v) && v.length > 0 && typeof v[0]?.id === 'string')
+  .flatMap((table) => table.map((r) => r.id))
 
 const truth = {
   chainSteps: VALIDATE_STEPS.length,

@@ -1,5 +1,5 @@
-import type { SupabaseBrowserClient } from '@app/supabase'
-import { createBrowserSupabaseClient } from '@app/supabase'
+import type { SupabaseBrowserClient } from '@app/supabase/client'
+import { createBrowserSupabaseClient } from '@app/supabase/client'
 
 // The browser-side Supabase seam. Import this ONLY from modules that carry (or are reached
 // from) a 'use client' boundary — app/(protected)/sign-out-button.tsx is the seeded caller.
@@ -20,6 +20,17 @@ import { createBrowserSupabaseClient } from '@app/supabase'
 // key is not merely inappropriate here, it is unusable — it bypasses RLS, and anything
 // bundled for the browser is public by definition. @app/supabase hardens that seam by never
 // exposing the elevated factory on a browser-reachable barrel.
+//
+// WHICH IS WHY THE IMPORT IS `@app/supabase/client` AND NOT `@app/supabase`. The `.` barrel
+// carries the service-role factory AND server-env.ts, whose schema parses SUPABASE_DB_URL and
+// SUPABASE_SERVICE_ROLE_KEY at MODULE LOAD. Pull it into a Client Component and that parse
+// runs in the browser, where those variables cannot exist by design — it throws during
+// hydration and every interactive page renders "This page couldn't load". The same
+// one-barrel-per-surface rule mobile follows (Metro does not tree-shake), for a different
+// reason that fails just as hard: it is not that the secret leaks, it is that the module
+// asserting the secret exists runs somewhere it never can.
+// SOURCE: packages/platform/supabase/src/index.ts (the `.` barrel is the server surface;
+// ./client is the browser one)
 // SOURCE: docs/security/sandbox-and-supply-chain.md (secrets never cross into a shipped
 // bundle) docs/harness/README.md
 let browserClient: SupabaseBrowserClient | null = null

@@ -22,7 +22,7 @@ const SESSION: Session = {
     email: 'sam@example.test',
     userId: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
   },
-  membership: { role: 'owner', workspaceId: '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f' },
+  orgs: [],
 }
 
 /**

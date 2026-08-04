@@ -1,0 +1,58 @@
+{
+  "comment": "The per-role resource ceilings and the quota machinery, as reviewed data. tools/check-db-limits.mjs asserts that every role×knob pair below is set by a migration with a value at or under its ceiling, and — the inverted half — that the knobs under `unavailable` are NEVER set, because on this platform they would be theatre. A limit that cannot bind is worse than no limit: a reviewer reads it as a control. SOURCE: docs/adr/20260203-resource-limits.md",
+  "bindingComment": "WHAT MAKES THESE BIND, stated once so the gate's scope is honest. `ALTER ROLE x SET y` writes a pg_db_role_setting row that PostgreSQL applies when role x STARTS A SESSION — and `SET ROLE` does not start a session, so PostgreSQL alone would leave every value below inert. They bind because PostgREST reads pg_db_role_setting for the role it impersonates and applies the settings itself, per request. Verified end to end: with anon at 2s and authenticator at 8s, a 5-second RPC through PostgREST as anon was cancelled at 2.03s (SQLSTATE 57014). The consequence is that these ceilings bound traffic arriving THROUGH PostgREST — every supabase-js call from web and mobile — and do NOT bound a direct connection (an Edge Function on a Postgres driver, a migration, psql, Supavisor session mode), which gets its own login role's settings instead.",
+  "roles": {
+    "anon": {
+      "statement_timeout": "3s",
+      "idle_in_transaction_session_timeout": "10s",
+      "lock_timeout": "2s"
+    },
+    "authenticated": {
+      "statement_timeout": "8s",
+      "idle_in_transaction_session_timeout": "30s",
+      "lock_timeout": "3s"
+    },
+    "service_role": {
+      "statement_timeout": "30s",
+      "idle_in_transaction_session_timeout": "60s",
+      "lock_timeout": "5s"
+    }
+  },
+  "ceilingsComment": "The maximum any role may be given, in milliseconds. A migration that RAISES a value past its ceiling reds; lowering is always allowed, because tightening a limit is not a widening of anything.",
+  "ceilings": {
+    "statement_timeout": 30000,
+    "idle_in_transaction_session_timeout": 60000,
+    "lock_timeout": 5000
+  },
+  "unavailableComment": "KNOBS THAT MUST NOT APPEAR, each because setting it here would produce a plausible number that bounds nothing. This is the inverted half of the gate and it is the half that catches the seductive mistake: both of these read as obvious hardening, both were in the original plan, and both were removed only after trying them against a real database.",
+  "unavailable": [
+    {
+      "knob": "temp_file_limit",
+      "reason": "Superuser-only (PGC_SUSET). `postgres` on Supabase is not a superuser, so `ALTER ROLE authenticated SET temp_file_limit` fails outright with 'permission denied to set parameter' — verified against the local stack, and the hosted project has the same role model. There is no way to set it from a migration on this platform, so a large sort still spills uncapped; that ceiling is the platform's to set, not this repo's."
+    },
+    {
+      "knob": "CONNECTION LIMIT",
+      "reason": "The only role where a connection cap would bind is the one that LOGS IN — `authenticator` — and that is a RESERVED role: 'only superusers can modify it', verified. Setting it on anon/authenticated/service_role succeeds and is completely inert, because a connection limit applies at login and none of those three ever log in. It would put a number in pg_authid that bounds nothing, which is strictly worse than absence. Connection count is bounded by Supavisor's pool size, which is platform configuration."
+    }
+  ],
+  "apiMaxRows": 1000,
+  "poolerMode": "transaction",
+  "quotaComment": "The quota machinery's shape, asserted structurally because both wrong answers are one-word edits away and neither fails loudly. A FOR EACH ROW trigger serializes every insert behind the org's usage tuple; a RESTRICTIVE policy calling a STABLE function is hoisted to one evaluation per statement against the PRE-statement count, so a single multi-row INSERT of any size passes wholesale. Verified: 53 rows in one statement against a limit of 5 is refused by the shipped shape.",
+  "quota": {
+    "usageTable": "org_usage",
+    "limitTable": "org_quota",
+    "defaultsTable": "quota_defaults",
+    "enforceFunction": "private.enforce_org_quota",
+    "releaseFunction": "private.release_org_quota",
+    "reconcileFunction": "public.reconcile_org_usage",
+    "writerRole": "app_quota_writer",
+    "errorCode": "53400",
+    "meteredTables": [
+      {
+        "table": "notes",
+        "metric": "notes",
+        "reason": "The seeded vertical's row table, and the worked example every later metered table copies. Metering row COUNT rather than bytes because it is the number a customer understands and the only one a statement-level trigger can compute without reading the rows it is counting."
+      }
+    ]
+  }
+}

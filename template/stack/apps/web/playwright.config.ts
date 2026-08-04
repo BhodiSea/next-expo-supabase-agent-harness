@@ -28,9 +28,21 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'pnpm run dev',
+    // A PRODUCTION build, not `next dev`, and the security-headers spec is why.
+    //
+    // `next dev` serves a different application: HMR injects `eval`, the dev overlay
+    // injects its own scripts, and nonce propagation behaves differently because pages
+    // are compiled per request. A CSP suite pointed at it asserts properties of a build
+    // nobody ships — it reported `script-src blocked eval` for Next's own hot reloader
+    // and "Next did not stamp the nonce" for a dev-time render, neither of which says
+    // anything about production. Both disappear against `next start`, and a real
+    // regression in either would still red.
+    //
+    // The cost is one `next build` per lane (~10s on this app). That is the price of the
+    // suite testing the artifact that gets deployed.
+    command: 'pnpm run build && pnpm run start',
     url: BASE_URL,
     reuseExistingServer: !isCI,
-    timeout: 120_000,
+    timeout: 180_000,
   },
 })

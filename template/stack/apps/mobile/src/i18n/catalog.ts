@@ -170,6 +170,8 @@ export const en = {
   'error.api.not_found': 'That item no longer exists.',
   'error.api.conflict': 'That changed somewhere else — reload and try again.',
   'error.api.rate_limited': 'Too many requests — wait a moment and try again.',
+  'error.api.quota_exceeded':
+    'This organization has reached its limit. Remove some items, or ask an admin to raise it.',
   'error.api.version_skew': 'This app is out of date — update to continue.',
   'error.api.internal': 'Something went wrong on the server.',
   'error.api.offline': 'Could not reach the server.',

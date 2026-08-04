@@ -33,75 +33,78 @@
 // device lane owns painted pixels and Fabric-flattening detachment.
 // SOURCE: https://reactnative.dev/docs/accessibility (accessibilityLabel / role semantics)
 // SOURCE: https://www.w3.org/TR/WCAG22/ (SC 4.1.2 name-role-value; SC 2.5.3 label-in-name)
+import type { NotesPage, NoteView } from '@app/contracts'
+import type { ActionOutcome } from '@app/errors'
+import { appError } from '@app/errors'
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library'
 import { en } from '../src/i18n/catalog'
 import { ROUTES } from '../src/routes'
-import {
-  installMockServer,
-  type MockRouteHandler,
-  uninstallMockServer,
-} from '../src/testing/mock-server'
+import { installMockServer, mockApiClient, uninstallMockServer } from '../src/testing/mock-server'
+import { installMockSupabase, mockSupabaseClient } from '../src/testing/mock-supabase'
 
-jest.mock('../src/host', () => ({
-  secureGetToken: jest.fn(() => Promise.resolve('jest-session-token')),
-  secureSetToken: jest.fn(() => Promise.resolve()),
-  secureDeleteToken: jest.fn(() => Promise.resolve()),
-  secureGetRefreshToken: jest.fn(() => Promise.resolve(null)),
-  secureSetRefreshToken: jest.fn(() => Promise.resolve()),
-  secureDeleteRefreshToken: jest.fn(() => Promise.resolve()),
+// The screens reach the API through `useApi()` and Supabase through the provider.
+// Both are stubbed at the SEAM rather than at fetch, matching the flow suites —
+// the mock server is a procedure-level double now, not an HTTP one.
+jest.mock('../src/lib/supabase/provider', () => ({
+  SupabaseProvider: ({ children }: { readonly children: unknown }) => children,
+  useSupabase: () => mockSupabaseClient(),
 }))
+jest.mock('../src/lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
+
+// NOTE: there is deliberately no `jest.mock('../src/host', …)` here. That module
+// does not exist — the session lives in src/host/large-secure-store.ts, reached
+// only through the Supabase provider, which the mock above already replaces. A
+// jest.mock of a missing path is not inert: jest throws "Cannot find module" and
+// the whole suite fails to run, which is how this file sat red.
 
 const HOME = ROUTES[0]
 const MATRIX = ROUTES[1]
 const ACTIONS = ROUTES[2]
 
-const HEALTH: MockRouteHandler = () => ({ status: 200, body: { ok: true, version: '0.0.0' } })
+const HEALTH = () => ({ ok: true as const, version: '0.0.0' })
 
 type Behavior = 'held' | 'empty' | 'error'
 
-function queryHandler(behavior: Behavior): MockRouteHandler {
+// The list procedure returns the ENVELOPE (`ActionOutcome<NotesPage>`), so an
+// error state is `{ ok: false }` on the data channel and never a thrown 500 —
+// the same rule every screen is written against. A double that threw would
+// exercise a path the real client cannot produce.
+function queryHandler(behavior: Behavior): () => Promise<ActionOutcome<NotesPage>> {
   if (behavior === 'held') return () => new Promise<never>(() => undefined)
-  if (behavior === 'empty') return () => ({ status: 200, body: { items: [], nextCursor: null } })
-  return () => ({
-    status: 500,
-    body: { error: { code: 'internal', message: 'sweep-induced failure' } },
-  })
+  if (behavior === 'empty') {
+    return () => Promise.resolve({ ok: true, data: { items: [], nextCursor: null } })
+  }
+  return () =>
+    Promise.resolve({ ok: false, error: appError.unknown({ message: 'sweep-induced failure' }) })
 }
 
 function installFor(behavior: Behavior): void {
-  installMockServer({
-    'GET /healthz': HEALTH,
-    'GET /api/notes': queryHandler(behavior),
-    'GET /api/notes?limit=50': queryHandler(behavior),
-  })
+  installMockServer({ notesList: queryHandler(behavior), systemHealth: HEALTH })
 }
 
-// A NoteDto-shaped fixture for the ready-state sweeps (same shape the flow
-// suites use — the list contract from @app/contracts).
-function note(id: string, title: string) {
-  return {
-    id: `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
-    ownerId: '00000000-0000-4000-8000-0000000000aa',
-    title,
-    body: 'alpha body',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    embedding: null,
-    sourceConfidence: 0.5,
-    sourceModel: null,
-  }
+// NoteView — the RENDER contract the router actually returns. Naming the shipped
+// type rather than re-declaring a shape-compatible twin is what makes a contract
+// change red HERE instead of silently rendering undefined.
+const READY_NOTE: NoteView = {
+  createdAt: '2026-01-01T00:00:00.000Z',
+  excerpt: 'alpha body',
+  hasBody: true,
+  id: '00000000-0000-4000-8000-000000000001',
+  isArchived: false,
+  title: 'Deep sweep fixture note',
+  updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
 function installReady(): void {
-  const ready: MockRouteHandler = () => ({
-    status: 200,
-    body: { items: [note('1', 'Deep sweep fixture note')], nextCursor: null },
-  })
   installMockServer({
-    'GET /healthz': HEALTH,
-    'GET /api/notes': ready,
-    'GET /api/notes?limit=50': ready,
+    notesList: () => ({ ok: true, data: { items: [READY_NOTE], nextCursor: null } }),
+    systemHealth: HEALTH,
   })
 }
+
+beforeEach(() => {
+  installMockSupabase()
+})
 
 afterEach(() => {
   uninstallMockServer()

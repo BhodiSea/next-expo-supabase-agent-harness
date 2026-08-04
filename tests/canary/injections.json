@@ -1,5 +1,5 @@
 {
-  "comment": "Falsifiability registry: every step in VALIDATE_STEPS ∪ STOP_HOOK_STEPS must carry at least one mechanical proof that it CAN go red. Proof kinds: 'fixture' (a repo test file that spawns the real gate and asserts exit 1 — ref must exist), 'selftest' (a literal step/leg title that must appear in .github/workflows/selftest.yml or in a scripts/ci/* helper that workflow invokes — the W6 emulator legs live in bash files because the emulator-runner action execs its script under dash), 'runner' (the step wraps a vendor tool whose non-zero exit is the red; OUR wiring's failure propagation is proven by the validate-runner tests — ref must exist). scripts/check-canary-coverage.mjs enforces bidirectional closure: an unregistered step OR a stale registry entry reds the PR that caused it. Guard-rule falsifiability is a PER-RULE closure, not a count: check-canary-coverage.mjs imports the pure-data rule tables from .claude/hooks/lib/guard-rules.mjs (BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS) and asserts every rule id has a behavioral deny/allow case (a RULE_CANARIES entry) in tests/hooks/hook-contract.test.mjs — a rule added without a canary reds the PR. hookRules below keeps only a human-readable grep-able deny example per surface. W6 ARMED the deferred device/runtime canaries in real selftest jobs: the broken-testID sweep red + agent-chain green (maestro-smoke Canary 19), the 300ms busy-loop perf-marker red (maestro-smoke Canary 20), the keyset-index-drop plan-probe red (bootstrap-linux Canary 17), the strip-Authorization live-suite red (integration Canary C01), and the nondeterministic-plugin prebuild-compare red (bootstrap-linux Canary 18). What remains CI-cadence-honest rather than per-PR: the emulator canaries live in a schedule/dispatch-only job (cost), stated in the lane notes below.",
+  "comment": "Falsifiability registry: every step in VALIDATE_STEPS ∪ STOP_HOOK_STEPS must carry at least one mechanical proof that it CAN go red. Proof kinds: 'fixture' (a repo test file that spawns the real gate and asserts exit 1 — ref must exist), 'selftest' (a literal step/leg title that must appear in .github/workflows/selftest.yml or in a scripts/ci/* helper that workflow invokes — the W6 emulator legs live in bash files because the emulator-runner action execs its script under dash), 'runner' (the step wraps a vendor tool whose non-zero exit is the red; OUR wiring's failure propagation is proven by the validate-runner tests — ref must exist). scripts/check-canary-coverage.mjs enforces bidirectional closure: an unregistered step OR a stale registry entry reds the PR that caused it. Guard-rule falsifiability is a PER-RULE closure, not a count: check-canary-coverage.mjs imports the pure-data rule tables from .claude/hooks/lib/guard-rules.mjs (BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS) and asserts every rule id has a behavioral deny/allow case (a RULE_CANARIES entry) in tests/hooks/hook-contract.test.mjs — a rule added without a canary reds the PR. hookRules below keeps only a human-readable grep-able deny example per surface. W6 ARMED the deferred device/runtime canaries in real selftest jobs: the broken-testID sweep red + agent-chain green (maestro-smoke Canary 19), the 300ms busy-loop perf-marker red (maestro-smoke Canary 20), the keyset-index-drop STRUCTURAL red (bootstrap-linux Canary 17 — pgTAP's owner-leading-column assertion, NOT a plan probe: this header called it one for two releases, and the distinction is the whole reason Canary 24 exists. Canary 17 must drop the keyset index AND the primary key, because pgTAP is satisfied by either carrying the leading column; Canary 24 drops only the secondary index and reds db-perf on plan SHAPE while Canary 17's assertion stays green), the strip-Authorization live-suite red (integration Canary C01), and the nondeterministic-plugin prebuild-compare red (bootstrap-linux Canary 18). What remains CI-cadence-honest rather than per-PR: the emulator canaries live in a schedule/dispatch-only job (cost), stated in the lane notes below.",
   "steps": {
     "format": [
       {
@@ -102,6 +102,17 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-rls-manifest.test.mjs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 22: RLS turned OFF by a later migration → schema-rls must FAIL"
+      }
+    ],
+    "tenancy": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-tenancy.test.mjs",
+        "note": "The predicate schema-rls provably cannot judge: `org_id = (SELECT auth.uid())` — a tenant column compared to a user id — is REAL by every schema-rls rule and isolates nothing; here it reds against the closed predicateForms set printing the exact normalized predicate. Also proven red: a top-level OR arm without a scope term (the `... OR owner_id = (SELECT auth.uid())` re-opening), the correlated-argument ban (`private.member_rank(org_id)` — a per-row SubPlan wrapped in `(SELECT` that passes every wrapper check), an off-scale rank floor, a relation sub-select, a nullable/FK-less tenant key, a UNIQUE omitting the tenant column, a missing/disarmable freeze trigger, a seat-table SELECT policy that calls the helpers (recursion smell — the 42P17 probe is the proof), a self-keyed membership INSERT to authenticated (self-granted seats), definer/parameterized/non-STABLE helpers, and a nonPublicSchemas schema published in [api].schemas. THE SILENT-NO-OP PROOF (the one no other layer can reach): a rank-scoped write policy TO the rpc writer role with no PAIRED self-only SELECT policy on the seat table reds — because the rank helper is SECURITY INVOKER, reads the seat table as that role, hits RLS default-deny, returns an empty map, and every seat change then matches ZERO ROWS AND SUCCEEDS. Valid SQL, present policy, reviewed predicate shape, and promotions in production that silently do nothing. THE ORG-TABLE PROOF: public.orgs carries no tenant column, so column-driven discovery never reaches it — `USING (created_by = (SELECT auth.uid()) OR name IS NOT NULL)` passes every other static gate in the repo while publishing every org row to every user; the explicit org-table pass (scope column substituted to its own primary key) reds it. Anti-vacuity: empty predicateForms, malformed JSON, missing sections, reasonless table-narrowed forms and reasonless/stale escapes all FAIL CLOSED; a table-narrowed form does not license the same predicate on another table; the adoption ramp covers only the no-tenant-column upgrade path, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once the surface exists."
       }
     ],
     "types-drift": [
@@ -120,10 +131,36 @@
         "ref": "tests/gates/check-migrations.test.mjs"
       }
     ],
+    "db-limits": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-db-limits.test.mjs",
+        "note": "The blast-radius controls, proven falsifiable in the two directions a catalog assertion cannot reach. STATEMENT ORDER: a later `ALTER ROLE ... RESET` (or a re-SET to a wider value) vacates an earlier ceiling, so the matrix is folded in migration order rather than searched for a matching line — a gate that only greps for the SET stays green on a role whose ceiling was removed three migrations later. INERT KNOBS RED RATHER THAN PASS: `temp_file_limit` is superuser-only and `postgres` cannot set it, and `CONNECTION LIMIT` is refused on the reserved `authenticator` and inert on anon/authenticated/service_role because they are not login roles — both were verified against a live PG17, and both are exactly the shape that reads as a control in review while doing nothing (`CONNECTION LIMIT -1`, the explicit no-limit spelling, stays green because it claims nothing). QUOTA SHAPE: a FOR EACH ROW trigger reds (it serializes every insert behind one hot tuple and turns a 1000-row load into 1000 dead tuples); a statement trigger with no `REFERENCING NEW TABLE` reds (it can only ever count zero); a RESTRICTIVE counting policy calling a STABLE function reds because it fails OPEN — the hoisted call evaluates once per statement against the PRE-statement count, so one multi-row INSERT of any size passes wholesale and the optimization defeats the control; a metered table with no trigger, and a debit with no release twin, both red. THE SILENT TOTAL FAILURE: the reconciler reassigned to the tenant-scoped writer role reds — its policies resolve through `private.member_org_ids()`, which derives from `auth.uid()`, and pg_cron runs with no JWT, so the scope array comes back EMPTY and the nightly reconcile sets every counter in the database to zero. Also red: the reconciler made client-callable, a client role granted UPDATE on the usage counter (a quota anyone can edit is not a quota), `[api].max_rows` above the reviewed cap, and a session-mode `[db.pooler]`. Anti-vacuity: malformed JSON, an EMPTY role matrix, a knob with no declared ceiling, and an `unavailable` entry without a substantive reason all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 no-settings install, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once ceilings exist."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)",
+        "note": "the live direction (bootstrap-linux, a real scaffold + the Supabase local stack): tests/rls/resource-limits.test.ts. The static gate can only prove the `ALTER ROLE ... SET` is in a migration and the pgTAP twin can only prove the row landed in pg_db_role_setting — neither can prove the ceiling is IN FORCE. It is in force only because PostgREST reads pg_db_role_setting for the role it impersonates and applies those settings itself per request (`SET ROLE` alone does NOT re-apply them — verified directly). This runner calls public.effective_limits() as anon and as authenticated through PostgREST and compares what is actually in force against tools/db-limits.json, so a PostgREST upgrade that dropped the behaviour, a renamed role, or a hand-reset setting reds here while every catalog assertion stays green."
+      }
+    ],
     "contracts": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-contract-drift.test.mjs"
+      }
+    ],
+    "query-shapes": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-query-shapes.test.mjs",
+        "note": "The manifest this gate judges is GENERATED BY EXECUTION \u2014 tools/gen-query-shapes.mjs drives each DAL function through a harness-owned recording Proxy and records the builder chain it produced \u2014 so the vacuity to prove against is not \"the manifest is wrong\" but \"the manifest describes nothing\": an empty manifest, an absent one, an unparseable one, and a row missing a field all FAIL CLOSED rather than judging zero shapes. The rules that matter are the ones every other check in this repo is blind to, because pgTAP's leading-column assertion, schema-rls and tenancy are all TRUE of an index that serves the filter and leaves the sort in memory: an index with the right leading column and the wrong TAIL reds; a MIXED ASC/DESC order no single scan direction can supply reds (a btree walks backwards, so the fully-reversed sort is GREEN \u2014 both directions are proven, or the rule would be a superstition); a read with no LIMIT and no aggregate reds; `.range()`/`.offset()` red BY NAME, which is why the recorder is a Proxy that captures methods no port declares rather than a fake that would crash and then be taught to ignore them; a LIMIT above [api].max_rows reds, because PostgREST truncates there silently and the has-more sentinel never arrives. THE RULE A LIVE PLAN PROBE EARNED: a keyset cursor sent as ONE top-level disjunction \u2014 the spelling every tutorial shows, the spelling this repo shipped \u2014 reds, because PostgreSQL cannot turn a top-level OR into an index range, so the cursor lands in `Filter:` and the scan still starts at the tenant's newest row. Measured on 1.1M seeded rows at page 1000, before the fix: 1115 rows removed by filter to return 21, and 1798 buffers against 8. Every structural gate was green throughout. The instrument is proven separately (value redaction, the empty-result resolution, boundKind derived rather than declared, the prefix rule, and selectSql refusing an unknown operator instead of dropping a disjunct \u2014 a dropped disjunct would EXPLAIN an easier query than the app sends)."
+      }
+    ],
+    "rate-limits": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-rate-limits.test.mjs",
+        "note": "The vacuity this gate exists for is not \"the numbers are wrong\" — it is a limiter that is WIRED, TESTED, AND REACHES NOTHING: a new mutation lands, nobody adds it to the policy, and the seam keeps limiting the five procedures it already knew about while the newest write path runs unbounded, with everything green. So the load-bearing proof is the CLOSURE against a GENERATED inventory (tools/generated/action-inventory.json is walked out of the composed router, never hand-written): an unmapped mutation reds, a mapping or exemption naming a procedure the router no longer exposes reds as stale, and a procedure that is BOTH mapped and exempt reds because the contract contradicts itself. THE BY-VALUE DIFF: apps/web/lib/rate-limit.ts is evaluated under node type-stripping and compared against the reviewed JSON, so a limit changed in code without a diff reds, a limit changed in the JSON that the code does not honour reds, and a documented exemption the code fails to apply reds (the worst of the three — the reason sits in the contract reading as if it were in force). An unknown name resolving to null reds, because that would make \"forgot to map it\" and \"deliberately unlimited\" the same value. THE WIRING, asserted per seam because the two share no code: dropping the `rateLimit` port from the tRPC route reds (@app/api treats a missing port as an UNLIMITED router — correct for a worker or a test, which is exactly why the absence cannot be caught from inside the router), and a Server Action with a budget it never consults reds, as does an exported *Action with no budget entry at all. Anti-vacuity: malformed JSON, an empty bucket set, a bucket or exemption with a thin reason, missing ceilings, a budget above its ceiling, a window long enough never to close, a mapping to an undeclared bucket, a declared bucket nothing spends from, and an unrecorded fail-open decision all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 tree with no budget file. THE ROUTER HALF is proven by packages/api/src/ratelimit.test.ts — a vitest suite, carried by the `unit` step rather than spawnable from here: the router half, proven against a database that THROWS if it is ever touched: a rate limit that lets the handler run and then reports the refusal has bought nothing, because the transaction, the audit row and the quota check are already paid for. Also proven: the guard rides the BASE of the ladder (notes.list, three rungs up, is refused too), the wait travels on a CLASS cause rather than a duck-typed field, a null verdict and an allowed verdict are both honoured but stay distinguishable, and the port is asked with the ACTIVE org — resolved from real seats, never from the x-org-id header a stranger could set to spend a tenant's budget."
       }
     ],
     "parity": [
@@ -186,6 +223,17 @@
         "ref": "Canary 9: an orphan app/ route file + an unregistered screen → route-manifest must FAIL"
       }
     ],
+    "security-headers": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-security-headers.test.mjs",
+        "note": "The gate EVALUATES apps/web/lib/security-headers.ts under node's type stripping and judges the VALUES it returns, so every proof mutates the real shipped module: deleting frame-ancestors reds (twice - the directive check and the x-frame-options agreement check), 'unsafe-eval' reds, 'unsafe-inline' without 'strict-dynamic' reds, a shortened HSTS max-age reds, a permissions-policy feature that stops being denied reds, Vary losing x-org-id reds (cross-tenant CDN poisoning), authenticated responses becoming cacheable reds, and the report-only twin losing report-uri reds. Anti-vacuity: a policy missing a section FAILS rather than skipping the checks that section governed, and the coep/hstsPreload decisions must carry a real reason so shipping without them is recorded. The fixture asserts each mutation actually matched, so a proof cannot silently become a no-op."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 21: delete a CSP directive → security-headers must FAIL"
+      }
+    ],
     "e2e": [
       {
         "kind": "fixture",
@@ -222,7 +270,7 @@
       {
         "kind": "selftest",
         "ref": "Canary 17: drop the keyset index → the RLS structure test must FAIL (owner column no longer leads an index)",
-        "note": "the live direction (bootstrap-linux, real scaffold + the Supabase local stack): the RLS suite runs green, then notes_owner_id_created_at_id_idx (the only index whose leading column is notes.owner_id) is dropped live and `supabase test db` (the pgTAP structure suite) must red on the 'every owner column is the LEADING column of some index' invariant — proof the assertion is wired to the real schema, not a statement nobody runs"
+        "note": "the live direction (bootstrap-linux, real scaffold + the Supabase local stack): the RLS suite runs green, then both indexes whose leading column is notes.org_id (notes_org_id_created_at_id_idx and the notes_pkey that became (org_id, id)) are dropped live and `supabase test db` (the pgTAP structure suite) must red on the 'every owner column is the LEADING column of some index' invariant — proof the assertion is wired to the real schema, not a statement nobody runs"
       }
     ],
     "unit": [
@@ -301,12 +349,13 @@
       ]
     },
     "pretool-write-guard.mjs": {
-      "denyToolCallSites": 10,
+      "denyToolCallSites": 11,
       "denyExamples": [
         "tools/harness.config.mjs",
         "dangerouslySetInnerHTML",
         "tools/route-allowlist.json",
-        "createServiceRoleClient_BYPASSES_RLS"
+        "createServiceRoleClient_BYPASSES_RLS",
+        "ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY"
       ]
     }
   },
@@ -400,6 +449,18 @@
         "kind": "fixture",
         "ref": "tests/gates/check-web-e2e.test.mjs",
         "note": "the lane runner's own falsifiability, spawned for real against a fake pnpm: a missing playwright.config reds, an empty e2e suite reds (playwright exits 0 on an empty run — the whole reason the lane runs a runner, not a bare `playwright test`), an assertion-free spec reds, a spec set with no axe scan reds, a failing `playwright test` reds, and the skip-local/fail-closed-CI asymmetry holds. The browser run itself is CI-only (needs Chromium), like the Maestro emulator half of mobile-e2e."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-web-e2e.test.mjs",
+        "note": "anySecurityHeaders closure (0.2.0): a spec set that never reads response.headers() AND collects securitypolicyviolation reds the lane, exactly as a spec set with no axe scan does. This is what stops the static security-headers gate standing alone - a correct next.config.ts behind a header-stripping CDN, or a nonce that never reaches Next's inline bootstrap, is invisible to a static value check."
+      }
+    ],
+    "db-scale": [
+      {
+        "kind": "selftest",
+        "ref": "Canary 24: drop the keyset index from the live database \u2192 db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN",
+        "note": "The lane exists because every structural check in this repo is true of a two-row table, and the planner correctly ignores an index on one \u2014 so the one claim the tenancy design rests on (that `org_id = ANY(<InitPlan uuid[]>)` with the keyset order is an ORDERED INDEX SCAN) had nothing that could contradict it. The canary is applied to the LIVE DATABASE, no file changes, exactly like Canary 23: the index is still declared in the migration and in supabase/schemas, so every gate that reads TEXT is looking at an unchanged tree. MEASURED, not assumed: db-perf reds on all three ordered shapes at once (a Sort node, the planner choosing notes_pkey instead of the index the static gate resolved, and 1491 buffers against a 900 budget) while schema-rls, tenancy, query-shapes and all 109 pgTAP tests stay green. It is deliberately NOT the same edit as Canary 17, and the difference is the lesson: that one must drop the keyset index AND the primary key, because pgTAP's leading-column assertion is satisfied by either \u2014 this one drops only the secondary index, so the PK still carries org_id and the structural suite cannot see a thing. Two other spellings of this proof were tried and rejected because they do not actually degrade the plan: the release plan's `org_id::text = $1::text` policy rewrite (a cast in the POLICY leaves the DAL's own indexable equality in place) and making the tenancy helper VOLATILE (an uncorrelated sub-select becomes an InitPlan regardless of volatility). The positive control runs first, and its output is the design's central claim made visible: an InitPlan node with loops=1 and `org_id = ANY((InitPlan 1).col1)` inside the Index Cond rather than in a Filter."
       }
     ]
   }

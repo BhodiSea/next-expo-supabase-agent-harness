@@ -14,7 +14,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.1.3'
+export const HARNESS_HOOK_VERSION = '0.2.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2) — a guard that cannot load its rules approves
@@ -28,15 +28,17 @@ try {
   )
   process.exit(2)
 }
-const { WRITE_PROTECTED, WRITE_GLOBAL_CHECKS } = rules
+const { WRITE_PROTECTED, WRITE_GLOBAL_CHECKS, WRITE_SQL_CHECKS } = rules
 if (
   !Array.isArray(WRITE_PROTECTED) ||
   WRITE_PROTECTED.length === 0 ||
   !Array.isArray(WRITE_GLOBAL_CHECKS) ||
-  WRITE_GLOBAL_CHECKS.length === 0
+  WRITE_GLOBAL_CHECKS.length === 0 ||
+  !Array.isArray(WRITE_SQL_CHECKS) ||
+  WRITE_SQL_CHECKS.length === 0
 ) {
   process.stderr.write(
-    'HOOK CRASHED (guard-rules shape) — failing closed, action blocked: WRITE_PROTECTED / WRITE_GLOBAL_CHECKS missing or empty\n',
+    'HOOK CRASHED (guard-rules shape) — failing closed, action blocked: WRITE_PROTECTED / WRITE_GLOBAL_CHECKS / WRITE_SQL_CHECKS missing or empty\n',
   )
   process.exit(2)
 }
@@ -191,12 +193,29 @@ if (anyRel(/\.(sql|ts|tsx|mjs)$/) && /WITH\s+RECURSIVE/i.test(text) && !/CYCLE|v
   )
 }
 
+// ---- SQL schema + migration surface: the authorization boundary itself ----
+// This block sits ABOVE the source-extension gate below on purpose. That gate ends
+// the hook for every non-TS/JS file, which meant .sql — the one file class where
+// this codebase's authorization boundary is actually written — reached no content
+// rule at all. Each rule is scoped by pathRe, so the same bytes under
+// supabase/tests/** stay writable: a fixture proving `USING (true)` is rejected must
+// be allowed to contain `USING (true)`.
+// SOURCE: docs/harness/README.md (layer 3 prevention beside layer 6 enforcement)
+for (const { pathRe, re, message } of WRITE_SQL_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+}
+
 // Police source code only from here down. Docs/markdown/config legitimately
 // mention the banned patterns by name.
 if (!anyRel(/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/)) pass()
 
 // Everywhere-checks: banned in any source file (WRITE_GLOBAL_CHECKS is pure data).
-for (const { re, message } of WRITE_GLOBAL_CHECKS) {
+// `pathRe` is optional and means the same thing it does in the SQL table above: a rule
+// carrying one is scoped to the surface it is about. Absent, the rule applies to every
+// source file — which is the default precisely because most of these bans are about the
+// shape of the code, not where it lives.
+for (const { pathRe, re, message } of WRITE_GLOBAL_CHECKS) {
+  if (pathRe !== undefined && !anyRel(pathRe)) continue
   if (re.test(text)) denyTool('PreToolUse', message)
 }
 

@@ -35,6 +35,10 @@ const BY_KIND = {
   // HTTP 429 → the copy asks the user to wait; the kernel carries retryAfterSeconds.
   // SOURCE: https://www.rfc-editor.org/rfc/rfc6585#section-4 (429 Too Many Requests)
   rateLimited: 'error.api.rate_limited',
+  // NOT the same copy as rateLimited, and not the same advice. Both refuse the write,
+  // but a rate limit clears by waiting and a quota does not — so the sentence must not
+  // suggest retrying, or the user does the one thing that cannot work.
+  quotaExceeded: 'error.api.quota_exceeded',
   // Deliberately the SAME copy as `forbidden`. The kernel keeps the two kinds apart so an
   // operator can tell "the app said no" from "the database's policy said no" — completely
   // different fixes — but the person on the phone is refused either way, and inventing a

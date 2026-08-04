@@ -38,9 +38,10 @@ const jobIds = [...qgText.slice(jobsAt).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].
 const guardRules = await import(
   pathToFileURL(join(ROOT_DIR, 'template/base/.claude/hooks/lib/guard-rules.mjs')).href
 )
-const ruleIds = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS'].flatMap((t) =>
-  guardRules[t].map((r) => r.id),
-)
+// The same table list the checker itself walks — kept in lockstep by hand, and the
+// LIVE LOCKSTEP test below reds if a table exists in guard-rules but is missing here.
+const RULE_TABLES = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS', 'WRITE_SQL_CHECKS']
+const ruleIds = RULE_TABLES.flatMap((t) => guardRules[t].map((r) => r.id))
 
 // A hook-contract stand-in carrying every rule id as a quoted literal (what the
 // per-rule closure greps for); tests strip ids from it to force reds.
@@ -85,6 +86,21 @@ function fixture(registry, contract = CONTRACT_TEXT) {
   writeFileSync(contractPath, contract)
   return { registryPath, contractPath }
 }
+
+test('LIVE LOCKSTEP (static): RULE_TABLES names every rule table guard-rules.mjs exports', () => {
+  // Both this file and scripts/check-canary-coverage.mjs carry the table list. A new
+  // table added to guard-rules.mjs and to the checker but NOT here would silently
+  // stop being covered by the per-rule closure tests below — the ids would simply
+  // never appear in CONTRACT_TEXT, and every assertion would still pass.
+  const exported = Object.entries(guardRules)
+    .filter(([, v]) => Array.isArray(v) && v.length > 0 && typeof v[0]?.id === 'string')
+    .map(([k]) => k)
+  assert.deepEqual(
+    [...exported].sort(),
+    [...RULE_TABLES].sort(),
+    'guard-rules.mjs exports a rule table this test does not know about — add it to RULE_TABLES here AND to ruleTables in scripts/check-canary-coverage.mjs',
+  )
+})
 
 test('LIVE LOCKSTEP (static): the shipped registry covers exactly the real steps and quality-gate jobs', () => {
   assert.ok(stepNames.length > 0 && jobIds.length > 0)

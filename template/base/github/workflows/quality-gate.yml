@@ -367,8 +367,22 @@ jobs:
       # The suite authenticates through the real Supabase local stack, so the lane
       # exercises the exact JWT path production does — no token is minted
       # out-of-band, and RLS is live underneath every assertion.
-      - name: Live API proof (app modules against the real API)
-        run: pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
+      #
+      # Wrapped in the statement-count gate rather than run beside it: `query-budget`
+      # resets pg_stat_statements, runs THIS workload, and reads the delta, so what it
+      # measures is real traffic through the real transport. An N+1 is a defect of
+      # COUNT — every statement individually indexed, a hundred of them per request —
+      # and it is invisible to `query-shapes` and `db-perf`, which are per-statement.
+      # The counter is filtered to the `authenticator` role so GoTrue/Realtime/Storage
+      # traffic is excluded, and the gate refuses to pass on a ZERO count: a budget met
+      # by an instrument that is not connected is not a budget.
+      - name: Live API proof (app modules against the real API), under a statement budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          export SUPABASE_DB_URL="$DB_URL"
+          node tools/check-query-budget.mjs -- pnpm --filter mobile exec jest --silent __tests__/live-api-proof.test.ts
 
       - name: Web log on failure
         if: failure()
@@ -390,6 +404,7 @@ jobs:
       mobile-native: ${{ steps.filter.outputs.mobile-native }}
       mobile: ${{ steps.filter.outputs.mobile }}
       web: ${{ steps.filter.outputs.web }}
+      db: ${{ steps.filter.outputs.db }}
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -440,6 +455,129 @@ jobs:
               - 'tools/check-web-e2e.mjs'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+            # The scale lane (db-scale): anything that can change a PLAN. The schema and
+            # its indexes, the DALs whose statements the manifest records, the manifest
+            # and probe machinery, the seed that supplies the cardinality, and the
+            # budgets. Deliberately NOT `apps/**` — a component edit cannot move a plan,
+            # and a lane that runs on every PR is a lane somebody turns off.
+            db:
+              - 'supabase/**'
+              - 'packages/verticals/**'
+              - 'tools/generated/query-shapes.json'
+              - 'tools/gen-query-shapes.mjs'
+              - 'tools/check-query-shapes.mjs'
+              - 'tools/check-db-perf.mjs'
+              - 'tools/db-perf-baseline.json'
+              - 'tools/tenancy.json'
+              - 'tools/db-limits.json'
+              - 'tools/lib/query-shapes.mjs'
+              - 'tools/lib/query-recorder.mjs'
+              - 'tools/lib/sql-parse.mjs'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+
+  # ---------------------------------------------------------------------------
+  # db-scale — the PLAN probe, and the only lane in this file that can falsify the
+  # claim the whole tenancy design rests on: that `org_id = ANY(<InitPlan uuid[]>)`
+  # with the list screen's keyset order is an ORDERED INDEX SCAN.
+  #
+  # It needs cardinality no other lane has. Every structural check in this repo —
+  # pgTAP's leading-column assertion, `schema-rls`, `tenancy`, `query-shapes` — is
+  # true of a two-row table, and the planner correctly ignores an index on one.
+  # So this lane seeds two million rows, ANALYZEs, and asserts plan SHAPE under
+  # real RLS impersonation. Minutes, not seconds: hence the path filter, plus the
+  # nightly schedule and manual dispatch as the unconditional net.
+  #
+  # The proof that it is not redundant: rewrite a policy predicate as
+  # `org_id::text = $1::text` and every other lane in this file stays green while
+  # every query in the product becomes a sequential scan.
+  # ---------------------------------------------------------------------------
+  db-scale:
+    name: db scale (2M rows, EXPLAIN plan shape under live RLS)
+    needs: [changes]
+    if: >-
+      (github.event_name != 'pull_request' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.db == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # ADOPTION, not a skip switch — and it runs BEFORE `pnpm install` so a pre-0.2.0
+      # install spends seconds here, not minutes.
+      #
+      # The seed and the plan budgets are seedOnInitOnly: an install that predates 0.2.0
+      # gets this workflow (it is harness-OWNED, so `update` ships it) without the files
+      # it drives, and `psql -f` on a missing file is a red lane about a feature the tree
+      # does not have. So the lane asks the one record an agent cannot rewrite for free —
+      # .harness/manifest.json's baseVersion, which check-gate-integrity checks against
+      # git history and never lets regress.
+      #
+      # The asymmetry is what keeps this from being a hole. A pre-0.2.0 baseVersion may
+      # skip; a 0.2.0+ install MUST carry all three files, so deleting the seed to quiet
+      # the lane FAILS here instead. Adoption is a version fact, not a missing file.
+      - name: Adoption gate — does this install carry the 0.2.0 scale surface?
+        id: adoption
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(node -e "try{const v=JSON.parse(require('fs').readFileSync('.harness/manifest.json','utf8')).baseVersion;process.stdout.write(v?String(v):'0.0.0')}catch{process.stdout.write('0.0.0')}")"
+          # exit 0 == "base is OLDER than 0.2.0". Field-wise NUMERIC compare, so 0.10.0
+          # sorts above 0.2.0 — a string compare gets that backwards.
+          if node -e "const p=String(process.argv[1]).split('.'),q=[0,2,0];for(let i=0;i<3;i++){const a=Number(p[i])||0;if(a!==q[i])process.exit(a<q[i]?0:1)}process.exit(1)" "$base"; then
+            echo "::notice::db-scale: baseVersion $base predates 0.2.0 — the scale seed and plan budgets are seedOnInitOnly and were not planted. Adopt with \`update --refresh-seeded supabase/seeds/\` and \`update --refresh-seeded tools/db-perf-baseline.json\`, then graduate baseVersion (docs/runbooks/harness-upgrade.md)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          missing=""
+          for f in supabase/seeds/scale.sql tools/db-perf-baseline.json tools/generated/query-shapes.json; do
+            [ -f "$f" ] || missing="$missing $f"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::db-scale: baseVersion $base has adopted the 0.2.0 scale surface but these file(s) are missing:$missing — this lane is the only check in the repo that can falsify the ordered-index-scan claim the tenancy design rests on, and a lane that quietly skips it proves nothing."
+            exit 1
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.adoption.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # See runtime-rls: the catalog-pinned CLI lives in node_modules/.bin.
+      - name: Put the workspace-local Supabase CLI on PATH
+        if: steps.adoption.outputs.run == 'true'
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Start the Supabase local stack
+        if: steps.adoption.outputs.run == 'true'
+        run: supabase start
+
+      # The scale seed refuses any database that is not loopback (statement 1 is an
+      # inet_server_addr() guard raised database-side, so no shell spelling dodges it).
+      # `supabase status -o env` is where the local URL comes from — never a literal.
+      - name: Seed at scale and probe the plans
+        if: steps.adoption.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          export SUPABASE_DB_URL="$DB_URL"
+          time psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seeds/scale.sql
+          node tools/check-db-perf.mjs
 
   native:
     name: native (prebuild determinism + expo-doctor + gradle assembleDebug)

@@ -25,7 +25,7 @@ if (pluginVersion !== pkgVersion) {
 }
 
 const hooksDir = join(root, 'template/base/.claude/hooks')
-for (const entry of readdirSync(hooksDir)) {
+for (const entry of readdirSync(hooksDir).sort()) {
   if (!entry.endsWith('.mjs')) continue
   const text = readFileSync(join(hooksDir, entry), 'utf8')
   const stamp = text.match(/HARNESS_HOOK_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]

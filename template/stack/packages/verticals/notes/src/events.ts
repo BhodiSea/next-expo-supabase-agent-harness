@@ -32,10 +32,15 @@ export type NoteField = 'body' | 'isArchived' | 'title'
 export interface NoteEventBase {
   readonly actorId: string
   readonly noteId: string
+  /**
+   * The org the write landed in. NOT nullable: a note without a tenant is not a
+   * reachable state any more (`notes.org_id` is NOT NULL and every write path
+   * runs behind a resolved active org), and an event that could carry a null
+   * tenant is one an org-scoped consumer has to defensively drop.
+   */
+  readonly orgId: string
   /** ISO-8601 UTC, taken from the row the database wrote. */
   readonly occurredAt: string
-  /** Null for an actor with no active membership — a reachable state, not an error. */
-  readonly workspaceId: string | null
 }
 
 export type NoteCreatedPayload = NoteEventBase
@@ -98,13 +103,13 @@ export type NoteEventSink = (event: NoteEvent) => void
 
 interface EventOrigin {
   readonly actorId: string
-  readonly workspaceId: string | null
+  readonly orgId: string
 }
 
 export function noteCreated(origin: EventOrigin, noteId: string, occurredAt: string): NoteEvent {
   return {
     name: 'notes.created',
-    payload: { actorId: origin.actorId, noteId, occurredAt, workspaceId: origin.workspaceId },
+    payload: { actorId: origin.actorId, noteId, occurredAt, orgId: origin.orgId },
   }
 }
 
@@ -121,7 +126,7 @@ export function noteUpdated(
       fields,
       noteId,
       occurredAt,
-      workspaceId: origin.workspaceId,
+      orgId: origin.orgId,
     },
   }
 }
@@ -129,6 +134,6 @@ export function noteUpdated(
 export function noteDeleted(origin: EventOrigin, noteId: string, occurredAt: string): NoteEvent {
   return {
     name: 'notes.deleted',
-    payload: { actorId: origin.actorId, noteId, occurredAt, workspaceId: origin.workspaceId },
+    payload: { actorId: origin.actorId, noteId, occurredAt, orgId: origin.orgId },
   }
 }

@@ -1,3 +1,7 @@
+'use client'
+
+// 'use client': useId + useMemo are hooks, and hooks cannot run in a Server Component.
+
 import * as Label from '@radix-ui/react-label'
 import { type ReactNode, useId, useMemo } from 'react'
 import { cn } from './cn'

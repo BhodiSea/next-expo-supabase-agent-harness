@@ -1,5 +1,5 @@
 import { ListNotesSchema, listNotes, type NotesDatabase } from '@app/notes'
-import { createRequestScopedClient } from '../supabase/server'
+import { requireOrgContext } from '../auth/session'
 import type { NotesPageModel } from './notes-model'
 import { toNotesPageModel } from './notes-model'
 
@@ -31,7 +31,13 @@ import { toNotesPageModel } from './notes-model'
 // never cached on a shared key) docs/security/sandbox-and-supply-chain.md
 
 /**
- * Load the notes page's render model for the CURRENT request's user.
+ * Load one org's notes page for the CURRENT request's user.
+ *
+ * `orgSlug` comes from the route segment (`/o/[orgSlug]/notes`) and is resolved against the
+ * caller's REAL seats by requireOrgContext — so a slug naming somebody else's org yields the
+ * org-context error, never that org's rows. This is the same rule the tRPC path applies to
+ * the `x-org-id` header; the spelling differs because a Server Component has a route and a
+ * mobile request has a header.
  *
  * Domain failures come back inside the model (`status: 'error' | 'missing'`). An
  * infrastructure throw — Supabase unreachable, the env unparsed — is deliberately NOT caught
@@ -39,13 +45,19 @@ import { toNotesPageModel } from './notes-model'
  * try/catch at this level would flatten "the database is down" into the same grey box as "you
  * do not have access to this note", and the two need different words and different actions.
  */
-export async function loadNotesPage(): Promise<NotesPageModel> {
+export async function loadNotesPage(orgSlug: string): Promise<NotesPageModel> {
+  const gate = await requireOrgContext(orgSlug)
+  // The gate's failure IS a domain outcome, so it rides the same model the DAL's failures do.
+  // A signed-out or seatless caller therefore renders the page's error state rather than
+  // throwing into error.tsx — the layout above has already decided whether to redirect.
+  if (!gate.ok) return toNotesPageModel(gate)
+
   // `as unknown as NotesDatabase`: the DAL's port is a deliberate hand-authored subset of
   // supabase-js's surface (design/W1-STACK-SPEC.md §3), and checking a full
   // SupabaseServerClient against it instantiates supabase-js's vast `.from()` overload set —
   // TS2589. The assertion is sound (the runtime value IS a supabase client) and matches the
   // Server Action and the tRPC route, which narrow the identical way.
-  const supabase = (await createRequestScopedClient()) as unknown as NotesDatabase
+  const supabase = gate.data.client as unknown as NotesDatabase
   // The FIRST page, newest first: no cursor. Parsing an empty object rather than hand-writing
   // `{ includeArchived: false, limit: 50 }` keeps the contract the single source of the page
   // size and the archived-default — `listNotes` requires a parsed `ListNotesSchema`, not a
@@ -53,5 +65,6 @@ export async function loadNotesPage(): Promise<NotesPageModel> {
   // too. A later paginated screen threads `nextCursor` (now carried on the ready model) back
   // in here as `{ cursor }`.
   const query = ListNotesSchema.parse({})
-  return toNotesPageModel(await listNotes(supabase, query))
+  // The scope is the RESOLVED org's id — never the slug the caller supplied.
+  return toNotesPageModel(await listNotes(supabase, { orgId: gate.data.org.id }, query))
 }

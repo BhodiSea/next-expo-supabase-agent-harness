@@ -224,6 +224,17 @@ export function applyConfigSteps({ targetDir, files, report, entries, dryRun }) 
   } else if (added.length > 0) {
     report.notes.push(`gate step(s) that would be added to ${cfgRel}: ${added.join(', ')}`)
   }
+  // Injecting a step makes the chain longer than the project's OWN docs say it is, and
+  // AGENTS.md is seeded — `update` must not rewrite a project's memory file, so it
+  // cannot fix this itself. The `docs-sync` gate WILL red on the next validate ("says
+  // The N gates but VALIDATE_STEPS has M"), and a red nobody was warned about reads as
+  // the upgrade being broken. Name it here, with the count, so it arrives as an
+  // instruction instead of a surprise.
+  if (added.length > 0) {
+    report.notes.push(
+      `AGENTS.md lists the chain by NAME and COUNT and is seeded (yours) — \`update\` cannot edit it, so \`docs-sync\` will red until you add ${added.join(', ')} to its gate list and correct the count. This is the one manual step of the upgrade.`,
+    )
+  }
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

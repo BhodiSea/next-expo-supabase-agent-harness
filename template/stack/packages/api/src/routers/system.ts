@@ -42,11 +42,17 @@ export const systemRouter = router({
    */
   me: authedProcedure.query(({ ctx }): ActionOutcome<ActorView> => {
     return outcomeOk({
+      // Both are already resolved against public.memberships by createContext;
+      // nothing here re-derives them, and `activeOrg` is by construction either
+      // an element of `orgs` or null. This procedure is what the org switcher
+      // reads, which is why it stays on `authedProcedure`: a caller with no
+      // active org must still be able to ask what orgs they have, or the switcher
+      // has nothing to switch between.
+      activeOrg: ctx.activeOrg,
       displayName: ctx.actor.displayName,
       email: ctx.actor.email,
       id: ctx.actor.userId,
-      role: ctx.membership?.role ?? null,
-      workspaceId: ctx.membership?.workspaceId ?? null,
+      orgs: [...ctx.orgs],
     })
   }),
 })

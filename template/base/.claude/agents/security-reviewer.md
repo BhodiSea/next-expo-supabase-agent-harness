@@ -139,4 +139,8 @@ the Next host or the Expo host beyond the policies, require the `web-security-re
 
 Flag ONLY gaps that affect correctness or these invariants; a new table with FORCE RLS,
 four keyed policies, the REVOKE/GRANT pair, and an owner-leading index is routine slice
-work. Do not over-engineer. End with a single line: `PASS` or `FAIL`.
+work. Do not over-engineer.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

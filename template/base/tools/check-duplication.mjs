@@ -35,7 +35,7 @@ const MIN_LINES = 6
 const SCAN_ROOTS = []
 for (const scope of ['apps', 'packages']) {
   if (!existsSync(scope)) continue
-  for (const d of readdirSync(scope)) {
+  for (const d of readdirSync(scope).sort()) {
     const src = join(scope, d, 'src')
     if (existsSync(src)) SCAN_ROOTS.push(src)
   }

@@ -13,9 +13,13 @@
     ["prompts", "node tools/check-prompts-lock.mjs"],
     ["licenses", "node tools/check-licenses.mjs"],
     ["schema-rls", "node tools/check-rls-manifest.mjs"],
+    ["tenancy", "node tools/check-tenancy.mjs"],
     ["types-drift", "node tools/check-types-drift.mjs"],
     ["migrations", "node tools/check-migrations.mjs"],
+    ["db-limits", "node tools/check-db-limits.mjs"],
     ["contracts", "node tools/check-contract-drift.mjs"],
+    ["query-shapes", "node tools/check-query-shapes.mjs"],
+    ["rate-limits", "node tools/check-rate-limits.mjs"],
     ["parity", "node tools/check-mobile-parity.mjs"],
     ["dead-code", "pnpm exec knip --strict"],
     ["architecture", "pnpm exec depcruise apps packages --config .dependency-cruiser.cjs"],
@@ -23,6 +27,7 @@
     ["styleguide", "node tools/check-styleguide-manifest.mjs"],
     ["perf-budget", "node tools/check-perf-budget.mjs"],
     ["route-manifest", "node tools/check-route-manifest.mjs"],
+    ["security-headers", "node tools/check-security-headers.mjs"],
     ["e2e", "node tools/check-e2e.mjs"],
     ["docs-sync", "node tools/check-docs-sync.mjs"]
   ]

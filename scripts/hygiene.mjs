@@ -4,6 +4,9 @@
 //    appear anywhere under template/ (the shipped artifact must be generic).
 // 2. Placeholder closure: every {{VAR}} used in template/ must exist in the
 //    installer's placeholder registry, and every registry var must be used.
+// 3. Determinism sweep: no unsorted directory listing anywhere in the enforcement
+//    surface. This is the factory holding ITSELF to a rule it ships to consumers —
+//    see the section header below for why the ESLint rule cannot do this job.
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -110,9 +113,86 @@ if (existsSync(registryPath)) {
   }
 }
 
+// ── 3. Determinism sweep: no unsorted directory listing ──────────────────────
+//
+// `readdir` returns entries in the FILESYSTEM's order — inode order on ext4, roughly
+// creation order on APFS, arbitrary on a network mount. Anything derived from one (a
+// generated manifest, a hash, an error list, a first-match-wins lookup) is therefore
+// machine-dependent, and the failure is characteristically nasty: stable on the machine
+// that wrote it, reordered on somebody else's, and read as flakiness rather than as a
+// missing sort. For a harness whose entire thesis is that the gate returns the same
+// verdict everywhere, this is the bug class that undermines the product itself.
+//
+// WHY THIS LIVES HERE AND NOT IN ESLINT. The harness ships `local/no-unsorted-readdir`
+// and arms it on every consumer's `apps/**` and `packages/**`. It cannot reach the gate
+// scripts, because `eslint.config.mjs` ignores `tools/**` by design (plain node, outside
+// type-aware lint) — and `scripts/**` and `installer/**` are not in a consumer tree at
+// all. So the surface that enforces determinism for everyone else would be the one
+// surface exempt from it. This sweep is the answer, in the same spirit as
+// scripts/check-complexity-ratchet.mjs: the check that stops the harness exempting itself.
+//
+// It is a TEXT sweep rather than an AST walk, and deliberately so: it has to cover
+// `.mjs`, `.js` and `.tmpl` alike with no parser. That makes recognizing the LEGITIMATE
+// shapes the whole design problem — the first draft reported four correct call sites out
+// of ten, and a sweep that is 40% noise is a sweep whose findings get exempted reflexively
+// rather than read. Three shapes are accepted, each because order provably cannot matter:
+//
+//   chained     `readdirSync(d).filter(…).map(…).sort()` — the sort is in the expression.
+//   deferred    `entries = readdirSync(d)` … `entries.sort(…)` a few lines later. This is
+//               not avoidable stylistic sloppiness: a listing wrapped in try/catch CANNOT
+//               be chained through the catch, and fs-walk.mjs (the sorted walker everything
+//               else is told to use) is itself written that way.
+//   emptiness   `readdirSync(d).length === 0` — an emptiness test reads no entry at all.
+//
+// Everything else is reported with its line.
+const DETERMINISM_ROOTS = [
+  'template/base/tools',
+  'template/base/.claude/hooks',
+  'template/base/tests',
+  'scripts',
+  'installer',
+]
+const READDIR = /\breaddir(?:Sync)?\s*\(/
+// The identifier a listing is bound to, so a sort a few statements later can be found.
+const BOUND_TO = /(?:^|[^\w$])([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:[\w$.]*\.)?readdir(?:Sync)?\s*\(/
+let listingsChecked = 0
+for (const root of DETERMINISM_ROOTS) {
+  const abs = join(ROOT, root)
+  if (!existsSync(abs)) continue
+  for (const relPath of walkFiles(abs, { excludeDirs: ['node_modules'] })) {
+    if (!/\.(mjs|js)(\.tmpl)?$/.test(relPath)) continue
+    const lines = readFileSync(join(abs, relPath), 'utf8').split('\n')
+    for (const [i, line] of lines.entries()) {
+      if (!READDIR.test(line)) continue
+      // Prose about the rule is not a call site — line comments, block-comment bodies,
+      // and JSDoc openers alike. (`/**` was the miss that flagged this sweep's own
+      // sibling rule: `//` and `*` were skipped, `/*` was not.)
+      if (/^\s*(?:\/\/|\/\*|\*|#)/.test(line)) continue
+      // Neither is the rule's OWN pattern. `readdir(?:Sync)?` is regex source: a call site
+      // never has `(?:` after the name. Without this the sweep reports the line that
+      // implements it — the same self-flagging shape check-db-limits.mjs hit when its
+      // remediation text spelled the construction it was banning.
+      if (/\breaddir(?:Sync)?\(\?:/.test(line)) continue
+      listingsChecked += 1
+      // chained: the sort rides the same expression (which may wrap over a few lines).
+      if (/\.sort\s*\(/.test(lines.slice(i, i + 5).join(' '))) continue
+      // emptiness: the listing is consumed by .length and no entry is ever read.
+      if (/\.length\b/.test(line)) continue
+      // deferred: the bound identifier is sorted shortly afterwards.
+      const bound = BOUND_TO.exec(line)?.[1]
+      if (bound !== undefined && new RegExp(`\\b${bound}\\s*\\.\\s*sort\\s*\\(`).test(lines.slice(i, i + 10).join('\n'))) {
+        continue
+      }
+      failures.push(
+        `${root}/${relPath}:${String(i + 1)} reads a directory without sorting it — readdir order is the filesystem's, so anything derived from it differs between machines. Chain \`.sort()\` in the same statement, sort the bound listing before use, or use the shared walker (fs-walk.mjs), which already sorts.`,
+      )
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`HYGIENE: FAIL (${failures.length})`)
   for (const f of failures) console.error(`  - ${f}`)
   process.exit(1)
 }
-console.log('HYGIENE: CLEAN')
+console.log(`HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted)`)

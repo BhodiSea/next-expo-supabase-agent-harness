@@ -1,7 +1,8 @@
-// Pure serializers for the committed contract inventories (the action inventory + the
-// event catalog). Split from the two gen-*.mjs CLIs so the harness suite can test the
-// serialization without the tsx loader or the workspace graph — the CLIs do the runtime
-// walk (appRouter._def.procedures, listEvents) and hand the plain rows to these.
+// Pure serializers for the committed contract inventories (the action inventory, the
+// event catalog, and the query-shape manifest). Split from the three gen-*.mjs CLIs so
+// the harness suite can test the serialization without the tsx loader or the workspace
+// graph — the CLIs do the runtime walk (appRouter._def.procedures, listEvents, the DAL
+// driven through the recording port) and hand the plain rows to these.
 //
 // Both emit `JSON.stringify(rows, null, 2) + '\n'` over rows sorted by their key with
 // CODE-UNIT comparison — never localeCompare, which is ICU-version-dependent and cannot
@@ -46,6 +47,28 @@ export function renderEvents(events) {
       )
     }
     seen.add(row.name)
+  }
+  return `${JSON.stringify(rows, null, 2)}\n`
+}
+
+/**
+ * The committed query-shape bytes for the rows tools/gen-query-shapes.mjs recorded by
+ * driving each DAL function through the recording port. Sorted by `id` in code-unit
+ * order; a duplicate id THROWS, because two probes claiming one identity means the
+ * manifest silently describes whichever ran last and the other query is unchecked.
+ *
+ * Values are absent BY CONSTRUCTION — the normalizer keeps columns, operators and
+ * ordering and drops every literal. A manifest carrying fixture uuids would churn on a
+ * seed edit and would make a reviewed artifact a place row data lives.
+ */
+export function renderQueryShapes(shapes) {
+  const rows = [...shapes].sort((x, y) => codeUnit(x.id, y.id))
+  const seen = new Set()
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      throw new Error(`query shapes: duplicate shape id ${JSON.stringify(row.id)}`)
+    }
+    seen.add(row.id)
   }
   return `${JSON.stringify(rows, null, 2)}\n`
 }

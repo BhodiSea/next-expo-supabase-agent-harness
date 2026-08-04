@@ -1,3 +1,7 @@
+'use client'
+
+// 'use client': it IS a React context provider.
+
 import type { ThemeName } from '@app/design-tokens'
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
 import { cn } from './cn'

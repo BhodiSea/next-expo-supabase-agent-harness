@@ -34,6 +34,7 @@ const PARALLEL_SAFE = new Set([
   'prompts',
   'licenses',
   'schema-rls',
+  'tenancy',
   'migrations',
   'contracts',
   'styleguide',

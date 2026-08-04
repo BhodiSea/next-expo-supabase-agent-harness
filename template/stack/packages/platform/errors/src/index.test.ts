@@ -28,6 +28,7 @@ const SAMPLES: Readonly<Record<AppErrorKind, AppError>> = {
   conflict: appError.conflict({ resource: 'note', code: 'title_taken' }),
   validation: appError.validation({ fields: ['title', 'body.blocks.0'], message: 'bad input' }),
   rateLimited: appError.rateLimited({ retryAfterSeconds: 30 }),
+  quotaExceeded: appError.quotaExceeded({ metric: 'notes', limit: 10_000 }),
   rlsDenied: appError.rlsDenied({ relation: 'notes' }),
   unavailable: appError.unavailable({ message: 'database unreachable' }),
   unknown: appError.unknown(),
@@ -40,7 +41,7 @@ describe('AppError closure', () => {
     // Object.keys of the samples map is typed by AppErrorKind, so a kind added
     // to the union without a sample fails to compile before it reaches here.
     expect([...APP_ERROR_KINDS]).toEqual(Object.keys(SAMPLES).sort())
-    expect(APP_ERROR_KINDS).toHaveLength(9)
+    expect(APP_ERROR_KINDS).toHaveLength(10)
   })
 
   it('gives every constructor its own discriminant and a non-empty stable code', () => {
@@ -79,6 +80,11 @@ describe('AppError closure', () => {
           return `retry in ${String(error.retryAfterSeconds ?? 0)}s`
         case 'rlsDenied':
           return `policy refused: ${error.relation ?? 'relation'}`
+        case 'quotaExceeded':
+          // Distinct from rateLimited on purpose: this switch is the readable proof
+          // that a consumer must handle them differently, because waiting clears one
+          // and only deleting rows or raising the ceiling clears the other.
+          return 'ceiling reached'
         case 'unavailable':
           return 'dependency down'
         case 'unknown':

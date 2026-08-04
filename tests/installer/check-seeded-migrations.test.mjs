@@ -7,7 +7,10 @@
 // plumbing is CLI-only and exercised by the selftest job, not here.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findUnregisteredSeededAdditions } from '../../scripts/check-seeded-migrations.mjs'
+import {
+  findUngroundedPatterns,
+  findUnregisteredSeededAdditions,
+} from '../../scripts/check-seeded-migrations.mjs'
 
 // A migrations.json shaped like the real one: patterns accumulate across ALL
 // versions (timeless semantics), subtrees end in '/', exact files do not.
@@ -99,4 +102,52 @@ test('empty inputs: no additions or no registrations behave honestly', () => {
   // No migrations registered at all → every seeded addition violates.
   const v = check(['template/stack/apps/desktop/src/features/matrix/NewCell.tsx'], { migrations: {} })
   assert.equal(v.length, 1)
+})
+
+// ── pattern GROUNDEDNESS ────────────────────────────────────────────────────────
+// The completeness half above asks "is every addition registered?". This half asks the
+// opposite and equally silent question: "does every registration name something real?".
+// A seedOnInitOnly pattern is read by a prefix/exact matcher, so a typo or a path left
+// behind by a rename withholds NOTHING while reading as protection — and `update` then
+// plants the very file the entry was written to hold back. Both failures are valid JSON,
+// which is why nothing else in the repo can see them.
+
+test('grounding: a pattern must name a file, or a directory some file installs under', () => {
+  const shipped = [
+    'supabase/seeds/scale.sql',
+    'supabase/migrations/20260202000000_audit.sql',
+    'tools/tenancy.json',
+    'apps/web/app/(protected)/layout.tsx',
+  ]
+  const g = (patterns) => findUngroundedPatterns({ patterns, shippedInstallPaths: shipped })
+
+  // Exact file, subtree, and a NESTED subtree prefix all resolve.
+  assert.deepEqual(g(['tools/tenancy.json', 'supabase/seeds/', 'apps/web/app/(protected)/']), [])
+  assert.deepEqual(g(['supabase/', 'apps/', 'apps/web/app/']), [])
+})
+
+test('grounding: typos, stale renames and stray comment strings are all reported', () => {
+  const shipped = ['supabase/seeds/scale.sql', 'tools/tenancy.json']
+  const g = (patterns) => findUngroundedPatterns({ patterns, shippedInstallPaths: shipped })
+
+  // A typo in a subtree, a file that no longer ships, and the shape that motivated this
+  // check: a human-readable comment accidentally left in the array. The last one is the
+  // dangerous case — one ending in '/' would have withheld an entire subtree in silence.
+  assert.deepEqual(g(['supabase/seedz/']), ['supabase/seedz/'])
+  assert.deepEqual(g(['tools/renamed-away.json']), ['tools/renamed-away.json'])
+  assert.deepEqual(g(['//: DDL — the headline hazard.']), ['//: DDL — the headline hazard.'])
+
+  // An exact-file pattern must not be satisfied by a DIRECTORY of that name, nor a
+  // subtree pattern by a file — the matcher treats the trailing slash as meaningful, so
+  // the grounding check has to as well.
+  assert.deepEqual(g(['supabase/seeds']), ['supabase/seeds'])
+  assert.deepEqual(g(['tools/tenancy.json/']), ['tools/tenancy.json/'])
+})
+
+test('grounding: nothing registered, or nothing shipped, is reported honestly', () => {
+  assert.deepEqual(findUngroundedPatterns({ patterns: [], shippedInstallPaths: ['a/b.ts'] }), [])
+  // A tree that ships nothing grounds nothing — vacuous truth is not the answer here.
+  assert.deepEqual(findUngroundedPatterns({ patterns: ['a/b.ts'], shippedInstallPaths: [] }), [
+    'a/b.ts',
+  ])
 })

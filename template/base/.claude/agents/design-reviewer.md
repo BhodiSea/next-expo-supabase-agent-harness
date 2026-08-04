@@ -55,5 +55,8 @@ Check:
 
 Report findings as `file:line — what, why it hurts, the smaller fix`, most
 important first, at most a handful (a design review that lists twenty nits has
-abdicated judgement). If the diff is genuinely at the bar, say so. End with
-exactly one line: `PASS` or `FAIL`.
+abdicated judgement). If the diff is genuinely at the bar, say so.
+
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

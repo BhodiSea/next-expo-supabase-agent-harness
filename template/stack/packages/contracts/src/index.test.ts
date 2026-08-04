@@ -6,11 +6,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   ActorView,
+  atLeastRole,
   CLIENT_VERSION_HEADER,
   DISPLAY_NAME_MAX,
   EMAIL_MAX,
   HealthReport,
-  MembershipRole,
   NewNoteInput,
   NOTE_BODY_MAX,
   NOTE_EXCERPT_MAX,
@@ -25,12 +25,18 @@ import {
   NotesPage,
   NoteUpdateInput,
   NoteView,
+  ORG_ROLE_RANK,
+  ORG_SLUG_MAX,
+  OrgRole,
+  OrgSlug,
+  type OrgSummary,
   TransportErrorCode,
   WireTimestamp,
 } from './index.js'
 
 const OWNER_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
 const NOTE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
 
 const record: NoteRecord = {
   archivedAt: null,
@@ -188,20 +194,36 @@ describe('keyset pagination', () => {
   })
 })
 
-describe('actor and roles', () => {
-  it('models "authenticated but not a member" as a reachable state', () => {
+describe('actor and orgs', () => {
+  const ORG: OrgSummary = { id: ORG_ID, name: 'Acme', role: 'owner', slug: 'acme' }
+
+  it('models "authenticated but seatless" as a reachable state', () => {
+    // A user mid-invitation, or one whose last seat was revoked. If this failed to
+    // parse, the only screen they could ever see would be a crash screen.
     const stranger: ActorView = {
+      activeOrg: null,
       displayName: 'Sam',
       email: 'sam@example.test',
       id: OWNER_ID,
-      role: null,
-      workspaceId: null,
+      orgs: [],
     }
     expect(ActorView.parse(stranger)).toEqual(stranger)
   })
 
+  it('models a caller in several orgs with one of them active', () => {
+    const other: OrgSummary = { id: NOTE_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
+    const multi: ActorView = {
+      activeOrg: ORG,
+      displayName: 'Sam',
+      email: null,
+      id: OWNER_ID,
+      orgs: [ORG, other],
+    }
+    expect(ActorView.parse(multi)).toEqual(multi)
+  })
+
   it('bounds the identity strings', () => {
-    const base = { displayName: 'Sam', email: null, id: OWNER_ID, role: 'owner', workspaceId: null }
+    const base = { activeOrg: null, displayName: 'Sam', email: null, id: OWNER_ID, orgs: [] }
     expect(() =>
       ActorView.parse({ ...base, email: `${'x'.repeat(EMAIL_MAX)}@example.test` }),
     ).toThrow()
@@ -211,9 +233,40 @@ describe('actor and roles', () => {
   })
 
   it('keeps the role set closed — an unknown role must fail parsing, not default', () => {
-    expect(MembershipRole.options).toEqual(['member', 'admin', 'owner'])
-    expect(() => MembershipRole.parse('superuser')).toThrow()
-    expect(() => MembershipRole.parse('')).toThrow()
+    expect(OrgRole.options).toEqual(['viewer', 'member', 'admin', 'owner'])
+    expect(() => OrgRole.parse('superuser')).toThrow()
+    expect(() => OrgRole.parse('')).toThrow()
+  })
+
+  it('carries a rank for EVERY role — a missing one silently disables a feature', () => {
+    // ORG_ROLE_RANK is typed Record<OrgRole, number>, so this is belt-and-braces
+    // against a cast; the failure it guards is `undefined >= 30` reading false and
+    // hiding an action the database would have allowed.
+    for (const role of OrgRole.options) {
+      expect(Number.isInteger(ORG_ROLE_RANK[role])).toBe(true)
+    }
+    // The scale must MATCH tools/tenancy.json, which the tenancy gate holds every
+    // policy rank floor against. Drift here is a UI offering an action the database
+    // refuses, or hiding one it would have allowed.
+    expect(ORG_ROLE_RANK).toEqual({ viewer: 10, member: 20, admin: 30, owner: 40 })
+  })
+
+  it('orders roles by rank, not by declaration', () => {
+    expect(atLeastRole('admin', 'member')).toBe(true)
+    expect(atLeastRole('admin', 'admin')).toBe(true)
+    expect(atLeastRole('member', 'admin')).toBe(false)
+    expect(atLeastRole('viewer', 'member')).toBe(false)
+  })
+
+  it('anchors the org slug at BOTH ends — a loose tail is a near-miss that matches', () => {
+    expect(OrgSlug.parse('acme')).toBe('acme')
+    expect(OrgSlug.parse('acme-corp-2')).toBe('acme-corp-2')
+    expect(() => OrgSlug.parse('Acme')).toThrow()
+    expect(() => OrgSlug.parse('-acme')).toThrow()
+    expect(() => OrgSlug.parse('acme-')).toThrow()
+    expect(() => OrgSlug.parse('acme/../globex')).toThrow()
+    expect(() => OrgSlug.parse('a')).toThrow()
+    expect(() => OrgSlug.parse('a'.repeat(ORG_SLUG_MAX + 1))).toThrow()
   })
 })
 
@@ -226,9 +279,16 @@ describe('transport contract', () => {
   })
 
   it('keeps the transport code set closed and disjoint from domain failures', () => {
-    expect(TransportErrorCode.options).toEqual(['unauthorized', 'version_skew'])
+    // The whole set, pinned by value. Each member is a condition rejected BEFORE any
+    // handler runs, which is what makes them transport facts rather than domain
+    // outcomes — and `rate_limited` earns its place structurally: it is decided in
+    // middleware, and middleware has no data channel to return an envelope on.
+    expect(TransportErrorCode.options).toEqual(['rate_limited', 'unauthorized', 'version_skew'])
+    // Domain failures ride the envelope and must never be spellable here: a `not_found`
+    // on this channel would be a screen losing the discriminant it switches on.
     expect(() => TransportErrorCode.parse('not_found')).toThrow()
     expect(() => TransportErrorCode.parse('internal')).toThrow()
+    expect(() => TransportErrorCode.parse('conflict')).toThrow()
   })
 
   it('locks the health contract: ok is a literal true, never a boolean', () => {

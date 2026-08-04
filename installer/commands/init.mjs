@@ -10,6 +10,8 @@ import { mergeGitignore } from '../lib/merge-gitignore.mjs'
 import { mergePackageJson } from '../lib/merge-package-json.mjs'
 import { mergeWorkspaceYaml } from '../lib/merge-workspace-yaml.mjs'
 import { printReport } from '../lib/report.mjs'
+import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
+import { writeAgentsLock } from '../lib/agents-lock.mjs'
 import { collectAnswers, parseSets } from '../lib/prompts.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
@@ -86,6 +88,12 @@ export async function init(opts) {
   plan.push(...planModules(modules, answers))
 
   const report = { title: `harness init (${det.mode})`, written: [], skipped: [], conflicts: [], drift: [], notes: [] }
+  // A module that plants a workspace package must appear in the root solution file, or
+  // `contracts` reds on a scaffold that was never edited. It cannot be listed in the
+  // template — a core-tier install has no such directory and `tsc -b` fails on a
+  // reference to a project that does not exist — so it is derived from the plan.
+  injectModuleProjectReferences(plan, report, 'added')
+  pruneMissingProjectReferences(plan, targetDir, report)
   const files = {}
 
   // package.json first: on retrofit we merge without clobbering (a colliding "validate"
@@ -232,6 +240,11 @@ export async function init(opts) {
     files[ip] = { mode: fileMode(ip), sha256: sha256(entry.content) }
     if (entry.module) files[ip].module = entry.module
   }
+
+  // The agent-surface lock is written from the files just planted, never shipped in the
+  // template: two roster files carry placeholders, so a template-side lock would mismatch
+  // in every scaffold on the first validate. See installer/lib/agents-lock.mjs.
+  writeAgentsLock(targetDir, report, 'always', { dryRun: opts.dryRun })
 
   if (!opts.dryRun) {
     writeManifest(targetDir, {

@@ -54,6 +54,34 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   `api/trpc` and `.well-known` from its matcher for correctness, not cosmetics.
   The boundary is RLS plus the data layer, and it holds whether or not the proxy
   runs.
+- **Every org-scoped table is audited, and the trail is append-only.** A new table
+  ships an `AFTER INSERT OR UPDATE OR DELETE ... FOR EACH ROW EXECUTE FUNCTION
+  audit.write_row('<tenant column>', '<identity column>')` trigger in the SAME
+  migration that creates it — **never with a `WHEN` clause**, because a conditional
+  audit trigger is a trail with a blind spot whose condition is written by the person
+  the trail exists to record. The trail lives in the `audit` schema, which is absent
+  from `[api].schemas` and grants USAGE to no client role: PostgREST exposes every
+  table in an exposed schema, and RLS on a partitioned parent does NOT cascade to its
+  partitions, so a `public.audit_events` partitioned by month is readable at
+  `GET /rest/v1/audit_events_YYYY_MM` by any valid JWT. Rows are never updated or
+  deleted — removal is a partition DROP. The trail records WHICH columns changed, not
+  what they became; capturing a value is a reviewed entry in `tools/audit-columns.json`
+  and is refused for anything in `tools/pii-columns.json`, because an audit table that
+  copies values is a second, less-policied home for the data it audits.
+- **A pooled session is not yours.** Supavisor runs transaction mode: the backend
+  serving this request served another tenant's a moment ago and will serve a third
+  next, so anything set at SESSION scope is inherited by strangers. `SET
+  statement_timeout` / `lock_timeout` / `idle_in_transaction_session_timeout`
+  without `LOCAL` leaves your ceiling on their request — the per-role ceilings live
+  in `tools/db-limits.json` and the resource-limits migration, and a one-off needs
+  `SET LOCAL` inside the transaction. `pg_advisory_lock` is session-scoped, so an
+  error path leaks a lock that blocks every later caller of that key and no pool
+  release clears it — use `pg_advisory_xact_lock`. Every `postgres(...)`
+  construction passes `prepare: false`, because a named prepared statement lives on
+  one backend and the next request gets another, yielding an intermittent 26000 that
+  no local test against a direct connection reproduces. All three are write-guard
+  denied (`pg-session-timeout-set`, `pg-advisory-session-lock`,
+  `pg-prepared-statement`) and closed tree-wide by `tools/check-db-limits.mjs`.
 - **Migrations are append-only.** Never edit or delete a committed file under
   `supabase/migrations/` — `supabase db push` records a migration by FILENAME, so
   a retroactive edit yields a database that no file in the repo describes and no
