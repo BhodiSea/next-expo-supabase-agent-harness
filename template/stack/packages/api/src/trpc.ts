@@ -46,6 +46,17 @@ const t = initTRPC.context<RequestContext>().create({
    * name. Clients switch on `data.appCode`, never on the message: messages get
    * reworded, and a guard whose identity depends on prose is one copy-edit from
    * silence.
+   *
+   * NOT REACHABLE BY VITEST, and left that way deliberately. `createCaller` THROWS errors
+   * rather than shaping them, so this body runs only on a real HTTP round trip — which is
+   * why the mutation lane reports it as NoCoverage, and why those mutants are RECORDED in
+   * tools/mutation-baseline.json with that reason rather than killed.
+   *
+   * Extracting it to an exported pure function does make it unit-testable, and that was
+   * tried: it creates an export no production code imports, which is exactly the dead API
+   * `knip --strict` exists to catch. Trading an untested branch for a dead export is not a
+   * net gain — it moves the hole rather than closing it. The behaviour is proven where it
+   * actually happens: the integration lane's live-api-proof reads `appCode` off the wire.
    */
   errorFormatter({ error, shape }) {
     const appCode = isVersionSkewError(error.cause)

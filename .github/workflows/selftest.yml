@@ -738,29 +738,53 @@ jobs:
           # canary removes the ceiling FROM THE LIVE DATABASE — no file changes — so the
           # only layer that can notice is the one that asks the database what is in force.
           #
-          # Both runtime layers red on this edit (pgTAP asserts the pg_db_role_setting row
-          # exists; the SDK runner asserts PostgREST APPLIED it), which is why the grep
-          # below pins the SDK layer's own message rather than accepting any red. That
-          # distinction is the whole reason the runner exists beside the pgTAP assertion:
-          # `ALTER ROLE x SET` binds at session start and `SET ROLE` does not re-apply it,
-          # so the ceilings bind API traffic only because PostgREST reads
-          # pg_db_role_setting for the role it impersonates and applies it per request.
-          # A PostgREST upgrade that dropped that behaviour would leave the catalog
-          # assertion green and every ceiling gone.
+          # Both runtime layers red on this edit, and they red for DIFFERENT reasons:
+          # pgTAP asserts the pg_db_role_setting row EXISTS, the SDK suite asserts
+          # PostgREST APPLIED it. That distinction is the whole reason the SDK layer
+          # exists beside the catalog assertion: `ALTER ROLE x SET` binds at session start
+          # and `SET ROLE` does not re-apply it, so the ceilings bind API traffic only
+          # because PostgREST reads pg_db_role_setting for the role it impersonates and
+          # applies it per request. A PostgREST upgrade that dropped that behaviour would
+          # leave the catalog assertion green and every ceiling gone.
+          #
+          # So this canary drives the SDK SUITE DIRECTLY rather than `run-rls.mjs`. The
+          # runner is fail-fast — pgTAP first, `process.exit(1)` on its failure — so since
+          # 0.2.0 added the catalog assertion, the runner now reds BEFORE the SDK layer
+          # ever runs and its message could never appear in the log. Going through the
+          # runner would have meant asserting a string that cannot be produced, which is a
+          # canary that proves nothing while looking rigorous. The env below mirrors what
+          # run-rls.mjs hands vitest (tests/rls/run-rls.mjs: RLS_SUITE_READY + the three
+          # runtime-read keys), so this is the same invocation, minus the short circuit.
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER ROLE anon RESET statement_timeout'
-          if CI=true node tests/rls/run-rls.mjs > limits-canary.log 2>&1; then
+          if CI=true RLS_SUITE_READY=1 SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" \
+             SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+             pnpm exec vitest run tests/rls/resource-limits.test.ts > limits-canary.log 2>&1; then
             tail -n 60 limits-canary.log
-            echo '::error::LIMITS CANARY: the RLS suite PASSED with anon carrying no statement_timeout — the per-role ceilings cannot fail, the exact defect the runner exists to catch'
+            echo '::error::LIMITS CANARY: the SDK resource-limits suite PASSED with anon carrying no statement_timeout — the per-role ceilings cannot fail, the exact defect this layer exists to catch'
             psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
             exit 1
           fi
           if ! grep -q 'in force but' limits-canary.log; then
             tail -n 60 limits-canary.log
-            echo '::error::the suite failed, but NOT on the in-force ceiling assertion — the SDK resource-limits layer is not biting (log above)'
+            echo '::error::the SDK suite failed, but NOT on the in-force ceiling assertion — it is red for some other reason and this canary is no longer proving what it claims (log above)'
             psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
             exit 1
           fi
+          # And the catalog layer must ALSO see it — the two halves are independent, and a
+          # canary that watched only one would let the other rot.
+          if supabase test db > limits-canary-pgtap.log 2>&1; then
+            tail -n 40 limits-canary-pgtap.log
+            echo '::error::pgTAP PASSED with the anon.statement_timeout row gone from pg_db_role_setting — the catalog assertion is not biting'
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
+            exit 1
+          fi
+          grep -q 'anon.statement_timeout' limits-canary-pgtap.log || {
+            tail -n 40 limits-canary-pgtap.log
+            echo '::error::pgTAP failed but did not name anon.statement_timeout — red for another reason'
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
+            exit 1
+          }
           grep -E 'in force but|statement_timeout' limits-canary.log | tail -n 4 || true
           # Restore, so the remaining steps see the intended ceilings.
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"

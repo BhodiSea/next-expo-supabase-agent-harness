@@ -21,11 +21,11 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const GATE_SRC = join(ROOT, 'template/base/tools/check-query-shapes.mjs')
@@ -33,10 +33,15 @@ const LIB_SRC = join(ROOT, 'template/base/tools/lib')
 const TENANCY_SRC = join(ROOT, 'template/base/tools/tenancy.json')
 const LIMITS_SRC = join(ROOT, 'template/base/tools/db-limits.json')
 
+// pathToFileURL, not the bare path: on Windows a dynamic import of 'D:\\a\\...' is
+// ERR_UNSUPPORTED_ESM_URL_SCHEME ('d:' reads as a protocol), which broke this red-proof on
+// windows-latest only and took the whole query-shapes canary with it.
 const { boundKind, createRecorder, normalizeChain } = await import(
-  join(LIB_SRC, 'query-recorder.mjs')
+  pathToFileURL(join(LIB_SRC, 'query-recorder.mjs')).href
 )
-const { indexServes, selectSql } = await import(join(LIB_SRC, 'query-shapes.mjs'))
+const { indexServes, selectSql } = await import(
+  pathToFileURL(join(LIB_SRC, 'query-shapes.mjs')).href
+)
 
 /** The shipped migration DDL the gate parses indexes out of, reduced to what matters. */
 const MIGRATION_OK = `

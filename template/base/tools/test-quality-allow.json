@@ -6,6 +6,10 @@
       "reason": "The SDK RLS suite's documented self-skip, and it FAILS CLOSED where it matters. It needs a running `supabase start` stack; `node tests/rls/run-rls.mjs` starts from that stack, sets RLS_SUITE_READY=1, and in CI a skip is an ERROR (CI=true makes the runner fail closed). So the skipped branch exists only so a plain `vitest run` on a laptop with no stack stays green instead of erroring — it is the local-dev affordance, not a disabled test. The enforcing branch is the one CI runs (alongside the pgTAP twin, supabase/tests/*.sql)."
     },
     {
+      "test": "tests/rls/resource-limits.test.ts::per-role resource ceilings (skipped: no local stack)",
+      "reason": "The same documented self-skip as the cross-tenant suite above, and it fails closed the same way: the enforcing branch needs a running `supabase start` stack, `node tests/rls/run-rls.mjs` supplies it and sets RLS_SUITE_READY=1, and in CI a skip is an ERROR. The skipped branch exists only so a plain `vitest run` on a laptop with no stack stays green instead of erroring. This layer has a second enforcer that cannot be skipped at all: rls_structure.test.sql reads every role x knob pair straight out of pg_db_role_setting, so a ceiling that is merely text in a migration reds pgTAP whether or not this suite runs."
+    },
+    {
       "test": "packages/api/src/observability/span-routes.test.ts::emits exactly one server span per call, named from this manifest (wire @opentelemetry/sdk-trace-node + an InMemorySpanExporter, call each procedure through createCallerFactory(appRouter), assert one span whose name equals the manifest entry)",
       "reason": "observability module: a deliberate, titled placeholder. Asserting real span emission needs @opentelemetry/sdk-trace-node + an InMemorySpanExporter wired into the test host, which the module does not ship (it ships the manifest and the procedure-path contract). The title IS the specification for whoever wires the SDK. Tracked in docs/modules/observability/README.md and docs/modules/observability/otel-server.patch.md."
     },

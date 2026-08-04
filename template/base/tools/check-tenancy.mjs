@@ -1428,7 +1428,7 @@ function checkCaptureLists(captured) {
       )
     }
   }
-  for (const [key, e] of declared) {
+  for (const key of declared.keys()) {
     if (!captured.has(key)) {
       errs.push(
         `${AUDIT_COLUMNS}: declares capture of '${key}' but no audit trigger passes that column — a stale entry reads as an approved capture that is not happening, so the next person to add the argument does it unreviewed. Remove it, or add the trigger argument`,

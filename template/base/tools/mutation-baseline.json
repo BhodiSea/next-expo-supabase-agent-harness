@@ -132,14 +132,14 @@
       "reason": "GENUINELY EQUIVALENT: `next({})` is a runtime no-op relative to `next({ ctx: { ...ctx, actor: ctx.actor } })`. tRPC v11's middleware runner merges with `nextOpts?.ctx ? { ...opts.ctx, ...nextOpts.ctx } : opts.ctx` (initTRPC dist, line 263): with no `ctx` key the existing context is carried through UNCHANGED. The original object exists ONLY to narrow `ctx.actor` from `Actor | null` to `Actor` at the TYPE level — at runtime `actor` is already the same non-null value on `ctx` after the `=== null` throw-guard, so the spread merely re-sets a field to itself. No downstream read (system.me, writeContext's `ctx.actor.userId`) can observe the difference."
     },
     {
-      "id": "1c58e0427348",
+      "id": "0e13e1f1ee9c",
       "file": "packages/api/src/trpc.ts",
       "mutator": "ObjectLiteral",
-      "original": "{ /** * The one place a transport-level failure is given a stable machine-readable * name. Clients switch on `data.appCo",
+      "original": "{ ...shape, data: { ...shape.data, appCode, retryAfterSeconds } }",
       "replacement": "{}",
-      "snippet": "const t = initTRPC.context<RequestContext>().create({",
-      "status": "Survived",
-      "reason": "GAP (not a small unit test): this is the whole `initTRPC.create({...})` config; `{}` drops the custom `errorFormatter`, so the transport `appCode` is never attached and the router falls back to tRPC's default error shape. The suite calls procedures through `createCallerFactory`, which propagates the raw TRPCError and NEVER runs `errorFormatter`, so `data.appCode` is unasserted end to end. A test SHOULD drive the HTTP shape path (fetchRequestHandler / resolveHTTPResponse) and assert a version-skew error carries `data.appCode === 'version_skew'` and an UNAUTHORIZED error `=== 'unauthorized'`. Reaching the formatter reliably needs the transport layer, not a small unit test against the current exports — advisory only."
+      "snippet": "return { ...shape, data: { ...shape.data, appCode, retryAfterSeconds } }",
+      "status": "NoCoverage",
+      "reason": "GAP, not equivalence — the pre-0.2.0 entry, re-identified now that the returned data carries retryAfterSeconds beside appCode. `{ ...shape, data: {...} }` becomes `{}`, so the formatter returns an empty object: no shape, no data, no appCode, and no wait for a rate-limited client to read. Same unreachability as the two above; same integration-lane coverage."
     },
     {
       "id": "65026ed37237",
@@ -152,14 +152,24 @@
       "reason": "GAP (not a small unit test): `error.code === 'UNAUTHORIZED'` → `false` inside `errorFormatter` maps an UNAUTHORIZED transport error to `appCode: null` instead of `TransportErrorCode.enum.unauthorized`. Untested because the direct-caller path never invokes `errorFormatter` — the auth tests assert `thrown.code`, never the serialized `data.appCode`. A test should assert an anonymous caller's HTTP error shape carries `data.appCode === 'unauthorized'`; that requires the transport layer, so advisory."
     },
     {
-      "id": "7121f115f442",
+      "id": "b1aa710b8c2c",
       "file": "packages/api/src/trpc.ts",
       "mutator": "BlockStatement",
-      "original": "{ const appCode = isVersionSkewError(error.cause) ? TransportErrorCode.enum.version_skew : error.code === 'UNAUTHORIZED'",
+      "original": "{ const appCode = isVersionSkewError(error.cause) ? TransportErrorCode.enum.version_skew : isRateLimitedError(error.caus",
       "replacement": "{}",
       "snippet": "errorFormatter({ error, shape }) {",
       "status": "NoCoverage",
-      "reason": "GAP (not a small unit test): the entire `errorFormatter` body → `{}` makes it return `undefined`, stripping the error shape (and its `appCode`) altogether. No test exercises the formatter — the direct-caller path bypasses it — so the break is invisible. A test should drive the HTTP shape path and assert the returned shape both preserves tRPC's default `data` and carries the correct `appCode`; needs the transport layer, advisory."
+      "reason": "GAP, not equivalence — the pre-0.2.0 entry, re-identified after the body gained the rate-limit branch. The entire errorFormatter body becomes `{}`, so it returns undefined and strips the error shape (and its appCode) altogether. Invisible to vitest for the structural reason above: the direct-caller path never invokes the formatter. Covered by the integration lane, not by a unit test, and deliberately not refactored into reachability at the cost of a dead export."
+    },
+    {
+      "id": "ba829e1c53af",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ /** * The one place a transport-level failure is given a stable machine-readable * name. Clients switch on `data.appCo",
+      "replacement": "{}",
+      "snippet": "const t = initTRPC.context<RequestContext>().create({",
+      "status": "Survived",
+      "reason": "GAP, not equivalence — and it is the SAME accepted survivor as before 0.2.0, re-identified because the formatter's source text changed (it now also carries retryAfterSeconds). This is the whole `initTRPC.create({...})` config; `{}` drops the custom errorFormatter, so the transport `appCode` is never attached and the router falls back to tRPC's default error shape. The suite calls procedures through createCallerFactory, which propagates the raw TRPCError and NEVER runs errorFormatter, so the shaping is unassertable from a unit test. Extracting the body to an exported pure function WAS tried in 0.2.0 and reverted: it creates an export no production code imports, which is exactly the dead API `knip --strict` catches — trading an untested branch for a dead export moves the hole rather than closing it. The behaviour is covered where it actually happens: the integration lane's live-api-proof reads appCode off the wire against a real stack."
     },
     {
       "id": "bda481181b82",
@@ -202,6 +212,16 @@
       "reason": "GENUINELY EQUIVALENT: emptying the inner `{ ...ctx, actor: ctx.actor }` makes the call `next({ ctx: {} })`. Because `{}` is truthy, tRPC v11 computes `{ ...opts.ctx, ...{} }` (initTRPC dist, line 263) — a shallow COPY of the existing context with identical keys and values, `actor` included (non-null past the guard). Every downstream handler sees the same field values; only the compile-time narrowing of `actor` is lost, and that has no runtime shadow. No input distinguishes it."
     },
     {
+      "id": "ea988ab93351",
+      "file": "packages/api/src/trpc.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ ...shape.data, appCode, retryAfterSeconds }",
+      "replacement": "{}",
+      "snippet": "return { ...shape, data: { ...shape.data, appCode, retryAfterSeconds } }",
+      "status": "NoCoverage",
+      "reason": "GAP, not equivalence — the pre-0.2.0 entry, re-identified for the same reason. `{ ...shape.data, appCode, retryAfterSeconds }` becomes `{}`, emptying the error data — dropping not just appCode and the retry wait but tRPC's own code/httpStatus/path fields that clients read. Same unreachability; same integration-lane coverage."
+    },
+    {
       "id": "efe1e27b8a35",
       "file": "packages/api/src/trpc.ts",
       "mutator": "StringLiteral",
@@ -222,36 +242,6 @@
       "reason": "GAP (not a small unit test): `=== 'UNAUTHORIZED'` → `true` gives EVERY non-skew error `appCode: 'unauthorized'`, so a BAD_REQUEST input-validation failure would falsely announce itself as an auth failure. Untested — `errorFormatter` never runs on the caller path. A test should assert a non-auth HTTP error shape (e.g. BAD_REQUEST) carries `appCode: null`, not `'unauthorized'`; needs the transport layer, advisory."
     },
     {
-      "id": "fb986beaa955",
-      "file": "packages/api/src/trpc.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ ...shape.data, appCode }",
-      "replacement": "{}",
-      "snippet": "return { ...shape, data: { ...shape.data, appCode } }",
-      "status": "NoCoverage",
-      "reason": "GAP (not a small unit test): `{ ...shape.data, appCode }` → `{}` empties the error `data` — dropping not just `appCode` but tRPC's default `code`/`httpStatus`/`path` fields clients read. Untested because the formatter is never invoked on the caller path. A test should assert the serialized error `data` retains the default fields AND the computed `appCode`; transport-layer, advisory."
-    },
-    {
-      "id": "fd0df7921591",
-      "file": "packages/api/src/trpc.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ ...shape, data: { ...shape.data, appCode } }",
-      "replacement": "{}",
-      "snippet": "return { ...shape, data: { ...shape.data, appCode } }",
-      "status": "NoCoverage",
-      "reason": "GAP (not a small unit test): `{ ...shape, data: { ...shape.data, appCode } }` → `{}` makes `errorFormatter` return an empty object — no `shape`, no `data`, no `appCode`. Untested: the direct-caller path bypasses the formatter entirely. A test should drive the HTTP shape path and assert a well-formed shape carrying the correct `appCode`; needs the transport layer, advisory."
-    },
-    {
-      "id": "17f76e45d043",
-      "file": "packages/platform/errors/src/index.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ /** No verified identity. The mobile normalize layer folds transport 401s here. */ unauthorized: (options: AppErrorOpt",
-      "replacement": "{}",
-      "snippet": "export const appError = {",
-      "status": "Survived",
-      "reason": "NOT equivalent, but a STATIC-mutant runner artifact — accepted eyes-open. Emptying the `appError` namespace makes Object.keys(appError) — hence APP_ERROR_KINDS and KIND_SET — empty and every `appError.<kind>(…)` undefined; the test file's top-level SAMPLES construction then throws at import and the suite errors out (empirically: 0 tests collected, i.e. a hard kill IF the mutant were active). It survives only because this is a module-initialization (static) object-literal mutant: Stryker's in-process vitest runner imports @app/errors once and cannot re-activate a load-time literal after the module is cached, so the mutant switch never takes effect. No added unit test changes this — the existing `toHaveLength(9)` + full-SAMPLES closure already WOULD kill it; the limitation is the runner's, not the suite's. killable=false."
-    },
-    {
       "id": "193d63b0e526",
       "file": "packages/platform/errors/src/index.ts",
       "mutator": "BooleanLiteral",
@@ -270,6 +260,16 @@
       "snippet": "typeof candidate.kind === 'string' &&",
       "status": "Survived",
       "reason": "GENUINELY EQUIVALENT: the `typeof candidate.kind === 'string'` conjunct is redundant given the very next conjunct `KIND_SET.has(candidate.kind)`. KIND_SET holds only strings and Set#has uses SameValueZero, so a non-string kind can never match a string member — `has` already returns false and short-circuits the `&&` exactly as the typeof check would; when kind IS a string the two are trivially identical. No input distinguishes forcing the guard to `true`; it exists only to narrow unknown→string for the `.has` call at compile time. Empirically confirmed: the whole suite AND a targeted callable-with-kind probe both stay green under the mutant."
+    },
+    {
+      "id": "fae16c8b05e3",
+      "file": "packages/platform/errors/src/index.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ /** No verified identity. The mobile normalize layer folds transport 401s here. */ unauthorized: (options: AppErrorOpt",
+      "replacement": "{}",
+      "snippet": "export const appError = {",
+      "status": "Survived",
+      "reason": "NOT equivalent, but a STATIC-mutant runner artifact — accepted eyes-open, and the same accepted survivor as before 0.2.0, re-identified because the namespace gained quotaExceeded. Emptying the appError namespace makes Object.keys(appError) — hence APP_ERROR_KINDS and KIND_SET — empty and every appError.<kind>() undefined; the test file's top-level SAMPLES construction then throws AT IMPORT and the suite errors out rather than reporting failures. Stryker scores a run that collected zero tests as a survivor even though the mutant is comprehensively fatal: it is a hard kill that the runner cannot see, not a hole in the tests."
     },
     {
       "id": "35fc03323960",

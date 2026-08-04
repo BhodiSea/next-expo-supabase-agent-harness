@@ -732,3 +732,48 @@ describe('clampPageLimit defense-in-depth — a non-finite limit still yields a 
     expect(calls).toContainEqual(['limit', 2])
   })
 })
+
+// --- the tenant filter, on every read and every write -----------------------
+//
+// WHY THIS EXISTS AT ALL, given that RLS is the boundary. The `.eq('org_id', …)` in the DAL
+// is defence in depth, not the enforcement — a policy denial is what actually stops a
+// cross-tenant read, and tests/rls plus the pgTAP twin are what prove that. But the mutation
+// lane found all four of these call sites SURVIVING: every one could have its column name
+// emptied and no test noticed. That is worth closing on its own terms, because the filter
+// carries a PERFORMANCE guarantee as well as an authorization shadow. `org_id` leads
+// notes_org_id_created_at_id_idx, so without it the policy still filters by org — by
+// scanning the table and discarding other tenants' rows. Correct results, cost proportional
+// to every customer's data. That is the failure `query-shapes` and the db-scale plan probe
+// exist to catch one layer up, and it should not be reachable by a one-character edit here.
+//
+// These assert the COLUMN NAME and the value together. Asserting the value alone leaves
+// `.eq('', orgId)` alive, which is precisely the mutant that was surviving. createNote is
+// absent because it is already covered above ("takes the tenant key and the attribution from
+// CONTEXT") — its insert path was never among the survivors.
+describe('every scoped DAL function filters on the tenant column', () => {
+  const ref = { id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' }
+
+  it('listNotes filters on org_id — the leading column of the keyset index', async () => {
+    const { calls, db } = fakeDatabase(rows([]))
+    await listNotes(db, scope, listQuery)
+    expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+
+  it('getNote filters on org_id as well as the row id', async () => {
+    const { calls, db } = fakeDatabase(rows([row(1)]))
+    await getNote(db, scope, ref)
+    expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+
+  it('updateNote filters on org_id, so a foreign id matches nothing before RLS is consulted', async () => {
+    const { calls, db } = fakeDatabase(rows([row(1)]))
+    await updateNote(db, writeContext(), { id: ref.id, title: 'renamed' })
+    expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+
+  it('deleteNote filters on org_id', async () => {
+    const { calls, db } = fakeDatabase(rows([row(1)]))
+    await deleteNote(db, writeContext(), ref)
+    expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+})

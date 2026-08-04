@@ -98,6 +98,31 @@ rule judged the input safe, but because no rule looked at it.
   loop, re-planted corrected by it. Verified both ways: an untouched copy is replaced, and
   a copy with a local edit is left in place with a note naming the conflict, because a
   hand-tuned accessibility test is the consumer's.
+- **The mutation lane was mutating a build-time instrument.**
+  `packages/verticals/*/src/data/query-probes.ts` is what `gen-query-shapes.mjs` EXECUTES to
+  record the manifest; nothing imports it at runtime, so vitest cannot reach it and all 49
+  of its mutants came back `NoCoverage` — 65% of a ratchet failure that said nothing about
+  the product. Recording 49 baseline entries would have been the wrong answer to the right
+  complaint: the mutation SCOPE was wrong, not the tests missing. Carved out as a PATTERN,
+  so a future vertical's probes are excluded the day they land. Its correctness is enforced
+  elsewhere and harder — the generator dies if any exported DAL function has no probe, if a
+  probe names a function the DAL does not export, or if a probe issues zero chains, and
+  `contracts` regen-diffs the manifest on every validate.
+- **The DAL's tenant filter had no killing test.** All four `.eq('org_id', …)` call sites
+  survived mutation: every one could have its column name emptied and nothing noticed.
+  RLS is still the boundary and a policy denial is still what stops a cross-tenant read —
+  but that filter also carries a performance guarantee, because `org_id` leads
+  `notes_org_id_created_at_id_idx`. Without it the policy filters by org *by scanning the
+  table*: correct results, cost proportional to every customer's data. Closed with
+  assertions on the column name AND the value, since asserting the value alone leaves
+  `.eq('', orgId)` alive.
+- **Canary 23 asserted a message that could no longer be produced.** It resets a per-role
+  ceiling in the live database and required the SDK resource-limits suite's own failure
+  text — but 0.2.0 added the pgTAP `pg_db_role_setting` assertion, and `run-rls.mjs` is
+  fail-fast, so the runner now reds *before* the SDK layer ever runs. The canary drove the
+  runner, so it was waiting for a string that cannot appear. It now drives the SDK suite
+  directly and asserts the catalog layer separately — both halves are independent, and a
+  canary watching only one lets the other rot.
 - **The docs disagreed about the plan probe, and nothing could see it.**
   `README.md` said there is deliberately no EXPLAIN plan probe while
   `gates-catalog.md` documented one in detail, alongside a capturing pg-proxy and a

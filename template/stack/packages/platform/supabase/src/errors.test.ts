@@ -91,6 +91,26 @@ describe('mapPostgresError', () => {
     })
   })
 
+  // 53400 is `configuration_limit_exceeded`, which the quota trigger raises. It sits in
+  // class 53 — the same class as 53300 (too_many_connections) — and class 53 is otherwise
+  // mapped to the retryable `unavailable`. That adjacency is the whole point of this test:
+  // if the QUOTA_EXCEEDED case were removed or reordered below the class fallback, a quota
+  // refusal would be reported as transient and every client would retry a write that
+  // cannot succeed until somebody upgrades their plan. Nothing else in the suite could
+  // tell the difference, which is why the mutation lane found all four branches here alive.
+  it('maps 53400 to quotaExceeded — NOT to the retryable class-53 fallback beneath it', () => {
+    const mapped = mapPostgresError(failure('53400'), { resource: 'note' })
+    expect(mapped.kind).toBe('quotaExceeded')
+    expect(mapped.kind).not.toBe('unavailable')
+    // The driver text quotes the org id and the raw counts, so it must not reach a screen:
+    // the message is the module's own, fixed string.
+    expect(mapped).toMatchObject({ message: 'a per-org quota refused the write' })
+    expect(JSON.stringify(mapped)).not.toContain('driver text')
+    // Its class-53 neighbour still maps the other way — a mutant that collapsed the two
+    // would have to break this line as well.
+    expect(mapPostgresError(failure('53300')).kind).toBe('unavailable')
+  })
+
   it('treats only the transient SQLSTATE classes as retryable', () => {
     for (const code of ['08006', '53300', '57014']) {
       expect(mapPostgresError(failure(code)).kind).toBe('unavailable')

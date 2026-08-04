@@ -48,7 +48,13 @@ describe('the rate-limit guard', () => {
     const caller = await callerWith(() =>
       Promise.resolve({ allowed: false, retryAfterSeconds: 42 }),
     )
-    await expect(caller.system.health()).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' })
+    // The MESSAGE as well as the code: the mutation lane found the message string alive,
+    // and it is what a human reads in a trace when the machine-readable code has already
+    // been swallowed by a logging layer.
+    await expect(caller.system.health()).rejects.toMatchObject({
+      code: 'TOO_MANY_REQUESTS',
+      message: 'rate limit exceeded',
+    })
   })
 
   it('carries the wait on the CAUSE, so the error formatter can put it on the wire', async () => {
@@ -137,5 +143,22 @@ describe('the transport code', () => {
     expect(isRateLimitedError({ retryAfterSeconds: 1 })).toBe(false)
     expect(isRateLimitedError(new Error('rate limit exceeded'))).toBe(false)
     expect(isRateLimitedError(null)).toBe(false)
+  })
+})
+
+// --- the error class's own identity -----------------------------------------
+//
+// The mutation lane found both of these alive: the message template and the `name`
+// assignment. They are not cosmetic. `name` is what a log aggregator groups on, and the
+// message is the only place the wait appears for a human reading a trace — the machine-
+// readable copy travels as `retryAfterSeconds` in the transport data, which the
+// integration lane asserts over the wire.
+describe('RateLimitedError carries its own identity', () => {
+  it('names itself and states the wait in the message', () => {
+    const err = new RateLimitedError(42)
+    expect(err.name).toBe('RateLimitedError')
+    expect(err.message).toContain('42')
+    expect(err.message).not.toBe('')
+    expect(err.retryAfterSeconds).toBe(42)
   })
 })

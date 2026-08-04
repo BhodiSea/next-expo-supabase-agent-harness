@@ -335,3 +335,56 @@ describe('seated-member writes reach the vertical (kill: gate short-circuit + wr
     })
   })
 })
+
+// --- the router hands the DAL the GATED org, not an empty scope --------------
+//
+// The mutation lane found `{ orgId: gate.data.id }` surviving on both read procedures:
+// replacing it with `{}` changed nothing any test noticed. That object is the entire
+// mechanical link between "the gate resolved an acting org" and "the query filters by it",
+// and the rung above it is a good-error rung, not the boundary — so a break here does not
+// leak (RLS still refuses), it silently sends an UNSCOPED query and lets the policy do all
+// the work by scanning. This asserts the value actually arrives, by RECORDING what the DAL
+// was asked to filter on rather than inspecting the router's source.
+describe('the org gate is wired to the DAL, not merely evaluated', () => {
+  /** A client that records the `eq` filters the DAL builds on it. */
+  function recordingDatabase(outcome: PostgrestOutcome): {
+    filters: [string, string][]
+    db: NotesDatabase
+  } {
+    const filters: [string, string][] = []
+    const query: PostgrestQuery = Object.assign(Promise.resolve(outcome), {
+      eq: (column: string, value: string): PostgrestQuery => {
+        filters.push([column, value])
+        return query
+      },
+      is: (): PostgrestQuery => query,
+      limit: (): PostgrestQuery => query,
+      lte: (): PostgrestQuery => query,
+      or: (): PostgrestQuery => query,
+      order: (): PostgrestQuery => query,
+      select: (): PostgrestQuery => query,
+    })
+    const table: PostgrestTable = {
+      delete: (): PostgrestQuery => query,
+      insert: (): PostgrestQuery => query,
+      select: (): PostgrestQuery => query,
+      update: (): PostgrestQuery => query,
+    }
+    return { filters, db: { from: (): PostgrestTable => table } }
+  }
+
+  it('notes.list filters on the ACTIVE org resolved by the gate', async () => {
+    const { filters, db } = recordingDatabase({ data: [], error: null })
+    const caller = await callerFor(member, db)
+    await caller.notes.list({ includeArchived: false, limit: 50 })
+    expect(filters).toContainEqual(['org_id', ORG_ID])
+  })
+
+  it('notes.get filters on the ACTIVE org as well as the row id', async () => {
+    const { filters, db } = recordingDatabase({ data: [], error: null })
+    const caller = await callerFor(member, db)
+    await caller.notes.get({ id: NOTE_ID })
+    expect(filters).toContainEqual(['org_id', ORG_ID])
+    expect(filters).toContainEqual(['id', NOTE_ID])
+  })
+})

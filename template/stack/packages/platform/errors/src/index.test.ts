@@ -223,6 +223,32 @@ describe('ratchet kills: optional-field carry, default codes, guards, observers'
     expect(Object.hasOwn(appError.rateLimited(), 'retryAfterSeconds')).toBe(false)
   })
 
+  // quotaExceeded carries TWO optional facts, and the mutation lane found every branch of
+  // both surviving: each spread, each `=== undefined` test, and the object each produced.
+  // They are the difference between "you have hit a limit" and a message a user can act on,
+  // so both are asserted present AND absent — and INDEPENDENTLY, because a mutant that made
+  // one field imply the other survives an all-or-nothing assertion.
+  it('quotaExceeded carries metric and limit, and omits each when unset', () => {
+    expect(appError.quotaExceeded({ limit: 500, metric: 'notes' })).toEqual({
+      kind: 'quotaExceeded',
+      code: 'quota_exceeded',
+      limit: 500,
+      metric: 'notes',
+    })
+    expect(appError.quotaExceeded({ metric: 'notes' })).toEqual({
+      kind: 'quotaExceeded',
+      code: 'quota_exceeded',
+      metric: 'notes',
+    })
+    expect(appError.quotaExceeded({ limit: 500 })).toEqual({
+      kind: 'quotaExceeded',
+      code: 'quota_exceeded',
+      limit: 500,
+    })
+    expect(Object.hasOwn(appError.quotaExceeded(), 'metric')).toBe(false)
+    expect(Object.hasOwn(appError.quotaExceeded(), 'limit')).toBe(false)
+  })
+
   it('notFound carries resource and omits it when unset', () => {
     expect(appError.notFound({ resource: 'note' })).toEqual({
       kind: 'notFound',

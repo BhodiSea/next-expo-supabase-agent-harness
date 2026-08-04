@@ -209,6 +209,7 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   let authedApi: ApiClient
   let anonApi: ApiClient
   let userId = ''
+  let orgId = ''
 
   const realFetch = globalThis.fetch
 
@@ -231,6 +232,22 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     const signedIn = await authedSb.auth.signInWithPassword({ email, password })
     if (signedIn.error !== null)
       throw new Error(`signInWithPassword failed: ${signedIn.error.message}`)
+
+    // (b2) Provision the caller's PERSONAL ORG. Every verified user gets one, and it is
+    // minted by an idempotent SECURITY DEFINER RPC rather than an AFTER INSERT trigger on
+    // auth.users, because GoTrue inserts as supabase_auth_admin where auth.uid() is NULL:
+    // a trigger there could not attribute the org, and its failure would block signup
+    // outright. apps/web/app/actions/orgs.ts makes the same call for the same reason, so
+    // this is the real provisioning path and not a test fixture.
+    //
+    // It has to happen before any note is written: `org_id` is NOT NULL, and it is the
+    // caller's SEAT in this org that the INSERT policy checks. It also gives the caller
+    // exactly one seat, which is what lets the tRPC calls below resolve an acting org
+    // with no `x-org-id` header (context.ts: header absent + exactly one seat -> that org).
+    const provisioned = await authedSb.rpc('ensure_personal_org')
+    if (provisioned.error !== null)
+      throw new Error(`ensure_personal_org failed: ${provisioned.error.message}`)
+    orgId = String(provisioned.data)
 
     // (e) Negative control: a session-less client -> no bearer on the wire.
     anonSb = makeSupabase(API_URL, ANON_KEY)
@@ -263,11 +280,13 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // Two things at once: that the bearer becomes `auth.uid()` under RLS, and that
   // the authed tRPC read reaches the data channel over the live transport.
   //
-  // (i) DB-level RLS binding. A row inserted as the signed-in user is stamped with
-  // owner_id = their auth.uid() and is visible to that same user. service_role is
-  // REVOKED on public.notes, so this INSERT can ONLY be the RLS-scoped
-  // authenticated client (WITH CHECK owner_id = auth.uid()). This is the identity
-  // binding the whole seam rests on.
+  // (i) DB-level RLS binding. The row is admitted by the caller's SEAT, not by their
+  // user id: `notes_insert_org` is
+  // `WITH CHECK coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20`,
+  // and `member_ranks()` reads public.memberships as the caller, so the rank map is a
+  // function of auth.uid(). service_role is REVOKED on public.notes, so this INSERT can
+  // ONLY be the RLS-scoped authenticated client. That is the identity binding the whole
+  // seam rests on — the same binding as before, now expressed through the org.
   //
   // (ii) tRPC read-path seam. WITH the bearer, notes.list authenticates, RESOLVES
   // to an OK ActionOutcome ON THE DATA CHANNEL, and the page carries the very row
@@ -275,16 +294,26 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // seeded schema, so the projection succeeds); strip the bearer (C01) and the same
   // call THROWS UNAUTHORIZED before any handler runs. An ok envelope is precisely
   // NOT a transport reject: that gap is what the bearer buys.
-  it('the bearer binds RLS (owner sees its own row) and an authed notes.list returns it on the data channel', async () => {
+  it('the bearer binds RLS (the seat admits the write) and an authed notes.list returns it on the data channel', async () => {
     const title = `live-proof note ${runId}`
-    const inserted = await authedSb.from('notes').insert({ title }).select('id, owner_id').single()
+    const inserted = await authedSb
+      .from('notes')
+      .insert({ title, org_id: orgId })
+      .select('id, org_id, owner_id')
+      .single()
     expect(inserted.error).toBeNull()
     const row = inserted.data
-    expect(row?.owner_id).toBe(userId)
+    expect(row?.org_id).toBe(orgId)
+    // owner_id is ATTRIBUTION now, not authorization. The org-scope migration dropped its
+    // DEFAULT along with its NOT NULL (in B2B the data controller is the org, so firing an
+    // employee must not delete the company's rows), so a RAW client insert leaves it null
+    // and the DAL is what stamps it. Asserting null here is the demotion, on the record:
+    // this write was authorized by a seat, and nothing about owner_id decided it.
+    expect(row?.owner_id).toBeNull()
 
     const visible = await authedSb
       .from('notes')
-      .select('id, owner_id')
+      .select('id, org_id')
       .eq('id', row?.id ?? '')
     expect(visible.error).toBeNull()
     expect((visible.data ?? []).length).toBe(1)
@@ -296,13 +325,17 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     }
   })
 
-  // notes.create is a memberProcedure. Every verified caller owns a PERSONAL
-  // workspace (sessionForVerifiedUser keys it by user id — the single-tenant seat
-  // the seed ships in place of a workspaces table), so the member gate PASSES and
-  // the write lands. WITH the bearer the request authenticates, the gate resolves a
-  // seat, and the DAL returns an ok NoteView carrying the created note; strip the
-  // bearer (C01) and this exact call THROWS UNAUTHORIZED before any handler runs.
-  it('notes.create with a valid bearer passes the member gate and creates the note on the data channel', async () => {
+  // notes.create is an orgProcedure. The caller holds exactly one seat — their personal
+  // org, provisioned in beforeAll — and sends no `x-org-id`, so `resolveActiveOrg`
+  // returns that org and `orgGate` resolves. WITH the bearer the request authenticates,
+  // the gate resolves an acting org, and the DAL returns an ok NoteView; strip the bearer
+  // (C01) and this exact call THROWS UNAUTHORIZED before any handler runs.
+  //
+  // Worth being precise about what this does and does not prove. The gate is a good-error
+  // rung, not the boundary: it turns "no acting org" into a `forbidden` outcome before the
+  // round trip. THE POLICY IS THE ENFORCEMENT — a bug in this rung yields a database
+  // denial, not a leak, and the cross-tenant suites are what prove that.
+  it('notes.create with a valid bearer passes the org gate and creates the note on the data channel', async () => {
     const title = `live-proof create ${runId}`
     const outcome = await authedApi.notes.create.mutate({ title })
     // It RESOLVED (did not throw) — that is the seam. Under C01 this same call
@@ -311,7 +344,7 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     // The write actually landed: an ok envelope carrying the created note, a fresh
     // note is un-archived (archived_at NULL round-trips to isArchived=false), and
     // the returned title is the one sent — distinct from BOTH the transport
-    // `unauthorized` of the negative control and the old seatless `forbidden`.
+    // `unauthorized` of the negative control and the org-less `forbidden`.
     if (outcome.ok) {
       expect(outcome.data.title).toBe(title)
       expect(outcome.data.isArchived).toBe(false)
