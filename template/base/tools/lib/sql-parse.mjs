@@ -48,7 +48,7 @@ export function readSqlDir(dir) {
  * than only the offending statement. `readdirSync` order is filesystem-dependent —
  * the explicit sort is what makes every gate that walks migrations deterministic.
  */
-export function sortedSqlFiles(dir) {
+function sortedSqlFiles(dir) {
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
@@ -209,7 +209,7 @@ export function matchParen(text, openIdx) {
 }
 
 /** The balanced body of the first `<keyword> (...)` clause, or null. */
-export function clauseBody(text, keywordRe) {
+function clauseBody(text, keywordRe) {
   const m = keywordRe.exec(text)
   if (m === null) return null
   const open = text.indexOf('(', m.index + m[0].length - 1)
@@ -224,7 +224,7 @@ export function clauseBody(text, keywordRe) {
  * (1,2))` and composite FK column lists all carry nested commas that would tear a
  * definition in half and hand downstream checks a fragment to judge.
  */
-export function splitTopLevelCommas(text) {
+function splitTopLevelCommas(text) {
   const parts = []
   let depth = 0
   let start = 0
@@ -717,7 +717,7 @@ export function parseFunctions(statements) {
 }
 
 /** The dollar-quoted body of a CREATE FUNCTION statement, unwrapped. */
-export function bodyOf(stmt) {
+function bodyOf(stmt) {
   const m = /\$([a-zA-Z_][a-zA-Z0-9_]*)?\$/.exec(stmt)
   if (m === null) return null
   const tag = m[0]
@@ -799,22 +799,8 @@ export function parseGrants(statements) {
   return entries
 }
 
-/**
- * One pass over a directory, returning every parsed view a gate might want.
- * Consumers pick what they need; the parse cost is a few milliseconds on a tree of
- * this size and paying it once beats four gates each re-splitting the same text.
- */
-export function parseSqlDir(dir) {
-  const statements = splitStatements(readSqlDir(dir))
-  return {
-    statements,
-    ...parseRlsToggles(statements),
-    ...parsePolicies(statements),
-    indexes: parseIndexes(statements),
-    createdTables: parseCreatedTables(statements),
-    columnFacts: parseColumnFacts(statements),
-    functions: parseFunctions(statements),
-    triggers: parseTriggers(statements),
-    grants: parseGrants(statements),
-  }
-}
+// A `parseSqlDir(dir)` aggregate — one pass returning every parsed view — was written
+// here and DELETED unused: all four consuming gates call the specific parsers they need,
+// so it was speculative API that `knip --strict` correctly refused to carry. The parse
+// cost it was meant to amortize is a few milliseconds; if a caller ever wants the whole
+// set, it is four lines to bring back with a real call site behind it.

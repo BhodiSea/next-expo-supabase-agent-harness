@@ -21,6 +21,12 @@ const LIB_SRC = join(ROOT, 'template/base/tools/lib')
 const MODULE_SRC = join(ROOT, 'template/stack/apps/web/lib/security-headers.ts')
 
 /** A scaffold-shaped tree; `mutate` perturbs the module, `policy` perturbs the policy. */
+/**
+ * `mutate` rewrites the shipped security-headers MODULE text; `policy` edits the reviewed
+ * JSON it is judged against. The two halves are separate on purpose: a canary must be able
+ * to move one without the other, which is what proves the gate compares them.
+ * @param {{ mutate?: (src: string) => string, policy?: (base: any) => any }} [opts]
+ */
 function fixture({ mutate, policy } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-sechdr-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })

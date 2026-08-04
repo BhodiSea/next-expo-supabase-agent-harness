@@ -260,7 +260,22 @@ export const NoteRecord = z.object({
   body: z.string().max(NOTE_BODY_MAX),
   createdAt: WireTimestamp,
   id: z.uuid(),
-  ownerId: z.uuid(),
+  // NULLABLE, and that is the B2B attribution demotion reaching the contract.
+  //
+  // 20260201000100_notes_org_scope.sql dropped this column's NOT NULL and made its
+  // foreign key ON DELETE SET NULL: in a B2B product the data controller is the ORG,
+  // so removing an employee must not delete the company's rows. A non-null contract
+  // over a nullable column is not a stricter contract, it is a WRONG one — and it
+  // fails in the worst available way. `toNoteRecord` throws on the first orphaned
+  // row, listNotes catches it as `contractDrift`, and the whole PAGE returns an
+  // internal error rather than the one row losing its attribution. One departed
+  // employee would blank their org's notes list.
+  //
+  // Found by the integration lane, not by reasoning: every unit test stamped an
+  // owner, so the null case existed only against a real database. Nothing in
+  // TypeScript authorizes on this field — the DELETE policy's owner_id arm lives in
+  // SQL and reads the column, never this type — so widening it costs no boundary.
+  ownerId: z.uuid().nullable(),
   title: z.string().min(1).max(NOTE_TITLE_MAX),
   updatedAt: WireTimestamp,
 })

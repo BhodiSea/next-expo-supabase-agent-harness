@@ -351,13 +351,13 @@ test('update withholds absent seedOnInitOnly exemplars (noted once per cluster),
   const clusterPrefix = [...clusterCounts.entries()].find(([, n]) => n >= 2)?.[0]
   const clusterMembers = clusterPrefix ? installed.filter((ip) => ip.startsWith(clusterPrefix)) : []
   const exactExemplar = installed.find(
-    (ip) => ip.startsWith('apps/') && ip.endsWith('.ts') && !ip.startsWith(clusterPrefix ?? ' '),
+    (ip) => ip.startsWith('apps/') && ip.endsWith('.ts') && !ip.startsWith(clusterPrefix ?? '\u0000'),
   )
   const nonMatched = installed.find(
     (ip) =>
       ip.startsWith('apps/') &&
       ip !== exactExemplar &&
-      !ip.startsWith(clusterPrefix ?? ' ') &&
+      !ip.startsWith(clusterPrefix ?? '\u0000') &&
       ip.endsWith('.ts'),
   )
   const ownedRel = installed.find((ip) => ip.startsWith('.claude/hooks/') && ip.endsWith('.mjs'))

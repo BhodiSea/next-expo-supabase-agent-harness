@@ -41,6 +41,11 @@ const INVENTORY = [
  * The gate EVALUATES this file, so it has to be real TypeScript with zero value imports —
  * which is exactly the property the real module is required to keep.
  */
+/**
+ * @param {{ buckets?: { limit: number, name: string, windowSeconds: number }[],
+ *           procedures?: Record<string, string | null>, actions?: Record<string, string | null>,
+ *           unknownIsNull?: boolean }} [opts]
+ */
 function policyModule({ buckets, procedures, actions, unknownIsNull = false } = {}) {
   const decl = (buckets ?? [
     { limit: 300, name: 'read', windowSeconds: 60 },
@@ -123,6 +128,13 @@ export async function acceptInvitationAction() {
 }
 `
 
+/**
+ * `budget` edits the shipped budget in place; `rawBudget` replaces the file BYTE for byte
+ * (the malformed-JSON cases, which a structured edit cannot express).
+ * @param {{ budget?: (base: any) => any, rawBudget?: string,
+ *           inventory?: { action: string, type: string }[], policy?: string,
+ *           route?: string, actions?: string }} [opts]
+ */
 function fixture({
   budget,
   rawBudget,

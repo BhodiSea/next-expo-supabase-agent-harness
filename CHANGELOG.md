@@ -30,6 +30,59 @@ Defects in the enforcement surface itself, each verified against the shipped 0.1
 tree before it was closed. Every one of these was GREEN on 0.1.3 — not because a
 rule judged the input safe, but because no rule looked at it.
 
+Three more were found by CI in this release's own code, and each needed a live
+database or a real install to see — no amount of reading would have produced them.
+
+- **The per-role resource ceilings did not bind on any existing project.**
+  `20260203000100_resource_limits.sql` set `statement_timeout`,
+  `idle_in_transaction_session_timeout` and `lock_timeout` on `anon`,
+  `authenticated` and `service_role`, and PostgREST went on serving the OLD values.
+  PostgREST does not re-read `pg_db_role_setting` per request — it caches role
+  settings in its schema cache. Supabase's `pgrst_ddl_watch` event trigger normally
+  issues the reload, and it cannot here: **event triggers do not fire for shared
+  objects, and roles are shared**, so `ALTER ROLE ... SET` is precisely the one
+  statement class that never gets the automatic reload. Measured against a live
+  stack: after `ALTER ROLE anon RESET statement_timeout` the catalog row was gone
+  and PostgREST still reported `3s`; only after `NOTIFY pgrst, 'reload schema'` did
+  it report the authenticator's `8s`. A fresh `supabase start` cannot exhibit this,
+  because PostgREST boots after migrations — which is why every local run and every
+  CI lane was green, and why the failure was reserved for the only place it costs
+  anything: an existing project taking a migration that tightens a ceiling. The
+  migration now ends with an explicit `NOTIFY`, and `db-limits` reds on any
+  migration that changes a role ceiling without one — checked PER FILE, because a
+  `NOTIFY` in an older migration reloaded PostgREST when *that* migration ran and
+  does nothing for the one being added today. This was surfaced by Canary 23, which
+  had the same blind spot and was passing: it reset the ceiling live without
+  reloading, so it was measuring the cache rather than the ceiling. Also corrects
+  the ADR and `db-limits.json`, both of which claimed a per-request read.
+- **A departed employee blanked their org's notes list.** The org-scope migration
+  demoted `notes.owner_id` to nullable attribution (`ON DELETE SET NULL` — in B2B
+  the data controller is the org, so removing an employee must not delete the
+  company's rows), and `NoteRecord.ownerId` stayed `z.uuid()`. A non-null contract
+  over a nullable column is not stricter, it is wrong, and it failed in the worst
+  available way: the row parse sits inside `listNotes`' try/catch, so ONE orphaned
+  row returned `contractDrift` for the whole PAGE — an internal error for every
+  reader in the org rather than one card losing its byline. Every unit test stamped
+  an owner, so the null case existed only against a real database. Now nullable,
+  with regression tests at both the parser and the DAL. Nothing in TypeScript
+  authorized on the field — the DELETE policy's `owner_id` arm is SQL and reads the
+  column — so widening it costs no boundary.
+- **Three source files were invisible to `grep`.** `tools/lib/query-shapes.mjs`,
+  `check-mutation-ratchet.mjs` and `tests/installer/migrations.test.mjs` contained
+  literal NUL bytes (typed as separators in string literals rather than written as
+  the `\u0000` escape). A NUL makes a file `data` rather than text, and `grep` skips such files
+  in SILENCE — no warning, exit 1, as though the pattern simply were not there. In a
+  repo whose thesis is that greps and gates catch things, three of them could not be
+  searched, one being the mutation ratchet itself. All now use the escape, which is
+  the same character: the mutation identities are `sha1`-identical, proven before
+  the edit landed, so the committed baseline is untouched. `scripts/hygiene.mjs`
+  now sweeps every tracked text file for NUL bytes (702 files, binary extensions
+  excluded by an explicit short list, and it fails closed if it ever scans zero).
+  That it is a sweep rather than a review note is not caution: the defect recurred
+  while being fixed — the changelog entry you are reading was itself first written
+  with a literal NUL. A defect class that survives the act of documenting it needs
+  a machine watching for it.
+
 - **`gate-integrity` reds on the first feature a consumer ships.** Its SURFACE is
   `/^tools\//`, and `tools/generated/*` is regenerated from the consumer's own
   router, event catalogs and DALs — so adding one tRPC procedure changed

@@ -35,6 +35,11 @@ const isDml = (stmt) => DML_START.test(stmt) || (/^WITH\b/i.test(stmt) && DML_IN
 
 // Statements that remove an authorization control without removing the object it
 // guarded. Each is paired with the vocabulary a reader will recognize in the failure.
+// Annotated as a TUPLE array, not inferred. Without this the literal widens to
+// `(string | RegExp)[][]`, `re` destructures as `string | RegExp`, and `re.test(code)`
+// is a type error the machinery typecheck catches — the label/pattern pairing is a fact
+// worth having checked rather than a shape that happens to hold.
+/** @type {ReadonlyArray<readonly [string, RegExp]>} */
 const AUTHZ_DESTRUCTIVE = [
   ['DROP POLICY', /\bDROP\s+POLICY\b/i],
   ['DISABLE ROW LEVEL SECURITY', /\bDISABLE\s+ROW\s+LEVEL\s+SECURITY\b/i],

@@ -230,6 +230,12 @@ ${extra}`
 const OWNER_ONLY_SQL = `CREATE TABLE public.notes (id uuid PRIMARY KEY, owner_id uuid NOT NULL);
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;`
 
+/**
+ * `config` edits the shipped tenancy contract in place; `rawConfig` replaces the file
+ * BYTE for byte (the malformed-JSON cases, which a structured edit cannot express).
+ * @param {{ migration?: string, config?: (base: any) => any, rawConfig?: string,
+ *           configToml?: string | null, manifest?: any }} [opts]
+ */
 function fixture({ migration = tenancyMigration(), config, rawConfig, configToml = null, manifest = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-tenancy-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })

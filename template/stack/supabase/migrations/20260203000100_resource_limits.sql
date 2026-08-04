@@ -115,3 +115,32 @@ $limits$;
 
 REVOKE ALL ON FUNCTION public.effective_limits() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.effective_limits() TO anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Make the ceilings above ACTUALLY BIND. Without this line they are inert.
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PostgREST does not read pg_db_role_setting per request. It loads the role settings
+-- into its SCHEMA CACHE and applies the cached values, so a ceiling changed by a
+-- migration does not reach API traffic until that cache is rebuilt.
+--
+-- Supabase installs a `pgrst_ddl_watch` event trigger on ddl_command_end that issues
+-- exactly this NOTIFY, which is why ordinary DDL needs no such line — and it does not
+-- help here. Event triggers DO NOT FIRE for shared/global objects, and roles are
+-- shared objects, so `ALTER ROLE ... SET` is precisely the DDL that trigger cannot
+-- observe. The one statement class that needs the reload is the one class that never
+-- gets it automatically.
+--
+-- MEASURED, not reasoned. Against a live stack with pgrst_ddl_watch installed:
+-- `ALTER ROLE anon RESET statement_timeout` removed the catalog row, and PostgREST
+-- kept reporting the old '3s' through public.effective_limits(). After
+-- `NOTIFY pgrst, 'reload schema'` it reported '8s' — the authenticator's value, anon's
+-- own ceiling correctly gone. This is also why a FRESH stack looks fine and hid the
+-- bug: `supabase start` boots PostgREST after migrations, so it reads current values
+-- once and every local run agrees. The failure only appears where it costs something —
+-- an existing project taking a migration that tightens a ceiling, which then silently
+-- does not bind until PostgREST restarts for some unrelated reason.
+--
+-- Transactional: delivered at COMMIT, so a migration that rolls back sends nothing.
+-- SOURCE: https://www.postgresql.org/docs/17/event-trigger-matrix.html (event triggers do not fire for shared objects)
+-- SOURCE: https://docs.postgrest.org/en/stable/references/schema_cache.html (role settings live in the schema cache; NOTIFY pgrst reloads it)
+NOTIFY pgrst, 'reload schema';

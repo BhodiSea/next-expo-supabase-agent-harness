@@ -61,6 +61,10 @@ if (dbUrl === undefined || dbUrl === '') {
 
 let postgres
 try {
+  // Scaffold-only dependency: unresolvable in the harness repo (the one place this file
+  // is typechecked), resolvable in the installed consumer where the gate runs. Scoped to
+  // the specifier so the rest of the gate stays checked — see check-db-perf.mjs.
+  // @ts-expect-error -- scaffold-only dependency; resolvable in an installed consumer, never here
   ;({ default: postgres } = await import('postgres'))
 } catch {
   skipOrFail(GATE, 'the `postgres` driver is not installed — run pnpm install')

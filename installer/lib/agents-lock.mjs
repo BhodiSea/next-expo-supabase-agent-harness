@@ -22,7 +22,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const AGENTS_LOCK = 'tools/agents.lock.json'
+const AGENTS_LOCK = 'tools/agents.lock.json'
 const GENERATOR = 'tools/gen-agents-lock.mjs'
 
 /**

@@ -76,9 +76,44 @@ connected as `authenticator`, `SET LOCAL ROLE authenticated` left `statement_tim
 at the **authenticator's** value. On that evidence the settings would be inert.
 
 They are not, because PostgREST reads `pg_db_role_setting` for the role it is about to
-impersonate and applies it per request. Verified end to end: with `anon` at 2s and
-`authenticator` at 8s, a 5-second RPC through PostgREST as `anon` was cancelled at
-**2.03s** with SQLSTATE 57014.
+impersonate and applies it. Verified end to end: with `anon` at 2s and `authenticator`
+at 8s, a 5-second RPC through PostgREST as `anon` was cancelled at **2.03s** with
+SQLSTATE 57014.
+
+### The reload is part of the control (corrected after measurement)
+
+This ADR first said PostgREST applies those settings *per request*. It does not, and the
+difference is the whole control. PostgREST loads role settings into its **schema cache**
+and applies the cached copy, so a migration that changes a ceiling does not reach API
+traffic until that cache is rebuilt.
+
+Supabase installs a `pgrst_ddl_watch` event trigger on `ddl_command_end` that issues
+`NOTIFY pgrst, 'reload schema'`, which is why ordinary DDL needs no such line. It cannot
+help here: **event triggers do not fire for shared objects, and roles are shared**. The
+single statement class that changes a role ceiling is the single statement class that
+never gets the automatic reload.
+
+Measured against a live stack with `pgrst_ddl_watch` installed:
+
+| step | `pg_db_role_setting` for `anon` | what PostgREST served |
+|---|---|---|
+| baseline | `statement_timeout=3s` | `3s` |
+| after `ALTER ROLE anon RESET statement_timeout` | *row gone* | **still `3s`** |
+| after `NOTIFY pgrst, 'reload schema'` | *row gone* | `8s` (the authenticator's) |
+
+So `20260203000100_resource_limits.sql` ends with an explicit
+`NOTIFY pgrst, 'reload schema';`, and `tools/check-db-limits.mjs` reds on any migration
+that changes a role ceiling without one — checked **per file**, because a `NOTIFY` in an
+older migration reloaded PostgREST when *that* migration ran and does nothing for the one
+being added today.
+
+Worth being precise about why this survived review: a fresh stack cannot exhibit it.
+`supabase start` boots PostgREST *after* migrations, so it reads current values once and
+every local run and CI lane agrees. The failure appears only on an already-running
+project taking a migration that tightens a ceiling — which is the only place it costs
+anything. It is also invisible to every static check, including this gate's own role×knob
+matrix and the pgTAP catalog assertion: the catalog is *correct*, and only traffic
+disagrees.
 
 So the boundary is real and uneven, and it is written down rather than discovered in an
 incident: these ceilings bound traffic arriving **through PostgREST** — every

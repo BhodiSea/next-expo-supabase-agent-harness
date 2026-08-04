@@ -160,6 +160,22 @@ describe('listNotes', () => {
     expect(item).not.toHaveProperty('body')
   })
 
+  // The DAL half of the orphaned-row regression (rows.test.ts holds the parser half).
+  // The blast radius is what makes this worth its own case: the row parse sits inside
+  // listNotes' try/catch, so ONE note whose author has left the company would take the
+  // whole page down as `contractDrift` — an internal error for every reader in the org,
+  // not a missing byline on one card.
+  it('serves a page containing a note whose owner was deleted', async () => {
+    const { db } = fakeDatabase(rows([row(1), row(2, { owner_id: null })]))
+    const outcome = await listNotes(db, scope, listQuery)
+
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.data.items).toHaveLength(2)
+    // And it is still a VIEW: losing attribution must not start leaking the column.
+    for (const item of outcome.data.items) expect(item).not.toHaveProperty('ownerId')
+  })
+
   it('builds the query the keyset index was created for', async () => {
     const { calls, db } = fakeDatabase(rows([]))
     await listNotes(db, scope, listQuery)

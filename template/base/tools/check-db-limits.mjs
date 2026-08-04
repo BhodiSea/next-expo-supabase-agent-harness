@@ -44,6 +44,7 @@ import {
   parseTriggers,
   qualify,
   readSqlDir,
+  readSqlDirByFile,
   splitStatements,
   stripSchema,
 } from './lib/sql-parse.mjs'
@@ -245,6 +246,37 @@ if (!anyRoleSetting) {
     )
   }
   skipOrFail(GATE, 'no per-role resource settings in any migration')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A ceiling without a schema reload is a ceiling that does not bind.
+// ─────────────────────────────────────────────────────────────────────────────
+// PostgREST caches pg_db_role_setting in its schema cache and applies the CACHED copy;
+// it does not re-read the catalog per request. Supabase's `pgrst_ddl_watch` event
+// trigger issues the reload for ordinary DDL, and it cannot help here: event triggers
+// do not fire for shared objects, and roles are shared. So `ALTER ROLE ... SET` is the
+// one statement class that changes what a limit SHOULD be while never triggering the
+// reload that makes it so.
+//
+// Checked PER FILE, because the failure is per-deployment. A NOTIFY in some older
+// migration did not reload anything for the migration being added today, so requiring
+// one "somewhere in the directory" would pass the exact tree that breaks.
+//
+// This is the same rule as the `unavailable` list above, in a different disguise: a
+// number that reads as a control and bounds nothing. It is worse here, because the
+// value IS correct in the catalog — every static check, including this gate's own
+// matrix and the pgTAP catalog assertion, agrees the ceiling is set. Only traffic
+// disagrees, and only on an already-running project: a fresh `supabase start` boots
+// PostgREST after migrations, so every local run and every CI lane looks green.
+// SOURCE: https://www.postgresql.org/docs/17/event-trigger-matrix.html (event triggers do not fire for shared objects)
+const NOTIFY_PGRST = /^NOTIFY\s+pgrst\b/i
+const ROLE_SET = /^ALTER ROLE\s+[a-z0-9_]+\s+(?:IN DATABASE [a-z0-9_]+\s+)?(?:SET|RESET)\s/i
+for (const { file, statements: fileStatements } of readSqlDirByFile(MIGRATIONS_DIR)) {
+  if (!fileStatements.some((s) => ROLE_SET.test(s.trim()))) continue
+  if (fileStatements.some((s) => NOTIFY_PGRST.test(s.trim()))) continue
+  errs.push(
+    `${file}: changes a per-role ceiling with \`ALTER ROLE ... SET/RESET\` but never issues \`NOTIFY pgrst, 'reload schema'\`. PostgREST serves role settings from its schema cache, and the pgrst_ddl_watch event trigger does not fire for roles (shared objects), so this ceiling will not bind API traffic until PostgREST restarts for some unrelated reason. Add \`NOTIFY pgrst, 'reload schema';\` at the end of the migration`,
+  )
 }
 
 for (const [role, knobs] of Object.entries(cfg.roles)) {

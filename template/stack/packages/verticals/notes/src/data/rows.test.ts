@@ -51,6 +51,22 @@ describe('toNoteRecord', () => {
     expect(NoteRecord.parse(record)).toEqual(record)
   })
 
+  // THE ORPHANED-ROW CASE, and it is a regression test with a scar.
+  //
+  // `notes.owner_id` is ON DELETE SET NULL (the B2B attribution demotion: the org owns
+  // the data, so removing an employee must not delete the company's rows). Every other
+  // fixture in this file stamps an owner, so a non-null contract passed the whole unit
+  // suite and only failed against a real database — where it did not fail politely. This
+  // parse is inside listNotes' try/catch, so ONE orphaned row turns the entire page into
+  // `contractDrift`: a single departed employee blanks their org's notes list.
+  //
+  // If someone re-tightens `NoteRecord.ownerId` to a bare uuid, this line is what says no.
+  it('parses a row whose owner has been deleted — attribution is nullable, not required', () => {
+    const orphaned = toNoteRecord({ ...ROW, owner_id: null })
+    expect(orphaned.ownerId).toBeNull()
+    expect(NoteRecord.parse(orphaned)).toEqual(orphaned)
+  })
+
   it('leaves NO snake_case key on the result — a raw row must never escape', () => {
     for (const key of Object.keys(toNoteRecord(ROW))) {
       expect(key).not.toContain('_')

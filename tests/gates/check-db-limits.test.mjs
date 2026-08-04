@@ -28,7 +28,11 @@ ALTER ROLE authenticated SET idle_in_transaction_session_timeout = '30s';
 ALTER ROLE authenticated SET lock_timeout = '3s';
 ALTER ROLE service_role SET statement_timeout = '30s';
 ALTER ROLE service_role SET idle_in_transaction_session_timeout = '60s';
-ALTER ROLE service_role SET lock_timeout = '5s';`
+ALTER ROLE service_role SET lock_timeout = '5s';
+NOTIFY pgrst, 'reload schema';`
+
+/** The same ceilings with the reload omitted — set in the catalog, inert in the API. */
+const ROLE_SETTINGS_NO_RELOAD = ROLE_SETTINGS.replace("\nNOTIFY pgrst, 'reload schema';", '')
 
 const QUOTA = `CREATE TABLE public.quota_defaults (metric text PRIMARY KEY, hard_limit bigint NOT NULL);
 CREATE TABLE public.org_quota (org_id uuid NOT NULL, metric text NOT NULL, hard_limit bigint NOT NULL, PRIMARY KEY (org_id, metric));
@@ -60,6 +64,10 @@ ${triggers}
 ${extra}`
 }
 
+/**
+ * @param {{ mig?: string | null, config?: (base: any) => any, configToml?: string | null,
+ *           sources?: Record<string, string> }} [opts]
+ */
 function fixture({ mig = migration(), config, configToml = CONFIG_TOML, sources = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-dblimits-'))
   for (const [rel, content] of Object.entries(sources)) {
@@ -91,6 +99,33 @@ function runGate(dir) {
 test('GREEN: the shipped shape passes — full matrix, statement-level quota, no inert knobs', () => {
   const r = runGate(fixture())
   assert.equal(r.code, 0, r.out)
+})
+
+// The inert-ceiling pair. Both fixtures below have a PERFECT catalog: every role×knob
+// pair set to exactly the reviewed value. The gate's own matrix is satisfied, and so is
+// the pgTAP assertion that reads pg_db_role_setting. What is missing is the schema
+// reload, without which PostgREST keeps serving the cached settings and none of it binds.
+// Measured against a live stack: after `ALTER ROLE anon RESET statement_timeout` the
+// catalog row was gone and PostgREST still reported '3s'; only NOTIFY changed it to '8s'.
+test('RED: ceilings are set but no reload is issued — correct in the catalog, inert in the API', () => {
+  const r = runGate(fixture({ mig: migration({ roleSettings: ROLE_SETTINGS_NO_RELOAD }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("NOTIFY pgrst, 'reload schema'"), r.out)
+  assert.ok(r.out.includes('schema cache'), r.out)
+})
+
+test('RED: the reload sits in a DIFFERENT migration — it reloaded nothing for this one', () => {
+  // Per-file on purpose. A NOTIFY in some earlier migration reloaded PostgREST when THAT
+  // migration ran; it does nothing for the one being added today. A rule satisfied by
+  // "a NOTIFY exists somewhere in the directory" would pass exactly the tree that breaks.
+  const r = runGate(
+    fixture({
+      mig: migration({ roleSettings: ROLE_SETTINGS_NO_RELOAD }),
+      sources: { 'supabase/migrations/0002_reload.sql': "NOTIFY pgrst, 'reload schema';\n" },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('0001_limits.sql'), r.out)
 })
 
 test('RED: a declared ceiling that no migration applies', () => {

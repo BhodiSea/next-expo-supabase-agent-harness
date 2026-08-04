@@ -190,9 +190,51 @@ for (const root of DETERMINISM_ROOTS) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 4. No NUL byte in a text file — the defect that makes a file unsearchable.
+// ---------------------------------------------------------------------------
+// A NUL makes a file `data` rather than text, and grep then skips it in SILENCE: no
+// warning, exit 1, indistinguishable from "the pattern is not there". Three files in
+// this repo carried one (query-shapes.mjs, check-mutation-ratchet.mjs and an installer
+// test) because a NUL separator was TYPED into a string literal instead of written as
+// the `\u0000` escape. The escape is the same character at runtime, so this costs
+// nothing and buys back searchability.
+//
+// It is a sweep rather than a review note because it recurred while being FIXED: the
+// changelog entry describing the problem was itself written with a literal NUL. A class
+// of defect that survives the act of documenting it needs a machine watching for it.
+//
+// Binary assets are excluded by extension — a PNG is legitimately full of NULs. The list
+// is deliberately short: anything not on it is text, so a new binary kind reds here and
+// gets added on purpose rather than silently widening the exemption.
+const BINARY_EXT = /\.(?:png|jpg|jpeg|gif|webp|ico|icns|pdf|woff2?|ttf|otf|zip|gz|jar|keystore)$/i
+let textFilesScanned = 0
+for (const relPath of walkFiles(ROOT, {
+  excludeDirs: ['node_modules', '.git', 'dist', 'build', '.next', 'coverage'],
+})) {
+  if (BINARY_EXT.test(relPath)) continue
+  textFilesScanned += 1
+  const buf = readFileSync(join(ROOT, relPath))
+  const at = buf.indexOf(0)
+  if (at === -1) continue
+  const line = buf.subarray(0, at).toString('utf8').split('\n').length
+  failures.push(
+    `${relPath}:${String(line)} contains a literal NUL byte, which makes the whole file \`data\` rather than text — \`grep\` then skips it in silence and the file cannot be searched at all. If a NUL is meant as a separator, write it as the \`\\u0000\` escape (identical at runtime); if the file is binary, add its extension to BINARY_EXT.`,
+  )
+}
+
 if (failures.length > 0) {
   console.error(`HYGIENE: FAIL (${failures.length})`)
   for (const f of failures) console.error(`  - ${f}`)
   process.exit(1)
 }
-console.log(`HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted)`)
+// A sweep that scanned nothing is a false green, the same way the missing-template check
+// at the top of this file is. Report both counts so a sweep that quietly stops finding
+// files to look at shows up as a number that moved, not as continued silence.
+if (textFilesScanned === 0) {
+  console.error('HYGIENE: FAIL — the NUL sweep scanned 0 files, so its green means nothing')
+  process.exit(1)
+}
+console.log(
+  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes)`,
+)

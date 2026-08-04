@@ -62,6 +62,14 @@ if (dbUrl === undefined || dbUrl === '') {
 
 let postgres
 try {
+  // `postgres` is a SCAFFOLD dependency, and this file lives in the harness repo where
+  // it is deliberately absent — so the specifier is unresolvable exactly here and
+  // resolvable exactly where the gate runs. Suppressed on the import line rather than
+  // by excluding the file from tsconfig (the older precedent for scaffold-only imports),
+  // because excluding it would stop typechecking the other ~200 lines of a brand-new
+  // gate to silence one specifier. If `postgres` is ever added to the harness root, this
+  // suppression goes unused and reds — which is the correct prompt to delete it.
+  // @ts-expect-error -- scaffold-only dependency; resolvable in an installed consumer, never here
   ;({ default: postgres } = await import('postgres'))
 } catch {
   skipOrFail(GATE, 'the `postgres` driver is not installed — run pnpm install')

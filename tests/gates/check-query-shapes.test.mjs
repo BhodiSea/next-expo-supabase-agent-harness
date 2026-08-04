@@ -25,23 +25,27 @@ import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+// STATIC imports, and both reasons are load-bearing.
+//
+// They were computed dynamic imports (`pathToFileURL(join(LIB_SRC, …)).href`), which
+// forced a Windows-only workaround — a bare 'D:\\a\\...' specifier is
+// ERR_UNSUPPORTED_ESM_URL_SCHEME because 'd:' reads as a protocol — and that broke this
+// red-proof on windows-latest once already. A static relative specifier has no such
+// hazard on any platform, so the workaround disappears rather than being maintained.
+//
+// And a computed specifier is opaque to `knip --strict`: it could not see these call
+// sites, so `boundKind` and `indexServes` read as dead exports. The choice there is to
+// weaken the dead-code gate with an ignore entry or to let it see the truth. This is the
+// second one — the imports are honest and the gate keeps its teeth.
+import { boundKind, createRecorder, normalizeChain } from '../../template/base/tools/lib/query-recorder.mjs'
+import { indexServes, selectSql } from '../../template/base/tools/lib/query-shapes.mjs'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const GATE_SRC = join(ROOT, 'template/base/tools/check-query-shapes.mjs')
 const LIB_SRC = join(ROOT, 'template/base/tools/lib')
 const TENANCY_SRC = join(ROOT, 'template/base/tools/tenancy.json')
 const LIMITS_SRC = join(ROOT, 'template/base/tools/db-limits.json')
-
-// pathToFileURL, not the bare path: on Windows a dynamic import of 'D:\\a\\...' is
-// ERR_UNSUPPORTED_ESM_URL_SCHEME ('d:' reads as a protocol), which broke this red-proof on
-// windows-latest only and took the whole query-shapes canary with it.
-const { boundKind, createRecorder, normalizeChain } = await import(
-  pathToFileURL(join(LIB_SRC, 'query-recorder.mjs')).href
-)
-const { indexServes, selectSql } = await import(
-  pathToFileURL(join(LIB_SRC, 'query-shapes.mjs')).href
-)
 
 /** The shipped migration DDL the gate parses indexes out of, reduced to what matters. */
 const MIGRATION_OK = `
@@ -105,6 +109,11 @@ function getShape(over = {}) {
   }
 }
 
+/**
+ * `shapes` writes a structured manifest (null omits the file entirely); `rawManifest`
+ * replaces it BYTE for byte, which is the only way to express the malformed cases.
+ * @param {{ shapes?: any[] | null, rawManifest?: string, migration?: string }} [opts]
+ */
 function fixture({ shapes = [listShape(), getShape()], rawManifest, migration = MIGRATION_OK } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-queryshapes-'))
   mkdirSync(join(dir, 'tools/generated'), { recursive: true })

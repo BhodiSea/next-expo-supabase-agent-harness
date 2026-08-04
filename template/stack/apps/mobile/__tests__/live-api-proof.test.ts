@@ -319,10 +319,16 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     expect((visible.data ?? []).length).toBe(1)
 
     const page = await authedApi.notes.list.query({})
-    expect(page.ok).toBe(true)
-    if (page.ok) {
-      expect(page.data.items.some((note) => note.id === row?.id)).toBe(true)
+    // Report the ENVELOPE, not merely `false`. This assertion was `expect(page.ok).toBe(true)`
+    // and it failed in CI as "Expected: true, Received: false" — naming neither the code nor
+    // the reason. The defect underneath was a non-null `ownerId` contract over a column the
+    // org-scope migration had made nullable, and finding it took a local database because the
+    // one thing the failure would not say was what it was. An err outcome carries a
+    // discriminated AppError; a live proof that hides it is a proof you cannot act on.
+    if (!page.ok) {
+      throw new Error(`notes.list returned an err envelope: ${JSON.stringify(page.error)}`)
     }
+    expect(page.data.items.some((note) => note.id === row?.id)).toBe(true)
   })
 
   // notes.create is an orgProcedure. The caller holds exactly one seat — their personal

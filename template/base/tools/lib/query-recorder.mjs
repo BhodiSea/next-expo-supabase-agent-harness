@@ -27,7 +27,7 @@
  * in `extra` and the `query-shapes` gate reds naming it — so the reviewed set can only
  * grow through this file, which is hashed.
  */
-export const KNOWN_METHODS = new Set([
+const KNOWN_METHODS = new Set([
   'delete',
   'eq',
   'gt',
@@ -99,12 +99,12 @@ export function createRecorder() {
  * on a fixture edit and would put a row's data in a file the whole team reads. The
  * OPERATORS and COLUMNS are the shape; the values are not.
  */
-export function normalizeFilter(filter) {
+function normalizeFilter(filter) {
   return filter.replace(/(\.[a-z]+\.)(?:"[^"]*"|[^,()]*)/g, '$1?')
 }
 
 /** Columns named by a PostgREST filter string, in order of first appearance. */
-export function filterColumns(filter) {
+function filterColumns(filter) {
   const seen = []
   for (const m of filter.matchAll(/(?:^|[,(])\s*([a-z_][a-z0-9_]*)\.[a-z]+\./g)) {
     if (!seen.includes(m[1])) seen.push(m[1])
