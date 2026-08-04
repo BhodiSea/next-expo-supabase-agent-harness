@@ -4,9 +4,48 @@
     "Settings for working ON THE HARNESS ITSELF — not the policy a scaffolded app gets, and not this project's security posture.",
     "A scaffolded app is governed by template/base/.claude/settings.json plus the PreToolUse guard hooks (the pure-data rule table in .claude/hooks/lib/guard-rules.mjs). Those hooks are the deterministic layer; a permissions file is convenience, and it is not installed here because this repo is the harness, not a consumer of it.",
     "So this file is deliberately permissive: routine work on the machinery never prompts. Only truly irreversible or outward-destructive actions sit in ask/deny.",
-    "Scratch-tree cleanup under /private/tmp stays prompt-free; recursive deletes aimed at the home tree or the repo cwd prompt first.",
-    "FORKING THIS TEMPLATE: review this file before your first agent turn — you inherit it, and you may want a tighter default than the one the upstream maintainer runs."
+    "Scratch-tree cleanup: the PERMISSIONS below leave /private/tmp prompt-free, but the bash-guard shim is stricter and denies the recursive-force delete in every flag spelling, anywhere — the guard is the deterministic layer and it does not read this file. Use `rm -r <dir>` for scratch trees. A maintainer meeting that rule is the point of the dogfood.",
+    "The guard is a TRIPWIRE, not a parser: it matches command TEXT, so a command whose payload merely quotes a denied spelling is denied too. That is a false positive in the safe direction, and it is why this note does not spell the pattern out.",
+    "FORKING THIS TEMPLATE: review this file before your first agent turn — you inherit it, and you may want a tighter default than the one the upstream maintainer runs.",
+    "DOGFOOD (0.2.0): the hooks below now run ON this repo. pretool-bash-guard is a three-line RE-EXPORT of the shipped guard — never a fork, so this repo is a live test of the exact bytes consumers get. pretool-write-guard cannot be shimmed (its subject is paths, and a consumer's tools/ is this repo's template/base/tools/), so it reuses the shipped hookio plumbing with a factory path table. stop-factory-gate runs the closure checks that nobody remembers to run: hygiene, canary coverage, rule integrity, claims, floor lockstep, the complexity ratchet, and syntax — about 7 seconds.",
+    "IT WILL BLOCK MAINTENANCE TURNS. That is the feature. A blocked maintainer turn means a consumer would have been blocked too, so a bug in the shipped guard surfaces on the machine of the person who can fix it. HARNESS_ALLOW_SELF_EDIT=1 is the human-in-the-loop escape, exactly as it is for consumers."
   ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-factory-gate.mjs",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "defaultMode": "acceptEdits",
     "allow": ["Bash", "Read", "WebFetch", "WebSearch"],
