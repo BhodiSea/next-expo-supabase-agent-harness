@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.2.0'
+export const HARNESS_HOOK_VERSION = '0.2.1'
 
 // Dynamic import AFTER hookio has installed its fail-closed handlers: a missing or
 // broken rules module must BLOCK (exit 2), not exit 1 as a non-blocking load error.

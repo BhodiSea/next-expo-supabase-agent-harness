@@ -1,0 +1,25 @@
+/* ============================================================================
+   THE BRAND CONTRACT, PINNED TO COPPER.
+
+   Replaces the upstream brand.css (oklch-metal-tokens v0.5.0). In this scaffold
+   the accent IS copper — the semantic accent ramp in @app/design-tokens carries
+   copper's measured trajectory — so the upstream file's retargeting machinery
+   (--metal-brand-base + a relative-color-syntax derivation behind a @supports
+   guard) is dead weight here: when the brand is copper, no derivation happens
+   upstream either, and you get the integrated values, not an approximation.
+
+   These three custom properties are the whole contract the edge system reads
+   (see edges.css). Without them every metal-rim-brand / metal-well-brand
+   declaration goes invalid at computed-value time — silently.
+
+   If this scaffold's brand ever stops being copper, restore the upstream
+   brand.css rather than hand-tuning these rungs: the derivation there is
+   round-trip gated against copper's measured ramp.
+   ============================================================================ */
+:root {
+  /* @block metal-brand */
+
+  --metal-brand-spec: var(--cu-spec);
+  --metal-brand-sheen: var(--cu-100);
+  --metal-brand-occ: var(--cu-800);
+}

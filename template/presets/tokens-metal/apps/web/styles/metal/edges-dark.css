@@ -1,0 +1,45 @@
+/* ============================================================================
+   DARK POLARITY — the only file in this set that carries a theme selector.
+
+   Materialised for THIS scaffold's theming mechanism from the upstream
+   edges-dark.css template (oklch-metal-tokens v0.5.0, `--dark both` strategy,
+   minus the `.dark` class this app never sets). The selectors below mirror the
+   generated @app/design-tokens web.css exactly:
+
+     1. the prefers-color-scheme block is the DEFAULT — first paint, no JS —
+        and its :not([data-theme='light']) guard keeps an explicit light choice
+        from silently flipping dark at night;
+     2. [data-theme='dark'] is the explicit user override, and it also wins on
+        source order against the light :root in edges.css;
+     3. .metal-ground-dark is the per-subtree override the rim utilities use.
+
+   DO NOT wrap any of this in :where(). The dark aliases must beat the light
+   `:root` block in edges.css, and :where() zeroes specificity — dark mode would
+   silently stop working while every file still looked correct.
+
+   The six aliases are the light block's with on-light and on-dark swapped.
+   Nothing else differs between the themes: the primitives, the ramps and the
+   utilities are all theme-invariant.
+   ============================================================================ */
+[data-theme='dark'],
+.metal-ground-dark {
+  /* @block metal-polarity-dark */
+
+  --edge-lit: var(--metal-edge-lit-on-dark);
+  --edge-occ: var(--metal-edge-occ-on-dark);
+  --edge-lit-ink: var(--metal-edge-lit-on-light);
+  --edge-occ-ink: var(--metal-edge-occ-on-light);
+  --edge-lit-brand: var(--metal-edge-lit-brand-on-dark);
+  --edge-occ-brand: var(--metal-edge-occ-brand-on-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --edge-lit: var(--metal-edge-lit-on-dark);
+    --edge-occ: var(--metal-edge-occ-on-dark);
+    --edge-lit-ink: var(--metal-edge-lit-on-light);
+    --edge-occ-ink: var(--metal-edge-occ-on-light);
+    --edge-lit-brand: var(--metal-edge-lit-brand-on-dark);
+    --edge-occ-brand: var(--metal-edge-occ-brand-on-dark);
+  }
+}

@@ -5,9 +5,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {
+    "gen": "tsx scripts/gen-preset.mjs",
+    "gen:check": "tsx scripts/gen-preset.mjs --check",
     "typecheck": "tsc -b ."
   },
   "dependencies": {
@@ -19,7 +22,9 @@
     "react-native": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

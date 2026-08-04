@@ -326,6 +326,160 @@ test('init rejects invalid placeholder values, unknown --set keys, unknown tiers
   const badTier = run(['init', '--dir', dir, '--yes', '--tier', 'strictest', ...SETS])
   assert.equal(badTier.code, 1, badTier.out)
   assert.ok(badTier.out.includes('unknown tier'), badTier.out)
+
+  // An unregistered token preset fails loud before a single file is written.
+  const badPreset = run(['init', '--dir', dir, '--yes', ...SETS, '--set', 'DESIGN_TOKENS=chrome'])
+  assert.equal(badPreset.code, 1, badPreset.out)
+  assert.ok(badPreset.out.includes('default, metal'), badPreset.out)
+  assert.ok(!existsSync(join(dir, 'package.json')), 'nothing may be written on an invalid preset')
+})
+
+// ── The design-token preset seam (v0.2.1): DESIGN_TOKENS rides the placeholder
+// rails; 'metal' overlays template/presets/tokens-metal/ onto the stack plan at
+// init. NOT a module on purpose — a preset is an init-time choice carried in
+// manifest.answers, never an `enable`-flippable unit. ──
+
+test('design-token preset: default is the plain stack render; metal plants the vendored variant set', () => {
+  const defDir = mkdtempSync(join(tmpdir(), 'epah-preset-def-'))
+  const metalDir = mkdtempSync(join(tmpdir(), 'epah-preset-metal-'))
+  assert.equal(run(['init', '--dir', defDir, '--yes', '--tier', 'core', ...SETS]).code, 0)
+  assert.equal(
+    run(['init', '--dir', metalDir, '--yes', '--tier', 'core', ...SETS, '--set', 'DESIGN_TOKENS=metal']).code,
+    0,
+  )
+
+  // The overlaid set differs between presets; everything else is byte-identical.
+  const colorRel = 'packages/design-tokens/src/color.ts'
+  assert.notEqual(
+    readFileSync(join(defDir, colorRel), 'utf8'),
+    readFileSync(join(metalDir, colorRel), 'utf8'),
+    'metal must plant a different token source',
+  )
+  assert.equal(
+    readFileSync(join(defDir, 'packages/design-tokens/src/space.ts'), 'utf8'),
+    readFileSync(join(metalDir, 'packages/design-tokens/src/space.ts'), 'utf8'),
+    'non-overlaid token modules must be identical across presets',
+  )
+
+  // The mobile splash lockstep tracks each preset's generated dark canvas.
+  assert.ok(
+    readFileSync(join(defDir, 'apps/mobile/app.config.ts'), 'utf8').includes("CANVAS_DARK = '#0b0e0f'"),
+  )
+  assert.ok(
+    readFileSync(join(metalDir, 'apps/mobile/app.config.ts'), 'utf8').includes("CANVAS_DARK = '#090d15'"),
+  )
+  // ...and the generated native theme carries the same hex the config repeats.
+  assert.ok(
+    readFileSync(join(metalDir, 'packages/design-tokens/src/generated/native.ts'), 'utf8').includes("canvas: '#090d15'"),
+    'metal native.ts must carry the metal dark canvas',
+  )
+
+  // The vendored rim CSS is preset-only: present on metal, absent on default.
+  assert.ok(existsSync(join(metalDir, 'apps/web/styles/metal/rims.css')))
+  assert.ok(existsSync(join(metalDir, 'apps/web/styles/metal/index.css')))
+  assert.ok(!existsSync(join(defDir, 'apps/web/styles')), 'default must not grow a styles/metal dir')
+  assert.ok(
+    readFileSync(join(metalDir, 'apps/web/app/globals.css'), 'utf8').includes("@import '../styles/metal/index.css'"),
+    'metal globals.css must import the rim system',
+  )
+
+  // Manifests: the choice is recorded; overlay files are seeded, module-free.
+  const metalManifest = JSON.parse(readFileSync(join(metalDir, '.harness/manifest.json'), 'utf8'))
+  const defManifest = JSON.parse(readFileSync(join(defDir, '.harness/manifest.json'), 'utf8'))
+  assert.equal(metalManifest.answers.DESIGN_TOKENS, 'metal')
+  assert.equal(defManifest.answers.DESIGN_TOKENS, 'default')
+  const rimMeta = metalManifest.files['apps/web/styles/metal/rims.css']
+  assert.equal(rimMeta.mode, 'seeded')
+  assert.ok(!('module' in rimMeta), 'preset files carry no module attribution')
+
+  // Zero placeholder residue on BOTH paths — the {{DESIGN_TOKENS}} provenance
+  // line in the design-tokens README renders to the chosen preset.
+  assert.deepEqual(placeholderResidue(defDir), [])
+  assert.deepEqual(placeholderResidue(metalDir), [])
+  assert.ok(
+    readFileSync(join(metalDir, 'packages/design-tokens/README.md'), 'utf8').includes('Token preset: **metal**'),
+  )
+})
+
+test('design-token preset: --force carries the choice; update touches no preset file; pre-0.2.1 manifests backfill default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-preset-lc-'))
+  assert.equal(
+    run(['init', '--dir', dir, '--yes', '--tier', 'core', ...SETS, '--set', 'DESIGN_TOKENS=metal']).code,
+    0,
+  )
+  const colorRel = 'packages/design-tokens/src/color.ts'
+  const metalColor = readFileSync(join(dir, colorRel), 'utf8')
+  const manifestPath = join(dir, '.harness/manifest.json')
+
+  // --force with no --set re-renders and keeps the metal choice + bytes.
+  const forced = run(['init', '--dir', dir, '--yes', '--force'])
+  assert.equal(forced.code, 0, forced.out)
+  assert.equal(
+    JSON.parse(readFileSync(manifestPath, 'utf8')).answers.DESIGN_TOKENS,
+    'metal',
+    'the preset choice must carry over a --force re-render',
+  )
+  assert.equal(readFileSync(join(dir, colorRel), 'utf8'), metalColor)
+  assert.ok(existsSync(join(dir, 'apps/web/styles/metal/rims.css')))
+
+  // A plain update leaves every preset file byte-identical and the choice intact.
+  const rimBytes = readFileSync(join(dir, 'apps/web/styles/metal/rims.css'), 'utf8')
+  const upd = run(['update', '--dir', dir])
+  assert.notEqual(upd.code, 1, upd.out)
+  assert.equal(readFileSync(join(dir, colorRel), 'utf8'), metalColor, 'update must not touch a seeded preset file')
+  assert.equal(readFileSync(join(dir, 'apps/web/styles/metal/rims.css'), 'utf8'), rimBytes)
+  assert.equal(JSON.parse(readFileSync(manifestPath, 'utf8')).answers.DESIGN_TOKENS, 'metal')
+
+  // --refresh-seeded on a METAL install pulls the METAL bytes, not the default's.
+  const refresh = run(['update', '--dir', dir, '--refresh-seeded', colorRel])
+  assert.equal(refresh.code, 0, refresh.out)
+  assert.equal(
+    readFileSync(join(dir, colorRel), 'utf8'),
+    metalColor,
+    'refresh-seeded must resolve the overlaid (metal) template bytes',
+  )
+
+  // A pre-0.2.1 manifest (no DESIGN_TOKENS answer) IS a default install:
+  // update backfills 'default' so walkStack resolves and the provenance line
+  // can never render as residue.
+  const defDir = mkdtempSync(join(tmpdir(), 'epah-preset-old-'))
+  assert.equal(run(['init', '--dir', defDir, '--yes', '--tier', 'core', ...SETS]).code, 0)
+  const oldManifestPath = join(defDir, '.harness/manifest.json')
+  const oldManifest = JSON.parse(readFileSync(oldManifestPath, 'utf8'))
+  delete oldManifest.answers.DESIGN_TOKENS
+  writeFileSync(oldManifestPath, JSON.stringify(oldManifest, null, 2))
+  const oldUpd = run(['update', '--dir', defDir])
+  assert.notEqual(oldUpd.code, 1, oldUpd.out)
+  assert.equal(
+    JSON.parse(readFileSync(oldManifestPath, 'utf8')).answers.DESIGN_TOKENS,
+    'default',
+    'update must backfill the default preset into a pre-0.2.1 manifest',
+  )
+  const refreshReadme = run(['update', '--dir', defDir, '--refresh-seeded', 'packages/design-tokens/README.md'])
+  assert.equal(refreshReadme.code, 0, refreshReadme.out)
+  assert.deepEqual(placeholderResidue(defDir), [], 'refresh-seeded must never plant {{DESIGN_TOKENS}} residue')
+})
+
+test('design-token preset: retrofit records the choice but plants no preset files; a preset is not a module', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-preset-retro-'))
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'existing', dependencies: { next: '16.0.0' } }))
+  writeFileSync(join(dir, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n")
+  mkdirSync(join(dir, 'apps/web/src'), { recursive: true })
+  writeFileSync(join(dir, 'apps/web/package.json'), '{"name":"web"}\n')
+  const r = run(['init', '--dir', dir, '--yes', ...SETS, '--set', 'DESIGN_TOKENS=metal'])
+  assert.notEqual(r.code, 1, r.out)
+  const manifest = JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8'))
+  assert.equal(manifest.mode, 'retrofit')
+  assert.equal(manifest.answers.DESIGN_TOKENS, 'metal', 'the choice is recorded even when inert')
+  assert.ok(!existsSync(join(dir, 'apps/web/styles')), 'retrofit must not plant the rim CSS')
+  assert.ok(!existsSync(join(dir, 'packages/design-tokens/src')), 'retrofit must not plant stack token source')
+
+  // And the preset is not reachable through the module lifecycle.
+  const installed = mkdtempSync(join(tmpdir(), 'epah-preset-mod-'))
+  assert.equal(run(['init', '--dir', installed, '--yes', '--tier', 'core', ...SETS]).code, 0)
+  const en = run(['enable', 'tokens-metal', '--dir', installed])
+  assert.equal(en.code, 1, en.out)
+  assert.ok(en.out.includes('unknown module'), 'a preset must never be enable-able')
 })
 
 test('enable rejects unknown modules with the known-module list', () => {
@@ -883,6 +1037,13 @@ test('npm pack ships every template path (dotless storage survives packing)', ()
     // packing rule that only reached one level deep would drop the entire
     // platform/verticals half of the workspace while still looking green.
     'template/stack/packages/platform/errors/package.json.tmpl',
+    // The 0.2.1 surfaces: the metal preset overlay tree (outside base/stack —
+    // a packing rule keyed on those two prefixes would drop it silently) and
+    // the design-system-native generator contract.
+    'template/presets/tokens-metal/packages/design-tokens/src/color.ts',
+    'template/presets/tokens-metal/apps/web/styles/metal/rims.css',
+    'template/stack/packages/design-system-native/scripts/gen-preset.mjs',
+    'template/stack/packages/design-system-native/tailwind-preset.cjs',
     'installer/cli.mjs',
   ]) {
     assert.ok(files.includes(critical), `npm pack dropped ${critical}`)

@@ -70,6 +70,18 @@ export const PLACEHOLDERS = {
         ? null
         : 'must be a bare origin — http(s)://host[:port], no path or trailing slash (it lands in the committed transport policy)',
   },
+  // Design-token preset: selects which vendored token/theme variant init plants
+  // (template/presets/<tree>/ overlays the stack tree — see copy.mjs walkStack).
+  // A placeholder rather than a flag so it rides every existing rail: --set,
+  // --yes, interactive re-prompt, and --force carry-over via manifest.answers.
+  // Its {{DESIGN_TOKENS}} closure anchor is the provenance line in the scaffolded
+  // packages/design-tokens/README.md (a seeded file, so plain `update` never
+  // rewrites it with a missing answer).
+  DESIGN_TOKENS: {
+    prompt: 'Design-token preset — "default" or "metal" (measured-material OKLCH skin)',
+    default: () => 'default',
+    validate: (v) => (v === 'default' || v === 'metal' ? null : 'must be one of: default, metal'),
+  },
   // Supabase project ref — the subdomain of the project URL. NOT a secret: it
   // appears in every client-side request URL. It is a placeholder because
   // supabase/config.toml commits it and the CI generated-types lane keys off it.

@@ -79,6 +79,17 @@ test('WEB_ORIGIN rejects anything that is not a bare origin', () => {
   assert.notEqual(PLACEHOLDERS.WEB_ORIGIN.validate('app.example.com'), null)
 })
 
+test('DESIGN_TOKENS defaults to "default" and accepts only the registered presets', () => {
+  const spec = PLACEHOLDERS.DESIGN_TOKENS
+  assert.equal(spec.default(), 'default')
+  assert.equal(spec.validate('default'), null)
+  assert.equal(spec.validate('metal'), null)
+  // Case-sensitive and closed: the value selects a template tree by exact key.
+  assert.match(spec.validate('Metal') ?? '', /default, metal/)
+  assert.match(spec.validate('chrome') ?? '', /default, metal/)
+  assert.match(spec.validate('') ?? '', /default, metal/)
+})
+
 test('SUPABASE_PROJECT_REF accepts TBD or a 20-char ref, nothing else', () => {
   // TBD keeps init from blocking on project creation; doctor warns while it remains.
   assert.equal(PLACEHOLDERS.SUPABASE_PROJECT_REF.default(), 'TBD')

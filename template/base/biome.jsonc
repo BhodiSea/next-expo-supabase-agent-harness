@@ -20,6 +20,10 @@
       "!**/tools/generated/**",
       // Installer-written manifest (JSON.stringify shape, hash-verified by doctor).
       "!**/.harness/manifest.json",
+      // Vendored third-party CSS (the metal token preset's rim system) —
+      // byte-stable upstream dist files; a formatter pass would read as drift
+      // against the vendored source. Absent on non-metal scaffolds, harmless.
+      "!**/styles/metal/**",
       // Harness-owned hook/tool internals are not project code.
       "!**/.claude",
       "!**/.claude/**"

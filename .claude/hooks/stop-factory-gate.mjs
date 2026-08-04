@@ -22,7 +22,7 @@ import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 import { block, pass, readHookInput } from '../../template/base/.claude/hooks/lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.1.3'
+export const HARNESS_HOOK_VERSION = '0.2.1'
 
 const STEPS = [
   // The shipped artifact stays generic, and every directory listing in the enforcement

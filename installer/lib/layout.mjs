@@ -37,6 +37,17 @@ export const MODULES = [
 // bare "unknown module". Empty at 0.1.0 — this lineage starts fresh.
 export const RETIRED_MODULES = new Map([])
 
+// Design-token presets: template/presets/<tree>/ overlays the STACK plan at
+// init (same-installPath replacement + preset-only additions — see copy.mjs
+// walkStack). Deliberately NOT modules: seeded files already exist by the time
+// `enable` could run, and `disable` deleting token files would strand the
+// scaffold — a preset is an init-time choice carried in manifest.answers,
+// switchable only by a deliberate `init --force --set DESIGN_TOKENS=<preset>`.
+export const TOKEN_PRESETS = new Map([
+  ['default', null], // no overlay — the stack tree as-is
+  ['metal', 'presets/tokens-metal'],
+])
+
 export const TIERS = {
   core: [],
   standard: ['ci-provenance', 'ci-mobile-release', 'ci-web-deploy'],

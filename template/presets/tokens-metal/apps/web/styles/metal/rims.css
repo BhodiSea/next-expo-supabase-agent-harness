@@ -1,0 +1,405 @@
+/* ============================================================================
+   THE RIM SYSTEM — the depth vocabulary, and two utilities for inverting a
+   subtree.
+
+   THE INTERACTION LADDER, which is the whole vocabulary in one place. Every
+   step is a geometry or a fill this package already ships; none of them is a
+   new colour:
+     rest      the object has a rim
+     hover     the FILL advances away from the page — darker on light, lighter
+               on dark (see --brand-hover in semantic-light.css). Never
+               `hover:bg-primary/90`: alpha-fading a fill toward the page loses
+               luminance, so the control recedes under the cursor.
+     focus     metal-focus, an outline outside the object (see below)
+     pressed   the rim inverts to a well. `shadow-none` does NOT clear a rim —
+               it writes a different variable — and deleting the depth would
+               say "gone" where the object means "pushed in".
+     selected  a seated well, or a rim over an advanced fill. Both read as
+               state; a rim alone does not, because every resting object has one
+     disabled  FLAT, on --muted with --muted-foreground. The one legitimate
+               place to remove a rim: the object is no longer raised, and that
+               is exactly what it should look like
+     dragging  the source becomes a socket (well + recessed fill); the drop
+               target wears the focus ring, which is already the "this one" mark
+
+   FLOATING SURFACES — a dialog, a popover, a dropdown, a sheet — get depth the
+   same way everything else does: a panel tier for the fill, a border hairline,
+   and a rim. There is no elevation shadow and there is no offset "seat" line
+   under them either. That was considered and refused: an offset shadow paints
+   OUTSIDE the element, which for a floating panel means on top of the page
+   content it is covering, potentially under text — invisible to axe for the
+   same reason rims are safe on top of a fill. It also models contact with a
+   surface, which is the one thing a floating panel does not have. A sheet
+   pinned to a viewport edge takes the lip on the seam where it meets the page.
+   ============================================================================ */
+
+/* ============================================================================
+   (continued)
+
+   WHY box-shadow AND NOT A GRADIENT. This is an accessibility decision before
+   it is an aesthetic one. axe-core contains ZERO occurrences of `box-shadow`:
+   its background walk reads `background-image` and `background-color` only. So
+   a rim delivers depth with the contrast assertion fully intact. A gradient
+   instead sets bgColor='bgGradient', returns a null background, and lands the
+   node in `results.incomplete` — which almost every suite ignores, since they
+   assert only that `violations` is empty. A gradient under text therefore keeps
+   your suite GREEN while deleting that node's contrast coverage. The rim makes
+   that failure mode structurally unreachable.
+
+   A RIM IS AN OBJECT'S EDGE, so find the object before adding one. Three rules
+   learned the hard way:
+     - A well is a rim inverted, edge for edge. A pressed control is a RECESS —
+       invert it, never delete it.
+     - A well needs a FLOOR. On a transparent element it paints onto whatever is
+       behind, which is not the surface you meant.
+     - Below about 20px on the short axis, or on anything `rounded-full`, leave
+       it flat. 1px + 1px of a 10px track is 20% of the object and reads as a
+       border; on a circle the crescent tapers to zero at the equator.
+
+   THE SHADOW CHAIN, and the one thing not to "tidy". Each utility writes
+   --tw-inset-shadow and then re-emits Tailwind's full five-variable
+   composition, WITH inline `, 0 0 #0000` fallbacks. Tailwind's own utilities
+   omit those fallbacks because they rely on an @property registration — but
+   that registration is only emitted when a Tailwind shadow or ring utility is
+   in your candidate set. Verified against 4.3.1: in a project using ONLY these
+   metal utilities, no @property block is emitted, an unregistered --tw-shadow
+   substitutes to the guaranteed-invalid value, and the entire box-shadow
+   declaration becomes invalid at computed-value time — i.e. `none`. The
+   fallbacks are the only reason this works standalone. Gated in
+   gates/rims.test.mjs.
+
+   Writing --tw-inset-shadow also means these COMPOSE with `shadow-*` and
+   `ring-*` rather than fighting them: three different variables, all five slots
+   painted. The corollary is that `shadow-none` does NOT clear a rim, because it
+   writes a different variable — invert to the well instead.
+
+   FORCED COLORS. The kill-switch is nested INSIDE each utility rather than
+   written as a sibling `@media (forced-colors: active) { .metal-rim { … } }`.
+   A sibling rule stops matching the moment anyone imports Tailwind with
+   `prefix(...)`, because the utility is then emitted as `.tw\:metal-rim` while
+   the sibling still says `.metal-rim`. Windows High Contrast users would get a
+   1px edge in a colour they did not choose, on every rim in the app, invisible
+   to axe because box-shadow is not a forced property. Nested, the switch
+   travels with whatever selector Tailwind generates.
+   ============================================================================ */
+
+@utility metal-rim {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-lit), inset 0 -1px 0 0 var(--edge-occ);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+@utility metal-well {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-occ), inset 0 -1px 0 0 var(--edge-lit);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* For the one control that carries the accent as a FILL — a primary button.
+   Its pressed state is metal-well-brand, not shadow-none. */
+@utility metal-rim-brand {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-lit-brand), inset 0 -1px 0 0 var(--edge-occ-brand);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+@utility metal-well-brand {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-occ-brand), inset 0 -1px 0 0 var(--edge-lit-brand);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* For an object whose edge should carry a SPECIFIC MATERIAL — a malachite tag,
+   a jarosite banner, a dial-coloured card. Set the pair on the element (or a
+   parent) and the rim takes it; leave them unset and it falls back to the
+   neutral edges, so the utility degrades to metal-rim rather than to nothing:
+
+       <span class="metal-rim-tone"
+             style="--tone-lit: var(--ma-200); --tone-occ: var(--ma-800)">
+
+   The lit rung should be the family's bright reading and the occluded rung its
+   deep one — the material's own ladder provides both, which is the point:
+   every family that ships in this system is rim-capable without this file
+   naming any of them. */
+@utility metal-rim-tone {
+  --tw-inset-shadow:
+    inset 0 1px 0 0 var(--tone-lit, var(--edge-lit)),
+    inset 0 -1px 0 0 var(--tone-occ, var(--edge-occ));
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+@utility metal-well-tone {
+  --tw-inset-shadow:
+    inset 0 1px 0 0 var(--tone-occ, var(--edge-occ)),
+    inset 0 -1px 0 0 var(--tone-lit, var(--edge-lit));
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* For a surface that INVERTS against the page — a dark tooltip on a light page.
+   It takes the other ground's pair, so it is lit like the material it is rather
+   than like the theme it sits in. */
+@utility metal-rim-ink {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-lit-ink), inset 0 -1px 0 0 var(--edge-occ-ink);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* Vertical lips, for a panel pinned to a viewport edge — a drawer or sheet.
+   metal-rim is a fixed horizontal axis and cannot express a lit vertical edge:
+   a right-hand drawer is lit down its LEFT side, where it meets the page. */
+@utility metal-lip-l {
+  --tw-inset-shadow: inset 1px 0 0 0 var(--edge-lit);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+@utility metal-lip-r {
+  --tw-inset-shadow: inset -1px 0 0 0 var(--edge-lit);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* The horizontal pair, for a bar or sheet pinned to the top or bottom edge.
+   Same seam law as the vertical lips: the lit edge is the one that MEETS THE
+   PAGE, so a bottom sheet is lit along its top seam and a top bar along its
+   bottom one. That is why these are not just metal-rim with one half deleted —
+   metal-lip-b's single edge is lit, where metal-rim's bottom edge is occluded. */
+@utility metal-lip-t {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-lit);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+@utility metal-lip-b {
+  --tw-inset-shadow: inset 0 -1px 0 0 var(--edge-lit);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* The pressed state for an inverted surface. metal-rim-ink shipped without its
+   inverse, so a dark tooltip's own toggle had no recess to fall into and the
+   only options were the wrong ground's well or nothing. */
+@utility metal-well-ink {
+  --tw-inset-shadow: inset 0 1px 0 0 var(--edge-occ-ink), inset 0 -1px 0 0 var(--edge-lit-ink);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow, 0 0 #0000);
+  @media (forced-colors: active) {
+    --tw-inset-shadow: 0 0 #0000;
+    box-shadow: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   FOCUS — an OUTLINE, and the only edge in this system that is not a shadow.
+
+   Every rim above kills itself under forced-colors, on purpose: box-shadow is
+   not a forced property, so a rim that survived would paint a 1px edge in a
+   colour the user did not choose and axe would never see it. Focus cannot
+   accept that deal — an indicator that vanishes in High Contrast is worse than
+   no indicator. `outline` is a forced property: the UA recolours it to the
+   user's own focus colour and it keeps working. So focus is the one place this
+   package leaves the shadow chain, and that is a consequence of the rims'
+   forced-colors rule rather than an exception to it.
+
+   TWO PIXELS, AND AN OFFSET OF TWO. The offset is not decoration. It lifts the
+   ring off the control's own fill and onto the ground the control sits on,
+   which is the surface WCAG 2.4.11 wants the indicator measured against —
+   `--ring` is gated at 3:1 against the page and all five panel tiers, in both
+   themes, and that gate is only meaningful because the offset makes the
+   adjacent colour predictable.
+
+   `currentColor` is the fallback, not a colour of our own: at the core tier
+   there is no --ring (semantics arrive with standard), and the one colour
+   guaranteed legible on a surface is the ink already printing on it.
+
+   IT COMPOSES WITH A RIM. outline and box-shadow are different properties, so
+   a focused button keeps its bevel and gains a ring — no utility has to know
+   about any other. Gated in gates/rims.test.mjs, which asserts this utility
+   touches no --tw-* variable at all.
+   ---------------------------------------------------------------------------- */
+@utility metal-focus {
+  &:focus-visible {
+    outline: 2px solid var(--ring, currentColor);
+    outline-offset: 2px;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   TONE SETTERS — a material's own edge, for metal-rim-tone / metal-well-tone.
+
+   Each sets --tone-occ and NOTHING ELSE. That asymmetry is measured, not a
+   shortcut, and it is the same finding for the minerals as for the metals:
+
+     THE OCCLUDED EDGE IS WHERE A MATERIAL'S COLOUR LIVES. A concavity is
+     mechanism (B), cavity inter-reflection — the only process in this system
+     that saturates into shadow — so a jarosite recess really is more jarosite
+     than the jarosite around it.
+
+     THE LIT EDGE IS NOT. A rim sits at deep grazing by definition, and the
+     angular Fresnel equations take every conductor to within one or two 8-bit
+     codes of neutral there (the derivation is written out at the foot of
+     ramps.css and gated in derivation.test.mjs). For the dielectric minerals
+     the same conclusion arrives by a shorter road: a dielectric's specular is
+     achromatic and independent of body colour, which is the argument black
+     zirconium already carries in the ramps.
+
+   So --tone-lit is deliberately left unset and metal-rim-tone's fallback picks
+   up the neutral, ground-following edge — which is the physically correct
+   highlight rather than a compromise. Inline --tone-lit still overrides it if
+   you want art direction; the utilities below just decline to ship any.
+
+   Alphas: the occluded edge is a partial occlusion of the surface behind it,
+   so strength is carried by ALPHA rather than by reaching for a darker rung —
+   the same rule the edge primitives follow. The boost mirrors a11y.css.
+
+   NO SETTER FOR RHODIUM, SILVER OR BLACK ZIRCONIUM, and the reason is the
+   edge system itself: a tone setter's job is to replace the neutral edge with
+   a material's chroma, and these are the materials the neutral edge is
+   already made of — --rh-rim and --rh-700 carry the light-theme edges,
+   --zr-900 the dark occlusion, and silver's one rung is achromatic-grade by
+   its own gate. Each would hand the rim the colour it already has.
+
+   THE OCCLUSION RUNG IS A ROLE, NOT A NUMBER. Setters reach for the deepest
+   rung a family ships: -800 where the ladder ends there (copper, TiN, every
+   mineral), -900 where it runs deeper (osmium, purple gold), -500 for the
+   three-rung gold. v0.4's changelog said "-800" as if it were the rule; the
+   rule is "the family's occlusion rung", and this note is the correction.
+   ---------------------------------------------------------------------------- */
+@utility metal-tone-cu {
+  --tone-occ: color-mix(in oklab, var(--cu-800) 42%, transparent);
+  @media (prefers-contrast: more) {
+    --tone-occ: color-mix(in oklab, var(--cu-800) 72%, transparent);
+  }
+}
+
+@utility metal-tone-os {
+  --tone-occ: color-mix(in oklab, var(--os-900) 42%, transparent);
+  @media (prefers-contrast: more) {
+    --tone-occ: color-mix(in oklab, var(--os-900) 72%, transparent);
+  }
+}
+
+@utility metal-tone-tn {
+  --tone-occ: color-mix(in oklab, var(--tn-800) 42%, transparent);
+  @media (prefers-contrast: more) {
+    --tone-occ: color-mix(in oklab, var(--tn-800) 72%, transparent);
+  }
+}
+
+@utility metal-tone-pau {
+  --tone-occ: color-mix(in oklab, var(--pau-900) 42%, transparent);
+  @media (prefers-contrast: more) {
+    --tone-occ: color-mix(in oklab, var(--pau-900) 72%, transparent);
+  }
+}
+
+/* Brass and gold share one setter by design, not by omission: on sRGB --au-500
+   IS --cz-500, and on P3 the gold family swaps as a unit. A separate
+   metal-tone-au would resolve to the identical colour on every sRGB display
+   and diverge only where gold is real — which is exactly what one utility
+   reading var(--au-500) already does. */
+@utility metal-tone-au {
+  --tone-occ: color-mix(in oklab, var(--au-500) 42%, transparent);
+  @media (prefers-contrast: more) {
+    --tone-occ: color-mix(in oklab, var(--au-500) 72%, transparent);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   GROUND OVERRIDES — for a subtree whose polarity does not match the page.
+
+   The case these exist for: a marketing section that pins a dark background on
+   a <div> rather than on <html>. The theme selector never fires there, so every
+   rim inside it is lit as though the page were light, and a rhodium highlight
+   on a near-black panel reads as a wrong, chalky line. Put metal-ground-dark on
+   the wrapper and the six aliases flip for that subtree only.
+
+   These re-assign nothing but the aliases — no fill, no colour, no side effect.
+   ---------------------------------------------------------------------------- */
+@utility metal-ground-dark {
+  --edge-lit: var(--metal-edge-lit-on-dark);
+  --edge-occ: var(--metal-edge-occ-on-dark);
+  --edge-lit-ink: var(--metal-edge-lit-on-light);
+  --edge-occ-ink: var(--metal-edge-occ-on-light);
+  --edge-lit-brand: var(--metal-edge-lit-brand-on-dark);
+  --edge-occ-brand: var(--metal-edge-occ-brand-on-dark);
+}
+
+@utility metal-ground-light {
+  --edge-lit: var(--metal-edge-lit-on-light);
+  --edge-occ: var(--metal-edge-occ-on-light);
+  --edge-lit-ink: var(--metal-edge-lit-on-dark);
+  --edge-occ-ink: var(--metal-edge-occ-on-dark);
+  --edge-lit-brand: var(--metal-edge-lit-brand-on-light);
+  --edge-occ-brand: var(--metal-edge-occ-brand-on-light);
+}

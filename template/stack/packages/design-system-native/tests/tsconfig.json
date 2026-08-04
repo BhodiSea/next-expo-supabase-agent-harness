@@ -1,0 +1,22 @@
+{
+  // The lint/type program for this package's OUT-OF-SRC tests, and nothing else.
+  // The package program (../tsconfig.json) types react-native + nativewind
+  // ambients with no `node` — the right surface for code Metro bundles — but
+  // the freshness test reads the committed artifact with node:fs, exactly like
+  // design-tokens' render.test.ts. That package solves it with `types: ["node"]`
+  // because nothing there is react-native; here the two ambient sets must not
+  // meet in one program, so the tests get their own.
+  //
+  // Deliberately NOT composite and NOT referenced by the root solution: vitest
+  // transforms these files itself, and typescript-eslint's projectService is
+  // the consumer this file exists for — typed lint rules need every linted
+  // file to belong to a discoverable program.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts"]
+}

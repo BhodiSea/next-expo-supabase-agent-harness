@@ -107,6 +107,7 @@ const DEFAULT_ANSWERS = {
   APP_IDENTIFIER: 'com.example.demoapp',
   APP_SCHEME: 'demoapp',
   WEB_ORIGIN: 'http://127.0.0.1:3000',
+  DESIGN_TOKENS: 'default',
   SUPABASE_PROJECT_REF: 'TBD',
   GITHUB_OWNER: 'acme-co',
   SECURITY_OWNERS: '@acme-co',
@@ -213,6 +214,7 @@ test('fully --set answers resolve with NO readline even when yes is false', asyn
     APP_IDENTIFIER: 'com.acme.fullset',
     APP_SCHEME: 'fullsetapp',
     WEB_ORIGIN: 'http://127.0.0.1:3000',
+    DESIGN_TOKENS: 'metal',
     SUPABASE_PROJECT_REF: 'TBD',
     GITHUB_OWNER: 'acme-co',
     SECURITY_OWNERS: '@acme-co',
@@ -288,6 +290,7 @@ test('interactive: typed replies are stored, trimmed of surrounding whitespace',
       'com.acme.padded', // APP_IDENTIFIER
       'paddedname', // APP_SCHEME
       'https://app.padded.example', // WEB_ORIGIN
+      'metal', // DESIGN_TOKENS
       '', // SUPABASE_PROJECT_REF (default TBD)
       'acme-co', // GITHUB_OWNER
       '@acme-co @acme-co/security', // SECURITY_OWNERS
@@ -303,6 +306,7 @@ test('interactive: typed replies are stored, trimmed of surrounding whitespace',
   assert.equal(r.answers.WEB_ORIGIN, 'https://app.padded.example')
   assert.equal(r.answers.SUPABASE_PROJECT_REF, 'TBD')
   assert.equal(r.answers.SECURITY_OWNERS, '@acme-co @acme-co/security')
+  assert.equal(r.answers.DESIGN_TOKENS, 'metal')
   assert.equal(r.answers.EAS_PROJECT_ID, 'TBD')
 })
 
@@ -319,6 +323,7 @@ test('interactive: an invalid reply re-prompts, then accepts a valid one', () =>
       'com.acme.portal', // APP_IDENTIFIER
       'myportal', // APP_SCHEME
       'https://app.acme.example', // WEB_ORIGIN
+      '', // DESIGN_TOKENS (default)
       '', // SUPABASE_PROJECT_REF
       'acme-co', // GITHUB_OWNER
       '@acme-co', // SECURITY_OWNERS
@@ -337,6 +342,58 @@ test('interactive: an invalid reply re-prompts, then accepts a valid one', () =>
   )
   const slugPrompts = r.prompts.filter((p) => p.includes('Package/machine name'))
   assert.equal(slugPrompts.length, 2, 'PROJECT_SLUG must be re-prompted exactly once')
+})
+
+test('--set DESIGN_TOKENS=metal passes validation and lands in answers', async () => {
+  const answers = await collectAnswers({
+    yes: true,
+    sets: { DESIGN_TOKENS: 'metal' },
+    ctx: ctx(),
+  })
+  assert.equal(answers.DESIGN_TOKENS, 'metal')
+})
+
+test('an invalid DESIGN_TOKENS --set is rejected up front, naming both presets', async () => {
+  await assert.rejects(
+    collectAnswers({ yes: true, sets: { DESIGN_TOKENS: 'chrome' }, ctx: ctx() }),
+    (/** @type {Error} */ err) => {
+      assert.match(err.message, /invalid placeholder value/)
+      assert.ok(err.message.includes('DESIGN_TOKENS'), err.message)
+      assert.ok(err.message.includes('default, metal'), err.message)
+      assert.ok(err.message.includes('got: "chrome"'), err.message)
+      return true
+    },
+  )
+})
+
+test('interactive: an invalid DESIGN_TOKENS reply re-prompts, then accepts metal', () => {
+  const r = drive({
+    spec: { yes: false, sets: {}, ctx: ctx() },
+    lines: [
+      '', // PROJECT_NAME
+      '', // PROJECT_SLUG
+      '', // APP_IDENTIFIER
+      '', // APP_SCHEME
+      '', // WEB_ORIGIN
+      'chrome', // DESIGN_TOKENS — invalid
+      'metal', // DESIGN_TOKENS — valid retry
+      '', // SUPABASE_PROJECT_REF
+      '', // GITHUB_OWNER
+      '', // SECURITY_OWNERS
+      '', // DEFAULT_BRANCH
+      '', // EAS_PROJECT_ID
+      '', // ASC_APP_ID
+      '', // APPLE_TEAM_ID
+    ],
+  })
+  assert.ok(r.ok, JSON.stringify(r))
+  assert.equal(r.answers.DESIGN_TOKENS, 'metal', 'valid retry wins; invalid value never stored')
+  assert.ok(
+    r.errors.some((e) => e.includes('DESIGN_TOKENS') && e.includes('default, metal')),
+    JSON.stringify(r.errors),
+  )
+  const presetPrompts = r.prompts.filter((p) => p.includes('Design-token preset'))
+  assert.equal(presetPrompts.length, 2, 'DESIGN_TOKENS must be re-prompted exactly once')
 })
 
 test('interactive: already-answered (--set) placeholders are NOT prompted', () => {

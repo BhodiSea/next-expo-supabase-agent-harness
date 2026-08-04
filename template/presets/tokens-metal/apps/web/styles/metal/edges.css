@@ -1,0 +1,73 @@
+/* ============================================================================
+   THE EDGE SYSTEM.
+
+   A rim is two 1px inset shadows: a lit edge where the light strikes and an
+   occluded edge where the form turns away. That is all the depth in this system
+   — no gradients, no blur, no elevation shadows under text.
+
+   STRUCTURED AS 8 PRIMITIVES + 6 ALIASES, and the split is what makes the whole
+   thing tractable. The palette this was extracted from spread ten edge
+   declarations across a light block and a dark block, then ten more inside a
+   high-contrast media query. Reading them closely there are only FOUR pairs of
+   information, because the light theme's "ink" pair (for inverted surfaces) IS
+   the dark theme's ordinary pair, verbatim, and vice versa.
+
+   THE RULE THAT GENERALISES: the edge material follows the SURFACE, not the
+   theme. A dark tooltip on a light page is lit like a dark surface, because it
+   IS one. Naming the primitives after the ground they sit on rather than after
+   a theme makes that rule structural instead of a comment that can drift — and
+   collapses the dark theme to six alias lines in one file.
+
+   WHICH METAL LIGHTS WHICH GROUND, and why it is not arbitrary:
+     on light -> RHODIUM. Its F0 (L 0.917) sits below a light page, so it can
+       only ever read as a hard edge, never as a brighter panel. That is exactly
+       what a rim on a bright surface needs to be.
+     on dark  -> OSMIUM lit / BLACK ZIRCONIUM occluded. A conductor for the
+       highlight, a dielectric for the recess: the dielectric's specular is
+       achromatic and independent of body colour, which is why the shadow reads
+       as absence of light rather than as a dark blue.
+   ============================================================================ */
+:root {
+  /* @block metal-edge-primitives */
+
+  /* Neutral pairs. Alpha, not lightness, carries the strength — an edge is a
+     partial occlusion of the surface behind it, so the honest operator is
+     transparency. Note that alpha is NOT the fraction of light removed: over a
+     dark ground 0.55 removes about 79%, because sRGB is not linear. */
+  --metal-edge-lit-on-light: color-mix(in oklab, var(--rh-rim) 90%, transparent);
+  --metal-edge-occ-on-light: color-mix(in oklab, var(--rh-700) 32%, transparent);
+  --metal-edge-lit-on-dark: color-mix(in oklab, var(--os-spec) 26%, transparent);
+  --metal-edge-occ-on-dark: color-mix(in oklab, var(--zr-900) 55%, transparent);
+
+  /* Brand pairs. The LIT rung differs by ground and the occluded one does not:
+     on a light page the sheen rung reads as the highlight, on a dark page you
+     need the full specular to register at all. Both grounds occlude with the
+     same rung at different alpha. See brand.css for retargeting these to a
+     non-copper brand — you set one token, not four. */
+  --metal-edge-lit-brand-on-light: color-mix(in oklab, var(--metal-brand-sheen) 55%, transparent);
+  --metal-edge-occ-brand-on-light: color-mix(in oklab, var(--metal-brand-occ) 30%, transparent);
+  --metal-edge-lit-brand-on-dark: color-mix(in oklab, var(--metal-brand-spec) 38%, transparent);
+  --metal-edge-occ-brand-on-dark: color-mix(in oklab, var(--metal-brand-occ) 45%, transparent);
+}
+
+:root {
+  /* @block metal-polarity-light */
+
+  /* The six public aliases — the only edge tokens you are expected to touch.
+     Override any of them AFTER importing this file and yours wins: both are
+     unlayered `:root` at equal specificity, and an imported `:root` is emitted
+     in source position rather than hoisted, so later simply wins. That is a
+     positional guarantee, verified against tailwindcss 4.3.1, not a
+     specificity accident.
+
+     `-ink` is for a surface that inverts against the page: a dark tooltip on a
+     light page, a light callout on a dark one. It takes the OTHER ground's pair
+     verbatim, which is why it reproduces that ground's asymmetry exactly rather
+     than approximating it. */
+  --edge-lit: var(--metal-edge-lit-on-light);
+  --edge-occ: var(--metal-edge-occ-on-light);
+  --edge-lit-ink: var(--metal-edge-lit-on-dark);
+  --edge-occ-ink: var(--metal-edge-occ-on-dark);
+  --edge-lit-brand: var(--metal-edge-lit-brand-on-light);
+  --edge-occ-brand: var(--metal-edge-occ-brand-on-light);
+}

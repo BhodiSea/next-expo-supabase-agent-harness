@@ -1,0 +1,43 @@
+/* ============================================================================
+   Metal rim system — vendored from oklch-metal-tokens v0.5.0 (tag 6bb51e3),
+   core tier, trimmed to the edge/rim subset this scaffold uses. ramps.css,
+   edges.css, rims.css and a11y.css are byte-verbatim upstream dist files;
+   brand-copper.css and edges-dark.css are materialised for this scaffold (see
+   their headers). The dial, gold and P3 layers are deliberately not vendored.
+
+   License: Apache-2.0 OR 0BSD (the upstream installed-token license, same as
+   this template).
+
+   Imported from app/globals.css. Two constraints on that import line, both
+   verified upstream against tailwindcss 4.3.1 rather than assumed:
+
+   1. NO `layer(...)`. `@import "./index.css" layer(components)` throws
+      "`@utility` cannot be nested" and the error does not name this file.
+   2. Import it EARLY. A bare `:root` from an imported file is emitted in source
+      position, not hoisted — so anything declared later in the root stylesheet
+      wins at equal specificity. That is how these tokens are overridden, and it
+      only works if this file comes first.
+
+   IMPORT ORDER BELOW IS LOAD-BEARING, twice:
+     - edges-dark after edges: the explicit dark selector and `:root` tie on
+       specificity, so the dark polarity wins on source order alone.
+     - a11y last: a media query adds no specificity either.
+   Reorder these and the failure is silent in both cases.
+   ============================================================================ */
+
+/* Force-emit the utilities with zero scanned candidates. Without this they
+   appear only if Tailwind's scanner literally sees the class name in your
+   source, so a computed or conditionally-applied class would vanish in
+   production and work in every local test. Costs about 1.2 KB if you use none
+   of them; delete this line if that matters more than the guarantee.
+   Note: this does NOT work under `@import "tailwindcss" prefix(...)`, which is
+   why the upstream installer refuses a prefixed setup — this scaffold uses no
+   prefix. */
+@source inline("metal-rim metal-well metal-rim-brand metal-well-brand metal-rim-tone metal-well-tone metal-rim-ink metal-well-ink metal-lip-{l,r,t,b} metal-focus metal-tone-{cu,os,tn,pau,au} metal-ground-{light,dark}");
+
+@import './ramps.css';
+@import './brand-copper.css';
+@import './edges.css';
+@import './edges-dark.css';
+@import './rims.css';
+@import './a11y.css';

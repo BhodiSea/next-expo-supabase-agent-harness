@@ -75,8 +75,14 @@
       "project": ["src/**/*.{ts,tsx}!"]
     },
     "packages/design-system-native": {
-      "entry": ["src/index.ts!", "src/preset.ts!", "src/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}!"]
+      "entry": [
+        "src/index.ts!",
+        "src/preset.ts!",
+        "scripts/gen-preset.mjs!",
+        "src/**/*.test.{ts,tsx}",
+        "tests/unit/**/*.test.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs", "tests/unit/**/*.ts"]
     },
     "packages/platform/errors": {
       "entry": ["src/index.ts!", "src/**/*.test.ts"],

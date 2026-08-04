@@ -33,7 +33,7 @@
 // SOURCE: docs/harness/README.md (tamper evidence; the factory eats its own dog food)
 import { denyTool, pass, readHookInput } from '../../template/base/.claude/hooks/lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.1.3'
+export const HARNESS_HOOK_VERSION = '0.2.1'
 
 const PROTECTED = [
   /^template\/base\/tools\//,

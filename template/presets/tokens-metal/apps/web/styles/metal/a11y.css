@@ -1,0 +1,41 @@
+/* ============================================================================
+   prefers-contrast: more.
+
+   Boosting the PRIMITIVES rather than the aliases is the whole payoff of the
+   8+6 split. Eight declarations in one `:root` cover both themes, both grounds
+   and every inverted subtree, and there is no theme selector in this file at
+   all. The palette this was extracted from needed ten declarations across a
+   `:root` and a `.dark` to say the same thing, and had to keep the two halves
+   manually in step.
+
+   This must be imported AFTER edges.css. A media query adds no specificity, so
+   these win on source order alone — reorder the imports and the boost silently
+   stops applying, which is why index.css fixes the order rather than leaving it
+   to whoever edits it next.
+
+   THE BOOST RULE: +30 percentage points of alpha, capped at 100. Alpha, not
+   lightness, because an edge is a partial occlusion — raising alpha reveals
+   more of the same material rather than substituting a different one, so the
+   surface still reads as the metal it is.
+
+   CHANGED FROM THE SOURCE PALETTE, deliberately. There, the two brand LIT edges
+   were the only pair left unboosted, because they reached the brand through an
+   alias that the boost block did not name — an aliasing accident rather than a
+   decision, and the kind of thing this restructure exists to make impossible.
+   They are boosted here by the same +30 rule the other six already followed
+   (four of them exactly, one at +28, one capped). A user who asks for more
+   contrast should not get five sharpened edges and one that stayed put.
+   ============================================================================ */
+@media (prefers-contrast: more) {
+  :root {
+    /* @block metal-edge-primitives-boosted */
+    --metal-edge-lit-on-light: color-mix(in oklab, var(--rh-rim) 100%, transparent);
+    --metal-edge-occ-on-light: color-mix(in oklab, var(--rh-700) 62%, transparent);
+    --metal-edge-lit-on-dark: color-mix(in oklab, var(--os-spec) 52%, transparent);
+    --metal-edge-occ-on-dark: color-mix(in oklab, var(--zr-900) 85%, transparent);
+    --metal-edge-lit-brand-on-light: color-mix(in oklab, var(--metal-brand-sheen) 85%, transparent);
+    --metal-edge-occ-brand-on-light: color-mix(in oklab, var(--metal-brand-occ) 58%, transparent);
+    --metal-edge-lit-brand-on-dark: color-mix(in oklab, var(--metal-brand-spec) 68%, transparent);
+    --metal-edge-occ-brand-on-dark: color-mix(in oklab, var(--metal-brand-occ) 75%, transparent);
+  }
+}

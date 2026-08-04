@@ -20,11 +20,13 @@ import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import {
+  planStack,
   planTree,
   renderEntry,
   storageToInstall,
   templateRoot,
   toPosix,
+  walkStack,
   walkTemplate,
 } from '../../installer/lib/copy.mjs'
 import { PLACEHOLDERS, tokensIn } from '../../installer/lib/placeholders.mjs'
@@ -190,7 +192,7 @@ test('storageToInstall agrees with walkTemplate on EVERY real template file (no 
   // storageToInstall; this closure over the real trees proves that mapping can
   // never disagree with the walker that `init`/`update` actually install with.
   const root = templateRoot()
-  const trees = ['base', 'stack']
+  const trees = ['base', 'stack', 'presets/tokens-metal']
   for (const entry of readdirSyncSafe(join(root, 'modules'))) trees.push(`modules/${entry}`)
   let checked = 0
   for (const tree of trees) {
@@ -209,6 +211,89 @@ test('storageToInstall agrees with walkTemplate on EVERY real template file (no 
   // over a handful of files would prove nothing. (The W0 port skeleton ran at
   // > 10; restored to the finished-template floor when the module trees landed.)
   assert.ok(checked > 200, `expected the template surface, checked only ${checked}`)
+})
+
+// ---------------------------------------------------------------------------
+// walkStack / planStack — the design-token preset overlay (v0.2.1)
+// ---------------------------------------------------------------------------
+
+test('walkStack(default) is exactly walkTemplate("stack"), with or without the answer key', () => {
+  assert.deepStrictEqual(walkStack({ DESIGN_TOKENS: 'default' }), walkTemplate('stack'))
+  // A pre-0.2.1 answers object carries no DESIGN_TOKENS at all — same walk.
+  assert.deepStrictEqual(walkStack({}), walkTemplate('stack'))
+  assert.deepStrictEqual(walkStack(undefined), walkTemplate('stack'))
+})
+
+test('walkStack(metal) replaces same-installPath entries IN PLACE and appends preset-only files', () => {
+  const stack = walkTemplate('stack')
+  const metal = walkStack({ DESIGN_TOKENS: 'metal' })
+
+  // No duplicate installPaths, and every stack installPath is still present.
+  const installPaths = metal.map((e) => e.installPath)
+  assert.equal(new Set(installPaths).size, installPaths.length, 'duplicate installPaths in plan')
+  const metalSet = new Set(installPaths)
+  for (const e of stack) assert.ok(metalSet.has(e.installPath), `${e.installPath} dropped from plan`)
+
+  // Replaced entries sit at their ORIGINAL plan position with a presets/ source.
+  const colorIdx = stack.findIndex((e) => e.installPath === 'packages/design-tokens/src/color.ts')
+  assert.ok(colorIdx >= 0)
+  assert.equal(metal[colorIdx].installPath, 'packages/design-tokens/src/color.ts')
+  assert.ok(
+    metal[colorIdx].storagePath.startsWith('presets/tokens-metal/'),
+    `expected the metal variant, got ${metal[colorIdx].storagePath}`,
+  )
+
+  // The full overlaid-replacement set, pinned: token source + both generated
+  // artifacts + the mobile splash lockstep + the web stylesheet.
+  const replaced = metal.filter((e) => e.storagePath.startsWith('presets/tokens-metal/')).map((e) => e.installPath)
+  for (const p of [
+    'packages/design-tokens/src/color.ts',
+    'packages/design-tokens/src/generated/web.css',
+    'packages/design-tokens/src/generated/native.ts',
+    'apps/mobile/app.config.ts',
+    'apps/web/app/globals.css',
+  ]) {
+    assert.ok(replaced.includes(p), `${p} must be overlaid by the metal preset`)
+  }
+
+  // Preset-only files (the vendored rim CSS) APPEND after the stack plan.
+  const stackSet = new Set(stack.map((e) => e.installPath))
+  const appended = metal.filter((e) => !stackSet.has(e.installPath)).map((e) => e.installPath)
+  assert.ok(appended.length > 0, 'metal must add preset-only files')
+  for (const p of appended) {
+    assert.ok(p.startsWith('apps/web/styles/metal/'), `unexpected preset-only path ${p}`)
+  }
+  assert.ok(appended.includes('apps/web/styles/metal/rims.css'))
+  assert.ok(appended.includes('apps/web/styles/metal/index.css'))
+  // Appended entries come after every stack-position entry (order preserved).
+  assert.deepEqual(installPaths.slice(0, stack.length), stack.map((e) => e.installPath))
+})
+
+test('walkStack throws on an unknown preset value (a hand-edited manifest fails loud)', () => {
+  assert.throws(
+    () => walkStack({ DESIGN_TOKENS: 'chrome' }),
+    /unknown DESIGN_TOKENS preset: chrome \(known: default, metal\)/,
+  )
+})
+
+test('walkStack + renderEntry compose to exactly planStack, both presets', () => {
+  for (const preset of ['default', 'metal']) {
+    const answers = { ...ALL_ANSWERS, DESIGN_TOKENS: preset }
+    const composed = walkStack(answers).map((e) => ({
+      storagePath: e.storagePath,
+      installPath: e.installPath,
+      content: renderEntry(e, answers),
+    }))
+    assert.deepStrictEqual(composed, planStack(answers))
+  }
+})
+
+test('planStack(metal) renders with no leftover unknown placeholders', () => {
+  for (const e of planStack({ ...ALL_ANSWERS, DESIGN_TOKENS: 'metal' })) {
+    if (Buffer.isBuffer(e.content)) continue
+    const leftover = [...tokensIn(e.content)]
+    assert.equal(leftover.length, 0, `${e.installPath}: ${leftover.join(', ')}`)
+  }
 })
 
 // readdirSync that treats a missing dir as empty — module trees are optional.

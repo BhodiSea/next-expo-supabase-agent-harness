@@ -71,5 +71,21 @@
       "tools/rate-limit-budget.json",
       "tools/security-definer-allow.json"
     ]
+  },
+
+  "0.2.1": {
+    "//": [
+      "THE METAL-PRESET RELEASE. Two changes reach the template; neither reaches an existing install by default, and that is the record.",
+
+      "The design-token preset seam: DESIGN_TOKENS rides the placeholder rails (prompted at init, carried in manifest.answers; `update` backfills 'default' into pre-0.2.1 manifests, which ARE default installs by definition). The metal variant lives under template/presets/tokens-metal/ — OUTSIDE base/stack/modules — so a default install's `update` never walks it: the preset is init-time-only BY CONSTRUCTION, not by registration, and deliberately contributes nothing to seedOnInitOnly (check-seeded-migrations grounds patterns against base/stack/modules, where preset paths do not ship).",
+
+      "The design-system-native generator contract, completed: gen-preset.mjs, the committed tailwind-preset.cjs, and the freshness test are the three files src/preset.ts always documented and 0.2.0 never shipped. seedOnInitOnly, not planted: all three install under the seeded packages/ prefix, and the committed preset is rendered from @app/design-tokens — planting template bytes into an install whose (seeded) token source may have been retuned would red the new freshness test on their next validate. Pullable via `update --refresh-seeded packages/design-system-native/`."
+    ],
+
+    "seedOnInitOnly": [
+      "packages/design-system-native/scripts/gen-preset.mjs",
+      "packages/design-system-native/tailwind-preset.cjs",
+      "packages/design-system-native/tests/"
+    ]
   }
 }

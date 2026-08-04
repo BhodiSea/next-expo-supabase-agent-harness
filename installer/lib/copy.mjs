@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RENAMES } from './layout.mjs'
+import { RENAMES, TOKEN_PRESETS } from './layout.mjs'
 import { render } from './placeholders.mjs'
 
 // Manifest keys, mode prefixes (SEEDED_PREFIXES 'apps/'), RETROFIT_ADDITIVE
@@ -99,6 +99,48 @@ export function renderEntry(entry, answers) {
  */
 export function planTree(tree, answers) {
   return walkTemplate(tree).map(({ storagePath, installPath, sourcePath }) => ({
+    storagePath,
+    installPath,
+    content: renderEntry({ sourcePath }, answers),
+  }))
+}
+
+// The stack tree with the chosen design-token preset overlaid. Same-installPath
+// preset entries REPLACE stack entries IN PLACE (plan order preserved — init's
+// package.json/pnpm-workspace special-casing keys off installPath); preset-only
+// entries (the vendored rim CSS) APPEND. Entries keep their true `presets/...`
+// storagePath: init's retrofit classifier treats both prefixes as stack
+// content. Fail loud, never fail open: an unknown preset value (a hand-edited
+// manifest) and a chosen preset resolving to zero files are both errors, not a
+// silent default install.
+export function walkStack(answers) {
+  const preset = answers?.DESIGN_TOKENS ?? 'default'
+  if (!TOKEN_PRESETS.has(preset)) {
+    throw new Error(
+      `unknown DESIGN_TOKENS preset: ${preset} (known: ${[...TOKEN_PRESETS.keys()].join(', ')})`,
+    )
+  }
+  const stack = walkTemplate('stack')
+  const tree = TOKEN_PRESETS.get(preset)
+  if (tree === null) return stack
+  const overlay = walkTemplate(tree)
+  if (overlay.length === 0) {
+    throw new Error(`preset '${preset}' resolved to zero files — installer packaging is broken`)
+  }
+  const byInstall = new Map(overlay.map((e) => [e.installPath, e]))
+  const covered = new Set(stack.map((e) => e.installPath))
+  return [
+    ...stack.map((e) => byInstall.get(e.installPath) ?? e),
+    ...overlay.filter((e) => !covered.has(e.installPath)),
+  ]
+}
+
+// walkStack + renderEntry — the preset-aware sibling of planTree('stack', …).
+/**
+ * @returns {{ storagePath: string, installPath: string, content: string | Buffer, module?: string }[]}
+ */
+export function planStack(answers) {
+  return walkStack(answers).map(({ storagePath, installPath, sourcePath }) => ({
     storagePath,
     installPath,
     content: renderEntry({ sourcePath }, answers),

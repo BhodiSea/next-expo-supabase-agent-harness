@@ -13,7 +13,7 @@
 // deliberate channel to pull them in.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { renderEntry, toPosix, walkTemplate } from '../lib/copy.mjs'
+import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import {
   fileMode,
@@ -52,6 +52,13 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     Object.entries(manifest.files ?? {}).map(([k, v]) => [toPosix(k), v]),
   )
 
+  // Pre-0.2.1 manifests carry no DESIGN_TOKENS answer: those installs ARE
+  // default-preset installs by definition. Backfill so (a) walkStack resolves,
+  // (b) rendering a template file that carries the {{DESIGN_TOKENS}} provenance
+  // line (the design-tokens README) can never write residue via --refresh-seeded.
+  manifest.answers ??= {}
+  manifest.answers.DESIGN_TOKENS ??= 'default'
+
   const answers = manifest.answers
   const entries = [...walkTemplate('base')]
   for (const m of manifest.modules ?? []) {
@@ -65,7 +72,9 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
   }
   // Stack files are all seeded (project-owned after init) — but new stack
   // files introduced by a newer template version should still be offered.
-  entries.push(...walkTemplate('stack'))
+  // Preset-aware: on a metal install, --refresh-seeded must pull the METAL
+  // bytes of an overlaid path, never the default ones.
+  entries.push(...walkStack(answers))
 
   // Focused mode: refresh the requested SEEDED path(s) from the current
   // template and stop — no version migrations, no owned-file sweep.

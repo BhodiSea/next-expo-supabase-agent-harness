@@ -1,7 +1,7 @@
 // `init` — bootstrap a new project or retrofit an existing one.
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { planTree } from '../lib/copy.mjs'
+import { planStack, planTree } from '../lib/copy.mjs'
 import { detect, detectContext } from '../lib/detect.mjs'
 import { CONFLICTABLE, MODULES, RETROFIT_ADDITIVE, TIERS } from '../lib/layout.mjs'
 import { fileMode, installerVersion, readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
@@ -79,7 +79,7 @@ export async function init(opts) {
     if (!MODULES.includes(m)) throw new Error(`unknown module: ${m} (known: ${MODULES.join(', ')})`)
   }
 
-  const plan = [...planTree('base', answers), ...planTree('stack', answers)]
+  const plan = [...planTree('base', answers), ...planStack(answers)]
   // Fail loud, never fail open: an unreadable template tree must be an error,
   // not a 0-file "successful" install (Windows URL.pathname regression class).
   if (plan.length === 0) {
@@ -153,7 +153,10 @@ export async function init(opts) {
   ]) {
     const ip = entry.installPath
     const dest = join(targetDir, ip)
-    const isStack = entry.storagePath.startsWith('stack/')
+    // Preset overlay entries are stack content under another storage prefix —
+    // the retrofit classifier must treat them identically or a retrofit would
+    // plant preset files it skips for every other stack path.
+    const isStack = entry.storagePath.startsWith('stack/') || entry.storagePath.startsWith('presets/')
 
     if (det.mode === 'retrofit' && isStack && ip !== 'package.json') {
       if (!RETROFIT_ADDITIVE.has(ip)) {

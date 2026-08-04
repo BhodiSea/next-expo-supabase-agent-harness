@@ -104,6 +104,24 @@ test('empty inputs: no additions or no registrations behave honestly', () => {
   assert.equal(v.length, 1)
 })
 
+test('preset storage paths (template/presets/**) are exempt by construction — update never walks them', () => {
+  // The design-token preset trees live outside base/stack/modules, so their
+  // files can never be auto-planted by `update` — the classifier skips them
+  // even with zero migrations registered. This is the invariant the 0.2.1
+  // migrations record relies on to carry no seedOnInitOnly entries for the
+  // metal overlay.
+  assert.deepEqual(
+    check(
+      [
+        'template/presets/tokens-metal/packages/design-tokens/src/color.ts',
+        'template/presets/tokens-metal/apps/web/styles/metal/rims.css',
+      ],
+      { migrations: {} },
+    ),
+    [],
+  )
+})
+
 // ── pattern GROUNDEDNESS ────────────────────────────────────────────────────────
 // The completeness half above asks "is every addition registered?". This half asks the
 // opposite and equally silent question: "does every registration name something real?".

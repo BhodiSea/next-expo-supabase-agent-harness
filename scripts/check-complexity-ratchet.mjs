@@ -45,9 +45,24 @@ if (eslint.stdout.trim() === '') {
   process.exit(1)
 }
 
+// pnpm 11's supply-chain banner ("✓ Lockfile passes supply-chain policies …")
+// can land on STDOUT ahead of eslint's JSON — which pnpm flavor prints it, and
+// to which stream, varies with the invoking environment (seen live: clean in a
+// login shell, banner-on-stdout under the factory Stop hook). ESLint's -f json
+// is one top-level array, so parse from its first byte instead of trusting the
+// stream to start clean; anything before it is the wrapper's chatter, and its
+// ABSENCE is the original no-JSON crash, reported with the raw head attached.
+const jsonStart = eslint.stdout.indexOf('[')
+if (jsonStart === -1) {
+  console.error(
+    `COMPLEXITY RATCHET: eslint produced no JSON\nstdout began: ${eslint.stdout.slice(0, 200)}\n${eslint.stderr}`,
+  )
+  process.exit(1)
+}
+
 const measured = new Map()
 const collisions = []
-for (const file of JSON.parse(eslint.stdout)) {
+for (const file of JSON.parse(eslint.stdout.slice(jsonStart))) {
   const rel = file.filePath.replace(ROOT, '')
   const complexityMsgs = file.messages.filter(
     (m) => m.ruleId === RULE && scoreOf(m.message) !== null,

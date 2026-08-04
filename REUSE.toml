@@ -27,3 +27,18 @@ path = "template/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Cogvera Labs"
 SPDX-License-Identifier = "Apache-2.0 OR 0BSD"
+
+# The metal-preset rim CSS is vendored from oklch-metal-tokens v0.5.0
+# (https://github.com/BhodiSea/oklch-metal-tokens, tag 6bb51e3): ramps.css,
+# edges.css, rims.css and a11y.css are byte-verbatim upstream dist files;
+# index.css, brand-copper.css and edges-dark.css are derived/materialised for
+# this scaffold. Upstream's installed tokens are licensed Apache-2.0 OR 0BSD —
+# identical to the template claim above — so recipients' license choice is
+# unchanged; this entry records the third-party provenance. The upstream URL
+# lives here rather than in the files because template bytes must never carry
+# the owner handle (scripts/hygiene.mjs leak scan).
+[[annotations]]
+path = "template/presets/tokens-metal/apps/web/styles/metal/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Cogvera Labs; portions oklch-metal-tokens contributors (https://github.com/BhodiSea/oklch-metal-tokens)"
+SPDX-License-Identifier = "Apache-2.0 OR 0BSD"

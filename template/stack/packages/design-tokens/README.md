@@ -4,6 +4,10 @@ The single source for every visual constant in the workspace: colour ramps in OK
 spacing ramp, a type ramp, radii, and the motion vocabulary. No React, no Tailwind, no
 CSS, no react-native, no runtime dependencies at all.
 
+Token preset: **{{DESIGN_TOKENS}}** — chosen at `init` and recorded in the install
+manifest. Switching presets afterwards is a deliberate re-render:
+`init --force --set DESIGN_TOKENS=<preset>`, then regenerate and re-run the gates.
+
 ## The token arrow
 
 ```

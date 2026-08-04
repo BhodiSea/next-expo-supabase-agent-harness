@@ -24,8 +24,8 @@ import {
 // token module is thirty-odd chances for the copy to go a month stale, and nothing
 // about a stale copy looks wrong — the app simply renders last month's spacing. The
 // committed tailwind-preset.cjs is emitted from here and regen-diffed by
-// preset.test.ts (and by `pnpm --filter @app/design-system-native run gen:check`),
-// exactly like the two artifacts in @app/design-tokens.
+// tests/unit/preset.test.ts (and by `pnpm --filter @app/design-system-native run
+// gen:check`), exactly like the two artifacts in @app/design-tokens.
 //
 // WHY THE GENERATOR LIVES IN THIS PACKAGE RATHER THAN IN THE TOKEN PACKAGE. A
 // NativeWind preset is this package's platform adapter; the token package stays

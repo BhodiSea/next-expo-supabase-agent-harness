@@ -1,0 +1,418 @@
+/* ============================================================================
+   THE MATERIAL RAMPS — specular ladders for NON-TEXT surfaces.
+
+   Eight materials: COPPER (a warm conductor), RHODIUM (light chrome), SILVER
+   (the brightest honest surface), OSMIUM (the dark body), BLACK ZIRCONIUM (a
+   dielectric recess), TITANIUM NITRIDE (the artificial gold), PURPLE GOLD
+   (AuAl2, the violet conductor) and BRASS (CuZn15, the rehabilitated alloy —
+   and the declared sRGB stand-in for real gold, which lives P3-only in the
+   metal-gold block below).
+
+   THE ONE RULE — structure is the metal; signal is the metal's oxide. To add a
+   colour: name the material, enter its MEASURED F0 hue, then move only OKLCH L
+   until it clears the gate. Hue and chroma belong to the material; lightness
+   belongs to you. Never rotate hue to fix contrast or colour-blind separation —
+   if L cannot buy the separation, the palette is full and the answer is a
+   different oxide.
+
+   HOW F0 WAS OBTAINED, AND THE TRAP THAT MAKES MOST PUBLISHED FIGURES WRONG.
+   Point-sampling n,k at 600/550/450nm and calling the result F0 is a real-time
+   rendering shortcut, not colorimetry. For gold it is wrong by +20.8 degrees
+   (3-point 100.4 against spectral 79.6), because reflectance climbs through the
+   red tail that the sRGB R primary integrates and three samples cannot see.
+   Every hue here is a full integration of R(lambda) over 380-780nm against the
+   CIE 1931 2 degree observer under D65, using
+       F0 = ((n-1)^2 + k^2) / ((n+1)^2 + k^2)
+   at each wavelength. If you extend this palette, integrate. Do not sample.
+
+   Rungs are F0^m (cavity inter-reflection) or Schlick(F0, theta) (grazing),
+   read off ONE scene: key light at azimuth 350 / elevation 75, the page as the
+   environment. They are deliberately NOT evenly spaced — an even L ramp gives
+   the unimodal histogram that reads as Lambertian paint rather than metal.
+   Hue is derived from C/L, not from L, because scaling linear RGB by s moves
+   OKLab L, a and b all by exactly s^(1/3) — so C/L is the exposure invariant,
+   the only quantity that survives not knowing how brightly a rung is lit.
+
+   WHY THE ARC DIRECTION DIFFERS PER FAMILY. Three separable rotations;
+   conflating them is how a ramp ends up internally contradictory:
+     (A) Fresnel angular (face -> grazing): every metal DESATURATES toward the
+         rim, monotonically.
+     (B) Cavity inter-reflection (F0^m): the ONLY mechanism that saturates into
+         shadow.
+     (C) Pure dimming: hue exactly conserved, chroma falls with L.
+   So chroma may only rise into shadow where the shadow is a CONCAVITY. A rung
+   that is merely "less lit" holds hue and loses chroma.
+
+   TWO STRUCTURAL CHOICES, both load-bearing:
+
+   1. Plain custom properties, NOT `@theme`. Verified against tailwindcss 4.3.1:
+      a `@theme` custom property with no consumer is TREE-SHAKEN OUT of the
+      compiled CSS (`@theme static` retains it). Half a ramp silently missing
+      turns `color-mix(in oklab, var(--cu-800) 30%, transparent)` invalid, and
+      the brand rim disappears — in production only, since usage differs per
+      app. A bare `:root` is emitted verbatim. `@theme` would also generate
+      `bg-cu-300` / `text-cu-700` utilities, and the first thing anyone reaches
+      for is a copper FILL, which is the one thing these ramps must not enable
+      (see 2). Gated by gates/tailwind.test.mjs, which reproduces the drop.
+
+   2. NEVER under text. A metal gradient cannot carry a label: #DA904D ->
+      #AD6322 puts a near-black on-accent tone at 4.27:1 at the dark end, under
+      the 4.5 floor. There is a second, independent reason: axe reports a
+      gradient background as `incomplete`, not `violation` (it sets
+      bgColor='bgGradient' and returns a null background), and most suites
+      assert only that `violations` is empty. So a sheen under text keeps the
+      suite GREEN while silently deleting that node's contrast coverage, which
+      is worse than a red test. Text-bearing fills stay solid; depth goes in a
+      1px edge, which axe-core does not read at all — it contains zero
+      occurrences of `box-shadow`.
+
+   Theme-invariant on purpose: a metal object does not change alloy with the
+   page theme.
+   ============================================================================ */
+:root {
+  /* @block metal-ramps */
+
+  /* COPPER — conductor, the brand material. Hue PEAKS at F0 and falls in BOTH
+     directions (grazing 42.3 -> 39.4 at 88 deg; cavity 42.3 -> 34.5 at m=5).
+     Because --cu-spec IS F0, the visible arc is monotone descending — but the
+     law is "peaks at F0", not "decreasing", or the next reviewer will
+     "correct" it back.
+
+     Measured F0, re-integrated from Johnson & Christy's raw n,k over 380-780nm:
+         oklch(0.8806 0.0500 44.3) = #F5CEBD, luminous Y 0.6729, C/L 0.05677.
+
+     The ramp carries ONE deliberate +23.2 degree displacement off that hue,
+     because the brand it serves derives from #B87333 rather than from a Fresnel
+     integration. Rotating to the true 44.3 leaves contrast alone (5.744 ->
+     5.792) but collapses protanopic separation against a red danger tone from
+     0.0315 to 0.0104 — a 67% loss on the tightest pair in the system. So the
+     SHAPE is measured to 0.5 degrees and only the POSITION is displaced: a
+     displacement, not a reflectance, bought with a number. If you retarget this
+     ramp to your own brand, see brand.css — do not edit these rungs.
+
+     Do NOT take Filament's copper row as measured. Its linear blue is 0.342,
+     BELOW copper's lowest measured normal-incidence reflectance anywhere in the
+     visible (0.538 at 450nm), so it is art-directed. Its published triple
+     0.97/0.74/0.62 is sRGB, not linear: read as sRGB it gives #F7BD9E, matching
+     its own published hex to one code. Gamma-encoding it a second time yields
+     #FCDFCE, which is 0.036 OKLCH L too bright — a common and invisible error.
+     SOURCE: P. B. Johnson & R. W. Christy, Phys. Rev. B 6, 4370 (1972) */
+  --cu-spec: oklch(0.908 0.052 65); /* #FADABD — F0, the specular. Hue peak. */
+  --cu-100: oklch(0.845 0.075 64.5); /* #EFC399 — polished sheen */
+  --cu-300: oklch(0.716 0.122 61); /* #DA904D — lit face, the ANCHOR */
+  --cu-700: oklch(0.432 0.092 59.5); /* #744211 — turned face */
+  --cu-800: oklch(0.36 0.078 59); /* #5A3109 — occlusion */
+
+  /* RHODIUM — conductor, the light-chrome tier. Measured F0
+     oklch(0.9161 0.0076 68.0), luminous Y 0.7682, sourced twice: Weaver/Olson/
+     Lynch 1977 via Palik, and Coulter/Hass/Ramsey, JOSA 63, 1149 (1973), which
+     integrates to 76.5 and agrees on both warm and lightness.
+
+     Rhodium is WARM (R > G > B). The widely repeated cool triple
+     0.77/0.78/0.79 is verbatim Filament's IRON row and is refuted.
+
+     Rhodium has NO usable hue arc: -1.5 degrees over four cavity bounces, and
+     its chroma falls to 0.0007 at grazing where hue is numerically meaningless.
+     So a ">= 6 degree arc" rule is UNPHYSICAL for a near-white metal and the
+     ramp gate exempts it. Its only signature is C/L rising 0.0021 -> 0.0346. A
+     flat-C/L rhodium is a grey in a costume.
+
+     Rhodium NEVER touches a light panel: its F0 lightness 0.917 sits BELOW a
+     typical light page background, so a rhodium surface cannot be "a brighter
+     white" — that role belongs to SILVER. Rhodium's honest expression is a
+     hard, near-neutral EDGE. If a reviewer can name the colour of the rim, the
+     chroma is too high.
+     SOURCE: Weaver, Olson & Lynch, Phys. Rev. B 15, 4115 (1977), via Palik HOCS
+     https://refractiveindex.info/?shelf=main&book=Rh&page=Weaver */
+  --rh-rim: oklch(0.971 0.002 68); /* #F6F5F4 — the lit edge */
+  --rh-100: oklch(0.917 0.006 68); /* #E6E3DF — measured F0 */
+  --rh-300: oklch(0.89 0.008 68); /* #DEDAD5 — hairline border on light */
+  --rh-400: oklch(0.86 0.011 68); /* #D6D0C9 — field recess on light */
+  /* #95897D, not the #94897D this rung was annotated with in the palette it came
+     from: that stylesheet's round-trip gate allows 4 codes per channel, so a
+     1-code drift in R passed there indefinitely. Both this package's transform
+     and Lightning CSS's independent Rust implementation render 0x95. The VALUE
+     is unchanged; only the comment was wrong. */
+  --rh-700: oklch(0.636 0.022 66); /* #95897D — occlusion */
+
+  /* SILVER — one rung, because F0 is the only place it can honestly be.
+
+     This ramp exists because auditing the pure-white tokens returned an
+     uncomfortable answer: oklch(1 0 0) is not a material at all, it is the
+     MEASURING STICK. sRGB white is the media white point (D65 at 80 cd/m^2,
+     IEC 61966-2-1), not a reflectance, so a token sitting on it asserts "this
+     surface IS the reference", which no substance can be. The best real diffuse
+     standard (Spectralon, 0.99) is one 8-bit code short of it.
+
+     Silver gets the job because it is the highest-reflectance metal there is
+     and its F0 lands at OKLCH L 0.9954 — above a typical light page and just
+     below the white point, which is where a real surface belongs. Five datasets
+     (McPeak 2015, Babar & Weaver 2015, Johnson & Christy 1972, Yang,
+     Ciesielski) agree on F0 to within 0.3%.
+
+     ACHROMATIC ON PURPOSE, and the one place the ramp rule is deliberately not
+     followed. Silver's measured F0 chroma is 0.0011 (3-point) to 0.0043
+     (spectral) at hue ~97-108, i.e. physically it is faintly WARM. But at L
+     0.995 that chroma is one to two 8-bit codes; naming a hue there would
+     record a number nobody can see, pointing the opposite way from the cool
+     surfaces below it. You may name a LIGHTNESS after silver; you may not name
+     a hue.
+
+     Do NOT take refractiveindex.info's "3d artists" shelf as measured: it
+     serves Ag from Rakic-BB, a Brendel-Bormann MODEL FIT, which puts n ~ 0.152
+     at 600nm against a measured 0.047 — dragging F0 from 0.989 to 0.957, below
+     the page it is supposed to sit above.
+     SOURCE: K. M. McPeak et al., ACS Photonics 2, 326 (2015);
+     S. Babar & J. H. Weaver, Appl. Opt. 54, 477 (2015) */
+  --ag-spec: oklch(0.9954 0 0); /* #FDFDFD — measured F0, the brightest honest surface */
+
+  /* OSMIUM — conductor, the dark body. NOT ruthenium: no visible-range n,k for
+     Ru exists in any public compilation (Choi et al. 2006 say so in print;
+     refractiveindex.info carries only Windt 1988 at EUV), and group-8
+     bracketing fails because Fe is warm and Os strongly cool.
+
+     Osmium is the one metal here whose F0 slope is inverted, so it COOLS into
+     occlusion (+2.2 to +8.6 degrees per bounce) where copper warms. Net arc
+     258 -> 264. It is NOT monotone: --os-500 dips to 255 because that rung is
+     frozen by a contrast pairing downstream. At chroma 0.018-0.030 a hue is
+     weakly determined anyway — which is why the ramp gate asserts C/L
+     monotonicity (exact here) and NET hue direction, never per-rung hue.
+
+     Its hue is the least settled number in this palette and is left alone
+     deliberately: the ordinary ray integrates to 236.4, the extraordinary to
+     263.0, and bulk polycrystal — what anyone actually sees — to 245.5. Two
+     independent integrations of the same Nemoshkalenko tables disagreed by 9
+     degrees. Note that refractiveindex.info labels that dataset 1968; it is
+     1986. */
+  --os-spec: oklch(0.828 0.023 258); /* #BEC7D6 — lit edge */
+  --os-300: oklch(0.715 0.03 258); /* #98A4B6 — tertiary text on dark */
+  --os-500: oklch(0.485 0.026 255); /* #55606E — tertiary text on light */
+  --os-600: oklch(0.331 0.024 260); /* #2E3642 — hairline border on dark */
+  --os-700: oklch(0.255 0.027 260); /* #1B2330 — deepest panel tier */
+  --os-900: oklch(0.164 0.018 264); /* #0A0E16 — card ground on dark */
+
+  /* BLACK ZIRCONIUM — a DIELECTRIC, not a metal: zirconium whose surface is
+     oxidised to sub-stoichiometric ZrO2-x.
+
+     F0 = ((n-1)/(n+1))^2 with n = 2.15 gives 0.1333 — 2.6x the 5-8% usually
+     assumed, and that gap is the difference between a recess that can carry a
+     3:1 rim and one that cannot. ZrO2 IS cubic zirconia, the diamond simulant,
+     so its Fresnel is 3.3x window glass. (Re-derived from Wood & Nassau's
+     Sellmeier: n(589.3nm) = 2.15846 against the paper's 2.15847; integrating
+     the Fresnel over 380-780nm gives L 0.5137 C 0.0029.)
+
+     WHAT MAKES IT BLACK is oxygen deficiency, not zirconia. Bulk
+     stoichiometric ZrO2 is WHITE, and its whiteness is not even a band-gap
+     property — the gap is ~5.09 eV, an absorption edge at 244nm, nowhere near
+     the visible. It is pure Mie scattering at pores and grain boundaries;
+     remove the scattering and zirconia goes COLOURLESS (Tosoh sintered a
+     pore-free single-cubic-phase body to 74% in-line transmission). Vacancies
+     in ZrO2-x introduce mid-gap states and drop the gap 5.09 -> 1.52 eV,
+     pushing the absorption edge to ~816nm and so past the entire visible band.
+     The trade's phrasing, "a ceramic that is naturally deep black", is false.
+
+     Because it is a dielectric its specular is ACHROMATIC and independent of
+     body colour — so a conductor's "never use #FFFFFF as a specular" rule is
+     about conductor chromaticity and must NOT be generalised here. Chroma is
+     pinned to literal 0 rather than the measured 0.0029 cool cast: at that
+     magnitude the cast is sub-threshold, and a hard zero makes the dielectric
+     contract enforceable by a test instead of by a comment.
+
+     THE DIELECTRIC TELL: --zr-300 and --os-600 sit at IDENTICAL OKLCH L 0.331
+     and differ only in chroma (deltaE 0.0241). Raised-versus-recessed is
+     encoded purely in chromaticity, at effectively zero luminance cost — which
+     is why a recess can be signalled without spending any contrast budget.
+     SOURCE: Sinhamahapatra et al., Sci. Rep. 6:27218 (2016) (oxygen-vacancy
+     black zirconia); Wood & Nassau, Appl. Opt. 21, 2978 (1982) (cubic zirconia
+     Sellmeier) */
+  --zr-spec: oklch(0.512 0 0); /* #666666 — recessed rim, clears 1.4.11 on a dark card */
+  --zr-300: oklch(0.331 0 0); /* #363636 — the dielectric-tell pair with --os-600 */
+  --zr-500: oklch(0.3 0 0); /* #2E2E2E — field recess on dark */
+  --zr-700: oklch(0.188 0 0); /* #131313 — well floor, code blocks */
+  --zr-900: oklch(0.118 0 0); /* #050505 — deepest occlusion */
+
+  /* TITANIUM NITRIDE — conductor, the ARTIFICIAL gold. A PVD coating (the
+     watch and tool industry's gold substitute), and a mineral: TiN occurs
+     naturally as osbornite, known only from meteorites. Its mechanism is
+     gold's mechanism — a screened plasma edge near 2.6 eV whose reflectance
+     rises through the red — which is why the trade can sell it as gold, and
+     why this palette can carry a gold-toned structural ramp while gold itself
+     stays rejected: gold's own F0 is outside sRGB (measured C 0.086-0.103 at
+     L 0.92 against a ceiling of ~0.074 there, four datasets agreeing), and
+     TiN's is not.
+
+     Measured F0, re-integrated from Beliaev's pulsed-DC-sputtered film over
+     380-780nm with this repo's own engine (src/gates/spectral.mjs):
+         oklch(0.7842 0.1006 73.4) = #E0AF6D.
+     Corroboration: Schnabel's reactive-sputtered film integrates to h 76.6 /
+     C 0.095 — two direct optical film measurements agreeing to 3.2 degrees —
+     and Pfluger & Fink's EELS-derived bulk data (indirect, but full-range)
+     sits at h 84.0 / C 0.070. The film pair is pinned because films ARE the
+     artificial-metal story. THE STOICHIOMETRY TELL: Shkondin's ALD TiNx
+     integrates VIOLET-GREY (h ~299) — oxygen-starved TiNx is not TiN, and if
+     your titanium nitride integrates violet you have measured the wrong
+     compound. That is a gate-able fact, not a taste.
+
+     THE CEILING RIDES, recorded rather than hidden. TiN's cavity trajectory
+     (F0^m, same scene as copper) leaves sRGB below L ~0.63: the measured
+     chroma continues to 0.133 / 0.125 / 0.115 at the three deep rungs while
+     the gamut ceiling at their L is 0.132 / 0.112 / 0.104. Those rungs ride
+     the ceiling at the trajectory's hue — the same documented clamp --warn
+     lives with at 97.4% of its own ceiling. C/L still rises strictly into
+     occlusion (0.129 -> 0.286), which is the invariant that matters.
+
+     Hue falls 73.5 -> 46.5 into the cavity, a -27 degree arc — the steepest
+     descending arc in the palette. A gold cavity reads bronze; that is the
+     physics, and the reason "dark gold" UI themes always drift orange.
+     SOURCE: L. Yu. Beliaev et al., Opt. Mater. 143, 114237 (2023), via
+     https://refractiveindex.info/?shelf=main&book=TiN&page=Beliaev-sputtering
+     corroborated by V. Schnabel et al., Adv. Opt. Mater. 6, 1800656 (2018);
+     J. Pfluger & J. Fink, in Palik HOCS II (1991) */
+  --tn-spec: oklch(0.784 0.101 73.5); /* #E0AF6D — measured F0, the specular */
+  --tn-100: oklch(0.71 0.12 70.5); /* #D19345 — polished sheen */
+  --tn-300: oklch(0.58 0.132 64); /* #AF6600 — lit face, the ANCHOR (ceiling ride) */
+  --tn-700: oklch(0.432 0.112 52.5); /* #7E3B00 — turned face (ceiling ride) */
+  --tn-800: oklch(0.36 0.103 46.5); /* #662700 — occlusion (ceiling ride) */
+
+  /* PURPLE GOLD — AuAl2, an intermetallic conductor that is genuinely VIOLET,
+     and the only one in the measured record. The colour is caused by a bulk
+     plasmon that falls inside the optical range — unique among the AuX2
+     compounds (Keast et al., APL 99, 111908 (2011)) — so this is not a tint
+     of gold: it is a different solid with its own Fresnel signature. Sold as
+     jewellery ("amethyst gold", 79% Au by mass); brittle as a bulk metal,
+     which is why it ships as an inlay there and as a ramp here.
+
+     Measured F0, re-integrated from Chen & Lynch's bulk sample:
+         oklch(0.7499 0.0381 330.8) = #BDA6B9.
+     Second source: Supansomboon's sputtered films integrate to h 350.9 —
+     same violet-magenta sector, 20 degrees apart with film quality, and the
+     bulk value is pinned because bulk polycrystal is what jewellery IS (the
+     osmium precedent). The spread is recorded here, not averaged away.
+     Chen & Lynch is digitized from a published figure; hue-grade, quoted at
+     0.5-degree precision and no finer.
+
+     The arc ASCENDS like osmium's: hue 331 -> 334.5 (+3.5 degrees) over five
+     cavity bounces, cooling toward blue-violet in occlusion, and chroma is
+     modest everywhere (0.038 at F0) — a conductor's violet, not a pigment's.
+     At that chroma every rung sits comfortably inside sRGB; the ceiling
+     problem TiN has simply never arises. What AuAl2 buys the system is the
+     structural violet: the empty 330-degree territory occupied by a real
+     metal rather than a borrowed-shape transplant.
+     SOURCE: L.-Y. Chen & D. W. Lynch, Phys. Status Solidi B 148, 387 (1988),
+     via https://refractiveindex.info/?shelf=other&book=AuAl2&page=Chen
+     corroborated by S. Supansomboon et al., Gold Bull. 41, 296 (2008) */
+  --pau-spec: oklch(0.75 0.038 331); /* #BDA6B9 — measured F0, the specular */
+  --pau-300: oklch(0.6 0.056 331.5); /* #947490 — lit face, the ANCHOR */
+  --pau-500: oklch(0.47 0.066 332.5); /* #714D6B — turned face */
+  --pau-700: oklch(0.35 0.071 333.5); /* #502B4A — occlusion */
+  --pau-900: oklch(0.25 0.068 334.5); /* #34132F — deepest occlusion */
+
+  /* BRASS — CuZn15 (alpha-brass, 85/15), THE REHABILITATED ALLOY. v0.1.0's
+     research rejected brass on 3-point figures; the full integration of
+     Querry's measured tables un-rejected it — the alloy was never the
+     problem, the sampling was. All three measured compositions are vendored
+     (Cu90Zn10 h 82.4, Cu85Zn15 h 82.7, Cu70Zn30 h 93.4 at F0); CuZn15 is
+     pinned as the goldest of the honest brasses, the composition the mint
+     and the instrument-maker actually reach for.
+
+     Measured F0, re-integrated from Querry 1985 over 380-780nm:
+         oklch(0.9033 0.0664 82.5) = #F5DCAE
+     — comfortably INSIDE sRGB at 68% of its ceiling, which is the entire
+     point: 4.0 degrees from real gold's measured hue at a chroma this gamut
+     can actually hold. Brass is what an sRGB display can honestly say when
+     it means gold, and the metal-gold block below says it by reference.
+
+     The two lower rungs are the cavity trajectory F0^m solved at the SAME
+     lightnesses as the P3 gold family's rungs (0.848, 0.778), so a layout
+     built on gold keeps its exact tonal structure when the display falls
+     back to brass. Hue falls 82.5 -> 78 into the cavity — brass warms like
+     its parent copper — and C/L rises 0.073 -> 0.157.
+     SOURCE: M. R. Querry, "Optical constants", CRDC report (1985), via
+     https://refractiveindex.info/?shelf=other&book=Cu-Zn&page=Querry-Cu85Zn15 */
+  --cz-spec: oklch(0.903 0.066 82.5); /* #F5DCAE — measured F0, the specular */
+  --cz-300: oklch(0.848 0.095 81); /* #EDC784 — lit face, m=1.66 */
+  --cz-500: oklch(0.778 0.122 78); /* #E1AC54 — turned face, m=2.61 */
+}
+
+:root {
+  /* @block metal-gold */
+
+  /* GOLD — Au, THE METAL THIS PALETTE REJECTED, admitted at last on the only
+     terms the measurement allows. The rejection stands where it was made:
+     gold's measured F0 is OUTSIDE sRGB at its own lightness (the executable
+     gate in derivation.test.mjs), and its CVD arithmetic fails at signal
+     weight. But Display-P3 holds the measured point with room to spare —
+     92% of the P3 ceiling — so gold ships as this palette's first P3-ONLY
+     family, at DISPLAY weight only: hero surfaces and decorative structure,
+     never status, never chart, never text-bearing fill.
+
+     THE FALLBACK IS A DECLARED MATERIAL SWAP, not a clamp. These base tokens
+     are var() references to the brass ramp above: on sRGB hardware --au-*
+     RENDERS AS CuZn15, a real measured alloy 4.0 degrees away, rather than
+     as a chroma-lied gold — the clamp is exactly what the original rejection
+     refused, so it is refused here too. Behind the P3 guards (p3.css), the
+     same names carry gold's own measured trajectory, unclamped at every
+     rung, with lightness aligned rung-for-rung to the brass so the swap
+     costs layout nothing. The one visible seam: --au-spec is L 0.918 as
+     gold and L 0.903 as brass, because each specular is its own metal's
+     measured F0 and neither may be moved. Both facts are gated
+     (p3.test.mjs).
+
+     SOURCE: P. B. Johnson & R. W. Christy, Phys. Rev. B 6, 4370 (1972), via
+     https://refractiveindex.info/?shelf=main&book=Au&page=Johnson */
+  --au-spec: var(--cz-spec); /* brass F0 on sRGB; oklch(0.918 0.086 78.5) on P3 */
+  --au-300: var(--cz-300); /* brass m=1.66 on sRGB; gold m=2.10 at the same L on P3 */
+  --au-500: var(--cz-500); /* brass m=2.61 on sRGB; gold m=3.52 at the same L on P3 */
+
+}
+
+/* ============================================================================
+   THE GRAZING RUNGS THAT DO NOT EXIST — a per-material lit edge, measured and
+   refused. v0.4.0. Recorded here because the absence is a result.
+
+   THE PROPOSAL. metal-rim-tone reads --tone-lit / --tone-occ off the element,
+   and nothing shipped a lit edge belonging to a specific metal: a copper
+   object borrows rhodium's. The obvious completion was a --cu-rim / --tn-rim /
+   --pau-rim / --cz-rim / --os-rim set derived at grazing incidence — mechanism
+   (A) above — so that a copper object's lit edge would be copper.
+
+   WHAT THE EQUATIONS SAID. Not Schlick: at fixed θ, F = F0 + (1−F0)(1−cos θ)⁵
+   is AFFINE in F0, so it commutes exactly with the spectral integral and
+   integrating per wavelength buys nothing at all. The exact angular Fresnel
+   equations for a complex index do not commute, so the derivation was redone
+   with those (spectral.mjs `fresnelConductor`, verified against F0 by the θ=0
+   collapse the way the dial is verified by its d=0 collapse).
+
+   Their answer is that chroma falls monotonically to zero as the form turns
+   away, for every metal, because both polarisations drive toward total
+   reflection at every wavelength together:
+
+       θ        45      70      80      85      88
+       copper   0.050   0.044   0.032   0.019   0.008
+       TiN      0.096   0.067   0.042   0.024   0.011
+       brass    0.063   0.045   0.027   0.015   0.006
+
+   And the angle is not a free parameter. An edge is where the surface normal
+   turns perpendicular to the view, so a rim lives at deep grazing BY
+   DEFINITION. At 85° — the shallow end of that regime — every conductor has
+   already lost more than 60% of its specular chroma. At the angle that
+   reproduces the one lit-edge rung this package already ships (θ = 88.7°,
+   solved from --rh-rim's L 0.971) every one of them is at C ≤ 0.008: one to
+   two 8-bit codes. That is the exact threshold at which --ag-spec above
+   refuses to name a hue, and the rule has to hold in both directions or it is
+   not a rule.
+
+   SO THE FINDING IS THE OPPOSITE OF THE PROPOSAL, AND BETTER. Rims are
+   achromatic because grazing metal IS achromatic. The neutral edge system in
+   edges.css — rhodium lighting light grounds, osmium and black zirconium
+   dark ones — was a convention justified by taste ("if a reviewer can name the
+   colour of the rim, the chroma is too high"); it is now what the angular
+   Fresnel equations say, and derivation.test.mjs holds it.
+
+   The consequence runs the other way too, and it is why the tone setters in
+   rims.css exist at all: the OCCLUDED edge is where a material's colour
+   honestly lives, because a concavity is mechanism (B) and mechanism (B) is
+   the only one that saturates. Every tone setter therefore names its family's
+   deep rung and leaves the lit edge to the neutral fallback. Two halves, two
+   mechanisms, one measurement each.
+   ============================================================================ */

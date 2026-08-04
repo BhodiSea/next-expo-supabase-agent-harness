@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { renderEntry, walkTemplate } from '../lib/copy.mjs'
+import { renderEntry, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { walkFiles } from '../lib/fs-walk.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import { readManifest, sha256 } from '../lib/manifest.mjs'
@@ -153,8 +153,13 @@ export async function doctor(opts) {
   // improving a seeded exemplar is invisible otherwise — `update` deliberately
   // never touches these; `update --refresh-seeded <path>` is the pull channel.
   try {
+    // Preset-aware with a default backfill (pre-0.2.1 manifests carry no
+    // DESIGN_TOKENS answer): the divergence advisory must compare a metal
+    // install against metal bytes, or it would advertise a --refresh-seeded
+    // that plants default content. A garbage hand-edited preset value throws
+    // inside this try and degrades to no advisory — update is where it fails loud.
     const answers = manifest.answers
-    const entries = [...walkTemplate('base'), ...walkTemplate('stack')]
+    const entries = [...walkTemplate('base'), ...walkStack({ DESIGN_TOKENS: 'default', ...answers })]
     for (const m of manifest.modules ?? []) {
       if (RETIRED_MODULES.has(m)) continue
       entries.push(...walkTemplate(`modules/${m}`))
