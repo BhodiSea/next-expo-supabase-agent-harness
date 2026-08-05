@@ -198,9 +198,9 @@ and the lane closure went from one workflow to **all eight**.
   "26-step" against a 29-step chain, live, for two releases, in the very document a
   reader consults to find out how long the chain is.
 
-### What the upgrade lane caught on its first run
+### What the upgrade lane caught
 
-Two release-blocking defects, both invisible to a fresh scaffold and both found by
+Three release-blocking defects, all invisible to a fresh scaffold and all found by
 running the real upgrade rather than by reading the plan — which is the entire case
 for the lane:
 
@@ -222,6 +222,19 @@ for the lane:
   same relative order, the difference is steps that were ADDED, and the ramp (dated
   `0.5.0`) applies. A documented gate that no longer exists, or a reordering, is the
   project's own drift and stays a hard red at every vintage.
+- **`gate-integrity` accused the consumer of widening a hatch the harness had just
+  planted.** Escape lists may not be DIRTY at gate time, so that a widening lands in a
+  reviewable diff — but `update` plants a NEW escape list (`tools/approved-tools.json`
+  here; `tenancy.json`, `db-limits.json` and `security-headers.json` in 0.2.x, before
+  there was a lane to notice) and a planted file is untracked, hence dirty. Classified
+  rather than ramped, on a discriminator that is exact at every vintage: untracked AND
+  byte-identical to the sha the installer recorded means nobody has tuned it, which is
+  a plant and not a widening — so it is a NOTE. A hand-created escape list has no
+  manifest entry and a tuned one no longer matches, and both keep the hard red.
+  Caught in CI and not locally, which was itself the finding: the lane inherited
+  `HARNESS_ALLOW_SELF_EDIT=1` from the maintainer's shell and so ran with the
+  commit-not-dirty rules disarmed. It now unsets it — the lane simulates a consumer,
+  and a consumer does not hold the escape hatch.
 
 ### Deferred, with the reason
 

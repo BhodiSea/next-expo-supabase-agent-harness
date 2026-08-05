@@ -20,7 +20,11 @@ export default [
     // template/stack/** is consumer app surface (TS app code) — the CONSUMER
     // eslint config (template/base/eslint.config.mjs, strictTypeChecked) owns
     // that tree. Everything else that parses as JS in this repo is machinery.
-    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', 'coverage/**'],
+    // '.selftest/**' is the upgrade lane's workdir: a rendered scaffold whose tools/ is the
+    // template's own code, already linted at its source. Without it, running the lane makes
+    // `eslint .` — and so the complexity ratchet — report the SCAFFOLD's functions as new
+    // factory findings, which is a red that depends on whether you happened to run a lane.
+    ignores: ['node_modules/**', 'template/stack/**', 'template/presets/**', '.fixtures/**', '.selftest/**', 'coverage/**'],
   },
   {
     files: ['**/*.mjs', '**/*.js', '**/*.cjs'],

@@ -276,6 +276,70 @@ test('RED: an uncommitted PER_FILE_FLOORS edit reds; committing the same edit is
   assert.equal(committed.code, 0, committed.out)
 })
 
+// THE ESCAPE LIST THE HARNESS ITSELF PLANTED (0.3.0).
+//
+// Found by upgrade-lane.sh in CI: `update` plants a NEW escape list into an existing
+// install (0.3.0 does it with tools/approved-tools.json), which leaves it untracked, and
+// the commit-not-dirty rule then accused the consumer of widening a hatch they had never
+// seen — on the very run that delivered it. Dropping the file from the committed tree
+// while leaving it on disk reproduces that state exactly: bytes the installer wrote,
+// recorded in the manifest, and in no commit the consumer could diff it against.
+test('a planted escape list is a NOTE; tuning it or hand-creating one is still RED', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'epah-gateint-plant-'))
+  const init = spawnSync(
+    'node',
+    [CLI, 'init', '--dir', repo, '--yes', '--set', 'PROJECT_NAME=Plant App', '--set', 'GITHUB_OWNER=o', '--set', 'SECURITY_OWNERS=@o/sec'],
+    { encoding: 'utf8' },
+  )
+  assert.equal(init.status, 0, `${init.stdout ?? ''}${init.stderr ?? ''}`)
+  const git = (...args) =>
+    spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'baseline')
+
+  const run = () => {
+    const res = spawnSync('node', ['tools/check-gate-integrity.mjs'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_ALLOW_SELF_EDIT: '' },
+    })
+    return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+  }
+  assert.equal(run().code, 0, 'baseline')
+
+  // (a) untracked AND byte-identical to what the installer recorded: a plant, not a
+  // widening. Green, and it SAYS so — silence here would be indistinguishable from the
+  // gate not looking.
+  const planted = 'tools/approved-tools.json'
+  git('rm', '--cached', '-q', planted)
+  // Commit the removal too: a staged-but-uncommitted `git rm --cached` leaves BOTH a
+  // `D ` and a `??` line, which is a deliberate index edit, not a plant, and must stay red.
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'an install predating the registry')
+  const asPlanted = run()
+  assert.equal(asPlanted.code, 0, asPlanted.out)
+  assert.ok(asPlanted.out.includes('harness plant, not a widening'), asPlanted.out)
+
+  // (b) the same untracked file with ONE entry appended is a widening with no diff to
+  // review — the case the whole rule exists for, and the one an over-broad fix would lose.
+  const abs = join(repo, planted)
+  const original = readFileSync(abs, 'utf8')
+  const tuned = JSON.parse(original)
+  tuned.servers = [...(tuned.servers ?? []), { name: 'exfil', tools: ['*'] }]
+  writeFileSync(abs, `${JSON.stringify(tuned, null, 2)}\n`)
+  const widened = run()
+  assert.equal(widened.code, 1, widened.out)
+  assert.ok(widened.out.includes(planted), widened.out)
+  writeFileSync(abs, original)
+
+  // (c) an escape list the harness never planted — creating one converts a red into a
+  // NOTE, so it has no manifest entry to vouch for it and stays RED.
+  writeFileSync(join(repo, 'tools/secret-scan-allow.json'), '{ "allow": [] }\n')
+  const handMade = run()
+  assert.equal(handMade.code, 1, handMade.out)
+  assert.ok(handMade.out.includes('tools/secret-scan-allow.json'), handMade.out)
+})
+
 test('missing manifest: fails CLOSED in CI, skips LOUDLY locally', () => {
   const manifest = join(scaffold, '.harness/manifest.json')
   const parked = join(scaffold, '.harness/manifest.json.parked')

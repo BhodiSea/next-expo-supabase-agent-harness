@@ -17,6 +17,16 @@
 # SOURCE: docs/harness/README.md (the release acceptance matrix) [corpus: harness/doctrine]
 set -euo pipefail
 
+# THE LANE SIMULATES A CONSUMER, AND A CONSUMER DOES NOT HAVE THE ESCAPE HATCH SET.
+# HARNESS_ALLOW_SELF_EDIT=1 disarms the write guard, the commit-not-dirty rules, and the
+# generator refusals — so a maintainer with it exported (which is how you work ON this
+# repo) would run a lane that silently checks LESS than CI's, and the first honest run
+# would be the one on the PR. That is exactly what happened on the run that shipped this
+# line: the lane was green locally and red in CI, and the red was real. Unset, never
+# `export ...=0` — the checks test for the literal '1', but an inherited variable is the
+# kind of thing a later check might merely test for presence of.
+unset HARNESS_ALLOW_SELF_EDIT
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="${1:-$ROOT/.selftest/upgrade}"
 PREV_TREE="$WORK/prev"
