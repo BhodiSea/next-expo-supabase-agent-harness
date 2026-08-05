@@ -143,6 +143,15 @@ export const SEEDED_FILES = new Set([
   // deliberately — write-guard-protected against agents.
   'tools/expo-permissions.json',
   'tools/expo-plugins.json',
+  // The MCP approved-tools registry (0.3.0). Seeded for exactly the reason stated in the
+  // 0.2.0 block above: the guard's own deny message tells the consumer to add a row here,
+  // and an `owned` file under tools/ is sha-pinned — so the harness would be demanding an
+  // edit and then calling that edit tampering. NOT seedOnInitOnly: the guard fails closed
+  // without it, so `update` must PLANT it into an existing install or the first mcp__ call
+  // after the upgrade is denied with no registry to point at. Its integrity is the
+  // write-guard rule plus gate-integrity's escape-list dirty check — the widening is the
+  // commit, under CODEOWNERS.
+  'tools/approved-tools.json',
   // The accepted-survivor list for the mutation lane, and the reviewed escapes for the
   // assertion gate. Both are project-owned JUDGEMENTS ("this mutant is genuinely
   // equivalent", "this test is deliberately pending") — write-guard-protected against

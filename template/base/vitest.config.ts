@@ -2,7 +2,12 @@ import { defineConfig } from 'vitest/config'
 
 // Root Vitest config — the ONLY vitest config (BUILD-SPEC §Vitest). Two projects:
 //   unit-node: packages/** (contracts, api, design-tokens, platform/*, verticals/*)
-//              + apps/web's non-DOM modules, plain node environment
+//              + an explicit FILE LIST of pure apps/mobile modules, plain node env.
+//              apps/web is NOT in it — the include globs are packages/*/src/**,
+//              packages/*/*/src/** and that file list, and nothing else. That is a
+//              declared enforcement TIER, not an oversight: see
+//              docs/harness/enforcement-tiers.md for its compensating control and the
+//              release it closes in. (This header claimed apps/web coverage until 0.3.0.)
 //   rls:       tests/rls/** — the isolation suite. It self-skips politely unless
 //              RLS_SUITE_READY=1, which only `node tests/rls/run-rls.mjs` sets after
 //              fresh-applying migrations to a real Postgres (and which FAILS CLOSED

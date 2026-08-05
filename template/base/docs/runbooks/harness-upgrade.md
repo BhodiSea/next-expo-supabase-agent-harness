@@ -21,12 +21,47 @@ Gates never ambush an update: a check added in a newer release than your
 `baseVersion` runs NOTE-only (`rampNote` in `tools/lib/gate.mjs`). The line
 
 ```
-<gate>: NOTE — <check> (ramp: live from baseVersion X.Y.Z; this install's baseVersion is A.B.C). …
+<gate>: NOTE — <check> (ramp: live from baseVersion X.Y.Z; this install's baseVersion is A.B.C; expires in E.F.G). …
 ```
 
 says: the check executed, found what it found, and withheld the red. On a FRESH
 install the same check hard-fails — projects grow into gates; fresh scaffolds
 start already grown.
+
+## RAMPS EXPIRE (0.3.0) — `expires in`, and what happens when you reach it
+
+Before 0.3.0 a ramp had no deadline, which meant **"shipped ramped" meant "shipped
+disabled, indefinitely"**: the check printed an advisory NOTE — in CI too — and the
+only thing that ever re-armed it was a human running `graduate`, which nothing
+nagged. A control whose expiry date is optional has no expiry date.
+
+Every ramp now carries an `until`, and it is measured against **`harnessVersion`**,
+not `baseVersion`. That distinction is the whole mechanism: `baseVersion` only moves
+when the ramp's own beneficiary graduates, so a deadline measured against it is a
+deadline you hold open by never graduating. `harnessVersion` advances on every
+`update`.
+
+When you reach the deadline the NOTE becomes a FAIL, and the line above it says so:
+
+```
+<gate>: RAMP EXPIRED — <check> was ramped from baseVersion X.Y.Z with a deadline of E.F.G,
+and this install runs harness E.F.G. The escape is over: the finding below is a hard failure now.
+```
+
+**One remediation path, printed by every layer.** Whether you hit this through
+`pnpm validate`, a red Stop block, `doctor`, or `update`, the answer is the same
+three steps: sweep the finding, then `graduate`, then re-run validate. There is no
+flag that extends a deadline — extending one is a harness release, deliberately.
+
+**A dormant install jumping several versions meets several deadlines at once**, and
+that is the designed outcome rather than an accident: the alternative is an install
+that skipped four releases and still reports every one of their checks as advisory.
+Upgrade one minor at a time (`update`, sweep, `graduate`, repeat) if the pile is
+large — each `graduate` is cheap and each one shrinks the next.
+
+**0.3.0 ships the clock, not the alarm.** Every pre-existing 0.1.x/0.2.0 ramp was
+dated `0.4.0` and every ramp introduced in 0.3.0 was dated `0.5.0`, so nothing reds
+on a deadline in this release. The first expiries land in 0.4.0.
 
 ## How to graduate
 

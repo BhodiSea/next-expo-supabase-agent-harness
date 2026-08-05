@@ -66,7 +66,7 @@ test('scripts/generate-floor.mjs --check agrees the shipped snapshot is in locks
   const r = spawnSync('node', [GENERATE_FLOOR, '--check'], { encoding: 'utf8', env: cleanEnv() })
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
   assert.equal(r.status, 0, out)
-  assert.match(out, /generate-floor --check: OK \(\d+ steps in lockstep\)/, out)
+  assert.match(out, /generate-floor --check: OK \(VALIDATE_STEPS: \d+, STOP_HOOK_STEPS: \d+ in lockstep\)/, out)
 })
 
 test('--min-floor FAILS CLOSED when the snapshot is missing', () => {

@@ -57,8 +57,8 @@ Only when nothing covers the need do you scaffold a new slice.
    failure. Writes stay off `./client` (they set an owner column and emit events — server
    barrel only). Delegate to the `dal-author` subagent.
 4. **tRPC procedure (+ optional web Server Action)** — same reference. Add the procedure to
-   `packages/api/src/routers/<slice>.ts` on the correct rung (`authedProcedure` for reads,
-   `memberProcedure` for writes), name an input schema, hand the call to the vertical. If the
+   `packages/api/src/routers/<slice>.ts` on `orgProcedure` (READS INCLUDED — the acting org
+   is WHICH DATA a read is about), name an input schema, hand the call to the vertical. If the
    web surface writes this entity, add the twin Server Action at
    `apps/web/app/actions/<slice>.ts` — SAME contract, SAME vertical implementation, SAME
    envelope, different transport. Then the MAIN THREAD regenerates the committed inventories:

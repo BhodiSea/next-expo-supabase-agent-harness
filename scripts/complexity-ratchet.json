@@ -2,17 +2,17 @@
   "//": "Cognitive-complexity records for the harness machinery, enforced by scripts/check-complexity-ratchet.mjs (G16). The harness holds CONSUMERS to <= limit; these are its own pre-existing outliers. A number here may only go DOWN. Growth reds, a new over-limit function with no entry reds, and an entry that is no longer over the limit reds (delete it AND its eslint-disable). Regenerate with --write only after a reviewed refactor.",
   "limit": 15,
   "functions": {
-    "installer/commands/doctor.mjs::doctor": 73,
+    "installer/commands/doctor.mjs::doctor": 55,
     "installer/commands/enable.mjs::enable": 54,
-    "installer/commands/init.mjs::init": 130,
-    "installer/commands/update.mjs::update": 66,
+    "installer/commands/init.mjs::init": 117,
+    "installer/commands/update.mjs::update": 61,
     "installer/lib/merge-claude-settings.mjs::mergeClaudeSettings": 19,
     "installer/lib/merge-workspace-yaml.mjs::parseSimpleYaml": 24,
     "scripts/check-reuse.mjs::parseReuseToml": 24,
     "scripts/check-reuse.mjs::reuseProblems": 22,
     "template/base/tools/check-expo-policy.mjs::checkEasJson": 16,
     "template/base/tools/lib/agent-roster.mjs::parseFrontmatter": 29,
-    "template/base/tools/lib/png.mjs::unfilter": 21,
-    "template/base/tools/lib/jsonc.mjs::parseJsonc": 24
+    "template/base/tools/lib/jsonc.mjs::parseJsonc": 24,
+    "template/base/tools/lib/png.mjs::unfilter": 21
   }
 }

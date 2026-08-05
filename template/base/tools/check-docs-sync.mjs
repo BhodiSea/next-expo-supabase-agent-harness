@@ -32,6 +32,7 @@ import {
   REVIEWER_READONLY_TOOLS,
   splitList,
 } from './lib/agent-roster.mjs'
+import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'docs-sync'
@@ -60,21 +61,54 @@ if (!listMatch) {
 } else {
   const documentedCount = Number(listMatch[1])
   const documented = [...listMatch[2].matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])
+  const chainCount = agents.match(/the (\d+)-step chain/)
+  const listErrs = []
   if (documentedCount !== stepNames.length) {
-    errs.push(
+    listErrs.push(
       `AGENTS.md says "The ${String(documentedCount)} gates" but VALIDATE_STEPS has ${String(stepNames.length)} — update the count`,
     )
   }
   if (documented.join(',') !== stepNames.join(',')) {
-    errs.push(
+    listErrs.push(
       `AGENTS.md gate list drifted from VALIDATE_STEPS.\n    documented: ${documented.join(', ')}\n    actual:     ${stepNames.join(', ')}`,
     )
   }
-  const chainCount = agents.match(/the (\d+)-step chain/)
   if (chainCount && Number(chainCount[1]) !== stepNames.length) {
-    errs.push(
+    listErrs.push(
       `AGENTS.md says "the ${chainCount[1]}-step chain" but VALIDATE_STEPS has ${String(stepNames.length)} steps`,
     )
+  }
+
+  // ADDITIVE DRIFT IS THE HARNESS'S DOING, NOT THE PROJECT'S — and the two must not be
+  // reported the same way. Found by the upgrade lane (0.3.0), which is the whole reason
+  // that lane exists: AGENTS.md is SEEDED, so `update` correctly never rewrites it, while
+  // `migrations.json`'s configSteps injection DOES add steps to the chain. The consumer's
+  // documented list is then one release behind through no act of theirs, and a hard red
+  // here would be a gate ambushing an update — the exact failure the ramp doctrine names.
+  //
+  // The distinction is decidable: if every documented step still exists, in the same
+  // relative order, the only difference is steps that were ADDED, and the person who added
+  // them was the harness. Anything else — a documented step that no longer exists, a
+  // reordering — is the project's own drift and stays a hard red at every vintage.
+  const actualIndex = new Map(stepNames.map((n, i) => [n, i]))
+  const positions = documented.map((n) => actualIndex.get(n))
+  const additiveOnly =
+    positions.every((p) => p !== undefined) &&
+    positions.every((p, i) => i === 0 || p > positions[i - 1])
+  if (listErrs.length > 0) {
+    if (
+      additiveOnly &&
+      rampNote(GATE, '0.3.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
+        until: '0.5.0',
+      })
+    ) {
+      for (const e of listErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      console.log(
+        `${GATE}: NOTE — every documented gate still exists and the order holds, so this drift is steps the UPDATE injected. Paste the ${String(stepNames.length)} names above into AGENTS.md's "The N gates, in order:" sentence and the "N-step chain" line, then graduate.`,
+      )
+    } else {
+      errs.push(...listErrs)
+    }
   }
 }
 
@@ -124,7 +158,9 @@ if (catalogErrs.length > 0) {
   // baseVersion predates the check; the findings then surface as NOTEs so the
   // sweep is actionable without a red. Fresh installs / template tree: hard fail.
   if (
-    rampNote(GATE, '0.1.0', 'gates-catalog lockstep (every chain step needs a catalog section)')
+    rampNote(GATE, '0.1.0', 'gates-catalog lockstep (every chain step needs a catalog section)', {
+      until: '0.4.0',
+    })
   ) {
     for (const e of catalogErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
     catalogSummary = `gates-catalog lockstep NOTE-only (${String(catalogErrs.length)} finding(s) withheld by the pre-0.1.0 ramp)`
@@ -242,8 +278,277 @@ for (const file of rosterFiles) {
   }
 }
 
+// 6. APPROVED-TOOLS LOCKSTEP — the doc is the rendered view of the data.
+//
+// docs/security/approved-tools.md declared "Default deny. No MCP server runs on this
+// codebase unless it is listed below" for three releases while nothing read it: the
+// PreToolUse matchers were `Bash` and `Edit|Write|MultiEdit`, so an `mcp__` call matched no
+// hook. 0.3.0 moved the registry into tools/approved-tools.json and gave it a guard — which
+// creates the failure this section exists to prevent: two registries, one read by a machine
+// and one read by a human, drifting apart. A server approved in the doc but absent from the
+// data is denied at call time with the doc saying it is approved; a server in the data but
+// absent from the doc has reach nobody reviewed.
+//
+// The settings check is the third corner: `enabledMcpjsonServers` is what actually starts a
+// server. An entry there with no registry record is a server this project launches and then
+// denies on its first call — a broken configuration, not a security hole, and worth naming
+// as such.
+const REGISTRY = 'tools/approved-tools.json'
+const TOOLS_DOC = 'docs/security/approved-tools.md'
+let mcpSummary = `${REGISTRY} absent (pre-0.3.0 install)`
+if (existsSync(REGISTRY)) {
+  const mcpErrs = []
+  let registered = new Set()
+  try {
+    const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
+    if (!Array.isArray(registry.servers)) {
+      mcpErrs.push(`${REGISTRY} has no \`servers\` array — the MCP guard fails closed without it`)
+    } else {
+      registered = new Set(registry.servers.map((s) => s?.server).filter(Boolean))
+      for (const row of registry.servers) {
+        for (const field of ['server', 'version', 'reason']) {
+          if (typeof row?.[field] !== 'string' || !row[field].trim()) {
+            mcpErrs.push(
+              `${REGISTRY}: server ${JSON.stringify(row?.server ?? '?')} is missing '${field}' — an unpinned, unreasoned approval is not a review`,
+            )
+          }
+        }
+        if (typeof row?.readOnly !== 'boolean') {
+          mcpErrs.push(
+            `${REGISTRY}: server ${JSON.stringify(row?.server ?? '?')} must declare readOnly as a boolean — the guard treats anything but an explicit \`false\` as read-only, so leaving it out reads as a decision nobody made`,
+          )
+        }
+      }
+    }
+  } catch (e) {
+    mcpErrs.push(`${REGISTRY} is not valid JSON (${e.message}) — restore it from git history`)
+  }
+
+  if (existsSync(TOOLS_DOC)) {
+    const doc = readFileSync(TOOLS_DOC, 'utf8')
+    const documented = new Set([...doc.matchAll(/^\|\s*`([^`]+)`\s*\|\s*MCP\b/gm)].map((m) => m[1]))
+    for (const s of registered) {
+      if (!documented.has(s)) {
+        mcpErrs.push(
+          `${REGISTRY} approves MCP server '${s}' but ${TOOLS_DOC} has no row for it — the doc is the rendered view of the data, and reach nobody wrote down is reach nobody reviewed`,
+        )
+      }
+    }
+    for (const s of documented) {
+      if (!registered.has(s)) {
+        mcpErrs.push(
+          `${TOOLS_DOC} lists MCP server '${s}' as approved but ${REGISTRY} has no record — the guard denies it on its first call, so the doc is telling a reader the opposite of what the machine does`,
+        )
+      }
+    }
+  } else {
+    mcpErrs.push(`${TOOLS_DOC} missing — the harness ships it (owned; \`update\` restores it)`)
+  }
+
+  if (existsSync('.claude/settings.json')) {
+    try {
+      const enabled = JSON.parse(
+        readFileSync('.claude/settings.json', 'utf8'),
+      ).enabledMcpjsonServers
+      for (const s of Array.isArray(enabled) ? enabled : []) {
+        if (!registered.has(s)) {
+          mcpErrs.push(
+            `.claude/settings.json enables MCP server '${s}' but ${REGISTRY} has no record — this project starts a server it will deny on its first tool call`,
+          )
+        }
+      }
+    } catch {
+      // settings.json parse failures are gate-integrity's finding, not this gate's
+    }
+  }
+
+  mcpSummary = `${String(registered.size)} approved MCP server(s) in lockstep across ${REGISTRY}, ${TOOLS_DOC} and .claude/settings.json`
+  if (mcpErrs.length > 0) {
+    // Ramped: an install that hand-tuned its approved-tools doc must get a release to
+    // reconcile it against the data file this release introduces, rather than a red on
+    // the update that delivered both.
+    if (rampNote(GATE, '0.3.0', 'approved-tools registry ↔ doc lockstep', { until: '0.5.0' })) {
+      for (const e of mcpErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      mcpSummary = `approved-tools lockstep NOTE-only (${String(mcpErrs.length)} finding(s) withheld by the 0.3.0 ramp)`
+    } else {
+      errs.push(...mcpErrs)
+    }
+  }
+}
+
+// 7. THE DOCTRINE TOKEN MAP — the agent surface may not teach an API that does not exist.
+//
+// `packages/api/src/trpc.ts` exports `orgProcedure` and puts the resolved gate on `ctx.org`.
+// Ten authoring surfaces taught `memberProcedure` / `ctx.member` — 13 and 7 occurrences,
+// with ZERO occurrences of `orgProcedure` outside the module defining it. The slice
+// scaffolder wrote a non-resolving import into every new slice, and `/verify-invariants`
+// hunted for a `ctx.member` string that cannot appear in real code, so that review step was
+// vacuous on every codebase it ever ran against.
+//
+// Eleven layers of enforcement could not see it, because every one of them judges CODE and
+// this was a lie in the PROSE that tells an agent what code to write — read at the start of
+// every turn, and producing a compile error that arrives in the consumer's tree with the
+// harness's name on it.
+//
+// A CLOSED map over reviewed data, never an open identifier scanner: an open scan of the
+// agent surface would produce a river of false positives from prose and be turned off
+// within a release. Both directions are checked, and the backward one is the sharper: a map
+// that outlives the module it describes is not a map, it is a second stale doctrine.
+const SYMBOLS = 'tools/doctrine-symbols.json'
+let doctrineSummary = `${SYMBOLS} absent (pre-0.3.0 install)`
+if (existsSync(SYMBOLS)) {
+  const doctrineErrs = []
+  let map
+  try {
+    map = JSON.parse(readFileSync(SYMBOLS, 'utf8'))
+  } catch (e) {
+    doctrineErrs.push(`${SYMBOLS} is not valid JSON (${e.message}) — restore it from git history`)
+  }
+  const symbols = Array.isArray(map?.symbols) ? map.symbols : []
+  const scope = (map?.scope ?? []).map((s) => new RegExp(s))
+  if (map !== undefined && symbols.length === 0) {
+    doctrineErrs.push(`${SYMBOLS} declares no symbols — an empty map judges nothing`)
+  }
+
+  // The agent surface: every file the scope patterns admit. `docs/adr/**` is deliberately
+  // not in scope — an ADR that narrates the symbol it retired is honest history.
+  const surface = walkFiles('.', {
+    excludeDirs: new Set(['node_modules', '.git', '.harness', 'dist', 'gen', '.next', '.expo']),
+    filter: (rel) => scope.some((re) => re.test(rel)),
+  })
+
+  for (const sym of symbols) {
+    // FORWARD: the retired token must appear nowhere on the instructed surface.
+    for (const file of surface) {
+      const text = readFileSync(file, 'utf8')
+      if (!text.includes(sym.retired)) continue
+      const lines = text.split('\n')
+      lines.forEach((line, i) => {
+        if (!line.includes(sym.retired)) return
+        doctrineErrs.push(
+          `${file}:${String(i + 1)} teaches '${sym.retired}', which ${sym.definedIn} does not export — use '${sym.replacement}'. An agent reading this writes code that cannot compile, and the error arrives in the consumer's tree with the harness's name on it.`,
+        )
+      })
+    }
+    // BACKWARD: the replacement must still exist where the map says it does.
+    if (typeof sym.definedIn === 'string' && existsSync(sym.definedIn)) {
+      if (!readFileSync(sym.definedIn, 'utf8').includes(sym.replacement)) {
+        doctrineErrs.push(
+          `${SYMBOLS} says '${sym.replacement}' lives in ${sym.definedIn}, but that file no longer contains it. A token map that outlives its module is not a map — it is a second stale doctrine, which is the exact failure this check exists to end. Update the map in the same commit that renamed the symbol.`,
+        )
+      }
+    }
+  }
+
+  doctrineSummary = `${String(symbols.length)} doctrine symbol(s) checked over ${String(surface.length)} agent-surface file(s)`
+  if (doctrineErrs.length > 0) {
+    // Ramped: an install whose agent surface was hand-tuned before this map existed gets a
+    // release to converge, rather than a red on the update that shipped the map.
+    if (rampNote(GATE, '0.3.0', 'doctrine token map over the agent surface', { until: '0.5.0' })) {
+      for (const e of doctrineErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      doctrineSummary = `doctrine token map NOTE-only (${String(doctrineErrs.length)} finding(s) withheld by the 0.3.0 ramp)`
+    } else {
+      errs.push(...doctrineErrs)
+    }
+  }
+}
+
+// 8. ENFORCEMENT-TIERS SHAPE — a compensating control nobody runs is not a control.
+//
+// docs/harness/enforcement-tiers.md is the release's honest statement that several layers
+// cover one product surface and not the other. A tier is legitimate; an undeclared tier the
+// docs deny is not — and a DECLARED tier whose "compensated by" names something that does
+// not run is the same failure wearing the table's clothes, which would make this file the
+// easiest place in the repo to reintroduce exactly the class of claim it exists to delete.
+//
+// So the shape is checked, not the prose: every row carries all five fields, and every
+// `Compensated by` cell resolves to a live chain step or a real quality-gate job.
+const TIERS = 'docs/harness/enforcement-tiers.md'
+let tiersSummary = `${TIERS} absent (pre-0.3.0 install)`
+if (existsSync(TIERS)) {
+  const tierErrs = []
+  const doc = readFileSync(TIERS, 'utf8')
+  // Data rows only: a table row with six cells that is neither the header nor the
+  // `|---|` separator.
+  const rows = doc
+    .split('\n')
+    .filter((l) => /^\|/.test(l) && !/^\|\s*-+/.test(l) && !/^\|\s*Layer\s*\|/.test(l))
+    .map((l) =>
+      l
+        .split('|')
+        .slice(1, -1)
+        .map((c) => c.trim()),
+    )
+    .filter((cells) => cells.length === 6)
+
+  if (rows.length === 0) {
+    tierErrs.push(
+      `${TIERS} has no parseable tier rows — the file exists but declares nothing, which reads as "there are no tiers". Restore it from git history.`,
+    )
+  }
+
+  // Everything that can legitimately be named as a compensating control: a step this
+  // install actually runs, or a job the shipped workflow actually defines.
+  const live = new Set(stepNames)
+  try {
+    const { STOP_HOOK_STEPS } = await import('./harness.config.mjs')
+    for (const [name] of STOP_HOOK_STEPS ?? []) live.add(name)
+  } catch {
+    // the gate-list check above already owns an unloadable config
+  }
+  const WORKFLOW = '.github/workflows/quality-gate.yml'
+  if (existsSync(WORKFLOW)) {
+    const wf = readFileSync(WORKFLOW, 'utf8')
+    const jobsAt = wf.indexOf('\njobs:')
+    if (jobsAt !== -1) {
+      for (const m of wf.slice(jobsAt).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)) live.add(m[1])
+    }
+  }
+
+  for (const cells of rows) {
+    const [layer, covers, notCovers, why, compensated, target] = cells
+    for (const [i, field] of [
+      'Layer',
+      'Covers',
+      'Does NOT cover',
+      'Why',
+      'Compensated by',
+      'Target',
+    ].entries()) {
+      if (cells[i] === '') {
+        tierErrs.push(
+          `${TIERS}: the '${layer || '(unnamed)'}' row has an empty '${field}' cell — a tier declared without one of its five facts is not a declaration. Use an em dash only where the field genuinely does not apply.`,
+        )
+      }
+    }
+    void covers
+    void notCovers
+    void why
+    void target
+    // `—` means "nothing stands in for this", which is a legitimate and honest answer.
+    if (compensated === '' || compensated === '—' || compensated === '-') continue
+    for (const name of [...compensated.matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])) {
+      if (!live.has(name)) {
+        tierErrs.push(
+          `${TIERS}: the '${layer}' row is compensated by \`${name}\`, which is neither a step in tools/harness.config.mjs nor a job in ${WORKFLOW}. A compensating control nobody runs is not a control — name a live one, or say — and raise the Target.`,
+        )
+      }
+    }
+  }
+
+  tiersSummary = `${String(rows.length)} enforcement tier(s) declared, every compensating control live`
+  if (tierErrs.length > 0) {
+    if (rampNote(GATE, '0.3.0', 'enforcement-tiers shape check', { until: '0.5.0' })) {
+      for (const e of tierErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      tiersSummary = `enforcement-tiers shape NOTE-only (${String(tierErrs.length)} finding(s) withheld by the 0.3.0 ramp)`
+    } else {
+      errs.push(...tierErrs)
+    }
+  }
+}
+
 failures(GATE, errs)
 ok(
   GATE,
-  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only`,
+  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}`,
 )

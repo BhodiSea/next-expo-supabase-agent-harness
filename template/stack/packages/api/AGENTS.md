@@ -17,9 +17,13 @@ Build every procedure on a rung, never on the bare `t.procedure`:
 - **`authedProcedure`** — throws `UNAUTHORIZED` when `ctx.actor === null`. This is the ONE
   sanctioned domain-adjacent throw; it narrows `ctx.actor` to non-null for everything
   downstream, so no authed handler re-checks identity and none can forget to.
-- **`memberProcedure`** — membership is an AUTHORIZATION outcome, not a transport fact, so it
-  does NOT throw: `const gate = ctx.member; if (!gate.ok) return gate` — the same two lines
-  in every member procedure, which makes a missing gate visible in review.
+- **`orgProcedure`** — the acting org is an AUTHORIZATION outcome, not a transport fact, so
+  it does NOT throw: `const gate = ctx.org; if (!gate.ok) return gate` — the same two lines
+  in every org procedure, which makes a missing gate visible in review. EVERY procedure
+  rides this rung, READS INCLUDED: a user in three orgs has three sets, RLS admits all of
+  them at once, and a read with no active org would return them interleaved. It is not the
+  isolation boundary — the RLS policies are — so a bug here yields a denial or an empty
+  page, never a cross-tenant read.
 
 No transformer: every payload is JSON-safe by construction, so a plain `curl` sees the same
 bytes the typed client does.

@@ -76,7 +76,7 @@ if (!existsSync(VERTICALS_ROOT) || !existsSync(MIGRATIONS_DIR)) {
 const probes = probeModules()
 if (probes.length === 0) {
   const note = `no ${VERTICALS_ROOT}/*/src/data/query-probes.ts — the DAL is not instrumented`
-  if (rampNote(GATE, RAMP, note)) {
+  if (rampNote(GATE, RAMP, note, { until: '0.4.0' })) {
     ok(GATE, `pre-${RAMP} install with no query probes — adopt with \`update --refresh-seeded\``)
   }
   skipOrFail(
@@ -116,6 +116,7 @@ const ramped = rampNote(
   GATE,
   RAMP,
   'index-service and boundedness rules over the generated query-shape manifest',
+  { until: '0.4.0' },
 )
 
 const tenancy = JSON.parse(readFileSync(TENANCY, 'utf8'))

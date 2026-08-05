@@ -71,7 +71,8 @@ const files = [
   [
     join(base, 'packages', 'api', 'src', 'routers', `${slice}.ts`),
     '// The tRPC router for this slice — copy packages/api/src/routers/notes.ts. Each procedure\n' +
-      '// is three lines: pick a rung of the ladder (authedProcedure for reads, memberProcedure\n' +
+      '// is three lines: pick a rung of the ladder (orgProcedure, READS INCLUDED — the acting\n' +
+      '// org is WHICH DATA a read is about, not an extra permission on top of it),\n' +
       '// for writes), name an input schema from @app/' +
       slice +
       ", hand the call to the vertical.\n" +
@@ -79,7 +80,8 @@ const files = [
       "// into appRouter (packages/api/src/index.ts) and run `pnpm gen` to regenerate the committed\n" +
       '// inventories. See references/dal-dto.md.\n' +
       '//\n' +
-      `// import { authedProcedure, memberProcedure, router } from '../trpc.js'\n` +
+      `// import { orgProcedure, router } from '../trpc.js'\n` +
+      '// const gate = ctx.org; if (!gate.ok) return gate   // the failure path, returned verbatim\n' +
       `// export const ${camel}Router = router({ /* list, get, create, update, remove */ })\n`,
   ],
   [

@@ -250,7 +250,10 @@ const errs = clones.map(
 // Ramp: an install predating this check carries copy-paste it never held them to — NOTE,
 // don't ambush the update. In this lineage the check ships in 0.1.0: every fresh scaffold
 // is turn-fatal.
-if (errs.length > 0 && rampNote(GATE, '0.1.0', `${errs.length} code clone(s)`)) {
+if (
+  errs.length > 0 &&
+  rampNote(GATE, '0.1.0', `${errs.length} code clone(s)`, { until: '0.4.0' })
+) {
   ok(GATE, `${errs.length} clone(s) held as a ramp NOTE (pre-0.1.0 baseVersion)`)
 }
 

@@ -238,6 +238,7 @@ if (!anyRoleSetting) {
       GATE,
       RAMP,
       `no ALTER ROLE ... SET in any migration — the per-role ceilings arrive in ${RAMP}`,
+      { until: '0.4.0' },
     )
   ) {
     ok(
@@ -357,7 +358,12 @@ const limitTable = stripSchema(cfg.quota.limitTable)
 const quotaAdopted = columnFacts.has(usageTable)
 if (!quotaAdopted) {
   if (
-    !rampNote(GATE, RAMP, `no ${cfg.quota.usageTable} table — the per-org quota arrives in ${RAMP}`)
+    !rampNote(
+      GATE,
+      RAMP,
+      `no ${cfg.quota.usageTable} table — the per-org quota arrives in ${RAMP}`,
+      { until: '0.4.0' },
+    )
   ) {
     errs.push(
       `${cfg.quota.usageTable}: named by ${CONFIG} as the usage counter but no migration creates it — without it no metered table has a limit`,

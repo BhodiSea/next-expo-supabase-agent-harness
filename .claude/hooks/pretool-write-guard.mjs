@@ -39,7 +39,16 @@ const PROTECTED = [
   /^template\/base\/tools\//,
   /^template\/base\/\.claude\/hooks\//,
   /^scripts\//,
-  /^installer\/lib\//,
+  // `installer/**`, not `installer/lib/**` (0.3.0). The commands are the installer: init
+  // writes the manifest every gate's tamper evidence rests on, update decides what a
+  // release does to a live consumer tree, and doctor/graduate decide whether an install is
+  // reported healthy. Protecting only the lib left the four files that USE it open.
+  /^installer\//,
+  // The per-version upgrade records. A `configSteps` entry is the ONLY way a new gate
+  // reaches an existing install, a `seedOnInitOnly` pattern silently withholds a whole
+  // subtree, and a `removed` entry deletes a consumer's file — every one of them is an
+  // instruction executed against somebody else's repository.
+  /^template\/migrations\.json$/,
   /^\.github\/workflows\//,
   /^tests\/canary\/injections\.json$/,
   // This directory: the shim, this guard, the Stop chain, and the settings file that

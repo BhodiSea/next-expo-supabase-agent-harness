@@ -1,7 +1,7 @@
 // `init` — bootstrap a new project or retrofit an existing one.
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { planStack, planTree } from '../lib/copy.mjs'
+import { planStack, planTree, toPosix } from '../lib/copy.mjs'
 import { detect, detectContext } from '../lib/detect.mjs'
 import { CONFLICTABLE, MODULES, RETROFIT_ADDITIVE, TIERS } from '../lib/layout.mjs'
 import { fileMode, installerVersion, readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
@@ -30,6 +30,47 @@ function planModules(modules, answers) {
     out.push(...entries)
   }
   return out
+}
+
+
+// A CONFLICT IS EVIDENCE, NOT A SILENT OUTCOME (0.3.0).
+//
+// Both branches here used to `continue` BEFORE the manifest line, so a retrofit conflict
+// was invisible to every later check: `doctor` saw nothing, and `check-gate-integrity` had
+// no entry to judge. The consequence was specific and bad — `lint`, `types`, `dead-code`,
+// `architecture` and the coverage floors all ran happily against the TARGET's configs with
+// zero harness rules in them, and reported green. The install looked enforced and was not.
+//
+// Keeping theirs is still correct — never clobber a human's config. What changes is that
+// the harness stops CLAIMING enforcement over one it did not write: the returned
+// {mode:'conflicted', theirsSha256, oursSha256, sidecar} record makes the state legible to
+// the one step that exists on EVERY install.
+//
+// A known ROOT CONFIG parks as a `<base>.harness.<ext>` sibling; everything else parks
+// under .harness/conflicts/, OUTSIDE active paths — a sibling inside .github/workflows/
+// would itself execute as a workflow.
+/**
+ * @param {{ targetDir: string, ip: string, currentRaw: Buffer, entry: { content: string | Buffer },
+ *           report: { conflicts: unknown[], written: string[] }, opts: { dryRun?: boolean } }} args
+ * @returns {{ mode: string, theirsSha256: string, oursSha256: string, sidecar: string }}
+ */
+function parkConflict({ targetDir, ip, currentRaw, entry, report, opts }) {
+  const isRootConfig = CONFLICTABLE.some((c) => c.installed === ip)
+  const sidecar = isRootConfig
+    ? ip.replace(/(\.[a-z]+)$/, '.harness$1')
+    : join('.harness', 'conflicts', ip)
+  if (!opts.dryRun) writeInstallFile(join(targetDir, sidecar), entry.content)
+  report.conflicts.push({
+    path: ip,
+    detail: `existing ${isRootConfig ? 'config' : 'file'} kept; harness version at ${sidecar} — merge manually`,
+  })
+  if (isRootConfig) report.written.push(sidecar)
+  return {
+    mode: 'conflicted',
+    theirsSha256: sha256(currentRaw),
+    oursSha256: sha256(entry.content),
+    sidecar: toPosix(sidecar),
+  }
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
@@ -215,21 +256,8 @@ export async function init(opts) {
           // fall through to conflict parking when unparseable
         }
 
-        const conflictable = CONFLICTABLE.find((c) => c.installed === ip)
-        if (conflictable) {
-          const sibling = ip.replace(/(\.[a-z]+)$/, '.harness$1')
-          if (!opts.dryRun) writeInstallFile(join(targetDir, sibling), entry.content)
-          report.conflicts.push({ path: ip, detail: `existing config kept; harness version at ${sibling} — merge manually` })
-          report.written.push(sibling)
-          continue
-        }
-
-        // Everything else (AGENTS.md, docker-compose.yml, workflows, docs, …):
-        // theirs stays byte-identical; ours parks OUTSIDE active paths — a
-        // sibling inside .github/workflows/ would itself execute as a workflow.
-        const parked = join('.harness', 'conflicts', ip)
-        if (!opts.dryRun) writeInstallFile(join(targetDir, parked), entry.content)
-        report.conflicts.push({ path: ip, detail: `existing file kept; harness version at ${parked} — merge manually` })
+        const conflict = parkConflict({ targetDir, ip, currentRaw, entry, report, opts })
+        files[ip] = conflict
         continue
       }
     }

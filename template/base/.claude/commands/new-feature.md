@@ -55,9 +55,10 @@ missing any of these arrives pre-red):
   keyset-paginated with an unconditional LIMIT. NO app-side `owner_id` filter — visibility
   is the RLS policy's job, and an app filter would MASK a policy regression.
 - **tRPC procedure (+ optional Server Action)** — a three-line procedure in
-  `packages/api/src/routers/<x>.ts` on the correct rung: `authedProcedure` for reads,
-  `memberProcedure` for writes, resolving membership as an outcome
-  (`const gate = ctx.member; if (!gate.ok) return gate`). It returns the vertical's
+  `packages/api/src/routers/<x>.ts` on `orgProcedure` — READS INCLUDED, because the acting
+  org is WHICH DATA a read is about, not an extra permission on top of it — resolving
+  membership as an outcome
+  (`const gate = ctx.org; if (!gate.ok) return gate`). It returns the vertical's
   `ActionOutcome` verbatim. If web writes the same data, its twin is a Server Action in
   `apps/web/app/actions/*` sharing the SAME zod contract and the SAME `@app/notes`
   implementation — one operation, two callers, or the surfaces have forked.

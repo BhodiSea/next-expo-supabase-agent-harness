@@ -36,9 +36,10 @@ Pick the rung off the ladder in `packages/api/src/trpc.ts`:
 - `authedProcedure` — throws `UNAUTHORIZED` if `ctx.actor` is null (the ONE sanctioned
   transport throw); narrows `ctx.actor` to non-null downstream. READS a signed-in user may
   perform go here.
-- `memberProcedure` — membership is an AUTHORIZATION outcome, not a transport fact, so it
+- `orgProcedure` — membership is an AUTHORIZATION outcome, not a transport fact, so it
   rides the envelope: resolve it with the same two lines every write uses —
-  `const gate = ctx.member; if (!gate.ok) return gate`. WRITES (they consume a seat) go here.
+  `const gate = ctx.org; if (!gate.ok) return gate`. EVERY procedure rides this rung, READS
+  INCLUDED: the acting org is WHICH DATA a read is about, not an extra permission on top.
 
 THE ENVELOPE RULE. The procedure returns `ActionOutcome<T>` from `@app/errors` on the DATA
 channel — `outcomeOk(...)` / `outcomeErr(appError.X())`. A domain failure is NEVER a thrown

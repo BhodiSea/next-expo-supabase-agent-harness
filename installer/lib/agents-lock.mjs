@@ -19,7 +19,8 @@
 // other. This also means `init` exercises the generator on every run.
 // SOURCE: docs/harness/README.md (prompt/agent lock discipline) [corpus: harness/doctrine]
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const AGENTS_LOCK = 'tools/agents.lock.json'
@@ -63,4 +64,76 @@ export function writeAgentsLock(targetDir, report, mode, { dryRun = false } = {}
     `${AGENTS_LOCK}: written from this install's own .claude/{agents,commands,skills} — the \`prompts\` gate now reds on any later edit to them`,
   )
   return true
+}
+
+/**
+ * Re-record the lock entries for agent-surface files THIS UPDATE rewrote — and only those.
+ *
+ * THE GAP THIS CLOSES, found by the upgrade lane rather than by reading the plan. The
+ * `adopt` rule above is right about consumer edits and wrong about harness ones: when an
+ * `update` overwrites an OWNED agent-surface file (the 0.3.0 doctrine repair rewrote ten
+ * of them), the lock still describes the old bytes, so `prompts` reds on every consumer
+ * for a change they did not make, cannot review, and can only clear by running the very
+ * generator the guards exist to keep them from running.
+ *
+ * PER-ENTRY, never wholesale. A file is re-recorded only if `update` actually wrote it,
+ * which it does only when the on-disk bytes matched the recorded sha — i.e. the consumer
+ * had not touched it. A locally-modified agent file drifts, gets parked, is NOT in
+ * `written`, and therefore keeps redding: that edit is exactly what the lock exists to
+ * surface, and laundering it here would be the failure this whole control is about.
+ *
+ * @param {string} targetDir
+ * @param {string[]} written install paths this update wrote
+ * @param {{ notes: string[] }} report
+ * @param {{ dryRun?: boolean }} [opts]
+ * @returns {number} how many entries were re-recorded
+ */
+export function refreshAgentsLockEntries(targetDir, written, report, { dryRun = false } = {}) {
+  const lockPath = join(targetDir, AGENTS_LOCK)
+  const touched = written.filter((p) => /^\.claude\/(agents|commands|skills)\//.test(p))
+  if (dryRun || touched.length === 0 || !existsSync(lockPath)) return 0
+
+  const lock = readLock(lockPath)
+  if (lock === null) return 0
+
+  let count = 0
+  for (const rel of touched) {
+    const abs = join(targetDir, rel)
+    if (!existsSync(abs)) continue
+    const bytes = readFileSync(abs)
+    lock.files[rel] = createHash('sha256').update(bytes).digest('hex')
+    // The model pin travels with the file: a roster entry repointed from a frontier model
+    // to a cheap one leaves every byte of the instructions identical, which is why it is
+    // locked alongside the hash rather than instead of it.
+    recordModelPin(lock, rel, bytes)
+    count += 1
+  }
+  if (count === 0) return 0
+
+  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
+  report.notes.push(
+    `${AGENTS_LOCK}: re-recorded ${String(count)} entr${count === 1 ? 'y' : 'ies'} for agent-surface file(s) THIS update rewrote. Locally-modified agent files were parked, not re-recorded — their lock mismatch is the edit the lock exists to show you.`,
+  )
+  return count
+}
+
+/** The lock as an object with a usable `files` map, or null when it is unusable. */
+function readLock(lockPath) {
+  let lock
+  try {
+    lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+  } catch {
+    // A corrupt lock is the `prompts` gate's finding to report, not this function's to fix.
+    return null
+  }
+  return typeof lock?.files === 'object' && lock.files !== null ? lock : null
+}
+
+/** Update `lock.models[<agent>]` from a roster file's frontmatter, when both are present. */
+function recordModelPin(lock, rel, bytes) {
+  const agent = /^\.claude\/agents\/(.+)\.md$/.exec(rel)?.[1]
+  if (agent === undefined || typeof lock.models !== 'object' || lock.models === null) return
+  const frontmatter = /^---\n([\s\S]*?)\n---/.exec(bytes.toString('utf8'))?.[1]
+  const model = frontmatter === undefined ? undefined : /^model:\s*(.+)$/m.exec(frontmatter)?.[1]
+  if (model !== undefined) lock.models[agent] = model.trim()
 }

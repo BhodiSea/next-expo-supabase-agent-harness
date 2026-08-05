@@ -99,7 +99,9 @@ test('stampGate: green run stamps; unchanged inputs skip; mutation re-runs; CI i
 // In-process: rampNote reads .harness/manifest.json from process.cwd() and
 // RETURNS (no exit) on every non-tampered path, so the live/ramped matrix is
 // directly assertable.
-async function rampInDir(manifest, { min = '0.1.5' } = {}) {
+// `until` defaults far enough out that these cases exercise the ramp, never the
+// clock — expiry has its own suite (tests/gates/ramp-expiry.test.mjs).
+async function rampInDir(manifest, { min = '0.1.5', until = '0.4.0' } = {}) {
   const { rampNote } = await import(GATE_LIB)
   const dir = mkdtempSync(join(tmpdir(), 'epah-ramp-'))
   if (manifest !== null) {
@@ -112,7 +114,7 @@ async function rampInDir(manifest, { min = '0.1.5' } = {}) {
   process.chdir(dir)
   console.log = (...a) => logged.push(a.map(String).join(' '))
   try {
-    return { ramped: rampNote('fake', min, 'new-check details'), out: logged.join('\n') }
+    return { ramped: rampNote('fake', min, 'new-check details', { until }), out: logged.join('\n') }
   } finally {
     console.log = origLog
     process.chdir(prev)
@@ -154,7 +156,7 @@ test('rampNote: a manifest without baseVersion falls back to harnessVersion', as
 })
 
 test('rampNote: corrupt or version-less manifest FAILS CLOSED with the FIX line (tampering, not a ramp)', () => {
-  const script = `if (!rampNote('fake', '0.1.5', 'x')) ok('fake', 'live')`
+  const script = `if (!rampNote('fake', '0.1.5', 'x', { until: '0.4.0' })) ok('fake', 'live')`
 
   const corrupt = mkdtempSync(join(tmpdir(), 'epah-rampbad-'))
   mkdirSync(join(corrupt, '.harness'), { recursive: true })

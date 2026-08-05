@@ -30,8 +30,8 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
     unhandled error paths; a DOMAIN failure THROWN instead of returned as
     `outcomeErr(appError.X())` on the data channel (throwing flattens the discriminated
     `AppError` a screen switches on into a status — only transport auth UNAUTHORIZED and
-    the skew guard's CONFLICT may throw); a `memberProcedure` handler missing its
-    `const gate = ctx.member; if (!gate.ok) return gate` two-liner; a Supabase client
+    the skew guard's CONFLICT may throw); an `orgProcedure` handler missing its
+    `const gate = ctx.org; if (!gate.ok) return gate` two-liner; a Supabase client
     built at module scope instead of per request (one caller's identity read into
     another's render); a `WITH RECURSIVE` without a CYCLE clause / visited guard; an
     effect that registers a listener/subscription/timer without tearing it down in the

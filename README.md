@@ -19,9 +19,9 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 29 gates — and the selftest matrix proves
-> it on every push, including the live-Supabase RLS suite and the 21 can-fail
-> canaries. Nothing is claimed here that that matrix does not run.
+> fresh scaffold with zero edits — all 31 gates — and the selftest matrix proves
+> it on every push, including the live-Supabase RLS suite and the 26 can-fail
+> canaries (counted from the matrix itself, not hand-authored). Nothing is claimed here that that matrix does not run.
 >
 > **Honest losses.** Rate limiting binds the two application seams (the tRPC router
 > and the Next Server Action layer) and does **not** bind a client calling PostgREST
@@ -45,11 +45,13 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (91 guard-rule ids: shell-command denials, write-protected harness paths,
-   banned content everywhere, and the schema/migration SQL surface), a
-   PostToolUse provenance check, and a Claude Code `Stop` hook that refuses to
-   end a turn until the validation chain, RLS isolation tests, and both unit
-   suites pass.
+   (116 guard-rule ids: shell-command denials, write-protected harness paths,
+   banned content everywhere, the schema/migration SQL surface, the npm
+   lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
+   provenance check, and a Claude Code `Stop` hook that refuses to end a turn
+   until the validation chain, RLS isolation tests, and both unit suites pass.
+   Six hooks are wired, each invoked as `node "<path>"` so a hook's executable
+   bit is not in the trust path.
 2. **Commit-time checks** — lefthook + commitlint + gitleaks.
 3. **CI** — the same validation chain, fail-closed, plus device lanes
    (Android emulator + Maestro) and release automation (release-please +
@@ -60,10 +62,18 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-29 gates, cheap → expensive:
+31 gates, cheap → expensive:
 
-format (biome) → gate-integrity (manifest sha over the gate scripts/hooks —
-tampering is turn-fatal) → types (`tsc -b`) → lint (typescript-eslint
+format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
+`node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen
+`tools/stop.floor.json` — tampering is turn-fatal) → **wiring** (the enforcement
+layers are actually CONNECTED: six hooks wired, the permission posture,
+`pnpm validate` still running the gate, `CLAUDE.md` a pure include, and CODEOWNERS
+covering every escape list and enforcement-surface prefix — the invariants `doctor`
+was the only check for, and nothing ran `doctor`) → **secrets** (a hermetic,
+zero-dependency credential scan inside the chain, in rule-id lockstep with
+`.gitleaks.toml`, because lefthook SKIPs without the binary and the gitleaks
+workflow only scans after a push) → types (`tsc -b`) → lint (typescript-eslint
 strictTypeChecked + react-native/a11y every-rule-error + React Compiler rules +
 cognitive-complexity ≤ 15 + the fetch/secure-store/chart-library boundary
 bans) → provenance (`SOURCE:` on every decision site) → **boundaries** (the two

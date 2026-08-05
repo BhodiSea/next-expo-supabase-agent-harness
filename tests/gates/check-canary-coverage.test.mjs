@@ -15,7 +15,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -30,17 +30,34 @@ const config = await import(
 )
 const stepNames = [...config.VALIDATE_STEPS, ...config.STOP_HOOK_STEPS].map(([name]) => name)
 
-// The same job-id parse the checker itself performs over the shipped workflow.
-const qgText = readFileSync(join(ROOT_DIR, 'template/base/github/workflows/quality-gate.yml'), 'utf8')
-const jobsAt = qgText.indexOf('\njobs:')
-const jobIds = [...qgText.slice(jobsAt).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+// The same job-id parse the checker itself performs — over ALL EIGHT shipped workflows
+// since 0.3.0, not just the merge gate. The single hardcoded filename is what made codeql,
+// gitleaks, osv-scan, actions-lint, adr-guard, migration-safety and mutation invisible to
+// the lane closure: seven blocking lanes a reviewer reads as enforcement, none of which had
+// to carry a red-proof.
+const WORKFLOW_DIR = join(ROOT_DIR, 'template/base/github/workflows')
+const jobIds = readdirSync(WORKFLOW_DIR)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort()
+  .flatMap((f) => {
+    const text = readFileSync(join(WORKFLOW_DIR, f), 'utf8')
+    const at = text.indexOf('\njobs:')
+    return at === -1 ? [] : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+  })
 
 const guardRules = await import(
   pathToFileURL(join(ROOT_DIR, 'template/base/.claude/hooks/lib/guard-rules.mjs')).href
 )
 // The same table list the checker itself walks — kept in lockstep by hand, and the
 // LIVE LOCKSTEP test below reds if a table exists in guard-rules but is missing here.
-const RULE_TABLES = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS', 'WRITE_SQL_CHECKS']
+const RULE_TABLES = [
+  'BASH_RULES',
+  'WRITE_PROTECTED',
+  'WRITE_GLOBAL_CHECKS',
+  'WRITE_SQL_CHECKS',
+  'WRITE_CONFIG_CHECKS',
+  'MCP_RULES',
+]
 const ruleIds = RULE_TABLES.flatMap((t) => guardRules[t].map((r) => r.id))
 
 // A hook-contract stand-in carrying every rule id as a quoted literal (what the
@@ -112,7 +129,7 @@ test('LIVE LOCKSTEP (static): the shipped registry covers exactly the real steps
   assert.deepEqual(
     [...Object.keys(realRegistry.lanes)].sort(),
     [...jobIds].sort(),
-    'tests/canary/injections.json#lanes must equal the quality-gate.yml jobs, bidirectionally',
+    'tests/canary/injections.json#lanes must equal the jobs of EVERY shipped workflow, bidirectionally',
   )
   // Every registered proof kind is one the checker knows.
   for (const proofs of [...Object.values(realRegistry.steps), ...Object.values(realRegistry.lanes)]) {

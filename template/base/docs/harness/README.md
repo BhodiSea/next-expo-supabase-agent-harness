@@ -69,10 +69,21 @@ Exit-code semantics (the crux of the design):
 | Event | Matcher | Script | Enforces |
 |---|---|---|---|
 | PreToolUse | `Bash` | `.claude/hooks/pretool-bash-guard.mjs` | denies destructive shell, secret access, migration bypasses |
-| PreToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/pretool-write-guard.mjs` | blocks invariant-violating file **content** before it lands; denies edits to harness-owned paths |
+| PreToolUse | `Edit\|Write\|MultiEdit\|NotebookEdit` | `.claude/hooks/pretool-write-guard.mjs` | blocks invariant-violating file **content** before it lands; denies edits to harness-owned paths |
+| PreToolUse | `mcp__.*` | `.claude/hooks/pretool-mcp-guard.mjs` | default-deny over `tools/approved-tools.json`: unregistered servers, tools outside a server's list, and write-shaped tool names on a `readOnly` server |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
-| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs `STOP_HOOK_STEPS`; exits 2 with failures on stderr until green |
+| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
+
+Six hooks, and **every command is `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
+the commands were bare paths relying on the executable bit, and `check-gate-integrity`
+hashes CONTENT and never MODE — so `chmod -x` on the Stop hook silently disarmed the turn
+gate while every sha256 still matched. The fix deletes the vulnerability rather than
+detecting it: the bit is no longer in the trust path at all. (A mode check would also have
+had to skip on win32, where there is no exec bit — and a skip that is never a pass cannot
+be written for a property half the platforms do not have.) `gate-integrity` now asserts the
+command SHAPE instead: every hook command names `node` and an existing file, so one
+rewritten to `true` reds.
 
 **Hooks fail closed** (`.claude/hooks/lib/hookio.mjs`):
 `uncaughtException`/`unhandledRejection` handlers exit 2, because a crashed guard that
@@ -83,7 +94,11 @@ passes.
 ### stop-validate-gate (the unbreakable core)
 
 A turn **cannot end** while the gate is red. Details that matter: it imports
-`STOP_HOOK_STEPS` from the config, so projects extend the gate without editing the hook;
+`STOP_HOOK_STEPS` from the config UNIONED with the frozen `tools/stop.floor.json`, so
+projects may APPEND a step and may never subtract one (the config is manifest mode
+`config`, which gate-integrity's owned-file loop skips — so until 0.3.0 nothing hashed the
+list of checks that decide whether a turn may end). A floored step missing from the config
+still runs, and gate-integrity reds naming it;
 if the config cannot load it falls back to `pnpm validate` and warns — never skips.
 `stop_hook_active` escalates the message on repeat blocks; the block cap in
 `.claude/settings.json` is the safety valve so a genuinely stuck session terminates.

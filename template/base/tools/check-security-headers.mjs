@@ -47,7 +47,14 @@ const SUPABASE_ORIGIN = 'https://fixture.supabase.co'
 // has adopted the surface, and wrong header values are a hard red.
 if (!existsSync(MODULE)) {
   if (
-    rampNote(GATE, RAMP, `${MODULE} not found — the web security-header surface arrives in ${RAMP}`)
+    rampNote(
+      GATE,
+      RAMP,
+      `${MODULE} not found — the web security-header surface arrives in ${RAMP}`,
+      {
+        until: '0.4.0',
+      },
+    )
   ) {
     ok(GATE, `pre-${RAMP} install without ${MODULE} — run \`npx … update\` to adopt the surface`)
   }

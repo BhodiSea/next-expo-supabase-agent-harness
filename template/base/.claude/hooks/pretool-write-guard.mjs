@@ -10,11 +10,23 @@
 // this hook keeps the I/O, path-normalization, and path-scoped decision plumbing. Every
 // rule id there has a behavioral canary in tests/hooks/hook-contract.test.mjs.
 // SOURCE: docs/harness/README.md (pretool-write-guard)
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.2.1'
+// An Edit fragment cannot carry a file-level directive ('use client'), so a rule that
+// needs one reads it off disk. Unreadable is treated as absent — the exemption has to be
+// PROVEN, never assumed, or an unreadable file becomes the way past the rule.
+/** @param {string} p @returns {string} */
+function readFileSafe(p) {
+  try {
+    return readFileSync(p, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+export const HARNESS_HOOK_VERSION = '0.3.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2) — a guard that cannot load its rules approves
@@ -28,17 +40,19 @@ try {
   )
   process.exit(2)
 }
-const { WRITE_PROTECTED, WRITE_GLOBAL_CHECKS, WRITE_SQL_CHECKS } = rules
+const { WRITE_PROTECTED, WRITE_GLOBAL_CHECKS, WRITE_SQL_CHECKS, WRITE_CONFIG_CHECKS } = rules
 if (
   !Array.isArray(WRITE_PROTECTED) ||
   WRITE_PROTECTED.length === 0 ||
   !Array.isArray(WRITE_GLOBAL_CHECKS) ||
   WRITE_GLOBAL_CHECKS.length === 0 ||
   !Array.isArray(WRITE_SQL_CHECKS) ||
-  WRITE_SQL_CHECKS.length === 0
+  WRITE_SQL_CHECKS.length === 0 ||
+  !Array.isArray(WRITE_CONFIG_CHECKS) ||
+  WRITE_CONFIG_CHECKS.length === 0
 ) {
   process.stderr.write(
-    'HOOK CRASHED (guard-rules shape) — failing closed, action blocked: WRITE_PROTECTED / WRITE_GLOBAL_CHECKS / WRITE_SQL_CHECKS missing or empty\n',
+    'HOOK CRASHED (guard-rules shape) — failing closed, action blocked: WRITE_PROTECTED / WRITE_GLOBAL_CHECKS / WRITE_SQL_CHECKS / WRITE_CONFIG_CHECKS missing or empty\n',
   )
   process.exit(2)
 }
@@ -142,16 +156,28 @@ if (rels.some((r) => /^supabase\/migrations\/[^/]+\.sql$/.test(r)) && existsSync
 /** @param {RegExp} re @returns {boolean} */
 const anyRel = (re) => rels.some((r) => re.test(r))
 
-// Exempt harness tooling and test bodies from the content checks below.
-// Deliberately NARROW: only the root-level test trees (the harness's own RLS/
-// migration suites), the mobile __tests__ tree, and colocated *.test.* / *.spec.*
-// FILES. A directory merely named "tests" deeper in the app tree (src/dal/tests/…)
-// is product code and stays fully content-checked — the old any-segment match
-// let real invariant violations ship from such paths.
-// EVERY spelling must be exempt: a link named `x.test.ts` pointing at a DAL module
-// lands product bytes, so one exempt-looking name must not buy an exemption.
+// Exempt the two surfaces that must be able to NAME a banned pattern in order to ban it,
+// plus test bodies. Deliberately NARROW: only the root-level test trees (the harness's own
+// RLS/migration suites), the mobile __tests__ tree, and colocated *.test.* / *.spec.* FILES.
+// A directory merely named "tests" deeper in the app tree (src/dal/tests/…) is product code
+// and stays fully content-checked — the old any-segment match let real invariant violations
+// ship from such paths.
+//
+// The `.claude/` half was a BLANKET exemption until 0.3.0, which is wider than its own
+// reasoning: it was written for the guards (whose rule tables must literally contain
+// `dangerouslySetInnerHTML` to forbid it) and for the prose agent surface (rules, agents,
+// commands and skill docs, which quote every banned pattern by name). It also silently
+// exempted `.claude/statusline.mjs` and every executable script bundled with a skill —
+// real code, running on a developer's machine, that no content rule ever saw.
+//
+// EVERY spelling must be exempt: a link named `x.test.ts` pointing at a DAL module lands
+// product bytes, so one exempt-looking name must not buy an exemption.
 const isExempt = (/** @type {string} */ r) =>
-  /^\.claude\//.test(r) ||
+  // the guards themselves — a rule table has to contain what it bans
+  /^\.claude\/hooks\//.test(r) ||
+  // the prose agent surface — it forbids by quoting
+  /^\.claude\/(?:agents|commands|rules)\//.test(r) ||
+  /^\.claude\/(?:skills\/.*|[^/]*)\.md$/.test(r) ||
   /^tests?\//.test(r) ||
   /^apps\/mobile\/__tests__\//.test(r) ||
   /\.(test|spec)\.[a-z]+$/.test(r)
@@ -205,6 +231,14 @@ for (const { pathRe, re, message } of WRITE_SQL_CHECKS) {
   if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
 }
 
+// ---- Non-source CONFIG surface: the weakenings that live in JSON/YAML ----
+// Same placement reasoning as the SQL table above it: the source-extension gate on the
+// next line ends the hook for every .json file, so package.json's npm lifecycle hooks —
+// code that runs on every install, before any gate — reached no content rule at all.
+for (const { pathRe, re, message } of WRITE_CONFIG_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+}
+
 // Police source code only from here down. Docs/markdown/config legitimately
 // mention the banned patterns by name.
 if (!anyRel(/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/)) pass()
@@ -239,28 +273,57 @@ if (anyRel(/^apps\/mobile\//)) {
   }
 }
 
-// ---- Web surface: the two web-specific credential mistakes, at the moment of the
-// edit (defense-in-depth over the eslint/RLS layers). ----
-if (anyRel(/^apps\/web\//)) {
-  // The service-role key BYPASSES row-level security and never belongs in the web
-  // process — its one sanctioned home is an ADR-governed Edge Function
-  // (supabase/functions/<name>). The factory name is the deliberate grep signal;
-  // the env accessor + the key name are the other two ways it gets reached for.
-  if (/createServiceRoleClient_BYPASSES_RLS|serviceRoleCredentials|SUPABASE_SERVICE_ROLE_KEY/.test(text)) {
+// ---- The two credential mistakes, over the WHOLE SERVER GRAPH ----
+// Until 0.3.0 both of these sat inside `if (anyRel(/^apps\/web\//))`, and the getSession
+// rule additionally fired only on whole-file writes. The consequence was that the
+// doctrine's own "single most consequential line" was barely guarded: an Edit inserting
+// `.getSession()` into packages/api, a vertical's server barrel or an Edge Function passed
+// every layer, and even in apps/web an Edit fragment was invisible.
+//
+// Scope is the server graph — code where the stored session is ATTACKER-CONTROLLED INPUT
+// because it arrived with someone else's request. apps/mobile is deliberately OUT of it:
+// the mobile app is an untrusted bearer of its OWN scoped token, reading its OWN session
+// out of LargeSecureStore to attach it (apps/mobile/src/lib/trpc/client.ts), which is not
+// the same act at all. That distinction is doctrine, not convenience — see
+// .claude/rules/security-invariants.md.
+//
+// tools/eslint-rules/index.mjs holds the same two properties with AST precision inside the
+// `lint` step; this is the layer-3 tripwire at the moment of the edit.
+const SERVER_GRAPH = /^(?:apps\/web|packages|supabase)\//
+
+// The service-role key BYPASSES row-level security. Its one sanctioned runtime home is an
+// ADR-governed Edge Function; the only other places the SYMBOLS may appear are the module
+// that defines the factory and the env validators that type its credentials.
+const SERVICE_ROLE_HOME =
+  /^(?:supabase\/functions\/|packages\/platform\/supabase\/src\/|packages\/platform\/env\/src\/)/
+if (
+  anyRel(SERVER_GRAPH) &&
+  !rels.some((r) => SERVICE_ROLE_HOME.test(r)) &&
+  /createServiceRoleClient_BYPASSES_RLS|serviceRoleCredentials|SUPABASE_SERVICE_ROLE_KEY/.test(text)
+) {
+  denyTool(
+    'PreToolUse',
+    'the service-role key BYPASSES row-level security — no policy in the repo constrains it and the RLS suite cannot cover it. Its only sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts), reached through createServiceRoleClient_BYPASSES_RLS(warrant); never a Server Action, a tRPC procedure, a script or a screen. SOURCE: packages/platform/supabase/src/service-role.ts',
+  )
+}
+
+// Server-side code must resolve the user with getUser()/getClaims(), NEVER getSession():
+// getSession decodes whatever JWT it finds in the stored session and returns it WITHOUT
+// verifying the signature, so on a server — where that store is a cookie the caller sent —
+// anyone can claim any `sub`.
+//
+// 'use client' marks a browser component, where reading one's own session is legitimate.
+// On an Edit the fragment cannot carry the directive, so the guard reads it off the file
+// on disk: judging a fragment as if it were the whole file is what made this rule
+// whole-file-only, and dropping the check entirely for Edits is what made it bypassable.
+if (anyRel(SERVER_GRAPH) && /\.\s*getSession\s*\(/.test(text)) {
+  const onDisk = isWholeFile || !existsSync(path) ? '' : readFileSafe(path)
+  const isClientComponent =
+    /^\s*['"]use client['"]/m.test(text) || /^\s*['"]use client['"]/m.test(onDisk)
+  if (!isClientComponent) {
     denyTool(
       'PreToolUse',
-      'the service-role key BYPASSES row-level security and must never sit in the web process — its only sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts). SOURCE: packages/platform/supabase/src/service-role.ts',
-    )
-  }
-  // Server-side web code must resolve the user with getUser()/getClaims(), NEVER
-  // getSession(): getSession returns an UNVERIFIED token straight from an
-  // attacker-controlled cookie. Judged on whole-file writes so 'use client' (which
-  // marks a browser component, where a cheap session read is legitimate) can exempt.
-  const isClientComponent = /^\s*['"]use client['"]/m.test(text)
-  if (isWholeFile && !isClientComponent && /\.\s*getSession\s*\(/.test(text)) {
-    denyTool(
-      'PreToolUse',
-      "server-side web code must resolve the user with getUser()/getClaims(), NEVER getSession() — getSession decodes an UNVERIFIED token from an attacker-controlled cookie and does not check its signature. If this is a browser component, mark it 'use client'. SOURCE: apps/web/lib/supabase/server.ts (getUser, never getSession)",
+      "server-side code must resolve the user with getUser()/getClaims(), NEVER getSession() — getSession decodes an UNVERIFIED token from an attacker-controlled cookie and does not check its signature, so a forged `sub` is accepted. If this is a browser component, mark it 'use client'; if it is the mobile client reading its own stored session, it does not belong in the server graph. SOURCE: apps/web/lib/supabase/server.ts (getUser, never getSession)",
     )
   }
 }

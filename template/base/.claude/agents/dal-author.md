@@ -102,11 +102,12 @@ the first run):
    `./client` census (`tools/exports-walls.json`) is a `{{SECURITY_OWNERS}}`
    security-census decision, never a convenience.
 9. **Routers are three lines.** A procedure picks a rung of the ladder
-   (`publicProcedure` → `authedProcedure` → `memberProcedure`), names an input
+   (`publicProcedure` → `authedProcedure` → `orgProcedure`), names an input
    schema, and hands the call to `@app/<x>` (`routers/notes.ts` is the shape).
-   Business logic in a router is logic the Server Action cannot reach. Reads are
-   `authedProcedure`; writes that consume a seat are `memberProcedure` and return
-   the membership gate verbatim (`const gate = ctx.member; if (!gate.ok) return
+   Business logic in a router is logic the Server Action cannot reach. EVERY
+   procedure is `orgProcedure`, READS INCLUDED — the acting org is WHICH DATA a
+   read is about, not an extra permission on top of it — and each returns the org
+   gate verbatim on the failure path (`const gate = ctx.org; if (!gate.ok) return
    gate`). Mount the new router on `appRouter` in `packages/api/src/index.ts` (one
    line). `packages/api` imports NOTHING from `next/*` — the reversibility wall —
    and a vertical NEVER imports another vertical.

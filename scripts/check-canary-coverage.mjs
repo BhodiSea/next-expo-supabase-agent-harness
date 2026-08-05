@@ -162,26 +162,56 @@ for (const [name, proofs] of Object.entries(registry.steps ?? {})) {
 //     exactly like a gate that cannot, so every JOB in the shipped quality-gate workflow
 //     must carry a proof here — including the explicit, reasoned declaration that a job
 //     runs nothing but already-proven steps.
-const QG = join(ROOT, 'template/base/github/workflows/quality-gate.yml')
-const qgText = readFileSync(QG, 'utf8')
-const jobsAt = qgText.indexOf('\njobs:')
-const jobIds =
-  jobsAt === -1
-    ? []
-    : [...qgText.slice(jobsAt).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+// ALL EIGHT SHIPPED WORKFLOWS (0.3.0), not just quality-gate.yml. The closure was written
+// against the merge gate because that is where most lanes live, and the single hardcoded
+// filename made the other seven invisible: codeql, gitleaks, osv-scan, actions-lint,
+// adr-guard, migration-safety and mutation are every one of them a BLOCKING lane a
+// reviewer reads as enforcement, and not one of them had to carry a red-proof. A supply-
+// chain scan that cannot go red is decoration in exactly the way a gate that cannot go red
+// is, and it is the kind nobody re-reads because its name sounds like it is working.
+const WORKFLOW_DIR = join(ROOT, 'template/base/github/workflows')
+const workflowFiles = readdirSync(WORKFLOW_DIR)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort()
+/** job id -> the workflow file it lives in (for the error messages). */
+const jobHome = new Map()
+for (const file of workflowFiles) {
+  const text = readFileSync(join(WORKFLOW_DIR, file), 'utf8')
+  const at = text.indexOf('\njobs:')
+  if (at === -1) {
+    errs.push(`${file} exposes no \`jobs:\` block — the CI-lane closure cannot fail open`)
+    continue
+  }
+  const ids = [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+  if (ids.length === 0) {
+    errs.push(`${file} exposes no parseable jobs — the CI-lane closure cannot fail open`)
+  }
+  for (const id of ids) {
+    // Two workflows naming the same job id would silently share one registry entry, and
+    // whichever came second would be covered by a proof written for the first.
+    const prior = jobHome.get(id)
+    if (prior !== undefined && prior !== file) {
+      errs.push(
+        `job id '${id}' appears in BOTH ${prior} and ${file} — the lanes registry is keyed by id, so one proof would silently stand in for both. Rename one.`,
+      )
+    }
+    jobHome.set(id, file)
+  }
+}
+const jobIds = [...jobHome.keys()]
 if (jobIds.length === 0) {
-  errs.push(`${QG} exposes no parseable jobs — the CI-lane closure cannot fail open`)
+  errs.push('no workflow jobs found at all — the CI-lane closure cannot fail open')
 }
 const lanes = registry.lanes ?? {}
 for (const job of jobIds) {
   const proofs = lanes[job]
   if (!Array.isArray(proofs) || proofs.length === 0) {
-    errs.push(`quality-gate.yml job '${job}' has NO red-proof in tests/canary/injections.json#lanes — a blocking CI lane counts as enforcement, so a lane that cannot go red is decoration. Add a proof, or declare {"kind":"steps"} with a note if the job only runs steps the step registry already proves.`)
+    errs.push(`${jobHome.get(job)} job '${job}' has NO red-proof in tests/canary/injections.json#lanes — a blocking CI lane counts as enforcement, so a lane that cannot go red is decoration. Add a proof, or declare {"kind":"steps"} with a note if the job only runs steps the step registry already proves.`)
   }
 }
 for (const id of Object.keys(lanes)) {
-  if (!jobIds.includes(id)) {
-    errs.push(`lanes registry covers '${id}' but quality-gate.yml has no such job — stale entry`)
+  if (!jobHome.has(id)) {
+    errs.push(`lanes registry covers '${id}' but no shipped workflow has such a job — stale entry`)
   }
 }
 for (const [id, proofs] of Object.entries(lanes)) {
@@ -210,7 +240,14 @@ const hookContract = readFileSync(HOOK_CONTRACT, 'utf8')
 const guardRules = await import(
   pathToFileURL(join(ROOT, 'template/base/.claude/hooks/lib/guard-rules.mjs')).href
 )
-const ruleTables = ['BASH_RULES', 'WRITE_PROTECTED', 'WRITE_GLOBAL_CHECKS', 'WRITE_SQL_CHECKS']
+const ruleTables = [
+  'BASH_RULES',
+  'WRITE_PROTECTED',
+  'WRITE_GLOBAL_CHECKS',
+  'WRITE_SQL_CHECKS',
+  'WRITE_CONFIG_CHECKS',
+  'MCP_RULES',
+]
 const ruleIds = []
 for (const table of ruleTables) {
   if (!Array.isArray(guardRules[table]) || guardRules[table].length === 0) {
@@ -263,6 +300,10 @@ const GROUNDED_ELSEWHERE = {
     'written by the INSTALLER, not shipped: init and update run tools/gen-agents-lock.mjs --write against the install\'s own .claude/{agents,commands,skills} (installer/lib/agents-lock.mjs). Shipping a lock from the template would pin the template\'s agent files, which is the opposite of what the lock is for.',
   '.claude/settings.local.json':
     "Claude Code writes it per developer and it is gitignored — a template that shipped one would be shipping one machine's local permission grants to every consumer. The rule exists precisely because it is the file an agent would reach for to widen its own permissions.",
+  'tools/retrofit-accept.json':
+    "written by a HUMAN, once, to accept a specific retrofit conflict. check-gate-integrity reads it absent-as-empty, so shipping an empty one would ship a reviewed-acceptance file nobody reviewed — and an install that never retrofitted has nothing to accept. The rule exists because CREATING this file is what converts a red into a NOTE, which is exactly as consequential as widening an escape list.",
+  'tools/secret-scan-allow.json':
+    'written by a HUMAN to allow a specific secret-shaped string the `secrets` gate found. check-secrets.mjs reads it absent-as-empty (the per-rule placeholder allowlist that ships lives in tools/secret-patterns.json, which IS shipped), so the file exists only on installs that have deliberately allowed something — and each entry is one credential shape the scanner stops reporting.',
 }
 
 const shippedPaths = new Set(

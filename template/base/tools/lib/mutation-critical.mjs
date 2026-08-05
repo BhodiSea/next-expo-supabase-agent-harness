@@ -5,7 +5,7 @@
 //
 // SCOPE, and why it is drawn HERE:
 //   - packages/api/src/**  — the tRPC router: the procedure ladder
-//     (publicProcedure → authedProcedure → memberProcedure) that binds a caller's identity
+//     (publicProcedure → authedProcedure → orgProcedure) that binds a caller's identity
 //     to authorization, the createContext that resolves it, the CSRF-origin check, and the
 //     ActionOutcome envelope every procedure returns. This is the server-side authorization
 //     boundary; a silent break here is an auth break.

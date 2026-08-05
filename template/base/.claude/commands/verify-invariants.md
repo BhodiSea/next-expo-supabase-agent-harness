@@ -44,7 +44,7 @@ the final call, and a weakened invariant the reviewer under-ranked is still a FA
   `outcomeOk(...)` / `outcomeErr(appError.X())`; a domain failure is RETURNED, never
   thrown (a thrown `TRPCError` flattens the discriminated `AppError` the screens switch on
   into a status). Only transport auth (`UNAUTHORIZED`) and the skew guard's `CONFLICT` may
-  bypass it. A `memberProcedure` write carries its `const gate = ctx.member; if (!gate.ok)
+  bypass it. An `orgProcedure` handler carries its `const gate = ctx.org; if (!gate.ok)
   return gate` two-liner; ids come from the VERIFIED `ctx.actor`, never the input.
 - **Boundary + exports walls.** verticals `_|_` verticals; `shared -/-> verticals`;
   `platform/*` reaches only the `{errors,events}` kernel; `packages/api -/-> next/*` (the

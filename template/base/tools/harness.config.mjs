@@ -16,6 +16,18 @@
 export const VALIDATE_STEPS = [
   ['format', 'pnpm exec biome ci .'],
   ['gate-integrity', 'node tools/check-gate-integrity.mjs'],
+  // Integrity proves the enforcement FILES are the ones the harness wrote; `wiring` proves
+  // they are CONNECTED. Both must hold before any later gate's verdict means anything, so
+  // it sits here. Five of its invariants had exactly one check between them — `installer
+  // doctor` — and nothing ran it: an install could pass every hash while a hook was
+  // unwired, `pnpm validate` pointed somewhere else, an enforcement path had no CODEOWNERS
+  // rule, and `bypassPermissions` was the default mode, with the whole chain green.
+  ['wiring', 'node tools/check-wiring.mjs'],
+  // Credentials, before anything expensive runs. lefthook prints `SKIP secrets scan` when
+  // gitleaks is absent and gitleaks.yml only scans after a PUSH, so a turn could end green
+  // with a service-role key in a tracked file on any machine without the binary. Hermetic,
+  // zero-dependency, and self-tested against one synthetic positive per rule id at startup.
+  ['secrets', 'node tools/check-secrets.mjs'],
   // `tsc -b .` builds the composite package graph; `apps/web apps/mobile` are added as
   // extra build ROOTS so the two non-composite leaf apps are typechecked in the same
   // invocation (they cannot be `references` of the solution — a referenced project must be
@@ -107,9 +119,11 @@ export const STOP_HOOK_STEPS = [
   // under jest-expo. Both runners emit istanbul coverage-final.json and
   // diff-coverage merges the two maps.
   ['mobile-unit', 'pnpm --filter mobile exec jest --coverage --silent'],
-  // Per-file floors on every CHANGED source file (uncommitted + untracked work
-  // included), read from the merged coverage maps the unit steps just wrote — a
-  // new module cannot land 0%-covered inside a green aggregate.
+  // Per-file floors on every CHANGED source file under apps/*/src or packages/*/src
+  // (uncommitted + untracked work included), read from the merged coverage maps the unit
+  // steps just wrote — a new module cannot land 0%-covered inside a green aggregate.
+  // apps/web's app/ and lib/ are OUTSIDE that shape and are a DECLARED tier, with its
+  // compensating control and target release in docs/harness/enforcement-tiers.md.
   ['diff-coverage', 'node tools/check-diff-coverage.mjs'],
   // Copy-paste rot: a token clone detector over apps/*/src + packages/*/src. A
   // Stop-chain step, NOT a floor member (the floor stays frozen) — fast and
