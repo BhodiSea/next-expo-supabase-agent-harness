@@ -27,6 +27,16 @@ set -euo pipefail
 # kind of thing a later check might merely test for presence of.
 unset HARNESS_ALLOW_SELF_EDIT
 
+# AND NO GITHUB PR CONTEXT REACHES THE SCAFFOLD EITHER. The subject of this lane is an
+# install in its own throwaway repository with no remote, so a leaked GITHUB_BASE_REF
+# makes the append-only migrations check diff against an `origin/main` that does not
+# exist there — and it fails CLOSED under CI, correctly, because it genuinely cannot
+# verify append-only. This was scoped to the one validate call below and therefore did
+# NOT cover the `graduate` subprocess, which runs the same chain: the lane's own validate
+# was green and graduate's identical run was red, in CI only. Script-wide is the only
+# scope that is actually true — every command here runs against that scaffold.
+unset GITHUB_BASE_REF
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="${1:-$ROOT/.selftest/upgrade}"
 PREV_TREE="$WORK/prev"
@@ -151,12 +161,10 @@ esac
 # --report-all, not --min-floor: the floor is HEAD's frozen snapshot, and what this
 # lane has to prove is that the CONSUMER'S OWN chain — the one the injection just
 # edited, the one the Stop hook runs — is green.
-# env -u GITHUB_BASE_REF: the scaffold is a different repository with no origin, so a
-# leaked PR base ref makes the append-only migrations check diff against a remote that
-# does not exist there (same reason bootstrap-linux does it).
+# GITHUB_BASE_REF is unset script-wide at the top, for the reason recorded there.
 say "validate --report-all on the upgraded install"
 set +e
-env -u GITHUB_BASE_REF HARNESS_REQUIRE_TOOLCHAINS=1 node tools/validate.mjs --report-all |
+HARNESS_REQUIRE_TOOLCHAINS=1 node tools/validate.mjs --report-all |
   tee "$WORK/validate.log"
 VALIDATE_CODE="${PIPESTATUS[0]}"
 set -e

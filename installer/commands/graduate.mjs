@@ -59,6 +59,19 @@ export async function graduate(opts) {
     console.error(
       'graduate: validate is RED — fix the failures first, then graduate. (Graduation only tightens ramped checks; it never masks a real red.)',
     )
+    // SAY WHICH GATE. Without this the refusal is undiagnosable: the reader is told a
+    // chain of 31 steps is red and not which one, so their only route to the answer is
+    // to re-run validate by hand and hope it reproduces. The upgrade lane hit exactly
+    // that dead end — a red visible only in CI, reported as one unattributed sentence.
+    // A gate reds as `<gate>: FAIL …`, optionally followed by `  - <detail>` bullets; the
+    // chain stops at the first one, so the bullets in scope belong to it. Fall back to the
+    // tail rather than printing nothing — a gate that died without the harness's own
+    // formatting is exactly when the raw output is worth most.
+    const lines = out.trimEnd().split('\n')
+    const reds = lines.filter(
+      (l, i) => /^\S+: FAIL\b/.test(l) || (/^ *- /.test(l) && /^\S+: FAIL\b/.test(lines[i - 1] ?? '')),
+    )
+    for (const line of reds.length > 0 ? reds : lines.slice(-15)) console.error(`  ${line}`)
     return 1
   }
 
