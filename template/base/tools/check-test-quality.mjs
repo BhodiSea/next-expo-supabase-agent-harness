@@ -211,7 +211,10 @@ if (scanned === 0) {
 // Ramp: an install predating this check carries tests it never held them to — NOTE, don't
 // ambush the update. In this lineage the check ships in 0.1.0: every fresh scaffold is
 // turn-fatal.
-if (errs.length > 0 && rampNote(GATE, '0.1.0', `${String(errs.length)} test-quality finding(s)`)) {
+if (
+  errs.length > 0 &&
+  rampNote(GATE, '0.1.0', `${String(errs.length)} test-quality finding(s)`, { until: '0.4.0' })
+) {
   for (const e of errs) console.log(`  - ${e}`)
   ok(GATE, `${String(errs.length)} finding(s) held as a ramp NOTE (pre-0.1.0 baseVersion)`)
 }

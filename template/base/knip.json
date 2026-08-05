@@ -5,6 +5,7 @@
       "entry": [
         "tools/*.mjs",
         "tools/mcp/**/*.mjs",
+        "tools/ci/*.mjs",
         "tests/rls/*.mjs",
         "tests/rls/**/*.test.ts",
         "tests/rls/db-context.ts",

@@ -86,6 +86,67 @@ test('RED: a drifted gate list names the documented vs actual chains', () => {
   assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
 })
 
+// ── ADDITIVE drift is the harness's doing; anything else is the project's (0.3.0) ──
+// Found by the upgrade lane. AGENTS.md is SEEDED, so `update` correctly never rewrites
+// it — while migrations.json's configSteps injection DOES add steps to the chain. A
+// consumer's documented list is then one release behind through no act of theirs, and a
+// hard red there is a gate ambushing an update. The distinction has to be decidable, or
+// the fix is just "ramp everything", which retires the check.
+
+test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.3.0 install', () => {
+  // Every documented gate still exists, in order — so the difference is steps something
+  // else added, and the only thing that adds steps to a seeded config is `update`.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents
+        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
+        .replace(/the (\d+)-step chain/, 'the 29-step chain')
+        .replace(' `wiring`,\n  `secrets`,', '')
+        .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
+      manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('expires in 0.5.0'), `the NOTE must carry its deadline:\n${r.out}`)
+  assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
+})
+
+test('RED: the same additive drift is LIVE on a fresh install — no legacy, no ramp', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents
+        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
+        .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
+      manifest: { harnessVersion: '0.3.0', baseVersion: '0.3.0', files: {} },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
+})
+
+test('RED: a documented gate that NO LONGER EXISTS is the project\'s drift — never ramped', () => {
+  // The sharp half. An invented or deleted step is not something `update` did, so it stays
+  // a hard red at every vintage — otherwise the ramp would swallow the case the check is
+  // actually for.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents.replace('`docs-sync`', '`docs-sync`, `imaginary-gate`'),
+      manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
+})
+
+test('RED: REORDERED gates are the project\'s drift too — the chain order is the contract', () => {
+  const swapped = shippedAgents.replace('`format`, `gate-integrity`,', '`gate-integrity`, `format`,')
+  const r = runGate(
+    fixture({ agents: swapped, manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} } }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
+})
+
 test('RED: a wrong gate COUNT fails even when the names parse', () => {
   const wrongCount = shippedAgents.replace(/The (\d+) gates, in order:/, 'The 7 gates, in order:')
   const r = runGate(fixture({ agents: wrongCount }))

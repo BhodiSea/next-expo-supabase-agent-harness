@@ -1,14 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "_readme": [
-    "Settings for working ON THE HARNESS ITSELF — not the policy a scaffolded app gets, and not this project's security posture.",
+    "Settings for working ON THE HARNESS ITSELF \u2014 not the policy a scaffolded app gets, and not this project's security posture.",
     "A scaffolded app is governed by template/base/.claude/settings.json plus the PreToolUse guard hooks (the pure-data rule table in .claude/hooks/lib/guard-rules.mjs). Those hooks are the deterministic layer; a permissions file is convenience, and it is not installed here because this repo is the harness, not a consumer of it.",
     "So this file is deliberately permissive: routine work on the machinery never prompts. Only truly irreversible or outward-destructive actions sit in ask/deny.",
-    "Scratch-tree cleanup: the PERMISSIONS below leave /private/tmp prompt-free, but the bash-guard shim is stricter and denies the recursive-force delete in every flag spelling, anywhere — the guard is the deterministic layer and it does not read this file. Use `rm -r <dir>` for scratch trees. A maintainer meeting that rule is the point of the dogfood.",
+    "Scratch-tree cleanup: the PERMISSIONS below leave /private/tmp prompt-free, but the bash-guard shim is stricter and denies the recursive-force delete in every flag spelling, anywhere \u2014 the guard is the deterministic layer and it does not read this file. Use `rm -r <dir>` for scratch trees. A maintainer meeting that rule is the point of the dogfood.",
     "The guard is a TRIPWIRE, not a parser: it matches command TEXT, so a command whose payload merely quotes a denied spelling is denied too. That is a false positive in the safe direction, and it is why this note does not spell the pattern out.",
-    "FORKING THIS TEMPLATE: review this file before your first agent turn — you inherit it, and you may want a tighter default than the one the upstream maintainer runs.",
-    "DOGFOOD (0.2.0): the hooks below now run ON this repo. pretool-bash-guard is a three-line RE-EXPORT of the shipped guard — never a fork, so this repo is a live test of the exact bytes consumers get. pretool-write-guard cannot be shimmed (its subject is paths, and a consumer's tools/ is this repo's template/base/tools/), so it reuses the shipped hookio plumbing with a factory path table. stop-factory-gate runs the closure checks that nobody remembers to run: hygiene, canary coverage, rule integrity, claims, floor lockstep, the complexity ratchet, and syntax — about 7 seconds.",
-    "IT WILL BLOCK MAINTENANCE TURNS. That is the feature. A blocked maintainer turn means a consumer would have been blocked too, so a bug in the shipped guard surfaces on the machine of the person who can fix it. HARNESS_ALLOW_SELF_EDIT=1 is the human-in-the-loop escape, exactly as it is for consumers."
+    "FORKING THIS TEMPLATE: review this file before your first agent turn \u2014 you inherit it, and you may want a tighter default than the one the upstream maintainer runs.",
+    "DOGFOOD (0.2.0): the hooks below now run ON this repo. pretool-bash-guard is a three-line RE-EXPORT of the shipped guard \u2014 never a fork, so this repo is a live test of the exact bytes consumers get. pretool-write-guard cannot be shimmed (its subject is paths, and a consumer's tools/ is this repo's template/base/tools/), so it reuses the shipped hookio plumbing with a factory path table. stop-factory-gate runs the closure checks that nobody remembers to run: hygiene, canary coverage, rule integrity, claims, floor lockstep, the complexity ratchet, and syntax \u2014 about 7 seconds.",
+    "IT WILL BLOCK MAINTENANCE TURNS. That is the feature. A blocked maintainer turn means a consumer would have been blocked too, so a bug in the shipped guard surfaces on the machine of the person who can fix it. HARNESS_ALLOW_SELF_EDIT=1 is the human-in-the-loop escape, exactly as it is for consumers.",
+    "0.3.0 POSTURE PARITY. Until this release the factory allowed bare `Bash` with `acceptEdits`, set no `disableBypassPermissionsMode`, wired no PostToolUse hooks, and its write-guard omitted `installer/**` (only installer/lib/) and `template/migrations.json`. Every one of those is a posture the harness DEMANDS of a consumer and did not hold itself \u2014 and the maintainer's machine is where a bug in that posture is cheapest to find. The permission list stays deliberately broad for routine machinery work; what closed is the set of things the harness tells consumers are never routine.",
+    "POSTURE PARITY IS NOT POSTURE COPYING, and the .claude/hooks deny is where the two differ. The SHIPPED settings deny Edit/Write on .claude/hooks/** and .claude/settings.json at layer 1 (the permission model), which is right for a consumer: they never author hooks, the harness ships them. This repo DOES author them \u2014 they are the product \u2014 and layer 1 has no HARNESS_ALLOW_SELF_EDIT escape, so copying that deny here would make the factory unable to do its job while teaching maintainers to reach for bypassPermissions, the worst habit a guard can teach. The factory's control for those files is layer 2: pretool-write-guard's PROTECTED table covers all of `.claude/`, WITH the deliberate human-in-the-loop escape. Same property, the layer that has a door."
   ],
   "hooks": {
     "PreToolUse": [
@@ -17,17 +19,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs\"",
             "timeout": 10
           }
         ]
       },
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs\"",
             "timeout": 10
           }
         ]
@@ -39,8 +41,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-factory-gate.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-factory-gate.mjs\"",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-factory-check.mjs\"",
+            "timeout": 30
           }
         ]
       }
@@ -48,7 +62,12 @@
   },
   "permissions": {
     "defaultMode": "acceptEdits",
-    "allow": ["Bash", "Read", "WebFetch", "WebSearch"],
+    "allow": [
+      "Bash",
+      "Read",
+      "WebFetch",
+      "WebSearch"
+    ],
     "ask": [
       "Bash(git push --force-with-lease:*)",
       "Bash(git push --delete:*)",
@@ -75,7 +94,13 @@
       "Read(./**/.env)",
       "Read(./**/.env.*)",
       "Read(./.dev-auth/**)",
-      "Read(~/.ssh/**)"
-    ]
+      "Read(~/.ssh/**)",
+      "Read(./**/*.keystore)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.p8)",
+      "Read(./**/*.p12)",
+      "Read(./**/credentials.json)"
+    ],
+    "disableBypassPermissionsMode": "disable"
   }
 }

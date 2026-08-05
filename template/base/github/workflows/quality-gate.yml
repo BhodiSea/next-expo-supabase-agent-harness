@@ -123,6 +123,20 @@ jobs:
       - name: Test quality (assertions present, nothing focused or disabled)
         run: node tools/check-test-quality.mjs
 
+      # THE TWO STOP STEPS THAT RAN IN NO WORKFLOW (0.3.0). `i18n` and the mobile-perf
+      # closure are turn-fatal locally and, until this release, appeared in no CI job at
+      # all — so the whole enforcement story for both rested on the agent-time layer alone.
+      # An agent that never ran (a human push, a bot commit, a merge from a branch built
+      # elsewhere) met neither check, and the PR was green.
+      - name: Locale seam (no hardcoded user-facing string; Intl only in src/i18n/)
+        run: node tools/check-i18n.mjs
+
+      # Static half of the mobile perf floor: every route in src/routes.ts must have a
+      # Maestro flow AND a startup-budget row (and stale rows red). The MEASUREMENT half
+      # needs an emulator and lives in perf-lane.
+      - name: Mobile perf closure (every route measured and flowed)
+        run: node tools/check-mobile-perf.mjs --closure
+
   # ---------------------------------------------------------------------------
   # MUTATION — the assertion-QUALITY gate, and the only check here that asks the
   # question coverage cannot: change the code, does a test go red?
@@ -451,7 +465,12 @@ jobs:
               - 'packages/design-tokens/**'
               - 'packages/platform/errors/**'
               - 'packages/platform/supabase/**'
-              - 'packages/verticals/notes/**'
+              # `packages/verticals/**`, not the seeded `notes` package by name. A
+              # consumer's SECOND vertical is web-reachable the day it lands, and a filter
+              # naming only the exemplar would silently stop running the browser lane for
+              # it — a lane that skips is a lane a reviewer reads as passing. The sibling
+              # `db` filter already got this right.
+              - 'packages/verticals/**'
               - 'tools/check-web-e2e.mjs'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -1035,3 +1054,60 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 14
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # THE ONE CHECK AN ENTERPRISE CAN MARK REQUIRED.
+  #
+  # This workflow runs thirteen jobs and several are path-filtered, so a branch
+  # protection rule had to either enumerate every job by name — a list that goes
+  # stale the day a job is added or renamed, silently, with the branch still
+  # "protected" — or mark none of them. Neither is a control.
+  #
+  # `needs:` over every other job plus `if: always()` makes this the fan-in. The
+  # verdict is delegated to tools/ci/summarize-gate.mjs rather than written as a
+  # YAML expression, because a `contains(needs.*.result, 'failure')` expression is
+  # untestable prose: nobody can run it, and its most important behaviour — what it
+  # does with a SKIPPED lane — is exactly where this kind of check goes wrong.
+  # `if: always()` makes a skipped need indistinguishable from a passed one, which
+  # would recreate the silent-skip problem INSIDE the check a reviewer trusts most.
+  # The script records every skipped lane by name on the green path, so a green
+  # gate-summary shows precisely which lanes did not run.
+  #
+  # An EMPTY needs context is a FAILURE, not a pass: that is what a broken `needs:`
+  # list produces, and a summary over nothing proves nothing.
+  # ---------------------------------------------------------------------------
+  gate-summary:
+    name: gate-summary (mark THIS one required)
+    if: always()
+    needs:
+      - static
+      - unit
+      - mutation
+      - runtime-rls
+      - e2e-fast
+      - integration-lane
+      - changes
+      - db-scale
+      - native
+      - mobile-e2e
+      - perf-lane
+      - web-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Summarize every lane (a skip is recorded, never a pass)
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node tools/ci/summarize-gate.mjs | tee -a "$GITHUB_STEP_SUMMARY"

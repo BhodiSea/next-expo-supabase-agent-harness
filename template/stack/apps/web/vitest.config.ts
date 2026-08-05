@@ -1,8 +1,12 @@
 import { defineConfig } from 'vitest/config'
 
-// The web workspace's Vitest project. The root config lists this directory in its
-// `projects` array; `pnpm --filter web test` loads it directly. It exists for ONE reason
-// that cannot be expressed in the root config: esbuild's JSX mode.
+// The web workspace's Vitest project — loaded ONLY by `pnpm --filter web test`, never by
+// a plain `pnpm test`. The root config declares exactly two projects (`unit-node`, `rls`)
+// and this directory is in neither: apps/web is a declared enforcement TIER, written down
+// with its compensating control and its target release in
+// docs/harness/enforcement-tiers.md. (Until 0.3.0 this comment claimed the root config
+// listed it, which it never did.) The file exists for ONE reason that cannot be expressed
+// in the root config: esbuild's JSX mode.
 //
 // tsconfig.json sets `jsx: "preserve"` because Next must receive untransformed JSX. Vitest
 // reads that same tsconfig, so without the override below esbuild hands raw JSX to Node

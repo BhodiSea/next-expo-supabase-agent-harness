@@ -13,6 +13,230 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-05
+
+**The closed-surface release.** The governing finding is one sentence: the
+harness's enforcement surface was not closed over itself, and in several places it
+**claimed enforcement it did not perform**. Every gap below was green on 0.2.1 —
+not because a rule judged it safe, but because no rule looked.
+
+Chain **29 → 31** (`wiring` step 3, `secrets` step 4). Shipped hooks **5 → 6**.
+Guard-rule ids **91 → 116**. quality-gate jobs **12 → 13**. Canary steps **38 → 40**,
+and the lane closure went from one workflow to **all eight**.
+
+### The clock, and the lane that proves an upgrade (blocks everything else)
+
+- **Ramps expire.** `rampNote()` now REQUIRES an `until` deadline; a call site
+  without one throws. Before this, "shipped ramped" meant "shipped disabled,
+  indefinitely" across 20 call sites in 16 files: the check printed an advisory
+  NOTE — in CI too — and the only thing that ever re-armed it was a human running
+  `graduate`, which nothing nagged. Expiry is measured against **`harnessVersion`**,
+  not `baseVersion`, and that is the whole mechanism: `installedHarnessVersion()`
+  already carried the comment *"a deadline measured against baseVersion is a
+  deadline its own beneficiary controls"* and had one caller. The code now says what
+  the comment already said. **0.3.0 ships the clock, not the alarm** — pre-existing
+  ramps are dated `0.4.0`, new ones `0.5.0`, and nothing reds on a deadline here.
+- **`upgrade-linux`**, a new selftest lane: `init` at the previous release tag →
+  `pnpm install` → HEAD's `update` → prove green. It asserts what only an upgraded
+  install can show — the injected chain steps arrived, the planted data files are
+  there and the tolerated-absent ones are not, `doctor` exits 0 or 2 but never 1,
+  the chain is green, every ramp NOTE names its deadline, and `graduate` **refuses**
+  while those NOTEs stand (the first CI execution of its counting behaviour). The
+  0.2.0 changelog records an update-planted defect found "by running the real
+  upgrade, not by reading the plan" — a manual act that until now had no CI
+  successor. **No `migrations.json` record is trustworthy until this lane runs.**
+
+### The trust path stops depending on things nothing checked
+
+- **The executable bit leaves the trust path.** Every hook command is now
+  `node "$CLAUDE_PROJECT_DIR/…"`. Hook commands were bare paths relying on `+x`, and
+  `check-gate-integrity` hashes CONTENT and never MODE — so `chmod -x` on the Stop
+  hook silently disarmed the turn gate while every sha256 still matched. A structural
+  fix that deletes the vulnerability beats a check that detects it, and it avoids a
+  win32 exec-bit skip that would have violated the skip-is-never-a-pass doctrine.
+  `gate-integrity` now asserts wiring BY VALUE (every command names `node` and an
+  existing file); a `chmod-protected` bash rule ships as a tripwire, not the control.
+- **MCP containment.** A sixth hook, `pretool-mcp-guard.mjs` on matcher `mcp__.*`.
+  The `PreToolUse` matchers were literally `Bash` and `Edit|Write|MultiEdit`, so an
+  `mcp__` tool call matched **no hook at all**: a Supabase MCP `apply_migration` or
+  `execute_sql` reached the database with no guard in its path, no write-guard SQL
+  rule judging the statement, no migration file for `check-migrations` to see, and no
+  line in the PR diff — three enforcement layers stepped over by one call, with every
+  gate green afterwards. The registry moved from prose to data
+  (`tools/approved-tools.json`), making `docs/security/approved-tools.md`'s
+  three-release-old default-deny declaration real for the first time; the doc is now
+  the rendered view of the data, held in lockstep by `docs-sync`. `NotebookEdit`
+  joined the write-guard matcher.
+- **Guard closure.** `WRITE_PROTECTED` gained `.github/CODEOWNERS` — the compensating
+  control ~ten gate failure messages cite in their own text, and which appeared in no
+  write rule, no shell pattern and no permission deny — plus `.gitignore`,
+  `renovate.json`, `.claude/hooks/**`, `.claude/statusline.mjs`, `stryker.config.mjs`,
+  `commitlint.config.mjs`, `tools/ci/**`, the PR template, the actionlint/zizmor
+  configs and this release's data files. New **disarm-verb** tripwires for the
+  commands that neutralize a control without writing a byte to it: `chmod`, plain
+  `rm`, `truncate`, `mv <protected>` away, and `git checkout <rev> -- <protected>`
+  (the plain `git checkout -- <path>` the gate messages prescribe stays allowed —
+  a guard that denies its own remedy teaches the wrong habit). `package.json` stays
+  agent-editable but a new `npm lifecycle script` content rule denies
+  `preinstall`/`postinstall`/`prepare` outside the allowlisted `lefthook install`.
+  The blanket `^\.claude/` content exemption narrowed to the surfaces it was written
+  for (the guards, which must contain what they ban, and the prose).
+
+### The chain closes over itself
+
+- **The Stop chain has a frozen floor.** `tools/stop.floor.json`, and the hook runs
+  the **union** of the local config and that floor: a step deleted from
+  `STOP_HOOK_STEPS` still runs. `harness.config.mjs` is manifest mode `config` and
+  gate-integrity skips non-`owned` entries, so nothing hashed the list of checks that
+  decide whether a *turn* may end. Living under `tools/` puts the floor inside the
+  existing hashed surface for free, without flipping the config to `owned` — projects
+  may still append; never subtract. A corrupt floor is a loud NOTE, not a bricked
+  turn, chosen deliberately over the alternative. `check-i18n` and
+  `check-mobile-perf --closure` — two Stop steps that appeared in **no workflow** —
+  joined the `unit` job.
+- **`gate-summary`**, the one check an enterprise can mark required: `needs:` over
+  every job, `if: always()`, delegating to a testable `tools/ci/summarize-gate.mjs`.
+  A **skipped** path-filtered lane is recorded BY NAME rather than counted as a pass,
+  and an **empty needs context exits 1** — a summary over nothing is not a pass.
+  (Deliberately cut: a `.github/rulesets/main.json` artifact. Whether a ruleset was
+  *adopted* is readable only through the GitHub API with credentials, so shipping a
+  hash-pinned file nobody can prove was applied would ship a member of the very class
+  this release deletes.)
+- **gate-integrity closes over every threshold-bearing config**, in two tiers split by
+  whether human tuning is legitimate. Hash-pinned (ramped): `.mcp.json`,
+  `lefthook.yml`, `.gitleaks.toml`, `renovate.json`, the actionlint/zizmor configs.
+  Judged by COMMIT instead: `vitest.config.ts` (the aggregate thresholds **and**
+  `PER_FILE_FLOORS`), `apps/mobile/jest.config.js`, `eslint.config.mjs`, `biome.jsonc`,
+  `knip.json`, `.dependency-cruiser.cjs`, every `tsconfig*.json`, `.gitignore` —
+  uncommitted-dirty at gate time is red, a committed reviewed raise stays green
+  forever. CODEOWNERS is deliberately **not** hash-pinned: a pin guaranteed to break
+  on correct use is a gate everyone learns to ignore.
+- **`wiring`** (step 3): `doctor`'s invariants become a chain step. Five load-bearing
+  invariants had exactly one check between them and **nothing ran it** — `doctor` is a
+  command a human types. Asserts all six hooks wired, `pnpm validate` still targeting
+  `tools/validate.mjs`, `CLAUDE.md` a pure `@AGENTS.md` include, `VALIDATE_STEPS`
+  containing its frozen floor, the **permission posture**
+  (`disableBypassPermissionsMode == "disable"`, `defaultMode != "bypassPermissions"`)
+  as a hard red, and **CODEOWNERS coverage** over every escape list, threshold config
+  and enforcement-surface prefix — including the empty-owner spelling, valid syntax
+  that silently disables review while reading exactly like a rule. Parked upgrades and
+  a dormant lefthook are NOTEs.
+- **Retrofit conflicts become evidence.** A `conflicted` manifest mode. Retrofit wrote
+  the harness config to a sidecar, kept the target's, and `continue`d **before** the
+  manifest line — so the path was invisible to `doctor` and `gate-integrity`, and
+  `lint`/`types`/`dead-code`/`architecture`/coverage ran against the target's configs
+  with zero harness rules and reported green. The settings merge still **keeps theirs**
+  for posture scalars (never ambush a human's permission choice) — but `wiring` now
+  refuses to *claim* enforcement over one. `doctor`'s seeded-divergence advisory lost
+  its bare `catch {}`.
+
+### The controls a security review opens with
+
+- **`secrets`** (step 4): a hermetic, zero-dependency credential scan inside the
+  chain. `lefthook.yml` prints `SKIP secrets scan` without the gitleaks binary and
+  `gitleaks.yml` only scans after a push, so a turn could end green with a
+  service-role key in a tracked file on any machine without the tool. Deliberately
+  **not** a Go-regex translation of `.gitleaks.toml` — a silent dialect difference
+  between two scanners is worse than one scanner — so it asserts **rule-id lockstep**
+  between the two instead, both ways. Findings never echo the matched value. Each rule
+  self-tests against a synthetic positive at startup, so a decayed regex reports
+  ITSELF; scanning zero files is a hard FAIL.
+- **`getSession()` and the service-role credential become lint rules over the whole
+  server graph.** Two custom rules join the six that already ship, so they run inside
+  `lint` with full AST precision. The doctrine's own "single most consequential line"
+  was guarded by a write-guard regex scoped to `if (anyRel(/^apps\/web\//))` and gated
+  on whole-file writes — an `Edit` inserting `.auth.getSession()` into `packages/api`,
+  a vertical's server barrel or an Edge Function passed every layer. **These are the
+  only unramped new controls in the release**, because a pre-existing violation here is
+  an authentication bypass, not a style debt.
+
+### Parity, evidence, and the numbers
+
+- **The authoring surface stops teaching an API that does not exist.** `trpc.ts`
+  exports `orgProcedure`/`ctx.org`; ten authoring surfaces taught
+  `memberProcedure`/`ctx.member` (13 and 7 occurrences, zero `orgProcedure`).
+  `scaffold-slice.mjs` wrote a non-resolving import into every new slice, and
+  `/verify-invariants` hunted for a `ctx.member` string that cannot appear in real
+  code — so that review step was vacuous on every codebase it ever ran against.
+  Eleven layers of enforcement could not see it, because every one judges CODE and
+  this was a lie in the PROSE that tells an agent what code to write. All ten rewritten,
+  `references/dal-dto.md` corrected end-to-end, and a closed token map
+  (`tools/doctrine-symbols.json`) now holds the agent surface against the module that
+  defines the symbols, both directions. `docs/adr/**` is deliberately out of scope: an
+  ADR that narrates the symbol it deleted is honest history.
+- **A stub Maestro flow stops satisfying the mobile-perf closure.** The gate *printed*
+  "launchApp + reach the route + assertVisible its surface" and then checked only that
+  the file existed. It now scans the YAML: `appId`, `launchApp`, a proves-something
+  step, a reach step for non-root routes, and no two flows byte-identical. The naive
+  "require `assert*`" rule would have broken fresh-scaffold-green — the harness's own
+  `buildRouteFlowYaml()` emits `extendedWaitUntil: visible:` and no `assert*` at all —
+  so both spellings are accepted and the generator's output is now a lockstep fixture
+  of the gate.
+- **The web enforcement tier stops being a lie and becomes a written, dated decision.**
+  `docs/harness/enforcement-tiers.md`, one row per one-surface layer naming what it
+  covers, what it does not, why, the compensating control, and a target release — with
+  a `docs-sync` shape check asserting every row carries all five fields and every
+  compensating control **resolves to a live step or job** (*a compensating control
+  nobody runs is not a control*). Three false claims die with it:
+  `apps/web/vitest.config.ts` said the root config listed it in `projects` (it declares
+  only `unit-node` and `rls`), the root config's header claimed apps/web coverage its
+  include list does not contain, and diff-coverage's "floors on every CHANGED source
+  file" was overstated for half the product. The `web` CI path filter widened from the
+  hardcoded seeded packages to `packages/verticals/**`.
+- **Factory posture parity.** The factory allowed bare `Bash` with `acceptEdits`, set
+  no `disableBypassPermissionsMode`, wired no PostToolUse hook, and its write-guard
+  omitted `installer/**` (only `installer/lib/`) and `template/migrations.json`. All
+  fixed; `stop-factory-gate` gained the three machinery checks that were CI-only
+  (`eslint`, `tsc --noEmit`, `knip`), skipping loudly when the toolchain is absent.
+  `check-canary-coverage`'s lane closure generalized from the single hardcoded
+  `quality-gate.yml` to **all eight** shipped workflows — codeql, gitleaks, osv-scan,
+  actions-lint, adr-guard, migration-safety and mutation were every one of them a
+  blocking lane a reviewer reads as enforcement, and not one had to carry a red-proof.
+- **The numbers move together.** `check-claims` gained two derivations: the executed
+  canary count, counted from the selftest matrix and its `scripts/ci` helpers rather
+  than hand-authored, and the gates-catalog's opening chain count — which read
+  "26-step" against a 29-step chain, live, for two releases, in the very document a
+  reader consults to find out how long the chain is.
+
+### What the upgrade lane caught on its first run
+
+Two release-blocking defects, both invisible to a fresh scaffold and both found by
+running the real upgrade rather than by reading the plan — which is the entire case
+for the lane:
+
+- **The agent-surface lock did not travel with an update.** `writeAgentsLock`'s
+  `adopt` rule (never rewrite an existing lock) is right about a CONSUMER's edits and
+  wrong about the harness's own: this release rewrote ten owned agent-surface files,
+  so the lock still described the old bytes and `prompts` reds on every consumer for
+  a change they did not make, cannot review, and could only clear by running the very
+  generator three separate guards exist to keep them from running. Fixed per-entry:
+  `update` re-records only the paths it actually WROTE, which it does only when the
+  on-disk bytes still matched the recorded sha. A locally-modified agent file is
+  parked, absent from `written`, and keeps redding — because that edit is exactly
+  what the lock exists to surface.
+- **`docs-sync` red an install for a step the harness itself injected.** `AGENTS.md`
+  is seeded, so `update` correctly never rewrites it, while `migrations.json`'s
+  `configSteps` injection does add steps to the chain — leaving a consumer's
+  documented gate list one release behind through no act of theirs. The fix is not
+  "ramp it": the drift is now classified. If every documented gate still exists in the
+  same relative order, the difference is steps that were ADDED, and the ramp (dated
+  `0.5.0`) applies. A documented gate that no longer exists, or a reordering, is the
+  project's own drift and stays a hard red at every vintage.
+
+### Deferred, with the reason
+
+The web enforcement **machinery** (a vitest lane for `apps/web`, `SRC_RE` widening,
+jsx-a11y, duplication/mutation roots) is 0.4.0 — not merely "cannot ship piecemeal":
+widening `SRC_RE` without the unit lane produces a gate with **no green path**, since
+no runner measures `apps/web`, and the only edit that restores green is lowering the
+floors, i.e. the harness reward-hacking its own bar. Also deferred: the Supabase
+`[auth]` posture gate (a CLI-compatibility spike goes first — seeding new `[auth]` keys
+against a caret-ranged CLI pin can make `supabase start` refuse, which reds the one lane
+that *is* the fresh-scaffold-green proof), the enforcement-tier coverage closure that
+forces the next gate author to declare their surface, and process-verified reviewers
+(which must fail closed on an unrecognizable transcript, and must not move the Stop
+chain 9 → 10 in the same release that first freezes it).
+
 ## [0.2.1] — 2026-08-04
 
 **The metal-preset release.** `init` now asks one more question — `DESIGN_TOKENS`,

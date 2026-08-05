@@ -44,3 +44,17 @@
 /pnpm-workspace.yaml                          {{SECURITY_OWNERS}}
 /package.json                                 {{SECURITY_OWNERS}}
 /.mcp.json                                    {{SECURITY_OWNERS}}
+/apps/mobile/jest.config.js                   {{SECURITY_OWNERS}}
+/stryker.config.mjs                           {{SECURITY_OWNERS}}
+/renovate.json                                {{SECURITY_OWNERS}}
+# .gitignore is enforcement surface in the direction nobody looks: one appended line
+# makes a file invisible to `git status`, which is what the escape-list dirty check, the
+# diff-coverage change set and the append-only migration diff all read.
+/.gitignore                                   {{SECURITY_OWNERS}}
+
+# THIS FILE. Every "…so the widening lands in the PR diff under CODEOWNERS" message in
+# the harness leans on it, and a rule that removes its own review is one line. The
+# `wiring` gate closes the other half — it asserts every escape list, threshold config
+# and enforcement-surface prefix is matched by a rule WITH AN OWNER, including the
+# empty-owner spelling that silently disables review while reading like a rule.
+/.github/CODEOWNERS                           {{SECURITY_OWNERS}}

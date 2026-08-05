@@ -1,0 +1,14 @@
+{
+  "comment": "frozen snapshot of the canonical STOP_HOOK_STEPS from tools/harness.config.mjs. The Stop hook runs the UNION of the local config and this floor: a step present here but missing from the config STILL RUNS, so deleting a turn-fatal check from the config buys nothing. Projects may APPEND steps to the config; they may not subtract. Living under tools/ puts this file inside check-gate-integrity's hashed surface and the write-guard table, which is how the Stop chain became tamper-evident without flipping harness.config.mjs from `config` to `owned`. Regenerate with `node scripts/generate-floor.mjs --write` in the harness repo. SOURCE: docs/harness/README.md (the CI floor).",
+  "steps": [
+    ["validate", "node tools/validate.mjs --report-all"],
+    ["rls-isolation", "node tests/rls/run-rls.mjs"],
+    ["unit", "pnpm exec vitest run --coverage --silent"],
+    ["mobile-unit", "pnpm --filter mobile exec jest --coverage --silent"],
+    ["diff-coverage", "node tools/check-diff-coverage.mjs"],
+    ["duplication", "node tools/check-duplication.mjs"],
+    ["i18n", "node tools/check-i18n.mjs"],
+    ["test-quality", "node tools/check-test-quality.mjs"],
+    ["mobile-perf", "node tools/check-mobile-perf.mjs --closure"]
+  ]
+}

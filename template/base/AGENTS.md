@@ -22,7 +22,7 @@ SOURCE: docs/harness/README.md.
   (`src/lib/supabase/**` — AES-256-CTR key in expo-secure-store, ciphertext in
   AsyncStorage), never JS-visible storage.
 - **packages/api** — `@app/api`: the framework-neutral tRPC v11 router
-  (`publicProcedure` → `authedProcedure` → `memberProcedure`; the version-skew
+  (`publicProcedure` → `authedProcedure` → `orgProcedure`; the version-skew
   guard on the base). Imports NO `next/*` — the reversibility wall. Mobile takes
   it as a devDependency, `import type` only (Metro does not tree-shake).
 - **packages/contracts** — `@app/contracts`: hand-authored zod DTOs + the
@@ -51,7 +51,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 29-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 31-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -68,7 +68,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   validate (`--report-all`) + `node tests/rls/run-rls.mjs` + the vitest suite
   with coverage + the jest-expo suite with coverage (`mobile-unit` — the two
   istanbul maps are merged) + `node tools/check-diff-coverage.mjs` (per-file
-  floors on every CHANGED file) + `node tools/check-duplication.mjs` (token
+  floors on every CHANGED file UNDER `apps/*/src` or `packages/*/src` — apps/web is a
+  declared tier, see docs/harness/enforcement-tiers.md) + `node tools/check-duplication.mjs` (token
   clones across `apps/*/src` + `packages/*/src`) + `node tools/check-i18n.mjs`
   (no hardcoded user-facing string; Intl/toLocale*/toFixed only in `src/i18n/`)
   + `node tools/check-test-quality.mjs` (every test asserts; nothing focused or
@@ -76,13 +77,19 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 29 gates, in order: `format`, `gate-integrity`, `types`, `lint`,
+- The 31 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
+  `types`, `lint`,
   `provenance`, `boundaries`, `expo-policy`, `native-deps`, `version-sync`,
   `prompts`, `licenses`, `schema-rls`, `tenancy`, `types-drift`, `migrations`,
   `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
   `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
   `route-manifest`, `security-headers`, `e2e`, `docs-sync`
   (docs/harness/gates-catalog.md documents each).
+- The 9 Stop-chain steps, in order: `validate`, `rls-isolation`, `unit`,
+  `mobile-unit`, `diff-coverage`, `duplication`, `i18n`, `test-quality`,
+  `mobile-perf`. They are FROZEN in `tools/stop.floor.json`: the Stop hook runs
+  the UNION of the local config and that floor, so a project may APPEND a step
+  and may never subtract one.
 - **Toolchain asymmetry:** gates needing a live database, an install, or a
   network-verified toolchain SKIP LOUDLY locally when the prerequisite is
   absent and FAIL CLOSED in CI (`CI=true` / `HARNESS_REQUIRE_TOOLCHAINS=1`).

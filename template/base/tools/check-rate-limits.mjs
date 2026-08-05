@@ -37,7 +37,9 @@ const RAMP = '0.2.0'
 if (!existsSync(BUDGET)) {
   // Ramped, not fatal: a pre-0.2.0 install has no budget file and no seam to judge, and a
   // hard failure there would be a gate reporting on a feature the tree does not have.
-  rampNote(GATE, RAMP, `${BUDGET} is missing — this install predates the rate-limit seam`)
+  rampNote(GATE, RAMP, `${BUDGET} is missing — this install predates the rate-limit seam`, {
+    until: '0.4.0',
+  })
   ok(GATE, 'no rate-limit budget in this tree (pre-0.2.0)')
 }
 

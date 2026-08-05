@@ -60,6 +60,47 @@ const INTERPRETER_WRITE_RE = new RegExp(
     String.raw`|\bbase64\b[^|;&]*\s-{1,2}(?:d|decode)\b[^|;&]*${PROT}`,
 )
 
+// ── the DISARM verbs: commands that neutralize the surface without writing to it ──
+// Every rule above this comment asks "do these bytes land somewhere protected". That
+// question has a blind spot the whole size of the enforcement surface, because the
+// cheapest way to disable a control is not to rewrite it — it is to delete it, empty it,
+// move it aside, revert it to a weaker revision, or drop a bit off it. None of those
+// writes a single byte to the path, so none of them matched a redirect, a tee, a sed -i,
+// a cp destination or an interpreter's program text.
+//
+// These are tripwires, exactly like the rest of this table: the surface is judged by
+// gate-integrity's hashes and CI parity, which do not depend on pattern-matching. What
+// these buy is the moment of the act.
+const DISARM = {
+  chmod: new RegExp(String.raw`\bchmod\b[^|;&]*\s(?:"|')?${PROT}`),
+  // Plain `rm` (the -rf spelling has its own rule above, which fires first). A deletion
+  // is the most complete disarm there is: no file, no hash mismatch to notice, and on a
+  // manifest-recorded path the gate reports "missing from disk", which reads as an
+  // installation problem rather than as an act.
+  rm: new RegExp(String.raw`\brm\b(?![^|;&]*\s-(?:[a-zA-Z]*[rR][a-zA-Z]*\b|-recursive\b))[^|;&]*\s(?:"|')?${PROT}`),
+  // Zeroing a file leaves it present and readable — and empty. A gate whose rule table,
+  // budget or allowlist is empty does not crash; it judges nothing and prints OK.
+  truncate: new RegExp(String.raw`\btruncate\b[^|;&]*\s(?:"|')?${PROT}`),
+  // The existing cp/mv rule catches a protected DESTINATION. This is the other
+  // direction: moving the file AWAY leaves nothing behind to check.
+  moveAway: new RegExp(String.raw`\bmv\b[^|;&]*\s(?:"|')?${PROT}(?:"|')?\s+[^\s|;&]`),
+}
+
+// `git checkout <rev> -- <protected>` / `git restore --source=<rev> <protected>` reinstate
+// an OLDER revision of a protected file — a gate script from before a rule was added, a
+// floor from before a step was added — with a clean working tree and a green gate-integrity
+// afterwards only because the manifest was re-recorded, or red in a way that reads as drift.
+//
+// Deliberately NOT denied: `git checkout -- <path>` and `git restore <path>` with no source
+// revision. Those restore the CURRENT committed content, which is the exact remedy a dozen
+// gate failure messages prescribe ("restore it from git history"). A guard that denies its
+// own prescribed fix teaches people to reach for the escape hatch, which is the one habit a
+// guard must never teach.
+const GIT_OLD_REVISION_RES = [
+  new RegExp(String.raw`\bgit\s+(?:-\S+\s+)*checkout\s+(?!--[\s=])\S+\s+--\s+[^|;&]*${PROT}`),
+  new RegExp(String.raw`\bgit\s+(?:-\S+\s+)*restore\b[^|;&]*\s(?:--source[=\s]|-s\s)[^|;&]*${PROT}`),
+]
+
 // Each rule: { id, re | test(cmd), message, allowWhen?(cmd, ctx) }. The guard denies on the
 // FIRST matching rule (array order = message priority) unless allowWhen suppresses it. ctx
 // carries { selfEdit } (HARNESS_ALLOW_SELF_EDIT=1). No env is read here — the guard reads it.
@@ -98,6 +139,58 @@ export const BASH_RULES = [
     re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*\bgen-[\w-]*lock[\w-]*\.mjs\b[^|;&]*--write/,
     message:
       'Blocked: regenerating a hash lock is how an edit to the locked files becomes invisible — the lock is a hash OF the thing being checked, not a derivation from something else the gates judge. Review the diff to the locked surface first, then update the lock as a human act (HARNESS_ALLOW_SELF_EDIT=1) so it lands in the PR.',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    // The exec bit is no longer IN the trust path — 0.3.0 moved every hook command to
+    // `node "<path>"`, so a hook without +x still executes. This rule ships anyway,
+    // because `chmod` on the enforcement surface has no legitimate agent use and the
+    // structural fix is the control, not this.
+    id: 'chmod-protected',
+    re: DISARM.chmod,
+    message:
+      'Blocked: chmod on the enforcement surface. Nothing an agent does needs to change the mode of a gate script, a hook, a stamp or a workflow — and until 0.3.0 `chmod -x` on the Stop hook silently disarmed the turn gate while every sha256 in the manifest still matched, because gate-integrity hashes CONTENT and never mode. Hook commands now invoke `node` explicitly, so the bit is not load-bearing; this is the tripwire, not the control.',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    id: 'rm-protected',
+    re: DISARM.rm,
+    message:
+      'Blocked: deleting a file on the enforcement surface (gate scripts, hooks, stamps, lockfiles, migrations, workflows, the strictness configs). A deletion is the most complete disarm there is — there is no altered content for a hash to catch, and a manifest-recorded path simply reports "missing from disk", which reads as an installation problem rather than as an act. If the file is genuinely obsolete, remove it in a reviewed commit (HARNESS_ALLOW_SELF_EDIT=1).',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    id: 'truncate-protected',
+    re: DISARM.truncate,
+    message:
+      'Blocked: truncating a file on the enforcement surface. An emptied rule table, budget or allowlist does not crash — it judges nothing and the gate prints OK, which is worse than a red.',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    id: 'move-protected-away',
+    re: DISARM.moveAway,
+    message:
+      'Blocked: moving a file OFF the enforcement surface leaves nothing behind to check — the same outcome as deleting it, spelled as a rename. (Moving a file INTO the surface is denied by shell-write-protected.)',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    id: 'git-restore-old-revision',
+    test: (cmd) => GIT_OLD_REVISION_RES.some((re) => re.test(cmd)),
+    message:
+      'Blocked: checking out an OLDER REVISION of a protected file reinstates a gate script from before a rule existed, or a floor from before a step existed, with a clean working tree afterwards. Restoring the CURRENT committed content — `git checkout -- <path>` / `git restore <path>`, the remedy the gate messages prescribe — is allowed and is almost certainly what you want. If you really need an older revision, that is a reviewed act (HARNESS_ALLOW_SELF_EDIT=1).',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
+    // The sibling of gen-lock-writer, for the generators whose output is a BASELINE the
+    // gates judge against rather than a lock. Re-running one is not a write to the
+    // surface — it is one ordinary subprocess that turns the agent's own regression into
+    // the new normal, and every gate is green immediately afterwards BY CONSTRUCTION.
+    // Named explicitly rather than by shape: `pnpm gen`'s inventory generators are
+    // regen-DIFFED by the contracts gate, so re-running those is checked, not accepted.
+    id: 'self-rebaseline-writer',
+    re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*(?:\bcheck-mutation-ratchet\.mjs\b[^|;&]*--write|\bperf-baseline\.mjs\b|\bperf:baseline\b)/,
+    message:
+      'Blocked: re-recording a ratchet BASELINE (the surviving-mutant set, the gzip floor) accepts the regression the ratchet just caught, and leaves every gate green by construction. Accepting a survivor or a size increase is a reviewed human act that must land in the PR diff — read the report, then re-baseline deliberately (HARNESS_ALLOW_SELF_EDIT=1).',
     allowWhen: (_cmd, ctx) => ctx.selfEdit,
   },
   {
@@ -207,6 +300,32 @@ export const BASH_RULES = [
     id: 'destructive-sql',
     re: /\b(psql|pg_restore)\b[^|;&]*\bDROP\s+(TABLE|SCHEMA|DATABASE)\b/i,
     message: 'Blocked: destructive SQL must go through a reviewed, ADR-coupled migration.',
+  },
+]
+
+// ── mcp-guard: the shape rules for a tool call that changes something ────────
+// Until 0.3.0 the PreToolUse matchers were literally "Bash" and
+// "Edit|Write|MultiEdit", so an `mcp__` call matched NO hook: it reached the
+// database, the filesystem or the network with nothing in its path, while
+// docs/security/approved-tools.md declared default-deny. The registry
+// (tools/approved-tools.json) answers "is this server approved, and for which
+// tools"; this table answers the question a per-tool allowlist cannot, because
+// it is about verbs that do not exist yet.
+//
+// A server marked readOnly is approved to OBSERVE. Enumerating its write tools
+// in order to leave them out is a list that decays on the vendor's next release,
+// so the ban is by NAME SHAPE — the same reasoning as the EXPO_PUBLIC_/
+// NEXT_PUBLIC_ secret-name rules, which judge shape rather than value because a
+// name-shape rule with an exception is not a rule.
+// SOURCE: docs/security/approved-tools.md (default-deny; least privilege)
+export const MCP_RULES = [
+  {
+    id: 'mcp-write-on-readonly',
+    // Two families: the two SQL verbs by exact name (they are the ones that reach
+    // a live database with arbitrary statements), and the mutating verb prefixes.
+    re: /^(?:apply_migration|execute_sql|run_sql|query_sql|(?:create|update|upsert|insert|delete|remove|drop|deploy|write|set|reset|restore|merge|rebase|pause|revoke|grant|send|publish|rename|move|copy|install|enable|disable|confirm)_[a-z0-9_]+)$/,
+    message:
+      'this server is registered readOnly in tools/approved-tools.json, and the tool name is write-shaped. A schema change is a REVIEWED FILE under supabase/migrations/ — that is what the write-guard SQL rules judge as it is written, what check-rls-manifest / check-tenancy / check-migrations judge tree-wide, and what lands in a PR under CODEOWNERS. A tool call leaves no file, so it bypasses all four. Write the migration (`supabase migration new <slice>`), or flip readOnly to false in tools/approved-tools.json as a deliberate human act (it is write-guard-protected).',
   },
 ]
 
@@ -320,6 +439,62 @@ export const WRITE_PROTECTED = [
   // Migrations are covered by tools/check-migrations.mjs and replayed by `supabase db reset`.
   { id: 'lefthook', re: /^lefthook\.yml$/ },
   { id: 'github-workflows', re: /^\.github\/workflows\// },
+  // THE COMPENSATING CONTROL ~TEN GATES CITE IN THEIR OWN FAILURE TEXT. Escape-list
+  // widenings, seeded-data edits and every "reviewed human act" in this repo end with
+  // "…so it lands in the PR diff under CODEOWNERS" — and until 0.3.0 CODEOWNERS itself
+  // appeared in no WRITE_PROTECTED entry, no PROT_DIRS pattern and no permissions.deny.
+  // An agent that can delete the rule covering `tools/**` has disarmed the control that
+  // every one of those messages leans on, and no gate would have noticed. Deliberately
+  // NOT hash-pinned in gate-integrity: a pin guaranteed to break on correct use (adding a
+  // team, moving a directory) is a gate everyone learns to ignore. A write rule, a
+  // permissions deny, and the `wiring` gate's coverage invariant are the three controls
+  // that survive legitimate use.
+  { id: 'codeowners', re: /^\.github\/CODEOWNERS$/ },
+  // The CI configs that decide how strictly the workflow lint lanes read the workflows.
+  { id: 'actionlint-config', re: /^\.github\/actionlint\.yaml$/ },
+  { id: 'zizmor-config', re: /^\.github\/zizmor\.yml$/ },
+  // The PR template carries the paste-the-real-gate-output contract — the one place the
+  // "prove, don't claim" rule meets a human reviewer.
+  { id: 'pr-template', re: /^\.github\/pull_request_template\.md$/ },
+  // .gitignore is an enforcement surface in one direction nobody looks at: adding a line
+  // to it makes a file invisible to `git status`, which is what the escape-list dirty
+  // check, the diff-coverage change set, and the append-only migration diff all read. An
+  // agent that could append `tools/` here would silence three gates with one line, and
+  // every one of them would print OK.
+  { id: 'gitignore', re: /^\.gitignore$/ },
+  // Renovate owns dependency bumps (the bash guard denies `pnpm update` for the same
+  // reason). Widening its config is how a bump stops being pinned, cooled-down, reviewed.
+  { id: 'renovate-config', re: /^renovate\.json$/ },
+  // The mutation lane's config: its ignore/threshold surface decides which code the
+  // mutation ratchet is even allowed to change, so weakening it re-baselines the one
+  // control that asks whether a test would notice the code breaking.
+  { id: 'stryker-config', re: /^stryker\.config\.mjs$/ },
+  { id: 'commitlint-config', re: /^commitlint\.config\.mjs$/ },
+  // The CI lane helpers the workflows exec. A doctored device/perf lane script is a
+  // doctored workflow with none of the workflow's protection.
+  { id: 'tools-ci', re: /^tools\/ci\// },
+  // The agent-time hooks themselves and the statusline that runs every prompt. Layer 1
+  // (settings.json deny) already covered .claude/hooks/**, but layer 2 did not — and a
+  // deny list is only as good as the settings file it lives in, which an agent that
+  // reaches this surface is one edit away from.
+  { id: 'claude-hooks', re: /^\.claude\/hooks\// },
+  { id: 'claude-statusline', re: /^\.claude\/statusline\.mjs$/ },
+  // ---- 0.3.0 data files: each one IS a gate's policy ----
+  // The MCP registry. An agent that could append to it could approve its own reach.
+  { id: 'approved-tools', re: /^tools\/approved-tools\.json$/ },
+  // The credential shapes the `secrets` gate scans for. Deleting a pattern is deleting
+  // the finding.
+  { id: 'secret-patterns', re: /^tools\/secret-patterns\.json$/ },
+  // The closed token map the doctrine check reads: removing a token retires the rule.
+  { id: 'doctrine-symbols', re: /^tools\/doctrine-symbols\.json$/ },
+  // The frozen Stop-chain floor — the same trust level as tools/validate.floor.json, and
+  // for the same reason: the union runner trusts THIS file over the local config.
+  { id: 'stop-floor', re: /^tools\/stop\.floor\.json$/ },
+  // The two reviewed-acceptance files. Both are tolerated-absent by design (their gates
+  // read absent-as-empty), so neither ships — but each converts a red into a NOTE, which
+  // makes creating one exactly as consequential as widening an escape list.
+  { id: 'retrofit-accept', re: /^tools\/retrofit-accept\.json$/ },
+  { id: 'secret-scan-allow', re: /^tools\/secret-scan-allow\.json$/ },
   // The lint/architecture config surface — weakening any of these weakens the gate.
   { id: 'eslint-config', re: /^eslint\.config\.mjs$/ },
   { id: 'biome-config', re: /^biome\.jsonc$/ },
@@ -342,6 +517,31 @@ export const WRITE_PROTECTED = [
   // config plugins; CI regenerates the dirs from a clean tree.
   { id: 'cng-android', re: /^apps\/mobile\/android\// },
   { id: 'cng-ios', re: /^apps\/mobile\/ios\// },
+]
+
+// ── write-guard: content checks on NON-SOURCE config files ───────────────────
+// The everywhere-checks below run only after `if (!anyRel(/\.(ts|tsx|…)$/)) pass()`, which
+// is correct for them and leaves every JSON/YAML config unreachable by any content rule.
+// This table runs ABOVE that gate and is always pathRe-scoped, so a config file is judged
+// on the one or two weakenings that matter for it and nothing else.
+export const WRITE_CONFIG_CHECKS = [
+  {
+    // package.json stays agent-editable — adding a dependency or a script is ordinary
+    // work, and blanket-protecting it would make the harness unusable. But the npm
+    // lifecycle hooks are a different thing wearing the same clothes: `postinstall` runs
+    // arbitrary code on every `pnpm install`, in CI, on every developer's machine, before
+    // any gate in this repo has executed. It is the shortest path from "an agent edited a
+    // file nobody guards" to "code runs with the developer's credentials", and it is the
+    // canonical supply-chain foothold.
+    //
+    // `prepare: lefthook install` is the one sanctioned entry: it is what installs the
+    // commit-time enforcement layer, and doctor reds when it has not run.
+    id: 'package-lifecycle-script',
+    pathRe: /(^|\/)package\.json$/,
+    re: /"(?:preinstall|install|postinstall|prepublish|prepublishOnly|prepack|prepare)"\s*:\s*"(?!(?:pnpm exec )?lefthook install")/,
+    message:
+      'npm lifecycle scripts (preinstall/install/postinstall/prepublish/prepack/prepare) execute on every `pnpm install` — in CI, on every machine, BEFORE any gate in this repo runs. That is the canonical supply-chain foothold, and package.json is deliberately agent-editable for everything else. The one allowed entry is `"prepare": "lefthook install"` (it installs the commit-time gate). Anything else belongs in an explicit script a human runs by name.',
+  },
 ]
 
 // ── write-guard: everywhere-checks (banned CONTENT in any source file) ───────

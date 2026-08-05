@@ -34,8 +34,59 @@ import {
 import { classifyDrift } from '../lib/reconcile.mjs'
 import { printReport } from '../lib/report.mjs'
 import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
-import { writeAgentsLock } from '../lib/agents-lock.mjs'
+import { refreshAgentsLockEntries, writeAgentsLock } from '../lib/agents-lock.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
+
+
+// A RETROFIT CONFLICT resolves when the human deletes the SIDECAR.
+//
+// That is the protocol check-gate-integrity's failure text prescribes ("fold the harness
+// rules in, delete the sidecar, re-run update"), and it is the only signal that works: a
+// real merge produces a file that is neither theirs nor ours, so byte-equality with the
+// template would refuse to recognise the correct outcome. While the sidecar is still
+// there the conflict stands and theirs is preserved untouched.
+/**
+ * @param {{ targetDir: string, ip: string, recorded: { sidecar?: string } | undefined,
+ *           current: Buffer | null, report: { skipped: string[], notes: string[] } }} args
+ * @returns {{ mode: string, sha256: string } | null} the new manifest entry, or null to keep the record
+ */
+function resolveConflict({ targetDir, ip, recorded, current, report }) {
+  const sidecar = recorded?.sidecar
+  report.skipped.push(ip)
+  if (typeof sidecar === 'string' && !existsSync(join(targetDir, sidecar)) && current !== null) {
+    report.notes.push(
+      `retrofit conflict RESOLVED: ${ip} — the sidecar (${sidecar}) is gone, so the merge is recorded and this file is tracked as ${fileMode(ip)} again.`,
+    )
+    return { mode: fileMode(ip), sha256: sha256(current) }
+  }
+  report.notes.push(
+    `retrofit conflict still unresolved: ${ip} (harness version parked at ${sidecar ?? '(unrecorded)'}) — every gate reading this config judges the target's rules. Merge the two and delete the sidecar, or accept the divergence in tools/retrofit-accept.json.`,
+  )
+  return null
+}
+
+
+// package.json is merged only at INIT and never rewritten by update — a consumer's
+// scripts are theirs. But a newer template's script additions must not vanish silently,
+// so they are surfaced as notes for a human to adopt deliberately.
+/**
+ * @param {{ targetDir: string, incoming: string | Buffer, report: { notes: string[] } }} args
+ */
+function notePackageJsonDrift({ targetDir, incoming, report }) {
+  try {
+    const theirs = JSON.parse(readFileSync(join(targetDir, 'package.json'), 'utf8'))
+    for (const [name, cmd] of Object.entries(JSON.parse(String(incoming)).scripts ?? {})) {
+      const existing = theirs.scripts?.[name] ?? theirs.scripts?.[`harness:${name}`]
+      if (existing === undefined) {
+        report.notes.push(`new template script not installed: "${name}": ${JSON.stringify(cmd)} — add it manually`)
+      } else if (existing !== cmd) {
+        report.notes.push(`template script "${name}" changed upstream to ${JSON.stringify(cmd)} (yours kept)`)
+      }
+    }
+  } catch {
+    report.notes.push('could not compare package.json scripts against the template')
+  }
+}
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
 export async function update(opts, { migrations = readTemplateMigrations() } = {}) {
@@ -133,19 +184,9 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
   for (const entry of plan) {
     const ip = entry.installPath
     if (ip === 'package.json') {
-      // Merged only at init — never rewritten by update. Surface what a newer
-      // template version would add or change so it isn't silently dropped.
-      try {
-        const incoming = JSON.parse(entry.content)
-        const current = JSON.parse(readFileSync(join(targetDir, 'package.json'), 'utf8'))
-        for (const [name, cmd] of Object.entries(incoming.scripts ?? {})) {
-          const existing = current.scripts?.[name] ?? current.scripts?.[`harness:${name}`]
-          if (existing === undefined) report.notes.push(`new template script not installed: "${name}": ${JSON.stringify(cmd)} — add it manually`)
-          else if (existing !== cmd) report.notes.push(`template script "${name}" changed upstream to ${JSON.stringify(cmd)} (yours kept)`)
-        }
-      } catch {
-        report.notes.push('could not compare package.json scripts against the template')
-      }
+      // Merged only at init — never rewritten by update. Surface what a newer template
+      // version would add or change so it isn't silently dropped.
+      notePackageJsonDrift({ targetDir, incoming: entry.content, report })
       continue
     }
     const dest = join(targetDir, ip)
@@ -156,6 +197,12 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     // Raw bytes, not utf8: hashing a lossy utf8 decode of a binary asset would
     // never match the manifest sha recorded over the true file content.
     const current = existsSync(dest) ? readFileSync(dest) : null
+
+    if (mode === 'conflicted') {
+      const resolved = resolveConflict({ targetDir, ip, recorded, current, report })
+      if (resolved !== null && !opts.dryRun) files[ip] = resolved
+      continue
+    }
 
     // A NEW seeded exemplar that is ABSENT here: init-time-only starting content
     // (seedOnInitOnly). update must NOT auto-plant it — an existing consumer's
@@ -238,6 +285,11 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
   // because rewriting it here would launder every edit made since — the exact act the
   // lock exists to make visible.
   writeAgentsLock(targetDir, report, 'adopt', { dryRun: opts.dryRun })
+  // …and, for an install that ALREADY had a lock, re-record only the entries this update
+  // actually rewrote. See refreshAgentsLockEntries: adopt-never-rewrite is right about a
+  // CONSUMER's edits and wrong about the harness's own, and the difference is decidable —
+  // update writes an owned file only when its bytes still matched the recorded sha.
+  refreshAgentsLockEntries(targetDir, report.written, report, { dryRun: opts.dryRun })
 
   if (!opts.dryRun) {
     writeManifest(targetDir, {

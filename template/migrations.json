@@ -1,41 +1,46 @@
 {
-  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS — the floor chain — and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content — `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). seedOnInitOnly is a PURE list of path patterns read by a matcher — never put a comment string in it; a stray entry ending in '/' would silently withhold an entire subtree (scripts/check-seeded-migrations.mjs asserts every pattern names a path the template actually ships). Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs.",
-
+  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS \u2014 the floor chain \u2014 and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content \u2014 `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). seedOnInitOnly is a PURE list of path patterns read by a matcher \u2014 never put a comment string in it; a stray entry ending in '/' would silently withhold an entire subtree (scripts/check-seeded-migrations.mjs asserts every pattern names a path the template actually ships). Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs.",
   "0.2.0": {
     "//": [
-      "THE MULTI-TENANCY RELEASE. The governing rule for this record is one sentence: an `update` must leave an existing install GREEN. Five gates are injected, and every one carries an adoption seam keyed on the manifest's baseVersion — so what this record has to get right is which FILES arrive.",
-
+      "THE MULTI-TENANCY RELEASE. The governing rule for this record is one sentence: an `update` must leave an existing install GREEN. Five gates are injected, and every one carries an adoption seam keyed on the manifest's baseVersion \u2014 so what this record has to get right is which FILES arrive.",
       "Two failure modes, in opposite directions. Plant a migration and `update` has put unapplied DDL in front of a live database, which check-migrations.mjs's append-only git-diff check then reads as history appearing out of order, and which the next `supabase db push` would apply to production. Withhold a file a gate FAILS CLOSED on and the injected step reds on the first validate after the upgrade. So every path below was classified by one question, answered by READING the gate: what does it do when this file is absent?",
-
-      "PLANTED (three files, deliberately absent from seedOnInitOnly). tools/tenancy.json and tools/db-limits.json are hard failures when missing — the contract and the ceilings must exist as reviewable data before any schema is judged against them, and that check runs before any ramp. tools/security-headers.json is planted so that an install which later pulls apps/web/lib/security-headers.ts with --refresh-seeded gets a gate that judges it, instead of one that fails closed on a missing policy. None of the three names a project-specific table, column or procedure; all three are contracts, ceilings and posture.",
-
-      "WITHHELD — DDL. supabase/migrations/*, supabase/schemas/*, supabase/seeds/ and the audit pgTAP suite. The tenancy-adoption runbook (expand->contract, dual-scoped policies alongside the owner-scoped ones, an expiring `until`) is the sanctioned path in. The db-scale CI lane reads baseVersion for exactly this reason: pre-0.2.0 skips loudly, 0.2.0+ FAILS if the seed is missing, so withholding cannot become a way to switch the plan probe off.",
-
-      "WITHHELD — reviewed data whose ROWS name this project's own tables, columns, procedures and functions. security-definer-allow.json, audit-columns.json and pii-columns.json all read absent-as-empty, which is the safe default in each case (no definer registered; metadata-only audit capture). A deny-list of columns another schema does not have denies nothing, and thirteen paragraphs about functions another database never created is thirteen paragraphs of foreign prose in someone else's PR. rate-limit-budget.json is withheld for a STRONGER reason: check-rate-limits.mjs ramps on its ABSENCE, so planting it would both hand the install a budget naming procedures it does not have AND switch off the ramp that was protecting it. db-perf-baseline.json carries per-TABLE cardinality floors, and the template's names `notes`.",
-
-      "WITHHELD — generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record — which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
-
-      "WITHHELD — the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately — both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
+      "PLANTED (three files, deliberately absent from seedOnInitOnly). tools/tenancy.json and tools/db-limits.json are hard failures when missing \u2014 the contract and the ceilings must exist as reviewable data before any schema is judged against them, and that check runs before any ramp. tools/security-headers.json is planted so that an install which later pulls apps/web/lib/security-headers.ts with --refresh-seeded gets a gate that judges it, instead of one that fails closed on a missing policy. None of the three names a project-specific table, column or procedure; all three are contracts, ceilings and posture.",
+      "WITHHELD \u2014 DDL. supabase/migrations/*, supabase/schemas/*, supabase/seeds/ and the audit pgTAP suite. The tenancy-adoption runbook (expand->contract, dual-scoped policies alongside the owner-scoped ones, an expiring `until`) is the sanctioned path in. The db-scale CI lane reads baseVersion for exactly this reason: pre-0.2.0 skips loudly, 0.2.0+ FAILS if the seed is missing, so withholding cannot become a way to switch the plan probe off.",
+      "WITHHELD \u2014 reviewed data whose ROWS name this project's own tables, columns, procedures and functions. security-definer-allow.json, audit-columns.json and pii-columns.json all read absent-as-empty, which is the safe default in each case (no definer registered; metadata-only audit capture). A deny-list of columns another schema does not have denies nothing, and thirteen paragraphs about functions another database never created is thirteen paragraphs of foreign prose in someone else's PR. rate-limit-budget.json is withheld for a STRONGER reason: check-rate-limits.mjs ramps on its ABSENCE, so planting it would both hand the install a budget naming procedures it does not have AND switch off the ramp that was protecting it. db-perf-baseline.json carries per-TABLE cardinality floors, and the template's names `notes`.",
+      "WITHHELD \u2014 generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record \u2014 which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
+      "WITHHELD \u2014 the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately \u2014 both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
     ],
-
     "removed": [
       "apps/mobile/__tests__/a11y-deep.test.tsx"
     ],
-
-    "removedWhy": "Not a deletion — a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome — a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
-
+    "removedWhy": "Not a deletion \u2014 a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome \u2014 a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
     "configSteps": [
-      { "name": "tenancy", "cmd": "node tools/check-tenancy.mjs", "after": "schema-rls" },
-      { "name": "db-limits", "cmd": "node tools/check-db-limits.mjs", "after": "migrations" },
-      { "name": "query-shapes", "cmd": "node tools/check-query-shapes.mjs", "after": "contracts" },
-      { "name": "rate-limits", "cmd": "node tools/check-rate-limits.mjs", "after": "query-shapes" },
+      {
+        "name": "tenancy",
+        "cmd": "node tools/check-tenancy.mjs",
+        "after": "schema-rls"
+      },
+      {
+        "name": "db-limits",
+        "cmd": "node tools/check-db-limits.mjs",
+        "after": "migrations"
+      },
+      {
+        "name": "query-shapes",
+        "cmd": "node tools/check-query-shapes.mjs",
+        "after": "contracts"
+      },
+      {
+        "name": "rate-limits",
+        "cmd": "node tools/check-rate-limits.mjs",
+        "after": "query-shapes"
+      },
       {
         "name": "security-headers",
         "cmd": "node tools/check-security-headers.mjs",
         "after": "route-manifest"
       }
     ],
-
     "seedOnInitOnly": [
       "apps/web/app/(protected)/",
       "apps/web/app/actions/orgs.ts",
@@ -72,20 +77,38 @@
       "tools/security-definer-allow.json"
     ]
   },
-
   "0.2.1": {
     "//": [
       "THE METAL-PRESET RELEASE. Two changes reach the template; neither reaches an existing install by default, and that is the record.",
-
-      "The design-token preset seam: DESIGN_TOKENS rides the placeholder rails (prompted at init, carried in manifest.answers; `update` backfills 'default' into pre-0.2.1 manifests, which ARE default installs by definition). The metal variant lives under template/presets/tokens-metal/ — OUTSIDE base/stack/modules — so a default install's `update` never walks it: the preset is init-time-only BY CONSTRUCTION, not by registration, and deliberately contributes nothing to seedOnInitOnly (check-seeded-migrations grounds patterns against base/stack/modules, where preset paths do not ship).",
-
-      "The design-system-native generator contract, completed: gen-preset.mjs, the committed tailwind-preset.cjs, and the freshness test are the three files src/preset.ts always documented and 0.2.0 never shipped. seedOnInitOnly, not planted: all three install under the seeded packages/ prefix, and the committed preset is rendered from @app/design-tokens — planting template bytes into an install whose (seeded) token source may have been retuned would red the new freshness test on their next validate. Pullable via `update --refresh-seeded packages/design-system-native/`."
+      "The design-token preset seam: DESIGN_TOKENS rides the placeholder rails (prompted at init, carried in manifest.answers; `update` backfills 'default' into pre-0.2.1 manifests, which ARE default installs by definition). The metal variant lives under template/presets/tokens-metal/ \u2014 OUTSIDE base/stack/modules \u2014 so a default install's `update` never walks it: the preset is init-time-only BY CONSTRUCTION, not by registration, and deliberately contributes nothing to seedOnInitOnly (check-seeded-migrations grounds patterns against base/stack/modules, where preset paths do not ship).",
+      "The design-system-native generator contract, completed: gen-preset.mjs, the committed tailwind-preset.cjs, and the freshness test are the three files src/preset.ts always documented and 0.2.0 never shipped. seedOnInitOnly, not planted: all three install under the seeded packages/ prefix, and the committed preset is rendered from @app/design-tokens \u2014 planting template bytes into an install whose (seeded) token source may have been retuned would red the new freshness test on their next validate. Pullable via `update --refresh-seeded packages/design-system-native/`."
     ],
-
     "seedOnInitOnly": [
       "packages/design-system-native/scripts/gen-preset.mjs",
       "packages/design-system-native/tailwind-preset.cjs",
       "packages/design-system-native/tests/"
+    ]
+  },
+  "0.3.0": {
+    "//": [
+      "THE CLOSED-SURFACE RELEASE. The governing finding is one sentence: the harness's enforcement surface was not closed over itself, and in several places it CLAIMED enforcement it did not perform. Every gap this release fills was green on 0.2.1 \u2014 not because a rule judged it safe, but because no rule looked. What that means for an `update` is unusual and is the whole reason this note is long: most releases add checks over the CONSUMER's code, and this one adds checks over the INSTALL ITSELF, so the honest question for every file below is not 'will this red their code' but 'does this install still have a thing to check'.",
+      "TWO INJECTED STEPS, and both are placed before anything expensive. `wiring` (step 3) asserts the enforcement layers are CONNECTED \u2014 six hooks wired, the permission posture, `pnpm validate` still running the gate, CLAUDE.md a pure include, VALIDATE_STEPS containing its frozen floor, and CODEOWNERS covering every escape list and enforcement-surface prefix. Those five invariants had exactly one check between them (`installer doctor`) and NOTHING RAN IT. `secrets` (step 4) is a hermetic credential scan: lefthook prints `SKIP secrets scan` without the gitleaks binary and gitleaks.yml only scans after a PUSH, so a turn could end green with a service-role key in a tracked file on any machine without the tool.",
+      "PLANTED, and each because its gate FAILS CLOSED without it. tools/approved-tools.json is the MCP registry the new pretool-mcp-guard reads; an absent registry is not an empty policy, it is no policy, and the guard denies every mcp__ call while pointing at a file that is not there. It ships SEEDED (installer/lib/layout.mjs) for the reason the 0.2.0 record gives for the reviewed-data files: the guard's own deny message asks the consumer to add a row, and an `owned` file under tools/ is sha-pinned, so the harness would be demanding an edit and then calling that edit tampering. Its integrity is the write-guard rule plus gate-integrity's escape-list dirty check. tools/secret-patterns.json and tools/doctrine-symbols.json are harness-AUTHORED detection data (a credential-shape list, a closed retired-token map) and stay `owned` so improvements keep reaching installs. tools/stop.floor.json is the frozen Stop chain and must be `owned` \u2014 it is the floor.",
+      "TOLERATED-ABSENT, deliberately, and this is the 0.2.0 plant-vs-withhold hazard repeated on purpose. tools/retrofit-accept.json and tools/secret-scan-allow.json are REVIEWED ACCEPTANCES: each converts a red into a NOTE for one specific finding. Both gates read them absent-as-empty, so shipping an empty one would ship a reviewed-acceptance file nobody reviewed, and an install with no retrofit conflict and no secret finding has nothing to accept. Neither appears below because neither ships at all; both are write-guard-protected and in gate-integrity's ESCAPE_LISTS, so CREATING one is a reviewable commit.",
+      "THE ONE THING AN UPGRADE CAN GET WRONG HERE, stated plainly. .claude/settings.json is `owned`, and 0.3.0 rewrites it: every hook command becomes `node \"$CLAUDE_PROJECT_DIR/...\"` (the executable bit leaves the trust path), the write-guard matcher gains NotebookEdit, and a sixth hook (pretool-mcp-guard, matcher `mcp__.*`) is added. An install that TUNED its settings has drift, so `update` keeps theirs and parks ours under .harness/pending/ \u2014 correct, and it means the MCP guard is not wired on that install until a human merges. `wiring` reports exactly that, and it is RAMPED to 0.3.0, so the finding arrives as a dated NOTE rather than a red on the update that delivered it. `doctor` names the parked file until it is reconciled.",
+      "EVERY NEW CHECK IS RAMPED except two, and the exceptions are the point. The eslint rules `local/no-unverified-session` and `local/service-role-edge-functions-only` ship LIVE: a pre-existing violation of either is an authentication bypass or an RLS bypass, not a style debt, and a release that discovered one and then withheld it for two versions would be choosing the wrong thing to protect. Everything else \u2014 the gate-integrity config surface, the commit-not-dirty rule over the threshold configs, `wiring`'s findings, the approved-tools doc lockstep, the doctrine token map, the enforcement-tiers shape check \u2014 carries a deadline (`until`), because 0.3.0 also makes ramps EXPIRE: `rampNote` now requires one, measured against harnessVersion rather than baseVersion, so an escape can no longer be held open by simply never graduating. Pre-existing 0.1.x/0.2.0 ramps expire in 0.4.0; everything introduced here expires in 0.5.0. THIS RELEASE SHIPS THE CLOCK, NOT THE ALARM \u2014 nothing reds on a deadline in 0.3.0."
+    ],
+    "configSteps": [
+      {
+        "name": "wiring",
+        "cmd": "node tools/check-wiring.mjs",
+        "after": "gate-integrity"
+      },
+      {
+        "name": "secrets",
+        "cmd": "node tools/check-secrets.mjs",
+        "after": "wiring"
+      }
     ]
   }
 }

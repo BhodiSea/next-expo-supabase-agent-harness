@@ -209,7 +209,9 @@ if (!existsSync(PARITY)) {
 if (
   errs.length > 0 &&
   !forceStrict &&
-  rampNote(GATE, MIN_VERSION, `${errs.length} parity finding(s) (action↔${PARITY} closure)`)
+  rampNote(GATE, MIN_VERSION, `${errs.length} parity finding(s) (action↔${PARITY} closure)`, {
+    until: '0.4.0',
+  })
 ) {
   ok(
     GATE,

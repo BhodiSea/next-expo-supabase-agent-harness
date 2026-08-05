@@ -301,6 +301,121 @@ const rules = {
       }
     },
   },
+
+  // THE SINGLE MOST CONSEQUENTIAL LINE IN THE CODEBASE, held with AST precision.
+  //
+  // `getSession()` decodes whatever JWT it finds in the stored session and returns it
+  // WITHOUT verifying the signature. On a server that store is a cookie the CALLER sent,
+  // so anyone can claim any `sub`. `getUser()` authenticates against the auth server;
+  // `getClaims()` verifies locally against the project's published asymmetric key. Both
+  // are verifications. `getSession()` is not one, and it is one autocomplete away.
+  //
+  // Until 0.3.0 the only mechanical guard was a write-guard regex scoped to `^apps/web/`
+  // AND gated on whole-file writes: an Edit that inserted `.auth.getSession()` into
+  // packages/api, a vertical's server barrel or an Edge Function passed every layer. A
+  // rule on a MEMBER CALL cannot be fooled by an Edit fragment, so this is where the
+  // property actually lives; the write-guard is the layer-3 tripwire beside it.
+  //
+  // `'use client'` exempts a file: a browser component reading its OWN session is a
+  // different act entirely. apps/mobile is out of scope by construction for the same
+  // reason — the mobile app is an untrusted bearer of its own scoped token, and it reads
+  // that token out of LargeSecureStore to attach it (apps/mobile/src/lib/trpc/client.ts).
+  // SOURCE: .claude/rules/security-invariants.md (getUser/getClaims, NEVER getSession)
+  'no-unverified-session': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Resolve the user with getUser()/getClaims(); never getSession().' },
+      schema: [],
+      messages: {
+        unverified:
+          "Server-side identity is getUser() / getClaims(), NEVER getSession(). getSession() returns the stored JWT WITHOUT verifying its signature, and on a server that store is an attacker-controlled cookie — a forged `sub` is accepted. Use `await supabase.auth.getUser()` (authenticates against the auth server) or `getClaims()` (verifies against the published key). If this is a browser component, mark the file 'use client'.",
+      },
+    },
+    create(context) {
+      const source = context.sourceCode ?? context.getSourceCode()
+      // A file-level directive, judged as a DIRECTIVE and not as a substring: a
+      // `'use client'` inside a comment or a string literal further down the file must
+      // not exempt anything.
+      const isClient = (source.ast.body ?? []).some(
+        (n) =>
+          n.type === 'ExpressionStatement' &&
+          n.expression?.type === 'Literal' &&
+          n.expression.value === 'use client',
+      )
+      if (isClient) return {}
+      return {
+        MemberExpression(node) {
+          if (node.computed) return
+          if (node.property.type !== 'Identifier' || node.property.name !== 'getSession') return
+          // `x.auth.getSession` — the Supabase shape. A `getSession` member on anything
+          // else (a session store, a test double) is not this rule's business, and a rule
+          // that flagged every identifier named getSession would be turned off.
+          const obj = node.object
+          const onAuth =
+            obj.type === 'MemberExpression' &&
+            !obj.computed &&
+            obj.property.type === 'Identifier' &&
+            obj.property.name === 'auth'
+          if (!onAuth) return
+          context.report({ node, messageId: 'unverified' })
+        },
+      }
+    },
+  },
+
+  // The service-role credential, confined to its ONE sanctioned home.
+  //
+  // `service_role` BYPASSES row-level security: no policy in the repo constrains it and
+  // the RLS isolation suite cannot cover it. It is reachable only inside an ADR-governed
+  // Edge Function via createServiceRoleClient_BYPASSES_RLS(warrant) — never a Server
+  // Action, a tRPC procedure, a script or a screen. The write-guard's version of this rule
+  // was scoped to `^apps/web/`, which left every other server surface open.
+  //
+  // Judged on the three SYMBOLS, because that is what "reaching for it" looks like: the
+  // deliberately-shouty factory name, the credential accessor, and the env var. The
+  // defining module and the env validators are the sanctioned homes for the symbols
+  // themselves and are excluded by the eslint.config glob, not by a check here — a rule
+  // that carried its own path exceptions would have two places to weaken it.
+  // SOURCE: packages/platform/supabase/src/service-role.ts
+  'service-role-edge-functions-only': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description: 'The service-role credential lives only in an ADR-governed Edge Function.',
+      },
+      schema: [],
+      messages: {
+        misplaced:
+          "The service-role credential BYPASSES row-level security — no policy in this repo constrains it and the RLS suite cannot cover it. Its ONE sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts), reached through createServiceRoleClient_BYPASSES_RLS(warrant); never a Server Action, a tRPC procedure, a script or a screen. Do the work through the caller's own RLS-scoped client, or move it into an Edge Function with an ADR.",
+      },
+    },
+    create(context) {
+      const SYMBOLS = new Set([
+        'createServiceRoleClient_BYPASSES_RLS',
+        'serviceRoleCredentials',
+        'SUPABASE_SERVICE_ROLE_KEY',
+      ])
+      const report = (node) => {
+        context.report({ node, messageId: 'misplaced' })
+      }
+      return {
+        Identifier(node) {
+          if (!SYMBOLS.has(node.name)) return
+          // A property KEY named for the symbol (`{ SUPABASE_SERVICE_ROLE_KEY: … }` in a
+          // type or a test env block) is a mention; a member ACCESS through it
+          // (`process.env.SUPABASE_SERVICE_ROLE_KEY`) is a reach. Both matter here — the
+          // point is that the symbol has no business in this file at all — so only a
+          // shorthand-free property key on an object being TYPED is let through, which
+          // this deliberately does not attempt to distinguish. Report either way.
+          report(node)
+        },
+        Literal(node) {
+          // The env var reached by string: process.env['SUPABASE_SERVICE_ROLE_KEY'].
+          if (typeof node.value === 'string' && SYMBOLS.has(node.value)) report(node)
+        },
+      }
+    },
+  },
 }
 
 export default { rules }

@@ -9,12 +9,12 @@
       {
         "hooks": [
           {
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-fast-check.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-fast-check.mjs\"",
             "timeout": 60,
             "type": "command"
           },
           {
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-source-check.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-source-check.mjs\"",
             "timeout": 30,
             "type": "command"
           }
@@ -26,7 +26,7 @@
       {
         "hooks": [
           {
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs\"",
             "timeout": 10,
             "type": "command"
           }
@@ -36,19 +36,29 @@
       {
         "hooks": [
           {
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs\"",
             "timeout": 10,
             "type": "command"
           }
         ],
-        "matcher": "Edit|Write|MultiEdit"
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-mcp-guard.mjs\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "mcp__.*"
       }
     ],
     "Stop": [
       {
         "hooks": [
           {
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop-validate-gate.mjs",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-validate-gate.mjs\"",
             "timeout": 600,
             "type": "command"
           }
@@ -170,7 +180,7 @@
     "disableBypassPermissionsMode": "disable"
   },
   "statusLine": {
-    "command": "$CLAUDE_PROJECT_DIR/.claude/statusline.mjs",
+    "command": "node \"$CLAUDE_PROJECT_DIR/.claude/statusline.mjs\"",
     "type": "command"
   }
 }

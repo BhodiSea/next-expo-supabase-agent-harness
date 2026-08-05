@@ -57,7 +57,7 @@ not even carry the field, and the `WITH CHECK` re-rejects anything else with SQL
   because RLS is the boundary and the token is scoped to one user.
 - **Writes** (`createNote`, `updateNote`, `deleteNote`) stay OFF `./client`: they set an
   ownership column from a verified actor and emit an event, so they belong where the actor was
-  verified. They take a `WriteContext` (`{ actorId, emit, now, workspaceId }`) alongside the
+  verified. They take a `WriteContext` (`{ actorId, emit, now, orgId }`) alongside the
   client and input.
 - **Every list query is keyset-paginated with an unconditional LIMIT.** Opaque base64url
   cursor over `{ createdAt, id }`, an `or(...)` seek expressing the two lexicographic cases
@@ -80,21 +80,34 @@ lands here the two surfaces have forked.
 
 The rung split says something real:
 
-- **Reads are `authedProcedure`** — any signed-in user may read what RLS lets them see.
-- **Writes are `memberProcedure`** — writing consumes a seat. Membership is an authorization
-  OUTCOME, not a transport fact, so the middleware resolves it once and the handler returns it
-  verbatim on the failure path:
+- **EVERY procedure is `orgProcedure`, reads included.** In the pre-org model reads rode
+  `authedProcedure` because "their own rows are always in that set". Under org scope that
+  stops being true in any useful way: a user in three orgs has three sets, RLS admits all
+  of them at once, and a read with no active org returns them interleaved with no way to
+  tell which org a row came from. The acting org is not an extra permission on top of the
+  read — it is WHICH DATA the read is about.
+- **The gate is an OUTCOME on the data channel, never a throw.** The middleware resolves
+  membership once and the handler returns the gate verbatim on the failure path, so a
+  caller with no active org gets a `forbidden(org_context_required)` it can render as
+  "pick an organization" instead of an empty page that looks like data loss:
 
   ```ts
-  create: memberProcedure.input(CreateNoteSchema).mutation(({ ctx, input }) => {
-    const gate = ctx.member
+  create: orgProcedure.input(CreateNoteSchema).mutation(({ ctx, input }) => {
+    const gate = ctx.org
     if (!gate.ok) return gate
-    return createNote(ctx.db, writeContext(ctx, gate.data.workspaceId), input)
+    return createNote(ctx.db, writeContext(ctx, gate.data.id), input)
   }),
   ```
 
-  Assemble the `WriteContext` in a small `writeContext(ctx, workspaceId)` function so
-  `actorId` can only ever come from `ctx.actor.userId` (the verified actor), never the input.
+  Assemble the `WriteContext` in a small `writeContext(ctx, orgId)` function so `actorId`
+  can only ever come from `ctx.actor.userId` (the verified actor) and `orgId` from the
+  RESOLVED gate — there is no expression in it a future edit could accidentally point at
+  the input instead.
+- **`orgProcedure` is not the isolation boundary.** It produces a good error BEFORE the
+  round trip; the boundary is the RLS policies, which key on `public.memberships` at
+  statement time and are indifferent to everything this rung believes. A bug here yields a
+  database denial or an empty page — never a cross-tenant read. That asymmetry is why the
+  rung is allowed to be this simple.
 
 **The envelope rule.** Procedures return `ActionOutcome` on the DATA channel. A domain failure
 is NEVER a thrown `TRPCError` — throwing flattens the `AppError` discriminant the screens

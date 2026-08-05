@@ -481,6 +481,7 @@ if (rampedErrs.length > 0) {
     GATE,
     RAMP,
     `${rampedErrs.length} finding(s) from the 0.2.0 checks (correlated policy predicates, SECURITY DEFINER discipline)`,
+    { until: '0.4.0' },
   )
   if (ramped) for (const e of rampedErrs) console.log(`${GATE}: NOTE — ${e}`)
   else errs.push(...rampedErrs)

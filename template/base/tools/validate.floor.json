@@ -3,6 +3,8 @@
   "steps": [
     ["format", "pnpm exec biome ci ."],
     ["gate-integrity", "node tools/check-gate-integrity.mjs"],
+    ["wiring", "node tools/check-wiring.mjs"],
+    ["secrets", "node tools/check-secrets.mjs"],
     ["types", "pnpm exec tsc -b . apps/web apps/mobile"],
     ["lint", "pnpm exec eslint . --max-warnings 0 --cache"],
     ["provenance", "node tools/check-sources.mjs"],

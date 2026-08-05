@@ -454,6 +454,37 @@ jobs:
           fi
           rm supabase/migrations/29990101000000_canary_disable_rls.sql
           echo 'canary OK: schema-rls went red on the negation'
+      - name: 'Canary 25: unwire a hook + flip the permission posture → wiring must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        # BOTH halves in one leg, because both were states a 0.2.1 install could be in
+        # while every hash matched and the whole chain was green. The MCP guard is the
+        # sharp one: before it existed, `mcp__` tool calls matched NO PreToolUse hook at
+        # all while docs/security/approved-tools.md declared default-deny.
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const s = JSON.parse(fs.readFileSync(".claude/settings.json", "utf8"))
+            s.hooks.PreToolUse = s.hooks.PreToolUse.filter((g) => !JSON.stringify(g).includes("pretool-mcp-guard"))
+            s.permissions.defaultMode = "bypassPermissions"
+            fs.writeFileSync(".claude/settings.json", JSON.stringify(s, null, 2) + "\n")
+          '
+          if env -u GITHUB_BASE_REF node tools/check-wiring.mjs; then
+            echo '::error::CANARY: wiring PASSED an install with the MCP guard unwired and bypassPermissions as the default mode'; exit 1
+          fi
+          git checkout -q -- .claude/settings.json
+          echo 'canary OK: wiring went red on the unwired hook and the posture'
+      - name: 'Canary 26: an sb_secret_ key in a tracked file → secrets must FAIL'
+        working-directory: ${{ runner.temp }}/canary
+        # lefthook prints `SKIP secrets scan` without the gitleaks binary and gitleaks.yml
+        # only runs after a PUSH — so before 0.3.0 this exact file could sit in a tree
+        # through a green turn on any machine without gitleaks.
+        run: |
+          printf "export const k = 'sb_secret_9f2a1c4b7e0d3856aa11bb22'\n" > apps/web/lib/canary-leak.ts
+          if env -u GITHUB_BASE_REF node tools/check-secrets.mjs; then
+            echo '::error::CANARY: secrets PASSED a service-role key in a tracked file'; exit 1
+          fi
+          rm apps/web/lib/canary-leak.ts
+          echo 'canary OK: secrets went red on the service-role key'
       - name: Restore sanity — gates green again after the last restore
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -461,6 +492,8 @@ jobs:
           env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
           env -u GITHUB_BASE_REF node tools/check-i18n.mjs
           env -u GITHUB_BASE_REF node tools/check-security-headers.mjs
+          env -u GITHUB_BASE_REF node tools/check-wiring.mjs
+          env -u GITHUB_BASE_REF node tools/check-secrets.mjs
 
   canary-mutation:
     name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
@@ -1011,6 +1044,66 @@ jobs:
       - name: Token unit suites on metal (contract + freshness run under vitest, not the chain)
         working-directory: .selftest/metal
         run: pnpm exec vitest run packages/design-tokens packages/design-system-native
+
+  # ---------------------------------------------------------------------------
+  # THE UPGRADE LANE. bootstrap-linux proves a FRESH scaffold is green; nothing
+  # here proved that an EXISTING install survives a release. Those are different
+  # claims — a fresh scaffold has no manifest vintage, so it can never be pre- or
+  # post-ramp, never carries seeded drift, and never exercises a single line of
+  # the plant-vs-withhold decision that every migrations.json record is made of.
+  # The 0.2.0 changelog records an update-planted defect found "by running the
+  # real upgrade, not by reading the plan": a manual act with no CI successor,
+  # which means the next one would not be found at all.
+  #
+  # This lane is the release gate for every ramp and migration claim in the
+  # release. It installs the PREVIOUS release tag, runs HEAD's `update`, and then
+  # asserts what only an upgraded install can show: the injected chain steps
+  # arrived, the planted data files are there and the tolerated-absent ones are
+  # not, doctor never says broken, the chain is green, every ramp NOTE names the
+  # release it expires in, and `graduate` refuses while those NOTEs stand.
+  # ---------------------------------------------------------------------------
+  upgrade-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # The lane installs FROM the previous release tag, so the tags — and the
+          # history reachable from them — must be present. A shallow clone would make
+          # the baseline unresolvable, and the script fails closed rather than skipping.
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Cache pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-node22-${{ hashFiles('template/base/pnpm-workspace.yaml', 'template/**/package.json.tmpl') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-node22-
+      - name: init at the previous release tag → update to HEAD → prove green
+        run: bash scripts/ci/upgrade-lane.sh "$GITHUB_WORKSPACE/.selftest/upgrade"
+      - name: Upgrade report
+        if: always()
+        run: |
+          {
+            echo '### Upgrade lane'
+            for f in update doctor validate graduate; do
+              log=".selftest/upgrade/$f.log"
+              [ -f "$log" ] || continue
+              echo "<details><summary>$f</summary>"
+              echo
+              echo '```'
+              tail -c 20000 "$log"
+              echo '```'
+              echo '</details>'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # workspace packages ship raw TypeScript with NodeNext `.js` import specifiers;
   # Next 16's default Turbopack bundler does not rewrite `.js`->`.ts`, so the web

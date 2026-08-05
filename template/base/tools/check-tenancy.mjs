@@ -424,6 +424,7 @@ if (tenantTables.length === 0) {
       GATE,
       RAMP,
       `no ${tenantCol} column in any migration — the tenancy spine arrives in ${RAMP}`,
+      { until: '0.4.0' },
     )
   ) {
     ok(
@@ -1468,7 +1469,11 @@ function checkAuditTrail() {
     // audit schema, and the audit migration is seedOnInitOnly so `update` never plants
     // it. Hard-failing that install would be an upgrade ambush. The moment the table
     // exists, every rule above is a hard red regardless of manifest vintage.
-    if (rampNote(GATE, RAMP, `no ${cfg.auditTable} table — the audit trail arrives in ${RAMP}`))
+    if (
+      rampNote(GATE, RAMP, `no ${cfg.auditTable} table — the audit trail arrives in ${RAMP}`, {
+        until: '0.4.0',
+      })
+    )
       return
     errs.push(
       `${cfg.auditTable}: named by ${CONFIG} as the audit trail but no migration creates it — without it every org-scoped table's changes leave no record. See docs/adr/20260202-audit-trail.md`,

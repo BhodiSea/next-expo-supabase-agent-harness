@@ -25,6 +25,15 @@ const SHIPPED_BUDGET = readFileSync(
   fileURLToPath(new URL('../../template/base/tools/startup-budget.json', import.meta.url)),
   'utf8',
 )
+// The SHIPPED flow bodies, verbatim. The closure judges a flow's CONTENT since 0.3.0
+// (launchApp + a reach step for non-root routes + something that proves the screen
+// arrived), so a fixture that wrote stubs would be testing the stubs. Reading the real
+// files means template drift reds here — which is the point of the whole suite.
+const SHIPPED_FLOW = (id) =>
+  readFileSync(
+    fileURLToPath(new URL(`../../template/base/maestro/flows/${id}.yaml`, import.meta.url)),
+    'utf8',
+  )
 
 // The shipped scaffold's route ids — flows are seeded one per id.
 const SCAFFOLD_IDS = ['home', 'matrix', 'actions']
@@ -34,11 +43,12 @@ const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 // routes/budget: string = verbatim body, object = serialized, null = absent.
 // flows: array of flow file basenames (no extension); results: the device-lane
 // artifact; manifest: .harness/manifest.json (the version-ramp input).
-/** @param {{ routes?: any, budget?: any, flows?: string[], results?: any, manifest?: any }} [opts] */
+/** @param {{ routes?: any, budget?: any, flows?: string[], flowBodies?: Record<string,string>, results?: any, manifest?: any }} [opts] */
 function fixture({
   routes = SHIPPED_ROUTES,
   budget = SHIPPED_BUDGET,
   flows = SCAFFOLD_IDS,
+  flowBodies,
   results,
   manifest,
 } = {}) {
@@ -49,7 +59,14 @@ function fixture({
   if (routes !== null) writeFileSync(join(dir, 'apps/mobile/src/routes.ts'), asText(routes))
   if (budget !== null) writeFileSync(join(dir, 'tools/startup-budget.json'), asText(budget))
   for (const id of flows) {
-    writeFileSync(join(dir, 'maestro/flows', `${id}.yaml`), 'appId: example\n---\n- launchApp\n')
+    const body =
+      flowBodies?.[id] ??
+      (SCAFFOLD_IDS.includes(id)
+        ? SHIPPED_FLOW(id)
+        : // A non-shipped id in a fixture gets a flow that satisfies every content rule,
+          // so a test about MISSING/STALE files is never confounded by a content finding.
+          `appId: example\n---\n- launchApp\n- tapOn: "${id}"\n- assertVisible:\n    id: "${id}-screen"\n`)
+    writeFileSync(join(dir, 'maestro/flows', `${id}.yaml`), body)
   }
   if (results !== undefined) {
     mkdirSync(join(dir, 'artifacts'), { recursive: true })
@@ -137,6 +154,101 @@ test('RED --closure: a budget row without a positive maxTotalTimeMs is a budget 
     r.out.includes('screens["home"].maxTotalTimeMs must be a positive number'),
     r.out,
   )
+})
+
+// ---- flow CONTENT (0.3.0) --------------------------------------------------------
+// Until this release the closure PRINTED "launchApp + reach the route + assertVisible its
+// surface" and then checked only that the file EXISTS — a rule that describes what it
+// declines to look at. An empty file, a copy of another route's flow, or a flow that
+// launches and asserts nothing all satisfied it, and the device lane then ran a green
+// no-op per screen.
+
+test('RED --closure: a flow that only launches proves nothing about the screen', () => {
+  const r = runGate(
+    fixture({ flowBodies: { matrix: 'appId: example\n---\n- launchApp\n' } }),
+    { closure: true },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('nothing in this flow PROVES the screen arrived'), r.out)
+  assert.ok(r.out.includes('measures a splash screen'), r.out)
+})
+
+test('RED --closure: a non-root route whose flow never REACHES it', () => {
+  // Launching lands on the root route, so an assertion here is about `/`, not `/matrix`.
+  const r = runGate(
+    fixture({
+      flowBodies: {
+        matrix: 'appId: example\n---\n- launchApp\n- assertVisible:\n    id: "home-screen"\n',
+      },
+    }),
+    { closure: true },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('no step that REACHES it'), r.out)
+})
+
+test('GREEN --closure: the ROOT route needs no reach step — launching IS arriving', () => {
+  const r = runGate(
+    fixture({
+      flowBodies: {
+        home: 'appId: example\n---\n- launchApp\n- assertVisible:\n    id: "home-screen"\n',
+      },
+    }),
+    { closure: true },
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED --closure: a flow with no appId runs against no app', () => {
+  const r = runGate(
+    fixture({
+      flowBodies: {
+        matrix: '---\n- launchApp\n- tapOn: "Matrix"\n- assertVisible:\n    id: "matrix-screen"\n',
+      },
+    }),
+    { closure: true },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('no `appId:`'), r.out)
+})
+
+test('RED --closure: two routes sharing one flow body — a copy reads like coverage', () => {
+  const shared = 'appId: example\n---\n- launchApp\n- tapOn: "X"\n- assertVisible:\n    id: "x-screen"\n'
+  const r = runGate(fixture({ flowBodies: { matrix: shared, actions: shared } }), { closure: true })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('byte-identical'), r.out)
+  assert.ok(r.out.includes('one flow with two names'), r.out)
+})
+
+test('RED --closure: extendedWaitUntil with no visible/notVisible child waits for nothing', () => {
+  const r = runGate(
+    fixture({
+      flowBodies: {
+        matrix: 'appId: example\n---\n- launchApp\n- openLink: "x://matrix"\n- extendedWaitUntil:\n    timeout: 30000\n',
+      },
+    }),
+    { closure: true },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('nothing in this flow PROVES the screen arrived'), r.out)
+})
+
+test('LOCKSTEP: the GENERATOR\'s own output satisfies the scan (the mandatory correction)', async () => {
+  // buildRouteFlowYaml() — behind the sanctioned `gen-maestro-flows.mjs` — emits
+  // launchApp / openLink / extendedWaitUntil:visible: and NO `assert*` at all. A naive
+  // "require assert*" rule would have made the harness's own generator produce files its
+  // own gate rejects, i.e. broken fresh-scaffold-green on the first `pnpm gen`.
+  const { buildRouteFlowYaml } = await import(
+    new URL('../../template/base/tools/lib/maestro-flows.mjs', import.meta.url).href
+  )
+  /** @type {Record<string, string>} */
+  const bodies = {}
+  for (const [id, path] of [['home', '/'], ['matrix', '/matrix'], ['actions', '/actions']]) {
+    bodies[id] = buildRouteFlowYaml({ id, path }, { appId: 'com.example.app', scheme: 'exampleapp' })
+  }
+  assert.ok(!/assert[A-Za-z]+\s*:/.test(bodies.matrix), 'the generator emits no assert* — that is the whole point of this test')
+  const r = runGate(fixture({ flowBodies: bodies }), { closure: true })
+  assert.equal(r.code, 0, r.out)
 })
 
 test('OK: no routes.ts at all is an honest OK — the route-manifest gate owns that surface', () => {

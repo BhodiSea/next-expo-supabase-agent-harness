@@ -1,0 +1,30 @@
+{
+  "comment": [
+    "THE APPROVED-TOOLS REGISTRY, AS DATA. docs/security/approved-tools.md has declared 'default deny — no MCP server runs on this codebase unless it is listed below' since 0.1.0. Until 0.3.0 that sentence was prose: the PreToolUse matchers were literally 'Bash' and 'Edit|Write|MultiEdit', so an mcp__ tool call matched NO hook and reached the database, the filesystem or the network with nothing in its path. This file is what makes the declaration real; .claude/hooks/pretool-mcp-guard.mjs is what reads it, and the doc is now the rendered view of this data (the docs-sync gate holds them in lockstep).",
+
+    "Shape: servers[] of { server, version, readOnly, reason, tools[] }. `server` is the mcp__<server>__<tool> segment — the key Claude Code derives from .mcp.json / the user's MCP config, NOT a display name. `tools` is a closed allowlist; the single entry \"*\" admits every tool the server exposes, which is the honest spelling for a large first-party server and still leaves `readOnly` in force. `readOnly: true` means this server is approved to OBSERVE only: a write-shaped tool name is denied on it even when `tools` admits it, because a registry row that contradicts itself must fail closed rather than pick a side.",
+
+    "WHY readOnly IS A SEPARATE FIELD FROM tools. The two answer different questions. `tools` asks 'did a human approve this call surface'; `readOnly` asks 'may this server change anything'. A server whose read tools are genuinely useful (schema introspection, log reads, doc search) is exactly the server whose write tools reach production, and enumerating the write ones to leave them out is a list that decays the moment the vendor ships a new verb. Denying by SHAPE covers the verbs that do not exist yet.",
+
+    "THE SANCTIONED PATH FOR SCHEMA CHANGE. Nothing here is a way to reach the database with DDL. A migration is a reviewed file under supabase/migrations/ that the write-guard's SQL content rules judge as it is written, that check-rls-manifest / check-tenancy / check-migrations judge tree-wide, and that lands in a PR under CODEOWNERS. An MCP apply_migration bypasses all four — not because the tool is malicious, but because the evidence trail the gates are made of is the FILE, and a tool call leaves no file.",
+
+    "ADDING A SERVER is one edit here plus one row in docs/security/approved-tools.md, and it is deliberately a human act: this file is write-guard-protected (guard rule 'approved-tools'), so an agent that could append to it could approve its own reach."
+  ],
+
+  "servers": [
+    {
+      "server": "corpus_search",
+      "version": "self-authored @ this repo",
+      "readOnly": true,
+      "reason": "citation grounding for the provenance gate — no network, reads only the local pinned corpus (tools/mcp/corpus/index.json)",
+      "tools": ["corpus_search", "corpus_resolve"]
+    },
+    {
+      "server": "rls_verify",
+      "version": "self-authored @ this repo",
+      "readOnly": true,
+      "reason": "mid-turn cross-user RLS probe against the LOCAL supabase stack; impersonates via SET LOCAL ROLE authenticated + transaction-local request.jwt.claims, and always rolls back",
+      "tools": ["rls_verify"]
+    }
+  ]
+}

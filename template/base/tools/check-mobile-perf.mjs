@@ -68,7 +68,7 @@ if (!existsSync(BUDGET)) {
     '`update --refresh-seeded tools/startup-budget.json maestro/flows/`, then write one ' +
     'screens[] row per src/routes.ts id (generous maxTotalTimeMs; ratchet down from the ' +
     'device lane’s printed numbers). See docs/harness/gates-catalog.md ("mobile-perf")'
-  if (rampNote(GATE, '0.1.0', adopt)) {
+  if (rampNote(GATE, '0.1.0', adopt, { until: '0.4.0' })) {
     ok(GATE, `${BUDGET} absent (pre-0.1.0 install; adopt it to arm the startup floor)`)
   }
   fail(
@@ -108,14 +108,97 @@ const ids = [...arr[1].matchAll(/\bid:\s*['"]([a-z0-9-]+)['"]/g)].map((m) => m[1
 if (ids.length === 0) {
   ok(GATE, 'ROUTES is empty (the route-manifest gate reds that) — nothing to time yet')
 }
+// id -> path, parsed per ENTRY rather than by two independent global scans: a route
+// missing a `path` would otherwise shift every later pairing by one and mis-judge a
+// different screen. A route whose path cannot be read is treated as non-root, which is the
+// stricter answer.
+const pathOf = new Map()
+for (const block of arr[1].split(/\}\s*,?/)) {
+  const id = /\bid:\s*['"]([a-z0-9-]+)['"]/.exec(block)?.[1]
+  if (id) pathOf.set(id, /\bpath:\s*['"]([^'"]*)['"]/.exec(block)?.[1] ?? '')
+}
+
+// ---- THE FLOW ITSELF, not merely its existence (0.3.0) --------------------------
+// Until this release the closure PRINTED "launchApp + reach the route + assertVisible its
+// surface" and then checked only that the file exists — a rule that describes what it
+// declines to look at. An empty file, a copy of another route's flow, or a flow that
+// launches and asserts nothing all satisfied it, and the device lane would then run a
+// green no-op per screen.
+//
+// THE MANDATORY CORRECTION: the naive "require assert*" rule breaks fresh-scaffold-green.
+// buildRouteFlowYaml() in tools/lib/maestro-flows.mjs — the generator behind the sanctioned
+// `gen-maestro-flows.mjs` — emits `launchApp` / `openLink` / `extendedWaitUntil: visible:`
+// and NO `assert*` at all. So proves-something accepts EITHER spelling, and the generator's
+// own output is a lockstep fixture of this scan (tests/gates/check-mobile-perf.test.mjs).
+const REACH_COMMANDS =
+  /(?:^|\n)\s*-\s*(?:openLink|tapOn|scroll|swipe|pressKey|inputText|back|launchApp:)/
+/** @param {string} raw @returns {string} the flow with comment lines removed */
+const stripComments = (raw) =>
+  raw
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n')
+
+/**
+ * @param {string} id @param {string} routePath @param {string} raw
+ * @returns {string[]} findings
+ */
+function scanFlow(id, routePath, raw) {
+  const body = stripComments(raw)
+  const out = []
+  const where = `${FLOWS_DIR}/${id}.yaml`
+  if (!/^appId:\s*\S/m.test(body)) {
+    out.push(
+      `${where}: no \`appId:\` — Maestro cannot launch anything without one, so this flow runs against no app.`,
+    )
+  }
+  if (!/(?:^|\n)\s*-\s*launchApp\b/.test(body)) {
+    out.push(
+      `${where}: no \`launchApp\` — the flow never starts the app, so nothing it asserts afterwards is about this build.`,
+    )
+  }
+  // Proves-something: an assertion, or the generator's extendedWaitUntil with a `visible:`
+  // child. `extendedWaitUntil` WITHOUT a visible/notVisible child waits for nothing.
+  const proves =
+    /(?:^|\n)\s*-\s*assert[A-Za-z]+\s*:/.test(body) ||
+    /(?:^|\n)\s*-\s*extendedWaitUntil:[\s\S]*?\n\s+(?:visible|notVisible):/.test(body)
+  if (!proves) {
+    out.push(
+      `${where}: nothing in this flow PROVES the screen arrived — it needs an \`assert*\` step, or an \`extendedWaitUntil:\` with a \`visible:\` child (what tools/gen-maestro-flows.mjs emits). A flow that only launches is a device lane that measures a splash screen.`,
+    )
+  }
+  if (routePath !== '/' && !REACH_COMMANDS.test(body)) {
+    out.push(
+      `${where}: route '${id}' is at '${routePath}', but the flow contains no step that REACHES it (openLink / tapOn / scroll / swipe / pressKey). Launching the app lands on the root route, so this flow proves nothing about '${id}'.`,
+    )
+  }
+  return out
+}
 
 const closure = []
+// Normalized flow bodies, for the duplicate check below: two routes whose flows are the
+// same bytes are one flow with two names — the second route is unmeasured, and the copy
+// reads in review exactly like coverage.
+const flowBodies = new Map()
 for (const id of ids) {
-  if (!existsSync(`${FLOWS_DIR}/${id}.yaml`)) {
+  const flowPath = `${FLOWS_DIR}/${id}.yaml`
+  if (!existsSync(flowPath)) {
     closure.push(
-      `${ROUTES_FILE}: route '${id}' has no Maestro flow — add ${FLOWS_DIR}/${id}.yaml (launchApp + reach the route + assertVisible its surface). ` +
+      `${ROUTES_FILE}: route '${id}' has no Maestro flow — add ${flowPath} (launchApp + reach the route + assertVisible its surface). ` +
         'A screen without a flow is a screen the device lane will never open.',
     )
+  } else {
+    const raw = readFileSync(flowPath, 'utf8')
+    closure.push(...scanFlow(id, pathOf.get(id) ?? '', raw))
+    const normalized = stripComments(raw).replace(/\s+/g, ' ').trim()
+    const twin = flowBodies.get(normalized)
+    if (twin !== undefined) {
+      closure.push(
+        `${flowPath}: byte-identical (ignoring comments) to ${FLOWS_DIR}/${twin}.yaml — one flow with two names. Whichever route it was not written for is unmeasured, and the copy reads in review exactly like coverage.`,
+      )
+    } else if (normalized.length > 0) {
+      flowBodies.set(normalized, id)
+    }
   }
   if (screens[id] === undefined) {
     closure.push(

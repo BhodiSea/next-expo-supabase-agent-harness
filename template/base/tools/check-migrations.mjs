@@ -199,6 +199,7 @@ if (rampedErrs.length > 0) {
     GATE,
     RAMP,
     `${rampedErrs.length} finding(s) from the 0.2.0 rules (authorization-destructive DDL needs an ADR; ACCESS EXCLUSIVE needs a lock timeout)`,
+    { until: '0.4.0' },
   )
   if (ramped) for (const e of rampedErrs) console.log(`${GATE}: NOTE — ${e}`)
   else errs.push(...rampedErrs)

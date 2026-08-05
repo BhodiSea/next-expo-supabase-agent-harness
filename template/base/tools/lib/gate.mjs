@@ -65,18 +65,30 @@ export function failures(gate, list, hint) {
 // ---- version-ramped checks ------------------------------------------------------
 // A NEW check added to an EXISTING gate must not red a consumer whose seeded
 // content predates it — projects grow into gates; gates never ambush an update.
-// rampNote(gate, minVersion, detail) is the one shared ramp: it reads
+// rampNote(gate, minVersion, detail, { until }) is the one shared ramp: it reads
 // .harness/manifest.json and compares the install's baseVersion (the release
 // vintage of its seeded content; older manifests fall back to harnessVersion)
 // against the version the check went live in.
 //   returns true  -> the caller must stay NOTE-only this run (a NOTE line naming
-//                    the check, the ramp, and the graduation runbook is printed);
+//                    the check, the ramp, the DEADLINE, and the graduation
+//                    runbook is printed);
 //   returns false -> the check is live: no manifest (template dev tree, gate
-//                    fixtures, fresh pre-manifest runs) or baseVersion >= min.
+//                    fixtures, fresh pre-manifest runs), baseVersion >= min, or
+//                    the deadline has passed.
 // Corrupt manifest JSON FAILS CLOSED via fail(): .harness/ is write-guard-
 // protected, so an unparseable manifest is tampering, not a ramp.
+//
+// `until` IS MANDATORY (0.3.0). Before it, "shipped ramped" meant "shipped
+// disabled, indefinitely": rampNote downgraded a check to an advisory NOTE — in
+// CI too — and the only thing that ever re-armed it was a human running
+// `graduate`, which nothing nagged. A control whose expiry date is optional has
+// no expiry date. A call site without one THROWS: that is a harness authoring
+// bug, not a consumer problem, so it must not be reportable as a project gate
+// failure. tests/gates/ramp-expiry.test.mjs closes it statically over every
+// shipped call site, so the throw is the backstop and not the discovery path.
 // SOURCE: docs/runbooks/harness-upgrade.md (version-ramp doctrine: NOTE on
-// pre-ramp installs, hard-fail on fresh installs) [corpus: harness/doctrine]
+// pre-ramp installs, hard-fail on fresh installs, expiry on the deadline)
+// [corpus: harness/doctrine]
 
 // Numeric dotted compare (the harness releases plain x.y.z tags); non-numeric
 // fields compare as plain strings so a mangled version cannot compare as newest.
@@ -122,7 +134,24 @@ export function installedHarnessVersion(gate) {
   return typeof v === 'string' && /^\d+\.\d+\.\d+/.test(v) ? v : null
 }
 
-export function rampNote(gate, minVersion, detail) {
+export function rampNote(gate, minVersion, detail, opts) {
+  const until = opts?.until
+  if (typeof until !== 'string' || !/^\d+\.\d+\.\d+$/.test(until)) {
+    // Deliberately a throw, not fail(): fail() prints a FIX line pointing the
+    // CONSUMER at a reproduce command, and there is nothing they can do about a
+    // ramp the harness shipped without a deadline. An unhandled throw names the
+    // file and line of the offending call site, which is who has to fix it.
+    throw new TypeError(
+      `rampNote('${gate}', '${minVersion}', …) was called without a valid \`until\` deadline (got ${JSON.stringify(until)}). ` +
+        'Every ramp expires: pass { until: "<x.y.z>" } naming the release the escape ends in. ' +
+        'A ramp with no deadline is a check shipped disabled. SOURCE: docs/runbooks/harness-upgrade.md (ramps expire)',
+    )
+  }
+  if (cmpDotted(until, minVersion) <= 0) {
+    throw new TypeError(
+      `rampNote('${gate}', '${minVersion}', …) has until=${until}, which is not AFTER the ramp version — the escape would expire before or as it opens.`,
+    )
+  }
   const manifestPath = join('.harness', 'manifest.json')
   const manifest = readManifest(gate)
   if (manifest === null) return false // no install record -> the check is live
@@ -134,8 +163,21 @@ export function rampNote(gate, minVersion, detail) {
     )
   }
   if (cmpDotted(base, minVersion) >= 0) return false
+
+  // The deadline is measured against harnessVersion, NOT baseVersion — see
+  // installedHarnessVersion() above: baseVersion only moves when the ramp's own
+  // beneficiary graduates, so a deadline measured against it never arrives.
+  const live = installedHarnessVersion(gate)
+  if (live !== null && cmpDotted(live, until) >= 0) {
+    console.error(
+      `${gate}: RAMP EXPIRED — ${detail} was ramped from baseVersion ${minVersion} with a deadline of ${until}, and this install runs harness ${live}. ` +
+        'The escape is over: the finding below is a hard failure now. Sweep it, then `npx next-expo-supabase-agent-harness graduate`; ' +
+        'see docs/runbooks/harness-upgrade.md (ramps expire).',
+    )
+    return false
+  }
   console.log(
-    `${gate}: NOTE — ${detail} (ramp: live from baseVersion ${minVersion}; this install's baseVersion is ${base}). Sweep the findings, then graduate deliberately by bumping baseVersion in .harness/manifest.json — a human edit; see docs/runbooks/harness-upgrade.md`,
+    `${gate}: NOTE — ${detail} (ramp: live from baseVersion ${minVersion}; this install's baseVersion is ${base}; expires in ${until}). Sweep the findings, then graduate deliberately by bumping baseVersion in .harness/manifest.json — a human edit; see docs/runbooks/harness-upgrade.md`,
   )
   return true
 }

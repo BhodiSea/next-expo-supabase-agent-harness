@@ -11,6 +11,55 @@ import { RETIRED_MODULES } from '../lib/layout.mjs'
 import { readManifest, sha256 } from '../lib/manifest.mjs'
 import { readTemplateMigrations, requiredConfigSteps } from '../lib/migrations.mjs'
 
+
+// One manifest record, classified. Hoisted out of `doctor` so the command stays under the
+// complexity ratchet the harness enforces on every consumer — the same bar, applied to the
+// tool that reports whether the bar is wired.
+/**
+ * @param {{ targetDir: string, ip: string, meta: Record<string, unknown>,
+ *           manifest: Record<string, unknown>, errors: string[], warnings: string[] }} args
+ */
+function classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings }) {
+  const dest = join(targetDir, ip)
+  if (!existsSync(dest)) {
+    ;(meta.mode === 'owned' || meta.mode === 'config' ? errors : warnings).push(
+      `missing: ${ip} (${meta.mode})`,
+    )
+    return
+  }
+  // A retrofit conflict is a KNOWN divergence with a recorded sidecar, not drift: the
+  // install deliberately kept the target's file. Reported as a warning (exit 2, the
+  // attention code) naming both halves — never as "locally modified", which would send a
+  // reader looking for an edit nobody made. check-gate-integrity is the enforcing half.
+  if (meta.mode === 'conflicted') {
+    warnings.push(
+      `retrofit conflict unresolved: ${ip} is the TARGET's file; the harness version is parked at ${meta.sidecar ?? '(unrecorded)'}. Every gate reading this config is judging their rules, not the harness's — merge the two, or accept the divergence in tools/retrofit-accept.json with a reason.`,
+    )
+    return
+  }
+  if (meta.mode === 'seeded') return
+  // Hash raw bytes (manifest hashes are computed over the written content — Buffers for
+  // binary assets); decode to text only for the hook-stamp probe.
+  const raw = readFileSync(dest)
+  if (sha256(raw) === meta.sha256) return
+  if (meta.mode === 'config') {
+    warnings.push(`config tuned since install: ${ip} (expected — verify the change was human-approved)`)
+    return
+  }
+  if (!ip.startsWith('.claude/hooks/')) {
+    warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it)`)
+    return
+  }
+  // Distinguish "stale hook from an older harness" from "locally modified": hooks carry a
+  // HARNESS_HOOK_VERSION stamp the installer rewrites on update.
+  const stamp = raw.toString('utf8').match(/HARNESS_HOOK_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]
+  warnings.push(
+    stamp && stamp !== manifest.harnessVersion
+      ? `stale hook: ${ip} carries v${stamp}, manifest is v${manifest.harnessVersion} (run \`update\`)`
+      : `locally modified hook: ${ip} (restore it or run \`update\` — hooks are harness-owned)`,
+  )
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
 export async function doctor(opts) {
   const targetDir = opts.dir
@@ -38,33 +87,7 @@ export async function doctor(opts) {
   }
 
   for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
-    const dest = join(targetDir, ip)
-    if (!existsSync(dest)) {
-      ;(meta.mode === 'owned' || meta.mode === 'config' ? errors : warnings).push(`missing: ${ip} (${meta.mode})`)
-      continue
-    }
-    if (meta.mode === 'seeded') continue
-    // Hash raw bytes (manifest hashes are computed over the written content —
-    // Buffers for binary assets); decode to text only for the hook-stamp probe.
-    const raw = readFileSync(dest)
-    const text = raw.toString('utf8')
-    const current = sha256(raw)
-    if (current !== meta.sha256) {
-      if (meta.mode === 'config') {
-        warnings.push(`config tuned since install: ${ip} (expected — verify the change was human-approved)`)
-      } else if (ip.startsWith('.claude/hooks/')) {
-        // Distinguish "stale hook from an older harness" from "locally modified":
-        // hooks carry a HARNESS_HOOK_VERSION stamp the installer rewrites on update.
-        const stamp = text.match(/HARNESS_HOOK_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]
-        if (stamp && stamp !== manifest.harnessVersion) {
-          warnings.push(`stale hook: ${ip} carries v${stamp}, manifest is v${manifest.harnessVersion} (run \`update\`)`)
-        } else {
-          warnings.push(`locally modified hook: ${ip} (restore it or run \`update\` — hooks are harness-owned)`)
-        }
-      } else {
-        warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it)`)
-      }
-    }
+    classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings })
   }
 
   // Gate wiring.
@@ -78,7 +101,15 @@ export async function doctor(opts) {
   try {
     const settings = JSON.parse(readFileSync(join(targetDir, '.claude/settings.json'), 'utf8'))
     const hookText = JSON.stringify(settings.hooks ?? {})
-    for (const h of ['pretool-bash-guard', 'pretool-write-guard', 'posttool-source-check', 'stop-validate-gate']) {
+    for (const h of [
+      'pretool-bash-guard',
+      'pretool-write-guard',
+      // 0.3.0: an `mcp__` call matched no hook at all before this one existed, so its
+      // absence is not a degraded posture — it is the whole MCP surface unguarded.
+      'pretool-mcp-guard',
+      'posttool-source-check',
+      'stop-validate-gate',
+    ]) {
       if (!hookText.includes(h)) errors.push(`.claude/settings.json no longer wires ${h}`)
     }
   } catch {
@@ -180,8 +211,15 @@ export async function doctor(opts) {
         `${diverged.length} seeded (project-owned) file(s) differ from the current template — expected; pull a template improvement deliberately with \`update --refresh-seeded <path>\`:\n${diverged.map((p) => `          ${p}`).join('\n')}`,
       )
     }
-  } catch {
-    // template tree not resolvable in this invocation context — advisory only
+  } catch (err) {
+    // Was a bare `catch {}` until 0.3.0, which is the shape of an advisory that can
+    // vanish without anyone noticing: a preset value the walker cannot resolve, a
+    // template tree missing from a packaged install, a render throwing on a bad
+    // placeholder — every one of them silently produced "no divergence to report",
+    // which reads exactly like "your tree matches the template". Say what happened.
+    warnings.push(
+      `seeded-divergence advisory could not run (${err instanceof Error ? err.message : String(err)}) — this is NOT a report of "no divergence". Nothing was compared against the current template on this run.`,
+    )
   }
 
   for (const e of errors) console.error(`  ERROR ${e}`)

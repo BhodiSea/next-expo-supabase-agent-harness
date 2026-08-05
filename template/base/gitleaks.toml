@@ -46,6 +46,19 @@ regex = '''(?i)(?:keystore|key)[_-]?password\s*[:=]\s*['"]?[^\s'"${]{6,}'''
 keywords = ["keystore_password", "keystorepassword", "key_password"]
 
 [[rules]]
+id = "postgres-dsn-credentialed"
+description = "A Postgres DSN carrying an inline password"
+# SUPABASE_DB_URL owns the schema — it can rewrite the RLS policies themselves and
+# bypasses them outright on any table missing FORCE. A DSN with the password inline is
+# that credential in plaintext in the tree. The loopback allowlist below is the
+# documented local-development string the pinned Supabase stack prints from
+# `supabase status`; it authenticates to nothing that is not already on the machine.
+regex = '''postgres(?:ql)?://[^\s:/@'"`]+:[^\s:/@'"`]+@[^\s/'"`]+'''
+keywords = ["postgres://", "postgresql://"]
+[rules.allowlist]
+regexes = ['''@(?:127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0|host\.docker\.internal|db)(?::\d+)?(?:/|$)''']
+
+[[rules]]
 id = "sentry-auth-token"
 description = "Sentry auth token (organization token prefix)"
 regex = '''sntrys_[A-Za-z0-9_+/=.-]{16,}'''

@@ -134,7 +134,9 @@ if (surfaceFiles.length > 0) {
 
 if (coverageErrs.length > 0) {
   if (
-    rampNote(GATE, AGENTS_RAMP, 'agent-surface lock coverage (.claude/{agents,commands,skills})')
+    rampNote(GATE, AGENTS_RAMP, 'agent-surface lock coverage (.claude/{agents,commands,skills})', {
+      until: '0.4.0',
+    })
   ) {
     for (const e of coverageErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
   } else {

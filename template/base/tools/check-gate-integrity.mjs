@@ -16,7 +16,11 @@
 // SOURCE: docs/harness/README.md (tamper evidence) [corpus: harness/doctrine]
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
+import { CONFIG_COMMIT, ESCAPE_LISTS } from './lib/enforcement-surface.mjs'
+import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'gate-integrity'
@@ -68,38 +72,59 @@ const SURFACE_EXCLUDE = [/^tools\/generated\//]
 const RAMPED_SURFACE = [/^\.claude\/rules\//, /^\.claude\/statusline\.mjs$/]
 const SURFACE_RAMP = '0.2.0'
 
-// The escape hatches: reviewed human data that EXEMPTS code from a gate or RAISES a
-// budget. They are 'seeded' (a project tunes them deliberately), so their content is
-// not hash-pinned — but a widening must be a reviewable act, not an agent's mid-turn
-// edit. Committing one puts it in the PR diff under CODEOWNERS; leaving it dirty in
-// the working tree at gate time is how an agent buys itself a green turn.
-const ESCAPE_LISTS = [
-  'tools/rls-exempt.json', // exempting a table from FORCE RLS — the security one
-  'tools/tenancy.json', // the closed predicate-form set + the one seat-writer role
-  'tools/security-definer-allow.json', // authorizes EXECUTE-to-authenticated on a definer fn
-  'tools/audit-columns.json', // opting a column's VALUES into the audit trail
-  'tools/pii-columns.json', // the deny list that opt-in is checked against
-  'tools/db-limits.json', // the per-role blast-radius ceilings + the quota trigger shape
-  'tools/security-headers.json', // the web response posture, asserted by value
-  'tools/rate-limit-budget.json', // raising a budget is raising what one caller may cost everyone
-  'tools/db-perf-baseline.json', // the plan-probe floor + budgets — lowering minRows is how a plan probe becomes vacuous
-  'tools/provenance-overrides.json', // cross-group citation escapes
-  'tools/license-exceptions.json',
-  'tools/route-allowlist.json',
-  'tools/dto-bounds-allow.json', // exempting a wire string from the .max() bound
-  'tools/duplication-allow.json', // accepting a code clone
-  'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
-  'tools/expo-permissions.json', // granting the app a new platform permission
-  'tools/expo-plugins.json', // admitting a config plugin to the native build
-  'tools/perf-budget.json',
-  'tools/interaction-budget.json',
-  'tools/startup-budget.json', // raising a cold-start / per-screen nav ceiling
-  'tools/bundle-budget.json',
-  'tools/perf-baseline.json',
-  'tools/styleguide.manifest.json',
-  'tools/mutation-baseline.json', // accepting a surviving mutant
-  'tools/test-quality-allow.json', // letting a disabled/assertion-free test stand
+// RAMPED ADDITIONS (0.3.0) — the enforcement CONFIGS the surface never reached.
+//
+// SURFACE covered the gate scripts, the hooks, the settings file and the workflows: the
+// code. It never covered the files that decide WHETHER that code runs and HOW STRICTLY.
+// `lefthook.yml` is the entire commit-time layer. `.mcp.json` is which MCP servers this
+// project starts. `.gitleaks.toml` is what the credential scanner looks for. `renovate.json`
+// is whether dependency bumps stay pinned and cooled-down. The actionlint/zizmor configs
+// decide how hard the workflow-lint lanes look at the workflows the surface DOES hash.
+//
+// Each is harness-owned and none of them is a threshold a project legitimately tunes per
+// feature — which is exactly what separates this list from CONFIG_COMMIT below.
+const RAMPED_SURFACE_030 = [
+  /^\.mcp\.json$/,
+  /^lefthook\.yml$/,
+  /^\.gitleaks\.toml$/,
+  /^renovate\.json$/,
+  /^\.github\/actionlint\.yaml$/,
+  /^\.github\/zizmor\.yml$/,
 ]
+const SURFACE_RAMP_030 = '0.3.0'
+
+// CONFIG_COMMIT (tools/lib/enforcement-surface.mjs) is judged by COMMIT rather than by
+// hash, and the reason is the reason CODEOWNERS is not hash-pinned either: human tuning is
+// LEGITIMATE here. Raising a coverage floor, adding an eslint rule, tightening a tsconfig
+// are correct acts a project performs, and a pin guaranteed to break on correct use is a
+// gate everyone learns to ignore. What is NOT legitimate is an agent widening one mid-turn
+// to buy itself a green run — so the invariant is the one the escape lists already use:
+// the file may DIFFER from the template, but it may not be DIRTY at gate time.
+
+// tsconfig*.json wherever it lives. The root pair carries the max-strict compiler surface
+// every workspace extends, but a per-workspace `"strict": false` is not caught by `tsc -b`
+// — it simply typechecks that package laxly and stays green — so the whole set is covered.
+function tsconfigPaths() {
+  const roots = ['.', 'apps', 'packages']
+  const found = []
+  for (const root of roots) {
+    if (!existsSync(root)) continue
+    for (const rel of walkFiles(root, {
+      excludeDirs: new Set(['node_modules', 'dist', 'gen', '.next', '.expo', 'android', 'ios']),
+    })) {
+      if (!/(^|\/)tsconfig[^/]*\.json$/.test(rel)) continue
+      found.push(root === '.' ? rel : `${root}/${rel}`)
+    }
+  }
+  // The '.' walk already yields apps/**/tsconfig*.json and packages/**/tsconfig*.json;
+  // the explicit roots exist only so a tree without them still resolves. Dedupe.
+  return [...new Set(found)]
+}
+
+// The escape hatches and the threshold-bearing configs are REVIEWED DATA shared with
+// tools/check-wiring.mjs (which asks a different question of the same list: is each path
+// covered by a CODEOWNERS rule with a real owner). One definition, in tools/lib — a second
+// hand-maintained copy would drift, and the drift would be invisible.
 
 if (!existsSync(MANIFEST)) skipOrFail(GATE, 'no .harness/manifest.json (not an installed harness)')
 
@@ -122,16 +147,30 @@ const surfaceRamped = rampNote(
   GATE,
   SURFACE_RAMP,
   'hash coverage of .claude/rules/ and .claude/statusline.mjs',
+  { until: '0.4.0' },
+)
+const surfaceRamped030 = rampNote(
+  GATE,
+  SURFACE_RAMP_030,
+  'hash coverage of the enforcement configs (.mcp.json, lefthook.yml, .gitleaks.toml, renovate.json, actionlint/zizmor) and the commit-not-dirty rule over the threshold-bearing configs',
+  { until: '0.5.0' },
 )
 const rampedFindings = []
+const ramped030Findings = []
 
 for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
   if (meta?.mode !== 'owned') continue // config + seeded are human-tunable by design
   if (SURFACE_EXCLUDE.some((re) => re.test(ip))) continue // generated FROM the project's code
   const core = SURFACE.some((re) => re.test(ip))
   const ramped = !core && RAMPED_SURFACE.some((re) => re.test(ip))
-  if (!core && !ramped) continue
-  const into = ramped && surfaceRamped ? rampedFindings : errs
+  const ramped030 = !core && !ramped && RAMPED_SURFACE_030.some((re) => re.test(ip))
+  if (!core && !ramped && !ramped030) continue
+  const into =
+    ramped && surfaceRamped
+      ? rampedFindings
+      : ramped030 && surfaceRamped030
+        ? ramped030Findings
+        : errs
   checked += 1
   if (!existsSync(ip)) {
     into.push(`${ip}: missing from disk (the manifest records it as harness-owned)`)
@@ -146,11 +185,163 @@ for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
 for (const f of rampedFindings) {
   console.log(`${GATE}: NOTE — (ramp ${SURFACE_RAMP}) ${f}`)
 }
+for (const f of ramped030Findings) {
+  console.log(`${GATE}: NOTE — (ramp ${SURFACE_RAMP_030}) ${f}`)
+}
 
 // A manifest that records zero owned enforcement files is itself mangled — a
 // gate that verifies nothing must never read as green.
 if (checked === 0) {
   fail(GATE, `${MANIFEST} records no harness-owned enforcement files — restore it from git history`)
+}
+
+// ── 1a. RETROFIT CONFLICTS ARE EVIDENCE (0.3.0) ──────────────────────────────────
+// A retrofit keeps the target's config and parks the harness version in a sidecar. That is
+// the right call — never clobber a human's configuration — but until 0.3.0 the installer
+// `continue`d BEFORE the manifest line, so the state was invisible to everything
+// afterwards. The consequence was specific: `lint`, `types`, `dead-code`, `architecture`
+// and the coverage floors ran against the TARGET's configs, with zero harness rules in
+// them, and reported green. The install looked enforced and was not.
+//
+// This step runs on EVERY install, which is why the check lives here rather than in
+// `doctor` (which nothing runs). A reviewed acceptance in tools/retrofit-accept.json
+// converts the red into a NOTE — pinned to the exact `theirsSha256` that was reviewed, so
+// editing that config afterwards re-opens the question rather than inheriting the
+// judgement.
+const ACCEPT = 'tools/retrofit-accept.json'
+/** @type {Array<{ path?: string, theirsSha256?: string, reason?: string }>} */
+let retrofitAccepted = []
+if (existsSync(ACCEPT)) {
+  try {
+    const parsed = JSON.parse(readFileSync(ACCEPT, 'utf8'))
+    retrofitAccepted = Array.isArray(parsed.accept) ? parsed.accept : []
+  } catch (e) {
+    fail(
+      GATE,
+      `${ACCEPT} is not valid JSON (${e.message}) — an unparseable acceptance file cannot fail open`,
+    )
+  }
+  for (const a of retrofitAccepted) {
+    if (typeof a?.reason !== 'string' || a.reason.trim().length < 10) {
+      fail(
+        GATE,
+        `${ACCEPT}: every acceptance needs a real \`reason\` (>= 10 chars) — an empty reason is an acceptance nobody reviewed. Offending entry: ${JSON.stringify(a)}`,
+      )
+    }
+  }
+}
+
+const conflictNotes = []
+for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
+  if (meta?.mode !== 'conflicted') continue
+  const theirsNow = existsSync(ip)
+    ? createHash('sha256').update(readFileSync(ip)).digest('hex')
+    : null
+  const accepted = retrofitAccepted.find(
+    (a) => a.path === ip && (a.theirsSha256 === undefined || a.theirsSha256 === theirsNow),
+  )
+  const detail =
+    `${ip}: RETROFIT CONFLICT — this install kept the target's file and parked the harness version at ${meta.sidecar ?? '(unrecorded)'}. ` +
+    "Until the two are merged, every gate that reads this config is judging the TARGET's rules, not the harness's, and reporting green either way. " +
+    `Merge it: diff \`${ip}\` against \`${meta.sidecar ?? '<sidecar>'}\`, fold the harness rules in, delete the sidecar, and re-run \`npx next-expo-supabase-agent-harness update\` so the manifest re-records the file as owned. ` +
+    `To accept the divergence instead, add {"path":"${ip}","theirsSha256":"${theirsNow ?? '<sha>'}","reason":"…"} to ${ACCEPT} and COMMIT it — the sha pins the acceptance to the content that was reviewed.`
+  if (accepted) conflictNotes.push(`${ip}: accepted divergence — ${accepted.reason}`)
+  else errs.push(detail)
+}
+for (const n of conflictNotes) console.log(`${GATE}: NOTE — ${n}`)
+
+// ── 1b. the hooks are wired BY VALUE, not by having a file on disk ───────────────
+// Hashing .claude/settings.json proves its BYTES are what the installer wrote. It does
+// not prove those bytes still WIRE anything, because a legitimately-tuned settings file
+// (a new permission, a new MCP server) re-records its hash on the next `update` and the
+// gate is green either way. Two failures lived in that gap:
+//
+//   1. Until 0.3.0 every hook command was a BARE PATH relying on the executable bit, and
+//      this gate hashes CONTENT and never MODE — so `chmod -x` on the Stop hook disarmed
+//      the turn gate while every sha256 still matched. 0.3.0 deletes the vulnerability
+//      rather than detecting it: each command now invokes `node` explicitly, so the bit
+//      is not in the trust path at all. (A mode check would also have had to skip on
+//      win32, where there is no exec bit — and a skip that is never a pass is a skip that
+//      cannot be written for a property half the platforms do not have.)
+//   2. A command rewritten to `true`, or pointed at a path that does not exist, is a
+//      wired-looking hook that runs nothing.
+//
+// So the assertion is over the VALUE: every command names `node` and an existing file.
+// The roster question — which hooks must be present at all — belongs to the `wiring`
+// gate, which owns the whole doctor-invariant surface.
+// SOURCE: docs/harness/README.md (tamper evidence) [corpus: harness/doctrine]
+const SETTINGS = '.claude/settings.json'
+if (existsSync(SETTINGS)) {
+  let settings
+  try {
+    settings = JSON.parse(readFileSync(SETTINGS, 'utf8'))
+  } catch (e) {
+    fail(GATE, `${SETTINGS} is not valid JSON (${e.message}) — restore it from git history`)
+  }
+  const commands = Object.entries(settings.hooks ?? {}).flatMap(([event, groups]) =>
+    (Array.isArray(groups) ? groups : []).flatMap((g) =>
+      (Array.isArray(g?.hooks) ? g.hooks : []).map((h) => [event, String(h?.command ?? '')]),
+    ),
+  )
+  for (const [event, command] of commands) {
+    // The canonical shape the installer writes: node "<$CLAUDE_PROJECT_DIR-rooted path>".
+    const m = /^node\s+"?\$CLAUDE_PROJECT_DIR\/([^"\s]+)"?\s*$/.exec(command)
+    if (m === null) {
+      errs.push(
+        `${SETTINGS}: the ${event} hook command ${JSON.stringify(command)} is not \`node "$CLAUDE_PROJECT_DIR/<path>"\` — a hook that does not invoke node explicitly depends on the executable bit, which nothing in this repo hashes, and a command rewritten to anything else is a wired-looking hook that runs nothing.`,
+      )
+      continue
+    }
+    if (!existsSync(m[1])) {
+      errs.push(
+        `${SETTINGS}: the ${event} hook command points at ${m[1]}, which does not exist — the hook is wired to nothing.`,
+      )
+    }
+  }
+}
+
+// ── 1c. the Stop chain still contains its frozen floor ───────────────────────────
+// harness.config.mjs is manifest mode `config`, and the loop above skips every non-`owned`
+// entry — so STOP_HOOK_STEPS, the list of checks that decide whether a TURN may end, was
+// hashed by nothing at all. Deleting `test-quality` or `diff-coverage` from it mid-turn
+// ended the turn green with this gate printing OK, because a `config` file is human-tunable
+// by design and that is exactly the right rule for a file projects extend.
+//
+// The floor resolves the tension without changing the file's mode: tools/stop.floor.json is
+// `owned`, so it is hashed above like every other tools/ file, and the invariant here is a
+// SUPERSET one. A project may APPEND a step; it may not subtract one, and it may not
+// rewrite a floor step's command into something weaker.
+// SOURCE: docs/harness/README.md (the CI floor; tamper evidence) [corpus: harness/doctrine]
+const STOP_FLOOR = 'tools/stop.floor.json'
+const CONFIG = 'tools/harness.config.mjs'
+if (existsSync(STOP_FLOOR) && existsSync(CONFIG)) {
+  let floorSteps = null
+  try {
+    floorSteps = JSON.parse(readFileSync(STOP_FLOOR, 'utf8'))?.steps
+  } catch (e) {
+    errs.push(`${STOP_FLOOR} is not valid JSON (${e.message}) — restore it from git history`)
+  }
+  if (Array.isArray(floorSteps)) {
+    try {
+      const { STOP_HOOK_STEPS } = await import(pathToFileURL(resolve(CONFIG)).href)
+      const local = new Map(
+        (Array.isArray(STOP_HOOK_STEPS) ? STOP_HOOK_STEPS : []).map(([n, c]) => [n, c]),
+      )
+      for (const [name, cmd] of floorSteps) {
+        if (!local.has(name)) {
+          errs.push(
+            `${CONFIG}: STOP_HOOK_STEPS is missing the floored step '${name}' (${cmd}). The Stop chain has a frozen floor in ${STOP_FLOOR}: a project may APPEND steps, never subtract them. The Stop hook runs it anyway via the union, so this is evidence, not a hole — restore the step.`,
+          )
+        } else if (local.get(name) !== cmd) {
+          errs.push(
+            `${CONFIG}: STOP_HOOK_STEPS['${name}'] runs ${JSON.stringify(local.get(name))} but the frozen floor pins ${JSON.stringify(cmd)}. Rewriting a floored command is how a step stays in the list and stops checking anything.`,
+          )
+        }
+      }
+    } catch (e) {
+      errs.push(`${CONFIG} failed to import (${e.message}) — the Stop chain cannot be verified`)
+    }
+  }
 }
 
 // ── git: the only root of trust the manifest itself cannot forge ─────────────────
@@ -255,6 +446,34 @@ if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1')
   }
 }
 
+// ── 3b. the same rule for the threshold-bearing configs (0.3.0) ──────────────────
+// Two tiers, split by whether human tuning is legitimate — see CONFIG_COMMIT's header.
+// These files carry the NUMBERS the gates judge against (coverage floors, the complexity
+// ceiling, the architecture rules, the strictness surface), and a project raises them for
+// real reasons. So they are not hash-pinned; the invariant is that the raise must be a
+// COMMIT, not an agent's mid-turn edit. Ramped with the 0.3.0 surface additions, because
+// an install upgrading mid-branch with a legitimately dirty vitest.config.ts should get a
+// release to adopt the habit rather than a red on the update that shipped it.
+const configCommitPaths = [...CONFIG_COMMIT, ...tsconfigPaths()].filter((p) => existsSync(p))
+let configCommitSummary = `${String(configCommitPaths.length)} threshold config(s) committed`
+if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
+  const dirty = []
+  for (const p of configCommitPaths) {
+    if (!git(`status --porcelain -- ${p}`)) continue
+    dirty.push(
+      `${p}: threshold-bearing config modified but NOT COMMITTED. This file carries numbers the gates judge against (coverage floors, the complexity ceiling, the architecture rules, the strictness surface) — lowering one turns a red into a green with no other trace. Raising a threshold is legitimate and stays green forever once REVIEWED: commit the change so it lands in the PR diff under CODEOWNERS (or export HARNESS_ALLOW_SELF_EDIT=1 for a deliberate local edit).`,
+    )
+  }
+  if (dirty.length > 0) {
+    if (surfaceRamped030) {
+      for (const d of dirty) console.log(`${GATE}: NOTE — (ramp ${SURFACE_RAMP_030}) ${d}`)
+      configCommitSummary = `threshold-config commit rule NOTE-only (${String(dirty.length)} dirty, withheld by the ${SURFACE_RAMP_030} ramp)`
+    } else {
+      errs.push(...dirty)
+    }
+  }
+}
+
 failures(
   GATE,
   errs,
@@ -262,5 +481,5 @@ failures(
 )
 ok(
   GATE,
-  `${checked} harness-owned enforcement file(s) match their recorded hashes; baseVersion ${currentBase} never regressed; ${present.length} escape list(s) clean`,
+  `${checked} harness-owned enforcement file(s) match their recorded hashes; baseVersion ${currentBase} never regressed; ${present.length} escape list(s) clean; ${configCommitSummary}`,
 )

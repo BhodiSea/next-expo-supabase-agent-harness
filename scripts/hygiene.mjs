@@ -64,8 +64,23 @@ const LEAK_PATTERNS = [
 
 // Files allowed to mention a pattern (path suffix → patterns allowed there).
 const ALLOWLIST = new Map([
-  // The secret-scanning POLICY must spell the PEM header it detects.
+  // The secret-scanning POLICY must spell the shapes it detects — a scanner that cannot
+  // contain its own patterns cannot have patterns. The same carve-out check-secrets.mjs
+  // makes for tools/secret-patterns.json (allowPaths), and the same one the write-guard
+  // makes for .claude/hooks/: a rule table has to contain the thing it bans.
+  //
+  // Both files are write-guard-protected and hash-pinned by gate-integrity, so hiding a
+  // real credential in one is not a cheaper path than hiding it anywhere else — and the
+  // entries here are per-PATTERN, so neither file gets a blanket pass.
   ['template/base/gitleaks.toml', [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/]],
+  [
+    'template/base/tools/secret-patterns.json',
+    [
+      /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+      /"type"\s*:\s*"service_account"/,
+      /postgres(?:ql)?:\/\/(?![a-z_]+:postgres@(?:127\.0\.0\.1|localhost))[^\s'"]+:[^\s'"]+@/,
+    ],
+  ],
 ])
 
 const failures = []

@@ -97,7 +97,7 @@ if (pkgRaw !== null) {
 }
 if (
   citeErrs.length > 0 &&
-  !rampNote(GATE, '0.1.0', `${citeErrs.length} citeability/license finding(s)`)
+  !rampNote(GATE, '0.1.0', `${citeErrs.length} citeability/license finding(s)`, { until: '0.4.0' })
 ) {
   failures(
     GATE,

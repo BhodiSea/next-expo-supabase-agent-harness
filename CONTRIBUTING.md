@@ -50,7 +50,8 @@ node scripts/check-reuse.mjs            # REUSE dual-license structure (offline 
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
-node scripts/check-canary-coverage.mjs  # every gate has a registered, RUNNING red-proof
+node scripts/check-canary-coverage.mjs  # every gate AND every job in all eight shipped workflows has a registered, RUNNING red-proof
+node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 node --test "tests/**/*.test.mjs"       # gate proofs + installer lifecycle + hook contracts
 
 # The machinery under its own bar (pnpm install once at the repo root):
@@ -67,6 +68,12 @@ cd /tmp/scratch && pnpm install && git init -q && git add -A \
   && node tools/validate.mjs --report-all
 ```
 
+`--report-all` runs all **31** steps and shows every red at once. The two added in
+0.3.0 run before anything expensive and are the ones most likely to catch a
+machinery mistake: `wiring` (step 3 — are the enforcement layers actually
+connected) and `secrets` (step 4 — a hermetic credential scan, in rule-id lockstep
+with `.gitleaks.toml`).
+
 Root `devDependencies` are exact-pinned and never ship: the npm `files` list
 excludes every root config/lockfile, and with no `prepare` script `npx
 github:…` never installs them.
@@ -75,10 +82,21 @@ github:…` never installs them.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the five
-   `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`.
+   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **six**
+   `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
+   (`pretool-mcp-guard.mjs` joined them in 0.3.0 — the gate iterates the
+   directory, so the count follows the tree rather than this sentence).
 3. Run `node scripts/check-release-lockstep.mjs` — the same check runs on every
    PR in the selftest matrix and again at tag time.
-4. Tag `vx.y.z` and push — `release.yml` re-runs the gates, waits for a green
+4. **Confirm `upgrade-linux` is green on the release commit.** It installs the
+   PREVIOUS release tag, runs HEAD's `update`, and asserts what only an upgraded
+   install can show: the injected chain steps arrived, the planted data files are
+   there and the tolerated-absent ones are not, `doctor` never says broken, the
+   chain is green, every ramp NOTE names the release it expires in, and
+   `graduate` refuses while those NOTEs stand. **No `template/migrations.json`
+   record is trustworthy until that lane has executed** — the 0.2.0 changelog
+   records an update-planted defect found "by running the real upgrade, not by
+   reading the plan", and this lane is that act's CI successor.
+5. Tag `vx.y.z` and push — `release.yml` re-runs the gates, waits for a green
    selftest matrix on the tagged SHA, verifies the changelog section, packs,
    attests provenance, and publishes the GitHub Release.

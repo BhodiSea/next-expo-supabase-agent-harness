@@ -81,7 +81,7 @@ test('GREEN: a fixture whose every claim is true is CLEAN — and only the LATES
       '## [0.0.9]\ncold ≈ 99 s, warm ≈ 9 s (older entry — must be ignored)\n',
   })
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids; README\/CHANGELOG timings agree\)/)
+  assert.match(r.out, /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/)
 })
 
 test('RED (DERIVABLE): a drifted chain-length claim fails, naming the true count', () => {

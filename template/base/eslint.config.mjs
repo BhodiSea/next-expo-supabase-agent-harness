@@ -312,4 +312,57 @@ export default tseslint.config(
     plugins: { local: localRules },
     rules: { 'local/no-unsorted-readdir': 'error' },
   },
+  {
+    // no-unverified-session — the doctrine's own "single most consequential line", held
+    // over the WHOLE SERVER GRAPH with AST precision. Its only mechanical guard before
+    // 0.3.0 was a write-guard regex scoped to `^apps/web/` and gated on whole-file writes,
+    // so an Edit inserting `.auth.getSession()` into packages/api, a vertical's server
+    // barrel or an Edge Function passed every layer.
+    //
+    // apps/mobile is deliberately ABSENT from this glob, and that is doctrine rather than
+    // convenience: the mobile app is an untrusted bearer of its OWN scoped token, reading
+    // it out of LargeSecureStore to attach to a request. Reading your own session is not
+    // the same act as trusting a caller's cookie. Browser components are exempted by the
+    // rule itself, on the `'use client'` directive.
+    //
+    // NOT ramped, and the changelog says why in these words: a pre-existing violation here
+    // is an authentication bypass, not a style debt.
+    files: [
+      'apps/web/**/*.ts',
+      'apps/web/**/*.tsx',
+      'packages/**/*.ts',
+      'packages/**/*.tsx',
+      'supabase/functions/**/*.ts',
+    ],
+    ignores: ['**/*.test.ts', '**/*.test.tsx', '**/testing/**'],
+    plugins: { local: localRules },
+    rules: { 'local/no-unverified-session': 'error' },
+  },
+  {
+    // service-role-edge-functions-only — the credential that BYPASSES RLS, confined to the
+    // one place a policy cannot reach it from.
+    //
+    // The two ignore groups are the SANCTIONED HOMES, and they are here rather than inside
+    // the rule so there is exactly one place to widen and it shows up in a config diff:
+    //   - supabase/functions/**  — the ADR-governed runtime home;
+    //   - packages/platform/{supabase,env}/src/**  — the module that DEFINES the factory
+    //     and the validators that type its credentials. A rule that forbade the definition
+    //     of the thing it governs would forbid the harness from shipping it.
+    files: [
+      'apps/**/*.ts',
+      'apps/**/*.tsx',
+      'packages/**/*.ts',
+      'packages/**/*.tsx',
+      'supabase/**/*.ts',
+    ],
+    ignores: [
+      'supabase/functions/**',
+      'packages/platform/supabase/src/**',
+      'packages/platform/env/src/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/service-role-edge-functions-only': 'error' },
+  },
 )

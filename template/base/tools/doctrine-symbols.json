@@ -1,0 +1,42 @@
+{
+  "comment": [
+    "THE CLOSED TOKEN MAP: symbols the AGENT SURFACE teaches, checked against the code that must export them.",
+
+    "WHAT WENT WRONG. `packages/api/src/trpc.ts` exports `orgProcedure` and puts the resolved gate on `ctx.org`. Ten authoring surfaces — two subagents, three commands, a skill and its reference, the slice scaffolder, both AGENTS.md files and a gate lib comment — taught `memberProcedure` and `ctx.member`: 13 and 7 occurrences respectively, and ZERO occurrences of `orgProcedure` outside the module that defines it. The scaffolder wrote a non-resolving import into every new slice, and `/verify-invariants` hunted for a `ctx.member` string that cannot appear in real code, so that review step was vacuous on every codebase it ever ran against.",
+
+    "None of the eleven layers of enforcement in this repo could see it, because every one of them judges CODE and this was a lie in the PROSE that tells an agent what code to write. That is the most expensive place for a lie to live: it is read at the start of every turn, and the compile error it produces arrives in the consumer's tree with the harness's name on it.",
+
+    "A CLOSED TOKEN MAP, NOT AN OPEN IDENTIFIER SCANNER. Each entry names ONE retired token, the symbol that replaced it, and the module that must export the replacement. An open scanner over every identifier in the agent surface would produce a river of false positives from prose, would need an ever-growing ignore list, and would be turned off within a release. A closed map is reviewed data: adding an entry is a decision, and each one is falsifiable in both directions.",
+
+    "BOTH DIRECTIONS MATTER. Forward: the retired token reappearing in an agent-surface file is a red naming file, line and token. Backward: the replacement disappearing from its defining module is ALSO a red — a map that outlives the module it describes is not a map, it is a second stale doctrine, which is the exact failure this file exists to end.",
+
+    "docs/adr/** IS OUT OF SCOPE, deliberately. ADR 20260201 narrates the `memberProcedure` it deleted and why; that is honest history, and a gate that punished writing it down would teach authors to stop writing decision records. The scope is the surface an agent is INSTRUCTED from, not the surface it learns history from."
+  ],
+
+  "scope": [
+    "^\\.claude/agents/",
+    "^\\.claude/commands/",
+    "^\\.claude/skills/",
+    "^\\.claude/rules/",
+    "^AGENTS\\.md$",
+    "^packages/[^/]+(?:/[^/]+)?/AGENTS\\.md$",
+    "^tools/lib/[^/]+\\.mjs$",
+    "^docs/harness/"
+  ],
+  "scopeWhy": "The surfaces an agent is INSTRUCTED from. docs/adr/** is absent on purpose (see the comment above); docs/runbooks/** is absent because a runbook narrates an upgrade PATH, which necessarily names the old symbol.",
+
+  "symbols": [
+    {
+      "retired": "memberProcedure",
+      "replacement": "orgProcedure",
+      "definedIn": "packages/api/src/trpc.ts",
+      "why": "The tRPC ladder's third rung was renamed when tenancy became org-scoped (ADR 20260201). Ten authoring surfaces kept teaching the old name for two releases, and the scaffolder wrote it into an import that cannot resolve."
+    },
+    {
+      "retired": "ctx.member",
+      "replacement": "ctx.org",
+      "definedIn": "packages/api/src/trpc.ts",
+      "why": "The resolved gate the handler returns verbatim on the failure path. `/verify-invariants` grepped for the retired spelling, so the step reported clean over every real codebase — a review that could not fail."
+    }
+  ]
+}
