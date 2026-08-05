@@ -7,6 +7,12 @@ coverage/
 .harness/*.ok
 # Scratch fixtures created by local selftest runs
 .fixtures/
+# The upgrade lane's workdir (scripts/ci/upgrade-lane.sh) — a whole rendered scaffold
+# WITH node_modules, kept after the run because it is what you read when the lane reds.
+# Unignored it was worse than untidy: `git add -A` would commit an install, and the
+# complexity ratchet walked the scaffold's own tools/ and red the factory for code the
+# factory ships. Ignored, not deleted — the evidence is the point.
+.selftest/
 # Build artifacts a local `tsc -b` / `expo export` can drop INSIDE the template tree.
 # template/base/gitignore ships these rules to every scaffold — but that file only
 # protects CONSUMERS; this protects the shipped template itself from a `git add -A`.

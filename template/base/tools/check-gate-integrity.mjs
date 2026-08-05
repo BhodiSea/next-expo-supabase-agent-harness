@@ -433,17 +433,54 @@ if (hasGit) {
 // widening entirely un-evidenced. The invariant that respects both facts: an escape list
 // may differ from the template, but it may not be DIRTY at gate time — commit it and the
 // widening lands in the PR diff under CODEOWNERS.
+//
+// ONE THING IS NOT A WIDENING: the file the harness itself just planted. `update` plants
+// a new escape list into an existing install (0.3.0 does it with tools/approved-tools.json,
+// and 0.2.x did it with tenancy.json / db-limits.json / security-headers.json), which
+// leaves it UNTRACKED — and the rule above then accuses the consumer of widening a hatch
+// they have never seen, on the very run that delivered it. Found by upgrade-lane.sh, which
+// is the second time this release that the lane caught the harness redding an install for
+// the harness's own act; the first was `docs-sync`, and the fix is the same shape:
+// CLASSIFY, do not blanket-ramp. The discriminator is exact and holds at every vintage —
+// untracked AND byte-identical to the sha the installer recorded when it wrote the file
+// means nobody has tuned it yet. A hand-created escape list has no manifest entry and a
+// tuned one no longer matches, so both keep the hard red they had before.
 const present = ESCAPE_LISTS.filter((p) => existsSync(p))
 if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1') {
   // Ask per path rather than parsing porcelain status columns — the path is then the one
   // we already hold, so no slicing can mangle it and a path with spaces cannot confuse us.
   for (const p of present) {
-    if (!git(`status --porcelain -- ${p}`)) continue // empty output = clean (or untracked-but-ignored)
+    const status = git(`status --porcelain -- ${p}`)
+    if (!status) continue // empty output = clean (or untracked-but-ignored)
+    if (isUntouchedPlant(p, status)) {
+      console.log(
+        `${GATE}: NOTE — ${p} is present but not yet committed, and its bytes are exactly what the installer planted. ` +
+          'That is a harness plant, not a widening, so it is not a finding — commit it along with the rest of the upgrade.',
+      )
+      continue
+    }
     errs.push(
       `${p}: escape hatch modified but not committed. Exempting code from a gate or raising a budget is a REVIEWED act — ` +
         'commit it so the widening appears in the PR diff under CODEOWNERS (or export HARNESS_ALLOW_SELF_EDIT=1 for a deliberate local edit).',
     )
   }
+}
+
+/**
+ * Is this dirty escape list one the installer planted and nobody has touched since?
+ * Both halves are required: untracked (so there is no prior committed version a diff
+ * could review) AND byte-identical to the installer's recorded hash (so it carries no
+ * exemption a human chose). Either alone is not enough — an untracked file a human wrote
+ * by hand is a widening with no diff, and a tracked-but-modified one is the original case.
+ * @param {string} p @param {string} status porcelain output for exactly this path
+ * @returns {boolean}
+ */
+function isUntouchedPlant(p, status) {
+  if (!status.startsWith('??')) return false
+  const recorded = /** @type {Record<string, {sha256?: string}>} */ (manifest.files ?? {})[p]
+    ?.sha256
+  if (typeof recorded !== 'string') return false
+  return createHash('sha256').update(readFileSync(p)).digest('hex') === recorded
 }
 
 // ── 3b. the same rule for the threshold-bearing configs (0.3.0) ──────────────────

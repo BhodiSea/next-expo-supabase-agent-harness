@@ -51,6 +51,11 @@ const DELIBERATE_PLANT = [
       'The gate ramps on the absent MODULE (apps/web/lib/security-headers.ts, which IS withheld), so this file is never read by an un-adopted install. It is planted so that pulling the module later with `--refresh-seeded` yields a gate that judges the headers immediately, rather than one that fails closed on a missing policy. The policy is a web response posture; it names no consumer route.',
   },
   {
+    file: 'template/base/tools/approved-tools.json',
+    reason:
+      'The registry pretool-mcp-guard.mjs reads, and the guard FAILS CLOSED without it: an absent registry is not an empty policy, it is no policy, so every mcp__ call in an updated install would be denied against a file that is not there. `update` wires the sixth hook into existing installs, so withholding its one input would ship the deny and hold back the policy. It is seeded rather than owned because the guard\'s own deny message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering; its integrity is the write-guard rule plus gate-integrity\'s escape-list dirty check. Same shape as tenancy.json above. Recorded in template/migrations.json under 0.3.0, and upgrade-lane.sh asserts the plant actually lands.',
+  },
+  {
     file: 'template/modules/eval-live/packages/eval/package.json.tmpl',
     reason:
       'The eval-live module shipped src/adapters/live.ts with NO package.json — `@app/eval` never resolved, so every install that enabled the module had a workspace package pnpm could not link. Planting completes it. There is nothing of the consumer\'s to clobber: the file has never existed in any install.',
