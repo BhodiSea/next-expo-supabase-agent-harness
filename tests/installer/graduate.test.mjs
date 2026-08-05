@@ -33,6 +33,34 @@ test('graduate: already at/above the installed version → no-op exit 0, manifes
   rmSync(dir, { recursive: true, force: true })
 })
 
+test('graduate: a RED validate is refused NAMING the gate, not as one unattributed sentence', async () => {
+  // The upgrade lane hit this dead end: graduate refused with "validate is RED" and
+  // nothing else, on a red that reproduced only in CI, so the failing gate could not be
+  // read off the CI log at all. A refusal that does not say what to fix is a refusal the
+  // reader has to reproduce by hand.
+  const dir = tempDir({ harnessVersion: installerVersion(), baseVersion: '0.0.1' })
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(
+    join(dir, 'tools/validate.mjs'),
+    ['console.log("format: OK")', 'console.log("migrations: FAIL — append-only check cannot run")', 'console.log("  - supabase/migrations/0001_init.sql was edited")', 'process.exit(1)'].join('\n'),
+  )
+  const errs = []
+  const real = console.error
+  console.error = (...a) => errs.push(a.join(' '))
+  try {
+    assert.equal(await graduate({ dir }), 1)
+  } finally {
+    console.error = real
+  }
+  const said = errs.join('\n')
+  assert.match(said, /validate is RED/)
+  assert.match(said, /migrations: FAIL/)
+  assert.match(said, /0001_init\.sql/, 'the failing gate’s detail bullets travel with it')
+  assert.ok(!said.includes('format: OK'), 'a passing step is not a finding')
+  assert.equal(JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8')).baseVersion, '0.0.1')
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test('graduate: a behind manifest but no tools/validate.mjs → exits 1 (not an installed harness)', async () => {
   // baseVersion 0.0.1 is behind any real version, so we reach the validate step — but with
   // no tools/validate.mjs the command refuses rather than spawning nothing and bumping.
