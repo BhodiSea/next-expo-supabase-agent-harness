@@ -22,7 +22,13 @@ import { refreshAgentsLockEntries } from '../../installer/lib/agents-lock.mjs'
 
 const sha = (s) => createHash('sha256').update(s).digest('hex')
 
-/** An install-shaped tree with a lock recorded over the CURRENT bytes. */
+/**
+ * An install-shaped tree with a lock recorded over the CURRENT bytes.
+ * @param {{ files?: Record<string, string>, models?: Record<string, string>,
+ *           lock?: { comment?: string, models?: Record<string, string>,
+ *                    files?: Record<string, string> } }} [opts]
+ * @returns {string} the install directory
+ */
 function fixture({ files = {}, models = {}, lock } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-lockrefresh-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
