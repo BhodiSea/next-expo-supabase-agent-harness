@@ -52,6 +52,11 @@
         "kind": "runner",
         "ref": "tests/gates/validate-runner.test.mjs",
         "note": "eslint --max-warnings 0 exits non-zero on any finding"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 29: a click handler on a bare div \u2192 jsx-a11y must FAIL the lint step",
+        "note": "the WEB half of the a11y floor, closed in 0.4.0 \u2014 and the proof exists because of how it had to be delivered. eslint.config.mjs is harness-OWNED and refreshes on `update`, while package.json and pnpm-workspace.yaml are SEEDED and the workspace-catalog merge runs only under `init`, so a NEW plugin dependency has no channel to an existing install: a static import resolved to nothing there and killed the ENTIRE lint step, not one rule. The config resolves the plugin dynamically now and omits the block when absent, which makes 'missing' and 'working' the same green. tools/check-wiring.mjs asserts it RESOLVES; this asserts it ENFORCES, on a scaffold that ships the dependency."
       }
     ],
     "provenance": [
@@ -314,6 +319,11 @@
         "kind": "fixture",
         "ref": "tests/gates/check-diff-coverage.test.mjs",
         "note": "an uncovered new src file (absent from both coverage maps) and a below-floor changed file both red naming file + metric; apps/mobile/** files are held to the jest floors, everything else to the vitest floors, and a file both runners measure merges; a missing coverage-final.json fails closed"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 27: an uncovered apps/web/lib file \u2192 diff-coverage must FAIL (the 0.4.0 web surface)",
+        "note": "the 0.4.0 widening, end-to-end on a real scaffold that already holds merged istanbul maps. Through 0.3.0 SRC_RE was `^(?:apps|packages)/[^/]+/src/`, which matched neither apps/web (app/ and lib/, no src/) nor any LAYERED package (platform/*, verticals/*) \u2014 so half the product and most of the packages were outside the per-file floors while the gate's own description claimed 'every CHANGED source file'. A fixture proves the regex; only a scaffold proves the regex, the new web unit project, COVERAGE_EXCLUDE and the two-map merge all agree. The second half is the harder assertion: apps/web/app must stay UNJUDGED, because a root the gate demands coverage for that no runner measures reports 0% with no green path, and the only edit that restores green is lowering the floors."
       }
     ],
     "duplication": [
@@ -325,6 +335,11 @@
       {
         "kind": "selftest",
         "ref": "Canary 14: a pasted token clone across two modules \u2192 duplication must FAIL"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 28: the same clone spanning apps/web \u2192 duplication must FAIL (the 0.4.0 web surface)",
+        "note": "Canary 14 pastes between two apps/mobile modules, which the pre-0.4.0 SCAN_ROOTS already reached, so it could not have caught the gap. This one crosses the boundary that was NOT scanned \u2014 packages/verticals/notes/src to apps/web/lib \u2014 which is also the likeliest real one, because that is where a vertical's server logic gets re-implemented for a Server Action. It asserts the failure NAMES the apps/web side, so a red caused by some other clone cannot stand in for it."
       }
     ],
     "i18n": [

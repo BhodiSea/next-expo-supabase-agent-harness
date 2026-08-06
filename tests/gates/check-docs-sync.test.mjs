@@ -197,21 +197,20 @@ test('RED: a deleted catalog file fails naming the owned doc; module/runner sect
   assert.ok(r.out.includes("gate 'docs-sync' has no section"), r.out)
 })
 
-test('RAMP: a baseVersion predating 0.1.0 downgrades a catalog miss to NOTE + pass; 0.1.0 manifests stay live', () => {
-  // The catalog check is ramped via rampNote(GATE, '0.1.0', …). Every install in
-  // THIS lineage starts at 0.1.0, so in practice the check is always live — but
-  // the ramp machinery itself must still be provable both ways (it is the same
-  // shared rampNote every later check will ride).
+test('a catalog miss reds on ANY vintage — the gates-catalog lockstep is unconditional', () => {
+  // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
+  // the oldest release this lineage ever tagged, so gate.mjs returned false at
+  // `base >= minVersion` for every install that has ever existed. The old test proved
+  // the NOTE path with a HYPOTHETICAL pre-lineage manifest — a path no consumer can
+  // take. Inverted: the check is unconditional, so even that manifest is held.
   const renamed = shippedCatalog.replace(/^### (\d+)\. perf-budget — /m, '### $1. perf-fudget — ')
 
-  // A hypothetical pre-lineage consumer (no baseVersion field yet — harnessVersion
-  // is the fallback): the miss surfaces as NOTEs, the gate stays green.
+  // A hypothetical pre-lineage consumer (no baseVersion field — harnessVersion is the
+  // fallback). It used to ride a NOTE; it is held now.
   const ramped = runGate(
     fixture({ agents: shippedAgents, catalog: renamed, manifest: { harnessVersion: '0.0.9', files: {} } }),
   )
-  assert.equal(ramped.code, 0, ramped.out)
-  assert.ok(ramped.out.includes('NOTE'), ramped.out)
-  assert.ok(ramped.out.includes('baseVersion'), ramped.out)
+  assert.equal(ramped.code, 1, ramped.out)
   assert.ok(ramped.out.includes("gate 'perf-budget' has no section"), ramped.out)
 
   // A first-lineage (or graduated) install is live: same injection, real red.
@@ -381,4 +380,93 @@ test('agent-roster parser: everything outside the pinned grammar FAILS — never
     assert.equal(parsed.ok, false, `${label} must fail to parse`)
     assert.ok(parsed.error.length > 0, label)
   }
+})
+
+// ---- the enforcement-tiers shape (0.4.0) ----------------------------------------
+//
+// This half of the gate shipped in 0.3.0 with NO can-fail proof, and 0.4.0 found out why
+// that matters: adding a `Gate` column to the table took the positional parser from six
+// cells to zero rows, so the file that declares every one-surface gate read as declaring
+// nothing — and the `Compensated by` liveness assertion beneath it silently stopped
+// running. A gate whose parser can be defeated by a column is a gate with a lockstep
+// nobody wrote down. It is read BY COLUMN NAME now, and these are the proofs.
+
+const TIERS_TEMPLATE = fileURLToPath(
+  new URL('../../template/base/docs/harness/enforcement-tiers.md', import.meta.url),
+)
+const shippedTiers = readFileSync(TIERS_TEMPLATE, 'utf8')
+
+const WORKFLOW_TEMPLATE = fileURLToPath(
+  new URL('../../template/base/github/workflows/quality-gate.yml', import.meta.url),
+)
+
+/**
+ * The fixture plus a tiers file, at a baseVersion where the 0.3.0 ramp is INERT.
+ * The shipped workflow comes too: half the table's compensating controls are CI JOBS
+ * (`web-e2e`), not chain steps, so a fixture without it would red every one of them and
+ * the green case could only be made to pass by weakening the assertion.
+ */
+function tiersFixture(tiers) {
+  const dir = fixture({ agents: shippedAgents, manifest: { baseVersion: '0.4.0', harnessVersion: '0.4.0' } })
+  mkdirSync(join(dir, 'docs/harness'), { recursive: true })
+  mkdirSync(join(dir, '.github/workflows'), { recursive: true })
+  cpSync(WORKFLOW_TEMPLATE, join(dir, '.github/workflows/quality-gate.yml'))
+  if (tiers !== null) writeFileSync(join(dir, 'docs/harness/enforcement-tiers.md'), tiers)
+  return dir
+}
+
+test('TIERS GREEN: the SHIPPED table parses and every compensating control is live', () => {
+  // The regression that motivated the rewrite. If this reds, the shipped table and the
+  // parser have drifted apart again — and the symptom is "declares nothing", not a diff.
+  const r = runGate(tiersFixture(shippedTiers))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /enforcement tier\(s\) declared, every compensating control live/)
+  assert.doesNotMatch(r.out, /no parseable tier rows/, r.out)
+})
+
+test('TIERS: the row count is REAL — the summary counts what the table actually declares', () => {
+  // Anti-vacuity in the other direction: a parser that finds rows but not the right ones
+  // would still print a clean summary. Pin the count to the shipped file's own data rows.
+  const expected = shippedTiers
+    .split('\n')
+    .filter((l) => /^\|/.test(l) && !/^\|\s*-+/.test(l) && !/^\|\s*Gate\s*\|/.test(l)).length
+  const r = runGate(tiersFixture(shippedTiers))
+  assert.match(r.out, new RegExp(`${String(expected)} enforcement tier\\(s\\) declared`), r.out)
+})
+
+test('TIERS RED: a table with no header row declares nothing, however many rows follow', () => {
+  const headerless = shippedTiers.replace(/^\| Gate \| Layer \|.*$/m, '| A | B | C | D | E | F |')
+  const r = runGate(tiersFixture(headerless))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /no header row carrying every required column/)
+})
+
+test('TIERS RED: a RENAMED heading unbinds the facts beneath it', () => {
+  // The exact failure the positional parser could not see: the cells are all still there,
+  // in order, and the column they belong to no longer says what it is.
+  const renamed = shippedTiers.replace('| Compensated by |', '| Mitigation |')
+  const r = runGate(tiersFixture(renamed))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /'Compensated by'/)
+})
+
+test('TIERS RED: a compensating control that is not a live step or job is not a control', () => {
+  const bogus = shippedTiers.replace(
+    /^\| `unit` \|.*$/m,
+    '| `unit` | vitest | packages | apps/web/app | because | `no-such-step` | — |',
+  )
+  const r = runGate(tiersFixture(bogus))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /no-such-step/)
+  assert.match(r.out, /A compensating control nobody runs is not a control/)
+})
+
+test('TIERS RED: an empty cell is a tier declared without one of its facts', () => {
+  const blank = shippedTiers.replace(
+    /^\| `unit` \|.*$/m,
+    '| `unit` | vitest | packages |  | because | — | — |',
+  )
+  const r = runGate(tiersFixture(blank))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /empty 'Does NOT cover' cell/)
 })

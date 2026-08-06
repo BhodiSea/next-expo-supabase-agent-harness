@@ -151,9 +151,13 @@ test('duplication: a malformed allowlist FAILS CLOSED', () => {
   assert.match(r.out, /fingerprint/)
 })
 
-test('duplication: a baseVersion predating the check downgrades a clone to a ramp NOTE (green)', () => {
-  // Ramp minimum is 0.1.0 in this lineage — only a hypothetical pre-lineage
-  // manifest rides the NOTE, but the shared rampNote path must stay provable.
+test('duplication: even a pre-lineage baseVersion is held — the check is unconditional', () => {
+  // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
+  // the oldest release this lineage ever tagged, so gate.mjs returned false at
+  // `base >= minVersion` for every install that has ever existed. This test used to
+  // prove the NOTE path with a HYPOTHETICAL pre-lineage manifest — its own comment said
+  // so — which is proof of a path no consumer can take. Inverted: the check is
+  // unconditional now, so even that manifest is held.
   const r = runReal(
     {
       'apps/mobile/src/a.ts': BLOCK('summariseAlpha'),
@@ -161,8 +165,8 @@ test('duplication: a baseVersion predating the check downgrades a clone to a ram
     },
     { manifest: JSON.stringify({ harnessVersion: '0.1.0', baseVersion: '0.0.9' }) },
   )
-  assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /NOTE.*ramp/)
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /NOTE.*ramp/, 'the ramp is gone; a NOTE here would mean it came back')
 })
 
 test('duplication: a 0.1.0 baseVersion makes the same clone turn-fatal', () => {

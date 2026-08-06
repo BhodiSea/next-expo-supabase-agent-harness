@@ -45,6 +45,7 @@ catalog:
   '@biomejs/biome': 2.5.3 # exact: formatter drift would churn the format gate
   eslint: ^9.39.4 # 9.x line: typescript-eslint 8.x peers eslint ^9
   typescript-eslint: ^8.63.0
+  eslint-plugin-jsx-a11y: ^6.10.2 # the WEB half of the a11y floor (0.4.0); react-native-a11y is the native half
   eslint-plugin-react-hooks: ^7.1.1 # includes the React Compiler rule set (merged in v6)
   eslint-plugin-react-native: ^5.0.0
   eslint-plugin-react-native-a11y: ^3.5.1

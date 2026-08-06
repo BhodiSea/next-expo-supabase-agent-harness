@@ -356,3 +356,62 @@ test('missing manifest: fails CLOSED in CI, skips LOUDLY locally', () => {
     renameSync(parked, manifest)
   }
 })
+
+// A THRESHOLD CONFIG THE HARNESS ITSELF REWROTE (0.4.0).
+//
+// The mirror of the planted-escape-list case above, found the same way — by upgrade-lane.sh
+// — and one release later. vitest.config.ts and eslint.config.mjs are harness-OWNED, so any
+// release that changes them leaves an upgraded install with both DIRTY: modified relative to
+// the consumer's last commit, by the harness, on the run that delivered the upgrade. The
+// commit-not-dirty rule then reported "threshold-bearing config modified but NOT COMMITTED"
+// about a file the consumer had never touched — a confident accusation aimed at the wrong
+// party, and a red on the upgrade itself.
+//
+// The discriminator is the manifest hash, exactly as for the plant: init/update are the only
+// writers, so bytes matching the record mean nobody has tuned them since. It must NOT weaken
+// the real case, hence both halves here.
+test('a config the INSTALLER rewrote is a NOTE; the same file hand-tuned is still RED', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'epah-gateint-refresh-'))
+  const init = spawnSync(
+    'node',
+    [CLI, 'init', '--dir', repo, '--yes', '--set', 'PROJECT_NAME=Refresh App', '--set', 'GITHUB_OWNER=o', '--set', 'SECURITY_OWNERS=@o/sec'],
+    { encoding: 'utf8' },
+  )
+  assert.equal(init.status, 0, `${init.stdout ?? ''}${init.stderr ?? ''}`)
+  const git = (...args) =>
+    spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } })
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'baseline')
+
+  const run = () => {
+    const res = spawnSync('node', ['tools/check-gate-integrity.mjs'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_ALLOW_SELF_EDIT: '' },
+    })
+    return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+  }
+
+  // Reproduce the post-update state: the file on disk is what the installer recorded, and
+  // the committed tree holds something older. Rewinding the COMMIT (not the file) is the
+  // exact shape — same bytes, same manifest hash, a diff against the consumer's last commit.
+  const vitest = join(repo, 'vitest.config.ts')
+  const shipped = readFileSync(vitest, 'utf8')
+  writeFileSync(vitest, `// an older vintage the consumer committed\n${shipped}`)
+  git('add', 'vitest.config.ts')
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'older vintage')
+  writeFileSync(vitest, shipped) // what `update` would write back
+
+  const refreshed = run()
+  assert.equal(refreshed.code, 0, `a harness refresh must not red the upgrade:\n${refreshed.out}`)
+  assert.ok(refreshed.out.includes('byte-identical to what the installer recorded'), refreshed.out)
+  assert.ok(!refreshed.out.includes('NOT COMMITTED'), refreshed.out)
+
+  // One byte of human tuning on top and the finding returns — the discriminator is the
+  // hash, not the path, so it cannot be used to launder a lowered floor through an upgrade.
+  writeFileSync(vitest, `${shipped}\n// agent lowered a floor mid-turn\n`)
+  const tuned = run()
+  assert.equal(tuned.code, 1, tuned.out)
+  assert.ok(tuned.out.includes('NOT COMMITTED'), tuned.out)
+})

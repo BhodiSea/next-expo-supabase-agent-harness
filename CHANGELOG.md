@@ -13,6 +13,119 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-06
+
+**The alarm release.** 0.3.0 shipped the clock — it made `until` mandatory and dated
+every pre-existing escape `0.4.0` — and said so plainly: *"0.3.0 ships the clock, not
+the alarm … nothing reds on a deadline here."* This is the release where those
+deadlines arrive.
+
+**BREAKING CHANGE:** an `update` to 0.4.0 can leave an install RED, and that is the
+designed outcome rather than an accident. The affected population is **installs whose
+`baseVersion` is below 0.2.0** — among released vintages, only **0.1.3**. Every 0.2.0,
+0.2.1 and 0.3.0 install meets no deadline here; those checks have been live on it all
+along, and a fresh `init` never ramped at all. Do not take a count from these notes:
+`pnpm validate 2>&1 | grep 'RAMP EXPIRED'` is the only honest answer for a given tree,
+and nine of the twelve sites are adoption seams that fire only when the surface is
+genuinely absent. `docs/runbooks/harness-upgrade.md` now carries a section per expiring
+gate, in three classes — adopt the surface, fix a real finding, or record applied
+history. **If the pile is large, upgrade one minor at a time**: each `graduate` moves
+`baseVersion` forward and every ramp at or below it goes inert, so each step shrinks the
+next. Jumping 0.1.3 → 0.4.0 is the one path that meets all twelve at once.
+
+Measured on the reference scaffold taken from v0.1.3 straight to 0.4.0 — the release's
+own proof, `scripts/ci/upgrade-lane.sh --from v0.1.3` — **six** gates red
+(`db-limits`, `gate-integrity`, `query-shapes`, `rate-limits`, `security-headers`,
+`tenancy`) and three more meet the deadline but stay silent, because a gate calls its
+ramp only when it has a finding to withhold.
+
+### Five defects the upgrade lane found, which nothing else could
+
+The lane gained `--from <tag>` and an expectation set computed from the shipped call
+sites (`scripts/ci/ramp-expectations.mjs`), replacing an assertion that reduced to
+*"every release must invent a ramp at `minVersion == itself` or fail"* — a rule nobody
+chose. Rebuilt, it caught four release-blocking defects in this release's own work:
+
+- **A new eslint plugin has no channel to an existing install.** `eslint.config.mjs` is
+  harness-**owned** and refreshes on `update`, while `package.json` and
+  `pnpm-workspace.yaml` are **seeded** and the workspace-catalog merge runs only under
+  `init`. The static `import 'eslint-plugin-jsx-a11y'` therefore resolved to nothing on
+  every upgraded install and eslint died before linting a file — not one rule lost, the
+  whole `lint` step. It is resolved dynamically now, `check-wiring.mjs` says so out loud
+  (hard at `baseVersion >= 0.4.0`, a dated NOTE below it naming the one-line fix), and
+  Canary 29 proves the rules still *fire*, because "resolves" and "enforces" are not the
+  same green.
+- **A shared module extracted from a clone shipped as an orphan.** `plant-when-absent`
+  delivered `apps/web/lib/action-outcome.ts` to existing installs whose only callers are
+  seeded Server Actions `update` must never rewrite — so `dead-code` reddened a consumer
+  for a file the harness had just handed them. Withheld.
+- **`check-rate-limits.mjs` discarded `rampNote`'s return value.** Expiry and
+  already-live are the same value (`false`), so at the deadline it printed
+  `RAMP EXPIRED` and then called `ok()` and exited 0. It shipped that way for three
+  releases and this release's notes were counting it.
+- **The `migrations` expiry had no legal sweep.** Both remedies live *inside* the
+  migration and the append-only rule reds any edit to a committed one — a red whose only
+  in-file fix is a different red.
+- **`gate-integrity` accused consumers of editing files `update` had just rewritten.**
+  `vitest.config.ts` and `eslint.config.mjs` are harness-owned, so any release that
+  changes them leaves both dirty against the consumer's last commit — and the
+  commit-not-dirty rule reported "threshold-bearing config modified but NOT COMMITTED"
+  about files they had never touched, on the run that delivered the upgrade. It now uses
+  the same manifest-hash discriminator the planted-escape-list case got in 0.3.0: bytes
+  matching the installer's record are a refresh, one byte of tuning on top is still red.
+
+### The alarm, and the machinery that computes it
+
+- **`scripts/check-ramp-ledger.mjs`** — the deadlines a release is responsible for,
+  computed rather than remembered. It reds a ramp whose `minVersion` predates this
+  lineage's oldest tag (unreachable on every install that has ever existed) and a call
+  site whose result is **discarded** (the deadline then changes nothing). Its first run
+  corrected this release's own blast radius from 18 sites to **12**: six carried
+  `minVersion` 0.1.0/0.1.2, below the v0.1.3 floor, and three surveys had called them
+  "expiring". Those six are **deleted** and their checks now run unconditionally.
+- **`tools/migrations-allow.json`** (tolerated-absent, in `ESCAPE_LISTS`) — the
+  acknowledgement for applied history, bounded three ways: it exempts a **(file, rule)
+  pair** and never a file, the migration **must already exist at the diff base** so one
+  written today cannot be exempted at all, and a **stale entry reds**.
+- **Upgrade leg B** (`--from v0.1.3`) executes a real `RAMP EXPIRED`. Leg A structurally
+  cannot: it installs the previous release, so its `baseVersion` is already at or above
+  the `minVersion` of every ramp old enough to expire, and `rampNote` returns false at
+  its first guard before reading the deadline.
+
+### The web enforcement gap, closed
+
+- **`web-unit` vitest project** over `apps/web/lib`, with six seed suites so it is not
+  vacuous. Found and fixed a live defect while writing them: Vitest 4 uses **oxc**, not
+  esbuild, so the shipped `esbuild.jsx` config key was silently ignored.
+- **`diff-coverage` `SRC_RE` was wrong twice** — it matched neither `apps/web` (which has
+  `app/` and `lib/`, no `src/`) nor any **layered** package (`platform/*`, `verticals/*`,
+  i.e. the kernel, the Supabase seam and every feature domain), while the gate described
+  itself as holding "every CHANGED source file". Widened, ramped at `minVersion 0.4.0`,
+  and Canary 27 proves both directions: `apps/web/lib` is judged and `apps/web/app`
+  deliberately is not, because a root no runner measures has no green path.
+- **`duplication`** walks the layered groups and `apps/web/{app,lib}`; the two clones
+  this exposed are extracted, not exempted (Canary 28).
+- **`jsx-a11y`** for the web half, every rule an error.
+
+### Tiers, claims, and a parser that had stopped asking
+
+- **`scripts/check-tier-coverage.mjs`** — every single-surface gate must declare its
+  surface. It found **13** undeclared tiers, not the 5 found by hand.
+- **`check-docs-sync.mjs` now reads the tiers table BY COLUMN NAME.** Its positional
+  parser answered a seven-column table with *zero rows*, so the file that declares every
+  one-surface gate read as declaring nothing — and the `Compensated by` liveness
+  assertion beneath it silently stopped running. That half had shipped in 0.3.0 with no
+  can-fail proof at all; it has six now.
+- **Five stale chain-count claims fixed**, including `docs/harness/README.md` saying
+  "21-step chain" for three releases — in a file installed into every consumer.
+  `check-claims.mjs` derives over the shipped doctrine, the runner header and the README
+  status line, so they cannot rot again.
+- **The test suite stopped checking less than CI.** `HARNESS_ALLOW_SELF_EDIT=1` — which
+  must be exported to edit the enforcement surface — leaked into every spawned hook and
+  disarmed **138** write-guard deny cases. They did not fail; they stopped asserting, and
+  the reds read as environmental noise. Sanitized at the spawn helper, with two ENV
+  HYGIENE tests that keep it fixed in both directions.
+
 ## [0.3.0] — 2026-08-05
 
 **The closed-surface release.** The governing finding is one sentence: the

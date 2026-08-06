@@ -415,6 +415,69 @@ jobs:
           fi
           rm apps/mobile/src/features/notes/canaryClone.ts apps/mobile/src/features/matrix/canaryClone.ts
           echo 'canary OK: duplication went red'
+      - name: 'Canary 28: the same clone spanning apps/web → duplication must FAIL (the 0.4.0 web surface)'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # Canary 14 pastes across two apps/mobile modules, which the pre-0.4.0 SCAN_ROOTS
+          # already reached. This one crosses the boundary that was NOT scanned: half in a
+          # package, half in apps/web/lib. Until 0.4.0 the web app was outside the clone
+          # detector entirely, so a copy-paste between a vertical and a web helper — the
+          # single most likely place for one, because that is where server logic gets
+          # re-implemented for a Server Action — was invisible.
+          clone() {
+            printf 'export function canaryWebCloneScore(rows: number[]): number {\n'
+            printf '  let total = 0\n'
+            printf '  let positives = 0\n'
+            printf '  let negatives = 0\n'
+            printf '  for (const row of rows) {\n'
+            printf '    if (row > 0) {\n'
+            printf '      total += row * 2\n'
+            printf '      positives += 1\n'
+            printf '    } else {\n'
+            printf '      total -= row * 3\n'
+            printf '      negatives += 1\n'
+            printf '    }\n'
+            printf '  }\n'
+            printf '  const mean = total / Math.max(rows.length, 1)\n'
+            printf '  const spread = Math.max(...rows) - Math.min(...rows)\n'
+            printf '  return mean + spread + total + positives - negatives\n'
+            printf '}\n'
+          }
+          clone > apps/web/lib/canary-web-clone.ts
+          clone > packages/verticals/notes/src/canary-web-clone.ts
+          if env -u GITHUB_BASE_REF node tools/check-duplication.mjs > web-dup.log 2>&1; then
+            cat web-dup.log
+            echo '::error::CANARY: duplication PASSED an identical paste between packages/verticals and apps/web/lib — the 0.4.0 web scan root is not being walked'; exit 1
+          fi
+          grep -q 'apps/web/lib/canary-web-clone.ts' web-dup.log \
+            || { cat web-dup.log; echo '::error::CANARY: duplication reddened without naming the apps/web side — it found some OTHER clone, so this proves nothing about the widened root'; exit 1; }
+          rm apps/web/lib/canary-web-clone.ts packages/verticals/notes/src/canary-web-clone.ts web-dup.log
+          echo 'canary OK: duplication reaches apps/web'
+      - name: 'Canary 29: a click handler on a bare div → jsx-a11y must FAIL the lint step'
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          # eslint.config.mjs RESOLVES eslint-plugin-jsx-a11y dynamically and omits the whole
+          # apps/web accessibility block when it is absent. It has to: the config is
+          # harness-owned and refreshes on `update`, while package.json and
+          # pnpm-workspace.yaml are seeded and the catalog merge runs only under `init` — so
+          # a static import resolved to nothing on every upgraded install and killed the
+          # ENTIRE lint step rather than losing one rule. The upgrade lane found that.
+          #
+          # The cost of that resilience is that "the plugin is missing" and "the plugin is
+          # working" now produce the same green. tools/check-wiring.mjs closes one half by
+          # asserting the plugin resolves; this closes the other, which is the half that
+          # actually matters — resolving is not enforcing. A fresh scaffold ships the
+          # dependency, so here the rules must genuinely red.
+          printf 'export function CanaryA11y() {\n  return <div onClick={() => {}}>click me</div>\n}\n' > apps/web/lib/canary-a11y.tsx
+          if pnpm exec eslint apps/web/lib/canary-a11y.tsx > a11y.log 2>&1; then
+            cat a11y.log
+            echo '::error::CANARY: eslint PASSED a click handler on a bare div. Either eslint-plugin-jsx-a11y did not resolve (the config then omits the block SILENTLY) or the apps/web files glob no longer matches — the web half of the a11y floor is not running'; exit 1
+          fi
+          grep -q 'jsx-a11y/' a11y.log \
+            || { cat a11y.log; echo '::error::CANARY: eslint reddened, but not on a jsx-a11y rule — some other rule stood in for the one being proven'; exit 1; }
+          grep -oE 'jsx-a11y/[a-z-]+' a11y.log | sort -u
+          rm apps/web/lib/canary-a11y.tsx a11y.log
+          echo 'canary OK: jsx-a11y is resolved AND enforcing on apps/web'
       - name: 'Canary 15: a committed .only → test-quality must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -579,6 +642,46 @@ jobs:
           grep -E 'MIN_CLIENT_PATCH_GRACE|new surviving mutant|change:' ratchet.log | head -n 8
           git checkout -q -- packages/api/src/skew.ts
           echo 'canary OK: unit + diff-coverage + test-quality all stayed GREEN; only the mutation ratchet caught it'
+
+      - name: 'Canary 27: an uncovered apps/web/lib file → diff-coverage must FAIL (the 0.4.0 web surface)'
+        working-directory: .selftest/mut
+        run: |
+          # Lives HERE rather than in the `canary` job because this is the one place a real
+          # scaffold already holds merged istanbul maps — the step above paid for both
+          # coverage runs, so proving the widened surface costs one `node` invocation
+          # instead of another five-minute lane.
+          #
+          # WHAT IT PROVES, and why a fixture could not. Through 0.3.0 the gate's SRC_RE was
+          # `^(?:apps|packages)/[^/]+/src/`, which missed apps/web (it has app/ and lib/, no
+          # src/) AND every layered package (platform/*, verticals/*). 0.4.0 widened it and
+          # added the apps/web/lib unit lane so the widened half has a green path. A fixture
+          # proves the regex; only a real scaffold proves the regex, the runner, the
+          # COVERAGE_EXCLUDE list and the merge all agree — and the failure mode being
+          # closed here is a file the gate DEMANDS coverage for that no runner measures,
+          # which reports 0% with no way to go green.
+          #
+          # If the first half goes green with a `NOTE — … (ramp: live from baseVersion
+          # 0.4.0 …)` line, that is not a flake: it means the web surface's ramp is dated
+          # AT or ABOVE the shipped version, so a FRESH scaffold is being ramped. A gate
+          # that is advisory on fresh installs is decoration (docs/harness/enforcement-tiers.md),
+          # and the fix is the ramp's date, never this canary.
+          printf 'export function canaryUncoveredWebHelper(n: number): number {\n  return n > 0 ? n * 2 : 0\n}\n' > apps/web/lib/canary-uncovered.ts
+          if env -u GITHUB_BASE_REF node tools/check-diff-coverage.mjs > web-cov.log 2>&1; then
+            cat web-cov.log
+            echo '::error::CANARY: diff-coverage PASSED an uncovered new apps/web/lib file. The 0.4.0 web surface is not being judged — SRC_RE, COVERAGE_EXCLUDE or the web unit project has regressed'; exit 1
+          fi
+          grep -q 'apps/web/lib/canary-uncovered.ts' web-cov.log \
+            || { cat web-cov.log; echo '::error::CANARY: diff-coverage reddened for the WRONG file — it must name the injected one'; exit 1; }
+          rm apps/web/lib/canary-uncovered.ts web-cov.log
+          # And the counterpart: app/ is a DECLARED tier (docs/harness/enforcement-tiers.md),
+          # not an oversight. RSC and Server Actions are proved by the browser lane, so the
+          # gate must NOT demand unit coverage there — a widened root with no runner has no
+          # green path, and the only edit that restores one is lowering the floors.
+          printf 'export default function CanaryPage() {\n  return null\n}\n' > apps/web/app/canary-page.tsx
+          env -u GITHUB_BASE_REF node tools/check-diff-coverage.mjs \
+            || { echo '::error::CANARY: diff-coverage judged apps/web/app, which no runner measures. That is a gate with no green path — the declared tier in enforcement-tiers.md says app/ is covered by web-e2e'; exit 1; }
+          rm apps/web/app/canary-page.tsx
+          echo 'canary OK: diff-coverage judges apps/web/lib and deliberately does not judge apps/web/app'
 
   # ---------------------------------------------------------------------------
   # The product promise on Linux: a fresh scaffold is validate-green OUT OF THE
@@ -1088,20 +1191,46 @@ jobs:
             pnpm-store-${{ runner.os }}-node22-
       - name: init at the previous release tag → update to HEAD → prove green
         run: bash scripts/ci/upgrade-lane.sh "$GITHUB_WORKSPACE/.selftest/upgrade"
+      - name: 'Leg B (0.4.0): init at the OLDEST release → update to HEAD → a ramp deadline must actually RED'
+        # THE RELEASE'S CENTRAL PROOF, and the leg above structurally cannot supply it.
+        #
+        # rampNote returns false at `base >= minVersion` BEFORE it reads the deadline. Leg
+        # A installs the PREVIOUS release, so its baseVersion is one minor below HEAD —
+        # already at or above the minVersion of every ramp old enough to be expiring. The
+        # RAMP EXPIRED branch is therefore unreachable on leg A for every release, forever.
+        # 0.4.0 is the first release where a deadline arrives at all, and without this leg
+        # its single largest behavioural change would ship with nothing able to execute it.
+        #
+        # v0.1.3 is this lineage's OLDEST tag (0.1.0-0.1.2 belong to the ancestor project),
+        # so it is the one baseline that meets 0.4.0's deadlines. The expectation set is
+        # computed, not written here: scripts/ci/ramp-expectations.mjs classifies HEAD's own
+        # shipped call sites for this baseline, so the leg stays correct as ramps come and
+        # go and cannot quietly assert nothing.
+        run: bash scripts/ci/upgrade-lane.sh "$GITHUB_WORKSPACE/.selftest/upgrade-oldest" --from v0.1.3
       - name: Upgrade report
         if: always()
         run: |
           {
-            echo '### Upgrade lane'
-            for f in update doctor validate graduate; do
-              log=".selftest/upgrade/$f.log"
-              [ -f "$log" ] || continue
-              echo "<details><summary>$f</summary>"
-              echo
-              echo '```'
-              tail -c 20000 "$log"
-              echo '```'
-              echo '</details>'
+            # Both legs. Leg B's logs are the ones a reader actually wants when the
+            # release is about expiries, and reporting only leg A would have quietly
+            # dropped them — the same shape of omission the lane itself exists to catch.
+            for leg in upgrade upgrade-oldest; do
+              [ -d ".selftest/$leg" ] || continue
+              case "$leg" in
+                upgrade) echo '### Upgrade lane — leg A (previous release)' ;;
+                *) echo '### Upgrade lane — leg B (oldest release, ramp expiry)' ;;
+              esac
+              for f in expect update doctor validate graduate; do
+                log=".selftest/$leg/$f.log"
+                [ "$f" = expect ] && log=".selftest/$leg/expect.sh"
+                [ -f "$log" ] || continue
+                echo "<details><summary>$f</summary>"
+                echo
+                echo '```'
+                tail -c 20000 "$log"
+                echo '```'
+                echo '</details>'
+              done
             done
           } >> "$GITHUB_STEP_SUMMARY"
 

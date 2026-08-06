@@ -32,7 +32,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { toPosix } from './lib/fs-walk.mjs'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import { changedFiles, firstLine } from './lib/git-diff.mjs'
 
 const GATE = 'diff-coverage'
@@ -86,7 +86,28 @@ export function parseCollectCoverageFrom(configText) {
 // packages/*/src/** to vitest (the workspace shape is BUILD-SPEC-fixed), code
 // files only, minus test files, .d.ts, and each config's own exclusions — a
 // changed file its runner does not measure must never be demanded coverage for.
-const SRC_RE = /^(?:apps|packages)\/[^/]+\/src\//
+// The NON-MOBILE measured surface (apps/mobile is intercepted by MOBILE_RE above and
+// routed to jest). Every alternative below names a shape that vitest.config.ts's
+// `coverage.include` actually measures — keep the two in lockstep; the drift test in
+// tests/gates/check-diff-coverage.test.mjs asserts it.
+//
+// 0.4.0 CORRECTED THIS REGEX TWICE OVER, and both halves were the same bug: the pattern
+// described a tree shape rather than the measured surface, so it silently exempted whatever
+// the tree did not happen to look like.
+//   (a) `packages/[^/]+/src/` matches ONE segment after `packages`, so the LAYERED groups —
+//       `packages/platform/*/src` and `packages/verticals/*/src` — never matched. The
+//       kernel, the Supabase seam, the rate limiter and every vertical were outside the
+//       per-file floor while `coverage.include` measured them and AGENTS.md claimed the
+//       floor held "every CHANGED source file under apps/*/src or packages/*/src". The root
+//       vitest config's own comment warns about exactly this ("BOTH glob depths are
+//       required … a single-depth glob would silently measure half the workspace") — for
+//       the coverage array. The gate that consumes it repeated the mistake.
+//   (b) apps/web has no `src/`; its code is `app/` and `lib/`. `lib/` is now measured (see
+//       the web-unit project) and is held here. `app/` is NOT — Server Components, Server
+//       Actions and route handlers are the browser lane's proof and remain a declared tier
+//       in docs/harness/enforcement-tiers.md, so they must not match: a file this gate
+//       demands coverage for but no runner measures reports 0% with no green path.
+const SRC_RE = /^(?:apps\/web\/lib|apps\/[^/]+\/src|packages\/[^/]+(?:\/[^/]+)?\/src)\//
 const MOBILE_RE = /^apps\/mobile\//
 const CODE_RE = /\.[cm]?[jt]sx?$/
 const NON_UNIT_RE = /[.-](?:test|spec)\.[cm]?[jt]sx?$|\.d\.ts$/
@@ -363,9 +384,31 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       `${RUNNERS[runner].map} not found but changed files in its tree need it — run \`${RUNNERS[runner].cmd}\` first. The Stop chain writes it immediately before this gate, so a missing artifact means the chain was reordered or coverage/ was deleted — never a pass.`,
     )
   }
+  // THE 0.4.0 SURFACE RAMP. This release widened SRC_RE twice — to apps/web/lib (the new
+  // web-unit project measures it) and to the LAYERED packages, packages/*/*/src, which the
+  // old single-depth pattern never matched. Both are correct, and both are findings an
+  // existing install could not have anticipated: its apps/web carries no __tests__/ (the
+  // seed suites are seedOnInitOnly, pulled deliberately), and its platform/verticals files
+  // were never held to a per-file floor before today.
+  //
+  // A FRESH scaffold is unaffected — it has no manifest vintage, so rampNote returns false
+  // and every finding below is a hard red on the tree that ships. That asymmetry is the
+  // point: projects grow into gates, fresh scaffolds start already grown.
+  const NEW_IN_040 = /^(?:apps\/web\/lib|packages\/[^/]+\/[^/]+\/src)\//
+  const preExisting = findings.filter((f) => !NEW_IN_040.test(f.file))
+  const newSurface = findings.filter((f) => NEW_IN_040.test(f.file))
+  const rampedAway =
+    newSurface.length > 0 &&
+    rampNote(
+      GATE,
+      '0.4.0',
+      `${String(newSurface.length)} finding(s) on the surface 0.4.0 added (apps/web/lib + the layered packages)`,
+      { until: '0.5.0' },
+    )
+  const reportable = rampedAway ? preExisting : findings
   failures(
     GATE,
-    findings.map((f) =>
+    reportable.map((f) =>
       f.kind === 'uncovered'
         ? `${f.file}: absent from every coverage map (vitest + jest-expo) — no unit test imports it (a new module must land with tests)`
         : `${f.file}: ${f.metric} ${String(f.actual)}% is below the ${f.runner} per-file floor ${String(f.floor)}% (${RUNNERS[f.runner].floorsIn})`,

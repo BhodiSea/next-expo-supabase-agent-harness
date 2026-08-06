@@ -154,19 +154,13 @@ if (!existsSync(CATALOG)) {
 }
 let catalogSummary = 'gates-catalog documents every step'
 if (catalogErrs.length > 0) {
-  // rampNote prints the graduation NOTE and returns true when this install's
-  // baseVersion predates the check; the findings then surface as NOTEs so the
-  // sweep is actionable without a red. Fresh installs / template tree: hard fail.
-  if (
-    rampNote(GATE, '0.1.0', 'gates-catalog lockstep (every chain step needs a catalog section)', {
-      until: '0.4.0',
-    })
-  ) {
-    for (const e of catalogErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
-    catalogSummary = `gates-catalog lockstep NOTE-only (${String(catalogErrs.length)} finding(s) withheld by the pre-0.1.0 ramp)`
-  } else {
-    errs.push(...catalogErrs)
-  }
+  // 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+  // this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+  // every install that has ever existed: the escape was never reachable and the check has
+  // always been unconditional in practice. Removing the branch changes no behaviour on any
+  // real tree — it deletes a deadline that could not arrive.
+  // SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
+  errs.push(...catalogErrs)
 }
 
 // 4b. THE TWO DOCS MUST AGREE ABOUT THE PLAN PROBE.
@@ -468,24 +462,44 @@ let tiersSummary = `${TIERS} absent (pre-0.3.0 install)`
 if (existsSync(TIERS)) {
   const tierErrs = []
   const doc = readFileSync(TIERS, 'utf8')
-  // Data rows only: a table row with six cells that is neither the header nor the
-  // `|---|` separator.
-  const rows = doc
-    .split('\n')
-    .filter((l) => /^\|/.test(l) && !/^\|\s*-+/.test(l) && !/^\|\s*Layer\s*\|/.test(l))
-    .map((l) =>
-      l
-        .split('|')
-        .slice(1, -1)
-        .map((c) => c.trim()),
-    )
-    .filter((cells) => cells.length === 6)
+  // Read the HEADER, then index by column name.
+  //
+  // This was a positional parser: it took the first six cells of every six-cell row and
+  // filtered the header by matching `| Layer |`. 0.4.0 added a leading `Gate` column — the
+  // machine-readable key scripts/check-tier-coverage.mjs reads — and the parser's answer to
+  // a seven-cell table was ZERO rows, which surfaced as "the file declares nothing" on
+  // every fresh install. Two defects in one: a table that grew a column read as a table
+  // that had been emptied, and the assertion it was supposed to make silently stopped
+  // running. A positional reader over a documented table is a lockstep nobody declared, so
+  // the fix is not "expect seven" — it is to stop counting and start naming.
+  const cellsOf = (l) =>
+    l
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim())
+  const lines = doc.split('\n').filter((l) => /^\|/.test(l) && !/^\|\s*-+/.test(l))
+  const headerLine = lines.find((l) => {
+    const c = cellsOf(l)
+    return c.includes('Layer') && c.includes('Covers') && c.includes('Compensated by')
+  })
+  const FIELDS = ['Layer', 'Covers', 'Does NOT cover', 'Why', 'Compensated by', 'Target']
+  const header = headerLine === undefined ? [] : cellsOf(headerLine)
+  const missing = FIELDS.filter((f) => !header.includes(f))
+  const rows =
+    headerLine === undefined
+      ? []
+      : lines.filter((l) => l !== headerLine).filter((l) => cellsOf(l).length === header.length)
 
-  if (rows.length === 0) {
+  if (missing.length > 0) {
     tierErrs.push(
-      `${TIERS} has no parseable tier rows — the file exists but declares nothing, which reads as "there are no tiers". Restore it from git history.`,
+      `${TIERS}: no header row carrying every required column — missing ${missing.map((f) => `'${f}'`).join(', ')}. The table is read BY COLUMN NAME, so a renamed or dropped heading silently unbinds the facts beneath it.`,
+    )
+  } else if (rows.length === 0) {
+    tierErrs.push(
+      `${TIERS} has no parseable tier rows — the file exists but declares nothing, which reads as "there are no tiers". Every data row must carry the same number of cells as the header (${String(header.length)}). Restore it from git history.`,
     )
   }
+  const colOf = new Map(FIELDS.map((f) => [f, header.indexOf(f)]))
 
   // Everything that can legitimately be named as a compensating control: a step this
   // install actually runs, or a job the shipped workflow actually defines.
@@ -505,26 +519,18 @@ if (existsSync(TIERS)) {
     }
   }
 
-  for (const cells of rows) {
-    const [layer, covers, notCovers, why, compensated, target] = cells
-    for (const [i, field] of [
-      'Layer',
-      'Covers',
-      'Does NOT cover',
-      'Why',
-      'Compensated by',
-      'Target',
-    ].entries()) {
-      if (cells[i] === '') {
+  for (const line of rows) {
+    const cells = cellsOf(line)
+    const at = (field) => cells[colOf.get(field) ?? -1] ?? ''
+    const layer = at('Layer')
+    const compensated = at('Compensated by')
+    for (const field of FIELDS) {
+      if (at(field) === '') {
         tierErrs.push(
           `${TIERS}: the '${layer || '(unnamed)'}' row has an empty '${field}' cell — a tier declared without one of its five facts is not a declaration. Use an em dash only where the field genuinely does not apply.`,
         )
       }
     }
-    void covers
-    void notCovers
-    void why
-    void target
     // `—` means "nothing stands in for this", which is a legitimate and honest answer.
     if (compensated === '' || compensated === '—' || compensated === '-') continue
     for (const name of [...compensated.matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])) {

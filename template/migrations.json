@@ -110,5 +110,27 @@
         "after": "wiring"
       }
     ]
+  },
+  "0.4.0": {
+    "//": [
+      "THE ALARM RELEASE. 0.3.0 shipped the clock and dated every pre-existing escape 0.4.0; this is the release where those deadlines arrive. It adds NO configSteps: nothing joins VALIDATE_STEPS or STOP_HOOK_STEPS. What changes is that twelve call sites already IN the chain stop withholding their findings on installs whose baseVersion predates them. An `update` to this version can therefore leave an install RED, and that is the designed outcome rather than an accident.",
+      "WHO IT REDS, exactly: every expiring ramp opens at minVersion 0.2.0 and rampNote is inert once baseVersion >= minVersion, so the affected population is baseVersion BELOW 0.2.0 \u2014 among released vintages, only 0.1.3. A 0.2.0, 0.2.1 or 0.3.0 install meets no deadline here; those checks have been live on it all along. Do not take the count from these notes: `pnpm validate 2>&1 | grep \"RAMP EXPIRED\"` is the only honest answer for a given tree, and nine of the twelve are ADOPTION seams that fire only when the surface is genuinely absent. The remediation is one path, printed by every layer: sweep, `graduate`, re-run. docs/runbooks/harness-upgrade.md now carries a section per expiring gate.",
+      "WITHHELD \u2014 apps/web/__tests__/*.test.ts, the six seed suites that make the new `web-unit` vitest project non-vacuous. They name THIS project\u2019s own lib modules, and a consumer\u2019s apps/web is theirs. diff-coverage\u2019s new apps/web/lib surface is RAMPED at minVersion 0.4.0 precisely so withholding them cannot red anyone: the gate notes the absence and expires in 0.5.0, by which time `update --refresh-seeded apps/web/__tests__/` is a documented pull.",
+      "WITHHELD \u2014 apps/web/lib/action-outcome.ts, and the reason is the one the upgrade lane exists to find. It is a NEW seeded module extracted from a clone, so plant-when-absent would deliver it to an existing install; but its only callers are the seeded Server Actions under apps/web/app/actions/, which `update` must never rewrite. The result on a real 0.2.1 install was a planted file nobody imports and a RED `dead-code` step \u2014 the harness handing a consumer an orphan and then failing them for it. Withheld, an upgraded install keeps its existing inline folds and stays green; a fresh install gets the extraction and the duplication gate that now reaches apps/web keeps it honest.",
+      "NOT WITHHELD, and it needed a code change instead \u2014 eslint-plugin-jsx-a11y. eslint.config.mjs is harness-OWNED so `update` refreshes it, but package.json and pnpm-workspace.yaml are SEEDED and mergeWorkspaceYaml runs only under `init`: a new plugin dependency has NO channel to an existing install. A static import in the refreshed config resolved to nothing and killed the entire `lint` step \u2014 not one rule lost, the whole gate. The config now resolves the plugin dynamically and omits the block when it is absent, and tools/check-wiring.mjs says so out loud: hard at baseVersion >= 0.4.0, a dated NOTE below it naming `pnpm add -Dw eslint-plugin-jsx-a11y`. Selftest Canary 29 proves the rules still fire on a fresh scaffold, so \"resolves\" cannot quietly become \"resolves and does nothing\".",
+      "TOLERATED-ABSENT \u2014 tools/migrations-allow.json, new here and deliberately not planted. It acknowledges a finding on APPLIED history that cannot be swept: the ADR reference and the lock_timeout preamble both live inside the migration, and the append-only rule reds any edit to a committed one, so the expiry would otherwise be a red whose only in-file remedy is a different red. The gate refuses an entry for a migration that is new at the diff base, so it covers history rather than authorship. Creating it is a widening: it is in ESCAPE_LISTS and must be committed.",
+      "vitest.config.ts, eslint.config.mjs, knip.json and every tools/check-*.mjs are harness-OWNED and refresh with no record needed."
+    ],
+    "seedOnInitOnly": [
+      "apps/web/__tests__/action-outcome.test.ts",
+      "apps/web/__tests__/error-copy.test.ts",
+      "apps/web/__tests__/jsx-transform.test.tsx",
+      "apps/web/__tests__/notes-model.test.ts",
+      "apps/web/__tests__/rate-limit.test.ts",
+      "apps/web/__tests__/security-headers.test.ts",
+      "apps/web/lib/action-outcome.ts",
+      "packages/platform/supabase/src/public-env.test.ts",
+      "packages/platform/supabase/src/server-env.test.ts"
+    ]
   }
 }

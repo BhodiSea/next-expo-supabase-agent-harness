@@ -39,6 +39,13 @@ const STEPS = [
   // The frozen CI floor still mirrors harness.config.mjs — a locally weakened config
   // cannot weaken CI, but only if the two are in lockstep.
   ['floor-sync', ['scripts/generate-floor.mjs', '--check']],
+  // A ramp whose minVersion predates the lineage's oldest release can never fire, and the
+  // deadlines a release is responsible for are COMPUTED here rather than typed into a
+  // changelog. Six never-armed ramps shipped for three releases before anything counted.
+  ['ramp-ledger', ['scripts/check-ramp-ledger.mjs']],
+  // Every one-surface gate declares its surface in enforcement-tiers.md. Five layers were
+  // undeclared when this first ran — the state that file's opening line calls illegitimate.
+  ['tier-coverage', ['scripts/check-tier-coverage.mjs']],
   // The harness holds itself to the cognitive-complexity bar it reds consumers for.
   ['complexity', ['scripts/check-complexity-ratchet.mjs']],
   // Every shipped module parses and every shipped JSON is valid — including .tmpl files,

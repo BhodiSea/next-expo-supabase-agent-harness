@@ -477,6 +477,20 @@ if (hasGit && present.length > 0 && process.env.HARNESS_ALLOW_SELF_EDIT !== '1')
  */
 function isUntouchedPlant(p, status) {
   if (!status.startsWith('??')) return false
+  return matchesRecordedHash(p)
+}
+
+/**
+ * Byte-identical to what the installer recorded for this path in the manifest.
+ *
+ * The manifest is rewritten by `init`/`update` and by nothing else, so a match means the
+ * bytes on disk are the ones the HARNESS last wrote — no human has tuned them since. That
+ * is the fact both dirty-file rules actually turn on, in opposite directions: an escape
+ * list matching its record carries no exemption anybody chose, and a threshold config
+ * matching its record carries no threshold anybody moved.
+ * @param {string} p @returns {boolean}
+ */
+function matchesRecordedHash(p) {
   const recorded = /** @type {Record<string, {sha256?: string}>} */ (manifest.files ?? {})[p]
     ?.sha256
   if (typeof recorded !== 'string') return false
@@ -497,6 +511,19 @@ if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDI
   const dirty = []
   for (const p of configCommitPaths) {
     if (!git(`status --porcelain -- ${p}`)) continue
+    // A file `update` JUST REWROTE is not a widening — it is the upgrade, and the consumer
+    // has not touched it. vitest.config.ts and eslint.config.mjs are harness-OWNED, so any
+    // release that changes them leaves this rule accusing the install of "modifying" a file
+    // the harness modified, on the very run that delivered it. Found by the upgrade lane,
+    // and it is the same shape as the escape-list plant discriminator above: the manifest is
+    // written by init/update alone, so bytes matching the recorded hash mean nobody has
+    // tuned them since. A hand-tuned config no longer matches and keeps its finding.
+    if (matchesRecordedHash(p)) {
+      console.log(
+        `${GATE}: NOTE — ${p} differs from the last commit but is byte-identical to what the installer recorded, so it is a harness refresh rather than a tuned threshold. Commit it along with the rest of the upgrade.`,
+      )
+      continue
+    }
     dirty.push(
       `${p}: threshold-bearing config modified but NOT COMMITTED. This file carries numbers the gates judge against (coverage floors, the complexity ceiling, the architecture rules, the strictness surface) — lowering one turns a red into a green with no other trace. Raising a threshold is legitimate and stays green forever once REVIEWED: commit the change so it lands in the PR diff under CODEOWNERS (or export HARNESS_ALLOW_SELF_EDIT=1 for a deliberate local edit).`,
     )

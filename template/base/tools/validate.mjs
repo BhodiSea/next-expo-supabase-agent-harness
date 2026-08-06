@@ -10,7 +10,7 @@
 //   and FAILS CLOSED if it is missing or corrupt (a validate that cannot read its floor
 //   must not silently fall back to a weakened config).
 // --report-all (Stop hook): run EVERY step instead of stopping at the first failure, so
-//   an agent sees all reds at once — with ~21 gates and a per-turn block budget, serial
+//   an agent sees all reds at once — with ~31 gates and a per-turn block budget, serial
 //   one-red-per-turn discovery would exhaust the budget before the chain is green.
 // --list: print the resolved steps without running them.
 // SOURCE: docs/harness/README.md (the Stop gate defines done; CI floor) [corpus: harness/doctrine]

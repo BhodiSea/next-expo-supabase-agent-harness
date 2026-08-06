@@ -1,13 +1,19 @@
 import { defineConfig } from 'vitest/config'
 
-// Root Vitest config — the ONLY vitest config (BUILD-SPEC §Vitest). Two projects:
+// Root Vitest config (BUILD-SPEC §Vitest). Three projects:
 //   unit-node: packages/** (contracts, api, design-tokens, platform/*, verticals/*)
 //              + an explicit FILE LIST of pure apps/mobile modules, plain node env.
-//              apps/web is NOT in it — the include globs are packages/*/src/**,
-//              packages/*/*/src/** and that file list, and nothing else. That is a
-//              declared enforcement TIER, not an oversight: see
-//              docs/harness/enforcement-tiers.md for its compensating control and the
-//              release it closes in. (This header claimed apps/web coverage until 0.3.0.)
+//   web-unit:  apps/web/__tests__/** — declared by REFERENCE to apps/web/vitest.config.ts
+//              rather than inlined here, and that is not a style choice: the web project
+//              needs an `esbuild.jsx` override (tsconfig sets `jsx: "preserve"` because
+//              Next must receive untransformed JSX, so without it esbuild hands raw JSX
+//              to node and every .tsx suite dies at import). `esbuild` sits at the TOP
+//              level of a config object, outside `test`, so it cannot be expressed by an
+//              inline project entry. Referencing the file keeps one config for `pnpm --filter web test`
+//              and for `pnpm test`, which is what stops the two from drifting.
+//              0.4.0 closes the enforcement tier this project's absence used to declare;
+//              see docs/harness/enforcement-tiers.md for what is still tiered (apps/web's
+//              app/ directory, whose compensating control is the web-e2e browser lane).
 //   rls:       tests/rls/** — the isolation suite. It self-skips politely unless
 //              RLS_SUITE_READY=1, which only `node tests/rls/run-rls.mjs` sets after
 //              fresh-applying migrations to a real Postgres (and which FAILS CLOSED
@@ -37,6 +43,42 @@ const COVERAGE_EXCLUDE = [
   'packages/platform/supabase/src/access-token.ts',
   'packages/platform/supabase/src/database.types.ts',
   'packages/design-tokens/src/generated/**',
+  // A GENERATOR INPUT, not application code (0.4.0). The query probes exist to be executed
+  // by tools/gen-query-shapes.mjs through the harness-owned recording port — that run is
+  // what writes tools/generated/query-shapes.json, and the `contracts` gate regen-diffs it
+  // byte-for-byte. A unit test that called a probe would assert the probe calls the DAL,
+  // which the recording already proves; the file is measured by the mechanism that owns it.
+  // Named here (rather than left to fail the per-file floor) because 0.4.0 corrected
+  // check-diff-coverage.mjs's SRC_RE to actually reach packages/verticals/*/src.
+  'packages/verticals/*/src/data/query-probes.ts',
+  // The two DESIGN-SYSTEM packages (0.4.0). Neither runner measures them and neither
+  // should: `design-system-native` is NativeWind/RN components that only render under
+  // jest-expo — whose `collectCoverageFrom` is rooted at apps/mobile and so never
+  // attributes a package file — and `design-system` is web/Radix components whose honest
+  // proof is a real browser. The mutation ratchet already excludes both for the matching
+  // reason ("mutating React rendering yields survivors that are style, not behaviour").
+  //
+  // The compensating controls are real and run: the `styleguide` gate regen-diffs the token
+  // source and computes WCAG contrast fail-closed, the jest-expo RNTL suites render the
+  // native primitives through the screens (primitives-a11y, the states sweep), and the
+  // web-e2e lane sweeps the web primitives with axe in a browser. Declared as a tier in
+  // docs/harness/enforcement-tiers.md — 0.4.0 corrected SRC_RE to reach these paths, which
+  // is what made an undeclared tier visible.
+  'packages/design-system/src/**',
+  'packages/design-system-native/src/**',
+  // apps/web's request-bound surface (0.4.0). Same rule as the Supabase factories above:
+  // these modules exist to touch something a unit test must not — Next's request-scoped
+  // `cookies()`, the live database, the next-safe-action builder, the rate-limit backend.
+  // A unit test that reached them would have to mock the request, and a mocked request
+  // proves the mock. The browser lane (apps/web/e2e, playwright + axe) exercises them for
+  // real; tools/check-diff-coverage.mjs parses THIS array, so the gate and the runner
+  // cannot disagree about what is measured.
+  'apps/web/lib/supabase/client.ts',
+  'apps/web/lib/supabase/server.ts',
+  'apps/web/lib/auth/session.ts',
+  'apps/web/lib/safe-action.ts',
+  'apps/web/lib/rate-limit-runtime.ts',
+  'apps/web/lib/app-data/notes.ts',
 ]
 
 // Per-file coverage floors — deliberately BELOW the aggregate thresholds: their
@@ -76,6 +118,13 @@ export default defineConfig({
       include: [
         'packages/*/src/**',
         'packages/*/*/src/**',
+        // apps/web's POLICY-AND-FOLD layer (0.4.0), measured by the web-unit project.
+        // `lib/**` only, never `app/**`: the App Router directory is Server Components,
+        // Server Actions and route handlers, whose honest proof is the browser lane —
+        // including it here would report eighteen files at 0% and the only edit that
+        // restored a green aggregate would be lowering the floors, which is the harness
+        // reward-hacking its own bar. That remains a DECLARED tier.
+        'apps/web/lib/**',
         'apps/mobile/src/i18n/**',
         'apps/mobile/src/routes.ts',
         'apps/mobile/src/lib/kv.ts',
@@ -142,6 +191,11 @@ export default defineConfig({
           ],
         },
       },
+      // The web half of the unit floor. A PATH, not an inline object — see the header:
+      // apps/web/vitest.config.ts carries a root-level `esbuild.jsx` override that an
+      // inline `test:` entry has no way to express, and referencing the file is what keeps
+      // `pnpm test` and `pnpm --filter web test` running the same project.
+      './apps/web/vitest.config.ts',
       {
         test: {
           name: 'rls',

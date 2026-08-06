@@ -39,12 +39,37 @@ before(() => {
   writeFileSync(join(proj, 'supabase/migrations/0000_init.sql'), '-- existing migration\n')
 })
 
+/**
+ * The ambient environment a hook must NOT inherit from whoever ran the tests.
+ *
+ * HARNESS_ALLOW_SELF_EDIT=1 is the documented human escape hatch: every write rule honours
+ * it and returns no deny. It is also how you work ON this repository — editing the
+ * enforcement surface requires it exported — so a maintainer running the suite had it set,
+ * and `{ ...process.env }` handed it to all 138 deny cases. They did not fail; they
+ * PASSED THROUGH, asserting nothing, and the suite reported 138 reds that read as
+ * environmental noise. Worse than either: it checks LESS locally than in CI, so the first
+ * honest run is the one on the PR.
+ *
+ * Deleted, not set to '' — the guards test for the literal '1', but an inherited variable
+ * is the kind of thing a later check might merely test for PRESENCE of. Same reasoning, and
+ * the same defect, as scripts/ci/upgrade-lane.sh's script-wide unset.
+ *
+ * Per-case `env` is applied AFTER, so the cases that deliberately exercise the hatch
+ * (SELF_EDIT) still get it — the escape stays proven, it just stops being ambient.
+ */
+const LEAKY = ['HARNESS_ALLOW_SELF_EDIT', 'HARNESS_REQUIRE_TOOLCHAINS', 'GITHUB_BASE_REF', 'CI']
+function cleanEnv() {
+  const e = { ...process.env }
+  for (const k of LEAKY) delete e[k]
+  return e
+}
+
 function runHook(name, input, { env = {}, cwd = proj } = {}) {
   const res = spawnSync('node', [join(proj, '.claude/hooks', name)], {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: proj, ...env },
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: proj, ...env },
   })
   return { code: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' }
 }
@@ -91,7 +116,9 @@ test('guards fail CLOSED when guard-rules.mjs cannot load (removed module)', () 
         tool_input: { command: 'echo hi', file_path: 'x.ts', content: 'x' },
       }),
       encoding: 'utf8',
-      env: { ...process.env, CLAUDE_PROJECT_DIR: broken },
+      // Sanitized for the same reason runHook is: the escape hatch must not be able to
+      // turn "cannot read my rules" into an approval by accident of who ran the tests.
+      env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: broken },
     })
     assert.equal(res.status, 2, `${hook} must fail closed when guard-rules is missing`)
     assert.match(res.stderr ?? '', /guard-rules|failing closed/i)
@@ -947,7 +974,7 @@ test('mcp-guard fails CLOSED on malformed stdin and on unloadable rules', () => 
   const res = spawnSync('node', [join(broken, '.claude/hooks/pretool-mcp-guard.mjs')], {
     input: JSON.stringify({ tool_name: 'mcp__wide__list_tables', tool_input: {} }),
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PROJECT_DIR: broken },
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: broken },
   })
   assert.equal(res.status, 2, 'a guard that cannot read its rules approves nothing')
 })
@@ -1353,4 +1380,49 @@ test('write-guard: an ordinary file is still approved (the resolver must not ove
     },
   })
   assert.ok(!denied(r), `ordinary source writes must still pass: ${r.stdout} ${r.stderr}`)
+})
+
+// ── the suite's own environment (0.4.0) ──────────────────────────────────────────
+//
+// THE DEFECT THIS CLOSES. Every deny case above spawns a hook, and the spawn used to
+// inherit the parent environment wholesale. HARNESS_ALLOW_SELF_EDIT=1 is the documented
+// human escape hatch that makes every write rule return no deny — and it is also how you
+// work ON this repository, since editing the enforcement surface requires it exported. So a
+// maintainer's own session silently disarmed 138 assertions: they did not detect a broken
+// guard, they stopped asking. The suite checked LESS locally than in CI, which is the exact
+// shape of the porosity scripts/ci/upgrade-lane.sh unsets script-wide for.
+//
+// Sanitizing runHook fixes it once. These two make it stay fixed, because the failure is
+// invisible by construction: a leaked hatch produces a suite that passes fewer things, and
+// nothing about "fewer" looks different from "fine".
+const HATCH = 'HARNESS_ALLOW_SELF_EDIT'
+const PROTECTED_WRITE = { tool_input: { command: 'echo {} > tools/validate.floor.json' } }
+
+test('ENV HYGIENE: a deny still denies with the escape hatch set AMBIENTLY', () => {
+  // The regression test proper. It sets the hatch in this process's own environment —
+  // exactly the maintainer's situation — and asserts a known-protected write is still
+  // refused. It can only pass while runHook keeps stripping it.
+  const prior = process.env[HATCH]
+  process.env[HATCH] = '1'
+  try {
+    const r = runHook('pretool-bash-guard.mjs', PROTECTED_WRITE)
+    assert.ok(
+      denied(r),
+      `an ambient ${HATCH} reached the hook and disarmed it — runHook must strip it, or every deny case in this file asserts nothing:\n${r.stdout}${r.stderr}`,
+    )
+  } finally {
+    if (prior === undefined) delete process.env[HATCH]
+    else process.env[HATCH] = prior
+  }
+})
+
+test('ENV HYGIENE: the escape hatch still WORKS when a case passes it deliberately', () => {
+  // The other direction, and the reason the fix is "strip the ambient value" rather than
+  // "ban the variable": the hatch is a real, documented behaviour with real callers (the
+  // canary CI lane sets it). Stripping it from the baseline must not delete its proof.
+  const r = runHook('pretool-bash-guard.mjs', PROTECTED_WRITE, { env: SELF_EDIT })
+  assert.ok(
+    !denied(r),
+    `${HATCH}=1 passed explicitly must still open the guard:\n${r.stdout}${r.stderr}`,
+  )
 })

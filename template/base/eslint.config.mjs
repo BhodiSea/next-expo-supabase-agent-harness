@@ -24,6 +24,28 @@ import localRules from './tools/eslint-rules/index.mjs'
 const allRulesError = (prefix, plugin) =>
   Object.fromEntries(Object.keys(plugin.rules).map((name) => [`${prefix}/${name}`, 'error']))
 
+// RESOLVED, NOT IMPORTED — and the difference is a broken `lint` step on every upgraded
+// install. This file is harness-OWNED, so `update` refreshes it; `package.json` and
+// `pnpm-workspace.yaml` are SEEDED, and `mergeWorkspaceYaml` runs only under `init`. So a
+// new plugin dependency has no channel to an existing install at all: a static
+// `import 'eslint-plugin-jsx-a11y'` in the refreshed config resolves to nothing and eslint
+// dies before it lints a single file — not one rule lost, the whole step. The upgrade lane
+// caught it; nothing else could have, because a fresh scaffold always has the dependency.
+//
+// Absent, the block below is omitted. That is a real loss, so it must not be a silent one:
+// tools/check-wiring.mjs asserts the plugin RESOLVES, hard on any install whose baseVersion
+// is 0.4.0 or later (where it always shipped) and as a dated ramp NOTE below that, naming
+// the one-line `pnpm add -Dw eslint-plugin-jsx-a11y` that closes it. Selftest Canary 29
+// proves the rules actually fire on a fresh scaffold, so "resolved" cannot quietly become
+// "resolved and doing nothing".
+//
+// Below the imports on purpose: `import` declarations hoist, so a top-level await placed
+// above them still runs after every static import — the reading order would just be a lie.
+const jsxA11y = await import('eslint-plugin-jsx-a11y').then(
+  (m) => m.default ?? m,
+  () => null,
+)
+
 export default tseslint.config(
   {
     // Build outputs, generated code, and non-app surfaces owned by other gates.
@@ -114,6 +136,33 @@ export default tseslint.config(
       'no-console': 'error',
     },
   },
+  // Spread, not a bare object: on an install that predates the dependency this contributes
+  // no config block at all rather than a block with an undefined plugin, which eslint
+  // rejects with a stack trace instead of a finding.
+  ...(jsxA11y === null
+    ? []
+    : [
+        {
+          // Next app: jsx-a11y, every rule fatal — the WEB half of the accessibility floor, and
+          // the enforcement-tier row that recorded its absence is what 0.4.0 closes. It is the
+          // exact mirror of the react-native-a11y block above, derived from the plugin's own rule
+          // table for the same reason: a plugin upgrade arms new rules automatically.
+          //
+          // STATIC ONLY, and that division is deliberate rather than a limitation. jsx-a11y reads
+          // source — a missing label, a click handler on a div, an aria attribute that is not
+          // valid for its role — none of which needs a browser and all of which is cheapest to
+          // catch at agent time. What it CANNOT do is compute painted contrast, follow focus order
+          // through a real layout, or hear what a screen reader announces; that is the axe sweep in
+          // the web-e2e lane (apps/web/e2e, @axe-core/playwright). Neither half subsumes the other,
+          // and the lane is path-filtered, so a static floor that runs on every turn is the half
+          // that actually bounds an agent's output.
+          files: ['apps/web/**/*.ts', 'apps/web/**/*.tsx'],
+          plugins: { 'jsx-a11y': jsxA11y },
+          rules: {
+            ...allRulesError('jsx-a11y', jsxA11y),
+          },
+        },
+      ]),
   {
     // The log seam itself: the one module that may touch the console sink.
     files: ['apps/mobile/src/lib/log.ts'],

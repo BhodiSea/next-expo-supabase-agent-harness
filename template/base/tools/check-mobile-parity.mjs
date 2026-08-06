@@ -25,26 +25,16 @@
 // build-generated — a gate that reds on a stale artifact beats a graph that regenerates it).
 // SOURCE: docs/harness/gates-catalog.md (parity gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
-import process from 'node:process'
-import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'parity'
 const INVENTORY = 'tools/generated/action-inventory.json'
 const PARITY = 'PARITY.md'
-// The version the two-way closure went live in. rampNote() returns true (NOTE-only) for an
-// install whose baseVersion predates this — so parity never ambushes a project that installed
-// before it existed. No manifest (template tree, gate fixtures) → false → live/strict.
-const MIN_VERSION = '0.1.2'
-
 // `namespace.action`: lowercase-kebab namespace, camel-ish action, DIGITS ADMITTED in both.
 const ACTION_RE = /^[a-z][a-z0-9-]*\.[A-Za-z][A-Za-z0-9]*$/
 // The exemption markers a surface cell may hold instead of a screen path. Em/en dash, plain
 // hyphen, or n/a — a cell saying "this action is deliberately not surfaced here".
 const EXEMPT = new Set(['—', '–', '-', 'n/a', 'N/A'])
-
-// CHECK_MOBILE_PARITY_STRICT=1 forces the closure live even on a pre-ramp install (a consumer
-// opting in early). Short-circuited so rampNote's NOTE side effect never fires under it.
-const forceStrict = process.env.CHECK_MOBILE_PARITY_STRICT === '1'
 
 // ---- 1. the committed action inventory (the SHAPE the ledger must mirror) ----
 if (!existsSync(INVENTORY)) {
@@ -205,19 +195,13 @@ if (!existsSync(PARITY)) {
   }
 }
 
-// ---- 3. settle: ramp-gate the findings, then the hard verdict ----
-if (
-  errs.length > 0 &&
-  !forceStrict &&
-  rampNote(GATE, MIN_VERSION, `${errs.length} parity finding(s) (action↔${PARITY} closure)`, {
-    until: '0.4.0',
-  })
-) {
-  ok(
-    GATE,
-    `${errs.length} finding(s) held as a ramp NOTE (baseVersion < ${MIN_VERSION}); set CHECK_MOBILE_PARITY_STRICT=1 to enforce now`,
-  )
-}
+// ---- 3. settle: the hard verdict ----
+// 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+// this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+// every install that has ever existed: the escape was never reachable and the check has
+// always been unconditional in practice. Removing the branch changes no behaviour on any
+// real tree — it deletes a deadline that could not arrive.
+// SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
 failures(
   GATE,
   errs,

@@ -77,6 +77,16 @@ const canaryNumbers = new Set(
 const catalogPath = new URL('../template/base/docs/harness/gates-catalog.md', import.meta.url)
 const catalogText = existsSync(catalogPath) ? readFileSync(catalogPath, 'utf8') : ''
 
+// The SHIPPED doctrine and the runner's own header. Both state the chain length in prose a
+// consumer reads, and until 0.4.0 both said "21" while the chain was 31 — for three
+// releases, in files installed into every project. Nothing looked: this script scanned the
+// factory's README/CHANGELOG and the gates-catalog opener, and check-docs-sync.mjs covers
+// AGENTS.md's sentence and the catalog SECTIONS. The gap was the doctrine itself.
+const doctrinePath = new URL('../template/base/docs/harness/README.md', import.meta.url)
+const doctrineText = existsSync(doctrinePath) ? readFileSync(doctrinePath, 'utf8') : ''
+const runnerPath = new URL('../template/base/tools/validate.mjs', import.meta.url)
+const runnerText = existsSync(runnerPath) ? readFileSync(runnerPath, 'utf8') : ''
+
 const truth = {
   chainSteps: VALIDATE_STEPS.length,
   canarySteps: injections === null ? null : Object.keys(injections.steps).length,
@@ -86,12 +96,49 @@ const truth = {
 
 const problems = []
 
+// The status line. It read "pre-release (0.1.x)" at version 0.3.0 — the first thing a
+// reader sees, three minors stale, and derivable in one line.
+//
+// Read package.json only when there is a status line to judge, and guard the read. Every
+// other input above is `existsSync`-guarded for the same reason: this script takes no
+// positional overrides, so its own fixture tests run a byte-identical COPY inside a
+// mirrored tree, and an unguarded read of a file the fixture does not model does not fail
+// the claim — it CRASHES the script, which reads as six unrelated red tests.
+const pkgPath = new URL('../package.json', import.meta.url)
+for (const [, claimed] of readme.matchAll(/\*\*Status: pre-release \((\d+\.\d+)\.x\)/g)) {
+  if (!existsSync(pkgPath)) {
+    problems.push(
+      `README claims "pre-release (${claimed}.x)" but there is no package.json to check it against — an unverifiable claim is not a passing one`,
+    )
+    continue
+  }
+  const pkgVersion = JSON.parse(readFileSync(pkgPath, 'utf8')).version
+  const majorMinor = pkgVersion.split('.').slice(0, 2).join('.')
+  if (claimed !== majorMinor) {
+    problems.push(
+      `README's status line says "pre-release (${claimed}.x)" but package.json is ${pkgVersion} — the first line a reader trusts`,
+    )
+  }
+}
+
 // Both new derivations, judged the same way as every claim above them.
 for (const [, n] of readme.matchAll(/(\d+) (?:executed |can-fail )?canar(?:y|ies)\b/gi)) {
   if (Number(n) !== truth.canaryLegs) {
     problems.push(
       `README claims ${n} canaries but the selftest matrix (plus its scripts/ci helpers) declares ${String(truth.canaryLegs)} numbered "Canary <n>:" legs — the workflow is the source of truth, because it is what actually runs`,
     )
+  }
+}
+for (const [file, text] of [
+  ['template/base/docs/harness/README.md', doctrineText],
+  ['template/base/tools/validate.mjs', runnerText],
+]) {
+  for (const [, n] of text.matchAll(/~?(\d+)[ -](?:step|canonical steps|gates)\b/g)) {
+    if (Number(n) !== truth.chainSteps) {
+      problems.push(
+        `${file} claims a ${n}-step chain but VALIDATE_STEPS has ${String(truth.chainSteps)} — this file SHIPS into every consumer, so a stale count there is a wrong number in every installed project`,
+      )
+    }
   }
 }
 for (const [, n] of catalogText.matchAll(/(\d+)-step `VALIDATE_STEPS` chain/g)) {

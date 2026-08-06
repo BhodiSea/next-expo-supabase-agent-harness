@@ -45,6 +45,13 @@ export const ESCAPE_LISTS = [
   // which is the same act as widening anything above.
   'tools/retrofit-accept.json', // accepting a retrofit config conflict
   'tools/secret-scan-allow.json', // allowing a secret-shaped string past the scanner
+  // 0.4.0, same tolerated-absent shape. Acknowledging that an APPLIED migration cannot be
+  // swept: the ADR reference and the lock_timeout preamble both live inside the file, and
+  // the append-only rule reds any edit to a committed one, so history has no in-file
+  // remedy. The gate refuses an entry for a migration that is new at the diff base, which
+  // is what keeps this an acknowledgement of the past rather than a way to write around
+  // the rule — but the entry itself is still a widening, and belongs in a reviewed commit.
+  'tools/migrations-allow.json',
 ]
 
 // The threshold-bearing configs (0.3.0). Judged by COMMIT, never by hash: raising a

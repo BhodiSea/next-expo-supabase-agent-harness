@@ -10,55 +10,22 @@
 // SOURCE: docs/runbooks/harness-upgrade.md (ramps expire)
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
+// The scanner moved to scripts/lib/ramp-sites.mjs in 0.4.0 so three consumers share ONE
+// implementation: this suite, scripts/check-ramp-ledger.mjs (the factory closure) and the
+// upgrade lane, which derives the NOTEs a given baseline should produce. A second copy here
+// would be a clone of the thing that computes the release's headline number.
+import { shippedRampSites, TOOLS_DIR } from '../../scripts/lib/ramp-sites.mjs'
 
-const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
-const GATE_LIB = pathToFileURL(join(TOOLS, 'lib/gate.mjs')).href
-
-// The argument text of every `rampNote(` call in `src`, by balanced-paren scan.
-// Deliberately not a regex: several call sites span five lines and carry nested
-// template literals with their own parentheses.
-/** @param {string} src @returns {string[]} */
-function rampNoteCalls(src) {
-  const calls = []
-  const needle = 'rampNote('
-  let from = 0
-  for (;;) {
-    const at = src.indexOf(needle, from)
-    if (at === -1) return calls
-    from = at + needle.length
-    // A prose mention inside a comment reads identically to a call, and the gate
-    // scripts explain their own ramps at length. Judge by the line prefix: no real
-    // call site is preceded by `//` or a block-comment `*` on its own line.
-    const line = src.slice(src.lastIndexOf('\n', at) + 1, at)
-    if (line.includes('//') || /^\s*\*/.test(line)) continue
-    let depth = 1
-    let i = from
-    while (i < src.length && depth > 0) {
-      const c = src[i]
-      if (c === '(') depth += 1
-      else if (c === ')') depth -= 1
-      i += 1
-    }
-    calls.push(src.slice(from, i - 1))
-  }
-}
+const GATE_LIB = pathToFileURL(join(TOOLS_DIR, 'lib/gate.mjs')).href
 
 /** @returns {Array<[string, string]>} [file, argText] for every shipped call site */
 function shippedCallSites() {
-  /** @type {Array<[string, string]>} */
-  const out = []
-  for (const f of readdirSync(TOOLS)) {
-    if (!f.endsWith('.mjs')) continue
-    const src = readFileSync(join(TOOLS, f), 'utf8')
-    if (!src.includes('rampNote(')) continue
-    for (const args of rampNoteCalls(src)) out.push([f, args])
-  }
-  return out
+  return shippedRampSites().map((s) => [s.file, s.args])
 }
 
 test('every shipped rampNote() call site carries an `until` deadline', () => {

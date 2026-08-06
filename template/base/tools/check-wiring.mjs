@@ -273,6 +273,43 @@ if (codeownersPath === undefined) {
 
 for (const n of notes) console.log(`${GATE}: NOTE — ${n}`)
 
+// ── the web a11y plugin RESOLVES (0.4.0) ─────────────────────────────────────────
+//
+// eslint.config.mjs is harness-OWNED and resolves eslint-plugin-jsx-a11y dynamically,
+// omitting the whole a11y block when it is absent — because a static import would kill the
+// entire `lint` step rather than lose one rule. That resilience is correct and it is also
+// exactly how an enforcement layer disappears quietly, so this is the half that says so.
+//
+// The dependency has NO channel to an existing install: package.json and pnpm-workspace.yaml
+// are seeded, and the workspace-catalog merge runs only under `init`. Hence the ramp shape —
+// hard on any install whose baseVersion is 0.4.0 or later (it shipped with the plugin, so
+// absence is a removal), a dated NOTE below that (nothing the harness did put it there, and
+// the remedy is one command the consumer runs).
+// Judged by DECLARATION in package.json, not by whether the specifier resolves right now.
+// `await import()` was the obvious spelling and it is the wrong question: it also answers
+// false in a tree where nobody has run `pnpm install` yet, so the gate would report a
+// missing a11y floor to someone whose only problem is an empty node_modules — a confident,
+// misleading finding, and one that reddened this gate's own fixtures. The dependency being
+// DECLARED is exactly the fact an upgraded install lacks and a fresh one has.
+const A11Y_PLUGIN = 'eslint-plugin-jsx-a11y'
+if (existsSync('apps/web') && existsSync('eslint.config.mjs') && existsSync('package.json')) {
+  let declared = false
+  try {
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+    declared = A11Y_PLUGIN in { ...pkg.dependencies, ...pkg.devDependencies }
+  } catch {
+    declared = false // an unreadable package.json is another gate's finding, not a claim here
+  }
+  if (!declared) {
+    const detail = `${A11Y_PLUGIN} is not a declared dependency, so eslint.config.mjs omits the apps/web accessibility block entirely — the web half of the a11y floor is not running. Add it: \`pnpm add -Dw ${A11Y_PLUGIN}\` (and put the version in the pnpm-workspace.yaml catalog, like every other external pin). See docs/harness/enforcement-tiers.md (\`lint\`).`
+    if (rampNote(GATE, '0.4.0', 'the web a11y lint plugin', { until: '0.5.0' })) {
+      console.log(`${GATE}: NOTE — (ramp) ${detail}`)
+    } else {
+      errs.push(detail)
+    }
+  }
+}
+
 // The whole gate is ramped: an install upgrading into 0.3.0 may legitimately have a
 // CODEOWNERS file predating half these paths, or a posture a retrofit deliberately kept.
 // It gets a release to converge; a fresh scaffold has no legacy and is covered from day
