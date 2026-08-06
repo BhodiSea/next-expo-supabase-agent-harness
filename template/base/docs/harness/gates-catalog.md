@@ -546,6 +546,20 @@ migration; follow `docs/runbooks/expand-contract.md` for destructive phases.
 **Anti-vacuity:** append a comment to an existing migration file (editor) → FAIL
 append-only; add `DROP TABLE notes;` in a new migration without an ADR line → FAIL.
 
+**The one escape, and why it exists (0.4.0).** Two rules — the ADR requirement on
+authorization-destructive DDL and the `SET lock_timeout` preamble on ACCESS EXCLUSIVE —
+were added in 0.2.0 and ramped, because history written before them could not satisfy
+them. Both remedies live INSIDE the migration, and rule 1 above reds any edit to a
+committed one, so on the day the ramp expired an install carrying either finding in
+APPLIED history had a red whose only in-file fix was a different red. Editing is also
+wrong on the merits: a lock preamble on a migration that ran months ago governs a lock
+already released. So applied history is acknowledged instead, in the reviewed
+`tools/migrations-allow.json` (`{"file", "rule": "authz-adr"|"lock-timeout", "reason"}`).
+Three bounds keep it from becoming a hole: it exempts a **(file, rule) pair**, never a
+file; the migration **must already exist at the diff base**, so one written today cannot
+be exempted at all; and a **stale entry reds**. Absent by default — creating it is a
+widening, so it is in `ESCAPE_LISTS` and must be committed.
+
 ### 18. db-limits — `node tools/check-db-limits.mjs`
 
 The per-role resource ceilings and the per-org quota machinery, judged as data

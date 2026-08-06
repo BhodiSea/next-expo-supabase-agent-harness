@@ -68,7 +68,12 @@ if (!existsSync(DIR)) skipOrFail(GATE, `${DIR} not found (no migrations surface 
 const errs = []
 // New-in-0.2.0 findings: a consumer whose migrations predate these rules cannot
 // retroactively add an ADR to applied history, so they ramp.
+/** @type {Array<{file: string, rule: 'authz-adr'|'lock-timeout', msg: string}>} */
 const rampedErrs = []
+/** @param {string} file @param {'authz-adr'|'lock-timeout'} rule @param {string} msg */
+function ramped(file, rule, msg) {
+  rampedErrs.push({ file, rule, msg })
+}
 
 // 1. append-only — a git failure must never silently VACATE this check: an
 // unresolvable base ref in CI (shallow clone) previously returned [] and the
@@ -143,11 +148,13 @@ for (const f of readdirSync(DIR)
     if (!re.test(code)) continue
     const m = text.match(/--\s*adr:\s*(\S+)/)
     if (!m) {
-      rampedErrs.push(
+      ramped(
+        f,
+        'authz-adr',
         `${DIR}/${f}: ${label} removes an authorization control — add \`-- adr: docs/adr/NNNN-<slug>.md\` recording why`,
       )
     } else if (!existsSync(m[1])) {
-      rampedErrs.push(`${DIR}/${f}: referenced ADR ${m[1]} does not exist`)
+      ramped(f, 'authz-adr', `${DIR}/${f}: referenced ADR ${m[1]} does not exist`)
     }
   }
 
@@ -183,26 +190,137 @@ for (const f of readdirSync(DIR)
   // Matches either spelling, so a file that used the LOCAL form gets ONLY the precise
   // "it is inert" message below rather than that plus a misleading "you forgot it".
   if (heavy.length > 0 && !/SET\s+(?:LOCAL\s+)?lock_timeout/i.test(code)) {
-    rampedErrs.push(
+    ramped(
+      f,
+      'lock-timeout',
       `${DIR}/${f}: takes an ACCESS EXCLUSIVE lock on pre-existing table(s) ${[...new Set(heavy)].join(', ')} with no lock timeout — add \`SET lock_timeout = '3s';\` as the first statement so the migration fails fast instead of queueing every reader behind an open transaction`,
     )
   }
   if (/SET\s+LOCAL\s+lock_timeout/i.test(code)) {
-    rampedErrs.push(
+    ramped(
+      f,
+      'lock-timeout',
       `${DIR}/${f}: uses \`SET LOCAL lock_timeout\`, which is INERT here — the Supabase CLI applies migrations outside an explicit transaction block, so PostgreSQL answers "WARNING: SET LOCAL can only be used in transaction blocks" and no timeout is set. Drop the LOCAL: \`SET lock_timeout = '3s';\``,
     )
   }
 }
 
-if (rampedErrs.length > 0) {
-  const ramped = rampNote(
+// ── the pre-adoption escape, and why it is a FILE rather than a marker ──────────
+//
+// The two rules above are the only findings in this gate a consumer cannot sweep. An
+// ADR reference and a `SET lock_timeout` preamble both live INSIDE the migration, and
+// rule 1 above reds any edit to a committed one — so on the day the ramp expires, an
+// install whose own pre-0.2.0 migrations carry either finding has a red whose only
+// in-file remedy is a different red. 0.3.0 dated the deadline without noticing that.
+//
+// Editing is also the wrong answer on the merits: a lock_timeout preamble on a
+// migration that ran six months ago governs a lock already taken and released, and an
+// ADR added retroactively records a decision after the fact. Both rules are entirely
+// PROSPECTIVE. What applied history needs is a reviewed acknowledgement, which is what
+// every other irreducible finding in this harness gets (rls-exempt.json,
+// duplication-allow.json, license-exceptions.json).
+//
+// Three properties keep it from becoming a hole:
+//   - it exempts a (file, rule) PAIR, never a file — a new destructive statement in an
+//     already-exempted migration still reds;
+//   - the file must ALREADY EXIST at the diff base, so a migration written today
+//     cannot be exempted at all. That is the whole point: the escape covers history,
+//     not authorship;
+//   - a stale entry reds. An exemption whose finding is gone is a standing permission
+//     nobody reviewed, waiting for a future statement to walk into it.
+const ALLOW = 'tools/migrations-allow.json'
+/** @type {Array<{file: string, rule: string, reason: string}>} */
+let allow = []
+if (existsSync(ALLOW)) {
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(ALLOW, 'utf8'))
+  } catch (e) {
+    fail(
+      GATE,
+      `${ALLOW} is not valid JSON (${e.message}) — the exemption list must be reviewable data`,
+    )
+  }
+  if (!Array.isArray(parsed.allow)) {
+    fail(
+      GATE,
+      `${ALLOW} must carry an "allow" ARRAY of {"file": string, "rule": "authz-adr"|"lock-timeout", "reason": string} entries`,
+    )
+  }
+  for (const entry of parsed.allow) {
+    if (
+      typeof entry?.file !== 'string' ||
+      (entry.rule !== 'authz-adr' && entry.rule !== 'lock-timeout') ||
+      typeof entry.reason !== 'string' ||
+      entry.reason.trim().length < 20
+    ) {
+      fail(
+        GATE,
+        `${ALLOW}: every entry must be {"file": <migration basename>, "rule": "authz-adr"|"lock-timeout", "reason": <why applied history cannot be swept>} with a substantive reason — got ${JSON.stringify(entry)}`,
+      )
+    }
+    allow.push(entry)
+  }
+}
+
+// The escape covers HISTORY, not authorship: a migration that is new in this change
+// has no applied lock and no past decision, so its findings are fixable in-file and
+// exempting one would convert the escape into a way of shipping the rule off.
+/** @param {string} file @returns {boolean} */
+function existsAtBase(file) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${base}:${DIR}/${file}`], {
+      stdio: ['ignore', 'ignore', 'ignore'],
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const used = new Set()
+const exempted = []
+const remaining = []
+for (const e of rampedErrs) {
+  const hit = allow.find((a) => a.file === e.file && a.rule === e.rule)
+  if (hit === undefined) {
+    remaining.push(e)
+    continue
+  }
+  used.add(`${hit.file} ${hit.rule}`)
+  if (existsAtBase(e.file)) {
+    exempted.push(e)
+  } else {
+    errs.push(
+      `${ALLOW}: exempts ${e.file} (${e.rule}), but that migration does not exist at ${base} — it is NEW in this change, so the finding is fixable in the file itself. The escape covers applied history, not migrations being written now. Finding: ${e.msg}`,
+    )
+  }
+}
+for (const a of allow) {
+  if (used.has(`${a.file} ${a.rule}`)) continue
+  errs.push(
+    `${ALLOW}: exempts ${a.file} (${a.rule}) but that migration produces no such finding — a stale exemption is a standing permission nobody reviewed, waiting for a future statement to walk into it. Delete the entry.`,
+  )
+}
+for (const e of exempted) {
+  console.log(`${GATE}: NOTE — (reviewed exemption, ${ALLOW}) ${e.msg}`)
+}
+
+if (remaining.length > 0) {
+  const isRamped = rampNote(
     GATE,
     RAMP,
-    `${rampedErrs.length} finding(s) from the 0.2.0 rules (authorization-destructive DDL needs an ADR; ACCESS EXCLUSIVE needs a lock timeout)`,
+    `${remaining.length} finding(s) from the 0.2.0 rules (authorization-destructive DDL needs an ADR; ACCESS EXCLUSIVE needs a lock timeout)`,
     { until: '0.4.0' },
   )
-  if (ramped) for (const e of rampedErrs) console.log(`${GATE}: NOTE — ${e}`)
-  else errs.push(...rampedErrs)
+  if (isRamped) for (const e of remaining) console.log(`${GATE}: NOTE — ${e.msg}`)
+  else
+    errs.push(
+      ...remaining.map(
+        (e) =>
+          `${e.msg}${existsAtBase(e.file) ? ` — if this migration is already APPLIED, the fix belongs in ${ALLOW} (rule "${e.rule}"), because editing a committed migration reds the append-only rule above. See docs/runbooks/harness-upgrade.md.` : ''}`,
+      ),
+    )
 }
 
 failures(GATE, errs)

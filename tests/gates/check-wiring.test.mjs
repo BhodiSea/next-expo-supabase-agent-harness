@@ -199,3 +199,38 @@ test('the gate SKIPS loudly with no settings file, and never silently passes', (
     writeFileSync(path, original)
   }
 })
+
+// ── the web a11y plugin is DECLARED (0.4.0) ───────────────────────────────────────
+//
+// eslint.config.mjs resolves eslint-plugin-jsx-a11y dynamically and omits the whole
+// apps/web accessibility block when it is absent — it has to, because the config is
+// harness-OWNED and refreshes on `update` while package.json and pnpm-workspace.yaml are
+// SEEDED and the catalog merge runs only under `init`. A static import resolved to nothing
+// on every upgraded install and killed the ENTIRE lint step. The cost of that resilience is
+// that a missing plugin now looks exactly like a working one, so this is the half that says
+// otherwise.
+//
+// Judged by DECLARATION, not by `await import()`: the resolving spelling also answers false
+// in a tree where nobody has run `pnpm install`, which would report a missing a11y floor to
+// someone whose only problem is an empty node_modules. It reddened this file's own GREEN
+// cases, which is how the distinction got noticed.
+
+test('RED (0.4.0): an undeclared jsx-a11y plugin means the web a11y floor is not running', () => {
+  const r = withEdit('package.json', (text) => {
+    const pkg = JSON.parse(text)
+    delete pkg.devDependencies['eslint-plugin-jsx-a11y']
+    return `${JSON.stringify(pkg, null, 2)}\n`
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /eslint-plugin-jsx-a11y is not a declared dependency/)
+  assert.match(r.out, /pnpm add -Dw/, 'the finding must name the one-line remedy')
+})
+
+test('0.4.0: an install with no node_modules is NOT accused of losing the a11y floor', () => {
+  // The false positive the resolving spelling would produce. The shipped scaffold declares
+  // the plugin and has never had `pnpm install` run against it in this fixture, so a
+  // resolution check reds here and a declaration check does not.
+  const r = runGate()
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /jsx-a11y/, r.out)
+})

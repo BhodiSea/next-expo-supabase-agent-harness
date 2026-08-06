@@ -280,15 +280,21 @@ test('RED: budget absent with no install manifest fails — the floor cannot be 
   assert.ok(r.out.includes('restore it from git history'), r.out)
 })
 
-test('NOTE: budget absent on a pre-0.1.0 baseVersion install self-disables with the adoption ramp', () => {
+test('an absent budget reds on ANY vintage — the startup floor cannot be self-disabled', () => {
+  // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
+  // the oldest release this lineage ever tagged, so gate.mjs returned false at
+  // `base >= minVersion` for every install that has ever existed. The old test proved
+  // the NOTE path with a HYPOTHETICAL pre-lineage manifest — a path no consumer can
+  // take. Inverted: the check is unconditional, so even that manifest is held.
+  // The stake here is higher than tidiness: while the ramp existed, deleting one file was
+  // the whole disarm procedure for the startup floor on any install claiming an old base.
   const r = runGate(
     fixture({ budget: null, manifest: { harnessVersion: '0.1.0', baseVersion: '0.0.1' } }),
     { closure: true },
   )
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('mobile-perf: NOTE'), r.out)
-  assert.ok(r.out.includes('ramp: live from baseVersion 0.1.0'), r.out)
-  assert.ok(r.out.includes('pre-0.1.0 install; adopt it to arm the startup floor'), r.out)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('tools/startup-budget.json is missing'), r.out)
+  assert.ok(!r.out.includes('mobile-perf: NOTE'), r.out)
 })
 
 test('RED: budget absent on a CURRENT baseVersion install fails (the ramp has passed)', () => {

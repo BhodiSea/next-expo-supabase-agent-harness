@@ -143,6 +143,14 @@ jobs:
       # the gate green over code it should reject.
       - name: machinery-rule-integrity (config-driven boundary rules intact; G28)
         run: node scripts/check-rule-integrity.mjs
+      # A ramp whose escape was never reachable is a check shipped unconditional wearing a
+      # ramp's clothes, and its `until` is decoration. This computes the fleet instead.
+      - name: machinery-ramp-ledger (no never-armed ramp; the expiry population is derived)
+        run: node scripts/check-ramp-ledger.mjs
+      # The closure enforcement-tiers.md promised for 0.4.0: a shipped gate that scans one
+      # product surface and has no row there is an undeclared tier.
+      - name: machinery-tier-coverage (every one-surface gate declares its surface)
+        run: node scripts/check-tier-coverage.mjs
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)

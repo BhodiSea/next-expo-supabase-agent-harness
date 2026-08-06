@@ -36,7 +36,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, rampNote } from './lib/gate.mjs'
+import { fail, failures, ok } from './lib/gate.mjs'
 
 const GATE = 'mobile-perf'
 const CLOSURE_ONLY = process.argv.includes('--closure')
@@ -58,19 +58,14 @@ if (!existsSync(BUDGET)) {
   // own. An upgraded install therefore has no budget, and the floor self-disables with an
   // adoption NOTE instead of ambushing the upgrade with a red turn.
   //
-  // rampNote returns TRUE only while the install predates the version below. Once it is on
-  // it the budget is mandatory: falling through to `ok()` here would mean an agent could
-  // disarm the entire startup floor by deleting one file. (This lineage seeds the budget
-  // from 0.1.0, so today no install can be pre-ramp and absence always fails — the ramp is
-  // the established channel for any LATER vintage of seeded budget surface.)
-  const adopt =
-    `${BUDGET} absent — the installed app's startup is unmeasured. Adopt it: ` +
-    '`update --refresh-seeded tools/startup-budget.json maestro/flows/`, then write one ' +
-    'screens[] row per src/routes.ts id (generous maxTotalTimeMs; ratchet down from the ' +
-    'device lane’s printed numbers). See docs/harness/gates-catalog.md ("mobile-perf")'
-  if (rampNote(GATE, '0.1.0', adopt, { until: '0.4.0' })) {
-    ok(GATE, `${BUDGET} absent (pre-0.1.0 install; adopt it to arm the startup floor)`)
-  }
+  // Absence is a HARD failure, never an `ok()`: falling through here would mean an agent
+  // could disarm the entire startup floor by deleting one file.
+  // 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+  // this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+  // every install that has ever existed: the escape was never reachable and the check has
+  // always been unconditional in practice. Removing the branch changes no behaviour on any
+  // real tree — it deletes a deadline that could not arrive.
+  // SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
   fail(
     GATE,
     `${BUDGET} is missing, so every screen's startup is unmeasured. It is ` +

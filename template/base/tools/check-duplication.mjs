@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'duplication'
 const ALLOW = 'tools/duplication-allow.json'
@@ -32,16 +32,41 @@ const MIN_LINES = 6
 
 // Scan only hand-written product source. Generated bindings, tests (they legitimately
 // repeat setup), and type decls are excluded.
+// 0.4.0 CORRECTED THE WALK, in the same two places check-diff-coverage.mjs's SRC_RE was
+// wrong, because it was the same mistake: one level of `packages/*/src` describes the FLAT
+// packages and silently skips the LAYERED groups — packages/platform/* and
+// packages/verticals/*, which is the kernel, the Supabase seam, the rate limiter and every
+// feature domain. A clone detector that never reads the verticals is a clone detector
+// pointed away from the code most likely to be copy-pasted between them.
+//
+// apps/web is added by NAME rather than by shape: it has no `src/`, its code is `app/` and
+// `lib/`, and the enforcement-tiers row that recorded its absence is closed in this release.
 const SCAN_ROOTS = []
 for (const scope of ['apps', 'packages']) {
   if (!existsSync(scope)) continue
   for (const d of readdirSync(scope).sort()) {
     const src = join(scope, d, 'src')
-    if (existsSync(src)) SCAN_ROOTS.push(src)
+    if (existsSync(src)) {
+      SCAN_ROOTS.push(src)
+      continue
+    }
+    // No `<scope>/<d>/src` — so either a layered GROUP whose members carry their own src
+    // (packages/platform/errors/src), or a surface with a different shape (apps/web).
+    const groupDir = join(scope, d)
+    for (const inner of readdirSync(groupDir).sort()) {
+      const nested = join(groupDir, inner, 'src')
+      if (existsSync(nested)) SCAN_ROOTS.push(nested)
+    }
   }
 }
+for (const webDir of [join('apps', 'web', 'app'), join('apps', 'web', 'lib')]) {
+  if (existsSync(webDir)) SCAN_ROOTS.push(webDir)
+}
 if (SCAN_ROOTS.length === 0) {
-  skipOrFail(GATE, 'no apps/*/src or packages/*/src to scan (no product source yet)')
+  skipOrFail(
+    GATE,
+    'no apps/*/src, packages/*/*/src or apps/web/{app,lib} to scan (no product source yet)',
+  )
 }
 
 // ---- reviewed exemptions ------------------------------------------------------------
@@ -128,7 +153,20 @@ for (const root of SCAN_ROOTS) {
     // where the design-tokens compiler writes (`src/generated/{native.ts,web.css}`).
     // The suffix rule alone matched NOTHING in the shipped scaffold, so this gate
     // reported native.ts duplicating typography.ts on a clean tree.
-    if (/\.gen\.tsx?$/.test(path) || /(^|\/)generated\//.test(path)) continue
+    //
+    // A THIRD shape (0.4.0): `database.types.ts`, the Supabase type mirror written by
+    // `pnpm db:types` from the live schema. It carries neither marker — no `.gen.` suffix,
+    // no `generated/` directory — and until this release it was never scanned, because the
+    // walk above never descended into packages/platform/*. It is machine-written and its
+    // Row/Insert/Update triples restate one another BY CONSTRUCTION, so every table in the
+    // schema is a clone of the next. The `types-drift` gate is what proves this file honest.
+    if (
+      /\.gen\.tsx?$/.test(path) ||
+      /(^|\/)generated\//.test(path) ||
+      /(^|\/)database\.types\.ts$/.test(path)
+    ) {
+      continue
+    }
     files.push({ path, tokens: tokenize(readFileSync(path, 'utf8')) })
   }
 }
@@ -250,13 +288,12 @@ const errs = clones.map(
 // Ramp: an install predating this check carries copy-paste it never held them to — NOTE,
 // don't ambush the update. In this lineage the check ships in 0.1.0: every fresh scaffold
 // is turn-fatal.
-if (
-  errs.length > 0 &&
-  rampNote(GATE, '0.1.0', `${errs.length} code clone(s)`, { until: '0.4.0' })
-) {
-  ok(GATE, `${errs.length} clone(s) held as a ramp NOTE (pre-0.1.0 baseVersion)`)
-}
-
+// 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+// this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+// every install that has ever existed: the escape was never reachable and the check has
+// always been unconditional in practice. Removing the branch changes no behaviour on any
+// real tree — it deletes a deadline that could not arrive.
+// SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
 failures(GATE, errs)
 ok(
   GATE,

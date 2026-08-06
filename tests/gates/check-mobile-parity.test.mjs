@@ -142,18 +142,22 @@ test('RED — inventory present but PARITY.md absent reds (strict, all actions u
   assert.match(r.stderr, /does not exist/)
 })
 
-test('RAMP — a forward gap on a pre-0.1.2 install is NOTE-only; STRICT forces the red', () => {
+test('a forward gap reds on any install — the closure is unconditional', () => {
+  // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
+  // the oldest release this lineage ever tagged, so gate.mjs returned false at
+  // `base >= minVersion` for every install that has ever existed. This test used to
+  // prove the NOTE path with a HYPOTHETICAL pre-lineage manifest — its own comment said
+  // so — which is proof of a path no consumer can take. Inverted: the check is
+  // unconditional now, so even that manifest is held.
+  // CHECK_MOBILE_PARITY_STRICT went with it: an env var that forces a check already live
+  // is a knob with one setting.
   const actions = [...ACTIONS, { action: 'notes.remove', type: 'mutation' }]
   const parity = ledger(GREEN_ROWS)
   const manifest = { baseVersion: '0.1.0', harnessVersion: '0.1.0' }
-  const soft = run(scaffold({ actions, parity, files: MOBILE_FILES, manifest }))
-  assert.equal(soft.status, 0, soft.stdout + soft.stderr)
-  assert.match(soft.stdout, /NOTE/)
-  const hard = run(scaffold({ actions, parity, files: MOBILE_FILES, manifest }), {
-    CHECK_MOBILE_PARITY_STRICT: '1',
-  })
-  assert.equal(hard.status, 1)
-  assert.match(hard.stderr, /notes\.remove/)
+  const r = run(scaffold({ actions, parity, files: MOBILE_FILES, manifest }))
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.match(r.stderr, /notes\.remove/)
+  assert.doesNotMatch(r.stdout, /NOTE/, 'the ramp is gone; a NOTE here would mean it came back')
 })
 
 test('skip — absent action inventory skips locally (exit 0, SKIPPED)', () => {

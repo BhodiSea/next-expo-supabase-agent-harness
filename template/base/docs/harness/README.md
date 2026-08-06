@@ -30,7 +30,7 @@ gate could enforce deterministically.
 ## One gate config, three enforcement layers
 
 `tools/harness.config.mjs` is the single source of truth for what "done" means:
-`VALIDATE_STEPS` (the 21-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
+`VALIDATE_STEPS` (the 31-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
 Stop hook runs — validate plus the runtime suites). Three enforcement layers consume it
 and can therefore never disagree:
 
@@ -42,7 +42,7 @@ and can therefore never disagree:
    `validate` to `true` in package.json (an auto-accepted, unguarded edit) and pass a
    hollow gate. **The Stop gate defines done** locally.
 3. **CI** → re-runs `node tools/validate.mjs --min-floor`, which reads the FROZEN
-   snapshot `tools/validate.floor.json` — a verbatim copy of all 21 canonical steps that
+   snapshot `tools/validate.floor.json` — a verbatim copy of all 31 canonical steps that
    the runner trusts OVER the local config, and **FAILS CLOSED** (missing/corrupt
    snapshot → exit 1) rather than degrade to a possibly-weakened config. **The CI floor**
    means editing the config can ADD steps but can never weaken the non-negotiable ones

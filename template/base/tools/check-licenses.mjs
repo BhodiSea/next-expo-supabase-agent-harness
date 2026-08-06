@@ -7,7 +7,7 @@
 // license tree is the whole production surface.
 // SOURCE: docs/harness/README.md (license gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
-import { fail, failures, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'licenses'
@@ -95,17 +95,18 @@ if (pkgRaw !== null) {
     }
   }
 }
-if (
-  citeErrs.length > 0 &&
-  !rampNote(GATE, '0.1.0', `${citeErrs.length} citeability/license finding(s)`, { until: '0.4.0' })
-) {
+// 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+// this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+// every install that has ever existed: the escape was never reachable and the check has
+// always been unconditional in practice. Removing the branch changes no behaviour on any
+// real tree — it deletes a deadline that could not arrive.
+// SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
+if (citeErrs.length > 0) {
   failures(
     GATE,
     citeErrs,
     'The produced artifact must declare its terms and be citable: keep LICENSE, package.json#license and CITATION.cff (version + license) in lockstep.',
   )
-} else if (citeErrs.length > 0) {
-  for (const e of citeErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
 }
 
 if (!existsSync('node_modules')) {

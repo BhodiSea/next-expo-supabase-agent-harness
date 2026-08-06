@@ -268,10 +268,13 @@ it('looks tested', () => {
   assert.match(r.out, /NO assertion/, r.out)
 })
 
-test('a baseVersion predating the check downgrades findings to a ramp NOTE (green)', () => {
-  // Ramp minimum is 0.1.0 in this lineage (live from the first install) — only a
-  // hypothetical pre-lineage manifest rides the NOTE, but the shared rampNote
-  // path must stay provable in both directions.
+test('even a pre-lineage baseVersion is held — the check is unconditional', () => {
+  // 0.4.0 DELETED this ramp rather than expiring it: its minVersion sat below v0.1.3,
+  // the oldest release this lineage ever tagged, so gate.mjs returned false at
+  // `base >= minVersion` for every install that has ever existed. This test used to
+  // prove the NOTE path with a HYPOTHETICAL pre-lineage manifest — its own comment said
+  // so — which is proof of a path no consumer can take. Inverted: the check is
+  // unconditional now, so even that manifest is held.
   const dir = fixture({
     files: {
       'apps/server/src/x.test.ts': `import { it } from 'vitest'
@@ -283,9 +286,8 @@ it('asserts nothing', () => {
     manifest: JSON.stringify({ harnessVersion: '0.1.0', baseVersion: '0.0.9' }),
   })
   const r = run(dir)
-  assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /NOTE — .*\(ramp: live from baseVersion 0\.1\.0/, r.out)
-  // The ramp must still SHOW the finding — a silent NOTE is just a pass.
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /ramp: live from baseVersion/, r.out)
   assert.match(r.out, /asserts nothing/, r.out)
 })
 

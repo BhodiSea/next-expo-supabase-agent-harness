@@ -345,3 +345,97 @@ test('missing migrations dir: SKIPPED locally, FAIL in CI', () => {
   assert.equal(ci.code, 1, ci.out)
   assert.ok(ci.out.includes('FAIL'), ci.out)
 })
+
+// ---- 0.4.0: the pre-adoption escape, and the three ways it refuses ---------------
+//
+// The two 0.2.0 rules above are the only findings in this gate a consumer cannot sweep:
+// both remedies live INSIDE the migration, and rule 1 reds any edit to a committed one.
+// So when the ramp expired in 0.4.0, an install whose own applied history carried either
+// finding had a red whose only in-file fix was a different red. tools/migrations-allow.json
+// is the acknowledgement — bounded so it cannot become a way of writing around the rule.
+
+const HEAVY = 'ALTER TABLE "notes" ADD COLUMN "extra" text;\n'
+
+/** A repo whose HISTORY carries a lock-timeout finding: notes created, then altered. */
+function appliedHeavy() {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', HEAVY)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'alter')
+  return dir
+}
+
+/** @param {string} dir @param {unknown} body */
+function writeAllow(dir, body) {
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(join(dir, 'tools/migrations-allow.json'), JSON.stringify(body))
+}
+
+const REASON =
+  'Applied in production 2026-03; the lock was taken and released months ago and the migration cannot be edited.'
+
+test('0.4.0 GREEN: a reviewed exemption turns an APPLIED history finding into a NOTE', () => {
+  const dir = appliedHeavy()
+  assert.equal(runGate(dir).code, 1, 'precondition: the finding must be red without the file')
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'lock-timeout', reason: REASON }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('reviewed exemption'), r.out)
+  assert.ok(r.out.includes('ACCESS EXCLUSIVE'), r.out)
+})
+
+test('0.4.0 RED: a migration that is NEW at the diff base cannot be exempted at all', () => {
+  // The property that keeps this an acknowledgement of the past rather than an escape
+  // hatch for the present: a migration being written now HAS an in-file remedy.
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', HEAVY)
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'lock-timeout', reason: REASON }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('it is NEW in this change'), r.out)
+})
+
+test('0.4.0 RED: a stale exemption is a standing permission nobody reviewed', () => {
+  const dir = fixture()
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'lock-timeout', reason: REASON }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('produces no such finding'), r.out)
+})
+
+test('0.4.0 RED: an exemption for the WRONG rule does not cover the finding', () => {
+  // Keyed by (file, rule), never by file: a new destructive statement in an
+  // already-exempted migration is a new decision.
+  const dir = appliedHeavy()
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'authz-adr', reason: REASON }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('ACCESS EXCLUSIVE'), r.out)
+  assert.ok(r.out.includes('produces no such finding'), r.out)
+})
+
+test('0.4.0 FAIL CLOSED: a thin reason is not a review', () => {
+  const dir = appliedHeavy()
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'lock-timeout', reason: 'legacy' }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('substantive reason'), r.out)
+})
+
+test('0.4.0 FAIL CLOSED: malformed exemption JSON is not read as "no exemptions"', () => {
+  const dir = appliedHeavy()
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(join(dir, 'tools/migrations-allow.json'), '{ nope')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('must be reviewable data'), r.out)
+})
+
+test('0.4.0: the unexempted failure NAMES the escape, because the in-file fix reds', () => {
+  // Without this line the remediation path is a dead end: the message says "add
+  // SET lock_timeout", the append-only rule reds the edit, and nothing connects the two.
+  const r = runGate(appliedHeavy())
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('tools/migrations-allow.json'), r.out)
+  assert.ok(r.out.includes('editing a committed migration reds the append-only rule'), r.out)
+})

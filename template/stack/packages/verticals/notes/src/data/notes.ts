@@ -1,5 +1,5 @@
 import type { NoteDeletion, NoteRecord, NotesPage, NoteView } from '@app/contracts'
-import { type ActionOutcome, outcomeErr, outcomeOk } from '@app/errors'
+import { type ActionOutcome, type AppError, outcomeErr, outcomeOk } from '@app/errors'
 import { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from '../domain/cursor.js'
 import { normalizeTitle, toNoteView } from '../domain/note.js'
 import {
@@ -22,9 +22,10 @@ import {
   invalidCursor,
   mapPostgrestFailure,
   missingNote,
+  type NoteOperation,
   unreadableWrite,
 } from './errors.js'
-import type { NotesDatabase } from './port.js'
+import type { NotesDatabase, PostgrestOutcome } from './port.js'
 import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
 
 // ---------------------------------------------------------------------------
@@ -251,6 +252,46 @@ export async function getNote(
  * re-checks it against `auth.uid()`, so an application bug here is caught by
  * the database rather than silently writing a row into someone else's account.
  */
+/**
+ * The tail every write path shares: driver outcome → one row → a `NoteRecord`.
+ *
+ * All three writers (`createNote`, `updateNote`, `deleteNote`) issue a different statement
+ * and emit a different event, but the four steps BETWEEN those two ends are identical and
+ * order-critical:
+ *
+ *   1. branch on `error` FIRST — PostgREST never rejects the promise, so reading `data`
+ *      without checking `error` is how an RLS denial renders as "nothing happened";
+ *   2. take the first row through `asRowArray`, which tolerates a non-array `data`;
+ *   3. no row is a DOMAIN answer, and which one differs per operation — hence `onEmpty`;
+ *   4. `toNoteRecord` is the only door out of the driver's world, and it THROWS on a row
+ *      that no longer matches the contract, which is drift rather than a user error.
+ *
+ * `onEmpty` is a parameter rather than a branch on `operation` because the two answers are
+ * not variants of one rule. A create that returns no row means the RETURNING projection was
+ * filtered by a SELECT policy — the row exists and the caller may not read it back, a policy
+ * misconfiguration (`unreadableWrite`). An update or delete that returns no row means the
+ * row is gone or the USING clause filtered it, which is indistinguishable on purpose and is
+ * an ordinary `missingNote`. Collapsing them would report a misconfigured policy as a 404.
+ * SOURCE: packages/verticals/notes/src/data/port.ts (PostgREST returns `{data, error}` and
+ * never rejects — branch on `error` first, every time)
+ */
+function materializeWrittenRow(
+  result: PostgrestOutcome,
+  operation: NoteOperation,
+  onEmpty: () => AppError,
+): ActionOutcome<NoteRecord> {
+  if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, operation))
+
+  const row = asRowArray(result.data)[0]
+  if (row === undefined) return outcomeErr(onEmpty())
+
+  try {
+    return outcomeOk(toNoteRecord(row))
+  } catch {
+    return outcomeErr(contractDrift(operation))
+  }
+}
+
 export async function createNote(
   db: NotesDatabase,
   context: NoteWriteContext,
@@ -277,20 +318,12 @@ export async function createNote(
     .select(NOTE_COLUMNS)
     .limit(1)
 
-  if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'create'))
-
-  const row = asRowArray(result.data)[0]
-  // An INSERT that reports no error and returns no row means the RETURNING
-  // projection was filtered by a SELECT policy — the row exists but the caller
-  // may not read it back. That is a policy misconfiguration, not a user error.
-  if (row === undefined) return outcomeErr(unreadableWrite())
-
-  let record: NoteRecord
-  try {
-    record = toNoteRecord(row)
-  } catch {
-    return outcomeErr(contractDrift('create'))
-  }
+  // `unreadableWrite` rather than `missingNote`: an INSERT that reports no error and
+  // returns no row means the RETURNING projection was filtered by a SELECT policy — the
+  // row exists but the caller may not read it back, which is a policy misconfiguration.
+  const written = materializeWrittenRow(result, 'create', unreadableWrite)
+  if (!written.ok) return written
+  const record = written.data
 
   // The event carries the DATABASE's timestamp, not the request's: event order
   // and row order then agree by construction.
@@ -335,19 +368,11 @@ export async function updateNote(
     .select(NOTE_COLUMNS)
     .limit(1)
 
-  if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'update'))
-
-  const row = asRowArray(result.data)[0]
-  // No row updated: either it is gone or the UPDATE policy's USING clause
-  // filtered it out. Same answer for both — see getNote.
-  if (row === undefined) return outcomeErr(missingNote())
-
-  let record: NoteRecord
-  try {
-    record = toNoteRecord(row)
-  } catch {
-    return outcomeErr(contractDrift('update'))
-  }
+  // No row updated: either it is gone or the UPDATE policy's USING clause filtered it out.
+  // Same answer for both, deliberately — see getNote.
+  const written = materializeWrittenRow(result, 'update', missingNote)
+  if (!written.ok) return written
+  const record = written.data
 
   context.emit(noteUpdated(context, record.id, record.updatedAt, [...fields]))
   return outcomeOk(toNoteView(record))
@@ -370,17 +395,9 @@ export async function deleteNote(
     .select(NOTE_COLUMNS)
     .limit(1)
 
-  if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'delete'))
-
-  const row = asRowArray(result.data)[0]
-  if (row === undefined) return outcomeErr(missingNote())
-
-  let record: NoteRecord
-  try {
-    record = toNoteRecord(row)
-  } catch {
-    return outcomeErr(contractDrift('delete'))
-  }
+  const written = materializeWrittenRow(result, 'delete', missingNote)
+  if (!written.ok) return written
+  const record = written.data
 
   context.emit(noteDeleted(context, record.id, record.updatedAt))
   return outcomeOk({ id: record.id })

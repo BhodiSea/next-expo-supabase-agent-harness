@@ -7,7 +7,7 @@
 > surface-agnostic machinery it specifies was ported forward into this lineage
 > unchanged. Everything it says about the BACKEND ("Backend unchanged: Hono +
 > Drizzle", the 21-gate chain, the server app) is false here: this lineage runs
-> Next.js 16 web + Expo mobile over one shared Supabase backend, with a 24-gate
+> Next.js 16 web + Expo mobile over one shared Supabase backend, with a 31-gate
 > chain and no standalone server.
 >
 > **The design record for THIS repository's stack is

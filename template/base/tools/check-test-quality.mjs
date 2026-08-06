@@ -32,7 +32,7 @@
 // SOURCE: docs/harness/gates-catalog.md (test-quality) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, rampNote } from './lib/gate.mjs'
+import { fail, failures, ok } from './lib/gate.mjs'
 import { blankComments, lineOf, skipBalanced } from './lib/source-text.mjs'
 
 const GATE = 'test-quality'
@@ -208,16 +208,12 @@ if (scanned === 0) {
   ok(GATE, 'no test files found to scan')
 }
 
-// Ramp: an install predating this check carries tests it never held them to — NOTE, don't
-// ambush the update. In this lineage the check ships in 0.1.0: every fresh scaffold is
-// turn-fatal.
-if (
-  errs.length > 0 &&
-  rampNote(GATE, '0.1.0', `${String(errs.length)} test-quality finding(s)`, { until: '0.4.0' })
-) {
-  for (const e of errs) console.log(`  - ${e}`)
-  ok(GATE, `${String(errs.length)} finding(s) held as a ramp NOTE (pre-0.1.0 baseVersion)`)
-}
+// 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
+// this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
+// every install that has ever existed: the escape was never reachable and the check has
+// always been unconditional in practice. Removing the branch changes no behaviour on any
+// real tree — it deletes a deadline that could not arrive.
+// SOURCE: scripts/check-ramp-ledger.mjs (never-armed ramps)
 
 failures(
   GATE,

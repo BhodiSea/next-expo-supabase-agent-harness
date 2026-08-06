@@ -502,10 +502,39 @@ test('FAIL CLOSED: no ceilings at all', () => {
 
 // ── adoption ──────────────────────────────────────────────────────────────────
 
-test('ADOPTION RAMP: a pre-0.2.0 tree with no budget file NOTEs rather than reds', () => {
+/** A budget-less tree carrying the given manifest — the only state the ramp covers. */
+function unadopted(manifest) {
   const dir = fixture()
   rmSync(join(dir, 'tools/rate-limit-budget.json'))
-  const r = runGate(dir)
+  if (manifest !== null) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
+  }
+  return dir
+}
+
+test('ADOPTION RAMP: a pre-0.2.0 install with no budget file NOTEs rather than reds', () => {
+  const r = runGate(unadopted({ baseVersion: '0.1.3', harnessVersion: '0.3.0' }))
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('pre-0.2.0'), r.out)
+  assert.ok(r.out.includes('rate-limits: NOTE'), r.out)
+  assert.ok(r.out.includes('expires in 0.4.0'), r.out)
+})
+
+test('NO MANIFEST: the escape is a property of an INSTALL, so an unrecorded tree is judged', () => {
+  // Until 0.4.0 this branch called ok() unconditionally, so ANY tree without the budget
+  // exited 0 — manifest or not, deadline or not. rampNote returns false with no manifest
+  // (template dev tree, gate fixtures, a pre-manifest run) and false is the STRICT answer.
+  const r = runGate(unadopted(null))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('rate-limit-budget.json is missing'), r.out)
+})
+
+test('RAMP EXPIRED: past the deadline the alarm reds instead of ringing into a green run', () => {
+  // The 0.4.0 defect this release exists to close. rampNote signals expiry by printing
+  // RAMP EXPIRED and returning FALSE — the same value it returns when the check is live —
+  // so the discarded result meant the gate printed its own alarm and then exited 0.
+  const r = runGate(unadopted({ baseVersion: '0.1.3', harnessVersion: '0.4.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('RAMP EXPIRED'), r.out)
+  assert.ok(!r.out.includes('rate-limits: OK'), `the alarm must not ring into a green run:\n${r.out}`)
 })

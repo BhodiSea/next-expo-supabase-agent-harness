@@ -124,3 +124,15 @@ test('NOTE: a missing canary registry SKIPS the canary class loudly — never cr
   assert.match(r.out, /CLAIMS: NOTE — tests\/canary\/injections\.json does not exist yet/)
   assert.match(r.out, /canary registry pending \(W5b\)/)
 })
+
+test('RED (0.4.0): a status line with no package.json to check it against is unverified, not clean', () => {
+  // The status-line derivation was added in 0.4.0 because the README read
+  // "pre-release (0.1.x)" at version 0.3.0 — three minors stale, on the first line a
+  // reader trusts. It reads package.json, which the fixture tree deliberately does not
+  // model, so the read must FAIL THE CLAIM rather than crash the script: an unguarded
+  // readFileSync here took six unrelated cases red with an ENOENT stack.
+  const r = runFixture({ readme: '**Status: pre-release (0.1.x).** The chain runs all 3 gates.\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /no package\.json to check it against/)
+  assert.doesNotMatch(r.out, /ENOENT/, `the script must judge the claim, not crash:\n${r.out}`)
+})

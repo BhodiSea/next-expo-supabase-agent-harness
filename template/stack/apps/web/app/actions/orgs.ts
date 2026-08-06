@@ -3,6 +3,7 @@
 import { InvitationToken, OrgId, type OrgSummary } from '@app/contracts'
 import { type ActionOutcome, appError, outcomeErr, outcomeOk } from '@app/errors'
 import { revalidatePath } from 'next/cache'
+import { foldActionResult } from '../../lib/action-outcome'
 import { resolveOrgs } from '../../lib/auth/session'
 import { enforceActionRateLimit } from '../../lib/rate-limit-runtime'
 import { actionClient } from '../../lib/safe-action'
@@ -112,16 +113,11 @@ export async function acceptInvitationAction(token: string): Promise<ActionOutco
   // applied after `getUser()` still pays an auth call per abusive request.
   const limited = await enforceActionRateLimit('acceptInvitationAction')
   if (limited !== null) return limited
-  const result = await runAcceptInvitation(token)
-  if (result.data !== undefined) return result.data
-  if (result.validationErrors !== undefined) {
-    // A malformed token is a contract violation, and it gets the SAME words the RPC uses for
-    // an expired or already-used one. Anything more specific tells a guesser whether their
-    // guess was well-formed, which is the first bit of a token oracle.
-    return outcomeErr(
-      appError.validation({ message: 'That invitation is invalid, expired, or already used.' }),
-    )
-  }
-  if (result.serverError !== undefined) return outcomeErr(result.serverError)
-  return outcomeErr(appError.unknown({ message: 'That invitation could not be accepted.' }))
+  // A malformed token gets the SAME words the RPC uses for an expired or already-used one.
+  // Anything more specific tells a guesser whether their guess was well-formed, which is the
+  // first bit of a token oracle. See lib/action-outcome.ts for the fold itself.
+  return foldActionResult(await runAcceptInvitation(token), {
+    invalid: 'That invitation is invalid, expired, or already used.',
+    failed: 'That invitation could not be accepted.',
+  })
 }

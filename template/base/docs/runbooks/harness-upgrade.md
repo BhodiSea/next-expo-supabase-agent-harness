@@ -59,9 +59,117 @@ that skipped four releases and still reports every one of their checks as adviso
 Upgrade one minor at a time (`update`, sweep, `graduate`, repeat) if the pile is
 large — each `graduate` is cheap and each one shrinks the next.
 
-**0.3.0 ships the clock, not the alarm.** Every pre-existing 0.1.x/0.2.0 ramp was
-dated `0.4.0` and every ramp introduced in 0.3.0 was dated `0.5.0`, so nothing reds
-on a deadline in this release. The first expiries land in 0.4.0.
+## 0.4.0 IS THE ALARM — read this before you upgrade
+
+0.3.0 shipped the clock: every pre-existing ramp was dated `0.4.0`, every ramp it
+introduced was dated `0.5.0`, and nothing reds on a deadline in that release. **0.4.0 is
+the first release where a deadline arrives.**
+
+**Who this affects, exactly.** Every expiring ramp opens at `minVersion 0.2.0`, and
+`rampNote` is inert once `baseVersion >= minVersion`. So the affected population is
+installs whose **`baseVersion` is below 0.2.0** — among released vintages, only **0.1.3**.
+
+| your `baseVersion` | what `update` to 0.4.0 does |
+|---|---|
+| `0.1.3` | **12 escapes close at once.** The checks below stop withholding their findings. Sweep, then `graduate`. |
+| `0.2.0`, `0.2.1`, `0.3.0` | Nothing expires. Those checks have been live on your install all along — you are already past them. |
+| fresh `init` at 0.4.0 | Nothing ever ramped. Every check has been strict since your first run. |
+
+Do not take the count on faith and do not take it from these notes:
+
+```
+node tools/check-gate-integrity.mjs      # prints your baseVersion
+pnpm validate 2>&1 | grep 'RAMP EXPIRED' # the findings that just went hard, on YOUR tree
+```
+
+Most installs at 0.1.3 will see **far fewer than 12**, and the difference is not
+optimism: a gate calls the ramp only when it actually has a finding to withhold, so a
+deadline you meet fires only if the finding also exists on your tree. Nine of the twelve
+sites are *adoption* seams that fire only when the surface is genuinely absent, so an
+install that has been pulling seeded content along the way meets almost none.
+
+Measured, not estimated — the reference scaffold taken from v0.1.3 straight to 0.4.0
+(`scripts/ci/upgrade-lane.sh --from v0.1.3`, the release's own proof) reds **six** gates:
+
+```
+db-limits  gate-integrity  query-shapes  rate-limits  security-headers  tenancy
+```
+
+and three more — `migrations`, `prompts`, `schema-rls` — meet the deadline but stay
+silent, because that tree carries nothing for them to report. Yours will differ. Run the
+grep.
+
+**If the pile is large, do not fight it head-on.** Upgrade one minor at a time — `update`
+to 0.2.0, sweep, `graduate`, then 0.3.0, then 0.4.0. Each `graduate` moves `baseVersion`
+forward, and every ramp at or below it goes inert, so each step shrinks the next. Jumping
+straight from 0.1.3 to 0.4.0 is the one path that meets all twelve simultaneously.
+
+### The twelve, and the cheapest sweep for each
+
+Grouped by what the finding actually is. **A: the surface is missing** — the fix is to
+adopt it, and `update --refresh-seeded <path>` does most of the work. **B: the surface is
+there and something in it is wrong** — a real fix. **C: applied history** — cannot be
+edited; see the escape.
+
+#### A — adoption seams (the surface is absent)
+
+| Gate | The finding | Sweep |
+|---|---|---|
+| `tenancy` | no tenant column in any migration | Follow `docs/runbooks/tenancy-adoption.md`. The spine is a migration you write; there is no file to pull. |
+| `tenancy` | no `audit.events` table | Write a new migration. **Do NOT `--refresh-seeded` a migration** — `supabase/` is seeded because a migration is applied history, and planting one describes DDL your database has not run. `docs/adr/20260202-audit-trail.md` carries the required schema and trigger shape; copy from it deliberately. |
+| `db-limits` | no `ALTER ROLE … SET` in any migration | Same rule — a new migration, from `docs/adr/20260203-resource-limits.md`. Then reconcile `tools/db-limits.json` to what you actually applied; the gate compares the two by value. |
+| `db-limits` | no `org_usage` table | Same ADR — the quota trigger pair. `AFTER INSERT … FOR EACH STATEMENT`, never `FOR EACH ROW`, and never a RESTRICTIVE policy over a `STABLE` count (it fails OPEN). |
+| `rate-limits` | `tools/rate-limit-budget.json` missing | `update --refresh-seeded tools/rate-limit-budget.json`, then reconcile it against your own procedures — a budget that names actions you do not have reds for a different reason. |
+| `security-headers` | `apps/web/lib/security-headers.ts` missing | `update --refresh-seeded apps/web/lib/security-headers.ts` plus `tools/security-headers.json`. The gate asserts the module BY VALUE against the JSON, so pull both or neither. |
+| `query-shapes` | no `src/data/query-probes.ts` in any vertical | `update --refresh-seeded packages/verticals/<name>/src/data/query-probes.ts` for the exemplar shape, rewrite it to drive YOUR data functions, then `pnpm gen`. Order matters: the manifest is a recording of what your DAL executed, so generate it from your own probes — never pull `tools/generated/query-shapes.json`, whose regen-diff against a different DAL can never converge. |
+| `prompts-lock` | `.claude/{agents,commands,skills}` not covered by the lock | One command: `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write`. Read the diff before committing — you are signing off on the instructions your agent runs under. |
+| `gate-integrity` | `.claude/rules/` and `.claude/statusline.mjs` not hashed | The manifest gained hash coverage of these in 0.2.0. `update` re-records them; if the gate still reds, a file has been hand-edited since — review that diff, then re-run `update`. |
+
+#### B — real findings (the surface is present and wrong)
+
+| Gate | The finding | Sweep |
+|---|---|---|
+| `query-shapes` | index-service and boundedness over the generated manifest | Each finding names a query and what it lacks. The usual two: a list with no unconditional `LIMIT`, and an owner index that carries the filter but not the ORDER BY. `packages/verticals/notes` is the worked pattern. |
+| `rls-manifest` | correlated policy predicates, `SECURITY DEFINER` discipline | Replace `auth.uid()` with `(SELECT auth.uid())` in policy predicates — the scalar sub-select the planner hoists to one evaluation per statement instead of one per row. Definer functions need an entry in `tools/security-definer-allow.json` or a `SET search_path`. |
+
+These two are the ones worth the time. Neither is cosmetic: an unbounded list is a
+denial-of-service you ship, and a per-row `auth.uid()` is why a table gets slow at exactly
+the moment it gets popular.
+
+#### C — applied history (`migrations`)
+
+The `migrations` ramp covers two 0.2.0 rules: authorization-destructive DDL needs an
+`-- adr:` reference, and ACCESS EXCLUSIVE needs a `SET lock_timeout = '3s';` preamble.
+
+**If the finding is on a migration you have not committed yet, just fix it in the file.**
+
+If it is on **applied history**, you cannot: both remedies live inside the migration, and
+the append-only rule reds any edit to a committed one. Editing is also pointless — a lock
+preamble on a migration that ran last quarter governs a lock already released. Record the
+acknowledgement instead, in `tools/migrations-allow.json`:
+
+```jsonc
+{
+  "allow": [
+    {
+      "file": "20260114093000_add_archived_at.sql",
+      "rule": "lock-timeout",
+      "reason": "Applied to production 2026-01-14 during the maintenance window; the lock was taken and released then. The file cannot be edited (append-only) and a preamble now would govern nothing."
+    }
+  ]
+}
+```
+
+`rule` is `"lock-timeout"` or `"authz-adr"`. The gate refuses the entry if the migration
+does not already exist at the diff base — so this covers history, never a migration you
+are writing now — and reds a stale entry whose finding is gone. It is an escape list:
+commit it, so the widening lands in the PR diff under CODEOWNERS.
+
+### Then graduate
+
+Once `pnpm validate` is green, `npx next-expo-supabase-agent-harness graduate` advances
+`baseVersion` to 0.4.0 and prints the failing gate with its detail bullets if anything
+still holds it back. Re-run validate: the NOTEs are gone and the checks are live.
 
 ## How to graduate
 

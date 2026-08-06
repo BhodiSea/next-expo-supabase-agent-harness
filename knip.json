@@ -2,6 +2,10 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "scripts/*.mjs",
+    // Invoked from scripts/ci/*.sh, which knip cannot follow — a shell `node <path>` is
+    // not an import. Without this an CI-only helper reads as dead code, and the prescribed
+    // fix for dead code is deletion.
+    "scripts/ci/*.mjs",
     "tests/**/*.test.mjs",
     "template/base/tools/*.mjs",
     "template/base/stryker.config.mjs",

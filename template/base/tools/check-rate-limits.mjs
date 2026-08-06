@@ -37,10 +37,21 @@ const RAMP = '0.2.0'
 if (!existsSync(BUDGET)) {
   // Ramped, not fatal: a pre-0.2.0 install has no budget file and no seam to judge, and a
   // hard failure there would be a gate reporting on a feature the tree does not have.
-  rampNote(GATE, RAMP, `${BUDGET} is missing — this install predates the rate-limit seam`, {
-    until: '0.4.0',
-  })
-  ok(GATE, 'no rate-limit budget in this tree (pre-0.2.0)')
+  //
+  // The return value MUST be consumed. Until 0.4.0 this site discarded it and called ok()
+  // unconditionally, so when the deadline arrived rampNote printed `RAMP EXPIRED` on stderr
+  // and the gate then exited 0 — an alarm that rings into a green run. The ledger
+  // (scripts/check-ramp-ledger.mjs) now reds on an unconsumed call for exactly this reason.
+  // Past the deadline the escape closes onto skipOrFail, matching every sibling adoption
+  // seam (db-limits, tenancy, query-shapes, security-headers): loud locally, red in CI.
+  if (
+    rampNote(GATE, RAMP, `${BUDGET} is missing — this install predates the rate-limit seam`, {
+      until: '0.4.0',
+    })
+  ) {
+    ok(GATE, `pre-${RAMP} install without ${BUDGET} — run \`npx … update\` to adopt the surface`)
+  }
+  skipOrFail(GATE, `${BUDGET} is missing (no rate-limit budget in this tree)`)
 }
 
 let budget
