@@ -278,10 +278,33 @@ zod instance resolves workspace-wide, and exactly one `react` resolves WITHIN ea
 surface's graph (web and mobile pin React independently — separate bundles — so two
 versions across surfaces is correct; two within one bundle break the hooks dispatcher).
 Stamped for warm runs; CI always re-runs.
+
+**The framework security floor (0.5.0).** Every package in `tools/framework-floor.json`
+resolves at or above the patched release for its major line — read from the RESOLVED
+`pnpm-lock.yaml`, not the catalog string, so a transitive resolution below the floor reds
+too. The floor is keyed by MAJOR LINE because that is the shape upstream security releases
+take, and a single flat minimum would red a consumer legitimately sitting on an older but
+patched line; a major with no row is judged unsupported, derived rather than listed twice.
+**Why this is not `osv-scan`, and why it is not `pnpm audit`.** The osv PR lane is
+diff-aware and fails only on NEWLY introduced vulnerabilities, so a pin that was already
+in the tree when the advisory landed never reds there — which is the exact state this
+harness shipped in for two releases. The osv full-tree lane is schedule-and-network bound,
+and a live database makes a verdict that changes with the calendar, which is the same
+reason `pnpm audit` is not in this chain at all. This half is CLOCKLESS and OFFLINE: same
+lockfile, same floor, same verdict on any machine on any day. Whether the review is still
+FRESH is the one time-dependent question, and it rides the scheduled `floor-review` job in
+`osv-scan.yml` (`reviewedUntil`, schedule + workflow_dispatch only — never a PR, because a
+lapsed review must not block a contributor's unrelated patch). The floor is harness-OWNED,
+so `update` carries a new advisory to existing installs, and `gate-integrity` sha-pins it,
+so lowering a minimum without a reviewed commit reds at step 2.
 **Anti-vacuity:** drift `apps/mobile/package.json` from root → FAIL listing the
 disagreeing versions; set `apps/web`'s major off `@app/api`'s → FAIL the skew-contract
 check; resolve two `react` versions inside one surface → FAIL naming the project;
-replace the versionCode derivation with a literal → FAIL on the next version bump.
+replace the versionCode derivation with a literal → FAIL on the next version bump;
+revert the `next` catalog pin below its floor → FAIL naming the resolved version, the
+floor and the HIGH advisory ids; move a version onto a major line the floor has no row
+for → FAIL naming the supported lines; a present `pnpm-lock.yaml` the scanner matches
+ZERO packages in → FAIL, because that is the shape a silently vacuous floor takes.
 
 ### 12. prompts — `node tools/check-prompts-lock.mjs`
 

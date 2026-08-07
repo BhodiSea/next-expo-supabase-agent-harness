@@ -22,6 +22,13 @@ export const ESCAPE_LISTS = [
   'tools/rate-limit-budget.json', // raising a budget is raising what one caller may cost everyone
   'tools/db-perf-baseline.json', // the plan-probe floor + budgets — lowering minRows is how a plan probe becomes vacuous
   'tools/provenance-overrides.json', // cross-group citation escapes
+  // 0.5.0. The citation TAXONOMY, and a widening in the same sense its neighbour above
+  // is: provenance-overrides.json excuses ONE site from the group rule, while adding a
+  // group here makes a whole class of citation resolve that previously could not. It
+  // carried a write-guard rule and a SEEDED entry since 0.1.x and was absent from this
+  // list for the whole time — found by scripts/check-escape-registry.mjs, which exists
+  // because the header above promised drift would be invisible and then was.
+  'tools/decision-groups.json',
   'tools/license-exceptions.json',
   'tools/route-allowlist.json',
   'tools/dto-bounds-allow.json', // exempting a wire string from the .max() bound

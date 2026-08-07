@@ -783,19 +783,21 @@ jobs:
         run: |
           # env -u GITHUB_BASE_REF: see THE GATE above — the scaffold is a different
           # repo, and a step-level empty string does not survive the runner's GITHUB_* defaults.
-          start=$(date +%s)
           env -u GITHUB_BASE_REF node tools/validate.mjs | tee warm-validate.log
-          elapsed=$(( $(date +%s) - start ))
-          echo "warm validate wall time: ${elapsed}s"
           {
             echo '### Warm validate (stamped) — per-step ms'
             echo '```'
             grep -E '^  ' warm-validate.log || true
             echo '```'
-            echo "wall time: ${elapsed}s"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$elapsed" -gt 120 ]; then echo "::error::warm validate took ${elapsed}s (budget 120s)"; exit 1; fi
-          if [ "$elapsed" -gt 90 ]; then echo "::warning::warm validate took ${elapsed}s (target 90s)"; fi
+      # The budget is DATA (scripts/chain-budget.json), not the two inline shell literals
+      # this replaces. Those were `-gt 120` with a `-gt 90` warning above it: not
+      # versioned, not per-step, and invisible to scripts/check-claims.mjs — so a chain
+      # that got slower produced an unattributed wall-clock failure naming no step. It
+      # reads the one VALIDATE_TIMINGS line tools/validate.mjs emits last, so it can say
+      # WHICH step moved, and it reds on a chain step nobody budgeted.
+      - name: Chain budget (per-step ceilings, from scripts/chain-budget.json)
+        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log
       - name: Warm-lane positive control — the e2e stamp engaged (skipped the jest re-run)
         working-directory: .selftest/boot
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
@@ -1165,9 +1167,58 @@ jobs:
   # not, doctor never says broken, the chain is green, every ramp NOTE names the
   # release it expires in, and `graduate` refuses while those NOTEs stand.
   # ---------------------------------------------------------------------------
+  # 0.5.0 — FOUR BASELINES, IN PARALLEL. Two legs were enough while only one released
+  # vintage ever met a deadline (0.4.0's escapes all opened at minVersion 0.2.0, so only
+  # 0.1.3 was affected). 0.5.0's eight open at 0.3.0 and 0.4.0, so THREE vintages meet a
+  # deadline and each meets a DIFFERENT subset — a fact no single leg can show.
+  #
+  # A matrix rather than four serial steps: legs are independent by construction (each
+  # scaffolds into its own throwaway directory with its own git repo), so serialising them
+  # would have quadrupled wall clock against a 45-minute budget and the honest response to
+  # that pressure is usually to drop a leg. `fail-fast: false` because this is a release
+  # gate: which OTHER baselines also break is the information you need, and cancelling the
+  # survivors to report the first failure faster is the wrong trade here.
   upgrade-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # LEG A — the previous release. The ONLY leg that reaches `graduate`'s SUCCESS
+          # branch: rampNote is inert once baseVersion >= minVersion, so an install one
+          # minor below HEAD meets no deadline and graduates cleanly. Adding older legs
+          # must never replace it, or the release introduces a break and deletes the proof
+          # of the unbroken path in the same act.
+          - leg: A
+            baseline: ''
+            dir: upgrade
+            why: previous release — the only leg that reaches graduate's success branch
+          # LEG B — the oldest tag in this lineage (0.1.0–0.1.2 belong to the ancestor
+          # project). Every ramp the harness ships expires here, so it is the maximum-blast
+          # leg and the one that first executed a RAMP EXPIRED branch at all.
+          - leg: B
+            baseline: v0.1.3
+            dir: upgrade-oldest
+            why: oldest release — every deadline lands at once
+          # LEG C — the vintage 0.5.0's eight escapes were opened against. It meets all
+          # eight and none of 0.4.0's twelve, which is the isolation neither neighbour has:
+          # leg B drowns the eight in twelve, and leg D sees only two of them.
+          - leg: C
+            baseline: v0.2.1
+            dir: upgrade-0-2-1
+            why: 0.5.0's eight expiries in isolation, without 0.4.0's twelve
+          # LEG D — the MINIMAL expiry leg, and the sharpest of the four. At HEAD 0.5.0 a
+          # 0.3.0 install meets exactly two deadlines, and `narrow()` drops Stop-chain gates
+          # from the lane's expectation set, so `diff-coverage` falls away and the executed
+          # set is exactly `wiring`. A single-element expectation is the only one that can
+          # be neutralised to prove the lane itself still dies — with a larger set, one
+          # silenced expiry hides behind its siblings.
+          - leg: D
+            baseline: v0.3.0
+            dir: upgrade-0-3-0
+            why: the minimal expiry set — narrows to exactly one executed gate
+    name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -1189,48 +1240,45 @@ jobs:
           key: pnpm-store-${{ runner.os }}-node22-${{ hashFiles('template/base/pnpm-workspace.yaml', 'template/**/package.json.tmpl') }}
           restore-keys: |
             pnpm-store-${{ runner.os }}-node22-
-      - name: init at the previous release tag → update to HEAD → prove green
-        run: bash scripts/ci/upgrade-lane.sh "$GITHUB_WORKSPACE/.selftest/upgrade"
-      - name: 'Leg B (0.4.0): init at the OLDEST release → update to HEAD → a ramp deadline must actually RED'
-        # THE RELEASE'S CENTRAL PROOF, and the leg above structurally cannot supply it.
-        #
-        # rampNote returns false at `base >= minVersion` BEFORE it reads the deadline. Leg
-        # A installs the PREVIOUS release, so its baseVersion is one minor below HEAD —
-        # already at or above the minVersion of every ramp old enough to be expiring. The
-        # RAMP EXPIRED branch is therefore unreachable on leg A for every release, forever.
-        # 0.4.0 is the first release where a deadline arrives at all, and without this leg
-        # its single largest behavioural change would ship with nothing able to execute it.
-        #
-        # v0.1.3 is this lineage's OLDEST tag (0.1.0-0.1.2 belong to the ancestor project),
-        # so it is the one baseline that meets 0.4.0's deadlines. The expectation set is
-        # computed, not written here: scripts/ci/ramp-expectations.mjs classifies HEAD's own
-        # shipped call sites for this baseline, so the leg stays correct as ramps come and
-        # go and cannot quietly assert nothing.
-        run: bash scripts/ci/upgrade-lane.sh "$GITHUB_WORKSPACE/.selftest/upgrade-oldest" --from v0.1.3
+      # init at this leg's baseline → update to HEAD → prove green.
+      #
+      # WHY OLD BASELINES ARE NOT OPTIONAL. rampNote returns false at `base >= minVersion`
+      # BEFORE it ever reads the deadline, so leg A — one minor below HEAD — is already at
+      # or above the minVersion of every ramp old enough to be expiring. Its RAMP EXPIRED
+      # branch is unreachable, for every release, structurally. Only a leg at an OLD
+      # baseline can execute an expiry at all.
+      #
+      # The expectation set is COMPUTED, never written here: scripts/ci/ramp-expectations.mjs
+      # classifies HEAD's own shipped call sites for this leg's baseline, so a leg stays
+      # correct as ramps come and go and can never quietly assert nothing.
+      - name: "init at ${{ matrix.baseline || 'the previous release' }} → update to HEAD → prove green (${{ matrix.why }})"
+        run: |
+          bash scripts/ci/upgrade-lane.sh \
+            "$GITHUB_WORKSPACE/.selftest/${{ matrix.dir }}" \
+            ${{ matrix.baseline && format('--from {0}', matrix.baseline) || '' }}
       - name: Upgrade report
         if: always()
+        env:
+          LEG: ${{ matrix.leg }}
+          DIR: ${{ matrix.dir }}
+          WHY: ${{ matrix.why }}
         run: |
           {
-            # Both legs. Leg B's logs are the ones a reader actually wants when the
-            # release is about expiries, and reporting only leg A would have quietly
-            # dropped them — the same shape of omission the lane itself exists to catch.
-            for leg in upgrade upgrade-oldest; do
-              [ -d ".selftest/$leg" ] || continue
-              case "$leg" in
-                upgrade) echo '### Upgrade lane — leg A (previous release)' ;;
-                *) echo '### Upgrade lane — leg B (oldest release, ramp expiry)' ;;
-              esac
-              for f in expect update doctor validate graduate; do
-                log=".selftest/$leg/$f.log"
-                [ "$f" = expect ] && log=".selftest/$leg/expect.sh"
-                [ -f "$log" ] || continue
-                echo "<details><summary>$f</summary>"
-                echo
-                echo '```'
-                tail -c 20000 "$log"
-                echo '```'
-                echo '</details>'
-              done
+            # Per-leg, because each matrix entry writes its own summary. The expiry legs'
+            # logs are the ones a reader actually wants when a release is about deadlines,
+            # and reporting only the happy leg would be the same shape of omission this
+            # lane exists to catch.
+            echo "### Upgrade lane — leg $LEG ($WHY)"
+            for f in expect update doctor validate graduate; do
+              log=".selftest/$DIR/$f.log"
+              [ "$f" = expect ] && log=".selftest/$DIR/expect.sh"
+              [ -f "$log" ] || continue
+              echo "<details><summary>$f</summary>"
+              echo
+              echo '```'
+              tail -c 20000 "$log"
+              echo '```'
+              echo '</details>'
             done
           } >> "$GITHUB_STEP_SUMMARY"
 

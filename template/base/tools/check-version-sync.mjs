@@ -36,14 +36,24 @@
 //      process (separate Next/Metro bundles), so two versions ACROSS surfaces is correct.
 //      Two React copies in ONE bundle break the hooks dispatcher, so the walk is scoped
 //      per workspace project: each project's own subtree must resolve exactly one react.
+//   7. FRAMEWORK SECURITY FLOOR (0.5.0). Every version tools/framework-floor.json floors
+//      — read from the RESOLVED pnpm-lock.yaml, not the catalog string, so a transitive
+//      resolution below the floor reds too — is at or above the patched release for its
+//      major line. Nothing else in the 31-step chain reds on a pinned dependency with a
+//      published advisory, and the osv-scan lanes structurally cannot: the PR lane is
+//      diff-aware (an already-shipped vulnerable pin is never "newly introduced") and the
+//      full-tree lane is schedule-and-network bound. This half is clockless and offline;
+//      whether the REVIEW is still fresh is the scheduled `floor-review` job's question.
 // SOURCE: docs/harness/README.md (version-sync gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
+import { judgeFloor, parseLockVersions } from './lib/framework-floor.mjs'
 import { failures, inCI, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'version-sync'
 const APP_CONFIG = 'apps/mobile/app.config.ts'
 const EAS_JSON = 'apps/mobile/eas.json'
+const FLOOR_PATH = 'tools/framework-floor.json'
 const errs = []
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'))
@@ -137,6 +147,7 @@ if (existsSync(EAS_JSON)) {
 }
 
 // Exact pins for SDK-lockstep tools in the workspace catalog
+const catalogPins = new Map()
 if (existsSync('pnpm-workspace.yaml')) {
   const ws = readFileSync('pnpm-workspace.yaml', 'utf8')
   for (const tool of ['expo', 'expo-router', 'react-native', 'babel-preset-expo']) {
@@ -146,6 +157,37 @@ if (existsSync('pnpm-workspace.yaml')) {
         `catalog pin for ${tool} is ${m[1]} — SDK-lockstep/major-churn tools must be EXACT-pinned (Renovate bumps them deliberately)`,
       )
     }
+  }
+  for (const m of ws.matchAll(/^ {2}'?([@a-z0-9][@a-z0-9/.-]*)'?:\s*([^\s#]+)/gm)) {
+    catalogPins.set(m[1], m[2].replace(/^['"]|['"]$/g, ''))
+  }
+}
+
+// ── the framework security floor (0.5.0) ───────────────────────────────────────
+// Judged HERE rather than in a step of its own because it asks the same question this
+// gate already asks — "is the version surface what it is supposed to be" — and because
+// 0.5.0 adds no chain steps. It is deliberately CLOCKLESS and OFFLINE: same lockfile,
+// same floor, same verdict on any machine on any day. The freshness of the review is the
+// one time-dependent half and it rides the scheduled `floor-review` CI job instead.
+//
+// This runs BEFORE the node_modules skip below on purpose: it reads pnpm-lock.yaml, not
+// the installed tree, so it must still red on a machine that has never run `pnpm install`.
+if (existsSync(FLOOR_PATH)) {
+  const haveLock = existsSync('pnpm-lock.yaml')
+  const { problems, judged } = judgeFloor({
+    floor: readJson(FLOOR_PATH),
+    resolved: haveLock ? parseLockVersions(readFileSync('pnpm-lock.yaml', 'utf8')) : new Map(),
+    catalogPins,
+    haveLock,
+  })
+  errs.push(...problems)
+  if (!haveLock) {
+    // Not skipOrFail: the catalog half above DID run, so this is a narrowing of scope
+    // rather than a gate that could not run. CI installs before validating, so the
+    // resolved half is always live there.
+    console.log(
+      `${GATE}: NOTE — pnpm-lock.yaml absent, so the framework floor judged ${String(judged)} catalog pin(s) only; the RESOLVED half (a transitive resolution below the floor) needs a lockfile. CI always has one.`,
+    )
   }
 }
 
@@ -317,5 +359,5 @@ failures(GATE, errs)
 recordGreen()
 ok(
   GATE,
-  `version ${root.version} in lockstep (buildNumber ${mobileVersion}, versionCode ${expectedCode}, runtimeVersion appVersion); node majors + eas.json toolchains agree; SDK tools exact-pinned`,
+  `version ${root.version} in lockstep (buildNumber ${mobileVersion}, versionCode ${expectedCode}, runtimeVersion appVersion); node majors + eas.json toolchains agree; SDK tools exact-pinned; every floored framework at or above its security floor`,
 )

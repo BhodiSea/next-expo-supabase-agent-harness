@@ -45,3 +45,40 @@ jobs:
       actions: read
       contents: read
       security-events: write
+
+  # The CLOCKFUL half of the framework security floor (0.5.0). tools/framework-floor.json
+  # is judged for CONTENT by chain step 11 (`version-sync`) — clockless, offline, on every
+  # machine — and that half cannot ask the one question that matters most over time:
+  # whether a human has re-read the upstream feed since. A floor left alone decays into an
+  # assertion that no advisory has been published, and it decays silently.
+  #
+  # It is a JOB OF ITS OWN rather than a step inside scan-full because scan-full is a
+  # reusable-workflow CALL (`uses:`), and a job with `uses:` may not carry `steps:`.
+  #
+  # schedule + workflow_dispatch ONLY, deliberately not `push` or `pull_request`: a lapsed
+  # review is a maintenance signal, and a control that reds a contributor's unrelated PR
+  # for a date is a control someone removes. It sits in osv-scan.yml because it is the same
+  # concern on the same cadence — osv owns time-based DISCOVERY, this owns the review of
+  # what discovery already found.
+  floor-review:
+    name: framework floor (review freshness)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # No install: the check reads one JSON file and compares ISO dates. Keeping it
+      # dependency-free is what lets it run weekly at no cost and never flake.
+      - name: Every floored package carries an unlapsed review
+        run: node tools/check-framework-floor.mjs

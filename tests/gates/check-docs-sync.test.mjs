@@ -399,18 +399,42 @@ const shippedTiers = readFileSync(TIERS_TEMPLATE, 'utf8')
 const WORKFLOW_TEMPLATE = fileURLToPath(
   new URL('../../template/base/github/workflows/quality-gate.yml', import.meta.url),
 )
+const WORKFLOW_DIR = fileURLToPath(
+  new URL('../../template/base/github/workflows', import.meta.url),
+)
+const SECURITY_DOCS = fileURLToPath(new URL('../../template/base/docs/security', import.meta.url))
 
 /**
  * The fixture plus a tiers file, at a baseVersion where the 0.3.0 ramp is INERT.
  * The shipped workflow comes too: half the table's compensating controls are CI JOBS
  * (`web-e2e`), not chain steps, so a fixture without it would red every one of them and
  * the green case could only be made to pass by weakening the assertion.
+ *
+ * `allTools` and `allWorkflows` (0.5.0) exist because the two new controls read things the
+ * minimal fixture does not carry. The Target check re-derives which gates still hard-code
+ * one product surface, which needs the real `tools/` — with only three scripts present it
+ * would find nothing single-surface and discharge every Target VACUOUSLY, which is the
+ * failure shape these tests are for. `harness` overrides the install's harnessVersion,
+ * which is what a Target date is measured against.
  */
-function tiersFixture(tiers) {
-  const dir = fixture({ agents: shippedAgents, manifest: { baseVersion: '0.4.0', harnessVersion: '0.4.0' } })
+function tiersFixture(tiers, { allTools = false, allWorkflows = false, harness = '0.4.0' } = {}) {
+  const dir = fixture({
+    agents: shippedAgents,
+    manifest: harness === null ? undefined : { baseVersion: '0.4.0', harnessVersion: harness },
+  })
   mkdirSync(join(dir, 'docs/harness'), { recursive: true })
   mkdirSync(join(dir, '.github/workflows'), { recursive: true })
-  cpSync(WORKFLOW_TEMPLATE, join(dir, '.github/workflows/quality-gate.yml'))
+  if (allTools) {
+    cpSync(TOOLS, join(dir, 'tools'), { recursive: true })
+    // The full tools/ brings approved-tools.json and doctrine-symbols.json, which arm two
+    // OTHER sections of this gate. Their docs come with them, or these tests would red on
+    // a finding that has nothing to do with tiers — and a test that fails for the wrong
+    // reason teaches the reader to distrust the right ones.
+    mkdirSync(join(dir, 'docs/security'), { recursive: true })
+    cpSync(SECURITY_DOCS, join(dir, 'docs/security'), { recursive: true })
+  }
+  if (allWorkflows) cpSync(WORKFLOW_DIR, join(dir, '.github/workflows'), { recursive: true })
+  else cpSync(WORKFLOW_TEMPLATE, join(dir, '.github/workflows/quality-gate.yml'))
   if (tiers !== null) writeFileSync(join(dir, 'docs/harness/enforcement-tiers.md'), tiers)
   return dir
 }
@@ -420,7 +444,7 @@ test('TIERS GREEN: the SHIPPED table parses and every compensating control is li
   // parser have drifted apart again — and the symptom is "declares nothing", not a diff.
   const r = runGate(tiersFixture(shippedTiers))
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /enforcement tier\(s\) declared, every compensating control live/)
+  assert.match(r.out, /enforcement tier\(s\) declared over \d+ workflow\(s\); every compensating control live/)
   assert.doesNotMatch(r.out, /no parseable tier rows/, r.out)
 })
 
@@ -469,4 +493,123 @@ test('TIERS RED: an empty cell is a tier declared without one of its facts', () 
   const r = runGate(tiersFixture(blank))
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /empty 'Does NOT cover' cell/)
+})
+
+// ── `Target` becomes a control, and `Compensated by` stops overstating (0.5.0) ────────
+
+test('TIERS: the shipped table is GREEN at 0.5.0 — the deferred rows are not yet due', () => {
+  // The other half of the deferral being honest: moving i18n and route-manifest to 0.6.0
+  // buys exactly one release, and this pins that it buys only one.
+  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+})
+
+test('TIERS RED: an ARRIVED Target on a still-single-surface gate reds', () => {
+  // THE CONTROL. Three rows carried `Target: 0.5.0` under a sentence calling Target "a
+  // commitment, not a wish", and nothing read the column. At harness 0.6.0 the two rows
+  // this release deferred come due, and if their web halves still do not exist they red —
+  // which is what makes the deferral a commitment rather than a way to buy a green release.
+  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /committed to closing its gap in 0\.6\.0 and this install runs harness 0\.6\.0/)
+  assert.match(r.out, /gate `i18n`/)
+  assert.match(r.out, /gate `route-manifest`/)
+  // The six rows that carry `Target —` mean "no other half is owed" and must NOT red: a
+  // draft of this check treated the em dash as a missing commitment and reddened all six.
+  assert.doesNotMatch(r.out, /gate `expo-policy`/)
+  assert.doesNotMatch(r.out, /gate `native-deps`/)
+})
+
+test('TIERS: a Target DISCHARGES when the gate stops being single-surface', () => {
+  // `build` is the worked example: 0.5.0 gave build-check.mjs a `--web` mode over the
+  // `.next` client chunks, so it is no longer single-surface and its Target became `—`.
+  // Re-dating a row it can still discharge would be the loophole; re-deriving from the
+  // gate SOURCE is what closes it.
+  const due = shippedTiers.replace(/^(\| `build` \|.*)\| — \|$/m, '$1| 0.1.3 |')
+  assert.notEqual(due, shippedTiers, 'the build row must be found for this test to mean anything')
+  const r = runGate(tiersFixture(due, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
+  assert.doesNotMatch(r.out, /gate `build`/, r.out)
+})
+
+test('TIERS RED: a Target that is not a version and not an em dash is a deadline with no date', () => {
+  const vague = shippedTiers.replace(/^(\| `unit` \|.*)\| — \|$/m, '$1| soon |')
+  const r = runGate(tiersFixture(vague, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /Target is "soon"/)
+})
+
+test('TIERS: with NO manifest the Target check SAYS it is not judging, rather than passing silently', () => {
+  // The template dev tree and every gate fixture have no .harness/manifest.json, so there
+  // is no installed release to measure a date against. Defined rather than inherited: a
+  // silent pass would leave Targets unenforced in exactly the tree the harness's own
+  // maintainers work in, which is where the three stale ones were written.
+  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: null }))
+  assert.match(r.out, /no \.harness\/manifest\.json, so `Target` dates .* are not judged/)
+})
+
+test('TIERS RED: an only-conditional compensating control must admit it is path-filtered', () => {
+  // The critic's finding, mechanised. `web-e2e` is path-filtered, and summarize-gate.mjs
+  // deliberately greens over a skipped lane after naming it — so a row whose ONLY
+  // compensating control is that lane claims coverage on exactly the commits that did not
+  // get it. Nine shipped rows were in that state.
+  const overstated = shippedTiers.replace(
+    /^(\| `perf-budget` \|.*)\| `web-e2e` \(path-filtered\) \| — \|$/m,
+    '$1| `web-e2e` | — |',
+  )
+  assert.notEqual(overstated, shippedTiers, 'the perf-budget row must be found')
+  const r = runGate(tiersFixture(overstated, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /are CONDITIONAL jobs \(path- or event-filtered\)/)
+  assert.match(r.out, /summarize-gate\.mjs greens over a skipped lane/)
+})
+
+test('TIERS: a control living in a NON-quality-gate workflow now resolves', () => {
+  // Eight workflows ship and this resolved against one. A row compensated by `gitleaks`
+  // (gitleaks.yml) or `analyze` (codeql.yml) named a real, blocking lane and was reported
+  // as naming a control that does not exist.
+  const elsewhere = shippedTiers.replace(
+    /^(\| `duplication` \|.*)\| — \| — \|$/m,
+    '$1| `gitleaks` | — |',
+  )
+  assert.notEqual(elsewhere, shippedTiers, 'the duplication row must be found')
+
+  const all = runGate(tiersFixture(elsewhere, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  assert.equal(all.code, 0, all.out)
+
+  // ...and the proof that the fixture is not simply lenient: with only quality-gate.yml
+  // present, the same cell resolves to nothing, which is what every install saw until now.
+  const one = runGate(tiersFixture(elsewhere, { allTools: true, harness: '0.5.0' }))
+  assert.equal(one.code, 1, one.out)
+  assert.match(one.out, /gitleaks/)
+})
+
+// ── the security doc's coverage claim tracks the gate it describes (0.5.0) ────────────
+
+test('SANDBOX GREEN: the shipped doc names web-build, and the shipped gate has --web', () => {
+  const dir = tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /states the build gate's surfaces in lockstep .*\(web mode present\)/)
+})
+
+test('SANDBOX RED: a gate whose --web mode is deleted while the doc still describes it', () => {
+  // The drift that shipped for two releases in the other direction: the doc claimed a
+  // secret-exfiltration control the tree did not implement. A security reviewer reads the
+  // doc, not the gate.
+  const dir = tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' })
+  const gate = join(dir, 'tools/build-check.mjs')
+  writeFileSync(gate, readFileSync(gate, 'utf8').replaceAll("'--web'", "'--disabled'"))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /claims a secret-exfiltration control the tree does not implement/)
+})
+
+test('SANDBOX RED: a --web mode the doc never mentions understates a real control', () => {
+  const dir = tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' })
+  const doc = join(dir, 'docs/security/sandbox-and-supply-chain.md')
+  writeFileSync(doc, readFileSync(doc, 'utf8').replaceAll('web-build', 'some-other-lane'))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /never names the `web-build` lane/)
 })

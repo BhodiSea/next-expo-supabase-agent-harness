@@ -2,14 +2,18 @@
 // CI-friendly exit codes (0 clean, 1 broken, 2 drift/attention). Seeded-surface
 // divergence is reported as info only — project-owned files are EXPECTED to
 // evolve; the advisory exists so template improvements are discoverable.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { renderEntry, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { walkFiles } from '../lib/fs-walk.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
-import { readManifest, sha256 } from '../lib/manifest.mjs'
-import { readTemplateMigrations, requiredConfigSteps } from '../lib/migrations.mjs'
+import { installerVersion, readManifest, sha256 } from '../lib/manifest.mjs'
+import {
+  readTemplateMigrations,
+  requiredConfigSteps,
+  unmetDependencyObligations,
+} from '../lib/migrations.mjs'
 
 
 // One manifest record, classified. Hoisted out of `doctor` so the command stays under the
@@ -58,6 +62,58 @@ function classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings 
       ? `stale hook: ${ip} carries v${stamp}, manifest is v${manifest.harnessVersion} (run \`update\`)`
       : `locally modified hook: ${ip} (restore it or run \`update\` — hooks are harness-owned)`,
   )
+}
+
+// Everything under .harness/pending/, classified. Hoisted out of `doctor` for the same
+// reason classifyManifestFile was: the command is at the top of scripts/complexity-ratchet.json
+// and that record may only move DOWN. Inlining this block took it 55 -> 62, which the
+// ratchet caught — the harness holding itself to the bar it holds consumers to.
+/**
+ * @param {{ targetDir: string, errors: string[], warnings: string[], infos: string[] }} args
+ */
+function classifyPending({ targetDir, errors, warnings, infos }) {
+  // A parked upgrade is a deferred DECISION (update/enable kept local work and parked the
+  // incoming version). Keep naming them until reconciled — parked forever is how upgrades
+  // silently stop reaching a project.
+  const pendingRoot = join(targetDir, '.harness', 'pending')
+  for (const rel of walkFiles(pendingRoot)) {
+    // dependencies.json is not a parked FILE awaiting a merge into a same-named path — it
+    // is an obligation, and it is an ERROR rather than a warning.
+    if (rel === 'dependencies.json') continue
+    warnings.push(
+      `parked upgrade awaiting merge: .harness/pending/${rel} — reconcile it into ${rel}, then delete the parked copy`,
+    )
+  }
+
+  // Unmet dependency obligations (0.5.0). An ERROR, and the distinction from the warning
+  // above is the point: a parked upgrade is a decision the human has not made yet, while
+  // an unmet obligation means a gate the harness just installed CANNOT RUN — eslint dying
+  // before it lints a file is exactly what this channel exists to stop. Recomputed from
+  // the tree rather than trusted from the parked file, so applying the pins and re-running
+  // `doctor` clears it without another `update`.
+  const obligations = unmetDependencyObligations(readTemplateMigrations(), installerVersion(), {
+    workspaceYaml: readIfPresent(join(targetDir, 'pnpm-workspace.yaml')),
+    packageJson: readIfPresent(join(targetDir, 'package.json')),
+  })
+  for (const o of obligations) {
+    errors.push(
+      `unmet dependency obligation (since ${o.since}): \`${o.name}: ${o.catalog}\` is not in the pnpm-workspace.yaml catalog${o.devDependency === false ? '' : ' / root devDependencies'}. WHY: ${o.why} Add it, run \`pnpm install\`, commit pnpm-lock.yaml, then re-run \`doctor\`.`,
+    )
+  }
+  if (obligations.length === 0 && existsSync(join(pendingRoot, 'dependencies.json'))) {
+    infos.push('every dependency obligation is met — removing the stale .harness/pending/dependencies.json')
+    rmSync(join(pendingRoot, 'dependencies.json'), { force: true })
+  }
+}
+
+// Absent is not an error here: the obligation check treats an unreadable manifest as
+// "cannot prove it is met", which is the safe direction.
+function readIfPresent(path) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
@@ -156,16 +212,7 @@ export async function doctor(opts) {
     }
   }
 
-  // Parked upgrades awaiting a human merge: everything under .harness/pending/
-  // is a deferred decision (update/enable kept local work and parked the
-  // incoming version). Keep naming them until reconciled — parked forever is
-  // how upgrades silently stop reaching a project.
-  const pendingRoot = join(targetDir, '.harness', 'pending')
-  for (const rel of walkFiles(pendingRoot)) {
-    warnings.push(
-      `parked upgrade awaiting merge: .harness/pending/${rel} — reconcile it into ${rel}, then delete the parked copy`,
-    )
-  }
+  classifyPending({ targetDir, errors, warnings, infos })
 
   // Commit-time layer: lefthook must actually be INSTALLED into .git/hooks —
   // a committed lefthook.yml with uninstalled hooks is a silently dormant gate.

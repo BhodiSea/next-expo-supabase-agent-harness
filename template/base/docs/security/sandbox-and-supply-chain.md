@@ -44,10 +44,34 @@ If an agent has all three, an attacker can trick it into exfiltrating private da
   red, not a device-time crash.
 - **License gates.** `licenses` (npm allowlist) runs in every validate; gitleaks runs
   pre-commit (lefthook, self-skipping) and over full history in CI.
-- **No secret ever ships.** The build gate greps the exported bundle for DSNs, keys,
-  and secret-shaped strings; EXPO_PUBLIC_-prefixed secret-shaped names are
-  write-guard-denied (EXPO_PUBLIC_ vars are inlined into the shipped JS);
-  `.env.example` documents shape with empty values.
+- **No secret ships in a client bundle — on either surface, by two different routes.**
+  Stated per surface rather than as one sentence, because until 0.5.0 the one sentence
+  was wrong for half the product: `build-check.mjs` was `const APP = 'apps/mobile'`,
+  so "the build gate greps the exported bundle" described a scan that never saw the web
+  output, and `docs/harness/enforcement-tiers.md` said so in a row nothing read.
+  - **Mobile** — chain step 25 (`build`) runs `expo export` on every validate and greps
+    the emitted bundle for DSNs, service-role key NAMES, the service-role factory name,
+    `sk_live_` and private-key headers. Deterministic and offline, so it runs on a laptop.
+    It does **not** value-scan for `sb_secret_…`, and that is a measured limit rather than
+    an omission: Hermes interns its string table contiguously with no delimiter between
+    entries, so the `sb_secret_` prefix constant that `@app/supabase` legitimately ships —
+    the one the runtime uses to REFUSE a secret key on a client surface — runs straight
+    into whatever was interned next and satisfies any "prefix plus N characters of key
+    material" rule. A real leaked key on this surface is caught by gitleaks in the source
+    it came from, and by the `EXPO_PUBLIC_` name rule below.
+  - **Web** — the same marker list **plus the `sb_secret_…` value scan**, which is
+    decidable here because `.next/static` is JavaScript text and the value sits inside
+    quotes. Over `apps/web/.next/static/**`, the chunks a browser downloads, in the
+    path-filtered `web-build` CI job (`build-check.mjs --web`). It is a
+    lane and not a chain step because a `next build` is minutes, not seconds. Two
+    honest qualifications: it does **not** run on a PR that touches no web path (the lane
+    is path-filtered, and `tools/ci/summarize-gate.mjs` greens over a skipped lane after
+    naming it), and it deliberately does **not** scan `.next/server/**`, which legitimately
+    holds the service-role factory and every server-only import.
+  - **Both** — `EXPO_PUBLIC_`- and `NEXT_PUBLIC_`-prefixed secret-shaped names are
+    write-guard-denied and `secrets`-gate-denied, because both prefixes are inlined into
+    their shipped bundle; the judgement is by NAME shape, so it holds before any build
+    exists. `.env.example` documents shape with empty values.
 - **Generated native projects are not a review surface.** CNG purity (expo-policy +
   native-deps) keeps `android/`/`ios/` out of the repo entirely, so native intent is
   reviewable in `app.config.ts` + the plugin/permission allowlists instead of in

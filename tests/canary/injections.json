@@ -103,6 +103,11 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-version-sync.test.mjs"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/framework-floor.test.mjs",
+        "note": "0.5.0's framework security floor, judged inside this step. Two injections it drives red: a resolved lockfile version below the reviewed floor (naming the HIGH advisory ids), and a version on a major line the floor records no patched release for. A third proof is the one the harness needed and did not have — the SHIPPED catalog pin is judged against the SHIPPED floor, which is the comparison nobody was making while `next: 16.2.7` sat inside the affected range of nine advisories for two releases."
       }
     ],
     "prompts": [
@@ -591,6 +596,20 @@
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
         "note": "OSV-Scanner over the full tree on a schedule. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+      }
+    ],
+    "web-build": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/build-check-web.test.mjs",
+        "note": "0.5.0. The web half of the `build` gate, which was `const APP = 'apps/mobile'` while docs/security/sandbox-and-supply-chain.md described it as grepping the exported bundle without qualification. The lane runs a real `next build`; the fixture proves the three things that decide whether it is a control — a secret-shaped value in a client chunk reds, an EMPTY client output reds rather than reporting a pure bundle, and `.next/server/**` is deliberately NOT scanned, because a service-role factory there is correct code and a gate that reds on correct code gets deleted."
+      }
+    ],
+    "floor-review": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/framework-floor.test.mjs",
+        "note": "0.5.0. Unlike its two neighbours in this workflow, this lane is NOT a vendor call \u2014 the harness owns every line of it, so the proof is executable rather than structural: the fixture backdates every reviewedUntil in a copy of the shipped floor, spawns tools/check-framework-floor.mjs, and asserts exit 1 naming the lapsed date; then it runs the SAME script against the SHIPPED floor and asserts exit 0, so the red is the backdating and not a broken script. The clock is a `--today=` parameter for exactly this reason \u2014 a red-proof that has to wait for a calendar is a red-proof nobody runs."
       }
     ]
   }

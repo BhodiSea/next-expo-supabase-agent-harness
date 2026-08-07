@@ -208,6 +208,40 @@ test('purity: every forbidden marker in an emitted file reds naming file, marker
   }
 })
 
+test('the MOBILE surface does not value-scan sb_secret_ — a Hermes string table has no delimiters', () => {
+  // MEASURED, not reasoned. `packages/platform/supabase/src/credentials.ts` ships
+  // `const SECRET_KEY_PREFIX = 'sb_secret_'` — the constant the runtime uses to REFUSE a
+  // secret key on a client surface — and the mobile app imports it, so the literal is in
+  // every Hermes bundle. Hermes interns strings contiguously, so on a real 0.5.0 export the
+  // shipped constant ran straight into the next table entry:
+  //
+  //   …(received `%s`).%  sb_secret_  _getObserverIDcrk-Cans-CAdd
+  //
+  // which satisfies "prefix plus N characters of key material" for any healthy N. First a
+  // bare substring reddened `build` on every scaffold that had run an export; then a shape
+  // rule reddened it again on the same bytes. There is no quantifier that is safe on that
+  // surface — a bigger one only moves the coincidence — so the VALUE scan belongs to
+  // `.next/static`, where the value sits inside quotes in real JavaScript text.
+  const payload = 'x'.repeat(30) + 'sb_secret_' + '_getObserverIDcrk-Cans-CAdd note-composer'
+  const dist = { ...DIST_FILES, [`_expo/static/js/android/hermes-${HASH_A}.hbc`]: `${payload}\n` }
+  const r = runGate(fixture({ dist }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('…but the NAME markers still cover the mobile surface, so it is not unguarded', () => {
+  // The half that survives, and the half the file's original comment already claimed was
+  // the greppable one: the legacy service-role key is a JWT, so its NAME is what a bundle
+  // scan can find. Dropping the value scan must not quietly drop these too.
+  const dist = {
+    ...DIST_FILES,
+    [`_expo/static/js/android/leak-${HASH_A}.hbc`]:
+      'const k = process.env.SUPABASE_SERVICE_ROLE_KEY\n',
+  }
+  const r = runGate(fixture({ dist }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('the RLS-bypassing service-role key'), r.out)
+})
+
 // ── per-image budgets (0.1.2): magic-byte classification, raw-size caps ──────
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const fakePng = (kb) => Buffer.concat([PNG_MAGIC, Buffer.alloc(kb * 1024, 7)])

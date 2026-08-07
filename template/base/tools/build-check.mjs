@@ -35,7 +35,144 @@ import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'build'
 const APP = 'apps/mobile'
+const WEB_APP = 'apps/web'
 const BUDGET_FILE = 'tools/bundle-budget.json'
+
+// Forbidden markers in a shipped CLIENT bundle. postgresql:// is the spec-equal alias of
+// postgres:// — matching only one was a purity hole. EXPO_TOKEN is the EAS credential name,
+// sk_live_ the live-mode secret-key prefix shape, and sb_secret_ Supabase's current secret
+// key prefix (the legacy service-role key is a JWT, so its NAME is what is greppable;
+// the new format has a literal prefix, which is greppable by VALUE).
+// Hoisted above the surface branch because both surfaces are judged against the same list:
+// a service-role key is exactly as fatal in a `.next` chunk as in a Hermes bundle, and two
+// lists would drift the way every other duplicated list in this repo has.
+//
+// AND WHY sb_secret_ IS JUDGED ON THE WEB SURFACE ONLY. Two facts, both measured on a real
+// Hermes export rather than reasoned about:
+//   1. `packages/platform/supabase/src/credentials.ts` ships
+//      `const SECRET_KEY_PREFIX = 'sb_secret_'` — the constant the runtime uses to REFUSE a
+//      secret key on a client surface — and the mobile app imports it, so the literal is in
+//      every Hermes bundle by construction. As a bare substring this reddened `build` on
+//      every scaffold that had run an export, accusing the code that prevents the leak of
+//      being the leak.
+//   2. Tightening it to a SHAPE does not help on that surface, which is the part only
+//      execution showed. Hermes stores its string table contiguously with no delimiter
+//      between entries, so the shipped constant runs straight into whatever was interned
+//      next. The observed bytes were `…(received \`%s\`).%` + `sb_secret_` +
+//      `_getObserverIDcrk-Cans-CAdd`, which satisfies any "prefix plus N characters of key
+//      material" rule for a healthy N. There is no quantifier that is safe there, and
+//      picking a bigger one would only move the coincidence.
+// `.next/static` has no such problem: it is JavaScript text, so the value sits inside
+// quotes and a shape rule means what it says. So the VALUE scan runs on the web surface,
+// where it is decidable, and the mobile surface keeps the NAME markers — which is what the
+// original comment above already claimed was the greppable half for the legacy JWT key.
+// `sk_live_` stays on BOTH as a plain substring: nothing in the template ships it as a
+// constant, so it has neither problem. The asymmetry is evidence, not oversight.
+const SB_SECRET_KEYLIKE = /sb_secret_[A-Za-z0-9_-]{16,}/g
+const PLACEHOLDER = /example|placeholder|not[-_]a[-_]real|do[-_]not[-_]use|dummy|fake/i
+
+/**
+ * Does `text` carry this forbidden marker? A string marker is a plain substring; a RegExp
+ * marker must match at least one hit that is NOT placeholder-shaped.
+ * @param {string} text
+ * @param {string | RegExp} marker
+ * @returns {boolean}
+ */
+function carries(text, marker) {
+  if (typeof marker === 'string') return text.includes(marker)
+  return (text.match(marker) ?? []).some((hit) => !PLACEHOLDER.test(hit))
+}
+
+/**
+ * How a marker is named in a finding.
+ * @param {string | RegExp} marker
+ * @returns {string}
+ */
+function label(marker) {
+  return typeof marker === 'string' ? marker : marker.source
+}
+
+const FORBIDDEN = [
+  ['SUPABASE_SERVICE_ROLE_KEY', 'the RLS-bypassing service-role key in the client bundle'],
+  [
+    'createServiceRoleClient_BYPASSES_RLS',
+    'the RLS-bypassing service-role factory in the client bundle',
+  ],
+  ['postgres://', 'connection string in the client bundle'],
+  ['postgresql://', 'connection string in the client bundle'],
+  ['EXPO_TOKEN', 'EAS credential name in the client bundle'],
+  ['sk_live_', 'live secret-key material reference in the client bundle'],
+  ['BEGIN PRIVATE KEY', 'private key material in the client bundle'],
+  ['BEGIN RSA PRIVATE KEY', 'private key material in the client bundle'],
+]
+
+// Judged on `.next/static` only — see the note above on why a value scan is decidable in
+// JavaScript text and is not on a Hermes string table.
+const FORBIDDEN_WEB_ONLY = [
+  [SB_SECRET_KEYLIKE, 'a Supabase SECRET key (sb_secret_…) in the client bundle'],
+]
+
+// ── the WEB surface (0.5.0) ────────────────────────────────────────────────────────
+//
+// WHY THIS IS A SEPARATE MODE AND NOT PART OF THE CHAIN STEP. docs/harness/
+// enforcement-tiers.md carried `build … Target 0.5.0` with the reason written into the row:
+// a web equivalent needs a `next build`, which is minutes, not seconds. Putting it in the
+// 31-step chain would either slow every validate by a full Next build or — worse — make the
+// chain gate fail closed in CI jobs that never run one. So the chain keeps the mobile
+// export, and this mode runs in the path-filtered `web-build` job that DOES have a build.
+//
+// AND WHY IT SCANS `.next/static` ONLY. `.next/server/**` legitimately contains the
+// service-role factory, the server env schema and every server-only import — that is what
+// a server build IS. Scanning it would red on correct code, and a gate that reds on correct
+// code gets deleted. `.next/static/**` is what a browser downloads, so a forbidden marker
+// there is a shipped leak by definition.
+if (process.argv.includes('--web')) {
+  const out = `${WEB_APP}/.next`
+  const client = `${out}/static`
+  if (!existsSync(client)) {
+    skipOrFail(
+      GATE,
+      `${client} not found — run \`pnpm --filter web build\` first. This mode reads a real build's CLIENT output; there is nothing to scan without one.`,
+    )
+  }
+  // A build that FAILED still leaves client chunks behind. Next emits `.next/static` during
+  // compilation and writes BUILD_ID only after the whole build succeeds, so a run that died
+  // later — collecting page data, say — leaves a populated `static/` and no BUILD_ID. That
+  // was not hypothetical: the first real execution of this mode scanned 34 chunks from a
+  // build that had exited 1 and reported the bundle pure. In the shipped lane the build step
+  // fails first and this step never runs, so the job is red either way; but "the job ordering
+  // saves us" is not a property of this gate, and anyone running it by hand has no ordering.
+  if (!existsSync(`${out}/BUILD_ID`)) {
+    fail(
+      GATE,
+      `${client} exists but ${out}/BUILD_ID does not — Next writes BUILD_ID only after a build SUCCEEDS, so this output is from a build that did not finish. A partial bundle cannot be judged pure: the chunks that would have carried a leak may simply not have been emitted yet.`,
+    )
+  }
+  const webHits = []
+  let scanned = 0
+  for (const rel of walkFiles(client)) {
+    scanned += 1
+    const text = readFileSync(`${client}/${rel}`).toString('latin1')
+    for (const [marker, why] of [...FORBIDDEN, ...FORBIDDEN_WEB_ONLY]) {
+      if (carries(text, marker)) {
+        webHits.push(`${client}/${rel}: contains "${label(marker)}" — ${why}`)
+      }
+    }
+  }
+  // Anti-vacuity: a build whose client output is empty would report a pure bundle. That is
+  // the same shape as a scanner that stopped matching, and it must not read as a pass.
+  if (scanned === 0) {
+    fail(
+      GATE,
+      `${client} exists but contains no files — a build that emitted no client chunks cannot be judged pure, and reporting it as pure is the exact vacuous-green this gate exists to prevent.`,
+    )
+  }
+  failures(GATE, webHits)
+  ok(
+    GATE,
+    `web client bundle is pure (${String(scanned)} file(s) under ${client}, no forbidden marker)`,
+  )
+}
 
 if (!existsSync(`${APP}/package.json`)) skipOrFail(GATE, `${APP} not found (no mobile surface yet)`)
 if (!existsSync('node_modules')) skipOrFail(GATE, 'node_modules missing — run pnpm install')
@@ -54,24 +191,6 @@ try {
 const dist = `${APP}/dist`
 if (!existsSync(dist)) fail(GATE, `expo export produced no ${dist}/`)
 
-// Forbidden markers in the shipped client bundle. postgresql:// is the
-// spec-equal alias of postgres:// — matching only one was a purity hole.
-// EXPO_TOKEN is the EAS credential name and sk_live_ the live-mode secret-key
-// prefix shape — neither has any business inside a shipped bundle.
-const FORBIDDEN = [
-  ['SUPABASE_SERVICE_ROLE_KEY', 'the RLS-bypassing service-role key in the client bundle'],
-  [
-    'createServiceRoleClient_BYPASSES_RLS',
-    'the RLS-bypassing service-role factory in the client bundle',
-  ],
-  ['postgres://', 'connection string in the client bundle'],
-  ['postgresql://', 'connection string in the client bundle'],
-  ['EXPO_TOKEN', 'EAS credential name in the client bundle'],
-  ['sk_live_', 'live secret-key material reference in the client bundle'],
-  ['BEGIN PRIVATE KEY', 'private key material in the client bundle'],
-  ['BEGIN RSA PRIVATE KEY', 'private key material in the client bundle'],
-]
-
 const hits = []
 // dist is walked EXHAUSTIVELY (no exclude set, no extension filter): purity
 // markers must see every emitted file. The markers are ASCII, and latin1 is a
@@ -85,7 +204,7 @@ const hits = []
 for (const rel of walkFiles(dist)) {
   const text = readFileSync(`${dist}/${rel}`).toString('latin1')
   for (const [marker, why] of FORBIDDEN) {
-    if (text.includes(marker)) hits.push(`${dist}/${rel}: contains "${marker}" — ${why}`)
+    if (carries(text, marker)) hits.push(`${dist}/${rel}: contains "${label(marker)}" — ${why}`)
   }
 }
 

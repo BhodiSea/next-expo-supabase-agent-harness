@@ -19,8 +19,8 @@
 // into an existing install — the consumer's routes/app never reference them, so
 // planting would red route-manifest + knip. They stay pullable on demand via
 // `update --refresh-seeded <path>` (the documented opt-in channel).
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { templateRoot, toPosix } from './copy.mjs'
 import { sha256 } from './manifest.mjs'
 
@@ -281,4 +281,115 @@ export function requiredConfigSteps(migrations, version) {
   return Object.entries(migrations)
     .filter(([v]) => VERSION_KEY.test(v) && cmpVersions(v, version) <= 0)
     .flatMap(([v, entry]) => (entry.configSteps ?? []).map((s) => ({ ...s, since: v })))
+}
+
+// ── dependencyObligations (0.5.0) ─────────────────────────────────────────────────
+// THE HOLE THIS CLOSES, in template/migrations.json's own 0.4.0 words: "eslint.config.mjs
+// is harness-OWNED so `update` refreshes it, but package.json and pnpm-workspace.yaml are
+// SEEDED and mergeWorkspaceYaml runs only under `init`: a new plugin dependency has NO
+// channel to an existing install." A static `import 'eslint-plugin-jsx-a11y'` therefore
+// resolved to nothing on every upgraded install and eslint died before linting a file —
+// not one rule lost, the whole `lint` step.
+//
+// WHY THIS EMITS RATHER THAN WRITES. `update` could merge the pin into pnpm-workspace.yaml
+// and package.json directly, and that was the first design. Three things killed it:
+//   1. Those two files are in SEEDED_FILES precisely so `update` never touches them —
+//      writing them is the first breach of that boundary, and the boundary is what makes
+//      `update` safe to run on a tree the consumer has tuned.
+//   2. It would grow installer/commands/update.mjs, already at cognitive complexity 61
+//      against a limit of 15, past a ratchet scripts/complexity-ratchet.json only lets
+//      move DOWN — a blocking factory gate.
+//   3. It leaves a tree whose pnpm-lock.yaml no longer matches its manifests, and the
+//      shipped workflows run `pnpm install --frozen-lockfile` twelve times. The update
+//      that "fixed" the dependency would break every one of those runs until a human
+//      reinstalled — a fix that hands you a red CI is not a fix.
+// So the channel delivers an OBLIGATION: machine-readable, parked where `doctor` already
+// looks, and satisfied by two commands the consumer runs deliberately.
+export const DEPENDENCY_OBLIGATIONS_PATH = '.harness/pending/dependencies.json'
+
+/**
+ * Obligations introduced at or before `version`, minus the ones the tree already meets.
+ * PURE over its inputs (the two manifest texts) so it is testable without a scaffold.
+ *
+ * @param {object} migrations       parsed template/migrations.json
+ * @param {string} version          the harness version being installed
+ * @param {{ workspaceYaml: string, packageJson: string }} tree  the consumer's current files
+ */
+export function unmetDependencyObligations(migrations, version, tree) {
+  const all = Object.entries(migrations)
+    .filter(([v]) => VERSION_KEY.test(v) && cmpVersions(v, version) <= 0)
+    .flatMap(([v, entry]) => (entry.dependencyObligations ?? []).map((o) => ({ ...o, since: v })))
+
+  let devDeps = {}
+  try {
+    devDeps = JSON.parse(tree.packageJson)?.devDependencies ?? {}
+  } catch {
+    // An unparseable package.json is the consumer's problem and `doctor` says so
+    // elsewhere; here it simply means we cannot prove the obligation is met.
+  }
+  // Deliberately a text probe rather than a YAML parse: the installer has no YAML
+  // dependency (CONTRIBUTING rule 3 — zero runtime dependencies in installer/), and
+  // parseSimpleYaml models only the subset it was written for. "Does the catalog mention
+  // this key" is the question, and a false "already met" is the only dangerous answer —
+  // so the probe is anchored to a catalog-entry shape rather than a bare substring.
+  const inCatalog = (name) =>
+    new RegExp(`^\\s{2,}'?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'?\\s*:`, 'm').test(
+      tree.workspaceYaml,
+    )
+
+  return all.filter((o) => {
+    const catalogued = inCatalog(o.name)
+    const declared = o.devDependency === false || Object.hasOwn(devDeps, o.name)
+    return !(catalogued && declared)
+  })
+}
+
+/**
+ * Write (or clear) the parked obligations file. Returns the unmet list.
+ * `doctor` reds on this file's presence; nothing else consumes it, and nothing in the
+ * installer edits a seeded manifest.
+ */
+export function applyDependencyObligations({ targetDir, report, migrations, version, dryRun }) {
+  const read = (rel) => {
+    try {
+      return readFileSync(join(targetDir, rel), 'utf8')
+    } catch {
+      return ''
+    }
+  }
+  const unmet = unmetDependencyObligations(migrations, version, {
+    workspaceYaml: read('pnpm-workspace.yaml'),
+    packageJson: read('package.json'),
+  })
+
+  const parked = join(targetDir, DEPENDENCY_OBLIGATIONS_PATH)
+  if (unmet.length === 0) {
+    // Self-clearing: an obligation met by hand must stop being reported, or the channel
+    // becomes a permanent warning nobody reads.
+    if (!dryRun && existsSync(parked)) rmSync(parked, { force: true })
+    return unmet
+  }
+
+  if (!dryRun) {
+    mkdirSync(dirname(parked), { recursive: true })
+    writeFileSync(
+      parked,
+      `${JSON.stringify(
+        {
+          '//': 'Written by `installer update`. The harness needs these pins to exist before the gates that depend on them can run. `update` does NOT edit pnpm-workspace.yaml or package.json — both are SEEDED, and a tree whose lockfile no longer matches its manifests fails `pnpm install --frozen-lockfile`, which the shipped workflows run twelve times. Apply the entries, run `pnpm install`, commit pnpm-lock.yaml, then re-run `doctor` — it clears this file when the tree meets every obligation.',
+          harnessVersion: version,
+          obligations: unmet,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  }
+
+  for (const o of unmet) {
+    report.notes.push(
+      `DEPENDENCY OBLIGATION (${o.since}): add \`${o.name}: ${o.catalog}\` to the pnpm-workspace.yaml catalog${o.devDependency === false ? '' : ` and \`"${o.name}": "catalog:"\` to root devDependencies`}, then \`pnpm install\` and commit pnpm-lock.yaml. WHY: ${o.why} — until then this install is INCOMPLETE and \`doctor\` reds. (parked at ${DEPENDENCY_OBLIGATIONS_PATH})`,
+    )
+  }
+  return unmet
 }

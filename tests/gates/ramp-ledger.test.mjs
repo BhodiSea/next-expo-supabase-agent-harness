@@ -8,18 +8,23 @@
 //      counted, and three surveys of this release called them "expiring";
 //   3. the classification mirrors gate.mjs's own order, so the lane's expectation and the
 //      gate's behaviour cannot disagree.
+//
+// 0.5.0 adds the fourth: the DEADLINE RATCHET. A promise the runbook makes to consumers in
+// writing — "there is no flag that extends a deadline" — was, until this release, prose.
 // SOURCE: scripts/lib/ramp-sites.mjs
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import {
   classifyForInstall,
   cmpDotted,
+  deadlineRegressions,
   LINEAGE_FLOOR,
   neverArmed,
   rampNoteCalls,
+  rampSitesFromSources,
   shippedRampSites,
 } from '../../scripts/lib/ramp-sites.mjs'
 
@@ -138,4 +143,171 @@ test('cmpDotted orders releases numerically, not lexically', () => {
   assert.equal(cmpDotted('0.10.0', '0.9.0'), 1)
   assert.equal(cmpDotted('0.4.0', '0.4.0'), 0)
   assert.equal(cmpDotted('0.1.3', '0.2.0'), -1)
+})
+
+// ── the deadline ratchet (0.5.0) ──────────────────────────────────────────────────────
+
+const site = (file, minVersion, until) => ({ file, minVersion, until })
+const EXT = (file, minVersion, from, to) => ({
+  file,
+  minVersion,
+  from,
+  to,
+  why: 'a reason long enough to be a reason rather than a rubber stamp, naming the finding.',
+})
+
+test('rampSitesFromSources reads injected sources — the seam the ratchet needs', () => {
+  // The previous release's tree exists only as `git show` output. A directory-only scanner
+  // could not read it, which is why this seam exists rather than being decoration.
+  const sites = rampSitesFromSources([
+    {
+      file: 'check-x.mjs',
+      src: "const GATE = 'x'\nif (rampNote(GATE, '0.3.0', 'a finding', { until: '0.5.0' })) ok(GATE)\n",
+    },
+    { file: 'check-none.mjs', src: 'const GATE = "none"\n' },
+  ])
+  assert.equal(sites.length, 1)
+  assert.deepEqual(
+    { gate: sites[0].gate, min: sites[0].minVersion, until: sites[0].until },
+    { gate: 'x', min: '0.3.0', until: '0.5.0' },
+  )
+})
+
+test('CANARY — a deadline moved LATER reds, naming both dates', () => {
+  const { problems, regressions } = deadlineRegressions({
+    previous: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+    current: [site('check-wiring.mjs', '0.3.0', '0.6.0')],
+  })
+  assert.equal(regressions.length, 1)
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /moved its deadline from 0\.5\.0 to 0\.6\.0/)
+  assert.match(problems[0], /there is no flag that extends a deadline/)
+})
+
+test('CANARY — moving ONE of four sites that share a group is caught', () => {
+  // check-docs-sync.mjs really does carry four sites at minVersion 0.3.0. Grouping by
+  // (file, minVersion) is only safe if a single move inside the group still reds, which is
+  // what the pointwise-sorted comparison buys.
+  const four = (a, b, c, d) =>
+    [a, b, c, d].map((u) => site('check-docs-sync.mjs', '0.3.0', u))
+  const { problems } = deadlineRegressions({
+    previous: four('0.5.0', '0.5.0', '0.5.0', '0.5.0'),
+    current: four('0.5.0', '0.6.0', '0.5.0', '0.5.0'),
+  })
+  assert.equal(problems.length, 1, `expected one regression, got ${JSON.stringify(problems)}`)
+  assert.match(problems[0], /check-docs-sync\.mjs/)
+})
+
+test('an EARLIER deadline is never a regression — tightening is always allowed', () => {
+  const { problems } = deadlineRegressions({
+    previous: [site('check-wiring.mjs', '0.3.0', '0.6.0')],
+    current: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+  })
+  assert.deepEqual(problems, [])
+})
+
+test('a DELETED ramp group is not a regression — an unconditional check is stricter', () => {
+  const { problems } = deadlineRegressions({
+    previous: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+    current: [],
+  })
+  assert.deepEqual(problems, [])
+})
+
+test('a matching rampExtensions entry excuses the move; a thin `why` still reds', () => {
+  const previous = [site('check-wiring.mjs', '0.3.0', '0.5.0')]
+  const current = [site('check-wiring.mjs', '0.3.0', '0.6.0')]
+
+  const excused = deadlineRegressions({
+    previous,
+    current,
+    extensions: [EXT('check-wiring.mjs', '0.3.0', '0.5.0', '0.6.0')],
+  })
+  assert.deepEqual(excused.problems, [])
+  assert.equal(excused.regressions.length, 1, 'excused, but still counted and reported')
+
+  const thin = deadlineRegressions({
+    previous,
+    current,
+    extensions: [{ file: 'check-wiring.mjs', minVersion: '0.3.0', from: '0.5.0', to: '0.6.0', why: 'later' }],
+  })
+  assert.equal(thin.problems.length, 1)
+  assert.match(thin.problems[0], /is the only thing a consumer reads/)
+})
+
+test('CANARY — a STALE rampExtensions entry reds: a standing permission slip', () => {
+  const { problems } = deadlineRegressions({
+    previous: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+    current: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+    extensions: [EXT('check-wiring.mjs', '0.3.0', '0.5.0', '0.6.0')],
+  })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /stale extension is a standing permission slip/)
+})
+
+test('the ratchet excuse must match EXACTLY — a near-miss entry does not launder the move', () => {
+  // Two problems, and that is correct: the real move is unexcused, and the entry that was
+  // meant to excuse it names a move nobody made.
+  const { problems } = deadlineRegressions({
+    previous: [site('check-wiring.mjs', '0.3.0', '0.5.0')],
+    current: [site('check-wiring.mjs', '0.3.0', '0.6.0')],
+    extensions: [EXT('check-wiring.mjs', '0.4.0', '0.5.0', '0.6.0')], // wrong minVersion
+  })
+  assert.equal(problems.length, 2)
+  assert.ok(problems.some((p) => /moved its deadline/.test(p)))
+  assert.ok(problems.some((p) => /stale extension/.test(p)))
+})
+
+test('THE DOCUMENTED HOLE — move-one-and-add-one is NOT caught, and the header says so', () => {
+  // Pinned deliberately. Ramp sites carry no stable id, so a group's deadlines are compared
+  // as sorted lists; adding a site at the old deadline in the same commit that moves
+  // another one makes the lists line up. Closing it needs a per-site id, which this release
+  // did not take. Asserting the limit is how the limit stays stated rather than forgotten —
+  // if a later release adds ids, this test fails and is DELETED, which is the signal.
+  const { problems } = deadlineRegressions({
+    previous: [site('check-docs-sync.mjs', '0.3.0', '0.5.0')],
+    current: [
+      site('check-docs-sync.mjs', '0.3.0', '0.6.0'),
+      site('check-docs-sync.mjs', '0.3.0', '0.5.0'),
+    ],
+  })
+  assert.deepEqual(problems, [], 'the residual hole is documented in scripts/lib/ramp-sites.mjs')
+  const header = readFileSync(new URL('../../scripts/lib/ramp-sites.mjs', import.meta.url), 'utf8')
+  assert.match(header, /ADDING a new site to the same group at the old deadline/)
+})
+
+// ── the affected population, as data (0.5.0) ──────────────────────────────────────────
+
+test('the SHIPPED 0.5.0 rampExpiry record equals what the shipped call sites compute', () => {
+  // check-ramp-ledger.mjs makes this assertion at the CURRENT package version, so the
+  // 0.5.0 record is unread until the release bump. Verifying it here means the record is
+  // proven the moment it is written, not the moment it ships.
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const record = migrations['0.5.0']?.rampExpiry
+  assert.ok(record, 'the release that closes eight escapes must say whose')
+
+  const sites = shippedRampSites()
+  const VINTAGES = [LINEAGE_FLOOR, '0.2.0', '0.2.1', '0.3.0', '0.4.0']
+  const computed = VINTAGES.filter((v) => cmpDotted(v, '0.5.0') < 0).filter(
+    (base) => classifyForInstall(base, '0.5.0', sites).expired.length > 0,
+  )
+  assert.deepEqual(record.affects, computed)
+
+  // The other half of the claim: 0.4.0 is the ONE released vintage this release does not
+  // red, which is why the upgrade lane keeps its default leg.
+  assert.equal(classifyForInstall('0.4.0', '0.5.0', sites).expired.length, 0)
+})
+
+test('EIGHT escapes close in 0.5.0, and they are the eight the record describes', () => {
+  const expiring = shippedRampSites().filter((s) => s.until === '0.5.0')
+  assert.equal(expiring.length, 8, `the release note is derived from this set: ${JSON.stringify(expiring.map((s) => `${s.file}:${String(s.line)}`))}`)
+  assert.deepEqual(
+    [...new Set(expiring.map((s) => s.gate))].sort(),
+    ['diff-coverage', 'docs-sync', 'gate-integrity', 'wiring'],
+  )
+  // Kept, not deleted. Dropping the wrappers would take the fleet from 20 to 12 against
+  // three separate anti-vacuity floors that hard-fail below 15.
+  assert.ok(shippedRampSites().length >= 15, 'the fleet floor the ledger and both tests pin')
 })
