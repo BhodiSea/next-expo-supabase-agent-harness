@@ -17,22 +17,23 @@
 // Five layers were in exactly this state when the check was first run (`i18n`,
 // `route-manifest`, `perf-budget`, `build`, `styleguide`), which is the answer to whether a
 // control like this is worth its lines.
+//
+// 0.5.0: the derivation moved to template/base/tools/lib/live-controls.mjs and this script
+// IMPORTS it. The direction matters and is the opposite of the obvious one — the npm
+// `files` list ships only installer/ and template/, so a template gate could never import
+// from scripts/. check-docs-sync.mjs needs the same "is this gate single-surface" answer to
+// judge an arrived `Target`, and two copies of the derivation would let a gate be
+// single-surface for one control and not the other.
 // SOURCE: docs/harness/enforcement-tiers.md ("What this table does NOT do")
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { singleSurfaceGates } from '../template/base/tools/lib/live-controls.mjs'
 
 const TOOLS = fileURLToPath(new URL('../template/base/tools', import.meta.url))
 const TIERS = fileURLToPath(
   new URL('../template/base/docs/harness/enforcement-tiers.md', import.meta.url),
 )
 const CONFIG = fileURLToPath(new URL('../template/base/tools/harness.config.mjs', import.meta.url))
-
-// A surface literal in a scan-root POSITION — assigned to a const, pushed onto a roots array,
-// or handed to a walker. Deliberately not "the file mentions apps/mobile anywhere": every
-// gate's prose names both surfaces, and a comment is not a scan root.
-const SCAN_ROOT_RE =
-  /(?:const\s+\w+\s*=\s*|\[\s*|,\s*|join\(\s*)'(apps\/(?:mobile|web)(?:\/[\w.-]+)*)'/g
 
 const problems = []
 
@@ -47,43 +48,9 @@ if (declared.size < 8) {
   )
 }
 
-// script basename -> the chain/Stop STEP it implements. Derived from the config's commands
-// rather than from the filename, because the two differ (`styleguide` runs
-// check-styleguide-manifest.mjs, `build` runs build-check.mjs) and a filename-only key would
-// demand rows nobody would think to write under those names.
 const configText = readFileSync(CONFIG, 'utf8')
-const stepFor = new Map()
-for (const m of configText.matchAll(/\[\s*'([\w-]+)'\s*,\s*'([^']*)'/g)) {
-  for (const s of m[2].matchAll(/tools\/([\w.-]+\.mjs)/g)) stepFor.set(s[1], m[1])
-}
-
-// The gate set: every `check-*.mjs`, PLUS anything the chain invokes under another name.
-// `build-check.mjs` is the reason the second half exists — a `check-*` prefix filter alone
-// silently exempts the build gate, and an exemption nobody chose is the failure this script
-// is about.
-const gateFiles = readdirSync(TOOLS)
-  .sort()
-  .filter((f) => f.endsWith('.mjs') && (f.startsWith('check-') || stepFor.has(f)))
-
-const singleSurface = []
-for (const f of gateFiles) {
-  const src = readFileSync(join(TOOLS, f), 'utf8')
-  const roots = new Set()
-  for (const m of src.matchAll(SCAN_ROOT_RE)) {
-    // Strip a `//`-commented line the same way the ramp scanner does.
-    const line = src.slice(src.lastIndexOf('\n', m.index) + 1, m.index)
-    if (line.includes('//') || /^\s*\*/.test(line)) continue
-    roots.add(m[1])
-  }
-  if (roots.size === 0) continue
-  const surfaces = new Set([...roots].map((r) => r.split('/')[1]))
-  if (surfaces.size !== 1) continue // reaches both surfaces — nothing to declare
-  singleSurface.push({
-    file: f,
-    key: stepFor.get(f) ?? f.replace(/^check-|\.mjs$/g, ''),
-    roots: [...roots].sort(),
-  })
-}
+const singleSurface = singleSurfaceGates({ toolsDir: TOOLS, configText })
+const stepFor = new Map(singleSurface.filter((g) => g.key !== g.file).map((g) => [g.file, g.key]))
 
 if (singleSurface.length < 3) {
   problems.push(

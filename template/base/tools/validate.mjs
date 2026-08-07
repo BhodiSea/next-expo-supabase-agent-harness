@@ -237,5 +237,24 @@ console.log('\nvalidate summary:')
 for (const [name, ok, ms] of results) console.log(`  ${ok ? '✓' : '✗'} ${name} (${String(ms)}ms)`)
 const notRun = steps.length - results.length
 if (notRun > 0) console.log(`  (${String(notRun)} later step(s) not run)`)
-console.log(`  total ${String(Math.round(performance.now() - t0All))}ms`)
+const totalMs = Math.round(performance.now() - t0All)
+console.log(`  total ${String(totalMs)}ms`)
+
+// ONE machine-readable line, emitted last so a consumer parsing it never has to reason
+// about interleaved step output. The human summary above is unchanged and stays the
+// thing an agent reads; this exists so scripts/check-chain-budget.mjs (factory-side, in
+// the selftest) can attribute a wall-time regression to a STEP instead of reporting that
+// "the chain got slower". A wall-only budget cannot say which step moved, which is the
+// whole reason the inline `-gt 120` literal it replaces was never actionable.
+//
+// Deliberately NOT a file write: validate.mjs runs in a consumer's tree on every turn,
+// and a gate that leaves timing artifacts behind is a gate that shows up in `git status`.
+// SOURCE: docs/harness/README.md (unmeasured numbers do not ship)
+console.log(
+  `VALIDATE_TIMINGS ${JSON.stringify({
+    totalMs,
+    notRun,
+    steps: Object.fromEntries(results.map(([name, , ms]) => [name, ms])),
+  })}`,
+)
 process.exit(results.every(([, ok]) => ok) ? 0 : 1)

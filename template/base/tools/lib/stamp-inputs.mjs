@@ -122,8 +122,14 @@ export const STAMP_INPUTS = {
   // graph is fully determined by pnpm-lock.yaml — hashing the lockfile (not node_modules)
   // captures every resolution that could flip either verdict, and lets a warm run skip
   // WITHOUT spawning `pnpm list -r`. CI always re-runs.
+  // tools/framework-floor.json joins the list in 0.5.0 and is the input a missing entry
+  // would hurt most: it is the only one whose EDIT (a raised minPatch after a new
+  // advisory) is meant to red a tree whose code did not change at all. Without it here,
+  // `update` shipping a new floor would ride the warm stamp and the very advisory the
+  // release exists to close would not be judged until the next unrelated version edit.
   'version-sync': [
     'package.json',
+    'tools/framework-floor.json',
     'apps/mobile/package.json',
     'apps/web/package.json',
     'packages/api/package.json',

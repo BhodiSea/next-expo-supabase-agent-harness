@@ -13,6 +13,195 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-07
+
+**The accounting release.** Every claim in this repository is supposed to be checkable by
+someone who does not trust it. This release turns that rule on the harness itself, and the
+same defect turned up everywhere it looked: **a control asserted that nothing resolved**.
+
+**BREAKING CHANGE — eight escapes close.** The affected population is **every released
+vintage below 0.4.0**: `0.1.3`, `0.2.0`, `0.2.1`, `0.3.0`. A 0.4.0 install meets no
+deadline. That population is not prose here — `template/migrations.json`'s
+`0.5.0.rampExpiry.affects` states it as data and `scripts/check-ramp-ledger.mjs` reds if it
+disagrees with what the shipped call sites compute. Six of the eight open at `minVersion
+0.3.0` and two at `0.4.0`, so a `0.3.0` install meets exactly two. As always,
+`pnpm validate 2>&1 | grep 'RAMP EXPIRED'` is the only honest count for a given tree;
+`docs/runbooks/harness-upgrade.md` carries a section per expiring gate. **The eight
+`rampNote` wrappers were NOT deleted** — they expire by version comparison, which is the
+mechanism working rather than being removed.
+
+### Security
+
+- **The shipped scaffold was pinning a known-vulnerable framework.** `next` moves
+  `16.2.7 → 16.2.11`. The [July 2026 Next.js security release](https://nextjs.org/blog/july-2026-security-release)
+  (2026-07-20) patched **nine CVEs, four High**, and all four land on surfaces this
+  template ships by default: CVE-2026-64642 (middleware/proxy bypass), CVE-2026-64641
+  (Server Actions DoS), CVE-2026-64645 and CVE-2026-64649 (SSRF). No gate in the 31-step
+  chain reddened on it, and neither osv lane could: the PR lane is diff-aware, so a pin
+  already in the tree is never "newly introduced".
+- **`tools/framework-floor.json`** — the security floor as reviewed data, judged by
+  chain step 11 against the RESOLVED `pnpm-lock.yaml`, keyed by MAJOR LINE (a flat minimum
+  would red a consumer legitimately on a patched older line). Clockless and offline;
+  whether the review is still FRESH rides the new scheduled `floor-review` job in
+  `osv-scan.yml`, never a PR. Harness-owned, so a new advisory reaches existing installs,
+  and sha-pinned by `gate-integrity`, so a lowered floor cannot land unreviewed.
+- **The only delivered erase path read deprecated key names.** The `delete-account` Edge
+  Function read `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` only. Both still work
+  today, and stop the moment a project disables legacy keys — the step Supabase's own
+  migration guide asks for, with the keys deprecated by the end of 2026. It now reads
+  `SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS` (JSON objects keyed by name), the
+  CLI's singular local forms, then the legacy names. `verify_jwt` is unaffected.
+- **`web-build`** — a path-filtered lane scanning `apps/web/.next/static/**` for
+  service-role keys, `sb_secret_`/`sk_live_` prefixes, DSNs and private-key headers.
+  `build-check.mjs` was `const APP = 'apps/mobile'` while
+  `docs/security/sandbox-and-supply-chain.md` said the build gate greps the exported
+  bundle, unqualified. `.next/server/**` is deliberately not scanned.
+- **`store-policy.json` `androidTargetSdk.floor` 35 → 36.** Google Play requires API 36
+  for new apps **and updates** from 2026-08-31.
+
+### The controls that were asserting nothing
+
+- **`scripts/check-escape-registry.mjs`** — the reviewed-data set was enumerated three
+  times by hand and nothing compared the copies, in a file whose own header warned the
+  drift would be invisible. First run found three, and the sharpest was unpredicted:
+  `tools/security-headers.json` had **no write-guard rule at all**. Guard-rule ids
+  116 → 119.
+- **The deadline ratchet.** `docs/runbooks/harness-upgrade.md` promised consumers "there is
+  no flag that extends a deadline". Nothing checked it: editing `until: '0.5.0'` to
+  `'0.6.0'` bought a green release. The ledger now compares every deadline against the
+  **previous release tag's tree** — the one artifact a working-tree commit cannot rewrite
+  in lockstep — and reds unless a `rampExtensions` record names the file, the versions and
+  the reason. Its one residual hole is stated in the source and pinned by a test.
+- **`Target` became a control.** Three rows carried `Target: 0.5.0` under a sentence
+  calling Target "a commitment, not a wish", and nothing read the column. `docs-sync` now
+  re-derives whether an arrived Target's gate still hard-codes one product surface.
+  `build`'s was discharged; `i18n` and `route-manifest` moved to 0.6.0 in the diff that
+  shipped the check.
+- **"Exists" is not "ran".** Eleven tier rows named `web-e2e` or `perf-lane` as their
+  compensating control. Both are path-filtered, and `summarize-gate.mjs` greens over a
+  skipped lane after naming it. Nine rows now say `(path-filtered)`, and the gate requires
+  it. The resolver also stopped reading one hard-coded workflow while eight ship, and
+  stopped silently exempting the two rows that name a `.mjs` script.
+- **`scripts/check-dependency-channel.mjs` + `dependencyObligations`.** 0.4.0 shipped an
+  owned config importing `eslint-plugin-jsx-a11y` against a pin no upgraded tree had, and
+  eslint died before linting a file — the whole `lint` step, not one rule. `update` now
+  emits a machine-readable obligation and `doctor` reds until it is met; it never writes a
+  seeded manifest. The upgrade lane gained a **second `pnpm install`**: it installed once,
+  at the previous tag, so it structurally could not have caught the defect it exists for.
+- **`scripts/chain-budget.json`.** The only chain budget anywhere was an inline
+  `[ "$elapsed" -gt 120 ]` in a shell script. `validate.mjs` now emits one
+  `VALIDATE_TIMINGS` line and a per-step budget judges it — including an **unbudgeted step
+  is a red**, which is what stops a future release spending against a total nobody holds.
+  `measuredMs` ships as `null`: ceilings are policy, measurements are not portable.
+
+### Fixed
+
+- The mobile CI paths-filter omitted `packages/**` while the web filter enumerated seven
+  package paths. `packages/contracts` is imported 27× by the app, so a change to it skipped
+  both 120-minute device lanes.
+- The upgrade lane runs **four baselines in parallel** (`v0.1.3`, `v0.2.1`, `v0.3.0`, and
+  the previous release) instead of two. Leg A is kept, not replaced: it is the only leg
+  that reaches `graduate`'s success branch.
+- The lane's expiry judgement moved out of inline shell into
+  `scripts/lib/ramp-verdict.mjs`, so the assertion separating "an expiry fired" from "an
+  expiry was supposed to fire and silently did not" is runnable by whoever is editing the
+  code it guards.
+- **Executing the new lane found two defects in the new lane** — both in the
+  dependency-obligation proof above, and both invisible to review. Its `node -e` block
+  destructured `process.argv` as though `argv[1]` held a script path; under `-e` there is
+  no script path, so the first argument IS `argv[1]` and the body was handed `undefined`.
+  Then the assertion that the lockfile MOVED was written as `git diff --name-only`, but the
+  scaffold's baseline commit is taken before the lane's first install, so `pnpm-lock.yaml`
+  is untracked for the whole run and a diff over tracked files can never name it — the
+  obligation applied, pnpm reported `+ eslint-plugin-jsx-a11y 6.10.2`, and the assertion
+  reddened anyway. It compares a content digest across the install now. A proof that has
+  only ever been read is not a proof.
+- The lane prunes stale git worktree registrations before adding its own, so an interrupted
+  run no longer bricks every later one at exit 128. CI gets a fresh checkout and never saw
+  this; a maintainer's laptop saw it permanently, and a lane only CI can run is a lane that
+  gets found wrong on the PR.
+- **And then it found four more, in the release's own new work.** Every one of them is a
+  control that reviewed as correct:
+  - `parseLockVersions` stripped pnpm's peer decoration with `/\([^)]*\)/g`, which cannot
+    match a NESTED group. Real keys nest
+    (`next@16.2.7…(react-dom@19.2.3(react@19.2.3))(react@19.2.3)`), so it removed the inner
+    pair, left the outer `)` stranded, and parsed the version as `16.2.7)`. That did not
+    equal the `16.2.7` from `packages:`, so step 11 reported the same four CVEs twice, once
+    against a version string that does not exist. It truncates at the first `(` now — a
+    package name cannot contain one. The test fixture used a flat suffix and passed
+    throughout; it carries the real nested shape now.
+  - **`sb_secret_` cannot be value-scanned on a Hermes bundle at all**, which took two
+    measurements to establish. As a bare substring it reddened `build` on every scaffold
+    that had run an export: `packages/platform/supabase/src/credentials.ts` ships
+    `const SECRET_KEY_PREFIX = 'sb_secret_'` — the constant the runtime uses to REFUSE a
+    secret key on a client surface — and the mobile app imports it, so the literal is in
+    every bundle by construction. The gate was accusing the code that prevents the leak of
+    being the leak. Tightening it to a key SHAPE reddened the identical bytes, because
+    Hermes interns its string table contiguously with no delimiter: the observed run was
+    `…(received \`%s\`).%` + `sb_secret_` + `_getObserverIDcrk-Cans-CAdd`, which satisfies
+    any "prefix plus N characters" rule for a healthy N. No quantifier is safe there. The
+    value scan therefore runs on `.next/static`, which is JavaScript text where the value
+    sits inside quotes and a shape rule means what it says, with `gitleaks.toml`'s existing
+    placeholder allowlist reused rather than re-decided. The mobile surface keeps the NAME
+    markers, which is what the gate's own comment already called the greppable half.
+    `sk_live_` stays a substring on both, because nothing ships it as a constant — the
+    asymmetry is evidence, not oversight.
+  - **The template shipped two `.mjs` files that `biome` would rewrite**, so step 1
+    (`format`) reddened on every scaffold. The harness repository has no biome of its own —
+    it is a scaffold dependency — so nothing at factory level could see it, and the control
+    that does see it is `bootstrap-linux` running the real chain on a fresh install. That
+    control was not missing; it simply had not been run on this branch. Both files are
+    formatted, and a fresh 0.5.0 scaffold now reports 31/31.
+- **Executing `web-build` — also new, also never run — found two more.** `next build`
+  parses BOTH env schemas, and `Collecting page data` imports the tRPC route, which imports
+  `@app/env`, which refuses a partial server environment: the job published only the
+  `NEXT_PUBLIC_*` half and could not build at all. It publishes synthetic
+  `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL` values now — and choosing how to SPELL
+  them put two of this repository's own controls in direct opposition. Spelled to be caught
+  by the client-bundle scan (avoiding the `example|placeholder|…` vocabulary its allowlist
+  exempts), they were rejected within the minute by the `secrets` gate, which reds on a
+  key-shaped string in a tracked file and whose remedy text says "prefer making the VALUE
+  say so". The gate that scans committed files wins: a real key pasted into a workflow is
+  the likelier accident by a wide margin. The comment now states the cost rather than
+  claiming the property it lost — the lane does not prove these particular values stayed
+  out of the bundle, it proves the scan runs on real `next build` output and reds on a
+  key-shaped value planted there. Measured on a real build: 34 client chunks, carrying only
+  the quoted `"sb_secret_"` guard constant from `credentials.ts`, and planting a real-shaped
+  key in one of them reds the scan.
+- **And `build-check.mjs --web` called a FAILED build pure.** Next emits `.next/static`
+  during compilation and writes `BUILD_ID` only on success, so the run that died collecting
+  page data left 34 client chunks behind — which the gate scanned and passed. In the shipped
+  lane the build step fails first and the scan never runs, but that is the job's ordering
+  rather than the gate's property, and anyone running it by hand has no ordering. A missing
+  `BUILD_ID` is a red now: a partial bundle cannot be judged pure, because the chunk that
+  would have carried the leak may simply not have been emitted yet.
+  - **The security floor had no way to reach a seeded catalog.** `tools/framework-floor.json`
+    is owned, so `update` refreshes it into every install; `pnpm-workspace.yaml` is seeded,
+    so `update` cannot raise the pin the refreshed floor demands. The consumer gets a red
+    step 11 with a precise instruction, which is correct — and it would have made leg A red
+    forever, for the most ordinary reason there is, since leg A asserts a green chain and is
+    the only leg reaching `graduate`'s success branch. `scripts/ci/apply-framework-floor.mjs`
+    has the lane apply the documented remedy, keyed by major line so a patched 15.x is not
+    dragged onto 16. `docs/runbooks/harness-upgrade.md` now tells consumers to expect it.
+  - **The lane twice mistook a PREDICTED expiry for an OUTSTANDING finding** — one root
+    cause, two assertions, both of which only fired once the tree got clean enough to reach
+    them. Leg D is the case: its single expectation is `wiring`, whose expiring site is
+    guarded by `if (!declared)` on eslint-plugin-jsx-a11y, and the lane's own dependency-
+    obligation step applies that pin four sections earlier. The lane remedies the condition
+    and then expects an alarm about it. Two correct features; only executing them together
+    showed it.
+    - `judgeExpiries` demanded that at least one expiry FIRE whenever a deadline was met —
+      in a file whose own header says expected-but-silent gates are reported and never
+      asserted. What replaces it is the assertion that is sound: an expiry that fired must
+      have reddened the chain, which is the v0.4.0 discarded-result defect exactly. The
+      case the old rule claimed to cover is decided statically over every shipped site by
+      `check-ramp-ledger.mjs` anyway.
+    - §8 then branched on the same predicted set to decide whether `graduate` should refuse,
+      and called a correct advance a defect. It keys on the observed chain now, which is
+      `graduate`'s actual contract — it re-runs the ramp-aware validate and refuses while
+      that is red. The matrix still executes both directions: legs B and C carry real
+      findings and get the refusal, legs A and D are clean and get the advance.
+
 ## [0.4.0] — 2026-08-06
 
 **The alarm release.** 0.3.0 shipped the clock — it made `until` mandatory and dated

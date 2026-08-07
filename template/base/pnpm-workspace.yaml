@@ -80,7 +80,21 @@ catalog:
   supabase: ^2.34.3 # the CLI — local stack, migrations, `gen types` (types-drift gate)
   '@types/node': ^22.20.1 # matches the node >=22 engines floor
   # ---- web ---------------------------------------------------------------------
-  next: 16.2.7 # exact: the framework's minor bumps move the App Router contract
+  # exact: the framework's minor bumps move the App Router contract. The PATCH floor is
+  # a security floor — 16.2.11 is the July 2026 security release (2026-07-20): nine
+  # advisories, FOUR High, and every one of the four lands on a surface this scaffold
+  # actually ships. CVE-2026-64642 is a middleware/proxy bypass, and apps/web's proxy.ts
+  # is documented as NOT an authorization boundary precisely because of the last one
+  # (CVE-2025-29927). CVE-2026-64641 (Server Actions DoS) and CVE-2026-64649 (SSRF from
+  # a Server Action's forwarded request) reach the Server Actions the web half is built
+  # on; CVE-2026-64645 is SSRF via a rewrites()/redirects() destination.
+  # No CVSS score is quoted: the advisory publishes SEVERITY ratings and no scores, and
+  # a number this file cannot source is a number that does not ship.
+  # tools/framework-floor.json is what stops this pin drifting back under an advisory —
+  # it carries the same four ids as DATA, and the version-sync gate judges the RESOLVED
+  # lockfile against it, so a transitive resolution below the floor reds too.
+  # SOURCE: https://nextjs.org/blog/july-2026-security-release
+  next: 16.2.11
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0

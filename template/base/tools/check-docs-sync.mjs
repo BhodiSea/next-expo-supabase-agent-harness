@@ -33,9 +33,19 @@ import {
   splitList,
 } from './lib/agent-roster.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  cmpDotted,
+  fail,
+  failures,
+  installedHarnessVersion,
+  ok,
+  rampNote,
+  skipOrFail,
+} from './lib/gate.mjs'
+import { liveControls, singleSurfaceGates } from './lib/live-controls.mjs'
 
 const GATE = 'docs-sync'
+const HARNESS_CONFIG = 'tools/harness.config.mjs'
 const errs = []
 
 if (!existsSync('AGENTS.md')) skipOrFail(GATE, 'AGENTS.md not found (no docs surface yet)')
@@ -482,7 +492,12 @@ if (existsSync(TIERS)) {
     const c = cellsOf(l)
     return c.includes('Layer') && c.includes('Covers') && c.includes('Compensated by')
   })
-  const FIELDS = ['Layer', 'Covers', 'Does NOT cover', 'Why', 'Compensated by', 'Target']
+  // `Gate` joined the list in 0.5.0, and its absence was not cosmetic: the column index map
+  // is built from FIELDS, so `at('Gate')` resolved to the empty string and the new Target
+  // check silently discharged every row — a control that passed because it could not find
+  // the key it was judging. It is also a genuinely required field: it is the machine-readable
+  // key scripts/check-tier-coverage.mjs matches rows on, so an empty one unbinds the row.
+  const FIELDS = ['Gate', 'Layer', 'Covers', 'Does NOT cover', 'Why', 'Compensated by', 'Target']
   const header = headerLine === undefined ? [] : cellsOf(headerLine)
   const missing = FIELDS.filter((f) => !header.includes(f))
   const rows =
@@ -501,23 +516,89 @@ if (existsSync(TIERS)) {
   }
   const colOf = new Map(FIELDS.map((f) => [f, header.indexOf(f)]))
 
-  // Everything that can legitimately be named as a compensating control: a step this
-  // install actually runs, or a job the shipped workflow actually defines.
-  const live = new Set(stepNames)
-  try {
-    const { STOP_HOOK_STEPS } = await import('./harness.config.mjs')
-    for (const [name] of STOP_HOOK_STEPS ?? []) live.add(name)
-  } catch {
-    // the gate-list check above already owns an unloadable config
-  }
-  const WORKFLOW = '.github/workflows/quality-gate.yml'
-  if (existsSync(WORKFLOW)) {
-    const wf = readFileSync(WORKFLOW, 'utf8')
-    const jobsAt = wf.indexOf('\njobs:')
-    if (jobsAt !== -1) {
-      for (const m of wf.slice(jobsAt).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)) live.add(m[1])
+  // ── `Target` becomes a control (0.5.0) ─────────────────────────────────────────
+  //
+  // The section above this table says Target "is a commitment, not a wish: the row stays
+  // until the machinery lands". Three rows carried `Target: 0.5.0` and NOTHING read the
+  // column, so the commitment was a sentence next to a date. A date nobody checks is the
+  // exact shape of claim this file's own opening line calls illegitimate.
+  //
+  // WHAT "DISCHARGED" MEANS, mechanically. The gap a Target promises to close is always
+  // the same gap: the gate hard-codes ONE product surface. So the question is re-derived
+  // from the gate SOURCE — is it still single-surface? — using the identical derivation
+  // scripts/check-tier-coverage.mjs uses to demand the row in the first place. Moving the
+  // date is the other legitimate answer, and it is a reviewed diff in an owned, sha-pinned
+  // file, which is what makes it deliberate rather than a flag.
+  const running = installedHarnessVersion(GATE)
+  let stillSingleSurface = null
+  if (running === null) {
+    // The template dev tree and the gate fixtures have no .harness/manifest.json, so there
+    // is no release to measure a deadline against. Defined rather than inherited: a silent
+    // pass here would make every Target unenforced in exactly the tree the harness's own
+    // maintainers run the gate in — which is where the stale Targets were written.
+    console.log(
+      `${GATE}: NOTE — no .harness/manifest.json, so \`Target\` dates in ${TIERS} are not judged (there is no installed release to compare them against). scripts/check-tier-coverage.mjs and tests/gates/check-docs-sync.test.mjs cover this table in the harness's own tree.`,
+    )
+  } else {
+    try {
+      stillSingleSurface = new Set(
+        singleSurfaceGates({
+          toolsDir: 'tools',
+          // The config maps a script basename to the STEP name a row may key on
+          // (`styleguide` runs check-styleguide-manifest.mjs), so without it a row keyed by
+          // step would never match and its Target would discharge for the wrong reason.
+          configText: existsSync(HARNESS_CONFIG) ? readFileSync(HARNESS_CONFIG, 'utf8') : '',
+        }).flatMap((g) => [g.key, g.file.replace(/\.mjs$/, ''), g.file]),
+      )
+    } catch (e) {
+      tierErrs.push(
+        `${TIERS}: the Target check could not read tools/ to re-derive which gates are still single-surface (${String(e.message).slice(0, 120)}). It fails rather than skipping: an unreadable scan root would silently discharge every dated commitment in this table.`,
+      )
     }
   }
+
+  /** @param {{layer: string, target: string, gate: string}} row */
+  const judgeTargetCell = ({ layer, target, gate }) => {
+    if (stillSingleSurface === null) return []
+    const t = target.trim()
+    // `—` is a legitimate and honest answer: no web half is owed, and the Why cell carries
+    // the reason. Six shipped rows say it. A draft of this check treated `—` as a missing
+    // commitment and reddened all six, which would have been the control's first act.
+    if (t === '' || t === '—' || t === '-') return []
+    const due = /(\d+\.\d+\.\d+)/.exec(t)?.[1]
+    if (due === undefined) {
+      return [
+        `${TIERS}: the '${layer}' row's Target is ${JSON.stringify(t)} — it must be a release (x.y.z) or \`—\`. A Target nothing can compare is a deadline with no date.`,
+      ]
+    }
+    if (cmpDotted(running, due) < 0) return [] // not yet due
+    const key = gate.replaceAll('`', '').trim()
+    if (!stillSingleSurface.has(key) && !stillSingleSurface.has(key.replace(/\.mjs$/, ''))) {
+      return [] // the gap closed: the gate no longer hard-codes one surface
+    }
+    return [
+      `${TIERS}: the '${layer}' row (gate \`${key}\`) committed to closing its gap in ${due} and this install runs harness ${running}, but the gate STILL scans one product surface. This table's own rule is that Target "is a commitment, not a wish". Close the gap, or move the Target to a release you mean in a reviewed diff — the file is harness-owned and sha-pinned, so moving it is a deliberate act rather than a flag.`,
+    ]
+  }
+
+  // Everything that can legitimately be named as a compensating control: a step this
+  // install actually runs, or a job ANY shipped workflow defines.
+  //
+  // 0.5.0 — ALL EIGHT WORKFLOWS, not one. This resolved against a single hard-coded
+  // `.github/workflows/quality-gate.yml` while eight ship, so a row compensated by
+  // `gitleaks`, `scan-pr` or `analyze` resolved to nothing and was reported as naming a
+  // control that does not exist. It is the identical defect check-canary-coverage.mjs
+  // corrected in 0.3.0, and the derivation is now shared with it (lib/live-controls.mjs)
+  // rather than written a third time.
+  const stopNames = await import('./harness.config.mjs')
+    .then((m) => (m.STOP_HOOK_STEPS ?? []).map(([name]) => name))
+    // the gate-list check above already owns an unloadable config
+    .catch(() => [])
+  const WORKFLOW_DIR = '.github/workflows'
+  const { live, conditional, workflows } = liveControls({
+    steps: [...stepNames, ...stopNames],
+    workflowDir: WORKFLOW_DIR,
+  })
 
   for (const line of rows) {
     const cells = cellsOf(line)
@@ -531,18 +612,41 @@ if (existsSync(TIERS)) {
         )
       }
     }
+    tierErrs.push(...judgeTargetCell({ layer, target: at('Target'), gate: at('Gate') }))
     // `—` means "nothing stands in for this", which is a legitimate and honest answer.
     if (compensated === '' || compensated === '—' || compensated === '-') continue
-    for (const name of [...compensated.matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])) {
+    // `[a-z0-9.-]+`, not `[a-z0-9-]+`: two rows name a gate SCRIPT (`check-e2e-device.mjs`)
+    // rather than a step or a job, and the old pattern matched neither the dot nor the
+    // extension — so those two cells resolved to the empty set and were exempt from both
+    // rules below. An exemption nobody chose, in the one table whose subject is exactly
+    // that. The `named.length > 0` guard below is what keeps a genuinely empty cell (`—`,
+    // already skipped above) from being read as a violation.
+    const named = [...compensated.matchAll(/`([a-z0-9][a-z0-9.-]*)`/g)].map((m) => m[1])
+    for (const name of named) {
       if (!live.has(name)) {
         tierErrs.push(
-          `${TIERS}: the '${layer}' row is compensated by \`${name}\`, which is neither a step in tools/harness.config.mjs nor a job in ${WORKFLOW}. A compensating control nobody runs is not a control — name a live one, or say — and raise the Target.`,
+          `${TIERS}: the '${layer}' row is compensated by \`${name}\`, which is neither a step in tools/harness.config.mjs nor a job in any workflow under ${WORKFLOW_DIR}/. A compensating control nobody runs is not a control — name a live one, or say — and raise the Target.`,
         )
       }
     }
+    // "EXISTS" IS NOT "RAN" (0.5.0). `web-e2e` and `perf-lane` are path-filtered, and
+    // tools/ci/summarize-gate.mjs deliberately greens over a skipped lane after naming it —
+    // so a row whose only compensating control is a conditional job is claiming coverage on
+    // exactly the commits that did not get it. A chain gate runs on a laptop and cannot ask
+    // which lanes ran; what it can do is tell a conditional job from an unconditional one in
+    // the workflow text and require the row to SAY so. `(path-filtered)` is that admission.
+    if (
+      named.length > 0 &&
+      named.every((n) => conditional.has(n)) &&
+      !/path-filtered/i.test(compensated)
+    ) {
+      tierErrs.push(
+        `${TIERS}: the '${layer}' row's only compensating control(s) — ${named.map((n) => `\`${n}\``).join(', ')} — are CONDITIONAL jobs (path- or event-filtered), so they do not run on every commit, and summarize-gate.mjs greens over a skipped lane after naming it. The row currently claims coverage the commit may not have received. Either add an unconditional control, or write "(path-filtered)" in the cell so the qualification is in the table a reviewer reads.`,
+      )
+    }
   }
 
-  tiersSummary = `${String(rows.length)} enforcement tier(s) declared, every compensating control live`
+  tiersSummary = `${String(rows.length)} enforcement tier(s) declared over ${String(workflows)} workflow(s); every compensating control live, every conditional one declared conditional, every arrived Target discharged`
   if (tierErrs.length > 0) {
     if (rampNote(GATE, '0.3.0', 'enforcement-tiers shape check', { until: '0.5.0' })) {
       for (const e of tierErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
@@ -553,8 +657,39 @@ if (existsSync(TIERS)) {
   }
 }
 
+// ── 7. the SECURITY doc's coverage claim tracks the gate it describes (0.5.0) ──────
+//
+// docs/security/sandbox-and-supply-chain.md said "the build gate greps the exported bundle
+// for DSNs, keys, and secret-shaped strings" — with no qualification — while
+// build-check.mjs was `const APP = 'apps/mobile'`. Two shipped documents contradicting each
+// other about a secret-exfiltration control, and the one a security reviewer opens was the
+// one that overstated. 0.5.0 gave the gate a `--web` mode and rewrote the bullet per
+// surface; this is what stops the two drifting apart again.
+//
+// The rule is an IFF, because both halves are decidable from the tree: the doc names the
+// `web-build` lane exactly when build-check.mjs actually has a web mode. HONEST LIMIT — it
+// cannot judge PROSE. It can catch the doc describing a mode that was deleted and the mode
+// existing with no doc; it cannot catch a paragraph that is merely badly worded.
+const SANDBOX_DOC = 'docs/security/sandbox-and-supply-chain.md'
+const BUILD_GATE = 'tools/build-check.mjs'
+let sandboxSummary = `${SANDBOX_DOC} absent`
+if (existsSync(SANDBOX_DOC) && existsSync(BUILD_GATE)) {
+  const hasWebMode = readFileSync(BUILD_GATE, 'utf8').includes("'--web'")
+  const claimsWeb = readFileSync(SANDBOX_DOC, 'utf8').includes('web-build')
+  if (hasWebMode && !claimsWeb) {
+    errs.push(
+      `${BUILD_GATE} has a \`--web\` mode (the web client-bundle scan) but ${SANDBOX_DOC} never names the \`web-build\` lane that runs it — the doc understates a control that exists, so a reviewer reading it cannot know the web bundle is scanned at all.`,
+    )
+  } else if (!hasWebMode && claimsWeb) {
+    errs.push(
+      `${SANDBOX_DOC} describes the \`web-build\` client-bundle scan, but ${BUILD_GATE} has no \`--web\` mode — the doc claims a secret-exfiltration control the tree does not implement. This is the exact drift the per-surface rewrite in 0.5.0 corrected; restore the mode or the paragraph, not whichever is easier.`,
+    )
+  }
+  sandboxSummary = `${SANDBOX_DOC} states the build gate's surfaces in lockstep with ${BUILD_GATE} (web mode ${hasWebMode ? 'present' : 'absent'})`
+}
+
 failures(GATE, errs)
 ok(
   GATE,
-  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}`,
+  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}; ${sandboxSummary}`,
 )

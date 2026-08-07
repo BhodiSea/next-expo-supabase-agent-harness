@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.4.0'
+export const HARNESS_HOOK_VERSION = '0.5.0'
 
 const input = await readHookInput()
 const looping = input?.stop_hook_active === true

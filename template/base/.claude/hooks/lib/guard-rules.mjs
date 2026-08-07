@@ -372,6 +372,26 @@ export const WRITE_PROTECTED = [
   // everyone else on the deployment, and the gate judges the running code against it —
   // so an agent that could edit this file could widen its own limit and stay green.
   { id: 'rate-limit-budget', re: /^tools\/rate-limit-budget\.json$/ },
+  // The web response posture the `security-headers` gate diffs the evaluated
+  // apps/web/lib/security-headers.ts against BY VALUE. It sat in ESCAPE_LISTS and in
+  // SEEDED_FILES from 0.2.0 with no rule here at all — one layer where every peer in
+  // this block has three — so deleting a CSP directive from the reviewed side was an
+  // unguarded edit that makes the code side agree with it. Found by
+  // scripts/check-escape-registry.mjs on its first run (0.5.0).
+  { id: 'security-headers-policy', re: /^tools\/security-headers\.json$/ },
+  // The applied-history acknowledgement (0.4.0), tolerated-absent. CREATING it is the
+  // widening — it converts a hard `migrations` red into an exemption for a (file, rule)
+  // pair — so it is exactly the class this block exists for, and it shipped without a
+  // rule for the same reason security-headers.json did: nothing compared the lists.
+  { id: 'migrations-allow', re: /^tools\/migrations-allow\.json$/ },
+  // The framework SECURITY floor (0.5.0). Unlike its neighbours in this block it is
+  // harness-OWNED rather than seeded — `update` must be able to carry a new advisory to
+  // an existing install — but the agent-time hazard is identical and sharper: the file
+  // names the exact minimum patch level, so lowering one number turns a red naming four
+  // HIGH CVEs into a green, and the diff reads like a version bump. `gate-integrity`
+  // sha-pins it (step 2) and this denies the edit mid-turn; the two answer different
+  // questions, and only this one answers it before the write lands.
+  { id: 'framework-floor', re: /^tools\/framework-floor\.json$/ },
   // The plan-probe floor and budgets. `minRows` is the anti-vacuity floor: lower it and
   // tools/check-db-perf.mjs happily certifies a plan against a four-row table, which is
   // the exact state every structural check in the repo is already green in. An agent

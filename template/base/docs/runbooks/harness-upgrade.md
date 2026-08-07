@@ -171,6 +171,77 @@ Once `pnpm validate` is green, `npx next-expo-supabase-agent-harness graduate` a
 `baseVersion` to 0.4.0 and prints the failing gate with its detail bullets if anything
 still holds it back. Re-run validate: the NOTEs are gone and the checks are live.
 
+## 0.5.0 — THE SECOND ALARM, and it reaches further than the first
+
+0.4.0's expiring escapes all opened at `minVersion 0.2.0`, so only `baseVersion 0.1.3`
+met a deadline. **0.5.0's eight open at 0.3.0 and 0.4.0**, so the population is every
+released vintage below 0.4.0.
+
+| your `baseVersion` | what `update` to 0.5.0 does |
+|---|---|
+| `0.1.3` | Everything 0.4.0 closed is still closed, **plus these eight**. If you are still here, upgrade one minor at a time rather than head-on. |
+| `0.2.0`, `0.2.1` | **8 escapes close.** All eight, since every one of them opens at 0.3.0 or 0.4.0. |
+| `0.3.0` | **2 escapes close** — `diff-coverage`'s per-file floors on the surface 0.4.0 added, and `wiring`'s web a11y plugin seam. The other six opened at 0.3.0 and have been live on your install all along. |
+| `0.4.0` | No ramp expires. It is the one released vintage whose escapes this release leaves alone — but see the security floor below, which reds every vintage. |
+| fresh `init` at 0.5.0 | Nothing ever ramped. |
+
+### Expect `version-sync` to red on the security floor, whatever your baseline
+
+This one is not a ramp and no vintage is exempt. `tools/framework-floor.json` is
+harness-**owned**, so `update` refreshes it into your install — that is the point, a new
+advisory has to reach trees that already exist. `pnpm-workspace.yaml` is **seeded**, so
+`update` deliberately does not touch your pins. The result is that the first `pnpm validate`
+after upgrading reports any catalog pin now sitting below the reviewed floor, naming the
+package, your resolved version, the floor and the advisory ids.
+
+For 0.5.0 that is `next`, which moves to **16.2.11** (or **15.5.21** if you are on the 15
+line — the floor is keyed by major, so a patched older line is left where it is). Apply it
+the way the failure says:
+
+```
+# raise the pin in the pnpm-workspace.yaml catalog, then
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+There is no flag that lowers the floor. `tools/framework-floor.json` is sha-pinned by
+`gate-integrity`, so editing it down reds step 2 instead of step 11.
+
+Same rule as last time — do not take the count from these notes:
+
+```
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'   # the findings that just went hard, on YOUR tree
+```
+
+The population above is not prose either: `template/migrations.json`'s `0.5.0.rampExpiry`
+record states it as data, and `scripts/check-ramp-ledger.mjs` reds if it disagrees with what
+the shipped call sites actually compute.
+
+### The eight, and the cheapest sweep for each
+
+| Gate | The finding | Sweep |
+|---|---|---|
+| `wiring` | `eslint-plugin-jsx-a11y` is not a declared dependency, so `eslint.config.mjs` omits the `apps/web` accessibility block and the web half of the a11y floor runs nothing | **This is the one expiry whose remedy the harness owes you**, and 0.5.0 delivers it: `update` parks a `dependencyObligations` record at `.harness/pending/dependencies.json` and `doctor` reds until it is met. Add the pin to your `pnpm-workspace.yaml` catalog and the devDependency to `package.json` exactly as the parked file states, run `pnpm install`, and commit `pnpm-lock.yaml`. The obligation file deletes itself on the next `update`. |
+| `wiring` | CODEOWNERS does not cover the enforcement surface | The whole gate was ramped for one release. Each finding names a path and the owner it lacks; `{{SECURITY_OWNERS}}` is the seeded answer. A retrofit that deliberately kept a different posture is a real decision — make it explicitly rather than by expiry. |
+| `diff-coverage` | per-file floors on `apps/web/lib` and the layered `packages/*/*/src` | Write the tests. These files were never held to a floor before 0.4.0 and now are; `apps/web/__tests__/` ships six seed suites (`seedOnInitOnly`) you can pull as shape references with `update --refresh-seeded`, but the coverage has to come from tests over YOUR modules. |
+| `gate-integrity` | the enforcement CONFIGS are not hash-covered, and the threshold-bearing configs are dirty | `update` re-records the hashes. If it still reds afterwards, a covered file has been hand-edited since — read that diff, then re-run `update`. For the commit-not-dirty half: commit the config change, which is the whole point (a widened threshold belongs in a PR under CODEOWNERS, not in a working tree at gate time). |
+| `docs-sync` | `AGENTS.md`'s gate list drifted after an injected chain step | Paste the gate names the NOTE prints into AGENTS.md's "The N gates, in order:" sentence and its "N-step chain" line. The ramp only ever covered ADDITIVE drift — a documented step that no longer exists, or a reordering, has always been a hard red. |
+| `docs-sync` | the approved-tools registry and `docs/security/approved-tools.md` disagree | Reconcile the doc against `tools/approved-tools.json` (and `.claude/settings.json`). Adding an MCP server is granting reach; the three-corner lockstep is what stops one corner granting it quietly. |
+| `docs-sync` | the doctrine token map names a symbol its module no longer contains | Update `tools/doctrine-symbols.json` in the same commit as the rename. A map that outlives its module is a second, stale doctrine. |
+| `docs-sync` | `docs/harness/enforcement-tiers.md`'s shape — a `Compensated by` naming a control that is neither a chain step nor a CI job | Name a live one, or write `—` and raise the row's `Target`. **0.5.0 also makes `Target` itself a control**, so a row whose Target has arrived must have closed its gap or moved the date in a reviewed diff. |
+
+**Nothing was deleted to make this release green.** All eight `rampNote` wrappers stay in
+the tree; they expire by version comparison, which is the mechanism working rather than
+being removed. And there is still no flag that extends a deadline — as of this release that
+sentence is enforced: `scripts/check-ramp-ledger.mjs` compares every `until` against the
+previous release TAG's tree and reds on any date that moved later, unless a `rampExtensions`
+record in `template/migrations.json` names the file, the versions, and the reason.
+
+### Then graduate
+
+`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.5.0 once
+`pnpm validate` is green.
+
 ## How to graduate
 
 1. **Sweep.** Run `pnpm validate` and fix everything the ramped check reports in

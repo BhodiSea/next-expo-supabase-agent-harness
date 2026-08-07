@@ -304,6 +304,14 @@ const GROUNDED_ELSEWHERE = {
     "written by a HUMAN, once, to accept a specific retrofit conflict. check-gate-integrity reads it absent-as-empty, so shipping an empty one would ship a reviewed-acceptance file nobody reviewed — and an install that never retrofitted has nothing to accept. The rule exists because CREATING this file is what converts a red into a NOTE, which is exactly as consequential as widening an escape list.",
   'tools/secret-scan-allow.json':
     'written by a HUMAN to allow a specific secret-shaped string the `secrets` gate found. check-secrets.mjs reads it absent-as-empty (the per-rule placeholder allowlist that ships lives in tools/secret-patterns.json, which IS shipped), so the file exists only on installs that have deliberately allowed something — and each entry is one credential shape the scanner stops reporting.',
+  // 0.5.0. Same producer and same shape as the two above: check-migrations.mjs reads it
+  // absent-as-empty, and the file exists only on installs that have acknowledged applied
+  // history. It shipped in 0.4.0 with no write-guard rule at all — the rule arrives now,
+  // and this entry is what says the rule is not inert. WHO writes it: a human, once per
+  // (migration, rule) pair, and only for a migration that already existed at the diff
+  // base, so the gate refuses an entry for one written today.
+  'tools/migrations-allow.json':
+    'written by a HUMAN to acknowledge that an APPLIED migration cannot be swept — both remedies live inside the migration and the append-only rule reds any edit to a committed one. check-migrations.mjs reads it absent-as-empty and reds a STALE entry, so the file exists only on installs carrying history they have deliberately exempted, one (file, rule) pair at a time.',
 }
 
 const shippedPaths = new Set(

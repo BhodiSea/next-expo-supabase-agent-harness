@@ -78,6 +78,24 @@ SCAFFOLD="$WORK/install"
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31mupgrade-lane: FAIL — %s\033[0m\n' "$*" >&2; exit 1; }
 
+# A file's content digest, or the literal `absent`. Node rather than sha256sum/shasum,
+# which are spelled differently on the ubuntu runner and on a maintainer's macOS. `absent`
+# is a real value on purpose: a lockfile missing both before and after an install compares
+# EQUAL, so the caller's "it moved" assertion reds instead of quietly reading a pair of
+# empty strings as a match.
+# shellcheck disable=SC2016
+lock_digest() {
+  node -e '
+    const { createHash } = require("node:crypto")
+    const { readFileSync } = require("node:fs")
+    try {
+      process.stdout.write(createHash("sha256").update(readFileSync(process.argv[1])).digest("hex"))
+    } catch {
+      process.stdout.write("absent")
+    }
+  ' "$1"
+}
+
 # ── 0. resolve the previous release tag ──────────────────────────────────────────
 # The newest v* tag STRICTLY BELOW HEAD's package.json version. Strictly-below matters:
 # on the release tag push HEAD is itself tagged, and upgrading from the version you are
@@ -117,6 +135,15 @@ mkdir -p "$WORK"
 
 # ── 1. install the PREVIOUS release into a scratch dir ───────────────────────────
 # A worktree, not a checkout: the lane must not disturb the tree CI is testing.
+#
+# The prune is for the MAINTAINER, not for CI. `rm -rf "$WORK"` above deletes the
+# worktree's directory but not its registration in .git/worktrees, so an interrupted run
+# leaves `$PREV_TREE` "missing but already registered" and every later run dies at 128
+# before doing any work. CI gets a fresh checkout and never sees it; a laptop sees it
+# forever, and a lane a maintainer cannot re-run is a lane that only CI ever executes.
+# Prune, not `add -f`: this clears registrations whose directory is gone and leaves a
+# live worktree alone.
+git -C "$ROOT" worktree prune
 git -C "$ROOT" worktree add --detach --quiet "$PREV_TREE" "$PREV_TAG"
 trap 'git -C "$ROOT" worktree remove --force "$PREV_TREE" >/dev/null 2>&1 || true' EXIT
 
@@ -151,6 +178,115 @@ BASE_AFTER="$(node -p "require('$SCAFFOLD/.harness/manifest.json').baseVersion")
 [ "$BASE_AFTER" = "$BEFORE" ] ||
   die "update advanced baseVersion ($BEFORE -> $BASE_AFTER). baseVersion is the vintage of SEEDED content and only a human \`graduate\` moves it — an update that moves it silently arms every ramped check it was protecting."
 say "manifest: harnessVersion $BEFORE -> $AFTER, baseVersion held at $BASE_AFTER"
+
+# ── 2b. the dependency channel, executed end to end (0.5.0) ──────────────────────
+# 0.4.0 shipped an eslint.config.mjs importing eslint-plugin-jsx-a11y against a pin no
+# UPGRADED install had, and eslint died before linting a file — the whole `lint` step, on
+# every existing consumer, with a fresh scaffold perfectly green. That asymmetry is the
+# only reason this lane exists, and until now the lane could not have caught it: it runs
+# `pnpm install` ONCE, at the PREV_TAG scaffold in §1, and never again. So whatever
+# `update` did to the dependency graph was never installed and never exercised.
+#
+# `update` does not write pnpm-workspace.yaml or package.json — both are SEEDED — it parks
+# an OBLIGATION. This step plays the consumer: apply it, reinstall, prove the plugin now
+# resolves. A leg whose baseline already satisfies the obligation (a v0.4.0 scaffold
+# already carries the pin) must see NO parked file, and that direction is asserted too —
+# an obligation raised against a tree that already meets it is a warning people learn to
+# ignore.
+# ── 5a. the framework security floor ─────────────────────────────────────────────
+# tools/framework-floor.json is OWNED, so `update` refreshes it into every existing install
+# — a new advisory has to reach trees that already exist. pnpm-workspace.yaml is SEEDED, so
+# `update` cannot raise the pin the refreshed floor now demands, and the consumer meets a
+# red step 11 carrying the package, the resolved version, the floor and the CVE ids. That is
+# correct: a security gate reporting a real vulnerability is not a defect.
+#
+# It is also, left alone, the permanent death of leg A — the only leg that reaches
+# `graduate`'s success branch asserts a GREEN chain, and every floor bump from here on would
+# red it for the most ordinary reason there is. The lane plays the consumer and applies the
+# documented remedy, exactly as it does for a parked obligation below, then lets the chain
+# judge the remedied tree. See scripts/ci/apply-framework-floor.mjs for why this is not a
+# dependencyObligations record.
+say "framework security floor"
+FLOOR_OUT="$(node "$ROOT/scripts/ci/apply-framework-floor.mjs" "$SCAFFOLD")"
+echo "$FLOOR_OUT"
+FLOOR_RAISED=0
+case "$FLOOR_OUT" in *'raised to the security floor'*) FLOOR_RAISED=1 ;; esac
+
+say "dependency obligations"
+PARKED="$SCAFFOLD/.harness/pending/dependencies.json"
+if [ -f "$PARKED" ]; then
+  echo "  parked: $(node -p "require('$PARKED').obligations.map(o=>o.name+'@'+o.catalog).join(', ')")"
+  grep -q 'DEPENDENCY OBLIGATION' "$WORK/update.log" ||
+    die "an obligation was parked at .harness/pending/dependencies.json but \`update\` never NAMED it in its report — a channel nobody reads is not a channel"
+
+  # Apply it exactly as the report line instructs, then reinstall.
+  # Single quotes are REQUIRED below: the ${...} inside are JS template literals, and
+  # letting the shell expand them would substitute empty strings. Every value this script
+  # needs is passed through process.argv, never interpolated.
+  #
+  # ARGV IS OFF BY ONE UNDER `-e`. There is no script path to occupy argv[1], so the
+  # first user argument IS argv[1] — `[, , a, b]` skips one too many and hands the body
+  # `undefined`. Written that way, this block died on `readFileSync(undefined)` the very
+  # first time it ran, which was the first time this lane was ever executed rather than
+  # reviewed. Held here because the same trap is one character wide and reads correct.
+  # shellcheck disable=SC2016
+  node -e '
+    const { readFileSync, writeFileSync } = require("node:fs")
+    const [, scaffold, parked] = process.argv
+    if (!scaffold || !parked) {
+      throw new Error(`upgrade-lane: expected <scaffold> <parked>, got ${process.argv.slice(1).join(" ") || "nothing"}`)
+    }
+    const { obligations } = JSON.parse(readFileSync(parked, "utf8"))
+    let yaml = readFileSync(scaffold + "/pnpm-workspace.yaml", "utf8")
+    const pkg = JSON.parse(readFileSync(scaffold + "/package.json", "utf8"))
+    for (const o of obligations) {
+      yaml = yaml.replace(/^catalog:\n/m, `catalog:\n  ${o.name}: ${o.catalog}\n`)
+      if (o.devDependency !== false) {
+        pkg.devDependencies = { ...pkg.devDependencies, [o.name]: "catalog:" }
+      }
+    }
+    writeFileSync(scaffold + "/pnpm-workspace.yaml", yaml)
+    writeFileSync(scaffold + "/package.json", JSON.stringify(pkg, null, 2) + "\n")
+  ' "$SCAFFOLD" "$PARKED"
+
+else
+  echo "  none parked — this baseline's catalog already satisfies every obligation"
+fi
+
+# ONE install for both edits above. Gated on either having happened, because a leg whose
+# baseline already meets the floor and parks no obligation has nothing to reinstall — and
+# asserting the lockfile moved on that leg would demand a change nobody made.
+if [ -f "$PARKED" ] || [ "$FLOOR_RAISED" = 1 ]; then
+  LOCK_BEFORE="$(lock_digest "$SCAFFOLD/pnpm-lock.yaml")"
+
+  say "pnpm install (after applying the security floor and any obligations)"
+  pnpm install --no-frozen-lockfile
+
+  # The assertion that would have caught the original defect: the lockfile MOVED. An
+  # obligation that changes no lockfile changed no dependency graph.
+  #
+  # THIS WAS A `git diff --name-only` AND COULD NEVER HAVE PASSED. The scaffold's baseline
+  # commit is taken at §1, BEFORE the lane's first `pnpm install`, so pnpm-lock.yaml is
+  # untracked (`??`) for the whole run and a diff over tracked files cannot name it. The
+  # obligation applied correctly, pnpm reported `+ eslint-plugin-jsx-a11y 6.10.2`, and the
+  # assertion reddened anyway — the first time it was ever executed rather than read. A
+  # digest across the install is the claim itself, and it holds whether or not the scaffold
+  # ever commits its lockfile.
+  [ "$(lock_digest "$SCAFFOLD/pnpm-lock.yaml")" != "$LOCK_BEFORE" ] ||
+    die "applying the security floor and the parked obligations did not change pnpm-lock.yaml — the pins resolved to nothing, so the dependency the config needs is still absent"
+  echo "  pnpm-lock.yaml regenerated"
+fi
+
+# The plugin the 0.4.0 defect was about must RESOLVE on this upgraded install. `resolves`
+# and `enforces` are different greens, so the enforcing half is Canary 29 in the selftest;
+# this is the half that was silently false for a whole release.
+node -e "require.resolve('eslint-plugin-jsx-a11y', { paths: ['$SCAFFOLD'] })" 2>/dev/null ||
+  die "eslint-plugin-jsx-a11y does not resolve on the upgraded install — eslint.config.mjs imports it dynamically, so the web a11y floor silently enforces NOTHING and the whole \`lint\` step dies once the dynamic fallback is removed"
+echo "  resolves:  eslint-plugin-jsx-a11y"
+
+# And doctor must now be able to reach clean: an unmet obligation is a doctor ERROR (1),
+# which §5 below treats as fatal. Applying it above is what keeps that honest — if the
+# channel did not work, §5 fails with doctor's own message rather than this one.
 
 # ── 3. the plant-vs-withhold contract, asserted rather than reviewed ─────────────
 # The 0.2.0 hazard, repeated deliberately: a gate that FAILS CLOSED without its data
@@ -246,49 +382,30 @@ narrow() {
 EXPIRED="$(narrow "$EXPIRED")"
 NOTING="$(narrow "$NOTING")"
 
+# ── 7a. deadlines MET: the alarm must actually ring, and it must be a red ─────────
+# The branch no lane could reach before `--from`: every ramp old enough to expire opens at
+# a minVersion at or below the PREVIOUS release, so the default leg's install is already
+# past it and rampNote returns false at its first guard.
+#
+# THE JUDGEMENT MOVED OUT OF THIS FILE (0.5.0), to scripts/lib/ramp-verdict.mjs. It was
+# fifteen lines of grep/cut/case here, and it is the single assertion standing between "an
+# expiry fired" and "an expiry was supposed to fire and silently did not" — which is the
+# exact defect v0.4.0 shipped to fix. A control that important must be runnable by the
+# person editing the code it guards, and this one was reachable only through a 45-minute
+# job on a throwaway scaffold. tests/gates/ramp-verdict.test.mjs now drives every branch,
+# including the neutralised-expiry case that is this release's named canary; the shell
+# keeps the parts a shell is good at (running things, reading exit codes).
+#
+# Both directions are judged by the same call, EXPIRED empty or not: an empty expectation
+# has its own consequence (a red chain is then a real regression, not an expiry) and a
+# surprise expiry against an empty expectation is the loudest possible classifier
+# disagreement.
 if [ -n "$EXPIRED" ]; then
-  # ── 7a. deadlines MET: the alarm must actually ring, and it must be a red ───────
-  # The branch no lane could reach before `--from`: every ramp old enough to expire
-  # opens at a minVersion at or below the PREVIOUS release, so the default leg's
-  # install is already past it and rampNote returns false at its first guard.
   say "deadlines MET — the chain must be RED, and every expiry that fires must be expected"
-  [ "$VALIDATE_CODE" -ne 0 ] ||
-    die "validate is GREEN on an install that meets $(printf '%s' "$EXPIRED" | wc -w | tr -d ' ') ramp deadline(s) ($EXPIRED). The escapes closed and nothing reddened — an expiry that does not fail is an alarm ringing into a green run, which is the exact defect v0.4.0 shipped to fix."
-
-  # THE EXPECTATION IS AN UPPER BOUND, NOT AN EQUALITY, and the distinction is the gate
-  # scripts' own control flow. Most call sites invoke rampNote only when the gate HAS a
-  # finding to withhold — `if (rampedErrs.length > 0) { rampNote(...) }`. So a deadline this
-  # install meets fires only if the finding also exists on this tree, and the reference
-  # scaffold at v0.1.3 legitimately produces none for several of them (its seeded migrations
-  # trip neither of the 0.2.0 migration rules, for instance). Demanding one line per
-  # expiring gate asserts something the harness never promised, and the only way to make it
-  # pass would be to weaken it.
-  #
-  # What IS asserted, and is not vacuous:
-  #   - at least one expiry actually fired (this leg exists to execute that branch);
-  #   - every gate that fired is one the classifier predicted (a surprise expiry means the
-  #     ledger and gate.mjs disagree, which is the failure the shared module prevents);
-  #   - the chain is red, above.
-  # Expected-but-silent gates are REPORTED, never asserted and never hidden.
-  FIRED="$(grep -oE '^[a-z0-9-]+: RAMP EXPIRED' "$WORK/validate.log" | cut -d: -f1 | sort -u | tr '\n' ' ')"
-  [ -n "$FIRED" ] ||
-    die "the chain is red but NOT ONE \`RAMP EXPIRED\` line appeared, on the one baseline chosen because it meets deadlines ($EXPIRED). Either the chain is red for an unrelated reason — read $WORK/validate.log — or every expiring call site discards rampNote's result and the deadline changes nothing (scripts/check-ramp-ledger.mjs)."
-  for g in $FIRED; do
-    case " $EXPIRED " in
-      *" $g "*) echo "  expired:   $g" ;;
-      *) die "gate \`$g\` printed RAMP EXPIRED but the classifier did not predict it for baseVersion $BASE_AFTER. scripts/lib/ramp-sites.mjs mirrors gate.mjs deliberately so the two cannot disagree — one of them is now wrong." ;;
-    esac
-  done
-  for g in $EXPIRED; do
-    case " $FIRED " in
-      *" $g "*) ;;
-      *) echo "  (silent):  $g — deadline met, but this tree carries no finding for it to withhold" ;;
-    esac
-  done
-  grep -F 'RAMP EXPIRED' "$WORK/validate.log" | sed 's/ was ramped.*//;s/^/    /' | sort -u
-elif [ "$VALIDATE_CODE" -ne 0 ]; then
-  die "validate is RED on the upgraded install (exit $VALIDATE_CODE) and NO ramp deadline is met at baseVersion $BASE_AFTER — this is a real regression, not an expiry. See $WORK/validate.log"
 fi
+node "$ROOT/scripts/ci/ramp-verdict.mjs" "$EXPIRED" "$WORK/validate.log" "$VALIDATE_CODE" "$BASE_AFTER" ||
+  die "the expiry expectation for baseVersion $BASE_AFTER was not met (see the problem list above and $WORK/validate.log)"
+grep -F 'RAMP EXPIRED' "$WORK/validate.log" | sed 's/ was ramped.*//;s/^/    /' | sort -u || true
 
 # ── 7b. every NOTE that should appear does, and every NOTE names its deadline ────
 for g in $NOTING; do
@@ -308,6 +425,19 @@ fi
 # `graduate` advances baseVersion, arming every ramped check at once. Both directions
 # matter and only the refusal was ever executed: the success path is what an install
 # that has genuinely swept everything hits, and it is the one that MOVES the manifest.
+#
+# WHICH DIRECTION TO EXPECT IS DECIDED BY THE OBSERVED CHAIN, NOT BY THE PREDICTED EXPIRY
+# SET. This branched on `[ -n "$EXPIRED$NOTING" ]` — "the classifier says a deadline is met
+# here, therefore graduate must refuse" — and that is the same unsound step §7a made: an
+# expected expiry does not imply an outstanding FINDING, because most gates call rampNote
+# only when they have something to withhold. Leg D is the case: its one expectation is
+# `wiring`, the lane's own obligation step removes the condition `wiring` would have
+# reported, the chain comes back green, and graduate correctly opens the door — which this
+# assertion then called a defect. `graduate`'s actual contract is the one written in its own
+# refusal text: it re-runs the ramp-aware validate and refuses while that is RED, never
+# masking a real failure. So key on VALIDATE_CODE, which is the fact both sides describe.
+# The matrix still executes both directions — legs B and C carry real findings and get the
+# refusal, legs A and D are clean and get the advance.
 say "graduate"
 set +e
 node "$ROOT/installer/cli.mjs" graduate --dir "$SCAFFOLD" > "$WORK/graduate.log" 2>&1
@@ -316,19 +446,20 @@ set -e
 cat "$WORK/graduate.log"
 BASE_FINAL="$(node -p "require('$SCAFFOLD/.harness/manifest.json').baseVersion")"
 
-if [ -n "$EXPIRED$NOTING" ]; then
+if [ "$VALIDATE_CODE" -ne 0 ]; then
   [ "$GRAD_CODE" -ne 0 ] ||
-    die "graduate SUCCEEDED with ramped findings outstanding ($EXPIRED$NOTING) — it would arm every ramped check on an install that has not swept them"
+    die "validate is RED on this install and graduate SUCCEEDED anyway — it would arm every ramped check on a tree that has not swept its findings"
   grep -qE 'still outstanding|validate is RED' "$WORK/graduate.log" ||
     die "graduate refused, but not for the ramp reason — the refusal must name the outstanding findings or the red chain"
   [ "$BASE_FINAL" = "$BASE_AFTER" ] || die "a refused graduate still moved baseVersion ($BASE_AFTER -> $BASE_FINAL)"
   GRAD_SUMMARY="graduate refusing (baseVersion held at $BASE_FINAL)"
 else
-  # No ramp above this baseline — the legitimate empty set. Asserting "at least one NOTE"
-  # here would have demanded the release invent a ramp at minVersion == itself; the real
-  # obligation is the opposite one, and it had never run: graduation must WORK.
+  # A green chain — nothing is outstanding, whatever the classifier predicted. Asserting
+  # "at least one NOTE" here would have demanded the release invent a ramp at
+  # minVersion == itself; the real obligation is the opposite one, and it had never run:
+  # graduation must WORK.
   [ "$GRAD_CODE" -eq 0 ] ||
-    die "no ramp is outstanding at baseVersion $BASE_AFTER, yet graduate REFUSED (exit $GRAD_CODE) — a door that will not open when nothing blocks it is not an escape with a door. See $WORK/graduate.log"
+    die "validate is GREEN on this install, yet graduate REFUSED (exit $GRAD_CODE) — a door that will not open when nothing blocks it is not an escape with a door. See $WORK/graduate.log"
   [ "$BASE_FINAL" = "$HEAD_VERSION" ] ||
     die "graduate exited 0 but baseVersion is $BASE_FINAL, not $HEAD_VERSION — the one thing graduation exists to do did not happen"
   GRAD_SUMMARY="graduate advancing baseVersion $BASE_AFTER -> $BASE_FINAL"

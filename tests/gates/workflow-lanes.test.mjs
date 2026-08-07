@@ -112,3 +112,40 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
     )
   }
 })
+
+test('the device-lane paths filter covers the packages the installed app is MADE OF', () => {
+  // Not a run of `dorny/paths-filter` — that is vendor code on GitHub's runner, and the
+  // header above states why asserting it here would be theatre. What IS decidable from the
+  // file is whether the filter enumerates the packages apps/mobile imports. It did not: a
+  // change to packages/contracts (imported 27 times by apps/mobile) matched nothing in the
+  // `mobile` filter, so both device lanes skipped until the nightly.
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  const filter = /^ {12}mobile:\n((?: {14}.*\n|\s*#.*\n)*)/m.exec(text)
+  assert.ok(filter, "quality-gate.yml no longer defines a 'mobile' paths filter")
+  const body = filter[1]
+
+  // Every workspace package apps/mobile declares or imports.
+  for (const pkg of [
+    'packages/contracts/**',
+    'packages/design-tokens/**',
+    'packages/platform/errors/**',
+    'packages/platform/supabase/**',
+    'packages/api/**',
+    'packages/verticals/**',
+  ]) {
+    assert.match(
+      body,
+      new RegExp(`'${pkg.replace(/[*/]/g, (c) => `\\${c}`)}'`),
+      `the mobile paths filter omits ${pkg}, which ships inside the installed app — a change to it would skip both device lanes`,
+    )
+  }
+
+  // And the one it must NOT contain: dependency-cruiser rule `mobile-not-into-web-only`
+  // makes importing the web design system an error, so arming a 120-minute lane on it
+  // would be arming it for a package the app may not use.
+  assert.doesNotMatch(
+    body,
+    /'packages\/design-system\/\*\*'/,
+    'the mobile paths filter names packages/design-system/**, which apps/mobile is forbidden to import (depcruise `mobile-not-into-web-only`)',
+  )
+})

@@ -117,28 +117,32 @@ function consumesResult(src, at) {
 }
 
 /**
- * Every shipped ramp call site.
- * @param {string} [toolsDir]
+ * Every ramp call site across a set of ALREADY-READ gate sources.
+ *
+ * Injectable, and the injection is not decoration: the deadline ratchet
+ * (`deadlineRegressions`) has to scan the PREVIOUS RELEASE TAG's tree, which exists only
+ * as `git show` output and never as a directory. Same split as scripts/lib/escape-registry.mjs
+ * — the pure function takes data, the caller owns the I/O.
+ *
+ * @param {Array<{file: string, src: string}>} sources
  * @returns {Array<{file: string, gate: string, line: number, minVersion: string|null, until: string|null, consumed: boolean, args: string}>}
  */
-export function shippedRampSites(toolsDir = TOOLS_DIR) {
+export function rampSitesFromSources(sources) {
   const out = []
-  for (const f of readdirSync(toolsDir).sort()) {
-    if (!f.endsWith('.mjs')) continue
-    const src = readFileSync(join(toolsDir, f), 'utf8')
+  for (const { file, src } of [...sources].sort((a, b) => a.file.localeCompare(b.file))) {
     if (!src.includes('rampNote(')) continue
     // The gate's OWN name, not the filename. The two differ often enough that deriving
     // one from the other is wrong rather than merely ugly: check-rls-manifest.mjs prints
     // `schema-rls`, check-prompts-lock.mjs prints `prompts`. Anything that greps a gate's
     // output — the upgrade lane's expectation set above all — needs the name the gate
     // actually writes, and the ledger printed the stripped filename for a release.
-    const gate = src.match(/^const GATE = '([^']+)'/m)?.[1] ?? f.replace(/^check-|\.mjs$/g, '')
+    const gate = src.match(/^const GATE = '([^']+)'/m)?.[1] ?? file.replace(/^check-|\.mjs$/g, '')
     for (const { args, at } of rampNoteCalls(src)) {
       // The second positional argument, textually: `GATE, <token>, …`.
       const second = args.split(',')[1]?.trim() ?? ''
       const untilMatch = args.match(/until\s*:\s*'([\d.]+)'/)
       out.push({
-        file: f,
+        file,
         gate,
         line: src.slice(0, at).split('\n').length,
         minVersion: resolveVersionToken(src, second),
@@ -149,6 +153,19 @@ export function shippedRampSites(toolsDir = TOOLS_DIR) {
     }
   }
   return out
+}
+
+/**
+ * Every shipped ramp call site, read from a directory on disk.
+ * @param {string} [toolsDir]
+ */
+export function shippedRampSites(toolsDir = TOOLS_DIR) {
+  return rampSitesFromSources(
+    readdirSync(toolsDir)
+      .sort()
+      .filter((f) => f.endsWith('.mjs'))
+      .map((f) => ({ file: f, src: readFileSync(join(toolsDir, f), 'utf8') })),
+  )
 }
 
 /**
@@ -192,4 +209,114 @@ export function classifyForInstall(base, harness, sites) {
  */
 export function neverArmed(sites, floor = LINEAGE_FLOOR) {
   return sites.filter((s) => s.minVersion !== null && cmpDotted(s.minVersion, floor) < 0)
+}
+
+// ── the deadline ratchet (0.5.0) ────────────────────────────────────────────────────
+//
+// WHAT WAS UNENFORCED. docs/runbooks/harness-upgrade.md states, in the imperative voice
+// the whole runbook is written in: "There is no flag that extends a deadline — extending
+// one is a harness release, deliberately." Nothing checked it. Editing `until: '0.5.0'`
+// to `'0.6.0'` in a gate script bought a green release and passed every control in the
+// repository, including this file's own ledger, which only ever read the CURRENT tree.
+//
+// WHY IT COMPARES AGAINST THE PREVIOUS RELEASE TAG, and not a committed ledger file. A
+// `scripts/ramp-ledger.json` recording last release's deadlines is edited by the same
+// commit that edits the deadline — one diff, both sides, green. A git TAG is the one
+// artifact in the repository a working-tree commit cannot rewrite, which is exactly the
+// property a ratchet needs. It is the same reasoning scripts/check-dependency-channel.mjs
+// uses for the catalog delta.
+//
+// THE KEY, and its one honest hole. Ramp sites carry no stable id, so they are grouped by
+// `(file, minVersion)` and each group's deadlines are compared as SORTED LISTS, pointwise.
+// That catches every single-edit evasion, including moving ONE of the four sites that
+// share check-docs-sync.mjs's 0.3.0 group. What it does NOT catch is moving one deadline
+// later while ADDING a new site to the same group at the old deadline in the same commit:
+// the sorted lists then line up. Stating that is better than implying it cannot happen —
+// closing it needs a stable per-site id, which is a 20-call-site signature change this
+// release did not take. In the meantime the residual path requires fabricating a
+// plausible new rampNote call in a CODEOWNERS-covered gate script, which is a visible act
+// rather than a one-character edit.
+/**
+ * `file|minVersion` -> that group's deadlines, ascending. Sorting is what makes the
+ * pointwise comparison meaningful when a group holds several sites.
+ * @param {Array<{file: string, minVersion: string|null, until: string|null}>} sites
+ * @returns {Map<string, string[]>}
+ */
+function groupDeadlines(sites) {
+  const m = new Map()
+  for (const s of sites) {
+    if (s.minVersion === null || s.until === null) continue
+    const k = `${s.file}|${s.minVersion}`
+    m.set(k, [...(m.get(k) ?? []), s.until])
+  }
+  for (const list of m.values()) list.sort(cmpDotted)
+  return m
+}
+
+/**
+ * Every (file, minVersion) slot whose deadline is later now than it was then.
+ *
+ * A group present THEN and absent NOW is skipped, not reported: deleting a rampNote
+ * wrapper makes the check unconditional, which is stricter than the ramp it replaced.
+ * @param {Map<string, string[]>} before @param {Map<string, string[]>} now
+ * @returns {Array<{file: string, minVersion: string, from: string, to: string}>}
+ */
+function findRegressions(before, now) {
+  const out = []
+  for (const [k, prevList] of before) {
+    const nowList = now.get(k) ?? []
+    const [file, minVersion] = k.split('|')
+    for (let i = 0; i < Math.min(prevList.length, nowList.length); i += 1) {
+      if (cmpDotted(nowList[i], prevList[i]) > 0) {
+        out.push({ file, minVersion, from: prevList[i], to: nowList[i] })
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Deadlines that moved LATER since the previous release, minus the reviewed extensions.
+ *
+ * @param {{
+ *   previous: Array<{file: string, minVersion: string|null, until: string|null}>,
+ *   current: Array<{file: string, minVersion: string|null, until: string|null}>,
+ *   extensions?: Array<{file?: string, minVersion?: string, from?: string, to?: string, why?: string}>,
+ * }} input
+ * @returns {{ problems: string[], regressions: Array<{file: string, minVersion: string, from: string, to: string}> }}
+ */
+export function deadlineRegressions({ previous, current, extensions = [] }) {
+  const regressions = findRegressions(groupDeadlines(previous), groupDeadlines(current))
+  const problems = []
+
+  const matches = (e, r) =>
+    e.file === r.file && e.minVersion === r.minVersion && e.from === r.from && e.to === r.to
+
+  for (const r of regressions) {
+    const excuse = extensions.find((e) => matches(e, r))
+    if (excuse === undefined) {
+      problems.push(
+        `${r.file}: a ramp at minVersion ${r.minVersion} moved its deadline from ${r.from} to ${r.to}. docs/runbooks/harness-upgrade.md promises consumers "there is no flag that extends a deadline — extending one is a harness release, deliberately". If this release IS that deliberate act, record it as a \`rampExtensions\` entry under this version in template/migrations.json ({ file, minVersion, from, to, why }); otherwise restore ${r.from} and sweep the finding.`,
+      )
+      continue
+    }
+    if (typeof excuse.why !== 'string' || excuse.why.length < 40) {
+      problems.push(
+        `${r.file}: the rampExtensions entry extending ${r.minVersion} from ${r.from} to ${r.to} has a \`why\` of ${String(excuse.why?.length ?? 0)} chars. It is the only thing a consumer reads to learn why a deadline they were told was fixed has moved — an empty reason is the flag this control exists to deny.`,
+      )
+    }
+  }
+
+  // The inverse. An extension naming no regression is either a typo (so the real
+  // extension is unexcused and reds above) or a leftover from a previous release that now
+  // pre-authorises a move nobody has reviewed.
+  for (const e of extensions) {
+    if (!regressions.some((r) => matches(e, r))) {
+      problems.push(
+        `template/migrations.json records a rampExtensions entry for ${String(e.file)} minVersion ${String(e.minVersion)} (${String(e.from)} → ${String(e.to)}), but no such deadline move exists between the previous release and this tree — a stale extension is a standing permission slip. Remove it.`,
+      )
+    }
+  }
+
+  return { problems, regressions }
 }

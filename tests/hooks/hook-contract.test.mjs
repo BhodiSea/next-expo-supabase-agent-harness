@@ -453,6 +453,30 @@ const RULE_CANARIES = {
   // Raising a ceiling here makes a widened statement_timeout pass as reviewed.
   'db-limits': [pathDeny('tools/db-limits.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
+  // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
+  // apps/web/lib/security-headers.ts and diffs what it RETURNS against this file, so an
+  // agent that could edit it could delete a CSP directive from the expectation and make
+  // the code side agree. It sat in ESCAPE_LISTS and SEEDED_FILES with no rule here from
+  // 0.2.0 until scripts/check-escape-registry.mjs compared the lists.
+  'security-headers-policy': [
+    pathDeny('tools/security-headers.json'),
+    pathAllow('tools/security-headers.md'),
+  ],
+  // 0.5.0, tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
+  // CREATING this file is the widening, because it exempts a (file, rule) pair from the
+  // append-only migration rule.
+  'migrations-allow': [
+    pathDeny('tools/migrations-allow.json'),
+    pathAllow('docs/runbooks/expand-contract.md'),
+  ],
+  // 0.5.0, and the only harness-OWNED file in this block. Lowering one `minPatchByMajor`
+  // turns a `version-sync` red naming four HIGH CVEs into a green, and the diff reads
+  // like an ordinary version edit — which is why the deny has to land before the write,
+  // not only as a step-2 hash mismatch afterwards.
+  'framework-floor': [
+    pathDeny('tools/framework-floor.json'),
+    pathAllow('docs/harness/gates-catalog.md'),
+  ],
   // `minRows` in here is the anti-vacuity floor for the plan probe: lower it and
   // db-perf certifies a plan against a table small enough that every structural
   // check is already green, while still printing OK.

@@ -444,6 +444,34 @@ jobs:
             mobile:
               - 'apps/mobile/**'
               - 'maestro/**'
+              # The packages that ship INSIDE the installed app. Their absence was the
+              # defect: `apps/mobile` imports @app/contracts 27 times, and a change to it
+              # skipped BOTH device lanes until the nightly — while the sibling `web`
+              # filter enumerated its package set and the `db` filter included
+              # packages/verticals/**. A filter that omits what the binary is made of
+              # reports "no mobile change" about a changed mobile app.
+              #
+              # Derived from what apps/mobile actually reaches, not copied from `web`:
+              # packages/design-system/** is DELIBERATELY absent, because
+              # dependency-cruiser rule `mobile-not-into-web-only` makes importing it an
+              # error — a filter arming a 120-minute lane on a package the app may not
+              # import is a lane nobody thanks you for.
+              - 'packages/contracts/**'
+              - 'packages/design-tokens/**'
+              - 'packages/platform/errors/**'
+              - 'packages/platform/supabase/**'
+              # Type-only for Metro (devDependency, `import type`), but the tRPC contract
+              # it declares is what the screens call — a shape change moves the app.
+              - 'packages/api/**'
+              # `packages/verticals/**`, not the seeded `notes` by name, for the reason
+              # the `web` and `db` filters already give: a consumer's SECOND vertical is
+              # mobile-reachable through its `./client` the day it lands.
+              - 'packages/verticals/**'
+              # The mobile half of the design system. The seeded exemplar styles through
+              # `useThemedStyles` over tokens and does not import this yet, so today this
+              # entry is forward-looking rather than load-bearing — but a consumer's
+              # screens do import it, and the Maestro flows assert on what it paints.
+              - 'packages/design-system-native/**'
               - 'tools/startup-budget.json'
               - 'tools/interaction-budget.json'
               - 'tools/identity.lock.json'
@@ -1055,6 +1083,99 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # The WEB half of the `build` gate (0.5.0). docs/harness/enforcement-tiers.md carried
+  # `build … Target 0.5.0` with the reason in the row: the chain's build gate is
+  # `const APP = 'apps/mobile'`, so the impure-import and secret-shaped-string scan never
+  # saw the web bundle — while docs/security/sandbox-and-supply-chain.md claimed the build
+  # gate greps the exported bundle, without qualification. Two shipped documents
+  # contradicting each other on a secret-exfiltration control, and the one a security
+  # reviewer opens was the one that overstated.
+  #
+  # A JOB RATHER THAN A CHAIN STEP, for the reason the tier row itself gave: a `next build`
+  # is minutes, not seconds, and the 31-step chain is held to a wall-clock budget
+  # (scripts/chain-budget.json). Path-filtered on `web` so it does not run on a mobile-only
+  # PR — and the tier row now SAYS "(path-filtered)", because a control that skips is not
+  # a control that ran.
+  #
+  # It scans `.next/static/**` only: `.next/server/**` legitimately contains the
+  # service-role factory and every server-only import, so scanning it would red on correct
+  # code. `static` is what a browser downloads, so a forbidden marker there is a leak.
+  web-build:
+    name: web build (client-bundle purity)
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.web == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `next build` parses BOTH env schemas at build time and fails without either. The
+      # public half is obvious; the SERVER half is not, and the first real run of this lane
+      # is what found it — `Collecting page data` imports the tRPC route, which imports
+      # @app/env, which parses once at startup and refuses a partial environment:
+      #   Error: @app/env: the server-only (secrets) environment is invalid
+      #     SUPABASE_DB_URL: Invalid input
+      #     SUPABASE_SERVICE_ROLE_KEY: Invalid input
+      # So the job has to publish something for those two, and an earlier version of this
+      # comment claimed the opposite was the proof: "no secret key is published to this job
+      # at all — if a service-role key ever appears in a client chunk, it cannot have come
+      # from this job's environment." That argument was free, and it was also unavailable,
+      # because the build cannot run without them.
+      #
+      # THE VALUES ARE PLACEHOLDER-SPELLED, AND THAT COSTS SOMETHING — say it plainly. The
+      # first draft spelled them so the purity scan below would CATCH them if they ever
+      # reached a client chunk, which meant avoiding the `example|placeholder|…` vocabulary
+      # that build-check.mjs and gitleaks.toml exempt. That draft was rejected by this
+      # repository's own `secrets` gate within the minute: a key-shaped string in a TRACKED
+      # file is a finding, and the gate's remedy text says exactly what to do — "prefer
+      # making the VALUE say so". Two controls wanted opposite spellings, and the one that
+      # scans committed files outranks the one that scans build output, because a real key
+      # pasted into a workflow is the likelier accident by a wide margin.
+      #
+      # So: this job does NOT prove that these particular values stayed out of the client
+      # bundle — the scan's placeholder allowlist would excuse them. What it proves is that
+      # the scan RUNS against real `next build` client output and reds on a key-shaped
+      # value planted there, which is the property the lane exists for and which
+      # tests/gates/build-check-web.test.mjs pins in both directions.
+      - name: Build the web app
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE: sb_publishable_build_time_placeholder
+          NEXT_PUBLIC_WEB_ORIGIN: http://127.0.0.1:3000
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_build_time_placeholder_do_not_use
+          # The DSN is the CLI's standard loopback string, not an invented one. A
+          # credentialed DSN with any other password is a leaked-string finding in this
+          # repository's own `hygiene` and `secrets` gates — which is how the first draft of
+          # this line was caught, by the harness scanning itself. It still begins
+          # `postgresql://`, so it remains on the forbidden list the scan below applies.
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: pnpm --filter web build
+
+      - name: Client-bundle purity (.next/static)
+        run: node tools/build-check.mjs --web
+
   # ---------------------------------------------------------------------------
   # THE ONE CHECK AN ENTERPRISE CAN MARK REQUIRED.
   #
@@ -1092,6 +1213,10 @@ jobs:
       - mobile-e2e
       - perf-lane
       - web-e2e
+      # 0.5.0. A new lane that is not in this list is a lane the one required check does
+      # not wait for — it can fail after gate-summary has already reported green, which is
+      # the failure mode this fan-in exists to make impossible.
+      - web-build
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner (egress audit)

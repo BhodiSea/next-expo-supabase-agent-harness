@@ -24,6 +24,7 @@ import {
 } from '../lib/manifest.mjs'
 import {
   applyConfigCommandUpdates,
+  applyDependencyObligations,
   applyConfigSteps,
   applyFileMigrations,
   matchSeedOnInitOnly,
@@ -167,6 +168,23 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     applyConfigSteps({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
     applyConfigCommandUpdates({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
   }
+
+  // The dependency channel (0.5.0). Runs unconditionally rather than inside the
+  // `migrationEntries.length > 0` branch above, and that is deliberate: an obligation is
+  // satisfied by the CONSUMER, not by this run, so it must be re-evaluated on every
+  // update — including one that has no new records — or an obligation left unmet by the
+  // release that raised it would stop being reported by the next one.
+  //
+  // It EMITS, never writes: pnpm-workspace.yaml and package.json are SEEDED, and a tree
+  // whose lockfile no longer matches its manifests fails the `pnpm install
+  // --frozen-lockfile` the shipped workflows run twelve times.
+  applyDependencyObligations({
+    targetDir,
+    report,
+    migrations,
+    version: installerVersion(),
+    dryRun: opts.dryRun,
+  })
 
   // Init-time-only exemplars: NEW seeded files a newer template ships as
   // starting content. Collected across ALL versions (timeless semantics), so a
