@@ -60,7 +60,9 @@ test('RED: a raw append to an owned gate script (shell tamper) fails naming the 
   } finally {
     writeFileSync(target, original)
   }
-  assert.equal(runGate().code, 0, 'restoring the file must return the gate to green')
+  const restored63 = runGate()
+  assert.equal(restored63.code, 0, `restoring the file must return the gate to green
+${restored63.out}`)
 })
 
 test('RED: deleting an owned enforcement file fails naming it', () => {
@@ -119,7 +121,9 @@ test('GREEN: the exec bit is no longer in the trust path — a chmod -x hook sti
       `and must still block: ${res.stdout} ${res.stderr}`,
     )
     // …and the gate stays green, because mode was never what it was checking.
-    assert.equal(runGate().code, 0, 'chmod must not red gate-integrity — it hashes content')
+    const restored122 = runGate()
+    assert.equal(restored122.code, 0, `chmod must not red gate-integrity — it hashes content
+${restored122.out}`)
   } finally {
     chmodSync(hook, mode)
   }
@@ -168,7 +172,9 @@ test('RED: a hook command rewritten away from `node <existing path>` reds the ga
     restore()
   }
 
-  assert.equal(runGate().code, 0, 'restoring settings.json must return the gate to green')
+  const restored171 = runGate()
+  assert.equal(restored171.code, 0, `restoring settings.json must return the gate to green
+${restored171.out}`)
 })
 
 // ── the frozen Stop floor is a SUPERSET invariant (0.3.0) ─────────────────────
@@ -189,7 +195,9 @@ test('RED: a step deleted from STOP_HOOK_STEPS reds the gate naming it', () => {
   } finally {
     writeFileSync(cfgPath, original)
   }
-  assert.equal(runGate().code, 0, 'restoring the step must return the gate to green')
+  const restored192 = runGate()
+  assert.equal(restored192.code, 0, `restoring the step must return the gate to green
+${restored192.out}`)
 })
 
 test('RED: a floored step whose COMMAND was rewritten reds — the list is not the check', () => {
@@ -306,7 +314,12 @@ test('a planted escape list is a NOTE; tuning it or hand-creating one is still R
     })
     return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
   }
-  assert.equal(run().code, 0, 'baseline')
+  // The message carries the gate's OUTPUT, like every other assertion in this test. This one
+  // said only 'baseline', and it is the one that failed on a CI runner — so the log recorded
+  // `1 !== 0` and nothing about which of the gate's checks reddened. An assertion whose
+  // failure carries no evidence turns a diagnosable defect into a re-run and a shrug.
+  const baseline = run()
+  assert.equal(baseline.code, 0, `baseline run of check-gate-integrity reddened:\n${baseline.out}`)
 
   // (a) untracked AND byte-identical to what the installer recorded: a plant, not a
   // widening. Green, and it SAYS so — silence here would be indistinguishable from the

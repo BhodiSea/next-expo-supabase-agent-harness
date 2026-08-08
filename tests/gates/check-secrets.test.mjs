@@ -128,7 +128,9 @@ test('RED: a DECAYED pattern reports ITSELF, not a clean tree', () => {
   } finally {
     writeFileSync(path, original)
   }
-  assert.equal(runGate().code, 0, 'restoring the pattern must return the gate to green')
+  const restored131 = runGate()
+  assert.equal(restored131.code, 0, `restoring the pattern must return the gate to green
+${restored131.out}`)
 })
 
 test('RED: rule-id lockstep with .gitleaks.toml, in BOTH directions', () => {
@@ -169,7 +171,9 @@ test('RED: rule-id lockstep with .gitleaks.toml, in BOTH directions', () => {
   } finally {
     writeFileSync(toml, originalToml)
   }
-  assert.equal(runGate().code, 0, 'restoring both files must return the gate to green')
+  const restored172 = runGate()
+  assert.equal(restored172.code, 0, `restoring both files must return the gate to green
+${restored172.out}`)
 })
 
 test('RED: scanning ZERO files is a FAIL — a clean result over no input is not a clean tree', () => {
