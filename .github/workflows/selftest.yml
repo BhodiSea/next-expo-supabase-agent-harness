@@ -798,6 +798,27 @@ jobs:
       # WHICH step moved, and it reds on a chain step nobody budgeted.
       - name: Chain budget (per-step ceilings, from scripts/chain-budget.json)
         run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log
+      # RECORDING the measurement, which until 0.6.0 nothing could do. chain-budget.json's
+      # header prescribes "measure, commit the measurement, then publish — in that order",
+      # and step one had no implementation: the check above judged the numbers against
+      # ceilings and discarded them, so measuredMs has been null since the file was added
+      # and README.md carries no wall-clock figure because of it.
+      #
+      # DISPATCH-ONLY, and deliberately not on every push. A recorded measurement is
+      # REVIEWED DATA — its whole value is that a human looked at the number and the runner
+      # it came from before it licensed a published claim. Writing it automatically on every
+      # green run would turn it into a number nobody chose, which is the state it is meant
+      # to replace. Run the workflow by hand, download the artifact, commit it.
+      - name: Record the measurement (workflow_dispatch only — reviewed data, not a side effect)
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log --record
+      - name: Upload the recorded chain budget for review
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chain-budget-measured
+          path: scripts/chain-budget.json
+          if-no-files-found: error
       - name: Warm-lane positive control — the e2e stamp engaged (skipped the jest re-run)
         working-directory: .selftest/boot
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
@@ -1185,39 +1206,72 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # LEG A — the previous release. The ONLY leg that reaches `graduate`'s SUCCESS
-          # branch: rampNote is inert once baseVersion >= minVersion, so an install one
-          # minor below HEAD meets no deadline and graduates cleanly. Adding older legs
-          # must never replace it, or the release introduces a break and deletes the proof
-          # of the unbroken path in the same act.
+          # LEG A — the previous release, and the smallest blast radius: rampNote is inert
+          # once baseVersion >= minVersion, so an install one minor below HEAD meets no past
+          # deadline. Adding older legs must never replace it — it is the only leg on which a
+          # RED chain is unambiguously a regression rather than an expiry.
+          #
+          # IT NO LONGER REACHES `graduate`'s SUCCESS BRANCH, AND AT 0.6.0 NOTHING DOES.
+          # That claim stood here through 0.5.0 and was true by coincidence: 0.5.0 opened no
+          # ramp at its own minVersion, so leg A's install saw no NOTE and graduated cleanly.
+          # 0.6.0 opens three (auth-posture, the web route registry, the re-opened docs-sync
+          # gate list), every leg's baseline is below 0.6.0, and `graduate` correctly refuses
+          # while a NOTE stands — so all four legs take the refusal branch. That is the
+          # mechanism working: a 0.5.0 install really does have three adoption seams to sweep
+          # before graduating. What it costs is the proof that the door OPENS — which is why
+          # LEG E below exists: it SWEEPS (refresh-seeded for the withheld seams, derivable
+          # from this version's `seedOnInitOnly`, plus the gate-name paste the docs-sync NOTE
+          # prints) and then REQUIRES graduate to succeed. On this leg and the two below it,
+          # §8 asserts the refusals are CORRECT rather than asserting one of them is a
+          # success; leg E is the one that asserts the success.
           - leg: A
             baseline: ''
             dir: upgrade
-            why: previous release — the only leg that reaches graduate's success branch
+            why: previous release — the only leg where a red chain is unambiguously a regression
           # LEG B — the oldest tag in this lineage (0.1.0–0.1.2 belong to the ancestor
-          # project). Every ramp the harness ships expires here, so it is the maximum-blast
-          # leg and the one that first executed a RAMP EXPIRED branch at all.
+          # project). Every ramp with a deadline in the PAST expires here — 19 of the 22
+          # sites, over 12 gates, with `INERT` at zero — so it is the maximum-blast leg and
+          # the one that first executed a RAMP EXPIRED branch at all. The other three sites
+          # are 0.6.0's own, dated 0.7.0, and they NOTE on every leg (see leg A).
           - leg: B
             baseline: v0.1.3
             dir: upgrade-oldest
-            why: oldest release — every deadline lands at once
-          # LEG C — the vintage 0.5.0's eight escapes were opened against. It meets all
+            why: oldest release — every past deadline lands at once
+          # LEG C — the vintage 0.5.0's escapes were opened against. It meets SEVEN of the
           # eight and none of 0.4.0's twelve, which is the isolation neither neighbour has:
-          # leg B drowns the eight in twelve, and leg D sees only two of them.
+          # leg B drowns them in nineteen, and leg D sees only two. Seven rather than eight
+          # because 0.6.0 re-opened the AGENTS.md gate-list escape to 0.7.0 — the lineage's
+          # first `rampExtensions` record — so on this leg it is a NOTE, not an expiry.
           - leg: C
             baseline: v0.2.1
             dir: upgrade-0-2-1
-            why: 0.5.0's eight expiries in isolation, without 0.4.0's twelve
-          # LEG D — the MINIMAL expiry leg, and the sharpest of the four. At HEAD 0.5.0 a
-          # 0.3.0 install meets exactly two deadlines, and `narrow()` drops Stop-chain gates
-          # from the lane's expectation set, so `diff-coverage` falls away and the executed
-          # set is exactly `wiring`. A single-element expectation is the only one that can
-          # be neutralised to prove the lane itself still dies — with a larger set, one
-          # silenced expiry hides behind its siblings.
+            why: 0.5.0's expiries in isolation, without 0.4.0's twelve
+          # LEG D — the MINIMAL expiry leg, and the sharpest of the four. At HEAD 0.6.0 a
+          # 0.3.0 install still meets exactly two deadlines, and `narrow()` drops Stop-chain
+          # gates from the lane's expectation set, so `diff-coverage` falls away and the
+          # executed set is exactly `wiring`. A single-element expectation is the only one
+          # that can be neutralised to prove the lane itself still dies — with a larger set,
+          # one silenced expiry hides behind its siblings.
           - leg: D
             baseline: v0.3.0
             dir: upgrade-0-3-0
             why: the minimal expiry set — narrows to exactly one executed gate
+          # LEG E — the SWEEP leg, and the only one that opens graduate's door. Every leg
+          # above ends with graduate REFUSING, because an upgraded install always has ramped
+          # findings outstanding — that is what a ramp is for. The SUCCESS branch is the one
+          # that moves baseVersion and arms every ramped check at once, and through 0.5.0
+          # nothing anywhere had run it: a door nobody has opened is not a door you know
+          # opens. This leg performs the sweep docs/runbooks/harness-upgrade.md prescribes and
+          # then REQUIRES graduate to succeed, which makes it a proof of two things at once —
+          # that the door opens, and that the runbook is SUFFICIENT. A runbook whose steps do
+          # not clear the findings is worse than no runbook, and nothing else here would
+          # notice. It shares leg D's baseline deliberately: same tree, same expiry set, so
+          # the only difference between the two results is the sweep itself.
+          - leg: E
+            baseline: v0.3.0
+            dir: upgrade-sweep
+            sweep: '--sweep'
+            why: the swept leg — the only one that executes graduate's SUCCESS branch
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -1255,7 +1309,8 @@ jobs:
         run: |
           bash scripts/ci/upgrade-lane.sh \
             "$GITHUB_WORKSPACE/.selftest/${{ matrix.dir }}" \
-            ${{ matrix.baseline && format('--from {0}', matrix.baseline) || '' }}
+            ${{ matrix.baseline && format('--from {0}', matrix.baseline) || '' }} \
+            ${{ matrix.sweep || '' }}
       - name: Upgrade report
         if: always()
         env:

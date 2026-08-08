@@ -1,6 +1,6 @@
 import { APP_ERROR_KINDS, appError } from '@app/errors'
 import { describe, expect, it } from 'vitest'
-import { errorCopy } from '../lib/error-copy'
+import { errorCopy } from '../lib/i18n/errors'
 
 // The rule this file exists to keep: user-facing copy comes from `kind` + `code`, NEVER
 // from `error.message`. `message` is developer-facing English written by whichever layer

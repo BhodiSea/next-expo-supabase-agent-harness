@@ -10,8 +10,21 @@ import type { SupabaseServerClient } from './types.js'
 
 /** Options for the cookie-server factory. */
 export interface ServerClientOptions {
-  /** Attributes for cookies this client writes. The host supplies `secure` and
-   * `httpOnly`, because only the host knows its scheme and its readers. */
+  /**
+   * Attributes for cookies this client writes. The host supplies `secure`,
+   * because only the host knows its scheme — and it must supply it at EVERY
+   * writer, since this client REWRITES the session cookie and an attribute it
+   * omits is an attribute it strips off the value the browser had set.
+   *
+   * `httpOnly` CANNOT be set on the seeded architecture and is therefore not in
+   * the host's gift at all: apps/web's
+   * browser client both writes and reads this cookie, and the attribute exists
+   * precisely to make a cookie invisible to script. See `cookies.ts` for what
+   * mitigates that instead. Optional here rather than required because a host
+   * with a server-side sign-in flow legitimately wants different attributes —
+   * but "optional" is why the seeded host once passed none at all, which is now
+   * closed by the `auth-posture` gate rather than by this type.
+   */
   readonly cookieOptions?: SupabaseCookieOptions
   /** Override the environment-resolved credentials — tests, and hosts that
    * resolve configuration at runtime. */

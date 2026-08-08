@@ -20,6 +20,10 @@ import { fileURLToPath } from 'node:url'
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/check-claims.mjs', import.meta.url))
 const SCRIPT_BYTES = readFileSync(SCRIPT, 'utf8')
+const BUDGET_LIB_BYTES = readFileSync(
+  fileURLToPath(new URL('../../scripts/lib/chain-budget.mjs', import.meta.url)),
+  'utf8',
+)
 
 function cleanEnv() {
   const env = { ...process.env }
@@ -44,14 +48,47 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null }} parts
  */
-function runFixture({ readme, changelog = '## [0.1.0]\nnothing measured\n', registry = FIXTURE_REGISTRY }) {
+function runFixture({
+  readme,
+  changelog = '## [0.1.0]\nnothing measured\n',
+  registry = FIXTURE_REGISTRY,
+  // Unmeasured by default, which is the state the repo has shipped in since the budget
+  // file was introduced — so every fixture below judges prose against a budget that
+  // carries no measurement, exactly like the live tree.
+  measuredWallMs = null,
+}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-claims-'))
   const files = {
     'scripts/check-claims.mjs': SCRIPT_BYTES,
+    // The real judge, byte-identical — the fixture must not get a stand-in that could
+    // answer `hasCommittedMeasurement` differently from the one that ships.
+    'scripts/lib/chain-budget.mjs': BUDGET_LIB_BYTES,
+    'scripts/chain-budget.json': JSON.stringify({
+      wall: { ceilingMs: 120000, warnMs: 90000, measuredMs: measuredWallMs },
+      defaults: { staticCeilingMs: 5000, toolchainCeilingMs: 60000 },
+      steps: {},
+      // A measured budget carries its provenance, and `chainSteps` must equal the fixture
+      // chain's length (3, from FIXTURE_CONFIG) or the staleness half correctly refuses it:
+      // a figure measured against a different chain is wrong, not merely old.
+      ...(measuredWallMs === null
+        ? {}
+        : {
+            measurement: {
+              recordedOn: '2026-08-08',
+              runner: 'fixture',
+              chainSteps: 3,
+              stepsMeasured: 3,
+            },
+          }),
+    }),
     'template/base/tools/harness.config.mjs': FIXTURE_CONFIG,
     'template/base/.claude/hooks/lib/guard-rules.mjs': FIXTURE_GUARDS,
+    // TWO hooks — and `lib/guard-rules.mjs` above is the point of the pair: it sits under the
+    // same tree and must NOT count, because nothing wires a module.
+    'template/base/.claude/hooks/alpha.mjs': '',
+    'template/base/.claude/hooks/beta.mjs': '',
     'README.md': readme,
     'CHANGELOG.md': changelog,
   }
@@ -60,7 +97,10 @@ function runFixture({ readme, changelog = '## [0.1.0]\nnothing measured\n', regi
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), content)
   }
-  const r = spawnSync('node', [join(dir, 'scripts/check-claims.mjs')], { encoding: 'utf8', env: cleanEnv() })
+  const r = spawnSync('node', [join(dir, 'scripts/check-claims.mjs')], {
+    encoding: 'utf8',
+    env: cleanEnv(),
+  })
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
 }
 
@@ -75,13 +115,21 @@ test('GREEN: a fixture whose every claim is true is CLEAN — and only the LATES
   const r = runFixture({
     readme:
       'The chain runs all 3 gates; the canary registry 9 → 3 steps; 4 guard-rule ids.\n' +
+      'Two hooks are wired, which is also 2 hooks in digits.\n' +
       'Warm validate ≈ measured cold ≈ 70 s and warm ≈ 5 s.\n',
     changelog:
       '## [0.1.0]\ncold ≈ 70 s, warm ≈ 5 s\n\n' +
       '## [0.0.9]\ncold ≈ 99 s, warm ≈ 9 s (older entry — must be ignored)\n',
+    // "Every claim is true" now includes the one the 0.6.0 rule added: a published timing
+    // must have a committed measurement behind it. This fixture publishes four figures, so
+    // without this it is asserting that an unbacked claim is a true one.
+    measuredWallMs: 70123,
   })
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/)
+  assert.match(
+    r.out,
+    /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/,
+  )
 })
 
 test('RED (DERIVABLE): a drifted chain-length claim fails, naming the true count', () => {
@@ -97,13 +145,49 @@ test('RED (DERIVABLE): a drifted canary-registry claim fails against the real re
     registry: JSON.stringify({ steps: { a: [], b: [] } }), // truth: 2
   })
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /README claims a 3-step canary registry but tests\/canary\/injections\.json has 2/)
+  assert.match(
+    r.out,
+    /README claims a 3-step canary registry but tests\/canary\/injections\.json has 2/,
+  )
+})
+
+// THE HOOK COUNT (0.6.0), and this one is a repair rather than a precaution. 0.5.0 wired six
+// hooks; the process layer added a seventh, and "Six hooks" survived in the root README twice
+// and in the shipped doctrine — whose hook table had also quietly lost the new row. Every
+// other count here was derived releases ago; this one was not, because nobody reads "six
+// hooks" as a derived number until it is wrong. The WORD form is what shipped, so the word
+// form is what the matcher has to catch.
+test('RED (0.6.0): a hook count spelled as a WORD reds against the shipped hooks directory', () => {
+  const r = runFixture({ readme: 'Six hooks are wired, each invoked as `node "<path>"`.\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /claims "Six hooks" but template\/base\/\.claude\/hooks\/ ships 2/)
+  assert.match(r.out, /alpha\.mjs, beta\.mjs/, 'it must name what it counted')
+  assert.ok(!r.out.includes('guard-rules.mjs'), 'lib/ holds modules, and nothing wires a module')
 })
 
 test('RED (DERIVABLE): a drifted guard-rule-id count fails against the exported rule tables', () => {
   const r = runFixture({ readme: 'There are 9 guard-rule ids.\n' })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /README claims 9 guard-rule ids but guard-rules\.mjs exports 4/)
+})
+
+// THE SOFT-WRAP CLASS (0.6.0). Every matcher in the script is written against a CONTIGUOUS
+// phrase, and markdown wraps prose where the column runs out — a place no author chooses and
+// no reviewer sees. The live defect: the README carried "the 26 can-fail\n> canaries (counted
+// from the matrix itself, not hand-authored)" against a matrix of 29, and this gate passed,
+// because the newline plus the blockquote marker sat between the number and the noun. Both
+// directions are pinned, because a normaliser that swallowed the phrase entirely would make
+// the RED case pass for the wrong reason.
+test('RED (0.6.0): a stale claim SOFT-WRAPPED across a blockquote line break still reds', () => {
+  const r = runFixture({ readme: '> There are 9 guard-rule\n> ids in the table.\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README claims 9 guard-rule ids but guard-rules\.mjs exports 4/)
+})
+
+test('GREEN (0.6.0): a TRUE claim soft-wrapped the same way is still clean', () => {
+  const r = runFixture({ readme: '> There are 4 guard-rule\n> ids in the table.\n' })
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /CLAIMS: CLEAN/)
 })
 
 test('RED (CONSISTENT): README and the latest CHANGELOG entry disagreeing on a timing fails', () => {
@@ -135,4 +219,82 @@ test('RED (0.4.0): a status line with no package.json to check it against is unv
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no package\.json to check it against/)
   assert.doesNotMatch(r.out, /ENOENT/, `the script must judge the claim, not crash:\n${r.out}`)
+})
+
+test('RED (0.6.0): a published wall-clock figure with no COMMITTED measurement behind it', () => {
+  // "Measure, commit the measurement, then publish — in that order." That order is
+  // scripts/chain-budget.json's own prescription, and until 0.6.0 it was a sentence about a
+  // control nobody had written: `hasCommittedMeasurement` was exported, unit-tested, and
+  // imported by no production caller. The CONSISTENT check above compares the two documents
+  // to EACH OTHER, so two files agreeing on a number neither of them measured was clean —
+  // which is the one shape a consistency check structurally cannot see.
+  const r = runFixture({
+    readme: 'the chain runs cold ≈ 70 s\n',
+    changelog: '## [0.1.0]\ncold ≈ 70 s\n',
+    measuredWallMs: null,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /README cold ≈ 70 s is published, but scripts\/chain-budget\.json carries no committed measurement/,
+  )
+  // Both documents are named, not just the README: publishing the figure in the changelog
+  // and omitting it from the README would otherwise be a way around the rule.
+  assert.match(r.out, /the latest CHANGELOG entry's cold ≈ 70 s is published/)
+})
+
+test('GREEN (0.6.0): the SAME figure is fine once a measurement is committed', () => {
+  // The rule is about the ORDER, not about the number. Nothing here asserts 70 s is true —
+  // no gate can, on someone else's hardware. What it asserts is that a run happened and was
+  // recorded before the prose went out.
+  const r = runFixture({
+    readme: 'the chain runs cold ≈ 70 s\n',
+    changelog: '## [0.1.0]\ncold ≈ 70 s\n',
+    measuredWallMs: 70123,
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (0.6.0): an unmeasured budget is silent while nobody publishes a figure', () => {
+  // The live repo's state, and it must stay clean: the rule fires on a CLAIM, never on the
+  // absence of a measurement. A gate that demanded a measurement nobody had asked for would
+  // block every release until someone invented one — which is the failure it exists to stop.
+  const r = runFixture({ readme: 'no timings here\n', measuredWallMs: null })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.6.0): a measurement taken against a DIFFERENT chain stops licensing the figure', () => {
+  // The staleness half, from the consumer's side. A number measured against a 31-step chain
+  // and left in place while two steps landed is not old, it is WRONG — and nothing about a
+  // committed integer expires on its own, so it would go on unlocking the published figure
+  // forever. The fixture chain is 3 steps; a measurement claiming 2 no longer describes it.
+  const dir = mkdtempSync(join(tmpdir(), 'epah-claims-stale-'))
+  const files = {
+    'scripts/check-claims.mjs': SCRIPT_BYTES,
+    'scripts/lib/chain-budget.mjs': BUDGET_LIB_BYTES,
+    'scripts/chain-budget.json': JSON.stringify({
+      wall: { ceilingMs: 120000, warnMs: 90000, measuredMs: 70123 },
+      defaults: { staticCeilingMs: 5000, toolchainCeilingMs: 60000 },
+      steps: {},
+      measurement: { recordedOn: '2026-08-08', runner: 'fixture', chainSteps: 2, stepsMeasured: 2 },
+    }),
+    'template/base/tools/harness.config.mjs': FIXTURE_CONFIG,
+    'template/base/.claude/hooks/lib/guard-rules.mjs': FIXTURE_GUARDS,
+    'template/base/.claude/hooks/alpha.mjs': '',
+    'template/base/.claude/hooks/beta.mjs': '',
+    'README.md': 'the chain runs cold ≈ 70 s\n',
+    'CHANGELOG.md': '## [0.1.0]\nnothing measured\n',
+    'tests/canary/injections.json': FIXTURE_REGISTRY,
+  }
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true })
+    writeFileSync(join(dir, rel), content)
+  }
+  const r = spawnSync('node', [join(dir, 'scripts/check-claims.mjs')], {
+    encoding: 'utf8',
+    env: cleanEnv(),
+  })
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
+  assert.equal(r.status, 1, out)
+  assert.match(out, /carries no committed measurement/)
 })

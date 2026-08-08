@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.5.0'
+export const HARNESS_HOOK_VERSION = '0.6.0'
 
 const REGISTRY = 'tools/approved-tools.json'
 const DOC = 'docs/security/approved-tools.md'

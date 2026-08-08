@@ -1,6 +1,6 @@
 {
   "name": "next-expo-supabase-agent-harness",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Deterministic agent harness for pnpm monorepos that ship a Next.js 16 web app AND an Expo (React Native) mobile app over one shared Supabase backend: Claude Code hooks, security-invariant lint gates, RLS isolation tests, cross-surface parity and design-token gates, provenance pipeline, and supply-chain-hardened CI — installable into any new or existing project.",
   "license": "Apache-2.0",
   "author": "Cogvera Labs",
@@ -50,6 +50,7 @@
     "supply-chain"
   ],
   "devDependencies": {
+    "@biomejs/biome": "2.5.3",
     "@eslint/js": "9.39.5",
     "@types/node": "26.1.1",
     "eslint": "9.39.5",

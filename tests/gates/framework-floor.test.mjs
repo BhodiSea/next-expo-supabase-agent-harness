@@ -21,7 +21,9 @@ import { test } from 'node:test'
 import {
   compareVersions,
   judgeFloor,
+  MAX_REVIEW_WINDOW_DAYS,
   parseLockVersions,
+  reviewWindowProblems,
   staleReviews,
 } from '../../template/base/tools/lib/framework-floor.mjs'
 
@@ -247,6 +249,68 @@ test('the SHIPPED floor is well-formed and its window is forward-looking', () =>
   // suite red on a date, which is the non-determinism the split exists to avoid.
 })
 
+// ── the review WINDOW: clockless, and the half that can red at edit time (0.6.0) ──
+//
+// The defect this closes is an off switch reachable from inside the file it protects.
+// `staleReviews` asks whether a review has lapsed; nothing asked how far ahead the reviewer
+// was allowed to push the lapse date, so one edit writing a distant `reviewedUntil` retires
+// the freshness control — and the only check that would object is the one that edit disarms.
+
+test('the 92-day window this file ACTUALLY SHIPPED WITH is what the check reds on', () => {
+  // Not a hypothetical: template/base/tools/framework-floor.json carried exactly these two
+  // dates through 0.5.0. A red-proof written against an invented value would prove the
+  // arithmetic and not the defect.
+  const shipped = { packages: { next: { reviewedOn: '2026-08-06', reviewedUntil: '2026-11-06' } } }
+  const problems = reviewWindowProblems({ floor: shipped })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /the review window is 92 days/)
+  assert.match(problems[0], /over the 31-day maximum/)
+  // The message must say WHAT WAS AT RISK, not just that a number is too big.
+  assert.match(problems[0], /silently spans about 3 of them/)
+})
+
+test('CANARY — a distant reviewedUntil cannot silently retire the freshness control', () => {
+  const offSwitch = {
+    packages: { next: { reviewedOn: '2026-08-06', reviewedUntil: '2099-01-01' } },
+  }
+  assert.equal(reviewWindowProblems({ floor: offSwitch }).length, 1)
+  // ...and it is INERT to the clockful half, which is the whole point: on any real calendar
+  // date this passes `staleReviews`, so before 0.6.0 nothing in the repository objected.
+  assert.deepEqual(staleReviews({ floor: offSwitch, today: '2026-08-06' }), [])
+})
+
+test('the boundary is inclusive at 31 days and reds at 32', () => {
+  const at = (until) =>
+    reviewWindowProblems({
+      floor: { packages: { next: { reviewedOn: '2026-08-06', reviewedUntil: until } } },
+    })
+  assert.deepEqual(at('2026-09-06'), []) // exactly 31 — one calendar month, the honest cadence
+  assert.equal(at('2026-09-07').length, 1) // 32
+})
+
+test('a reviewedUntil BEFORE reviewedOn is its own finding, not an under-long window', () => {
+  const inverted = { packages: { next: { reviewedOn: '2026-08-06', reviewedUntil: '2026-08-01' } } }
+  const problems = reviewWindowProblems({ floor: inverted })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /expired before it happened/)
+})
+
+test('a malformed date is left to staleReviews rather than reported twice', () => {
+  const malformed = { packages: { next: { reviewedOn: 'yesterday', reviewedUntil: '2026-09-06' } } }
+  assert.deepEqual(reviewWindowProblems({ floor: malformed }), [])
+  assert.ok(staleReviews({ floor: malformed, today: '2026-08-06' }).some((p) => /ISO date/.test(p)))
+})
+
+test('the SHIPPED floor is inside the window bound', () => {
+  assert.deepEqual(reviewWindowProblems({ floor: floorJson() }), [])
+})
+
+test('MAX_REVIEW_WINDOW_DAYS is one calendar month, matching the upstream cadence', () => {
+  // 31, not 30: a maintainer who re-reads the feed every month and moves both dates together
+  // lands on at most 31 days, so an honest monthly cadence must never red on month length.
+  assert.equal(MAX_REVIEW_WINDOW_DAYS, 31)
+})
+
 // ── the lane red-proof ────────────────────────────────────────────────────────────
 
 test('CANARY — the shipped floor-review script EXITS 1 on a backdated review', () => {
@@ -260,7 +324,11 @@ test('CANARY — the shipped floor-review script EXITS 1 on a backdated review',
   const red = spawnSync(process.execPath, [script, `--floor=${path}`, '--today=2026-08-06'], {
     encoding: 'utf8',
   })
-  assert.equal(red.status, 1, `expected a red, got ${String(red.status)}: ${red.stdout}${red.stderr}`)
+  assert.equal(
+    red.status,
+    1,
+    `expected a red, got ${String(red.status)}: ${red.stdout}${red.stderr}`,
+  )
   assert.match(red.stderr, /floor-review: FAIL \(1\)/)
   assert.match(red.stderr, /as of 2026-08-06: /)
   assert.match(red.stderr, /lapsed on 2020-01-01/)

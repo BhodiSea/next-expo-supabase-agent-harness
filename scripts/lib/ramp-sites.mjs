@@ -37,6 +37,63 @@ export const TOOLS_DIR = fileURLToPath(new URL('../../template/base/tools', impo
  */
 export const LINEAGE_FLOOR = '0.1.3'
 
+/**
+ * Every released vintage a consumer could still be carrying — the populations the ledger
+ * classifies an upgrade against.
+ *
+ * IT LIVES HERE BECAUSE THERE MUST BE ONE COPY. Through 0.5.0 this array was a literal in
+ * `check-ramp-ledger.mjs` under a comment reading "The list must grow with every release,
+ * which is what the test below pins", and a SECOND hand-typed literal in
+ * `tests/gates/ramp-ledger.test.mjs`. Nothing compared them and nothing pinned growth, so
+ * the comment asserted a control that did not exist — a release could forget to add its
+ * predecessor and every check stayed green. `checkVintages` below is the control the
+ * comment was describing; this export is what stops the two copies drifting while it works.
+ *
+ * Data rather than `git tag` for the same reason as LINEAGE_FLOOR: a template copy has no
+ * tags, and a check that silently weakens in a fork is worse than one that states its
+ * authority. Corroborated against git whenever tags are present.
+ */
+export const VINTAGES = [LINEAGE_FLOOR, '0.2.0', '0.2.1', '0.3.0', '0.4.0', '0.5.0']
+
+/**
+ * Bidirectional closure of VINTAGES against the tags git actually has.
+ *
+ * MISSING is the failure this exists for: a released tag below the version being cut that
+ * nobody added. `classifyForInstall` is never called for that population, so the ledger
+ * reports it as unaffected and the release notes under-state their own blast radius —
+ * exactly what happened to 0.4.0 before 0.5.0 noticed by hand.
+ *
+ * STALE is the cheap other half: an entry naming a version this lineage never released.
+ *
+ * @param {string[]} tags release tags, with or without the leading `v`
+ * @param {string} version the version being cut
+ * @param {string[]} vintages
+ * @returns {string[]} problems, empty when closed
+ */
+export function checkVintages(tags, version, vintages = VINTAGES) {
+  const released = new Set(
+    tags.map((t) => String(t).replace(/^v/, '')).filter((t) => /^\d+\.\d+\.\d+$/.test(t)),
+  )
+  const problems = []
+  for (const t of [...released].sort(cmpDotted)) {
+    if (cmpDotted(t, version) >= 0) continue
+    if (cmpDotted(t, LINEAGE_FLOOR) < 0) continue
+    if (!vintages.includes(t)) {
+      problems.push(
+        `v${t} is a released vintage below ${version} and is absent from VINTAGES (scripts/lib/ramp-sites.mjs) — the ledger never classifies that population, so this release would report it as unaffected without ever asking. Add '${t}'.`,
+      )
+    }
+  }
+  for (const v of vintages) {
+    if (released.size > 0 && !released.has(v)) {
+      problems.push(
+        `VINTAGES names '${v}', which is not a released tag of this lineage — a population that never existed cannot be affected, and a stale entry is how the list stops meaning anything.`,
+      )
+    }
+  }
+  return problems
+}
+
 /** @param {string} a @param {string} b @returns {-1|0|1} */
 export function cmpDotted(a, b) {
   const pa = String(a).split('.')
@@ -47,6 +104,56 @@ export function cmpDotted(a, b) {
     if (na !== nb) return na < nb ? -1 : 1
   }
   return 0
+}
+
+/**
+ * Advance past a quoted run starting at `open`; returns the index of its closing quote, or
+ * the end of the text when the quote never closes.
+ * @param {string} text @param {number} open
+ */
+function skipQuoted(text, open) {
+  const q = text[open]
+  for (let i = open + 1; i < text.length; i += 1) {
+    if (text[i] === '\\') {
+      i += 1
+      continue
+    }
+    if (text[i] === q) return i
+  }
+  return text.length
+}
+
+/**
+ * A call's argument text, split on TOP-LEVEL commas only.
+ *
+ * Not `args.split(',')`, which is what this replaced. The second argument survived that
+ * treatment by luck — no comma precedes it — but the third does not: the detail string at
+ * check-gate-integrity.mjs:152 reads `'hash coverage of the enforcement configs (.mcp.json,
+ * lefthook.yml, …)'`, five commas and a paren pair inside one quoted literal. A naive split
+ * hands back a fragment, and a fragment used as an identity key is an identity that changes
+ * whenever the prose around it does.
+ *
+ * Known limit: a quote nested inside a template literal's `${…}` ends the scan early. No
+ * shipped site has one, and the failure mode is a mis-spanned — but still STABLE — detail,
+ * so the ratchet key degrades in precision rather than in reliability.
+ * @param {string} text @returns {string[]}
+ */
+function splitArgs(text) {
+  const parts = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]
+    if (c === "'" || c === '"' || c === '`') i = skipQuoted(text, i)
+    else if (c === '(' || c === '[' || c === '{') depth += 1
+    else if (c === ')' || c === ']' || c === '}') depth -= 1
+    else if (c === ',' && depth === 0) {
+      parts.push(text.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(text.slice(start))
+  return parts.map((p) => p.trim())
 }
 
 /**
@@ -125,7 +232,7 @@ function consumesResult(src, at) {
  * — the pure function takes data, the caller owns the I/O.
  *
  * @param {Array<{file: string, src: string}>} sources
- * @returns {Array<{file: string, gate: string, line: number, minVersion: string|null, until: string|null, consumed: boolean, args: string}>}
+ * @returns {Array<{file: string, gate: string, line: number, minVersion: string|null, until: string|null, detail: string|null, consumed: boolean, args: string}>}
  */
 export function rampSitesFromSources(sources) {
   const out = []
@@ -138,15 +245,18 @@ export function rampSitesFromSources(sources) {
     // actually writes, and the ledger printed the stripped filename for a release.
     const gate = src.match(/^const GATE = '([^']+)'/m)?.[1] ?? file.replace(/^check-|\.mjs$/g, '')
     for (const { args, at } of rampNoteCalls(src)) {
-      // The second positional argument, textually: `GATE, <token>, …`.
-      const second = args.split(',')[1]?.trim() ?? ''
+      // `GATE, <minVersion>, <detail>, { until }` — positional, textually.
+      const positional = splitArgs(args)
       const untilMatch = args.match(/until\s*:\s*'([\d.]+)'/)
       out.push({
         file,
         gate,
         line: src.slice(0, at).split('\n').length,
-        minVersion: resolveVersionToken(src, second),
+        minVersion: resolveVersionToken(src, positional[1] ?? ''),
         until: untilMatch ? untilMatch[1] : null,
+        // The escape's IDENTITY — see the ratchet's header. Source text, whitespace-collapsed
+        // so a reflow across lines is not a rename.
+        detail: positional[2]?.replace(/\s+/g, ' ') ?? null,
         consumed: consumesResult(src, at),
         args,
       })
@@ -226,49 +336,78 @@ export function neverArmed(sites, floor = LINEAGE_FLOOR) {
 // property a ratchet needs. It is the same reasoning scripts/check-dependency-channel.mjs
 // uses for the catalog delta.
 //
-// THE KEY, and its one honest hole. Ramp sites carry no stable id, so they are grouped by
-// `(file, minVersion)` and each group's deadlines are compared as SORTED LISTS, pointwise.
-// That catches every single-edit evasion, including moving ONE of the four sites that
-// share check-docs-sync.mjs's 0.3.0 group. What it does NOT catch is moving one deadline
-// later while ADDING a new site to the same group at the old deadline in the same commit:
-// the sorted lists then line up. Stating that is better than implying it cannot happen —
-// closing it needs a stable per-site id, which is a 20-call-site signature change this
-// release did not take. In the meantime the residual path requires fabricating a
-// plausible new rampNote call in a CODEOWNERS-covered gate script, which is a visible act
-// rather than a one-character edit.
+// THE KEY IS THE DETAIL STRING (0.6.0). Sites are grouped by `(file, detail)` — the third
+// positional argument to `rampNote`, the prose that names the escape — and each group's
+// deadlines are compared as SORTED LISTS, pointwise.
+//
+// It was `(file, minVersion)` through 0.5.0, and 0.6.0 walked straight through the hole that
+// leaves. check-docs-sync.mjs's AGENTS.md gate-list ramp had to be RE-OPENED: it expired at
+// 0.5.0, this release injects a chain step via configSteps, AGENTS.md is seeded so `update`
+// cannot rewrite it, and hard-redding every existing install on an upgrade they did not ask
+// for is the ambush the whole mechanism exists to prevent. Re-opening means widening the
+// forgiven population — minVersion 0.3.0 -> 0.6.0 — and moving the deadline 0.5.0 -> 0.7.0.
+// Under the old key that is not one site moving; it is one key VANISHING (read as a deletion,
+// which is stricter, so allowed) and another APPEARING (read as a new escape, so allowed).
+// A deadline moved two releases later and every control in the repository stayed green.
+//
+// The detail string closes that, and it closed the hole 0.5.0 documented as residual too:
+// moving one deadline while adding a sibling at the old one no longer lines the lists up,
+// because the sibling has its own name. check-ramp-ledger.mjs enforces the property that
+// makes the key an id — every site parses a detail, and no two sites in a file share one.
+//
+// THE RESIDUAL HOLE, restated honestly. Rewording the detail in the same commit that moves
+// the deadline still evades it: the old key vanishes, a new one appears. That is a smaller
+// hole than the one it replaces — it takes rewriting the sentence a consumer reads in the
+// NOTE, in a CODEOWNERS-covered gate script, rather than editing one version literal — and
+// closing it properly needs an id that is not also documentation. Stated rather than implied.
 /**
- * `file|minVersion` -> that group's deadlines, ascending. Sorting is what makes the
- * pointwise comparison meaningful when a group holds several sites.
- * @param {Array<{file: string, minVersion: string|null, until: string|null}>} sites
- * @returns {Map<string, string[]>}
+ * `file|detail` -> that group's sites, ascending by deadline. Sorting is what makes the
+ * pointwise comparison meaningful in the residual case where a file carries two sites under
+ * one detail; check-ramp-ledger.mjs reds on that in the CURRENT tree, but a PREVIOUS tag's
+ * tree is read as it was and gets no vote.
+ * @template {{file: string, minVersion: string|null, until: string|null, detail?: string|null}} S
+ * @param {readonly S[]} sites
+ * @returns {Map<string, S[]>}
  */
 function groupDeadlines(sites) {
   const m = new Map()
   for (const s of sites) {
     if (s.minVersion === null || s.until === null) continue
-    const k = `${s.file}|${s.minVersion}`
-    m.set(k, [...(m.get(k) ?? []), s.until])
+    // NUL as the separator, written as the escape: a detail string is prose and may contain
+    // any printable character, so a `|` or a space would let one site's file+detail collide
+    // with another's. scripts/hygiene.mjs reds on a LITERAL NUL in a source file — it makes
+    // the file `data` to grep — and caught this line when it was one.
+    const k = `${s.file}\u0000${s.detail ?? ''}`
+    m.set(k, [...(m.get(k) ?? []), s])
   }
-  for (const list of m.values()) list.sort(cmpDotted)
+  for (const list of m.values()) list.sort((a, b) => cmpDotted(a.until, b.until))
   return m
 }
 
 /**
- * Every (file, minVersion) slot whose deadline is later now than it was then.
+ * Every (file, detail) slot whose deadline is later now than it was then.
  *
  * A group present THEN and absent NOW is skipped, not reported: deleting a rampNote
  * wrapper makes the check unconditional, which is stricter than the ramp it replaced.
- * @param {Map<string, string[]>} before @param {Map<string, string[]>} now
- * @returns {Array<{file: string, minVersion: string, from: string, to: string}>}
+ *
+ * `minVersion` is reported from the CURRENT site, never matched on — a re-opened ramp
+ * widens its population, and a key that moved with it would be no key at all.
+ * @param {Map<string, any[]>} before @param {Map<string, any[]>} now
+ * @returns {Array<{file: string, detail: string, minVersion: string, from: string, to: string}>}
  */
 function findRegressions(before, now) {
   const out = []
   for (const [k, prevList] of before) {
     const nowList = now.get(k) ?? []
-    const [file, minVersion] = k.split('|')
     for (let i = 0; i < Math.min(prevList.length, nowList.length); i += 1) {
-      if (cmpDotted(nowList[i], prevList[i]) > 0) {
-        out.push({ file, minVersion, from: prevList[i], to: nowList[i] })
+      if (cmpDotted(nowList[i].until, prevList[i].until) > 0) {
+        out.push({
+          file: nowList[i].file,
+          detail: nowList[i].detail ?? '',
+          minVersion: nowList[i].minVersion,
+          from: prevList[i].until,
+          to: nowList[i].until,
+        })
       }
     }
   }
@@ -278,31 +417,34 @@ function findRegressions(before, now) {
 /**
  * Deadlines that moved LATER since the previous release, minus the reviewed extensions.
  *
+ * The excuse is matched on `(file, detail, from, to)` — the escape's identity plus the move,
+ * and deliberately NOT on minVersion, which a re-opened ramp legitimately changes.
+ *
  * @param {{
- *   previous: Array<{file: string, minVersion: string|null, until: string|null}>,
- *   current: Array<{file: string, minVersion: string|null, until: string|null}>,
- *   extensions?: Array<{file?: string, minVersion?: string, from?: string, to?: string, why?: string}>,
+ *   previous: Array<{file: string, minVersion: string|null, until: string|null, detail?: string|null}>,
+ *   current: Array<{file: string, minVersion: string|null, until: string|null, detail?: string|null}>,
+ *   extensions?: Array<{file?: string, detail?: string, from?: string, to?: string, why?: string}>,
  * }} input
- * @returns {{ problems: string[], regressions: Array<{file: string, minVersion: string, from: string, to: string}> }}
+ * @returns {{ problems: string[], regressions: Array<{file: string, detail: string, minVersion: string, from: string, to: string}> }}
  */
 export function deadlineRegressions({ previous, current, extensions = [] }) {
   const regressions = findRegressions(groupDeadlines(previous), groupDeadlines(current))
   const problems = []
 
   const matches = (e, r) =>
-    e.file === r.file && e.minVersion === r.minVersion && e.from === r.from && e.to === r.to
+    e.file === r.file && e.detail === r.detail && e.from === r.from && e.to === r.to
 
   for (const r of regressions) {
     const excuse = extensions.find((e) => matches(e, r))
     if (excuse === undefined) {
       problems.push(
-        `${r.file}: a ramp at minVersion ${r.minVersion} moved its deadline from ${r.from} to ${r.to}. docs/runbooks/harness-upgrade.md promises consumers "there is no flag that extends a deadline — extending one is a harness release, deliberately". If this release IS that deliberate act, record it as a \`rampExtensions\` entry under this version in template/migrations.json ({ file, minVersion, from, to, why }); otherwise restore ${r.from} and sweep the finding.`,
+        `${r.file}: the ramp ${r.detail} moved its deadline from ${r.from} to ${r.to} (it now opens at minVersion ${r.minVersion}). docs/runbooks/harness-upgrade.md promises consumers "there is no flag that extends a deadline — extending one is a harness release, deliberately". If this release IS that deliberate act, record it as a \`rampExtensions\` entry under this version in template/migrations.json ({ file, detail, from, to, why }), copying \`detail\` BYTE-FOR-BYTE from the finding above; otherwise restore ${r.from} and sweep the finding.`,
       )
       continue
     }
     if (typeof excuse.why !== 'string' || excuse.why.length < 40) {
       problems.push(
-        `${r.file}: the rampExtensions entry extending ${r.minVersion} from ${r.from} to ${r.to} has a \`why\` of ${String(excuse.why?.length ?? 0)} chars. It is the only thing a consumer reads to learn why a deadline they were told was fixed has moved — an empty reason is the flag this control exists to deny.`,
+        `${r.file}: the rampExtensions entry extending ${r.detail} from ${r.from} to ${r.to} has a \`why\` of ${String(excuse.why?.length ?? 0)} chars. It is the only thing a consumer reads to learn why a deadline they were told was fixed has moved — an empty reason is the flag this control exists to deny.`,
       )
     }
   }
@@ -313,10 +455,44 @@ export function deadlineRegressions({ previous, current, extensions = [] }) {
   for (const e of extensions) {
     if (!regressions.some((r) => matches(e, r))) {
       problems.push(
-        `template/migrations.json records a rampExtensions entry for ${String(e.file)} minVersion ${String(e.minVersion)} (${String(e.from)} → ${String(e.to)}), but no such deadline move exists between the previous release and this tree — a stale extension is a standing permission slip. Remove it.`,
+        `template/migrations.json records a rampExtensions entry for ${String(e.file)} — ${String(e.detail)} (${String(e.from)} → ${String(e.to)}), but no such deadline move exists between the previous release and this tree — a stale extension is a standing permission slip. Remove it.`,
       )
     }
   }
 
   return { problems, regressions }
+}
+
+/**
+ * The property that makes `detail` an ID rather than a comment: every site parses one, and
+ * no two sites in a file share one.
+ *
+ * Without this the ratchet degrades silently. A site whose detail does not parse groups
+ * under an empty key alongside every other unparseable one in the file, and two sites
+ * sharing a detail fall back to the pointwise list comparison — which is exactly the
+ * lists-line-up evasion the detail key was adopted to close.
+ * @param {Array<{file: string, line: number, detail: string|null}>} sites
+ * @returns {string[]} problems, empty when the ids are sound
+ */
+export function checkDetailIds(sites) {
+  const problems = []
+  const seen = new Map()
+  for (const s of sites) {
+    const where = `${s.file}:${String(s.line)}`
+    if (s.detail === null || s.detail === '') {
+      problems.push(
+        `${where}: this rampNote call has no readable third argument. That argument is the escape's identity for the deadline ratchet (scripts/lib/ramp-sites.mjs) — a site without one cannot be tracked across a release, so its deadline could move unseen.`,
+      )
+      continue
+    }
+    const prior = seen.get(`${s.file} ${s.detail}`)
+    if (prior !== undefined) {
+      problems.push(
+        `${where} and ${prior} share the detail string ${s.detail}. The ratchet uses (file, detail) as a per-site id, so two sites under one name are compared as a sorted LIST and a move inside the pair lines up with itself. Reword one to say which escape it is.`,
+      )
+      continue
+    }
+    seen.set(`${s.file} ${s.detail}`, where)
+  }
+  return problems
 }

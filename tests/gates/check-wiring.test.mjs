@@ -56,12 +56,28 @@ const editSettings = (fn) =>
     return `${JSON.stringify(s, null, 2)}\n`
   })
 
-test('GREEN: a fresh scaffold is wired — six hooks, posture held, CODEOWNERS covering', () => {
+test('GREEN: a fresh scaffold is wired — seven hooks, posture held, CODEOWNERS covering', () => {
   const r = runGate()
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /6 hooks wired/)
+  assert.match(r.out, /7 hooks wired/)
   assert.match(r.out, /permission posture held/)
   assert.match(r.out, /enforcement path\(s\)/)
+})
+
+test('RED: a hook FILE that nobody wired — the requirement is a union, not a list', () => {
+  // 0.6.0's own miss, made mechanical. The required set used to be a hand-kept array of six;
+  // the SubagentStop verdict hook shipped a release earlier and nothing asserted it was wired.
+  // Deriving from the directory closes that — while the floor keeps a DELETED hook required,
+  // so the derivation can never ratify a deletion.
+  const path = join(scaffold, '.claude/hooks/house-rule.mjs')
+  try {
+    writeFileSync(path, 'process.exit(0)\n')
+    const r = runGate()
+    assert.equal(r.code, 1, r.out)
+    assert.match(r.out, /no longer wires house-rule/)
+  } finally {
+    rmSync(path, { force: true })
+  }
 })
 
 test('RED: an unwired hook — that entire tool surface runs unguarded', () => {
@@ -75,6 +91,45 @@ test('RED: an unwired hook — that entire tool surface runs unguarded', () => {
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no longer wires pretool-mcp-guard/)
   assert.match(r.out, /runs unguarded/)
+})
+
+test('RED (0.6.0): the command guard aimed at Bash alone — Monitor and PowerShell walk past', () => {
+  // 0.5.0's live bypass. A `Bash(...)` permission RULE covers Monitor as well, which is
+  // precisely what hid this: a hook matcher is an exact TOOL NAME, not a permission
+  // namespace, so the same command asked for under `Monitor` met no content check at all.
+  // PowerShell is the sharper half — on Windows without Git Bash there IS no Bash tool, so
+  // the guard was not degraded there, it was absent.
+  const r = editSettings((s) => {
+    for (const g of s.hooks.PreToolUse) {
+      if (JSON.stringify(g.hooks).includes('pretool-bash-guard')) g.matcher = 'Bash'
+    }
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /does not name Monitor, PowerShell/)
+  assert.match(r.out, /reachable-around/)
+})
+
+test('GREEN (0.6.0): a project may ADD a tool to the guard matcher, but not drop one', () => {
+  const r = editSettings((s) => {
+    for (const g of s.hooks.PreToolUse) {
+      if (JSON.stringify(g.hooks).includes('pretool-bash-guard')) {
+        g.matcher = 'Bash|Monitor|PowerShell|HouseTool'
+      }
+    }
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.6.0): a `Write(path)` deny whose `Edit(path)` twin was removed protects nothing', () => {
+  // Claude Code never consults `Write(path)` rules — it accepts them and warns at startup.
+  // The shipped seven are safe only because each has an `Edit(...)` twin, which nothing
+  // asserted. Delete the twin and the surviving line still READS like protection.
+  const r = editSettings((s) => {
+    s.permissions.deny = s.permissions.deny.filter((d) => d !== 'Edit(./.claude/hooks/**)')
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /Write\(\.\/\.claude\/hooks\/\*\*\)/)
+  assert.match(r.out, /never consulted/)
 })
 
 test('RED: the permission posture — bypassPermissions reachable, or the default mode', () => {

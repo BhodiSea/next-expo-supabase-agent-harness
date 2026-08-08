@@ -1,0 +1,59 @@
+{
+  "comment": "The Supabase auth posture as reviewed policy. tools/check-auth-posture.mjs parses supabase/config.toml and diffs the [auth*] tree against this file BY VALUE and IN BOTH DIRECTIONS: a value changed in config without a reviewed diff reds, and a key present in config that is absent here reds too. The second direction is the one that earns the gate. The Supabase CLI parses config.toml LENIENTLY — an unknown key under [auth] produces no error and no warning, verified against 2.111.0 — so `enable_refresh_token_rotaton = true` (one letter short) reads to a reviewer as protection while GoTrue runs its default. A config file that can silently claim a posture it does not have is exactly the shape of control this release exists to eliminate. Widening anything here is a CODEOWNERS-reviewed act: the file is git-clean-enforced by check-gate-integrity.mjs, so the change appears in the PR diff.",
+  "posture": {
+    "auth.enabled": true,
+    "auth.jwt_expiry": 3600,
+    "auth.enable_refresh_token_rotation": true,
+    "auth.refresh_token_reuse_interval": 10,
+    "auth.enable_signup": true,
+    "auth.enable_anonymous_sign_ins": false,
+    "auth.email.enable_signup": true,
+    "auth.email.enable_confirmations": false,
+    "auth.email.double_confirm_changes": true
+  },
+  "postureNotes": {
+    "auth.jwt_expiry": "One hour of access-token life. Pinned by VALUE rather than by a ceiling because both directions matter: a longer token widens the window a stolen one is useful for, and a much shorter one signs mobile users out mid-session, which is the pressure that gets rotation turned off.",
+    "auth.enable_refresh_token_rotation": "Off means a leaked refresh token is valid until it expires and its use is indistinguishable from the real client's. On means reuse is detectable, which is what refresh_token_reuse_interval is calibrated against.",
+    "auth.refresh_token_reuse_interval": "Ten seconds, and it is NOT slack for an attacker: it is the allowance for a mobile client that fires two refreshes concurrently (a cold start racing a resumed request), which without it invalidates the whole family and signs the user out at random. Raising it widens the replay window; removing it trades a security property for a support burden that ends with rotation disabled.",
+    "auth.enable_anonymous_sign_ins": "An anonymous sign-in mints a real `authenticated` JWT with a real `sub`, so it satisfies EVERY auth.uid() policy in this tree. The RLS wall would still hold — it would be holding open a door for an identity nobody verified. Turning this on is a product decision that belongs in an ADR.",
+    "auth.email.enable_confirmations": "FALSE IS LOCAL-ONLY, and this is the one row where the reviewed value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — this file's [remotes] blocks, or the Dashboard, own that, and this gate cannot see either.",
+    "auth.email.double_confirm_changes": "An email change with no confirmation on the OLD address is an account-takeover primitive: whoever holds the session for one minute owns the account forever."
+  },
+  "projectValued": {
+    "//": "Keys whose VALUE is the project's, not the harness's — so they are reviewed for PRESENCE and SHAPE instead of equality. Pinning `site_url` to a literal would either red on every scaffold that filled in its own origin, or pin the template placeholder forever; both make the row a lie. The shape rule is the one that matters: this is the origin auth redirects resolve against, so a plaintext or non-URL value is an interception primitive rather than a typo.",
+    "auth.site_url": {
+      "mustMatch": "^(https://|http://localhost|http://127\\.0\\.0\\.1|\\{\\{)",
+      "why": "https, a loopback origin for local development, or a still-unrendered installer placeholder in the template tree (the brace form, spelled out here rather than written literally — scripts/hygiene.mjs reads a literal one as a real placeholder and reds because it is in no registry). The same rule check-expo-policy.mjs applies to extra.apiOrigin, for the same reason: an http origin on a real host means the authorization code crosses the network in the clear."
+    }
+  },
+  "redirectAllowlist": {
+    "key": "auth.additional_redirect_urls",
+    "maxEntries": 2,
+    "bannedSubstrings": ["*"],
+    "why": "The provider hands the authorization code to any URL on this list, so a wildcard entry is an account-takeover primitive rather than a convenience. Exactly two entries ship: the web callback and the mobile deep link. `maxEntries` is a ceiling, not a shape check — a fourth callback appearing without review is the thing worth noticing."
+  },
+  "requiredSections": ["auth", "auth.email"],
+  "knownSections": [
+    "api",
+    "db",
+    "db.migrations",
+    "db.seed",
+    "studio",
+    "local_smtp",
+    "auth",
+    "auth.email",
+    "realtime",
+    "storage",
+    "edge_runtime",
+    "functions.delete-account"
+  ],
+  "knownSectionsWhy": "Closed in BOTH directions over the config's section names. A section is a SURFACE, not a setting: [realtime] replays row changes through its own policy check and [storage] has a separate bucket policy model, so both ship `enabled = false` and flipping either is a change that must not land quietly. The absent direction matters too — `[local_smtp]` is here because the CLI RENAMED `[inbucket]` and merely warns about the old name, which is how the harness shipped a deprecated section with nothing reading the warning. Asking the CLI directly was built and rejected: at this pin no subcommand parses config.toml without side effects (`config push` needs a project ref, `functions list` needs an access token, and `status` binds to whatever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). Deferred to 0.7.0.",
+  "sessionTransport": {
+    "//": "THE AUTH TRANSPORT, as reviewed data — where a browser-obtained session actually LANDS, and with which cookie attributes. The [auth] block above is the posture of the auth SERVER; this is the posture of the wire between browser and server. It exists because the seeded web app shipped a SIGN-IN LOOP for two releases: apps/web/lib/supabase/client.ts constructed the browser client with no `storage`, so @supabase/supabase-js persisted the session to localStorage (its documented default), while proxy.ts, lib/supabase/server.ts and the tRPC cookie branch all read the session out of the COOKIE JAR. Two disjoint stores — sign-in succeeded, every protected server render saw an anonymous caller, and the protected layout redirected straight back to /sign-in. WHY NOTHING SAW IT: `storage` is legitimately OPTIONAL (a pure SPA that never server-renders an identity needs none), so the type-checker was right to be silent; the unit suite tested the cookie CODEC with options passed in, never the WIRING that passes them; knip was told to ignore the one dependency whose missing import would have shouted; and every spec in the browser lane is anonymous, so no test in the repository ever completed a successful sign-in. An OPTIONAL seam between two halves that MUST agree is a seam that will eventually be left unwired, and it fails silently on both sides. Mobile is structurally immune — createNativeClient takes its storage as a REQUIRED positional — so this closes the same hole on the surface where the parameter has to stay optional. requiredCookieAttributes is asserted at EVERY writer, not once: createServerSupabaseClient REWRITES the session cookie, so an attribute one writer omits is one it STRIPS off the value another writer set — a silent downgrade on every request rather than a visible failure. unavailableCookieAttributes is the honest half. httpOnly here is not merely unset, it is UNAVAILABLE: this architecture signs in browser-side (so the password never crosses an extra hop) and a user agent IGNORES HttpOnly on a document.cookie write. It is listed so the gate can red a COMMENT that claims otherwise — four separate files asserted that apps/web set it while every executable control stayed green, and a comment is precisely the artifact no gate reads. What protects the cookie instead: Secure (derived from the scheme, never hard-coded — a user agent DROPS a Secure cookie set over plain http, which would break local development), SameSite=Lax, the CSRF guard on the ambient-credential path (packages/api/src/csrf.ts), and a short-lived rotating token. SOURCE: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies",
+    "app": "apps/web",
+    "surfaces": ["apps/web/app", "apps/web/lib", "packages/platform/supabase/src"],
+    "requiredCookieAttributes": ["secure"],
+    "unavailableCookieAttributes": ["httpOnly"],
+    "unavailableWhy": "The browser client both writes and reads the session cookie (browser-side sign-in), and HttpOnly exists to make a cookie invisible to script — a user agent ignores it on a document.cookie write. A deployment that needs an httpOnly session cookie must move sign-in server-side first, at which point this entry moves to requiredCookieAttributes in the same reviewed diff."
+  }
+}

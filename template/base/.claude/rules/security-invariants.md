@@ -23,6 +23,21 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   LEVEL SECURITY` subjects the `postgres` role that runs migrations, seeds, and
   SQL-editor sessions to the policies too. It does NOT close the BYPASSRLS hole —
   see the service-role bullet, which is why grants exist.
+- **Every policy needs an explicit `GRANT` behind it, in the same migration.**
+  PostgreSQL checks TABLE PRIVILEGES first and row security second, so a policy naming
+  a role that holds no privilege on the table never runs at all — the statement raises
+  `42501` (PostgREST: HTTP 403) before any predicate is evaluated. Write
+  `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.<t> TO authenticated;` beside
+  the policies, per operation the policies actually admit. Do not rely on the grant
+  being already there: Supabase's default privileges have always granted
+  `anon`/`authenticated`/`service_role` on new tables in `public`, which is exactly
+  what makes the omission invisible, and **those defaults stop applying to projects
+  created on or after 2026-10-30**. The same migration file then works in the project
+  it was written against and 403s in the next one it is replayed into, byte-identical
+  in both. A deny-all policy (`WITH CHECK (false)`) is the one shape that needs no
+  grant, because it admits nothing. `tools/check-rls-manifest.mjs` closes policy → grant
+  (never the reverse — `service_role` holds ADR'd grants with no policy, since it
+  bypasses row security).
 - **`service_role` BYPASSES RLS and has exactly one sanctioned home.** No policy
   in the repo constrains it and the RLS suite cannot cover it. It is reachable
   ONLY inside an ADR-governed Edge Function (`supabase/functions/<name>/index.ts`)

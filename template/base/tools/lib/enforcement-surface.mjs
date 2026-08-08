@@ -18,6 +18,8 @@ export const ESCAPE_LISTS = [
   'tools/audit-columns.json', // opting a column's VALUES into the audit trail
   'tools/pii-columns.json', // the deny list that opt-in is checked against
   'tools/db-limits.json', // the per-role blast-radius ceilings + the quota trigger shape
+  'tools/data-flow.json', // what survives a subject's deletion, and the export projection
+  'tools/reviewer-triggers.json', // which reviewer the diff summons
   'tools/security-headers.json', // the web response posture, asserted by value
   'tools/rate-limit-budget.json', // raising a budget is raising what one caller may cost everyone
   'tools/db-perf-baseline.json', // the plan-probe floor + budgets — lowering minRows is how a plan probe becomes vacuous
@@ -31,6 +33,10 @@ export const ESCAPE_LISTS = [
   'tools/decision-groups.json',
   'tools/license-exceptions.json',
   'tools/route-allowlist.json',
+  // 0.6.0. The web twin: allowlisting a page as chrome exempts it from declaring an id, a
+  // title key and its three data states — the same widening as the line above, on the surface
+  // that until this release had no registry to be exempt from.
+  'tools/web-route-allowlist.json',
   'tools/dto-bounds-allow.json', // exempting a wire string from the .max() bound
   'tools/duplication-allow.json', // accepting a code clone
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog

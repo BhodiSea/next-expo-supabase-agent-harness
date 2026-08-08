@@ -597,26 +597,73 @@ function columnEntry(cols, rawName) {
       .trim()
       .toLowerCase()
       .match(/^[a-z0-9_]+/)?.[0] ?? rawName.trim().toLowerCase()
-  if (!cols.has(name)) cols.set(name, { notNull: false, references: null, stmts: [] })
+  if (!cols.has(name)) {
+    cols.set(name, {
+      notNull: false,
+      references: null,
+      onDelete: null,
+      constraint: null,
+      stmts: [],
+    })
+  }
   return cols.get(name)
 }
 
-function applyColumnDef(cols, def, stmt) {
+/**
+ * The referential ACTION on a FOREIGN KEY clause, normalised.
+ *
+ * `null` means the clause named none, which in PostgreSQL is NO ACTION — and that is
+ * reported as the explicit string rather than as "unknown", because the difference
+ * between "nobody chose" and "somebody chose NO ACTION" is a review question and the
+ * parser is not the place to answer it. Callers that care read `onDelete === null`.
+ * SOURCE: https://www.postgresql.org/docs/current/ddl-constraints.html
+ */
+function referentialAction(tail) {
+  const m = tail.match(/\bON\s+DELETE\s+(CASCADE|RESTRICT|NO\s+ACTION|SET\s+NULL|SET\s+DEFAULT)\b/i)
+  return m === null ? null : m[1].toUpperCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * The name a later `DROP CONSTRAINT` will use.
+ *
+ * PostgreSQL names an unnamed foreign key `<table>_<column>_fkey`, and that generated name is
+ * what real migrations drop — supabase/migrations/20260201000100 drops `notes_owner_id_fkey`
+ * for a constraint no CREATE TABLE ever named. Synthesising it is what makes a drop-only
+ * ALTER readable at all; without it the parser keeps believing in a foreign key the database
+ * no longer has, which for a reachability question is the worst direction to be wrong in.
+ * SOURCE: https://www.postgresql.org/docs/current/ddl-constraints.html
+ */
+const defaultFkName = (table, column) => `${table.replace(/^.*\./, '')}_${column}_fkey`
+
+function applyColumnDef(cols, def, stmt, table) {
   const m = def.match(/^([a-z0-9_]+)\b\s*(.*)$/i)
   if (m === null) return
   const entry = columnEntry(cols, m[1])
   if (/\bNOT\s+NULL\b/i.test(m[2]) || /\bPRIMARY\s+KEY\b/i.test(m[2])) entry.notNull = true
   const ref = m[2].match(/\bREFERENCES\s+([a-z0-9_.]+)/i)
-  if (ref !== null) entry.references = qualify(ref[1]).qualified
+  if (ref !== null) {
+    const named = m[2].slice(0, ref.index).match(/\bCONSTRAINT\s+([a-z0-9_]+)\s*$/i)
+    entry.references = qualify(ref[1]).qualified
+    entry.onDelete = referentialAction(m[2].slice(ref.index))
+    entry.constraint =
+      named === null ? defaultFkName(table, m[1].toLowerCase()) : named[1].toLowerCase()
+  }
   entry.stmts.push(stmt)
 }
 
-function applyTableLevelEntry(cols, def, stmt) {
+function applyTableLevelEntry(cols, def, stmt, table) {
   const fk = def.match(/\bFOREIGN\s+KEY\s*\(([^)]*)\)\s*REFERENCES\s+([a-z0-9_.]+)/i)
   if (fk !== null) {
+    // The constraint NAME, when the clause carries one. It is what a later
+    // `DROP CONSTRAINT` names, and without it a dropped foreign key still reads as
+    // present — which for any reachability question is the worst direction to be wrong in.
+    const named = def.match(/^CONSTRAINT\s+([a-z0-9_]+)\b/i)
     for (const raw of fk[1].split(',')) {
       const entry = columnEntry(cols, raw)
       entry.references = qualify(fk[2]).qualified
+      entry.onDelete = referentialAction(def.slice(fk.index))
+      entry.constraint =
+        named === null ? defaultFkName(table, raw.trim().toLowerCase()) : named[1].toLowerCase()
       entry.stmts.push(stmt)
     }
     return
@@ -626,11 +673,11 @@ function applyTableLevelEntry(cols, def, stmt) {
   if (pk !== null) for (const raw of pk[1].split(',')) columnEntry(cols, raw).notNull = true
 }
 
-function applyAlterAction(cols, action, stmt) {
+function applyAlterAction(cols, action, stmt, table) {
   const add = action.match(/^ADD\s+(?:COLUMN\s+)?(?:IF NOT EXISTS\s+)?(.+)$/i)
   if (add !== null) {
-    if (TABLE_LEVEL_ENTRY.test(add[1])) applyTableLevelEntry(cols, add[1], stmt)
-    else applyColumnDef(cols, add[1], stmt)
+    if (TABLE_LEVEL_ENTRY.test(add[1])) applyTableLevelEntry(cols, add[1], stmt, table)
+    else applyColumnDef(cols, add[1], stmt, table)
     return
   }
   const setNn = action.match(/^ALTER\s+(?:COLUMN\s+)?([a-z0-9_]+)\s+SET\s+NOT\s+NULL$/i)
@@ -644,19 +691,48 @@ function applyAlterAction(cols, action, stmt) {
     return
   }
   const dropCol = action.match(/^DROP\s+COLUMN\s+(?:IF EXISTS\s+)?([a-z0-9_]+)/i)
-  if (dropCol !== null) cols.delete(dropCol[1].toLowerCase())
-}
-
-function applyCreateColumns(cols, stmt) {
-  const body = groupAfter(stmt, 0)
-  if (body === null) return
-  for (const def of splitTopLevelCommas(body)) {
-    if (TABLE_LEVEL_ENTRY.test(def)) applyTableLevelEntry(cols, def, stmt)
-    else applyColumnDef(cols, def, stmt)
+  if (dropCol !== null) {
+    cols.delete(dropCol[1].toLowerCase())
+    return
+  }
+  // A dropped FOREIGN KEY leaves the column but takes its referential action with it.
+  // Folded because the expand→contract path legitimately drops and re-adds one in a
+  // single statement to change ON DELETE — supabase/migrations/20260201000100 does
+  // exactly that to notes.owner_id, CASCADE -> SET NULL — and a reader that ignored the
+  // DROP would report whichever the ADD did not set. For a reachability question that
+  // is the difference between "this row is erased with the account" and "it is not".
+  const dropCon = action.match(/^DROP\s+CONSTRAINT\s+(?:IF EXISTS\s+)?([a-z0-9_]+)/i)
+  if (dropCon !== null) {
+    const name = dropCon[1].toLowerCase()
+    for (const entry of cols.values()) {
+      if (entry.constraint !== name) continue
+      entry.references = null
+      entry.onDelete = null
+      entry.constraint = null
+    }
   }
 }
 
-/** Map<table, Map<column, { notNull, references, stmts }>> over the whole history. */
+function applyCreateColumns(cols, stmt, table) {
+  const body = groupAfter(stmt, 0)
+  if (body === null) return
+  for (const def of splitTopLevelCommas(body)) {
+    if (TABLE_LEVEL_ENTRY.test(def)) applyTableLevelEntry(cols, def, stmt, table)
+    else applyColumnDef(cols, def, stmt, table)
+  }
+}
+
+/**
+ * Map<table, Map<column, { notNull, references, onDelete, constraint, stmts }>> over the
+ * whole history.
+ *
+ * `onDelete` and `constraint` joined in 0.6.0 for the `data-flow` gate, which asks a
+ * question no earlier gate did: what happens to THIS row when the account it belongs to is
+ * deleted. That is a property of the referential ACTION, not of the reference — and the
+ * two shipped answers here (CASCADE on profiles/memberships, SET NULL on notes.owner_id,
+ * orgs.created_by and invitations.invited_by) mean opposite things to a subject asking to
+ * be erased.
+ */
 export function parseColumnFacts(statements) {
   const tables = new Map()
   const colsOf = (t) => {
@@ -666,13 +742,14 @@ export function parseColumnFacts(statements) {
   for (const stmt of statements) {
     const create = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)\s*\(/i)
     if (create) {
-      applyCreateColumns(colsOf(stripSchema(create[1])), stmt)
+      applyCreateColumns(colsOf(stripSchema(create[1])), stmt, stripSchema(create[1]))
       continue
     }
     const alter = stmt.match(/^ALTER TABLE (?:ONLY )?(?:IF EXISTS )?([a-z0-9_.]+)\s+(.+)$/i)
     if (alter === null) continue
     const cols = colsOf(stripSchema(alter[1]))
-    for (const action of splitTopLevelCommas(alter[2])) applyAlterAction(cols, action, stmt)
+    const table = stripSchema(alter[1])
+    for (const action of splitTopLevelCommas(alter[2])) applyAlterAction(cols, action, stmt, table)
   }
   return tables
 }
@@ -774,12 +851,25 @@ export function parseTriggers(statements) {
   return triggers
 }
 
-/** GRANT / REVOKE, so "REVOKE ALL then narrow GRANT" is checkable as data. */
+/**
+ * GRANT / REVOKE, so "REVOKE ALL then narrow GRANT" is checkable as data.
+ *
+ * `object` is the OBJECT-TYPE keyword the statement used — 'TABLE', 'FUNCTION',
+ * 'SCHEMA', 'ALL TABLES IN SCHEMA', or null when the statement omitted it (which SQL
+ * allows, and which then means TABLE for a bare name and FUNCTION for a name carrying
+ * an argument list). It is recorded rather than discarded because `target` alone is
+ * ambiguous in a way that silently mixes ledgers: `REVOKE ALL ON SCHEMA audit FROM
+ * anon` and `REVOKE ALL ON TABLE audit.events FROM anon` both reduce to a bare name,
+ * and a consumer folding the first into the second's privilege history would conclude
+ * a table had been locked down when only its schema had. Callers that judge table
+ * privileges must therefore filter on this field, not on the privilege list alone.
+ * SOURCE: https://www.postgresql.org/docs/17/sql-grant.html
+ */
 export function parseGrants(statements) {
   const entries = []
   for (const stmt of statements) {
     const m = stmt.match(
-      /^(GRANT|REVOKE)\s+(.+?)\s+ON\s+(?:TABLE\s+|FUNCTION\s+|ALL TABLES IN SCHEMA\s+|SCHEMA\s+)?([a-z0-9_.(), ]+?)\s+(?:TO|FROM)\s+([a-z0-9_, ]+)$/i,
+      /^(GRANT|REVOKE)\s+(.+?)\s+ON\s+(TABLE\s+|FUNCTION\s+|ALL TABLES IN SCHEMA\s+|SCHEMA\s+)?([a-z0-9_.(), ]+?)\s+(?:TO|FROM)\s+([a-z0-9_, ]+)$/i,
     )
     if (m === null) continue
     entries.push({
@@ -788,8 +878,9 @@ export function parseGrants(statements) {
         .split(',')
         .map((p) => p.trim().toUpperCase())
         .filter(Boolean),
-      target: stripSchema(m[3].trim()),
-      roles: m[4]
+      object: m[3] === undefined ? null : m[3].trim().toUpperCase(),
+      target: stripSchema(m[4].trim()),
+      roles: m[5]
         .split(',')
         .map((r) => r.trim().toLowerCase())
         .filter(Boolean),

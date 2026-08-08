@@ -5,6 +5,10 @@ node_modules/
 coverage/
 # Local gate stamps
 .harness/*.ok
+# The factory Stop gate's turn ledger (0.6.0) — local run state, same as a stamp. It is what
+# makes a maintainer turn that ended at CLAUDE_CODE_STOP_HOOK_BLOCK_CAP distinguishable from
+# one that ended green, which through 0.5.0 it was not.
+.harness/turn-outcomes.jsonl
 # Scratch fixtures created by local selftest runs
 .fixtures/
 # The upgrade lane's workdir (scripts/ci/upgrade-lane.sh) — a whole rendered scaffold

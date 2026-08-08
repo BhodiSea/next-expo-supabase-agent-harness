@@ -3,6 +3,7 @@
 import { Button } from '@app/design-system'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { t } from '../../lib/i18n'
 import { getBrowserClient } from '../../lib/supabase/client'
 
 // Sign-out is a CLIENT action for the mirror of the reason sign-in is: the browser client
@@ -24,7 +25,7 @@ export function SignOutButton(): React.ReactNode {
 
   return (
     <Button
-      label="Sign out"
+      label={t('auth.signOut')}
       variant="ghost"
       size="sm"
       onPress={() => {

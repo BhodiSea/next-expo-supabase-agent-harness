@@ -106,8 +106,61 @@ export function judgeBudget({ budget, timings, chainSteps }) {
 
 /**
  * Whether a wall-clock figure may appear in prose yet. Consumed by check-claims.mjs.
+ *
+ * TWO CONDITIONS, and the second is the one that keeps this honest past the first release
+ * that records a number. A measurement is a statement about a CHAIN, and this chain grows:
+ * 31 steps at 0.5.0, 33 at 0.6.0. A figure measured against 31 steps and left in place while
+ * the chain gained two is not a stale number, it is a wrong one — and it would go on
+ * unlocking the README claim forever, because nothing about a committed integer expires.
+ *
+ * So the recorded step count must match the chain being described. That comparison is
+ * arithmetic over two committed values — clockless, offline, the same verdict on any machine
+ * on any day — which is the same split W5a applied to the framework floor: the wall-clock
+ * half is data, the closure over it rides the check.
+ *
+ * `chainSteps` is optional so the pure unit tests can ask the narrow question; every
+ * production caller passes it.
  * @param {any} budget
+ * @param {string[]} [chainSteps]
  */
-export function hasCommittedMeasurement(budget) {
-  return typeof budget?.wall?.measuredMs === 'number'
+export function hasCommittedMeasurement(budget, chainSteps) {
+  if (typeof budget?.wall?.measuredMs !== 'number') return false
+  if (chainSteps === undefined) return true
+  return budget?.measurement?.chainSteps === chainSteps.length
+}
+
+/**
+ * A new budget object carrying this run's measurements. PURE — returns, never writes.
+ *
+ * `runner` and `recordedOn` are REQUIRED and are stamped into the file, because the header
+ * of chain-budget.json says these numbers are one specific runner's and are not portable.
+ * A measurement with no provenance is a number a reviewer cannot weigh: they cannot tell a
+ * GitHub-hosted ubuntu-latest from somebody's laptop, and the second one is worse than null
+ * because it unlocks a published claim that no CI run can reproduce.
+ *
+ * @param {{ budget: any, timings: any, chainSteps: string[], runner: string, recordedOn: string }} input
+ */
+export function recordMeasurement({ budget, timings, chainSteps, runner, recordedOn }) {
+  if (timings === null) throw new TypeError('recordMeasurement: no timings to record')
+  if (typeof runner !== 'string' || runner.trim() === '') {
+    throw new TypeError('recordMeasurement: `runner` is required — an unattributed measurement')
+  }
+  const steps = {}
+  for (const [name, row] of Object.entries(budget.steps ?? {})) {
+    const ms = timings.steps?.[name]
+    // A step the run did not reach keeps its previous value rather than being zeroed: a
+    // partial run must not overwrite a whole one with silence.
+    steps[name] = { ...row, measuredMs: typeof ms === 'number' ? ms : (row.measuredMs ?? null) }
+  }
+  return {
+    ...budget,
+    wall: { ...budget.wall, measuredMs: timings.totalMs },
+    steps,
+    measurement: {
+      recordedOn,
+      runner,
+      chainSteps: chainSteps.length,
+      stepsMeasured: Object.keys(timings.steps ?? {}).length,
+    },
+  }
 }

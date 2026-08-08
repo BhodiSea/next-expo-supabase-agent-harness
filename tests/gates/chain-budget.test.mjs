@@ -7,7 +7,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { hasCommittedMeasurement, judgeBudget, parseTimings } from '../../scripts/lib/chain-budget.mjs'
+import {
+  hasCommittedMeasurement,
+  judgeBudget,
+  parseTimings,
+  recordMeasurement,
+} from '../../scripts/lib/chain-budget.mjs'
 
 const budget = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../scripts/chain-budget.json', import.meta.url)), 'utf8'),
@@ -48,16 +53,26 @@ test('the shipped budget covers every shipped chain step — no unbudgeted step 
 })
 
 test('A CHAIN STEP WITH NO BUDGET ROW REDS — the rule that protects the next release', () => {
-  // 0.6.0 plans to inject `auth-posture` and `data-flow`. Without this rule those two
-  // additions would be spent against a total nobody holds.
-  const withNewStep = [...chainSteps, 'auth-posture']
+  // THE FIXTURE NAME IS DELIBERATELY ONE NO STEP CAN EVER HAVE. It used to be
+  // `auth-posture` — the step 0.6.0 was planning to inject — and injecting it turned this
+  // must-red silently GREEN, because the name then had a budget row and there was nothing
+  // left to be missing. A must-red keyed to a name the roadmap intends to create is a
+  // must-red with an expiry date nobody wrote down. The guard below is what makes the name
+  // a claim rather than a hope.
+  const ABSENT = 'a-step-no-release-will-ever-add'
+  assert.ok(!chainSteps.includes(ABSENT), 'the fixture must name a step the chain does not have')
+  assert.equal(budget.steps[ABSENT], undefined, 'and one the budget does not hold')
+
   const { problems } = judgeBudget({
     budget,
-    timings: timingsFor({ 'auth-posture': 40 }),
-    chainSteps: withNewStep,
+    timings: timingsFor({ [ABSENT]: 40 }),
+    chainSteps: [...chainSteps, ABSENT],
   })
   assert.equal(problems.length, 1)
-  assert.match(problems[0], /chain step `auth-posture` has no row in scripts\/chain-budget\.json/)
+  assert.match(
+    problems[0],
+    new RegExp(`chain step \`${ABSENT}\` has no row in scripts/chain-budget\\.json`),
+  )
   assert.match(problems[0], /unbudgeted step is a step nobody holds/)
 })
 
@@ -107,9 +122,63 @@ test('NO wall-clock measurement is committed yet, so no prose figure is licensed
   // The doctrine ordering: measure, commit the measurement, wire check-claims to it, THEN
   // publish. Until a lane records one, README.md must stay silent — and it does.
   assert.equal(hasCommittedMeasurement(budget), false)
-  const readme = readFileSync(
-    fileURLToPath(new URL('../../README.md', import.meta.url)),
-    'utf8',
-  )
+  const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.match(readme, /No wall-clock timings appear in this README/)
+})
+
+test('recordMeasurement fills the file the header promised nobody could write (0.6.0)', () => {
+  // chain-budget.json says measuredMs "stays null until a real selftest run records one in a
+  // reviewed commit" — and until 0.6.0 there was no writer at all. The runner judged against
+  // ceilings and discarded the numbers, so step one of "measure, commit, publish" had no
+  // implementation and the file has shipped all-null since it was introduced.
+  const next = recordMeasurement({
+    budget,
+    timings: timingsFor({ alpha: 40, beta: 60 }, 100),
+    chainSteps,
+    runner: 'ubuntu-latest',
+    recordedOn: '2026-08-08',
+  })
+  assert.equal(next.wall.measuredMs, 100)
+  assert.equal(next.measurement.runner, 'ubuntu-latest')
+  assert.equal(next.measurement.chainSteps, chainSteps.length)
+  // PURE: the input is not mutated, so a caller that decides not to write has not already.
+  assert.equal(budget.wall.measuredMs, null)
+})
+
+test('an unattributed measurement is refused at the seam, not just at the CLI', () => {
+  // The provenance is the point: chain-budget.json's header states these numbers belong to
+  // one runner and are not portable, so a figure with no `runner` is worse than null — it
+  // unlocks a published claim no CI run can reproduce. Enforced in the pure function too,
+  // because a second caller would otherwise inherit only the CLI's discipline.
+  for (const runner of [undefined, '', '   ']) {
+    assert.throws(
+      () =>
+        recordMeasurement({
+          budget,
+          timings: timingsFor({}, 100),
+          chainSteps,
+          runner,
+          recordedOn: '2026-08-08',
+        }),
+      /`runner` is required/,
+    )
+  }
+})
+
+test('a measurement taken against a DIFFERENT chain no longer licenses prose (0.6.0)', () => {
+  // The half that keeps this honest past the first recorded number. A measurement describes
+  // a CHAIN, and this chain grows — 31 steps at 0.5.0, 33 at 0.6.0. A figure measured against
+  // 31 and left in place while two steps landed is not stale, it is wrong, and nothing about
+  // a committed integer expires on its own. The comparison is arithmetic over two committed
+  // values: clockless, offline, same verdict anywhere — the same split W5a applied to the
+  // framework floor's review window.
+  const measured = recordMeasurement({
+    budget,
+    timings: timingsFor({}, 100),
+    chainSteps,
+    runner: 'ubuntu-latest',
+    recordedOn: '2026-08-08',
+  })
+  assert.equal(hasCommittedMeasurement(measured, chainSteps), true)
+  assert.equal(hasCommittedMeasurement(measured, [...chainSteps, 'a-new-step']), false)
 })

@@ -34,7 +34,8 @@
     "dev:web": "pnpm --filter web run dev",
     "dev:mobile": "pnpm --filter mobile run dev",
     "gen:contracts": "pnpm exec tsx tools/gen-action-inventory.mjs && pnpm exec tsx tools/gen-event-catalog.mjs && pnpm exec tsx tools/gen-query-shapes.mjs",
-    "gen": "pnpm db:types && pnpm --filter @app/design-tokens run gen && pnpm gen:contracts",
+    "gen": "pnpm db:types && pnpm --filter @app/design-tokens run gen && pnpm gen:contracts && pnpm gen:routes",
+    "gen:routes": "node tools/gen-web-routes.mjs",
     "prepare": "lefthook install"
   },
   "devDependencies": {

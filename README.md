@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.5.x).** This repo was forked from
+> **Status: pre-release (0.6.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -19,8 +19,8 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 31 gates — and the selftest matrix proves
-> it on every push, including the live-Supabase RLS suite and the 26 can-fail
+> fresh scaffold with zero edits — all 33 gates — and the selftest matrix proves
+> it on every push, including the live-Supabase RLS suite and the 29 can-fail
 > canaries (counted from the matrix itself, not hand-authored). Nothing is claimed here that that matrix does not run.
 >
 > **Honest losses.** Rate limiting binds the two application seams (the tRPC router
@@ -34,7 +34,11 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > shipped, though the schema invariants that make it cheap later are.
 >
 > **Honest limits.** No wall-clock timings appear in this README: none have been
-> measured on this port, and unmeasured numbers do not ship. The device lanes
+> measured on this port, and unmeasured numbers do not ship. As of 0.6.0 that is
+> enforced rather than remembered — `check-claims` reds on a published figure with
+> no committed measurement behind it, and `check-chain-budget --record` is the
+> thing that can produce one (dispatch the selftest lane, review the artifact,
+> commit it). The order is measure, commit, then publish. The device lanes
 > (Android emulator + Maestro) are schedule- and dispatch-gated, so a PR does not
 > pay for them — which also means they are proven nightly, not per-commit. The
 > gate chain contains no on-device proof at agent time.
@@ -45,12 +49,12 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (119 guard-rule ids: shell-command denials, write-protected harness paths,
+   (123 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
    until the validation chain, RLS isolation tests, and both unit suites pass.
-   Six hooks are wired, each invoked as `node "<path>"` so a hook's executable
+   Seven hooks are wired, each invoked as `node "<path>"` so a hook's executable
    bit is not in the trust path.
 2. **Commit-time checks** — lefthook + commitlint + gitleaks.
 3. **CI** — the same validation chain, fail-closed, plus device lanes
@@ -62,12 +66,12 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-31 gates, cheap → expensive:
+33 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
 `node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen
 `tools/stop.floor.json` — tampering is turn-fatal) → **wiring** (the enforcement
-layers are actually CONNECTED: six hooks wired, the permission posture,
+layers are actually CONNECTED: seven hooks wired, the permission posture,
 `pnpm validate` still running the gate, `CLAUDE.md` a pure include, and CODEOWNERS
 covering every escape list and enforcement-surface prefix — the invariants `doctor`
 was the only check for, and nothing ran `doctor`) → **secrets** (a hermetic,

@@ -7,6 +7,7 @@
 // 3. Determinism sweep: no unsorted directory listing anywhere in the enforcement
 //    surface. This is the factory holding ITSELF to a rule it ships to consumers —
 //    see the section header below for why the ESLint rule cannot do this job.
+import { execFileSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -223,11 +224,51 @@ for (const root of DETERMINISM_ROOTS) {
 // is deliberately short: anything not on it is text, so a new binary kind reds here and
 // gets added on purpose rather than silently widening the exemption.
 const BINARY_EXT = /\.(?:png|jpg|jpeg|gif|webp|ico|icns|pdf|woff2?|ttf|otf|zip|gz|jar|keystore)$/i
+// THE SET IS `git ls-files`, NOT A FILESYSTEM WALK — and that is the whole fix.
+//
+// This sweep used to walk ROOT behind a hand-maintained exclude list (node_modules, .git,
+// dist, build, .next, coverage) that knew nothing about `.gitignore`. So running THIS
+// repo's own upgrade lane — which the release process REQUIRES, and which plants a git
+// worktree at an OLD release tag under `.selftest/` — made the factory gate red on two
+// files from v0.1.3 that predate this sweep entirely. A maintainer cannot fix a file in
+// history: the available remedies were "delete your lane output" or "stop running the
+// lane", and the second is the one people take. A gate that punishes running the release
+// proof is a gate that deletes the release proof.
+//
+// The inflated counter is the worse half. `textFilesScanned` immediately below is this
+// sweep's anti-vacuity control — "a sweep that scanned nothing is a false green" — and
+// with six scratch scaffolds in scope it was counting trees that are not the harness. The
+// number that is supposed to prove the sweep looked at THE REPOSITORY could not fall to
+// zero while any scratch output existed, so the control could not fire.
+//
+// `--cached --others --exclude-standard` is exactly "the files this repository is made
+// of": tracked, plus untracked-but-not-ignored so a new NUL reds BEFORE it is committed.
+// It honours `.gitignore`, so the next scratch directory is out of scope by construction
+// rather than by remembering to extend a literal here. Fails closed when git cannot
+// answer: a filesystem walk cannot tell source from scratch, which is how this started.
+// `-z` because a path may contain anything — including, fittingly, the byte in question.
+let listing = ''
+try {
+  listing = execFileSync(
+    'git',
+    ['-C', ROOT, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  )
+} catch (err) {
+  console.error(
+    `HYGIENE: FAIL — cannot enumerate the repository with \`git ls-files\` (${err instanceof Error ? err.message : String(err)}). This sweep's subject is every file the repo is MADE of, and a filesystem walk cannot tell source from scratch output, so it fails closed rather than scanning the wrong tree.`,
+  )
+  process.exit(1)
+}
+// `--cached` then `--others` are each sorted but concatenated, so sort the union: this
+// gate's own failure list has to be in the same order on every machine.
+const repoFiles = listing.split('\u0000').filter(Boolean).sort()
 let textFilesScanned = 0
-for (const relPath of walkFiles(ROOT, {
-  excludeDirs: ['node_modules', '.git', 'dist', 'build', '.next', 'coverage'],
-})) {
+for (const relPath of repoFiles) {
   if (BINARY_EXT.test(relPath)) continue
+  // `--cached` lists a path deleted from the working tree but still in the index; a file
+  // that is not there cannot carry a NUL.
+  if (!existsSync(join(ROOT, relPath))) continue
   textFilesScanned += 1
   const buf = readFileSync(join(ROOT, relPath))
   const at = buf.indexOf(0)

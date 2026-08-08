@@ -7,9 +7,13 @@
 // plumbing is CLI-only and exercised by the selftest job, not here.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   findUngroundedPatterns,
   findUnregisteredSeededAdditions,
+  seededSourceFixProblems,
 } from '../../scripts/check-seeded-migrations.mjs'
 
 // A migrations.json shaped like the real one: patterns accumulate across ALL
@@ -168,4 +172,46 @@ test('grounding: nothing registered, or nothing shipped, is reported honestly', 
   assert.deepEqual(findUngroundedPatterns({ patterns: ['a/b.ts'], shippedInstallPaths: [] }), [
     'a/b.ts',
   ])
+})
+
+// ── seededSourceFixes (0.6.0) ────────────────────────────────────────────────────
+//
+// The record that tells a consumer to edit their OWN source, because `update` cannot: the
+// files are seeded, and 0.6.0 corrected the sign-in loop inside them. Nothing copies these
+// into a real install, which is precisely why the declaration needs a reader — the runbook
+// prints the table, the sweep leg adopts the paths, and `adopt()` skips a missing source in
+// SILENCE, so a path that stops existing degrades both of them without a symptom.
+const REAL_ROOT = fileURLToPath(new URL('../../', import.meta.url))
+const GOOD = {
+  gate: 'auth-posture',
+  why: 'a reason long enough to say what actually broke and why the consumer must act on it',
+  paths: ['apps/web/lib/supabase/client.ts'],
+}
+
+test('seededSourceFixes: the shipped record resolves against the template', () => {
+  const migrations = JSON.parse(readFileSync(join(REAL_ROOT, 'template/migrations.json'), 'utf8'))
+  assert.deepEqual(seededSourceFixProblems(migrations, REAL_ROOT), [])
+  // Positive control: the assertion above is vacuous if the key is absent entirely.
+  const declared = Object.entries(migrations)
+    .filter(([v]) => v !== '//')
+    .flatMap(([, e]) => e.seededSourceFixes ?? [])
+  assert.ok(declared.length > 0, 'no seededSourceFixes record exists, so the green above proves nothing')
+})
+
+test('seededSourceFixes: a path the template does not ship is named, not skipped', () => {
+  const problems = seededSourceFixProblems(
+    { '0.6.0': { seededSourceFixes: [{ ...GOOD, paths: ['apps/web/lib/supabase/clientt.ts'] }] } },
+    REAL_ROOT,
+  )
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /clientt\.ts, which is in neither template\/stack nor template\/base/)
+})
+
+test('seededSourceFixes: an unreasoned, ungated or empty record is a review reject', () => {
+  const p = (fix) => seededSourceFixProblems({ '0.6.0': { seededSourceFixes: [fix] } }, REAL_ROOT)
+  assert.match(p({ ...GOOD, why: 'localStorage' }).join('\n'), /carries no usable `why`/)
+  assert.match(p({ ...GOOD, gate: '' }).join('\n'), /names no `gate`/)
+  assert.match(p({ ...GOOD, paths: [] }).join('\n'), /lists no `paths`/)
+  // The doc key is not a version and must never be walked as one.
+  assert.deepEqual(seededSourceFixProblems({ '//': 'prose' }, REAL_ROOT), [])
 })

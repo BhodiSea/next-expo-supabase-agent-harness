@@ -212,6 +212,17 @@ const RULE_CANARIES = {
     bashDeny('rm --recursive --force build'),
     bashDeny('rm --force --recursive build'),
     bashDeny('rm -v -rf build'),
+    // POWERSHELL (0.6.0). `rm -Recurse -Force` was already denied — PowerShell's long flag
+    // names are just longer spellings of the same letter classes, verified rather than
+    // assumed — so the gap was only ever the CANONICAL verb and its non-bash aliases, which
+    // share no token with `rm`. This matters most where it is least visible: on Windows
+    // without Git Bash, Claude Code registers no Bash tool at all, so PowerShell is the only
+    // shell those sessions have.
+    bashDeny('Remove-Item -Recurse -Force build'),
+    bashDeny('Remove-Item -Path build -Recurse -Force'),
+    bashDeny('remove-item -recurse -force build'),
+    bashDeny('del -Recurse -Force build'),
+    bashDeny('rd -Recurse -Force build'),
   ],
   'shell-write-protected': [
     // Shell writes into the enforcement surface bypass the write-guard — denied.
@@ -224,6 +235,11 @@ const RULE_CANARIES = {
     bashDeny('perl -i -pe "s/deny/pass/" .claude/hooks/pretool-bash-guard.mjs'),
     bashDeny('cp /tmp/evil.mjs tools/validate.mjs'),
     bashDeny('mv patched.yml .github/workflows/quality-gate.yml'),
+    // The canonical PowerShell writers (0.6.0). `>`/`>>` redirect in PowerShell too and its
+    // `cp`/`mv`/`tee` aliases already matched, so the gap was the cmdlet spelling alone.
+    bashDeny('Set-Content -Path tools/validate.mjs -Value "process.exit(0)"'),
+    bashDeny('Out-File -FilePath .harness/build.ok'),
+    bashDeny('Copy-Item C:\\tmp\\evil.mjs tools/validate.mjs'),
     // Patch application reconstructs arbitrary bytes at a protected path with no
     // redirect operator to match on.
     bashDeny('git apply /tmp/weaken-gate.patch tools/check-expo-policy.mjs'),
@@ -361,6 +377,10 @@ const RULE_CANARIES = {
     bashDeny('cat .env.local'),
     bashDeny('sed -n 1p .env.local'),
     bashDeny('base64 .env'),
+    // The canonical PowerShell readers (0.6.0). Its bash-compatible aliases (`cat`, `more`)
+    // already matched; `Get-Content` and `Select-String` share no token with them.
+    bashDeny('Get-Content .env.local'),
+    bashDeny('Select-String SUPABASE .env'),
   ],
   'source-env-file': [bashDeny('source .env'), bashDeny('. ./.env')],
   'credential-file-read': [
@@ -371,6 +391,8 @@ const RULE_CANARIES = {
     bashDeny('base64 dist-cert.p12'),
     bashDeny('cat apps/mobile/google-services.json'),
     bashDeny('grep client_id GoogleService-Info.plist'),
+    bashDeny('Get-Content AuthKey_ABC123.p8'),
+    bashDeny('Copy-Item upload-key.jks C:\\temp\\'),
     // Docs ABOUT credential files are not credential files.
     bashAllow('cat docs/google-services-setup.md'),
   ],
@@ -452,6 +474,8 @@ const RULE_CANARIES = {
   'pii-columns': [pathDeny('tools/pii-columns.json')],
   // Raising a ceiling here makes a widened statement_timeout pass as reviewed.
   'db-limits': [pathDeny('tools/db-limits.json')],
+  'data-flow': [pathDeny('tools/data-flow.json')],
+  'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
   // apps/web/lib/security-headers.ts and diffs what it RETURNS against this file, so an
@@ -477,6 +501,10 @@ const RULE_CANARIES = {
     pathDeny('tools/framework-floor.json'),
     pathAllow('docs/harness/gates-catalog.md'),
   ],
+  // The floor on the tool the harness RUNS INSIDE (0.6.0). The dangerous edit is not lowering
+  // the scalar — version-sync reds on that — it is deleting an advisory row, because the
+  // floor is DERIVED from the rows and falls silently with them.
+  'cc-floor': [pathDeny('tools/cc-floor.json'), pathAllow('tools/framework-floor.example.json')],
   // `minRows` in here is the anti-vacuity floor for the plan probe: lower it and
   // db-perf certifies a plan against a table small enough that every structural
   // check is already green, while still printing OK.
@@ -516,6 +544,7 @@ const RULE_CANARIES = {
   'styleguide-manifest': [pathDeny('tools/styleguide.manifest.json')],
   'mutation-baseline': [pathDeny('tools/mutation-baseline.json')],
   'route-allowlist': [pathDeny('tools/route-allowlist.json')],
+  'web-route-allowlist': [pathDeny('tools/web-route-allowlist.json')],
   'dto-bounds-allow': [pathDeny('tools/dto-bounds-allow.json')],
   'duplication-allow': [pathDeny('tools/duplication-allow.json')],
   'i18n-allow': [pathDeny('tools/i18n-allow.json')],

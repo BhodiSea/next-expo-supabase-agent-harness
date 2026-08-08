@@ -1006,8 +1006,11 @@ jobs:
   # closed on a missing config, an empty suite, an assertion-free spec, or a spec set
   # with no axe scan BEFORE handing off to the browser. Path-filtered (web arm) + the
   # nightly/dispatch net, like the device lanes — expensive, and irrelevant to a
-  # mobile-only PR. Playwright's own webServer boots `next dev`; the local Supabase
-  # env is exported at runtime so no publishable key is committed.
+  # mobile-only PR. Playwright's own webServer runs a PRODUCTION build (`next build
+  # && next start`) — see playwright.config.ts, where the CSP suite is the reason —
+  # so the job must NOT pin NODE_ENV; the local Supabase env is exported at runtime
+  # so no publishable key is committed, and the service-role key is exported too
+  # because the authenticated-render spec mints its own fixture identity.
   # ---------------------------------------------------------------------------
   web-e2e:
     name: web e2e (playwright + axe browser lane)
@@ -1018,8 +1021,15 @@ jobs:
        (github.event_name == 'pull_request' && needs.changes.outputs.web == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      NODE_ENV: development
+    # NO `NODE_ENV: development` HERE, and it is not an omission — it was here, and it made
+    # this job impossible to pass. Playwright's webServer runs `pnpm run build && pnpm run
+    # start`, and `next build` under NODE_ENV=development FAILS: it prerenders the error
+    # boundaries against React's development resolution and dies with `Cannot read properties
+    # of null (reading 'useContext')` before a single spec runs. Same tree, same env, only
+    # that variable differing — exit 1 with it, exit 0 without. It was a leftover from when
+    # the webServer booted `next dev`, and it survived the switch to a production build
+    # because this job is path-filtered and nightly, so nothing here ever executed it.
+    # `NODE_ENV` stays UNSET so the toolchain sets it: `next build` means production.
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

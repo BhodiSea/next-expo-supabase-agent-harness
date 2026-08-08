@@ -3,7 +3,8 @@
 import { Button } from '@app/design-system'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { errorCopy } from '../../../lib/error-copy'
+import { t } from '../../../lib/i18n'
+import { errorCopy } from '../../../lib/i18n/errors'
 import { ensurePersonalOrgAction } from '../../actions/orgs'
 
 // One button, one POST. See the header in app/actions/orgs.ts for why provisioning is not a
@@ -28,7 +29,7 @@ export function CreateWorkspaceButton(): React.ReactNode {
   return (
     <div className="flex flex-col gap-2">
       <Button
-        label="Create my workspace"
+        label={t('orgs.create')}
         onPress={() => {
           void create()
         }}

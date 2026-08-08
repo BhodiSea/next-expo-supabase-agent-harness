@@ -9,6 +9,7 @@
     ["duplication", "node tools/check-duplication.mjs"],
     ["i18n", "node tools/check-i18n.mjs"],
     ["test-quality", "node tools/check-test-quality.mjs"],
-    ["mobile-perf", "node tools/check-mobile-perf.mjs --closure"]
+    ["mobile-perf", "node tools/check-mobile-perf.mjs --closure"],
+    ["reviewer-verdicts", "node tools/check-reviewer-verdicts.mjs"]
   ]
 }

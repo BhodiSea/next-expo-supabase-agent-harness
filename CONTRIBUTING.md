@@ -4,9 +4,14 @@
 
 1. **The selftest matrix is the contract.** Any change must keep
    `node scripts/check-syntax.mjs`, `node scripts/hygiene.mjs`, and
-   `node --test tests/` green, and the `bootstrap` CI jobs (linux **and**
-   windows) must still produce a project where `pnpm validate` passes out of
-   the box.
+   `node --test tests/` green, and the scaffold-green jobs — `bootstrap-linux`
+   (node 22 **and** 24) and `metal-bootstrap` — must still produce a project
+   where `pnpm validate` passes out of the box. Both run on **ubuntu only**:
+   the one Windows runner in the matrix is `installer-unit`, which exists for
+   the path-separator/CRLF bug class and does not build a scaffold. (This
+   sentence claimed a Windows `bootstrap` job through 0.5.0. There has never
+   been one — so "green on Windows" has never meant "a Windows scaffold is
+   green", and nobody should read it that way.)
 2. **Nothing project-specific in `template/`.** The hygiene gate greps for
    leaked strings (real tenant IDs, DSNs, signing material, store credentials)
    and for cross-porting residue from the SIBLING harnesses — Hono, Drizzle,
@@ -60,6 +65,15 @@ pnpm exec tsc --noEmit                  # checkJs over installer/, scripts/, tes
 pnpm exec knip                          # dead exports/files/deps in the machinery
 node scripts/check-complexity-ratchet.mjs  # re-lints with --no-inline-config: a disable cannot hide growth
 node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot be deleted or narrowed
+# The other four machinery-lint blockers. They were missing from this list through 0.5.0,
+# so a maintainer who ran the list literally went red in CI on four checks they never ran —
+# which is precisely the "a subset is how four of these came to be red at once" failure the
+# paragraph above this block warns about. The last two need full git history (fetch-depth: 0)
+# and SKIP LOUDLY without a previous release tag rather than passing.
+node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED reconcile
+node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
+node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
+node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
 
 # The one that matters most — the scaffold must be green with ZERO edits:
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes

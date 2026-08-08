@@ -150,6 +150,29 @@ const SCAN_ROOT_RE =
  * derivation would let a gate be single-surface for one of them and not the other, which
  * is the shape of disagreement this whole module exists to prevent.
  *
+ * ── THE STEP FOLD (0.6.0) ─────────────────────────────────────────────────────────────
+ * Both consumers ask a question about a tier ROW, and a row's `Gate` cell names a chain
+ * STEP. This function answered a question about a SCRIPT. Those coincide only while every
+ * step runs exactly one script — and `boundaries` has run two since 0.1.x.
+ *
+ * 0.6.0 closed the `route ↔ screen closure` tier by shipping check-web-routes.mjs beside
+ * check-route-manifest.mjs under the one `route-manifest` step, and that made the gap
+ * concrete: each script is single-surface, the STEP covers both, and the row is about the
+ * step. Unfolded, the row's arrived Target could never discharge no matter what shipped —
+ * the control would have been demanding a change that no change could satisfy.
+ *
+ * So scripts are grouped by their step key and a group whose scripts JOINTLY reach both
+ * surfaces is not single-surface. Scripts with no step (the two lane RUNNERS that tier rows
+ * name directly, check-web-e2e.mjs and check-e2e-device.mjs) key on their own basename, so
+ * they group alone and are unaffected — which is correct: they are each other's compensating
+ * control, not two halves of one step.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO is verify that the second script is any good. A step
+ * could discharge a Target by appending a script that scans apps/web and asserts nothing.
+ * That is not a hole this derivation can close — it is a static read of scan roots — and it
+ * is why every gate also owes a can-fail proof in tests/canary/injections.json. The tier
+ * table says which surfaces a control reaches; the canary registry says the control works.
+ *
  * @param {{ toolsDir: string, configText?: string }} input
  * @returns {Array<{ file: string, key: string, roots: string[], surface: string }>}
  */
@@ -189,5 +212,11 @@ export function singleSurfaceGates({ toolsDir, configText = '' }) {
       surface: [...surfaces][0],
     })
   }
-  return out
+  // The step fold — see the note above. A key whose scripts jointly reach both surfaces is
+  // not a single-surface control, so neither of its scripts is reported.
+  const surfacesByKey = new Map()
+  for (const g of out) {
+    surfacesByKey.set(g.key, (surfacesByKey.get(g.key) ?? new Set()).add(g.surface))
+  }
+  return out.filter((g) => surfacesByKey.get(g.key).size === 1)
 }

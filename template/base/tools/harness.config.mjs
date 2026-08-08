@@ -54,6 +54,14 @@ export const VALIDATE_STEPS = [
   // and the membership table's self-only/deny-all shape. Runs right after schema-rls
   // on the migration text it just parsed.
   ['tenancy', 'node tools/check-tenancy.mjs'],
+  // The AUTH half of the same backend, judged the same way: reviewed data, diffed by value, in
+  // both directions. It sits here because it reads supabase/config.toml — the file the two steps
+  // around it are about — and because it is a <100ms static parse that should red before
+  // anything expensive runs. The backward direction is the one that earns it: the Supabase CLI
+  // parses config.toml LENIENTLY, so `enable_refresh_token_rotaton = true` (one letter short)
+  // reads as a security property while GoTrue applies its default, and nothing said so.
+  ['auth-posture', 'node tools/check-auth-posture.mjs'],
+  ['data-flow', 'node tools/check-data-flow.mjs'],
   ['types-drift', 'node tools/check-types-drift.mjs'],
   ['migrations', 'node tools/check-migrations.mjs'],
   // The resource ceilings and the quota machinery, judged as data. It runs right after
@@ -87,7 +95,17 @@ export const VALIDATE_STEPS = [
   ['build', 'node tools/build-check.mjs'],
   ['styleguide', 'node tools/check-styleguide-manifest.mjs'],
   ['perf-budget', 'node tools/check-perf-budget.mjs'],
-  ['route-manifest', 'node tools/check-route-manifest.mjs'],
+  // TWO SCRIPTS, ONE STEP — the same shape `boundaries` uses above. The routers do not agree
+  // on a single rule (expo-router maps a trailing `index` to its parent path and has no route
+  // groups, parallel routes, intercepting routes or private `_folder` exclusion; the App Router
+  // has all four and no `index` convention), so one parser serving both would branch on surface
+  // at every line. Both scripts declare `GATE = 'route-manifest'`, so the chain, the canary
+  // registry and the tiers table see ONE control that covers both surfaces — which is what
+  // discharges the 0.6.0 Target on the `route ↔ screen closure` row.
+  // ONE LINE, deliberately, like `boundaries` above: installer/lib/migrations.mjs injects a new
+  // step by anchoring on a single-line `['name', 'cmd'],` entry, so a wrapped entry is a place a
+  // later injection lands INSIDE. The suite caught it the moment this was written multi-line.
+  ['route-manifest', 'node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs'],
   // The web response posture, asserted BY VALUE: the gate evaluates
   // apps/web/lib/security-headers.ts under node's type stripping (no bundler, no
   // node_modules, no new dependency) and diffs what it returns against the reviewed
@@ -147,4 +165,11 @@ export const STOP_HOOK_STEPS = [
   // cannot end a turn having added a screen that no machine check will ever time.
   // The MEASUREMENT half needs an emulator (minutes) and runs in the CI perf lane.
   ['mobile-perf', 'node tools/check-mobile-perf.mjs --closure'],
+  // THE PROCESS STEP (0.6.0), and the first check in this chain whose subject is not the
+  // TREE but the TURN. Every reviewer whose MUST-BE-USED paths this diff touched has to have
+  // returned VERDICT: PASS, recorded by .claude/hooks/subagent-verdict.mjs from the
+  // SubagentStop payload. It is last because it is the only step that can be satisfied by
+  // doing something OTHER than editing code — reaching it means the tree is already green,
+  // which is the state a reviewer should be reading.
+  ['reviewer-verdicts', 'node tools/check-reviewer-verdicts.mjs'],
 ]

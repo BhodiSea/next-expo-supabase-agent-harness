@@ -1,5 +1,5 @@
 {
-  "comment": "Falsifiability registry: every step in VALIDATE_STEPS \u222a STOP_HOOK_STEPS must carry at least one mechanical proof that it CAN go red. Proof kinds: 'fixture' (a repo test file that spawns the real gate and asserts exit 1 \u2014 ref must exist), 'selftest' (a literal step/leg title that must appear in .github/workflows/selftest.yml or in a scripts/ci/* helper that workflow invokes \u2014 the W6 emulator legs live in bash files because the emulator-runner action execs its script under dash), 'runner' (the step wraps a vendor tool whose non-zero exit is the red; OUR wiring's failure propagation is proven by the validate-runner tests \u2014 ref must exist). scripts/check-canary-coverage.mjs enforces bidirectional closure: an unregistered step OR a stale registry entry reds the PR that caused it. Guard-rule falsifiability is a PER-RULE closure, not a count: check-canary-coverage.mjs imports the pure-data rule tables from .claude/hooks/lib/guard-rules.mjs (BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS) and asserts every rule id has a behavioral deny/allow case (a RULE_CANARIES entry) in tests/hooks/hook-contract.test.mjs \u2014 a rule added without a canary reds the PR. hookRules below keeps only a human-readable grep-able deny example per surface. W6 ARMED the deferred device/runtime canaries in real selftest jobs: the broken-testID sweep red + agent-chain green (maestro-smoke Canary 19), the 300ms busy-loop perf-marker red (maestro-smoke Canary 20), the keyset-index-drop STRUCTURAL red (bootstrap-linux Canary 17 \u2014 pgTAP's owner-leading-column assertion, NOT a plan probe: this header called it one for two releases, and the distinction is the whole reason Canary 24 exists. Canary 17 must drop the keyset index AND the primary key, because pgTAP is satisfied by either carrying the leading column; Canary 24 drops only the secondary index and reds db-perf on plan SHAPE while Canary 17's assertion stays green), the strip-Authorization live-suite red (integration Canary C01), and the nondeterministic-plugin prebuild-compare red (bootstrap-linux Canary 18). What remains CI-cadence-honest rather than per-PR: the emulator canaries live in a schedule/dispatch-only job (cost), stated in the lane notes below.",
+  "comment": "Falsifiability registry: every step in VALIDATE_STEPS ∪ STOP_HOOK_STEPS must carry at least one mechanical proof that it CAN go red. Proof kinds: 'fixture' (a repo test file that spawns the real gate and asserts exit 1 — ref must exist), 'selftest' (a literal step/leg title that must appear in .github/workflows/selftest.yml or in a scripts/ci/* helper that workflow invokes — the W6 emulator legs live in bash files because the emulator-runner action execs its script under dash), 'runner' (the step wraps a vendor tool whose non-zero exit is the red; OUR wiring's failure propagation is proven by the validate-runner tests — ref must exist). scripts/check-canary-coverage.mjs enforces bidirectional closure: an unregistered step OR a stale registry entry reds the PR that caused it. Guard-rule falsifiability is a PER-RULE closure, not a count: check-canary-coverage.mjs imports the pure-data rule tables from .claude/hooks/lib/guard-rules.mjs (BASH_RULES, WRITE_PROTECTED, WRITE_GLOBAL_CHECKS) and asserts every rule id has a behavioral deny/allow case (a RULE_CANARIES entry) in tests/hooks/hook-contract.test.mjs — a rule added without a canary reds the PR. hookRules below keeps only a human-readable grep-able deny example per surface. W6 ARMED the deferred device/runtime canaries in real selftest jobs: the broken-testID sweep red + agent-chain green (maestro-smoke Canary 19), the 300ms busy-loop perf-marker red (maestro-smoke Canary 20), the keyset-index-drop STRUCTURAL red (bootstrap-linux Canary 17 — pgTAP's owner-leading-column assertion, NOT a plan probe: this header called it one for two releases, and the distinction is the whole reason Canary 24 exists. Canary 17 must drop the keyset index AND the primary key, because pgTAP is satisfied by either carrying the leading column; Canary 24 drops only the secondary index and reds db-perf on plan SHAPE while Canary 17's assertion stays green), the strip-Authorization live-suite red (integration Canary C01), and the nondeterministic-plugin prebuild-compare red (bootstrap-linux Canary 18). What remains CI-cadence-honest rather than per-PR: the emulator canaries live in a schedule/dispatch-only job (cost), stated in the lane notes below.",
   "steps": {
     "format": [
       {
@@ -15,29 +15,29 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 6: tamper a gate script on disk \u2192 gate-integrity must FAIL"
+        "ref": "Canary 6: tamper a gate script on disk → gate-integrity must FAIL"
       }
     ],
     "wiring": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-wiring.test.mjs",
-        "note": "Every invariant here had exactly one check between them \u2014 `installer doctor` \u2014 and NOTHING RAN IT. The fixture reds on each state a 0.2.1 install could be in while passing every hash: an unwired hook, `pnpm validate` redefined away from the gate, CLAUDE.md replacing project memory, a floored step deleted from VALIDATE_STEPS, no CODEOWNERS file, an uncovered enforcement path, the empty-owner spelling that silently disables review, and `defaultMode: bypassPermissions`."
+        "note": "Every invariant here had exactly one check between them — `installer doctor` — and NOTHING RAN IT. The fixture reds on each state a 0.2.1 install could be in while passing every hash: an unwired hook, `pnpm validate` redefined away from the gate, CLAUDE.md replacing project memory, a floored step deleted from VALIDATE_STEPS, no CODEOWNERS file, an uncovered enforcement path, the empty-owner spelling that silently disables review, and `defaultMode: bypassPermissions`."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 25: unwire a hook + flip the permission posture \u2192 wiring must FAIL"
+        "ref": "Canary 25: unwire a hook + flip the permission posture → wiring must FAIL"
       }
     ],
     "secrets": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-secrets.test.mjs",
-        "note": "Reds on a real sb_secret_ key, a credentialed remote DSN and a PEM body \u2014 and, in the other direction, on its OWN decay: a pattern edited until it no longer matches its synthetic positive reports itself rather than a clean tree, and scanning zero files is a hard FAIL. Rule-id lockstep with .gitleaks.toml is asserted both ways, so the two scanners may differ in expression but never in scope."
+        "note": "Reds on a real sb_secret_ key, a credentialed remote DSN and a PEM body — and, in the other direction, on its OWN decay: a pattern edited until it no longer matches its synthetic positive reports itself rather than a clean tree, and scanning zero files is a hard FAIL. Rule-id lockstep with .gitleaks.toml is asserted both ways, so the two scanners may differ in expression but never in scope."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 26: an sb_secret_ key in a tracked file \u2192 secrets must FAIL"
+        "ref": "Canary 26: an sb_secret_ key in a tracked file → secrets must FAIL"
       }
     ],
     "types": [
@@ -55,14 +55,14 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 29: a click handler on a bare div \u2192 jsx-a11y must FAIL the lint step",
-        "note": "the WEB half of the a11y floor, closed in 0.4.0 \u2014 and the proof exists because of how it had to be delivered. eslint.config.mjs is harness-OWNED and refreshes on `update`, while package.json and pnpm-workspace.yaml are SEEDED and the workspace-catalog merge runs only under `init`, so a NEW plugin dependency has no channel to an existing install: a static import resolved to nothing there and killed the ENTIRE lint step, not one rule. The config resolves the plugin dynamically now and omits the block when absent, which makes 'missing' and 'working' the same green. tools/check-wiring.mjs asserts it RESOLVES; this asserts it ENFORCES, on a scaffold that ships the dependency."
+        "ref": "Canary 29: a click handler on a bare div → jsx-a11y must FAIL the lint step",
+        "note": "the WEB half of the a11y floor, closed in 0.4.0 — and the proof exists because of how it had to be delivered. eslint.config.mjs is harness-OWNED and refreshes on `update`, while package.json and pnpm-workspace.yaml are SEEDED and the workspace-catalog merge runs only under `init`, so a NEW plugin dependency has no channel to an existing install: a static import resolved to nothing there and killed the ENTIRE lint step, not one rule. The config resolves the plugin dynamically now and omits the block when absent, which makes 'missing' and 'working' the same green. tools/check-wiring.mjs asserts it RESOLVES; this asserts it ENFORCES, on a scaffold that ships the dependency."
       }
     ],
     "provenance": [
       {
         "kind": "selftest",
-        "ref": "Canary 4: strip SOURCE citations from decision sites \u2192 provenance must FAIL"
+        "ref": "Canary 4: strip SOURCE citations from decision sites → provenance must FAIL"
       },
       {
         "kind": "fixture",
@@ -80,18 +80,18 @@
     "expo-policy": [
       {
         "kind": "selftest",
-        "ref": "Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra \u2192 expo-policy must FAIL"
+        "ref": "Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL"
       },
       {
         "kind": "fixture",
         "ref": "tests/gates/check-expo-policy.test.mjs",
-        "note": "runs the REAL gate against fixture trees with a stub expo CLI: identity drift vs identity.lock.json, runtimeVersion != { policy: 'appVersion' }, ATS/cleartext holes, non-loopback ATS exceptions, unreviewed permission AND stale allowlist entry (bidirectional), unreviewed plugin, secret-shaped extra key, secret-shaped EXPO_PUBLIC_ name in source, splash/adaptive-icon color off the generated dark canvas token, eas.json appVersionSource/autoIncrement/secret-env sanity \u2014 each red; missing node_modules skips loudly locally and FAILS CLOSED in CI; 0.1.2 store-readiness (tools/store-policy.json, fail-closed on malformed policy): unreviewed/placeholder iOS usage strings red (ios[] lockstep in expo-permissions.json, both directions), undeclared ITSAppUsesNonExemptEncryption reds, malformed/unreviewed privacyManifests entries red (absence NOTEs), ATT claims without a tracking SDK red and an SDK without agreeing declarations reds, a targetSdk below the Play floor or an unknown Expo SDK major reds fail-closed, non-1024/alpha marketing icons red via the pure-node PNG parse (solid placeholders NOTE, escalatable to red), and an auth surface without the registered deletion action + openapi DELETE reds citing Apple 5.1.1(v)"
+        "note": "runs the REAL gate against fixture trees with a stub expo CLI: identity drift vs identity.lock.json, runtimeVersion != { policy: 'appVersion' }, ATS/cleartext holes, non-loopback ATS exceptions, unreviewed permission AND stale allowlist entry (bidirectional), unreviewed plugin, secret-shaped extra key, secret-shaped EXPO_PUBLIC_ name in source, splash/adaptive-icon color off the generated dark canvas token, eas.json appVersionSource/autoIncrement/secret-env sanity — each red; missing node_modules skips loudly locally and FAILS CLOSED in CI; 0.1.2 store-readiness (tools/store-policy.json, fail-closed on malformed policy): unreviewed/placeholder iOS usage strings red (ios[] lockstep in expo-permissions.json, both directions), undeclared ITSAppUsesNonExemptEncryption reds, malformed/unreviewed privacyManifests entries red (absence NOTEs), ATT claims without a tracking SDK red and an SDK without agreeing declarations reds, a targetSdk below the Play floor or an unknown Expo SDK major reds fail-closed, non-1024/alpha marketing icons red via the pure-node PNG parse (solid placeholders NOTE, escalatable to red), and an auth surface without the registered deletion action + openapi DELETE reds citing Apple 5.1.1(v)"
       }
     ],
     "native-deps": [
       {
         "kind": "selftest",
-        "ref": "Canary 2: stage the generated android/ dir \u2192 native-deps must FAIL (CNG purity)"
+        "ref": "Canary 2: stage the generated android/ dir → native-deps must FAIL (CNG purity)"
       },
       {
         "kind": "fixture",
@@ -107,7 +107,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/framework-floor.test.mjs",
-        "note": "0.5.0's framework security floor, judged inside this step. Two injections it drives red: a resolved lockfile version below the reviewed floor (naming the HIGH advisory ids), and a version on a major line the floor records no patched release for. A third proof is the one the harness needed and did not have — the SHIPPED catalog pin is judged against the SHIPPED floor, which is the comparison nobody was making while `next: 16.2.7` sat inside the affected range of nine advisories for two releases."
+        "note": "0.5.0's framework security floor, judged inside this step. Two injections it drives red: a resolved lockfile version below the reviewed floor (naming the HIGH advisory ids), and a version on a major line the floor records no patched release for. A third proof is the one the harness needed and did not have — the SHIPPED catalog pin is judged against the SHIPPED floor, which is the comparison nobody was making while `next: 16.2.7` sat inside the affected range of nine advisories for two releases. 0.6.0 adds the REVIEW WINDOW half, and its red-proof is the window this very file shipped with: reviewedUntil - reviewedOn was 92 days against an upstream cadence that publishes security releases roughly MONTHLY, so the review read as live across about three of them. The injection that matters more is the off-switch one — a distant reviewedUntil is INERT to the clockful `staleReviews` on every real calendar date, so before this the only control that read the date was the one an over-long date disarms."
       }
     ],
     "prompts": [
@@ -117,7 +117,7 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 7: tamper a hash-locked prompt \u2192 prompts must FAIL"
+        "ref": "Canary 7: tamper a hash-locked prompt → prompts must FAIL"
       }
     ],
     "licenses": [
@@ -129,22 +129,23 @@
     "schema-rls": [
       {
         "kind": "selftest",
-        "ref": "Canary 5: remove FORCE RLS from the migration \u2192 schema-rls must FAIL"
+        "ref": "Canary 5: remove FORCE RLS from the migration → schema-rls must FAIL"
       },
       {
         "kind": "fixture",
-        "ref": "tests/gates/check-rls-manifest.test.mjs"
+        "ref": "tests/gates/check-rls-manifest.test.mjs",
+        "note": "0.6.0 adds the POLICY -> GRANT closure, registered here rather than as a new step because it is the same gate consuming a parse it already ran. Table privileges are checked BEFORE row security, so a policy naming a role that holds no privilege on the table is UNREACHABLE CODE that reads in review as a granted one: the statement raises 42501 (PostgREST: HTTP 403) before any policy is consulted. This gate has called parseGrants since 0.2.0 and used only the FUNCTION half of it, for the SECURITY DEFINER EXECUTE surface; the TABLE half was dead output, so a table shipping ENABLE + FORCE + four per-operation policies + both isolation registries + an owner-column index and NO GRANT STATEMENT ANYWHERE was fully green -- and every fixture in this gate's own test file was exactly that shape. WHY IT WAS INVISIBLE, AND WHY IT IS DATED: Supabase's default privileges grant anon/authenticated/service_role on every newly created table in `public`, so the omission WORKS -- the default already handed the role its privileges -- and it stops working for projects created on or after 2026-10-30, when those defaults stop being applied and the auto_expose_new_tables switch that would have restored them is itself removed on the same date. The same migration file therefore passes review, passes this gate, works in the project it was written against, and 403s in the next project it is replayed into, byte-identical in both. THE INJECTIONS: deleting the GRANT from the fixture reds FOUR times, once per operation, each naming the date, the SQLSTATE and the exact GRANT statement that discharges it; deleting one grant line from the SHIPPED notes migration reds the real scaffold, which is what makes the shipped-tree green non-vacuous; a later REVOKE undoing an earlier GRANT reds for that operation ONLY, because the history is folded in STATEMENT ORDER and the shipped idiom is REVOKE-then-narrow-GRANT; and a SCHEMA grant is refused as a TABLE grant, which is the name collision the audit migration's `REVOKE ALL ON SCHEMA audit FROM anon, authenticated, service_role` would otherwise have caused. THREE CARVE-OUTS, each load-bearing and each with its own GREEN proof, because a gate that reds correct SQL gets deleted: a policy whose predicate is literally `false` needs no grant (the shipped tenancy spine's deny-all writes), a RESTRICTIVE policy carries no reachability claim since it only ever subtracts rows, and a policy with no TO clause names no role to close over. THE REVERSE DIRECTION IS DELIBERATELY NOT ASSERTED: `GRANT SELECT, DELETE ON TABLE public.orgs TO service_role` is a legitimate ADR-governed grant with no policy behind it, because service_role BYPASSES row security -- a grant=>policy rule would red the shipped tree for being correct. Ramped from baseVersion 0.6.0 until 0.7.0, unlike the two unramped negation checks above it: this one has a real legacy population (a pre-flip project where the missing grant genuinely works), and rampNote prints every finding as a NOTE for as long as it is armed."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 22: RLS turned OFF by a later migration \u2192 schema-rls must FAIL"
+        "ref": "Canary 22: RLS turned OFF by a later migration → schema-rls must FAIL"
       }
     ],
     "tenancy": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-tenancy.test.mjs",
-        "note": "The predicate schema-rls provably cannot judge: `org_id = (SELECT auth.uid())` \u2014 a tenant column compared to a user id \u2014 is REAL by every schema-rls rule and isolates nothing; here it reds against the closed predicateForms set printing the exact normalized predicate. Also proven red: a top-level OR arm without a scope term (the `... OR owner_id = (SELECT auth.uid())` re-opening), the correlated-argument ban (`private.member_rank(org_id)` \u2014 a per-row SubPlan wrapped in `(SELECT` that passes every wrapper check), an off-scale rank floor, a relation sub-select, a nullable/FK-less tenant key, a UNIQUE omitting the tenant column, a missing/disarmable freeze trigger, a seat-table SELECT policy that calls the helpers (recursion smell \u2014 the 42P17 probe is the proof), a self-keyed membership INSERT to authenticated (self-granted seats), definer/parameterized/non-STABLE helpers, and a nonPublicSchemas schema published in [api].schemas. THE SILENT-NO-OP PROOF (the one no other layer can reach): a rank-scoped write policy TO the rpc writer role with no PAIRED self-only SELECT policy on the seat table reds \u2014 because the rank helper is SECURITY INVOKER, reads the seat table as that role, hits RLS default-deny, returns an empty map, and every seat change then matches ZERO ROWS AND SUCCEEDS. Valid SQL, present policy, reviewed predicate shape, and promotions in production that silently do nothing. THE ORG-TABLE PROOF: public.orgs carries no tenant column, so column-driven discovery never reaches it \u2014 `USING (created_by = (SELECT auth.uid()) OR name IS NOT NULL)` passes every other static gate in the repo while publishing every org row to every user; the explicit org-table pass (scope column substituted to its own primary key) reds it. Anti-vacuity: empty predicateForms, malformed JSON, missing sections, reasonless table-narrowed forms and reasonless/stale escapes all FAIL CLOSED; a table-narrowed form does not license the same predicate on another table; the adoption ramp covers only the no-tenant-column upgrade path, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once the surface exists."
+        "note": "The predicate schema-rls provably cannot judge: `org_id = (SELECT auth.uid())` — a tenant column compared to a user id — is REAL by every schema-rls rule and isolates nothing; here it reds against the closed predicateForms set printing the exact normalized predicate. Also proven red: a top-level OR arm without a scope term (the `... OR owner_id = (SELECT auth.uid())` re-opening), the correlated-argument ban (`private.member_rank(org_id)` — a per-row SubPlan wrapped in `(SELECT` that passes every wrapper check), an off-scale rank floor, a relation sub-select, a nullable/FK-less tenant key, a UNIQUE omitting the tenant column, a missing/disarmable freeze trigger, a seat-table SELECT policy that calls the helpers (recursion smell — the 42P17 probe is the proof), a self-keyed membership INSERT to authenticated (self-granted seats), definer/parameterized/non-STABLE helpers, and a nonPublicSchemas schema published in [api].schemas. THE SILENT-NO-OP PROOF (the one no other layer can reach): a rank-scoped write policy TO the rpc writer role with no PAIRED self-only SELECT policy on the seat table reds — because the rank helper is SECURITY INVOKER, reads the seat table as that role, hits RLS default-deny, returns an empty map, and every seat change then matches ZERO ROWS AND SUCCEEDS. Valid SQL, present policy, reviewed predicate shape, and promotions in production that silently do nothing. THE ORG-TABLE PROOF: public.orgs carries no tenant column, so column-driven discovery never reaches it — `USING (created_by = (SELECT auth.uid()) OR name IS NOT NULL)` passes every other static gate in the repo while publishing every org row to every user; the explicit org-table pass (scope column substituted to its own primary key) reds it. Anti-vacuity: empty predicateForms, malformed JSON, missing sections, reasonless table-narrowed forms and reasonless/stale escapes all FAIL CLOSED; a table-narrowed form does not license the same predicate on another table; the adoption ramp covers only the no-tenant-column upgrade path, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once the surface exists."
       }
     ],
     "types-drift": [
@@ -156,7 +157,7 @@
     "migrations": [
       {
         "kind": "selftest",
-        "ref": "Canary 3: edit a committed migration \u2192 migrations must FAIL"
+        "ref": "Canary 3: edit a committed migration → migrations must FAIL"
       },
       {
         "kind": "fixture",
@@ -167,12 +168,12 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-db-limits.test.mjs",
-        "note": "The blast-radius controls, proven falsifiable in the two directions a catalog assertion cannot reach. STATEMENT ORDER: a later `ALTER ROLE ... RESET` (or a re-SET to a wider value) vacates an earlier ceiling, so the matrix is folded in migration order rather than searched for a matching line \u2014 a gate that only greps for the SET stays green on a role whose ceiling was removed three migrations later. INERT KNOBS RED RATHER THAN PASS: `temp_file_limit` is superuser-only and `postgres` cannot set it, and `CONNECTION LIMIT` is refused on the reserved `authenticator` and inert on anon/authenticated/service_role because they are not login roles \u2014 both were verified against a live PG17, and both are exactly the shape that reads as a control in review while doing nothing (`CONNECTION LIMIT -1`, the explicit no-limit spelling, stays green because it claims nothing). QUOTA SHAPE: a FOR EACH ROW trigger reds (it serializes every insert behind one hot tuple and turns a 1000-row load into 1000 dead tuples); a statement trigger with no `REFERENCING NEW TABLE` reds (it can only ever count zero); a RESTRICTIVE counting policy calling a STABLE function reds because it fails OPEN \u2014 the hoisted call evaluates once per statement against the PRE-statement count, so one multi-row INSERT of any size passes wholesale and the optimization defeats the control; a metered table with no trigger, and a debit with no release twin, both red. THE SILENT TOTAL FAILURE: the reconciler reassigned to the tenant-scoped writer role reds \u2014 its policies resolve through `private.member_org_ids()`, which derives from `auth.uid()`, and pg_cron runs with no JWT, so the scope array comes back EMPTY and the nightly reconcile sets every counter in the database to zero. Also red: the reconciler made client-callable, a client role granted UPDATE on the usage counter (a quota anyone can edit is not a quota), `[api].max_rows` above the reviewed cap, and a session-mode `[db.pooler]`. Anti-vacuity: malformed JSON, an EMPTY role matrix, a knob with no declared ceiling, and an `unavailable` entry without a substantive reason all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 no-settings install, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once ceilings exist."
+        "note": "The blast-radius controls, proven falsifiable in the two directions a catalog assertion cannot reach. STATEMENT ORDER: a later `ALTER ROLE ... RESET` (or a re-SET to a wider value) vacates an earlier ceiling, so the matrix is folded in migration order rather than searched for a matching line — a gate that only greps for the SET stays green on a role whose ceiling was removed three migrations later. INERT KNOBS RED RATHER THAN PASS: `temp_file_limit` is superuser-only and `postgres` cannot set it, and `CONNECTION LIMIT` is refused on the reserved `authenticator` and inert on anon/authenticated/service_role because they are not login roles — both were verified against a live PG17, and both are exactly the shape that reads as a control in review while doing nothing (`CONNECTION LIMIT -1`, the explicit no-limit spelling, stays green because it claims nothing). QUOTA SHAPE: a FOR EACH ROW trigger reds (it serializes every insert behind one hot tuple and turns a 1000-row load into 1000 dead tuples); a statement trigger with no `REFERENCING NEW TABLE` reds (it can only ever count zero); a RESTRICTIVE counting policy calling a STABLE function reds because it fails OPEN — the hoisted call evaluates once per statement against the PRE-statement count, so one multi-row INSERT of any size passes wholesale and the optimization defeats the control; a metered table with no trigger, and a debit with no release twin, both red. THE SILENT TOTAL FAILURE: the reconciler reassigned to the tenant-scoped writer role reds — its policies resolve through `private.member_org_ids()`, which derives from `auth.uid()`, and pg_cron runs with no JWT, so the scope array comes back EMPTY and the nightly reconcile sets every counter in the database to zero. Also red: the reconciler made client-callable, a client role granted UPDATE on the usage counter (a quota anyone can edit is not a quota), `[api].max_rows` above the reviewed cap, and a session-mode `[db.pooler]`. Anti-vacuity: malformed JSON, an EMPTY role matrix, a knob with no declared ceiling, and an `unavailable` entry without a substantive reason all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 no-settings install, and a REGRESSION case pins that an ancient baseVersion cannot disarm findings once ceilings exist."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 23: a per-role ceiling reset live \u2192 the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)",
-        "note": "the live direction (bootstrap-linux, a real scaffold + the Supabase local stack): tests/rls/resource-limits.test.ts. The static gate can only prove the `ALTER ROLE ... SET` is in a migration and the pgTAP twin can only prove the row landed in pg_db_role_setting \u2014 neither can prove the ceiling is IN FORCE. It is in force only because PostgREST reads pg_db_role_setting for the role it impersonates and applies those settings itself per request (`SET ROLE` alone does NOT re-apply them \u2014 verified directly). This runner calls public.effective_limits() as anon and as authenticated through PostgREST and compares what is actually in force against tools/db-limits.json, so a PostgREST upgrade that dropped the behaviour, a renamed role, or a hand-reset setting reds here while every catalog assertion stays green."
+        "ref": "Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)",
+        "note": "the live direction (bootstrap-linux, a real scaffold + the Supabase local stack): tests/rls/resource-limits.test.ts. The static gate can only prove the `ALTER ROLE ... SET` is in a migration and the pgTAP twin can only prove the row landed in pg_db_role_setting — neither can prove the ceiling is IN FORCE. It is in force only because PostgREST reads pg_db_role_setting for the role it impersonates and applies those settings itself per request (`SET ROLE` alone does NOT re-apply them — verified directly). This runner calls public.effective_limits() as anon and as authenticated through PostgREST and compares what is actually in force against tools/db-limits.json, so a PostgREST upgrade that dropped the behaviour, a renamed role, or a hand-reset setting reds here while every catalog assertion stays green."
       }
     ],
     "contracts": [
@@ -185,14 +186,14 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-query-shapes.test.mjs",
-        "note": "The manifest this gate judges is GENERATED BY EXECUTION \u2014 tools/gen-query-shapes.mjs drives each DAL function through a harness-owned recording Proxy and records the builder chain it produced \u2014 so the vacuity to prove against is not \"the manifest is wrong\" but \"the manifest describes nothing\": an empty manifest, an absent one, an unparseable one, and a row missing a field all FAIL CLOSED rather than judging zero shapes. The rules that matter are the ones every other check in this repo is blind to, because pgTAP's leading-column assertion, schema-rls and tenancy are all TRUE of an index that serves the filter and leaves the sort in memory: an index with the right leading column and the wrong TAIL reds; a MIXED ASC/DESC order no single scan direction can supply reds (a btree walks backwards, so the fully-reversed sort is GREEN \u2014 both directions are proven, or the rule would be a superstition); a read with no LIMIT and no aggregate reds; `.range()`/`.offset()` red BY NAME, which is why the recorder is a Proxy that captures methods no port declares rather than a fake that would crash and then be taught to ignore them; a LIMIT above [api].max_rows reds, because PostgREST truncates there silently and the has-more sentinel never arrives. THE RULE A LIVE PLAN PROBE EARNED: a keyset cursor sent as ONE top-level disjunction \u2014 the spelling every tutorial shows, the spelling this repo shipped \u2014 reds, because PostgreSQL cannot turn a top-level OR into an index range, so the cursor lands in `Filter:` and the scan still starts at the tenant's newest row. Measured on 1.1M seeded rows at page 1000, before the fix: 1115 rows removed by filter to return 21, and 1798 buffers against 8. Every structural gate was green throughout. The instrument is proven separately (value redaction, the empty-result resolution, boundKind derived rather than declared, the prefix rule, and selectSql refusing an unknown operator instead of dropping a disjunct \u2014 a dropped disjunct would EXPLAIN an easier query than the app sends)."
+        "note": "The manifest this gate judges is GENERATED BY EXECUTION — tools/gen-query-shapes.mjs drives each DAL function through a harness-owned recording Proxy and records the builder chain it produced — so the vacuity to prove against is not \"the manifest is wrong\" but \"the manifest describes nothing\": an empty manifest, an absent one, an unparseable one, and a row missing a field all FAIL CLOSED rather than judging zero shapes. The rules that matter are the ones every other check in this repo is blind to, because pgTAP's leading-column assertion, schema-rls and tenancy are all TRUE of an index that serves the filter and leaves the sort in memory: an index with the right leading column and the wrong TAIL reds; a MIXED ASC/DESC order no single scan direction can supply reds (a btree walks backwards, so the fully-reversed sort is GREEN — both directions are proven, or the rule would be a superstition); a read with no LIMIT and no aggregate reds; `.range()`/`.offset()` red BY NAME, which is why the recorder is a Proxy that captures methods no port declares rather than a fake that would crash and then be taught to ignore them; a LIMIT above [api].max_rows reds, because PostgREST truncates there silently and the has-more sentinel never arrives. THE RULE A LIVE PLAN PROBE EARNED: a keyset cursor sent as ONE top-level disjunction — the spelling every tutorial shows, the spelling this repo shipped — reds, because PostgreSQL cannot turn a top-level OR into an index range, so the cursor lands in `Filter:` and the scan still starts at the tenant's newest row. Measured on 1.1M seeded rows at page 1000, before the fix: 1115 rows removed by filter to return 21, and 1798 buffers against 8. Every structural gate was green throughout. The instrument is proven separately (value redaction, the empty-result resolution, boundKind derived rather than declared, the prefix rule, and selectSql refusing an unknown operator instead of dropping a disjunct — a dropped disjunct would EXPLAIN an easier query than the app sends)."
       }
     ],
     "rate-limits": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-rate-limits.test.mjs",
-        "note": "The vacuity this gate exists for is not \"the numbers are wrong\" \u2014 it is a limiter that is WIRED, TESTED, AND REACHES NOTHING: a new mutation lands, nobody adds it to the policy, and the seam keeps limiting the five procedures it already knew about while the newest write path runs unbounded, with everything green. So the load-bearing proof is the CLOSURE against a GENERATED inventory (tools/generated/action-inventory.json is walked out of the composed router, never hand-written): an unmapped mutation reds, a mapping or exemption naming a procedure the router no longer exposes reds as stale, and a procedure that is BOTH mapped and exempt reds because the contract contradicts itself. THE BY-VALUE DIFF: apps/web/lib/rate-limit.ts is evaluated under node type-stripping and compared against the reviewed JSON, so a limit changed in code without a diff reds, a limit changed in the JSON that the code does not honour reds, and a documented exemption the code fails to apply reds (the worst of the three \u2014 the reason sits in the contract reading as if it were in force). An unknown name resolving to null reds, because that would make \"forgot to map it\" and \"deliberately unlimited\" the same value. THE WIRING, asserted per seam because the two share no code: dropping the `rateLimit` port from the tRPC route reds (@app/api treats a missing port as an UNLIMITED router \u2014 correct for a worker or a test, which is exactly why the absence cannot be caught from inside the router), and a Server Action with a budget it never consults reds, as does an exported *Action with no budget entry at all. Anti-vacuity: malformed JSON, an empty bucket set, a bucket or exemption with a thin reason, missing ceilings, a budget above its ceiling, a window long enough never to close, a mapping to an undeclared bucket, a declared bucket nothing spends from, and an unrecorded fail-open decision all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 tree with no budget file. THE ROUTER HALF is proven by packages/api/src/ratelimit.test.ts \u2014 a vitest suite, carried by the `unit` step rather than spawnable from here: the router half, proven against a database that THROWS if it is ever touched: a rate limit that lets the handler run and then reports the refusal has bought nothing, because the transaction, the audit row and the quota check are already paid for. Also proven: the guard rides the BASE of the ladder (notes.list, three rungs up, is refused too), the wait travels on a CLASS cause rather than a duck-typed field, a null verdict and an allowed verdict are both honoured but stay distinguishable, and the port is asked with the ACTIVE org \u2014 resolved from real seats, never from the x-org-id header a stranger could set to spend a tenant's budget."
+        "note": "The vacuity this gate exists for is not \"the numbers are wrong\" — it is a limiter that is WIRED, TESTED, AND REACHES NOTHING: a new mutation lands, nobody adds it to the policy, and the seam keeps limiting the five procedures it already knew about while the newest write path runs unbounded, with everything green. So the load-bearing proof is the CLOSURE against a GENERATED inventory (tools/generated/action-inventory.json is walked out of the composed router, never hand-written): an unmapped mutation reds, a mapping or exemption naming a procedure the router no longer exposes reds as stale, and a procedure that is BOTH mapped and exempt reds because the contract contradicts itself. THE BY-VALUE DIFF: apps/web/lib/rate-limit.ts is evaluated under node type-stripping and compared against the reviewed JSON, so a limit changed in code without a diff reds, a limit changed in the JSON that the code does not honour reds, and a documented exemption the code fails to apply reds (the worst of the three — the reason sits in the contract reading as if it were in force). An unknown name resolving to null reds, because that would make \"forgot to map it\" and \"deliberately unlimited\" the same value. THE WIRING, asserted per seam because the two share no code: dropping the `rateLimit` port from the tRPC route reds (@app/api treats a missing port as an UNLIMITED router — correct for a worker or a test, which is exactly why the absence cannot be caught from inside the router), and a Server Action with a budget it never consults reds, as does an exported *Action with no budget entry at all. Anti-vacuity: malformed JSON, an empty bucket set, a bucket or exemption with a thin reason, missing ceilings, a budget above its ceiling, a window long enough never to close, a mapping to an undeclared bucket, a declared bucket nothing spends from, and an unrecorded fail-open decision all FAIL CLOSED; the adoption ramp covers only the pre-0.2.0 tree with no budget file. THE ROUTER HALF is proven by packages/api/src/ratelimit.test.ts — a vitest suite, carried by the `unit` step rather than spawnable from here: the router half, proven against a database that THROWS if it is ever touched: a rate limit that lets the handler run and then reports the refusal has bought nothing, because the transaction, the audit row and the quota check are already paid for. Also proven: the guard rides the BASE of the ladder (notes.list, three rungs up, is refused too), the wait travels on a CLASS cause rather than a duck-typed field, a null verdict and an allowed verdict are both honoured but stay distinguishable, and the port is asked with the ACTIVE org — resolved from real seats, never from the x-org-id header a stranger could set to spend a tenant's budget."
       }
     ],
     "parity": [
@@ -219,22 +220,22 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/build-check.test.mjs",
-        "note": "gzip ratchet: a committed tools/perf-baseline.json with a tiny total \u2192 build red naming measured vs baseline \u00d7 ratioCap and the `pnpm perf:baseline` re-baseline ceremony; exactly AT the cap stays green; absent baseline \u2192 NOTE naming the file+command while the absolute byte budgets keep enforcing; malformed baseline JSON/shape \u2192 red, never fail-open; bundle-purity markers (postgres DSNs, EXPO_TOKEN, sk_live_) in a fixture dist red"
+        "note": "gzip ratchet: a committed tools/perf-baseline.json with a tiny total → build red naming measured vs baseline × ratioCap and the `pnpm perf:baseline` re-baseline ceremony; exactly AT the cap stays green; absent baseline → NOTE naming the file+command while the absolute byte budgets keep enforcing; malformed baseline JSON/shape → red, never fail-open; bundle-purity markers (postgres DSNs, EXPO_TOKEN, sk_live_) in a fixture dist red"
       },
       {
         "kind": "selftest",
-        "ref": "Canary 12: a tiny committed perf-baseline \u2192 the build gzip ratchet must FAIL"
+        "ref": "Canary 12: a tiny committed perf-baseline → the build gzip ratchet must FAIL"
       }
     ],
     "styleguide": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-styleguide-manifest.test.mjs",
-        "note": "raw hex/rgb()/named-color literals in color positions red; numeric literals in dimension style keys red; inline style={{\u2026}} raw numerics outside the components home red; a hand-edited tokens.gen.ts reds the regen-diff; a below-min contrast pair (AAA 7:1 body pairs, AA 4.5 elsewhere) reds with the computed ratio; primitive-boundary (controlPrimitives) and status-surface (statusSurfaces) scans red per manifest data, and their allow lists fail closed on malformed/stale entries; 0.1.2 design-depth: literal duration:/delay: numerics red (motion tokens own the vocabulary), raw Animated./LayoutAnimation./Easing. references outside the motion seam + components home red with NO allow escape, raw shadow*/elevation style keys outside the tokens module red, a home file styling a raw control without a sizes.minTarget reference reds, and a raw pressable styled outside controlPrimitives.base reds \u2014 each keyed on its manifest key (keyless manifests self-disable with ONE combined adoption NOTE; malformed keys and stale seam/base paths fail closed)"
+        "note": "raw hex/rgb()/named-color literals in color positions red; numeric literals in dimension style keys red; inline style={{…}} raw numerics outside the components home red; a hand-edited tokens.gen.ts reds the regen-diff; a below-min contrast pair (AAA 7:1 body pairs, AA 4.5 elsewhere) reds with the computed ratio; primitive-boundary (controlPrimitives) and status-surface (statusSurfaces) scans red per manifest data, and their allow lists fail closed on malformed/stale entries; 0.1.2 design-depth: literal duration:/delay: numerics red (motion tokens own the vocabulary), raw Animated./LayoutAnimation./Easing. references outside the motion seam + components home red with NO allow escape, raw shadow*/elevation style keys outside the tokens module red, a home file styling a raw control without a sizes.minTarget reference reds, and a raw pressable styled outside controlPrimitives.base reds — each keyed on its manifest key (keyless manifests self-disable with ONE combined adoption NOTE; malformed keys and stale seam/base paths fail closed)"
       },
       {
         "kind": "selftest",
-        "ref": "Canary 8: raw hex + inline-style literals in a screen \u2192 styleguide must FAIL"
+        "ref": "Canary 8: raw hex + inline-style literals in a screen → styleguide must FAIL"
       }
     ],
     "perf-budget": [
@@ -248,11 +249,16 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-route-manifest.test.mjs",
-        "note": "expo-router derivation: an app/ route file claimed by no ROUTES entry reds; a manifest path disagreeing with the derived URL ((group) elision, index\u2192parent, [param]\u2192:param, [...param]\u2192*param) reds; missing states.loading/empty/error test ids red; stale manifest/allowlist entries naming missing files red; +not-found is required; an empty ROUTES array reds"
+        "note": "expo-router derivation: an app/ route file claimed by no ROUTES entry reds; a manifest path disagreeing with the derived URL ((group) elision, index→parent, [param]→:param, [...param]→*param) reds; missing states.loading/empty/error test ids red; stale manifest/allowlist entries naming missing files red; +not-found is required; an empty ROUTES array reds"
       },
       {
         "kind": "selftest",
-        "ref": "Canary 9: an orphan app/ route file + an unregistered screen \u2192 route-manifest must FAIL"
+        "ref": "Canary 9: an orphan app/ route file + an unregistered screen → route-manifest must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-web-routes.test.mjs",
+        "note": "the App Router half (0.6.0, the second script in this one step): an apps/web/app page with no colocated page.meta.ts reds and the message names the URL it would be served at; a declared state test id that nothing in the route's OWN segment renders reds (the web half has no runtime states sweep, so this is what keeps a declaration from being a claim nothing checks) and a CHILD segment's markup does not satisfy a parent's declaration; app/not-found.tsx missing reds; a meta change without regenerating reds apps/web/lib/routes.generated.ts as stale; an allowlist entry naming a deleted page reds; a null state with no reviewed unreachableStates row reds; two pages resolving to one URL through route groups red; a titleKey absent from the web catalog reds"
       }
     ],
     "security-headers": [
@@ -263,7 +269,7 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 21: delete a CSP directive \u2192 security-headers must FAIL"
+        "ref": "Canary 21: delete a CSP directive → security-headers must FAIL"
       }
     ],
     "e2e": [
@@ -274,7 +280,7 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 11: a zero-test jest run \u2192 the e2e gate must FAIL (anti-vacuity)"
+        "ref": "Canary 11: a zero-test jest run → the e2e gate must FAIL (anti-vacuity)"
       }
     ],
     "docs-sync": [
@@ -284,7 +290,7 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 13: remove a numbered gates-catalog section \u2192 docs-sync must FAIL"
+        "ref": "Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL"
       }
     ],
     "validate": [
@@ -301,8 +307,8 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 17: drop the keyset index \u2192 the RLS structure test must FAIL (owner column no longer leads an index)",
-        "note": "the live direction (bootstrap-linux, real scaffold + the Supabase local stack): the RLS suite runs green, then both indexes whose leading column is notes.org_id (notes_org_id_created_at_id_idx and the notes_pkey that became (org_id, id)) are dropped live and `supabase test db` (the pgTAP structure suite) must red on the 'every owner column is the LEADING column of some index' invariant \u2014 proof the assertion is wired to the real schema, not a statement nobody runs"
+        "ref": "Canary 17: drop the keyset index → the RLS structure test must FAIL (owner column no longer leads an index)",
+        "note": "the live direction (bootstrap-linux, real scaffold + the Supabase local stack): the RLS suite runs green, then both indexes whose leading column is notes.org_id (notes_org_id_created_at_id_idx and the notes_pkey that became (org_id, id)) are dropped live and `supabase test db` (the pgTAP structure suite) must red on the 'every owner column is the LEADING column of some index' invariant — proof the assertion is wired to the real schema, not a statement nobody runs"
       }
     ],
     "unit": [
@@ -327,8 +333,8 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 27: an uncovered apps/web/lib file \u2192 diff-coverage must FAIL (the 0.4.0 web surface)",
-        "note": "the 0.4.0 widening, end-to-end on a real scaffold that already holds merged istanbul maps. Through 0.3.0 SRC_RE was `^(?:apps|packages)/[^/]+/src/`, which matched neither apps/web (app/ and lib/, no src/) nor any LAYERED package (platform/*, verticals/*) \u2014 so half the product and most of the packages were outside the per-file floors while the gate's own description claimed 'every CHANGED source file'. A fixture proves the regex; only a scaffold proves the regex, the new web unit project, COVERAGE_EXCLUDE and the two-map merge all agree. The second half is the harder assertion: apps/web/app must stay UNJUDGED, because a root the gate demands coverage for that no runner measures reports 0% with no green path, and the only edit that restores green is lowering the floors."
+        "ref": "Canary 27: an uncovered apps/web/lib file → diff-coverage must FAIL (the 0.4.0 web surface)",
+        "note": "the 0.4.0 widening, end-to-end on a real scaffold that already holds merged istanbul maps. Through 0.3.0 SRC_RE was `^(?:apps|packages)/[^/]+/src/`, which matched neither apps/web (app/ and lib/, no src/) nor any LAYERED package (platform/*, verticals/*) — so half the product and most of the packages were outside the per-file floors while the gate's own description claimed 'every CHANGED source file'. A fixture proves the regex; only a scaffold proves the regex, the new web unit project, COVERAGE_EXCLUDE and the two-map merge all agree. The second half is the harder assertion: apps/web/app must stay UNJUDGED, because a root the gate demands coverage for that no runner measures reports 0% with no green path, and the only edit that restores green is lowering the floors."
       }
     ],
     "duplication": [
@@ -339,34 +345,34 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 14: a pasted token clone across two modules \u2192 duplication must FAIL"
+        "ref": "Canary 14: a pasted token clone across two modules → duplication must FAIL"
       },
       {
         "kind": "selftest",
-        "ref": "Canary 28: the same clone spanning apps/web \u2192 duplication must FAIL (the 0.4.0 web surface)",
-        "note": "Canary 14 pastes between two apps/mobile modules, which the pre-0.4.0 SCAN_ROOTS already reached, so it could not have caught the gap. This one crosses the boundary that was NOT scanned \u2014 packages/verticals/notes/src to apps/web/lib \u2014 which is also the likeliest real one, because that is where a vertical's server logic gets re-implemented for a Server Action. It asserts the failure NAMES the apps/web side, so a red caused by some other clone cannot stand in for it."
+        "ref": "Canary 28: the same clone spanning apps/web → duplication must FAIL (the 0.4.0 web surface)",
+        "note": "Canary 14 pastes between two apps/mobile modules, which the pre-0.4.0 SCAN_ROOTS already reached, so it could not have caught the gap. This one crosses the boundary that was NOT scanned — packages/verticals/notes/src to apps/web/lib — which is also the likeliest real one, because that is where a vertical's server logic gets re-implemented for a Server Action. It asserts the failure NAMES the apps/web side, so a red caused by some other clone cannot stand in for it."
       }
     ],
     "i18n": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-i18n.test.mjs",
-        "note": "STATIC half: a hardcoded user-facing string (JSX text, accessibilityLabel/placeholder/label/title/alt, or the copy-carrying object literals) reds naming the string + the catalog key to add; Intl./toLocale*/.toFixed( outside apps/mobile/src/i18n/ reds; a dead catalog key reds; the polyfill/locale-data closure reds both ways; tools/i18n-allow.json fails closed on malformed/stale entries. The BEHAVIOURAL half (pseudo-locale + RTL sweep) lives in the RNTL fast lane and the W6 Maestro lane \u2014 a runtime-assembled string is invisible to this scan by construction (stated in the gate header)."
+        "note": "STATIC half: a hardcoded user-facing string (JSX text, accessibilityLabel/placeholder/label/title/alt, or the copy-carrying object literals) reds naming the string + the catalog key to add; Intl./toLocale*/.toFixed( outside apps/mobile/src/i18n/ reds; a dead catalog key reds; the polyfill/locale-data closure reds both ways; tools/i18n-allow.json fails closed on malformed/stale entries. The BEHAVIOURAL half (pseudo-locale + RTL sweep) lives in the RNTL fast lane and the W6 Maestro lane — a runtime-assembled string is invisible to this scan by construction (stated in the gate header)."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 16: a hardcoded user-facing string \u2192 the static i18n gate must FAIL"
+        "ref": "Canary 16: a hardcoded user-facing string → the static i18n gate must FAIL"
       }
     ],
     "test-quality": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-test-quality.test.mjs",
-        "note": "an assertion-free test body reds naming the test; a committed .only reds with NO reviewed escape; .skip/.todo modifiers red as declared-never-run; an assertion inside a comment does not satisfy the gate; tools/test-quality-allow.json mutes by test title and a missing reason fails closed. Deliberately GAMEABLE ALONE (expect(true).toBe(true) clears it) \u2014 the primary control is the mutation lane."
+        "note": "an assertion-free test body reds naming the test; a committed .only reds with NO reviewed escape; .skip/.todo modifiers red as declared-never-run; an assertion inside a comment does not satisfy the gate; tools/test-quality-allow.json mutes by test title and a missing reason fails closed. Deliberately GAMEABLE ALONE (expect(true).toBe(true) clears it) — the primary control is the mutation lane."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 15: a committed .only \u2192 test-quality must FAIL"
+        "ref": "Canary 15: a committed .only → test-quality must FAIL"
       }
     ],
     "mobile-perf": [
@@ -377,7 +383,33 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 10: a route with no Maestro flow / no startup-budget row \u2192 the mobile-perf closure must FAIL"
+        "ref": "Canary 10: a route with no Maestro flow / no startup-budget row → the mobile-perf closure must FAIL"
+      }
+    ],
+    "auth-posture": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-auth-posture.test.mjs",
+        "note": "the [auth] posture closure, both directions over a real supabase/config.toml: a widened jwt_expiry reds naming both values; a MISSPELLED key reds TWICE (the reviewed key is missing AND an unreviewed key is present) which is the case the 0.6.0 spike motivated, since the CLI ignores an unknown [auth] key with no error and no warning; enable_anonymous_sign_ins=true reds; a deleted reviewed line reds because an absent key silently gets the CLI's default; a wildcard or over-count redirect entry reds; a plaintext site_url reds on shape while a filled-in https one does not; a renamed section reds in BOTH directions (present-but-unreviewed and reviewed-but-absent) which is how the shipped [inbucket] deprecation was found; a missing or malformed tools/auth-posture.json fails CLOSED; TOML the reader cannot parse fails rather than judging the part it could read"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/session-transport.test.mjs",
+        "note": "0.6.0's SESSION TRANSPORT closure, judged inside this step because [auth] in config.toml is the posture of the auth SERVER and this is the posture of the WIRE. Three axes, and every injection is the code that ACTUALLY SHIPPED rather than an invented violation. (1) TRANSPORT AGREEMENT: the browser client constructed with no `storage` while the server reads the cookie jar — the seeded web app's real state for two releases, in which sign-in succeeded, the session went to localStorage, every protected server render saw an anonymous caller, and the layout redirected back to /sign-in. A SIGN-IN LOOP in the scaffold's primary flow. The pairing is the defect and neither half is wrong alone, so the proof also pins that an SPA browser client with no cookie-reading server stays CLEAN. (2) EVERY WRITER: dropping `cookieOptions` at either server call site reds, because this client REWRITES the session cookie and an attribute one writer omits is one it strips off the value another set — a posture held at two of three writers is a silent downgrade, not a posture. The factory's own DEFINITION must NOT be read as a call site, which is pinned too. (3) PROSE: an unavailable attribute may be NAMED only to DISCLAIM it — the injection is cookie-server.ts's real prior text, `The host supplies secure and httpOnly`, which was one of FOUR comments asserting a property no code set and none could, since the browser writes this cookie and a user agent ignores HttpOnly on a document.cookie write. WHY NOTHING SAW ANY OF IT: `storage` is legitimately optional so the type-checker was right to be silent; the unit suite tested the cookie CODEC with options passed in, never the WIRING that passes them; knip was told to ignore the one dependency whose missing import would have shouted; and every spec in the browser lane is anonymous, so no test in this repository has ever completed a successful sign-in."
+      }
+    ],
+    "data-flow": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-data-flow.test.mjs",
+        "note": "the DSR closure over a real supabase/migrations + supabase/schemas, twenty proofs. The headline is an FK with NO ON DELETE CLAUSE: PostgreSQL treats the omission as NO ACTION, so the spelling that makes account deletion FAIL is the one that looks like every other column definition, and it reds naming both Art. 17 and Apple 5.1.1(v). RESTRICT reds the same way; a blockingAllowed escape reds unless its `procedure` is a real file. A severed link reds unreviewed, reds stale, and reds on a reason under 40 chars. A pii-columns.json entry that is neither erased nor severed nor retained reds — the lower-bound closure that makes the two files reinforce without either changing purpose. A retained entry for a column that IS cascade-erased reds (a gap claimed where none exists), as does one whose procedure file is absent. The export half reds on a projected column no migration creates, on a subject-data table that is neither projected nor excluded, on a surface:none with no dated target, and on a surface naming a procedure file that is not there. A DECLARATIVE SCHEMA disagreeing with the applied history on ON DELETE reds — the only place in the repo those two directories are compared on a column fact. A missing policy fails CLOSED and counts what it found. Three unit proofs cover the reachability core: the CASCADE closure is transitive (a one-pass reader is wrong at depth 2), a DROPPED-and-re-ADDed constraint reads as the LAST word (the shipped notes.owner_id CASCADE -> SET NULL swap), and a DROPPED constraint with no replacement leaves no reference behind — including the auto-generated `<table>_<column>_fkey` name real migrations drop."
+      }
+    ],
+    "reviewer-verdicts": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-reviewer-verdicts.test.mjs",
+        "note": "the process layer, both halves, twenty-one proofs. THE HEADLINE IS `LAST TURN'S PASS DOES NOT SATISFY THIS TURN`: the ledger is append-only across a session, so an entry keyed to an earlier prompt_id is exactly what a naive reader would accept — and accepting it would report coverage from work somebody did an hour ago, silently, which is the one failure mode here no later check would catch. A PASS from a different SESSION is rejected for the same reason. On the HOOK side: a reviewer whose final message does not end in the mandated form is BLOCKED with exit 2, which turns check-docs-sync's file-shape assertion into a behavioural one; readVerdict reads the LAST non-empty line, so `VERDICT: PASS` written inside a sentence about what a pass would mean is not an attestation; malformed JSON fails closed in the shared hookio plumbing and a payload that parses but is not an object fails closed in the hook itself; an AUTHOR agent (dal-author) is silently ignored, because the roster is DERIVED from `disallowedTools: Write, Edit` rather than listed. On the STEP side: no ledger reds, a ledger holding only another reviewer reds and NAMES THE PATH that summoned the missing one, a BLOCK verdict reds, an unparseable ledger and a line missing its verdict both fail closed, a missing trigger table is a broken control rather than an empty policy, and a step with no HARNESS_SESSION_ID/HARNESS_PROMPT_ID fails closed in CI because the hook that supplies them must have changed. The glob matcher is proven on the case that would silently summon nobody: `**/` matching ZERO segments, so apps/web/app/**/page.tsx covers the root route."
       }
     ]
   },
@@ -404,10 +436,7 @@
     },
     "pretool-mcp-guard.mjs": {
       "denyToolCallSites": 8,
-      "denyExamples": [
-        "mcp__wide__apply_migration",
-        "mcp__wide__execute_sql"
-      ]
+      "denyExamples": ["mcp__wide__apply_migration", "mcp__wide__execute_sql"]
     }
   },
   "lanes": {
@@ -415,50 +444,50 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/summarize-gate.test.mjs",
-        "note": "The fan-in job an enterprise marks required. Its verdict lives in tools/ci/summarize-gate.mjs precisely so it can be falsified here rather than being an untestable YAML expression: one failure -> exit 1 naming the job, one cancelled -> exit 1, an EMPTY needs context -> exit 1 (a summary over nothing is not a pass), and all-success-with-skips -> exit 0 with every skipped lane named. The last case is the load-bearing one \u2014 `if: always()` makes a skipped need indistinguishable from a passed one, so getting it wrong recreates the silent-skip problem inside the one status a reviewer trusts most."
+        "note": "The fan-in job an enterprise marks required. Its verdict lives in tools/ci/summarize-gate.mjs precisely so it can be falsified here rather than being an untestable YAML expression: one failure -> exit 1 naming the job, one cancelled -> exit 1, an EMPTY needs context -> exit 1 (a summary over nothing is not a pass), and all-success-with-skips -> exit 0 with every skipped lane named. The last case is the load-bearing one — `if: always()` makes a skipped need indistinguishable from a passed one, so getting it wrong recreates the silent-skip problem inside the one status a reviewer trusts most."
       }
     ],
     "static": [
       {
         "kind": "steps",
-        "note": "runs `node tools/validate.mjs --min-floor` \u2014 every step in it is proven in #steps above."
+        "note": "runs `node tools/validate.mjs --min-floor` — every step in it is proven in #steps above."
       }
     ],
     "unit": [
       {
         "kind": "steps",
-        "note": "runs vitest --coverage, the jest-expo coverage run, check-diff-coverage, check-duplication and check-test-quality \u2014 all proven in #steps above."
+        "note": "runs vitest --coverage, the jest-expo coverage run, check-diff-coverage, check-duplication and check-test-quality — all proven in #steps above."
       }
     ],
     "mutation": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-mutation-ratchet.test.mjs",
-        "note": "the PRIMARY assertion-quality control \u2014 the only check that asks what coverage cannot: change the code, does a test go red? A surviving mutant the committed baseline does not accept reds the lane naming file, mutator and the exact edit; an accepted survivor with an EMPTY reason reds; a NoCoverage mutant counts as a survivor; identity is position-independent; an absent baseline self-disables locally and FAILS CLOSED in CI."
+        "note": "the PRIMARY assertion-quality control — the only check that asks what coverage cannot: change the code, does a test go red? A surviving mutant the committed baseline does not accept reds the lane naming file, mutator and the exact edit; an accepted survivor with an EMPTY reason reds; a NoCoverage mutant counts as a survivor; identity is position-independent; an absent baseline self-disables locally and FAILS CLOSED in CI."
       },
       {
         "kind": "selftest",
         "ref": "an untested branch must red the mutation lane",
-        "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-gated patch-grace branch added to the well-mutation-covered packages/api/src/skew.ts (the version-skew floor) leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red \u2014 checked, not asserted."
+        "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-gated patch-grace branch added to the well-mutation-covered packages/api/src/skew.ts (the version-skew floor) leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red — checked, not asserted."
       }
     ],
     "runtime-rls": [
       {
         "kind": "steps",
-        "note": "runs `node tests/rls/run-rls.mjs` \u2014 proven under the 'rls-isolation' step above (fail-closed selftest proof; the W6 bootstrap lane arms the keyset plan-probe canary)."
+        "note": "runs `node tests/rls/run-rls.mjs` — proven under the 'rls-isolation' step above (fail-closed selftest proof; the W6 bootstrap lane arms the keyset plan-probe canary)."
       }
     ],
     "e2e-fast": [
       {
         "kind": "steps",
-        "note": "runs the jest-expo RNTL suite behind the `e2e` step (states sweep over every ROUTES entry, flows, boot, primitives a11y) \u2014 proven under the 'e2e' step above, whose gate asserts the run is neither failing nor vacuous."
+        "note": "runs the jest-expo RNTL suite behind the `e2e` step (states sweep over every ROUTES entry, flows, boot, primitives a11y) — proven under the 'e2e' step above, whose gate asserts the run is neither failing nor vacuous."
       }
     ],
     "integration-lane": [
       {
         "kind": "selftest",
-        "ref": "Canary C01: strip the Authorization header from the api-client one door \u2192 the live suite must FAIL",
-        "note": "the selftest `integration` job runs the SAME LIVE_PROOF suite this lane runs, against a real scaffold + server + Postgres: green baseline, then the one bearer-attaching line is stripped and the suite must red with an auth-shaped failure, then green again after the revert \u2014 the exact no-Authorization defect class the desktop-era source harness shipped while every mocked lane stayed green"
+        "ref": "Canary C01: strip the Authorization header from the api-client one door → the live suite must FAIL",
+        "note": "the selftest `integration` job runs the SAME LIVE_PROOF suite this lane runs, against a real scaffold + server + Postgres: green baseline, then the one bearer-attaching line is stripped and the suite must red with an auth-shaped failure, then green again after the revert — the exact no-Authorization defect class the desktop-era source harness shipped while every mocked lane stayed green"
       }
     ],
     "changes": [
@@ -470,11 +499,11 @@
     "native": [
       {
         "kind": "steps",
-        "note": "prebuild-x2 determinism: runs `expo prebuild` twice from a clean tree and diffs \u2014 the assertion is a byte compare whose non-zero exit is the red, plus expo-doctor and gates proven in #steps."
+        "note": "prebuild-x2 determinism: runs `expo prebuild` twice from a clean tree and diffs — the assertion is a byte compare whose non-zero exit is the red, plus expo-doctor and gates proven in #steps."
       },
       {
         "kind": "selftest",
-        "ref": "Canary 18: a config plugin emitting run-dependent output \u2192 the prebuild \u00d72 tree compare must FAIL",
+        "ref": "Canary 18: a config plugin emitting run-dependent output → the prebuild ×2 tree compare must FAIL",
         "note": "end-to-end on a real scaffold (bootstrap-linux): the clean double-prebuild is byte-stable (positive control), then a Date.now()-stamping config plugin is injected and the SAME tree-hash compare the native lane runs must see the mismatch"
       }
     ],
@@ -486,8 +515,8 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 19: a broken route-surface testID \u2192 the device sweep must FAIL while the agent-time jest lane stays GREEN",
-        "note": "the honest-loss proof on a REAL emulator (maestro-smoke, schedule/dispatch \u2014 emulator cost keeps it off the per-PR path): breaking the home container testID leaves tools/check-e2e.mjs green (asserted \u2014 the fast lane's blindness is real) while the device sweep reds naming the surface. Both halves checked, so the lane provably adds coverage the chain does not have"
+        "ref": "Canary 19: a broken route-surface testID → the device sweep must FAIL while the agent-time jest lane stays GREEN",
+        "note": "the honest-loss proof on a REAL emulator (maestro-smoke, schedule/dispatch — emulator cost keeps it off the per-PR path): breaking the home container testID leaves tools/check-e2e.mjs green (asserted — the fast lane's blindness is real) while the device sweep reds naming the surface. Both halves checked, so the lane provably adds coverage the chain does not have"
       }
     ],
     "perf-lane": [
@@ -498,104 +527,109 @@
       },
       {
         "kind": "selftest",
-        "ref": "Canary 20: a 300ms busy-loop on the actions ranking path \u2192 the perf-harness marker must go RED",
-        "note": "the wall-clock canary on a REAL emulator (maestro-smoke, schedule/dispatch): a 300ms stall injected into rankCommands must flip the dev perf-harness screen's self-measured marker to perf-fail and red the journey, then green again after the revert \u2014 the interaction floor has been SEEN failing, so it is not decoration"
+        "ref": "Canary 20: a 300ms busy-loop on the actions ranking path → the perf-harness marker must go RED",
+        "note": "the wall-clock canary on a REAL emulator (maestro-smoke, schedule/dispatch): a 300ms stall injected into rankCommands must flip the dev perf-harness screen's self-measured marker to perf-fail and red the journey, then green again after the revert — the interaction floor has been SEEN failing, so it is not decoration"
       }
     ],
     "web-e2e": [
       {
         "kind": "fixture",
         "ref": "tests/gates/check-web-e2e.test.mjs",
-        "note": "the lane runner's own falsifiability, spawned for real against a fake pnpm: a missing playwright.config reds, an empty e2e suite reds (playwright exits 0 on an empty run \u2014 the whole reason the lane runs a runner, not a bare `playwright test`), an assertion-free spec reds, a spec set with no axe scan reds, a failing `playwright test` reds, and the skip-local/fail-closed-CI asymmetry holds. The browser run itself is CI-only (needs Chromium), like the Maestro emulator half of mobile-e2e."
+        "note": "the lane runner's own falsifiability, spawned for real against a fake pnpm: a missing playwright.config reds, an empty e2e suite reds (playwright exits 0 on an empty run — the whole reason the lane runs a runner, not a bare `playwright test`), an assertion-free spec reds, a spec set with no axe scan reds, a failing `playwright test` reds, and the skip-local/fail-closed-CI asymmetry holds. The browser run itself is CI-only (needs Chromium), like the Maestro emulator half of mobile-e2e."
       },
       {
         "kind": "fixture",
         "ref": "tests/gates/check-web-e2e.test.mjs",
         "note": "anySecurityHeaders closure (0.2.0): a spec set that never reads response.headers() AND collects securitypolicyviolation reds the lane, exactly as a spec set with no axe scan does. This is what stops the static security-headers gate standing alone - a correct next.config.ts behind a header-stripping CDN, or a nonce that never reaches Next's inline bootstrap, is invisible to a static value check."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-web-e2e.test.mjs",
+        "note": "the AUTHENTICATED-RENDER axis (0.6.0), and the injection is the suite this lane ACTUALLY SHIPPED WITH. Every spec in it was anonymous: home.spec.ts renders the public landing route, security-headers.spec.ts reads `/`, and tenancy.spec.ts says in its own header that it runs WITHOUT a seeded session -- its one sign-in submits a deliberately WRONG password, to prove the error copy is not an account-existence oracle. So no test in this repository had ever completed a successful sign-in, while the seeded web app shipped for two releases in a state where nobody could: the browser client was constructed with no `storage`, supabase-js persisted the session to localStorage (its documented default), and every server reader took it from the COOKIE JAR. Sign-in succeeded, the protected layout's getVerifiedUser() saw nothing, and it redirected straight back to /sign-in. The lane ran on every PR touching apps/web/** and was green throughout. THAT IS VACUITY INSIDE A LANE THAT RAN -- past what \"'exists' is not 'ran'\" catches -- and docs/harness/enforcement-tiers.md names this lane as the compensating control on NINE rows, including the one that exempts apps/web/app from unit coverage on the grounds that a real browser proves it. THREE MARKERS, two positive and one negative, each encoding one half of the defect: a REAL IDENTITY (auth.admin.createUser / auth.signUp / admin.generateLink), a FULL RELOAD (page.reload(), because replace()+refresh() are client-side and React still holds the signed-in render -- only a fresh document request makes the server re-read the cookie), and NOT context.addCookies in that same spec, since a planted session proves the SERVER reads a cookie and says nothing about what the BROWSER writes. The proofs: an entirely anonymous suite reds; a sign-in with the reload deleted reds; a planted session reds however thoroughly it reloads; and a marker named only in PROSE satisfies nothing, because every axis reads code with comments blanked -- the shipped authenticated spec DESCRIBES context.addCookies() in the paragraph explaining why it refuses to use it, and was disqualified by its own explanation until that was fixed. THE HONEST LIMIT, stated in the runner rather than hidden: a static reader cannot tell that the assertion after the reload is about a protected route, so this closes the drift back to anonymous-only rather than proving the assertion is the right one. AND THE SPEC ITSELF WAS EXECUTED, not merely read -- against a real Chromium, a real production build (next build && next start, the artifact that ships) and a real Supabase stack. On the fixed tree: 3 passed. On the same tree with apps/web/lib/supabase/client.ts reverted to the zero-argument createBrowserSupabaseClient() it shipped with: 3 FAILED, received URL http://127.0.0.1:3117/sign-in -- the sign-in loop, watched happening rather than argued about. Running it also found two defects a reading would not have: quality-gate.yml's web-e2e job pinned NODE_ENV: development, under which next build dies prerendering the error boundaries (exit 1 with it, exit 0 without, same tree), so the shipped lane could never have reached its first assertion; and the spec's own fixture identity was a race, because fullyParallel hands the three tests to three workers and beforeAll runs once per worker, so they collided on one email and the first teardown deleted the account the others were using."
       }
     ],
     "db-scale": [
       {
         "kind": "selftest",
-        "ref": "Canary 24: drop the keyset index from the live database \u2192 db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN",
-        "note": "The lane exists because every structural check in this repo is true of a two-row table, and the planner correctly ignores an index on one \u2014 so the one claim the tenancy design rests on (that `org_id = ANY(<InitPlan uuid[]>)` with the keyset order is an ORDERED INDEX SCAN) had nothing that could contradict it. The canary is applied to the LIVE DATABASE, no file changes, exactly like Canary 23: the index is still declared in the migration and in supabase/schemas, so every gate that reads TEXT is looking at an unchanged tree. MEASURED, not assumed: db-perf reds on all three ordered shapes at once (a Sort node, the planner choosing notes_pkey instead of the index the static gate resolved, and 1491 buffers against a 900 budget) while schema-rls, tenancy, query-shapes and all 109 pgTAP tests stay green. It is deliberately NOT the same edit as Canary 17, and the difference is the lesson: that one must drop the keyset index AND the primary key, because pgTAP's leading-column assertion is satisfied by either \u2014 this one drops only the secondary index, so the PK still carries org_id and the structural suite cannot see a thing. Two other spellings of this proof were tried and rejected because they do not actually degrade the plan: the release plan's `org_id::text = $1::text` policy rewrite (a cast in the POLICY leaves the DAL's own indexable equality in place) and making the tenancy helper VOLATILE (an uncorrelated sub-select becomes an InitPlan regardless of volatility). The positive control runs first, and its output is the design's central claim made visible: an InitPlan node with loops=1 and `org_id = ANY((InitPlan 1).col1)` inside the Index Cond rather than in a Filter."
+        "ref": "Canary 24: drop the keyset index from the live database → db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN",
+        "note": "The lane exists because every structural check in this repo is true of a two-row table, and the planner correctly ignores an index on one — so the one claim the tenancy design rests on (that `org_id = ANY(<InitPlan uuid[]>)` with the keyset order is an ORDERED INDEX SCAN) had nothing that could contradict it. The canary is applied to the LIVE DATABASE, no file changes, exactly like Canary 23: the index is still declared in the migration and in supabase/schemas, so every gate that reads TEXT is looking at an unchanged tree. MEASURED, not assumed: db-perf reds on all three ordered shapes at once (a Sort node, the planner choosing notes_pkey instead of the index the static gate resolved, and 1491 buffers against a 900 budget) while schema-rls, tenancy, query-shapes and all 109 pgTAP tests stay green. It is deliberately NOT the same edit as Canary 17, and the difference is the lesson: that one must drop the keyset index AND the primary key, because pgTAP's leading-column assertion is satisfied by either — this one drops only the secondary index, so the PK still carries org_id and the structural suite cannot see a thing. Two other spellings of this proof were tried and rejected because they do not actually degrade the plan: the release plan's `org_id::text = $1::text` policy rewrite (a cast in the POLICY leaves the DAL's own indexable equality in place) and making the tenancy helper VOLATILE (an uncorrelated sub-select becomes an InitPlan regardless of volatility). The positive control runs first, and its output is the design's central claim made visible: an InitPlan node with loops=1 and `org_id = ANY((InitPlan 1).col1)` inside the Index Cond rather than in a Filter."
       }
     ],
     "actionlint": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "actionlint over every workflow: a syntax or expression error is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "actionlint over every workflow: a syntax or expression error is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "zizmor": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "zizmor over every workflow: an unpinned action, an injectable expression or an over-broad token is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "zizmor over every workflow: an unpinned action, an injectable expression or an over-broad token is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "harden-runner-coverage": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "HARNESS-AUTHORED, not a vendor lane: a deterministic grep asserting every job in every workflow declares harden-runner first (Windows included, audit mode). Its red-proof is the shell itself \u2014 delete the harden-runner line from any job and the loop's status goes non-zero. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "HARNESS-AUTHORED, not a vendor lane: a deterministic grep asserting every job in every workflow declares harden-runner first (Windows included, audit mode). Its red-proof is the shell itself — delete the harden-runner line from any job and the loop's status goes non-zero. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "adr-guard": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "HARNESS-AUTHORED: guarded surfaces changed without an ADR (or an `adr-exempt` label) exit non-zero. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "HARNESS-AUTHORED: guarded surfaces changed without an ADR (or an `adr-exempt` label) exit non-zero. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "analyze": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "CodeQL. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "CodeQL. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "gitleaks": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "gitleaks over the pushed history, against .gitleaks.toml. The CHAIN half \u2014 presence on every machine, in every turn \u2014 is the `secrets` step, whose rule ids this lane is held in lockstep with. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "gitleaks over the pushed history, against .gitleaks.toml. The CHAIN half — presence on every machine, in every turn — is the `secrets` step, whose rule ids this lane is held in lockstep with. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "squawk": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "squawk over changed migrations: a lock-taking or unsafe DDL statement is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "squawk over changed migrations: a lock-taking or unsafe DDL statement is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "append-only": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "HARNESS-AUTHORED: check-migrations.mjs re-asserted against the PR BASE (the local run diffs against HEAD, so only this catches a rewritten-then-committed migration), plus the ADR-coupling grep. Its step-level red-proof is tests/gates/check-migrations.test.mjs. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "HARNESS-AUTHORED: check-migrations.mjs re-asserted against the PR BASE (the local run diffs against HEAD, so only this catches a rewritten-then-committed migration), plus the ADR-coupling grep. Its step-level red-proof is tests/gates/check-migrations.test.mjs. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "stryker-full": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "The nightly full mutation run over the whole critical surface. Its red-proof is executed: selftest `canary-mutation` adds ONE untested branch to a well-covered file and asserts the mutation lane goes red while every other gate stays green. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "The nightly full mutation run over the whole critical surface. Its red-proof is executed: selftest `canary-mutation` adds ONE untested branch to a well-covered file and asserts the mutation lane goes red while every other gate stays green. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "scan-pr": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "OSV-Scanner over the lockfile on a PR: a known vulnerability in a resolved dependency is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "OSV-Scanner over the lockfile on a PR: a known vulnerability in a resolved dependency is its non-zero exit. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "scan-full": [
       {
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
-        "note": "OSV-Scanner over the full tree on a schedule. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything \u2014 that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
+        "note": "OSV-Scanner over the full tree on a schedule. The half of a vendor lane this repo OWNS. tests/gates/workflow-lanes.test.mjs cannot prove the scanner detects anything — that is the vendor's ruleset on the vendor's runner, and asserting it here would be theatre. It proves the half that has actually failed in the wild: a lane neutered by continue-on-error, disabled by a constant-false condition, emptied of steps, or stripped of the action it is NAMED for still appears in the checks list with a green tick, and a branch-protection rule only ever sees the name."
       }
     ],
     "web-build": [
@@ -609,7 +643,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/framework-floor.test.mjs",
-        "note": "0.5.0. Unlike its two neighbours in this workflow, this lane is NOT a vendor call \u2014 the harness owns every line of it, so the proof is executable rather than structural: the fixture backdates every reviewedUntil in a copy of the shipped floor, spawns tools/check-framework-floor.mjs, and asserts exit 1 naming the lapsed date; then it runs the SAME script against the SHIPPED floor and asserts exit 0, so the red is the backdating and not a broken script. The clock is a `--today=` parameter for exactly this reason \u2014 a red-proof that has to wait for a calendar is a red-proof nobody runs."
+        "note": "0.5.0. Unlike its two neighbours in this workflow, this lane is NOT a vendor call — the harness owns every line of it, so the proof is executable rather than structural: the fixture backdates every reviewedUntil in a copy of the shipped floor, spawns tools/check-framework-floor.mjs, and asserts exit 1 naming the lapsed date; then it runs the SAME script against the SHIPPED floor and asserts exit 0, so the red is the backdating and not a broken script. The clock is a `--today=` parameter for exactly this reason — a red-proof that has to wait for a calendar is a red-proof nobody runs."
       }
     ]
   }

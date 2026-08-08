@@ -34,6 +34,32 @@
 
 export { createBearerSupabaseClient } from './access-token.js'
 export { type BrowserClientOptions, createBrowserSupabaseClient } from './browser.js'
+// The cookie CODEC, on the browser barrel as well as the server one — and it has to be on
+// both, because the two sides must agree on a format byte for byte. apps/web's server reads
+// the session with `readChunkedCookie`; its browser must therefore WRITE with the matching
+// `cookieWrites`, or the jar the server reassembles is not the one the browser wrote. Two
+// implementations of "how a session is chunked across cookies" is two formats, and the one
+// that disagrees is the one that silently signs a user out.
+//
+// SAFE ON THIS BARREL, which is the load-bearing question here: cookies.ts imports nothing
+// but a type from session-storage.js — no next/*, no vendor SDK, no credential, no node
+// built-in. It is pure string manipulation over a jar the HOST supplies, so Metro resolves
+// it and mobile bundles a few hundred bytes of codec it never calls, exactly as it already
+// does for the browser factory next to it. What must never cross is the SERVER factory
+// (cookie-server.ts, which reaches next/headers through its host) and the service-role
+// factory; both stay on `.` and neither is re-exported here.
+// SOURCE: tools/exports-walls.json (@app/supabase's census entry)
+export {
+  chunkCookieValue,
+  cookieDeletions,
+  cookieSessionStorage,
+  cookieWrites,
+  readChunkedCookie,
+  type SupabaseCookie,
+  type SupabaseCookieAdapter,
+  type SupabaseCookieOptions,
+  type SupabaseCookieToSet,
+} from './cookies.js'
 export { isSecretKey, requireCredentials, type SupabaseCredentials } from './credentials.js'
 export {
   isRlsDenied,

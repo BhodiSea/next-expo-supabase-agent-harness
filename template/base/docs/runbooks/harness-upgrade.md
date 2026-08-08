@@ -235,12 +235,159 @@ the tree; they expire by version comparison, which is the mechanism working rath
 being removed. And there is still no flag that extends a deadline — as of this release that
 sentence is enforced: `scripts/check-ramp-ledger.mjs` compares every `until` against the
 previous release TAG's tree and reds on any date that moved later, unless a `rampExtensions`
-record in `template/migrations.json` names the file, the versions, and the reason.
+record in `template/migrations.json` names the file, the escape, the versions, and the
+reason. (0.6.0 corrected how a site is IDENTIFIED across releases — see its section below.
+Through 0.5.0 the comparison keyed on `minVersion`, so re-opening a ramp changed the key and
+moved the deadline unseen.)
 
 ### Then graduate
 
 `npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.5.0 once
 `pnpm validate` is green.
+
+## 0.6.0 — NOTHING NEW EXPIRES, and one deadline moves LATER
+
+Read this one if you are upgrading to 0.6.0. **Nothing newly expires here.** The
+release opens **seven** ramps — `auth-posture`, `data-flow`, `reviewer-verdicts`, the
+web half of `route-manifest`, the browser lane's authenticated-render axis, the
+`schema-rls` policy→grant closure, and a re-opened `docs-sync` — and all seven fall due
+at **0.7.0**, so every alarm you meet crossing this release is one you already owed.
+
+Two of the seven are worth naming here because their subject is content you must
+author, not a switch you flip:
+
+- **`schema-rls`'s policy→grant closure.** Every `CREATE POLICY` needs a matching table
+  `GRANT` behind it, because PostgreSQL checks privileges *before* row security — a
+  policy naming a role that holds nothing never runs. It works on your project today
+  only because Supabase's default privileges granted `anon`/`authenticated`/
+  `service_role` on every new table in `public`, and **those defaults stop applying to
+  projects created on or after 2026-10-30**. The NOTE prints the exact `GRANT` statement
+  for each finding; put them in a new migration. Do this before that date, not before
+  0.7.0.
+- **The browser lane's authenticated-render axis.** `update` does not hand you the
+  seeded `authenticated.spec.ts`, deliberately: its assertions name *this template's*
+  routes and test ids, and planting it would red your lane about your own app. Write one
+  against your routes — sign in through the form, then `page.reload()` and assert a
+  protected page still renders. That reload is the whole point; a client-side navigation
+  renders from state the tab already holds.
+
+**One deadline moves later, and it is recorded rather than quiet.** `docs-sync`'s
+AGENTS.md gate-list ramp expired at 0.5.0. This release injects a new chain step
+(`auth-posture`) into your `tools/harness.config.mjs`, which takes your chain to 32
+steps while your `AGENTS.md` still documents 31 — and `AGENTS.md` is **seeded**, so
+`update` will not rewrite your project memory and only you can fix it. Redding you
+for that on an upgrade you did not ask for is the ambush the ramp mechanism exists to
+prevent, so the escape re-opens at **0.7.0** and the NOTE prints the exact list of
+gate names to paste. `template/migrations.json`'s `0.6.0.rampExtensions` records the
+move, the reason, and the escape it applies to.
+
+What that means for you depends only on where you are coming from:
+
+| Your `baseVersion` | What 0.6.0 does to you |
+|---|---|
+| **0.4.0 or 0.5.0** | Nothing expires. Seven advisory NOTEs. `update`, sweep them, `graduate`. |
+| **0.3.0** | You meet the two 0.5.0 deadlines you have not met yet (`diff-coverage`, `wiring`) — **on the way through**, not because of this release. Follow the 0.5.0 section above. |
+| **0.2.0 / 0.2.1** | Seven of the 0.5.0 section's eight. The AGENTS.md gate-list one is the extension above: it is a NOTE now and a red at 0.7.0. |
+| **0.1.3** | Nineteen. Follow 0.4.0's section, then 0.5.0's. |
+
+**If you skipped 0.5.0, its section above is still your section.** A deadline is
+measured against `harnessVersion`, and `update` advances that to 0.6.0 in one step
+regardless of how many releases you crossed — so skipping a release does not skip its
+alarms, it batches them. This is the case the *"upgrade one minor at a time"* advice
+at the top of this file exists for: each `graduate` makes every ramp at or below it
+inert, so each step shrinks the next.
+
+**The honest count is still the command, never this table:**
+
+```sh
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'
+```
+
+Several of the twenty-six sites are adoption seams that fire only when the surface is
+genuinely absent from your tree, so a list written in prose will always over-state
+what YOUR install meets. (The count in that sentence was "nine of twenty-two" through
+0.6.0 and had been wrong since the fleet grew — which is the argument for the command,
+not for a better-maintained number.)
+
+### Sweeping the web route seam has a second half, and it is yours
+
+The web half of `route-manifest` is the one adoption seam in this release that `update`
+cannot finish for you, and the reason is worth understanding rather than working around.
+`update` delivers the new files — `apps/web/lib/routes.generated.ts`, a `page.meta.ts`
+beside each page, `not-found.tsx`, the `lib/i18n/` seam. It does **not** touch your page
+bodies, because those are yours.
+
+But a `page.meta.ts` **declares** state test ids, and the gate requires the page to
+**render** them: a declared-but-unrendered state is a claim nothing checks. So adopting
+the meta file alone leaves a finding the meta file itself created. For each page you
+adopt, render its ids in that page:
+
+```tsx
+import { meta } from './page.meta'
+// …
+<Card data-testid={meta.states.empty}>…</Card>
+```
+
+`data-testid={meta.states.<key>}` rather than the literal string is the form that cannot
+drift — the declaration and the render read the same value.
+
+If a state genuinely cannot occur on a route, declare it `null` with a reason in
+`tools/web-route-allowlist.json` `unreachableStates` instead. The shipped `orgs` route is
+the worked example of that judgement in the other direction: `resolveOrgs()` returns an
+empty list rather than throwing, so the route has no error branch to put a test id on.
+
+### THE ONE THAT IS A BUG FIX, NOT AN ADOPTION: your web sign-in is broken
+
+Every other item on this page is a new surface you are choosing to adopt. This one is
+different: **your install carries a functional defect that 0.6.0 fixed, and `update`
+cannot hand you the fix.**
+
+The seeded browser Supabase client was constructed without a `storage`, so
+`@supabase/supabase-js` persisted the session to `localStorage` — while every server
+render reads the **cookie jar**. `localStorage` is never sent with a request. So a
+correct sign-in succeeds, the server sees no session, and the protected route redirects
+straight back to `/sign-in`: **a sign-in loop**, on the shipped scaffold, invisible to any
+test that stops at "the credentials were accepted". The same wave removed four comments
+claiming `httpOnly` on a cookie a browser-side sign-in **cannot set it on** — a user agent
+ignores that attribute on a `document.cookie` write, so those comments named a control
+that was never there.
+
+`apps/web` and `packages/platform/*` are **yours** — `update` does not overwrite them, by
+design. So this is an edit you make. `auth-posture` names each site and the exact fix, and
+withholds the findings as NOTEs until **0.7.0**:
+
+```sh
+pnpm validate 2>&1 | grep -A2 'auth-posture: NOTE'
+```
+
+The nine files move **as one set**, because the fix does not decompose: the browser client
+takes a cookie-backed storage adapter that the platform package must export, and the
+server client takes the reviewed cookie attributes that the same module defines.
+
+| Where | What changed |
+|---|---|
+| `apps/web/lib/supabase/client.ts` | pass `storage: cookieSessionStorage(jar, { secure })` |
+| `apps/web/lib/supabase/server.ts` | pass the reviewed `cookieOptions` — this client REWRITES the cookie, so an omitted attribute is one it strips |
+| `apps/web/app/sign-in/page.tsx`, `sign-in-form.tsx` | the sign-in path, and the `httpOnly` comment that claimed a control it cannot have |
+| `packages/platform/supabase/src/{client,cookies,cookies.test,cookie-server,index}.ts` | the cookie session adapter and its export |
+
+If you have not modified these files, taking 0.6.0's copies wholesale is the whole
+migration. If you have, apply the change the gate names in each — it is small in every
+one. The set is recorded as `0.6.0.seededSourceFixes` in the harness's
+`template/migrations.json`, which is also what the upgrade lane's sweep leg executes, so
+this table cannot drift from what is actually required.
+
+### Then graduate
+
+`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.6.0 once
+`pnpm validate` is green — and it still refuses while any ramp NOTE stands, which is
+how you know the sweep was real.
+
+**This is executed, not just written.** The upgrade lane's `--sweep` leg performs exactly
+the steps above on a 0.3.0 install and then requires `graduate` to SUCCEED — so if the
+sweep on this page ever stops being sufficient, that leg reds rather than a consumer
+discovering it. It is also the only thing in this repository that has ever run graduate's
+success branch: every other leg ends with it correctly refusing.
 
 ## How to graduate
 

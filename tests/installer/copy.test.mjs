@@ -72,10 +72,13 @@ test('renderEntry substitutes {{TOKEN}} from answers and leaves unknowns intact'
   const root = makeFixture('tpah-copy-render-', {
     'readme.md': '# {{PROJECT_NAME}} by {{GITHUB_OWNER}} — {{NOT_A_TOKEN}}\n',
   })
-  const out = renderEntry({ sourcePath: join(root, 'readme.md') }, {
-    PROJECT_NAME: 'Acme',
-    GITHUB_OWNER: 'acme-co',
-  })
+  const out = renderEntry(
+    { sourcePath: join(root, 'readme.md') },
+    {
+      PROJECT_NAME: 'Acme',
+      GITHUB_OWNER: 'acme-co',
+    },
+  )
   assert.equal(typeof out, 'string')
   assert.equal(out, '# Acme by acme-co — {{NOT_A_TOKEN}}\n')
 })
@@ -232,7 +235,8 @@ test('walkStack(metal) replaces same-installPath entries IN PLACE and appends pr
   const installPaths = metal.map((e) => e.installPath)
   assert.equal(new Set(installPaths).size, installPaths.length, 'duplicate installPaths in plan')
   const metalSet = new Set(installPaths)
-  for (const e of stack) assert.ok(metalSet.has(e.installPath), `${e.installPath} dropped from plan`)
+  for (const e of stack)
+    assert.ok(metalSet.has(e.installPath), `${e.installPath} dropped from plan`)
 
   // Replaced entries sit at their ORIGINAL plan position with a presets/ source.
   const colorIdx = stack.findIndex((e) => e.installPath === 'packages/design-tokens/src/color.ts')
@@ -245,7 +249,9 @@ test('walkStack(metal) replaces same-installPath entries IN PLACE and appends pr
 
   // The full overlaid-replacement set, pinned: token source + both generated
   // artifacts + the mobile splash lockstep + the web stylesheet.
-  const replaced = metal.filter((e) => e.storagePath.startsWith('presets/tokens-metal/')).map((e) => e.installPath)
+  const replaced = metal
+    .filter((e) => e.storagePath.startsWith('presets/tokens-metal/'))
+    .map((e) => e.installPath)
   for (const p of [
     'packages/design-tokens/src/color.ts',
     'packages/design-tokens/src/generated/web.css',
@@ -266,7 +272,10 @@ test('walkStack(metal) replaces same-installPath entries IN PLACE and appends pr
   assert.ok(appended.includes('apps/web/styles/metal/rims.css'))
   assert.ok(appended.includes('apps/web/styles/metal/index.css'))
   // Appended entries come after every stack-position entry (order preserved).
-  assert.deepEqual(installPaths.slice(0, stack.length), stack.map((e) => e.installPath))
+  assert.deepEqual(
+    installPaths.slice(0, stack.length),
+    stack.map((e) => e.installPath),
+  )
 })
 
 test('walkStack throws on an unknown preset value (a hand-edited manifest fails loud)', () => {
@@ -372,4 +381,31 @@ test('walkTemplate returns [] for an empty directory', (t) => {
   }
   assert.deepEqual(walkTemplate(tree), [])
   assert.deepEqual(planTree(tree, ALL_ANSWERS), [])
+})
+
+test('every SEEDED_FILES entry names a path some template tree can actually produce (0.6.0)', async () => {
+  // A PROMISE THE INSTALLER CANNOT KEEP is not a harmless declaration. `SEEDED_FILES` is
+  // read as the list of artifacts a project receives once and then owns, and a reviewer
+  // reading it takes each line as a file that ships. `SECURITY.md` sat in that set with no
+  // file behind it in either tree — so the coordinated-vulnerability-disclosure document
+  // the list advertised was never written by `init`, never written by `update`, and nothing
+  // said so. It reads exactly like the shipped ones.
+  //
+  // The closure runs through `walkTemplate`, which routes every stored path through the one
+  // canonical `storageToInstall` mapper — NOT through a re-derived rule here. A test that
+  // reimplemented the dotless-rename and `.tmpl`-stripping conventions would agree with the
+  // installer only until one of them changed, and the disagreement would look like a
+  // missing file. (That is the same defect class as the tier table's `singleSurfaceGates`
+  // derivation, which answered about a script while both its consumers asked about a step.)
+  const { SEEDED_FILES } = await import('../../installer/lib/layout.mjs')
+  const produced = new Set(
+    ['base', 'stack'].flatMap((tree) => walkTemplate(tree).map((e) => e.installPath)),
+  )
+  for (const seeded of SEEDED_FILES) {
+    // Prefix entries are handled by SEEDED_PREFIXES; this set is exact paths only.
+    assert.ok(
+      produced.has(seeded),
+      `installer/lib/layout.mjs declares '${seeded}' SEEDED, but no file in template/base or template/stack installs to that path. Either ship it, or drop the line — a seeded entry with nothing behind it advertises an artifact the project never receives.`,
+    )
+  }
 })

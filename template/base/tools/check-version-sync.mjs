@@ -46,7 +46,8 @@
 //      whether the REVIEW is still fresh is the scheduled `floor-review` job's question.
 // SOURCE: docs/harness/README.md (version-sync gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
-import { judgeFloor, parseLockVersions } from './lib/framework-floor.mjs'
+import { judgeCcFloor } from './lib/cc-floor.mjs'
+import { judgeFloor, parseLockVersions, reviewWindowProblems } from './lib/framework-floor.mjs'
 import { failures, inCI, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
@@ -54,6 +55,7 @@ const GATE = 'version-sync'
 const APP_CONFIG = 'apps/mobile/app.config.ts'
 const EAS_JSON = 'apps/mobile/eas.json'
 const FLOOR_PATH = 'tools/framework-floor.json'
+const CC_FLOOR_PATH = 'tools/cc-floor.json'
 const errs = []
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'))
@@ -174,19 +176,51 @@ if (existsSync('pnpm-workspace.yaml')) {
 // the installed tree, so it must still red on a machine that has never run `pnpm install`.
 if (existsSync(FLOOR_PATH)) {
   const haveLock = existsSync('pnpm-lock.yaml')
+  const floorJson = readJson(FLOOR_PATH)
   const { problems, judged } = judgeFloor({
-    floor: readJson(FLOOR_PATH),
+    floor: floorJson,
     resolved: haveLock ? parseLockVersions(readFileSync('pnpm-lock.yaml', 'utf8')) : new Map(),
     catalogPins,
     haveLock,
   })
   errs.push(...problems)
+  // The review WINDOW, judged here and not by the scheduled job (0.6.0). Whether a review
+  // has lapsed is a calendar question and rides `floor-review`; whether the reviewer was
+  // entitled to that much runway is arithmetic over two committed dates, so it belongs in
+  // the chain — and it is the only half that can red at the moment the window is written.
+  // Without it, one edit to `reviewedUntil` retires the freshness control, and the only
+  // check that would have objected is the one that edit just disarmed.
+  errs.push(...reviewWindowProblems({ floor: floorJson }))
   if (!haveLock) {
     // Not skipOrFail: the catalog half above DID run, so this is a narrowing of scope
     // rather than a gate that could not run. CI installs before validating, so the
     // resolved half is always live there.
     console.log(
       `${GATE}: NOTE — pnpm-lock.yaml absent, so the framework floor judged ${String(judged)} catalog pin(s) only; the RESOLVED half (a transitive resolution below the floor) needs a lockfile. CI always has one.`,
+    )
+  }
+}
+
+// ── 8. THE CLAUDE CODE FLOOR (0.6.0), clockless half ────────────────────────────
+// Every framework this scaffold ships is held to a cited security floor. The tool doing the
+// holding was held to nothing — and it is the one dependency whose compromise compromises
+// every other control, since the enforcement layer IS `.claude/settings.json` plus hooks.
+//
+// This half is arithmetic over the file's own evidence: the scalar floor equals the newest
+// `patched` among the advisories cited beside it, `setBy` names exactly the advisories that
+// set it, every row carries an openable citation and a reason it is in THIS file, and the
+// recommended floor covers every feature it claims. Deliberately clockless and offline, for
+// the same reason the framework floor's version half is: freshness rides the scheduled
+// `floor-review` job, where a lapsed review blocks a maintainer rather than a contributor.
+if (existsSync(CC_FLOOR_PATH)) {
+  const { problems, judged, derived } = judgeCcFloor({
+    floor: readJson(CC_FLOOR_PATH),
+    path: CC_FLOOR_PATH,
+  })
+  errs.push(...problems)
+  if (problems.length === 0) {
+    console.log(
+      `${GATE}: the Claude Code floor is ${derived ?? 'unset'}, derived from ${String(judged)} cited advisor${judged === 1 ? 'y' : 'ies'}.`,
     )
   }
 }

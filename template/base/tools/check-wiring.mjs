@@ -17,7 +17,7 @@
 // Everything here is judged BY VALUE against reviewed data (tools/lib/enforcement-surface.mjs,
 // tools/stop.floor.json, tools/validate.floor.json), never against a hand-copied list.
 // SOURCE: docs/harness/README.md (the three enforcement layers) [corpus: harness/doctrine]
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { VALIDATE_STEPS } from './harness.config.mjs'
 import {
   CONFIG_COMMIT,
@@ -35,14 +35,34 @@ const notes = []
 // The six shipped hooks. A missing entry is not a degraded posture — it is that whole
 // event unguarded, which is precisely how `mcp__` tool calls reached the database for
 // three releases while docs/security/approved-tools.md declared default-deny.
-const SHIPPED_HOOKS = [
+// THE REQUIRED HOOKS ARE A UNION, not a list — the same shape as tools/stop.floor.json, for
+// the same reason, and 0.6.0 learned it the hard way: this was a hand-kept array of six, the
+// SubagentStop verdict hook shipped in the release before this one, and NOTHING asserted that
+// hook was wired at all. A list that must be edited by hand every time the harness grows is a
+// list that will be out of date exactly when it matters.
+//
+// Deriving it from `.claude/hooks/*.mjs` alone would be worse, not better: `rm` a hook and the
+// requirement to wire it disappears with it — the derivation would ratify the deletion. So:
+//   FLOOR  — hooks that must be wired whatever the directory says (a deleted one still reds);
+//   PLUS   — every top-level hook file present, so a NEW hook that nobody wired also reds.
+// `lib/` is deliberately excluded: those are modules, not hooks, and nothing wires them.
+const HOOK_FLOOR = [
   'pretool-bash-guard',
   'pretool-write-guard',
   'pretool-mcp-guard',
   'posttool-fast-check',
   'posttool-source-check',
   'stop-validate-gate',
+  'subagent-verdict',
 ]
+const HOOKS_DIR = '.claude/hooks'
+const onDisk = existsSync(HOOKS_DIR)
+  ? readdirSync(HOOKS_DIR)
+      .sort()
+      .filter((f) => f.endsWith('.mjs'))
+      .map((f) => f.replace(/\.mjs$/, ''))
+  : []
+const SHIPPED_HOOKS = [...new Set([...HOOK_FLOOR, ...onDisk])].sort()
 
 const SETTINGS = '.claude/settings.json'
 if (!existsSync(SETTINGS)) {
@@ -66,6 +86,63 @@ for (const hook of SHIPPED_HOOKS) {
       `${SETTINGS} no longer wires ${hook} — that entire tool surface runs unguarded. Restore it with \`npx next-expo-supabase-agent-harness update\`.`,
     )
   }
+}
+
+// ── 1b. THE COMMAND-GUARD MATCHER NAMES EVERY COMMAND-EXECUTING TOOL (0.6.0) ─────
+// Wiring the hook is not the same as pointing it at the right events, and 0.5.0 shipped
+// wired-but-half-aimed: the matcher was the single word `Bash`.
+//   - `Monitor` runs a command in the background. Permission RULES spelled `Bash(...)` cover
+//     it, which is exactly what made the gap invisible — but a hook matcher is an exact tool
+//     name, not a permission namespace, so every content check in pretool-bash-guard.mjs was
+//     reachable-around by asking for the same command under Monitor.
+//   - `PowerShell` is not merely another shell: on Windows without Git Bash, Claude Code does
+//     not register the Bash tool at all, so a Bash-only matcher never fires there — the guard
+//     was not weaker on that platform, it was absent. PowerShell also has its own permission
+//     namespace, so the settings deny list does not reach it either.
+// Checked as a SET of names rather than a literal string so a project may add a tool of its
+// own to the matcher; it may not drop one of these.
+// SOURCE: https://code.claude.com/docs/en/hooks (matcher semantics; PowerShell on Windows)
+const COMMAND_TOOLS = ['Bash', 'Monitor', 'PowerShell']
+const guardGroup = (settings.hooks?.PreToolUse ?? []).find((g) =>
+  JSON.stringify(g?.hooks ?? []).includes('pretool-bash-guard'),
+)
+if (guardGroup !== undefined) {
+  const matcher = String(guardGroup.matcher ?? '')
+  const missing = COMMAND_TOOLS.filter((t) => !new RegExp(`\\b${t}\\b`).test(matcher))
+  if (missing.length > 0 && matcher !== '*' && matcher !== '') {
+    errs.push(
+      `${SETTINGS}: the command guard's matcher is ${JSON.stringify(matcher)}, which does not name ${missing.join(', ')}. A hook matcher is an EXACT TOOL NAME — unlike a \`Bash(...)\` permission rule, which also covers Monitor — so every command-content check in pretool-bash-guard.mjs is reachable-around via the missing tool(s). PowerShell matters even on a Mac-only team: a teammate on Windows without Git Bash gets no Bash tool at all, and a Bash-only matcher never fires for them. Restore \`"matcher": "${COMMAND_TOOLS.join('|')}"\`.`,
+    )
+  }
+}
+
+// ── 1c. EVERY INERT `Write(path)` DENY HAS A LIVE `Edit(path)` TWIN (0.6.0) ──────
+// Claude Code consults FILE-permission rules under `Edit(...)` and `Read(...)` only. A
+// `Write(path)` rule "is accepted but never consulted", and Claude Code warns at startup —
+// the one documented exception being a `Glob` rule passed in `--allowedTools`, which is not
+// a shape this file uses.
+//
+// So the seven `Write(...)` denies in the shipped settings do NOTHING on their own. Protection
+// holds today only because each happens to have an `Edit(...)` twin — an accident of authoring
+// that nothing asserted, in a file whose entire job is to be asserted. Delete one twin and the
+// remaining `Write(...)` line still READS like protection while enforcing nothing, which is the
+// exact failure mode this release exists to delete.
+//
+// The `Write(...)` entries stay, deliberately: they document intent, they cost nothing, and if
+// Claude Code ever starts consulting them the posture is already right. What must not happen is
+// anyone believing they are the control.
+// SOURCE: https://code.claude.com/docs/en/permissions (Write path rules accepted, never consulted)
+const denyRules = settings.permissions?.deny ?? []
+const editTargets = new Set(
+  denyRules.map((r) => /^Edit\((.+)\)$/.exec(String(r))?.[1]).filter((t) => t !== undefined),
+)
+const orphanWrites = denyRules
+  .map((r) => /^Write\((.+)\)$/.exec(String(r))?.[1])
+  .filter((t) => t !== undefined && !editTargets.has(t))
+if (orphanWrites.length > 0) {
+  errs.push(
+    `${SETTINGS}: ${String(orphanWrites.length)} \`Write(...)\` deny rule(s) have no \`Edit(...)\` twin — ${orphanWrites.map((t) => `Write(${t})`).join(', ')}. Claude Code consults file-permission rules under \`Edit(...)\` and \`Read(...)\` only; a \`Write(path)\` rule is accepted, warned about at startup, and never consulted. So each of these reads as protection and enforces nothing. Add the matching \`Edit(${orphanWrites[0]})\` deny.`,
+  )
 }
 
 // ── 2. PERMISSION POSTURE — a hard red, and the sharpest check in this gate ──────

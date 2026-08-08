@@ -147,13 +147,33 @@ describe('cookieWrites', () => {
     expect(cookie?.options.sameSite).toBe('lax')
   })
 
-  it('leaves secure and httpOnly to the host', () => {
+  it('leaves secure to the host and forwards whatever the host passes', () => {
+    // This codec has no opinion about the SCHEME, so it sets no `secure` of its own — only
+    // the host knows whether it is served over TLS, and a hard-coded `true` would make a
+    // plain-http development server unable to persist a session at all.
+    //
+    // WHAT THIS TEST USED TO SAY, and why the wording mattered: it asserted that the codec
+    // "leaves secure and httpOnly to the host" and stopped there. Both call sites in apps/web
+    // passed NOTHING, so the shipped cookie carried neither — and this test was green over
+    // that state, because a test that pins an absence cannot tell "the host will supply it"
+    // from "no host ever does". The closure now lives where it belongs: the `auth-posture`
+    // gate asserts every call site passes the reviewed posture, which is a claim about the
+    // wiring rather than about this function.
     const [cookie] = cookieWrites('sb-auth', 'session', [], {}, 100)
     expect(cookie?.options.secure).toBeUndefined()
-    expect(cookie?.options.httpOnly).toBeUndefined()
-    // …and honours them when the host does supply them.
-    const [hardened] = cookieWrites('sb-auth', 'session', [], { httpOnly: true, secure: true }, 100)
-    expect(hardened?.options).toMatchObject({ httpOnly: true, secure: true })
+    const [hardened] = cookieWrites('sb-auth', 'session', [], { secure: true }, 100)
+    expect(hardened?.options).toMatchObject({ secure: true })
+  })
+
+  it('still FORWARDS httpOnly, even though this architecture cannot use it', () => {
+    // The field stays on the type and is threaded faithfully, because a host that moves
+    // sign-in server-side legitimately wants it. What is NOT true — and was asserted in four
+    // comments for two releases — is that apps/web sets it: its browser client writes the
+    // session cookie via `document.cookie`, and a user agent ignores `HttpOnly` on such a
+    // write. Keeping the forwarding proved here keeps the seam honest for the host that can
+    // use it, without implying the seeded one does.
+    const [cookie] = cookieWrites('sb-auth', 'session', [], { httpOnly: true }, 100)
+    expect(cookie?.options.httpOnly).toBe(true)
   })
 
   it('carries the write attributes onto the expiry', () => {

@@ -70,7 +70,13 @@ api_url = "http://127.0.0.1:54321"
 # Local mail capture (Mailpit). Every auth email — signup confirmation, magic
 # link, recovery — lands here instead of a real inbox, so local development
 # never sends mail to a real address by accident.
-[inbucket]
+#
+# `[local_smtp]`, not `[inbucket]` (0.6.0). The CLI has renamed this section and prints
+# `WARN: config section [inbucket] is deprecated` on every command — a warning nothing in this
+# repo read, on a config the harness ships, against a CLI pinned `^2.34.3` that resolves to
+# 2.111.0 today. The `auth-posture` gate now reds on any deprecation the CLI reports, so the
+# next rename is a failing build rather than a line of scrollback.
+[local_smtp]
 enabled = true
 port = 54324
 

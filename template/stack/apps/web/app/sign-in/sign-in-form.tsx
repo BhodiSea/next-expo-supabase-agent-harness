@@ -3,13 +3,22 @@
 import { Button, Field, Input } from '@app/design-system'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { t } from '../../lib/i18n'
 import { getBrowserClient } from '../../lib/supabase/client'
 
 // The credential form. A CLIENT component, and it has to be: signing in must happen in the
-// browser so @supabase/ssr's browser client writes the session cookie the whole app then
-// reads. Posting the password to a Server Action instead would mean the password crosses an
-// extra hop and the server has to hand the session back through a cookie it sets by hand —
-// more code, more places to get httpOnly and SameSite wrong, no benefit.
+// browser so the browser client writes the session cookie the whole app then reads. Posting
+// the password to a Server Action instead would mean the password crosses an extra hop and
+// the server has to hand the session back through a cookie it sets by hand — more code, more
+// places to get the attributes wrong, no benefit.
+//
+// THE COST OF THAT CHOICE, stated because it used to be denied here: a cookie the browser
+// writes cannot be `HttpOnly`. That is not an oversight to fix later — the attribute exists
+// to hide a cookie from script, and a user agent ignores it on a `document.cookie` write. The
+// session is therefore script-readable, and what protects it is `Secure`, `SameSite=Lax`, the
+// CSRF guard on the ambient-credential path, and a short-lived rotating token. A deployment
+// that needs an httpOnly session cookie must move sign-in server-side first.
+// SOURCE: apps/web/lib/supabase/client.ts (the jar, and the whole trade)
 //
 // WHAT THIS SCREEN IS NOT. It is not an authorization boundary and it is not a gate. A user
 // who never visits it and forges a cookie still reads nothing: getUser() verifies against the
@@ -56,10 +65,10 @@ export function SignInForm(): React.ReactNode {
       className="flex flex-col gap-4"
       noValidate
     >
-      <Field label="Email">
+      <Field label={t('auth.email')}>
         <Input value={email} onChangeText={setEmail} keyboard="email" testID="sign-in-email" />
       </Field>
-      <Field label="Password">
+      <Field label={t('auth.password')}>
         <Input value={password} onChangeText={setPassword} secure testID="sign-in-password" />
       </Field>
       {/* A FORM-level alert, not a Field error, because the failure is about the PAIR: the
@@ -72,7 +81,7 @@ export function SignInForm(): React.ReactNode {
           {error}
         </p>
       )}
-      <Button label="Sign in" type="submit" busy={busy} testID="sign-in-submit" />
+      <Button label={t('auth.signIn')} type="submit" busy={busy} testID="sign-in-submit" />
     </form>
   )
 }

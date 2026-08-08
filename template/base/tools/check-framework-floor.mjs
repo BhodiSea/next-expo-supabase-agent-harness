@@ -16,6 +16,7 @@
 // SOURCE: docs/harness/gates-catalog.md (the determinism rule that excluded `pnpm audit`)
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
+import { staleCcReview } from './lib/cc-floor.mjs'
 import { staleReviews } from './lib/framework-floor.mjs'
 import { fail, failures, ok } from './lib/gate.mjs'
 
@@ -45,14 +46,37 @@ try {
   fail(GATE, `${floorPath} is not valid JSON: ${e.message}`)
 }
 
+// THE CLAUDE CODE FLOOR RIDES THIS JOB TOO (0.6.0), because it decays the same way and
+// faster. `tools/cc-floor.json` is a snapshot of an advisory query; left alone it becomes the
+// assertion that nothing has been published since — and that database gained fifteen entries
+// in the seven months before the floor was first written. Its CLOCKLESS half (the arithmetic)
+// rides `version-sync` in the chain; only the freshness question belongs on a clock.
+// Absent is a NOTE, not a red: the file ships with 0.6.0, and an install that predates it has
+// no snapshot to have let lapse.
+const ccPath = arg('cc-floor', 'tools/cc-floor.json')
+const ccProblems = []
+if (existsSync(ccPath)) {
+  try {
+    ccProblems.push(
+      ...staleCcReview({ floor: JSON.parse(readFileSync(ccPath, 'utf8')), today, path: ccPath }),
+    )
+  } catch (e) {
+    ccProblems.push(`${ccPath} is not valid JSON: ${e.message}`)
+  }
+} else {
+  console.log(
+    `${GATE}: NOTE — ${ccPath} is absent, so the Claude Code version floor is not being reviewed. It ships with 0.6.0; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+  )
+}
+
 failures(
   GATE,
-  staleReviews({ floor, today }).map((p) => `as of ${today}: ${p}`),
+  [...staleReviews({ floor, today }), ...ccProblems].map((p) => `as of ${today}: ${p}`),
   `\nRe-read each package's upstream security feed, update minPatchByMajor and the advisory rows to match, and move reviewedOn/reviewedUntil in the SAME commit. Bumping the dates alone is the one edit this control cannot distinguish from a real review — which is why the diff is reviewed by a human and ${floorPath} is sha-pinned by \`gate-integrity\`.`,
 )
 
 const names = Object.keys(floor.packages ?? {}).sort()
 ok(
   GATE,
-  `${String(names.length)} floored package(s) (${names.join(', ')}) carry an unlapsed review as of ${today}`,
+  `${String(names.length)} floored package(s) (${names.join(', ')})${existsSync(ccPath) ? ' and the Claude Code advisory snapshot' : ''} carry an unlapsed review as of ${today}`,
 )

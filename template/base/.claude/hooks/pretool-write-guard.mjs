@@ -26,7 +26,7 @@ function readFileSafe(p) {
   }
 }
 
-export const HARNESS_HOOK_VERSION = '0.5.0'
+export const HARNESS_HOOK_VERSION = '0.6.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2) — a guard that cannot load its rules approves

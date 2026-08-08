@@ -43,19 +43,13 @@ export * from './client.js'
 // ── Factory 4: the per-request client for a cookie-bearing browser caller.
 export { createServerSupabaseClient, type ServerClientOptions } from './cookie-server.js'
 // ── The cookie adapter: the framework-agnostic indirection that keeps this
-// package usable from a non-Next host. apps/web satisfies it over next/headers
-// and over NextRequest/NextResponse; a test satisfies it with a Map.
-export {
-  chunkCookieValue,
-  cookieDeletions,
-  cookieSessionStorage,
-  cookieWrites,
-  readChunkedCookie,
-  type SupabaseCookie,
-  type SupabaseCookieAdapter,
-  type SupabaseCookieOptions,
-  type SupabaseCookieToSet,
-} from './cookies.js'
+// package usable from a non-Next host. apps/web satisfies it over next/headers,
+// over NextRequest/NextResponse, and — since the codec must be the SAME on both
+// sides of the wire — over `document.cookie` in the browser; a test satisfies it
+// with a Map. The codec now rides `./client.js` above, so this block is the
+// re-export the `.` barrel already gets from that file rather than a second
+// declaration; it is named here only because a reader looking for the cookie
+// seam looks in this file.
 
 // ── Factory 5. The name is the warning. It bypasses row-level security, it
 // requires a merged ADR and a written reason, and its only sanctioned home is a

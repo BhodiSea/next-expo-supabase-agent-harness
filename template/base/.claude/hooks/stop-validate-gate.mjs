@@ -7,8 +7,9 @@ import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
+import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.5.0'
+export const HARNESS_HOOK_VERSION = '0.6.0'
 
 const input = await readHookInput()
 const looping = input?.stop_hook_active === true
@@ -84,6 +85,7 @@ try {
 }
 
 const failures = []
+const failedGates = []
 const skips = []
 for (const [name, cmd] of STEPS) {
   try {
@@ -92,7 +94,17 @@ for (const [name, cmd] of STEPS) {
     // step (false FAIL). HARNESS_STOP_GATE=1 tells fail-closed-capable runners
     // (tests/rls/run-rls.mjs) that THIS run is the proof — a skip is not acceptable.
     const out = execSync(cmd, {
-      env: { ...process.env, HARNESS_STOP_GATE: '1' },
+      // THE TURN'S IDENTITY, passed down (0.6.0). tools/check-reviewer-verdicts.mjs narrows
+      // the reviewer ledger to THIS turn, and without the prompt_id an earlier turn's PASS
+      // would satisfy an obligation raised by this one — the one failure mode that would
+      // make that whole control decorative. `session_id` and `prompt_id` are observed fields
+      // of the Stop payload; see design/CONTROL-PLANE-FACTS.md.
+      env: {
+        ...process.env,
+        HARNESS_STOP_GATE: '1',
+        ...(typeof input?.session_id === 'string' ? { HARNESS_SESSION_ID: input.session_id } : {}),
+        ...(typeof input?.prompt_id === 'string' ? { HARNESS_PROMPT_ID: input.prompt_id } : {}),
+      },
       maxBuffer: 64 * 1024 * 1024,
       stdio: 'pipe',
     })
@@ -102,6 +114,7 @@ for (const [name, cmd] of STEPS) {
   } catch (e) {
     const out = (e.stdout?.toString() ?? '') + (e.stderr?.toString() ?? '')
     failures.push(`### ${name} FAILED (${cmd})\n${out.slice(-4000)}`)
+    failedGates.push(name)
   }
 }
 
@@ -125,6 +138,48 @@ if (floorNote) {
     `stop-validate-gate: ${floorNote} — the config chain ran alone this turn. The floor is write-guard-protected and inside gate-integrity's hashed surface, so restore it from git; the next validate will red on it regardless.`,
   )
 }
+// ---- THE TURN LEDGER (0.6.0): the one documented way a turn CAN end red ----------
+// `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (default 8) is the safety valve that stops a red gate
+// looping forever — after N CONSECUTIVE blocks Claude Code ends the turn anyway. It is the
+// right valve and it stays; a hook that can block forever is a bricked machine. What was
+// missing is the MARK. Through 0.5.0 a turn that ran out of blocks and ended with the gate red
+// left exactly the trace a green turn leaves: none. The harness's headline claim is "a turn
+// cannot end on a red build", and this is the one documented way it can.
+//
+// So: every outcome is appended to .harness/turn-outcomes.jsonl, the LAST block a turn is
+// allowed says so while the transcript can still act on it, and the next turn's gate reports a
+// predecessor that ended at the cap even when the tree is green again by then.
+// SOURCE: https://code.claude.com/docs/en/env-vars (CLAUDE_CODE_STOP_HOOK_BLOCK_CAP)
+//
+// The ledger path is CWD-RELATIVE, unlike the config and floor above, and the split is a rule
+// rather than an oversight: harness CODE is resolved from this hook's own location (a hook must
+// not let a stray cwd pick which gate config it enforces), while everything under `.harness/`
+// is cwd-relative because that is how every gate, `gate.mjs`'s ramp reader, and the sibling
+// reviewer ledger already reach it. One exception here would be the inconsistency.
+const turn = recordTurnOutcome({
+  blocked: failures.length > 0,
+  gates: failedGates,
+  input,
+  ledgerPath: TURN_LOG,
+})
+
+if (turn.priorCapHit !== null) {
+  const prior = turn.priorCapHit
+  notes.push(
+    `stop-validate-gate: THE PREVIOUS TURN ENDED RED. It was blocked ${String(prior.blocks)} time(s) — its CLAUDE_CODE_STOP_HOOK_BLOCK_CAP — so Claude Code ended it anyway with ${prior.gates?.length > 0 ? prior.gates.join(', ') : 'the gate'} still failing. That is the documented safety valve working, not a bug; it does mean work stopped on a red build, so treat those gates as outstanding rather than as history.`,
+  )
+}
+if (turn.capSource === 'unparseable') {
+  notes.push(
+    `stop-validate-gate: CLAUDE_CODE_STOP_HOOK_BLOCK_CAP is set to an unusable value (${String(process.env.CLAUDE_CODE_STOP_HOOK_BLOCK_CAP)}), so Claude Code's default of 8 applies. A typo'd cap that silently reverts is exactly the kind of quiet posture change this harness exists to make loud — fix the value or remove the key.`,
+  )
+}
+if (turn.error !== null) {
+  notes.push(
+    `stop-validate-gate: ${turn.error}. The gate result below stands — bookkeeping never decides a turn — but a turn that ends at the block cap will leave no record until this is fixed.`,
+  )
+}
+
 if (notes.length > 0) process.stderr.write(`${notes.join('\n')}\n`)
 
 if (failures.length === 0) {
@@ -136,9 +191,14 @@ if (failures.length === 0) {
   process.exit(0)
 }
 
-const header = looping
-  ? 'The validate gate is STILL red after a prior continuation. Fix the root cause below; do not stop until `pnpm validate` is green.\n\n'
-  : 'Done means GREEN GATE. The turn cannot end with a red build. Fix every failure below, then the gate re-runs automatically.\n\n'
+// THE LAST BLOCK GETS ITS OWN HEADER. `capReached` means Claude Code will not honour another
+// one: the next Stop ends the turn whatever this gate says. Saying so here is the only moment
+// anything can still act on it — after that the turn is over and only the ledger remembers.
+const header = turn.capReached
+  ? `LAST CHANCE — this is block ${String(turn.blocks)} of ${String(turn.cap)} (CLAUDE_CODE_STOP_HOOK_BLOCK_CAP). Claude Code will NOT block again: the next time this turn tries to end, it ends, red build and all. Fix the failures below now, or stop and say plainly that the gate is still red and which gates — an unannounced red turn is the one failure this harness cannot see.\n\n`
+  : looping
+    ? `The validate gate is STILL red after a prior continuation (block ${String(turn.blocks)}${turn.cap === null ? '' : ` of ${String(turn.cap)}`}). Fix the root cause below; do not stop until \`pnpm validate\` is green.\n\n`
+    : 'Done means GREEN GATE. The turn cannot end with a red build. Fix every failure below, then the gate re-runs automatically.\n\n'
 const skipNote = skips.length > 0 ? `\n\nSkipped layers (did NOT run):\n${skips.join('\n')}\n` : ''
 process.stderr.write(header + failures.join('\n\n') + skipNote)
 process.exit(2)

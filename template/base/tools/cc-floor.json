@@ -1,0 +1,172 @@
+{
+  "comment": "THE CLAUDE CODE VERSION FLOOR — the harness's enforcement layer IS `.claude/settings.json` plus hooks, which makes Claude Code its most load-bearing dependency and the only one whose own security history it never consulted. Through 0.5.0 this file did not exist: the harness held every framework it ships to a cited floor (tools/framework-floor.json) and held the tool it RUNS INSIDE to nothing. THE CITATIONS ARE THE POINT, not the number. A bare `\"floor\": \"2.1.163\"` is a number the next maintainer lowers when a teammate's CLI is old, because nothing in the file says what it costs; a floor whose every digit is attached to a published advisory is a number nobody lowers by accident. `advisories` is a SNAPSHOT of `gh api /advisories?ecosystem=npm&affects=@anthropic-ai/claude-code`, taken on `checkedOn`, reduced to the advisories that set the floor plus every one that lands on this harness's own surface — it is evidence, not a vulnerability database, and the gate re-derives the floor FROM it rather than trusting the scalar. TWO GATES READ THIS FILE, SPLIT ON THE CLOCK, and no third one exists: the CLOCKLESS arithmetic (does the scalar equal the evidence beside it?) rides `version-sync` in the chain, because `pnpm validate` must give the same verdict on the same tree forever; the CLOCKFUL question (has anyone re-queried lately?) rides the scheduled `floor-review` job, where a lapsed review blocks a maintainer rather than a contributor. SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 10)",
+
+  "checkedOn": "2026-08-07",
+  "advisoryCount": 28,
+  "advisorySource": "gh api \"/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code&per_page=100\"",
+
+  "required": {
+    "version": "2.1.163",
+    "why": "The earliest release outside EVERY published vulnerable range: the maximum `first_patched_version` across all 28 npm-scoped advisories. Derived, not chosen — `version-sync` recomputes it from `surfaceAdvisories` below and reds if this scalar drifts from the evidence in either direction.",
+    "setBy": ["CVE-2026-55607", "CVE-2026-54316"]
+  },
+
+  "recommended": {
+    "version": "2.1.219",
+    "why": "`sandbox.network.strictAllowlist` — the setting that makes a non-allowlisted host FAIL rather than prompt. Recommended rather than required because the sandbox is opt-in in this harness (see docs/security/sandbox-and-supply-chain.md) and requiring 56 releases beyond the security evidence would be a floor the evidence does not support. A floor that overreaches is a floor people route around.",
+    "featureFloors": [
+      {
+        "version": "2.1.47",
+        "feature": "`last_assistant_message` on Stop/SubagentStop — the field .claude/hooks/subagent-verdict.mjs reads. Below this the reviewer-verdict ledger cannot be written without scraping a transcript."
+      },
+      {
+        "version": "2.1.143",
+        "feature": "`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` and the 8-consecutive-block cap. Below this a red Stop hook loops forever instead of ending the turn with a warning — .harness/turn-outcomes.jsonl records the cap, and there is no cap to record."
+      },
+      {
+        "version": "2.1.163",
+        "feature": "`hookSpecificOutput.additionalContext` on Stop/SubagentStop. Not used today; noted because it lands on the same version the security floor already requires."
+      },
+      {
+        "version": "2.1.219",
+        "feature": "`sandbox.network.strictAllowlist` (user/managed/CLI settings only — ignored from project settings)."
+      }
+    ]
+  },
+
+  "surfaceAdvisories": [
+    {
+      "id": "CVE-2026-25725",
+      "ghsa": "GHSA-ff64-7w26-62rf",
+      "severity": "high",
+      "published": "2026-02-06",
+      "patched": "2.1.2",
+      "summary": "Sandbox escape via persistent configuration injection in settings.json",
+      "url": "https://github.com/advisories/GHSA-ff64-7w26-62rf",
+      "whyItMattersHere": "`.claude/settings.json` is not a config file to this harness — it IS the enforcement layer, wiring every hook. An injection into it is an injection into the control plane."
+    },
+    {
+      "id": "CVE-2026-33068",
+      "ghsa": "GHSA-mmgp-wc2j-qcv7",
+      "severity": "high",
+      "published": "2026-03-19",
+      "patched": "2.1.53",
+      "summary": "Workspace trust dialog bypass via a repo-controlled settings file",
+      "url": "https://github.com/advisories/GHSA-mmgp-wc2j-qcv7",
+      "whyItMattersHere": "The scaffold ships a settings file into every consumer repo. The trust dialog is what stands between cloning a repo and running its hooks."
+    },
+    {
+      "id": "CVE-2026-25723",
+      "ghsa": "GHSA-mhg7-666j-cqg4",
+      "severity": "high",
+      "published": "2026-02-06",
+      "patched": "2.0.55",
+      "summary": "Command injection via piped `sed` bypasses file-write restrictions",
+      "url": "https://github.com/advisories/GHSA-mhg7-666j-cqg4",
+      "whyItMattersHere": "This repo's own doctrine says the bash guard is a TRIPWIRE, not a sandbox, and that obfuscated commands evade substring checks. These two are that caveat as SHIPPED CVEs rather than as a disclaimer — which is the argument for the floor, not against the guard."
+    },
+    {
+      "id": "CVE-2026-25722",
+      "ghsa": "GHSA-66q4-vfjg-2qhh",
+      "severity": "high",
+      "published": "2026-02-06",
+      "patched": "2.0.57",
+      "summary": "Command injection via directory change bypasses write protection",
+      "url": "https://github.com/advisories/GHSA-66q4-vfjg-2qhh",
+      "whyItMattersHere": "pretool-write-guard.mjs judges PATHS. A bypass via directory change is a bypass of the thing it judges."
+    },
+    {
+      "id": "CVE-2026-39861",
+      "ghsa": "GHSA-vp62-r36r-9xqp",
+      "severity": "high",
+      "published": "2026-04-21",
+      "patched": "2.1.64",
+      "summary": "Sandbox escape via symlink following allows arbitrary file write outside the workspace",
+      "url": "https://github.com/advisories/GHSA-vp62-r36r-9xqp",
+      "whyItMattersHere": "The write-guard already resolves links out of the project tree (a canary covers it); this is the same class one layer down, in the tool itself."
+    },
+    {
+      "id": "CVE-2026-35603",
+      "ghsa": "GHSA-5cwg-9f6j-9jvx",
+      "severity": "medium",
+      "published": "2026-04-17",
+      "patched": "2.1.75",
+      "summary": "Insecure system-wide configuration loading enables local privilege escalation on Windows",
+      "url": "https://github.com/advisories/GHSA-5cwg-9f6j-9jvx",
+      "whyItMattersHere": "Windows is the platform where this harness is thinnest — no sandbox support, and no Bash tool at all without Git Bash. A Windows-specific config-loading privesc lands exactly there."
+    },
+    {
+      "id": "CVE-2026-40068",
+      "ghsa": "GHSA-q5hj-mxqh-vv77",
+      "severity": "high",
+      "published": "2026-04-24",
+      "patched": "2.1.84",
+      "summary": "Trust dialog bypass via git worktree spoofing allows arbitrary code execution",
+      "url": "https://github.com/advisories/GHSA-q5hj-mxqh-vv77",
+      "whyItMattersHere": "One of TWO worktree escapes. Worktree isolation is a natural recommendation for read-only reviewer subagents; these two are why that recommendation carries a version floor rather than standing alone."
+    },
+    {
+      "id": "CVE-2026-55607",
+      "ghsa": "GHSA-7835-87q9-rgvv",
+      "severity": "high",
+      "published": "2026-07-24",
+      "patched": "2.1.163",
+      "summary": "Sandbox escape via git worktree path confusion allows unsandboxed code execution",
+      "url": "https://github.com/advisories/GHSA-7835-87q9-rgvv",
+      "whyItMattersHere": "The second worktree escape, and one of the two advisories that SET the required floor."
+    },
+    {
+      "id": "CVE-2026-54316",
+      "ghsa": "GHSA-fg94-h982-f3mm",
+      "severity": "medium",
+      "published": "2026-06-17",
+      "patched": "2.1.163",
+      "summary": "Out-of-band data exfiltration via a pre-approved domain in WebFetch",
+      "url": "https://github.com/advisories/GHSA-fg94-h982-f3mm",
+      "whyItMattersHere": "The other advisory that sets the floor — and a direct argument against treating a domain allowlist as an exfiltration control, which is how docs/security/sandbox-and-supply-chain.md must describe it."
+    },
+    {
+      "id": "CVE-2026-46406",
+      "ghsa": "GHSA-4vp2-6q8c-pvq2",
+      "severity": "medium",
+      "published": "2026-06-25",
+      "patched": "2.1.128",
+      "summary": "Insecure temporary file in the /copy command enables response disclosure and symlink-based file write",
+      "url": "https://github.com/advisories/GHSA-4vp2-6q8c-pvq2",
+      "whyItMattersHere": "The newest advisory in the set. Included because 'newest' and 'sets the floor' are different properties, and conflating them is how a floor gets lowered."
+    }
+  ],
+
+  "uncvedHookFixes": [
+    {
+      "version": "2.1.77",
+      "what": "A PreToolUse hook returning \"allow\" could bypass `permissions.deny` rules, including enterprise managed settings."
+    },
+    {
+      "version": "2.1.101",
+      "what": "`permissions.deny` did not override a PreToolUse hook's `permissionDecision: \"ask\"` — the hook could downgrade a deny into a prompt."
+    },
+    {
+      "version": "2.1.110",
+      "what": "`PermissionRequest` hooks returning `updatedInput` were not re-checked against `permissions.deny`."
+    },
+    {
+      "note": "None of these three carries a CVE, so no advisory query finds them — and every one is a hook-versus-permission interaction, which is precisely this harness's enforcement model. They sit BELOW the required floor, so the floor already covers them; they are recorded because the next person to compute a floor should know that the advisory database alone would have missed them."
+    }
+  ],
+
+  "notNpmScoped": [
+    {
+      "ghsa": "GHSA-5p5x-5294-qhp3",
+      "product": "Claude Desktop (Windows)",
+      "why": "Appears on the anthropics/claude-code repository advisory page but is scoped to the `anthropic` ecosystem, not npm. It cannot set an npm floor."
+    },
+    {
+      "ghsa": "GHSA-3rwf-2g6p-c2f9",
+      "product": "Claude Desktop (SSH remote development, not Windows-specific)",
+      "why": "Same: repository advisory page, `anthropic` ecosystem, returns 404 from /advisories/<ghsa>."
+    }
+  ],
+
+  "howToRefresh": "Re-run `advisorySource`, update `checkedOn`, `advisoryCount`, and any advisory whose `first_patched_version` exceeds the current `required.version`. Then re-run `node tools/check-version-sync.mjs`, which recomputes the floor from `surfaceAdvisories` and reds if the scalar disagrees. RAISING the floor is routine. LOWERING it is not: every digit below is attached to a published advisory, so a lower number means a consumer running a version with a known escape in the tool that enforces everything else."
+}

@@ -19,8 +19,16 @@
 // ones nobody thinks to run, because their subject is the machinery's own consistency.
 // SOURCE: docs/harness/README.md (the factory eats its own dog food)
 import { spawnSync } from 'node:child_process'
+import { join } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { block, pass, readHookInput } from '../../template/base/.claude/hooks/lib/hookio.mjs'
+import { recordTurnOutcome } from '../../template/base/.claude/hooks/lib/turn-outcomes.mjs'
+
+// The repository root. The pure-node steps below are spawned with the hook's own cwd (the
+// project root, which is where Claude Code runs a hook), but `format` runs from a
+// subdirectory and still needs the root's node_modules.
+const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 
 export const HARNESS_HOOK_VERSION = '0.3.0'
 
@@ -68,33 +76,100 @@ const TOOLCHAIN_STEPS = [
   ['eslint', ['exec', 'eslint', '.', '--max-warnings', '0']],
   ['types', ['exec', 'tsc', '--noEmit']],
   ['dead-code', ['exec', 'knip']],
+  // THE FOURTH, AND THE LAST ASYMMETRY OF ITS KIND (0.6.0). `format` is step ONE of every
+  // consumer's chain and it runs over the files the HARNESS ships — every gate script in
+  // template/base/tools, every source file in template/stack. Nothing on this side ever ran
+  // it. So a formatting break in a shipped gate script was invisible to a maintainer's turn
+  // and red on step one for every consumer who upgraded, which is the exact shape the
+  // paragraph above describes for eslint/tsc/knip and the reason those three moved here.
+  //
+  // The 0.6.0 upgrade lane is what found it: check-auth-posture.mjs shipped one line over
+  // the width, `pnpm validate` died at `format` on the upgraded scaffold, and the lane
+  // correctly reported it as a REGRESSION rather than an expiry.
+  //
+  // It runs from template/base so that TREE's biome.jsonc is the root config — the one
+  // consumers actually get, never a factory copy that could drift from it — and reaches the
+  // sibling trees by path, because a scaffold merges them under that single root. Biome 2.x
+  // refuses a nested root config, so pointing at it from here is not an option.
+  // `--vcs-enabled=false` because the ignore file it wants is `gitignore` in dotless storage
+  // and only exists as `.gitignore` after a render; nothing under template/ is build output.
+  //
+  // The BINARY, not `pnpm exec`: template/base holds no package.json, so pnpm dies there
+  // with ERR_PNPM_RECURSIVE_EXEC_NO_PACKAGE before biome ever runs. An absent binary is an
+  // ENOENT on spawn, which the skip branch below already reads as a missing toolchain.
+  [
+    'format',
+    ['ci', '--vcs-enabled=false', '.', '../stack', '../modules', '../presets'],
+    { cwd: 'template/base', command: join(ROOT, 'node_modules/.bin/biome') },
+  ],
 ]
 
-await readHookInput()
+const input = await readHookInput()
 
 const failures = []
+const failedGates = []
 const skipped = []
 for (const [name, argv] of STEPS) {
   const res = spawnSync(process.execPath, argv, { encoding: 'utf8' })
   if (res.status !== 0) {
     failures.push(`=== ${name}: node ${argv.join(' ')}\n${(res.stdout ?? '') + (res.stderr ?? '')}`)
+    failedGates.push(name)
   }
 }
-for (const [name, argv] of TOOLCHAIN_STEPS) {
-  const res = spawnSync('pnpm', argv, { encoding: 'utf8', shell: process.platform === 'win32' })
+// The optional third element overrides how a step is launched: `format` runs a binary
+// directly, from template/base, so that tree's biome.jsonc — the one consumers get — is the
+// root config. Every other step is `pnpm <argv>` from here.
+for (const [name, argv, opts] of TOOLCHAIN_STEPS) {
+  const command = opts?.command ?? 'pnpm'
+  const res = spawnSync(command, argv, {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+    ...(opts?.cwd === undefined ? {} : { cwd: opts.cwd }),
+  })
   const out = (res.stdout ?? '') + (res.stderr ?? '')
   // No node_modules, no pnpm on PATH: the toolchain is absent, not the code broken.
   if (res.error !== undefined || /command not found|Command "[a-z]+" not found|ERR_PNPM_NO_SCRIPT/i.test(out)) {
     skipped.push(`${name} (pnpm ${argv.join(' ')}) — toolchain absent; the \`lint\` workflow is the fail-closed backstop`)
     continue
   }
-  if (res.status !== 0) failures.push(`=== ${name}: pnpm ${argv.join(' ')}\n${out}`)
+  if (res.status !== 0) {
+    failures.push(`=== ${name}: pnpm ${argv.join(' ')}\n${out}`)
+    failedGates.push(name)
+  }
 }
 if (skipped.length > 0) {
   process.stderr.write(`stop-factory-gate: SKIPPED (did NOT run):\n  ${skipped.join('\n  ')}\n`)
 }
 
+// ---- THE TURN LEDGER, dogfooded (0.6.0) ---------------------------------------
+// 0.6.0 gave consumers a record of the one documented way a turn CAN end red: after
+// CLAUDE_CODE_STOP_HOOK_BLOCK_CAP consecutive blocks, Claude Code ends the turn anyway. The
+// factory had the identical hole, and this is the machine where it is cheapest to notice — a
+// maintainer whose turn ran out of blocks left the machinery inconsistent with no trace, on
+// the one machine where a bug in this code can actually be fixed.
+//
+// The SHIPPED module, never a second copy: two implementations of "how many times have we
+// blocked" would drift, and this file's whole purpose is to be a live test of the exact bytes
+// consumers get. ROOT-relative rather than cwd-relative because a hook's cwd is the project
+// root here and the ledger must land in the repo either way.
+const turn = recordTurnOutcome({
+  blocked: failures.length > 0,
+  gates: failedGates,
+  input,
+  ledgerPath: join(ROOT, '.harness/turn-outcomes.jsonl'),
+})
+if (turn.priorCapHit !== null) {
+  process.stderr.write(
+    `stop-factory-gate: THE PREVIOUS TURN ENDED RED — blocked ${String(turn.priorCapHit.blocks)} time(s) (the cap), with ${turn.priorCapHit.gates?.join(', ') || 'the factory gate'} still failing. Treat those as outstanding, not as history.\n`,
+  )
+}
+
 if (failures.length > 0) {
+  if (turn.capReached) {
+    process.stderr.write(
+      `stop-factory-gate: LAST CHANCE — this is block ${String(turn.blocks)} of ${String(turn.cap)}. Claude Code will NOT block again: the next time this turn tries to end, it ends with the machinery inconsistent. Fix the failures below, or say plainly which are still red.\n`,
+    )
+  }
   // Every failure at once, not the first: serial one-red-per-turn discovery would burn
   // the block budget, which is the same reason the consumer Stop gate passes
   // --report-all.

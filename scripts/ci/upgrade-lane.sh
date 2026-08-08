@@ -67,6 +67,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --from) FROM_TAG="${2:-}"; [ -n "$FROM_TAG" ] || { echo "--from needs a tag" >&2; exit 2; }; shift 2 ;;
     --from=*) FROM_TAG="${1#--from=}"; shift ;;
+    --sweep) SWEEP=1; shift ;;
     -*) echo "upgrade-lane: unknown option $1" >&2; exit 2 ;;
     *) WORK="$1"; shift ;;
   esac
@@ -309,11 +310,55 @@ done
 # silently no-ops, the consumer's chain is a release behind with every gate green.
 say "injected chain steps"
 node tools/validate.mjs --list > "$WORK/steps.txt"
-for step in wiring secrets; do
-  grep -qE "^$step  " "$WORK/steps.txt" ||
-    die "step \`$step\` is absent from the upgraded install's chain — the migrations.json configSteps injection did not reach tools/harness.config.mjs.
+# DERIVED, not hardcoded — and the derivation is what showed how little this was checking.
+# Through 0.5.0 the loop read `for step in wiring secrets`, the two steps 0.3.0 injected. The
+# real set at 0.5.0 is SEVEN (tenancy, db-limits, query-shapes, rate-limits, security-headers,
+# wiring, secrets): five injections had no assertion in the section whose title says it checks
+# them. They were caught indirectly at §5, because `doctor` errors on a missing
+# requiredConfigSteps entry — but that is doctor's property, borrowed, and a borrowed property
+# is not this section's proof. Reading the same function doctor reads makes the expectation
+# grow with the release instead of being remembered.
+# 0.6.0: the derivation now carries the TARGET ARRAY, because a configSteps record may name
+# `STOP_HOOK_STEPS` instead of the validate chain — and the first `reviewer-verdicts` release
+# is the first time that mattered. This lane found that on its first 0.6.0 run: the injection
+# had landed correctly in STOP_HOOK_STEPS and this section reported it MISSING, because it
+# looked for every required step in `validate --list` output. A lane that reds on a correct
+# release is worse than one that stays quiet — it teaches people the lane is wrong.
+#
+# The Stop chain is read from the installed config, not from the frozen tools/stop.floor.json,
+# and the distinction is the whole point of this check: the floor is an OWNED file that
+# `update` refreshes, so a Stop step MASKED by the floor's union would still RUN at agent
+# time while the consumer's own config silently lacked it. The union is a safety net for a
+# weakened config, never a substitute for the injection landing.
+EXPECTED_STEPS="$(node -e '
+const { requiredConfigSteps, readTemplateMigrations } = await import(
+  process.argv[1] + "/installer/lib/migrations.mjs"
+)
+const steps = requiredConfigSteps(readTemplateMigrations(), process.argv[2])
+process.stdout.write(steps.map((s) => `${s.name}:${s.array ?? "VALIDATE_STEPS"}`).join(" "))
+' "$ROOT" "$HEAD_VERSION")"
+[ -n "$EXPECTED_STEPS" ] ||
+  die "no configSteps derived from template/migrations.json at or below $HEAD_VERSION — this lane's whole subject is that injection, and an empty expectation asserts nothing"
+node -e '
+const { STOP_HOOK_STEPS } = await import(process.argv[1] + "/tools/harness.config.mjs")
+process.stdout.write(STOP_HOOK_STEPS.map(([n]) => n).join("\n"))
+' "$SCAFFOLD" > "$WORK/stop-steps.txt"
+for pair in $EXPECTED_STEPS; do
+  step="${pair%%:*}"
+  array="${pair##*:}"
+  case "$array" in
+    STOP_HOOK_STEPS)
+      grep -qxF "$step" "$WORK/stop-steps.txt" ||
+        die "Stop-chain step \`$step\` is absent from the upgraded install's STOP_HOOK_STEPS — the migrations.json configSteps injection did not reach tools/harness.config.mjs. Note it may still RUN, because tools/stop.floor.json is harness-owned and the Stop hook runs the UNION; that masking is exactly why this asserts the config rather than the behaviour.
+$(cat "$WORK/stop-steps.txt")"
+      ;;
+    *)
+      grep -qE "^$step  " "$WORK/steps.txt" ||
+        die "step \`$step\` is absent from the upgraded install's chain — the migrations.json configSteps injection did not reach tools/harness.config.mjs.
 $(cat "$WORK/steps.txt")"
-  echo "  injected:  $step"
+      ;;
+  esac
+  echo "  injected:  $step ($array)"
 done
 STEP_COUNT="$(wc -l < "$WORK/steps.txt" | tr -d ' ')"
 say "chain is $STEP_COUNT steps"
@@ -407,12 +452,44 @@ node "$ROOT/scripts/ci/ramp-verdict.mjs" "$EXPIRED" "$WORK/validate.log" "$VALID
   die "the expiry expectation for baseVersion $BASE_AFTER was not met (see the problem list above and $WORK/validate.log)"
 grep -F 'RAMP EXPIRED' "$WORK/validate.log" | sed 's/ was ramped.*//;s/^/    /' | sort -u || true
 
-# ── 7b. every NOTE that should appear does, and every NOTE names its deadline ────
+# ── 7b. a ramped gate RAN, and anything it withheld was announced ────────────────
+# THE DIRECTION OF INFERENCE IS REVERSED HERE TOO (0.6.0), for the reason §8 below already
+# spells out and this section went on making anyway: **an expected ramp does not imply an
+# outstanding finding**, because a gate calls `rampNote` only when it has something to
+# withhold — and `rampNote` PRINTS on every armed call, so calling it unconditionally would
+# emit a NOTE about nothing on every green run. W2c moved several gates' ramps inside their
+# findings condition precisely to stop that.
+#
+# The old assertion required every gate in the expectation set to have printed a NOTE. On
+# this release that reds a CORRECT install: `auth-posture` has findings on an upgraded
+# scaffold and announces them, `data-flow` has none because its policy ships planted and the
+# stack schema already satisfies it — so it prints OK, which is the honest answer. Reading
+# that as "a check shipped disabled" would teach a maintainer the lane is wrong, which is
+# worse than the bug it was guarding.
+#
+# What the section actually protects is unchanged and is now stated directly:
+#   1. a gate whose ramp is live must have RUN — silence means it never executed at all;
+#   2. anything it WITHHELD must be announced, with a deadline (the check below and §7c).
+# The second is the real "shipped disabled" failure, and it is now judged from the run rather
+# than predicted from the site list.
 for g in $NOTING; do
-  grep -q "^$g: NOTE .*ramp: live from baseVersion" "$WORK/validate.log" ||
-    die "gate \`$g\` should be ramp-NOTEing at baseVersion $BASE_AFTER and is silent. A ramp that does not announce itself is a check shipped disabled with nobody told."
-  echo "  noting:    $g"
+  if grep -q "^$g: NOTE .*ramp: live from baseVersion" "$WORK/validate.log"; then
+    echo "  noting:    $g (withholding findings, announced)"
+  elif grep -qE "^$g: (OK|SKIPPED)" "$WORK/validate.log"; then
+    echo "  clean:     $g (ramp live, nothing to withhold — no NOTE is the honest answer)"
+  else
+    die "gate \`$g\` has a live ramp at baseVersion $BASE_AFTER but produced no OK, SKIPPED or NOTE line at all — it did not run. A ramped gate that never executes is a check shipped disabled with nobody told.
+$(grep -E "^$g:" "$WORK/validate.log" || echo '    (no output from this gate)')"
+  fi
 done
+# THE SHARP DIRECTION: anything withheld must carry the ramp banner. A gate that prints
+# `N finding(s) withheld` without `ramp: live from baseVersion` is suppressing findings with
+# no deadline attached to them, which is the exact state the expectation set exists to refuse.
+WITHHELD_UNANNOUNCED="$(grep -F 'finding(s) withheld' "$WORK/validate.log" | grep -Fv 'ramp' || true)"
+if [ -n "$WITHHELD_UNANNOUNCED" ]; then
+  die "gate output withholds findings without naming a ramp — findings suppressed with no deadline against them:
+$WITHHELD_UNANNOUNCED"
+fi
 RAMP_NOTES="$(grep -F 'ramp: live from baseVersion' "$WORK/validate.log" || true)"
 UNDATED="$(printf '%s' "$RAMP_NOTES" | grep -Fv 'expires in' || true)"
 if [ -n "$UNDATED" ]; then
@@ -433,36 +510,96 @@ fi
 # only when they have something to withhold. Leg D is the case: its one expectation is
 # `wiring`, the lane's own obligation step removes the condition `wiring` would have
 # reported, the chain comes back green, and graduate correctly opens the door — which this
-# assertion then called a defect. `graduate`'s actual contract is the one written in its own
-# refusal text: it re-runs the ramp-aware validate and refuses while that is RED, never
-# masking a real failure. So key on VALIDATE_CODE, which is the fact both sides describe.
-# The matrix still executes both directions — legs B and C carry real findings and get the
-# refusal, legs A and D are clean and get the advance.
+# assertion then called a defect.
+#
+# 0.5.0 REPLACED IT WITH `VALIDATE_CODE`, READING GRADUATE'S CONTRACT AS "REFUSES WHILE
+# VALIDATE IS RED". THAT IS HALF THE CONTRACT. installer/commands/graduate.mjs refuses on a
+# red chain AND, separately, while any ramp NOTE stands — which is the whole point of
+# graduating. The half was invisible for exactly one release: 0.5.0 opened no ramp at its own
+# minVersion, so on leg A every site was already inert and "green chain" and "no NOTEs"
+# coincided. 0.6.0 opens three (auth-posture, the web route registry, the re-opened
+# docs-sync gate list), every leg's baseline is below 0.6.0, and the branch below would have
+# called a CORRECT refusal a defect on all four.
+#
+# THE DIRECTION OF INFERENCE IS REVERSED TO FIX IT. Rather than predicting which way graduate
+# must go and calling the other one a bug, judge what it DID and require the reason to be
+# true — no second copy of graduate's NOTE predicate to drift against, and both failure modes
+# still closed: it must never open on a red chain, and it must never refuse for a reason the
+# lane's own run cannot corroborate.
+# ── 7d. THE SWEEP (0.6.0, --sweep) — the only shape that opens graduate's door ────
+# `graduate` has two branches and only one had ever been executed. Every leg above ends with
+# it REFUSING, because an upgraded install always has ramped findings outstanding — that is
+# what a ramp is FOR. The SUCCESS branch is the one that moves baseVersion and arms every
+# ramped check at once, and through 0.5.0 nothing anywhere ran it. A door nobody has opened is
+# not a door you know opens.
+#
+# So this leg does what the runbook tells a consumer to do, then requires graduate to succeed.
+# That makes it a proof of two things at once: that the door opens, and that the sweep in
+# docs/runbooks/harness-upgrade.md is SUFFICIENT — a runbook whose steps do not actually clear
+# the findings is worse than no runbook, and nothing else here would notice.
+if [ "${SWEEP:-0}" = "1" ]; then
+  say "sweep — adopt this release's seams, the way the runbook says to"
+  node "$ROOT/scripts/ci/upgrade-sweep.mjs" "$SCAFFOLD" "$ROOT" "$HEAD_VERSION" ||
+    die "the sweep failed. Its file list is DERIVED from this release's seedOnInitOnly set, so an empty or failing sweep means the release withheld nothing a consumer must adopt — and a sweep that clears nothing cannot prove graduate opens."
+  say "re-validate after the sweep"
+  set +e
+  (cd "$SCAFFOLD" && node tools/validate.mjs --report-all) > "$WORK/validate.log" 2>&1
+  VALIDATE_CODE=$?
+  set -e
+  tail -25 "$WORK/validate.log"
+  [ "$VALIDATE_CODE" -eq 0 ] ||
+    die "the chain is RED after the documented sweep (exit $VALIDATE_CODE). Either the runbook is missing a step, or this release ships a seam whose adoption breaks something — both are release defects, and this is the only lane that would find either. See $WORK/validate.log"
+  SURVIVING="$(grep -F 'ramp: live from baseVersion' "$WORK/validate.log" || true)"
+  if [ -n "$SURVIVING" ]; then
+    die "ramp NOTE(s) survive the documented sweep — the runbook does not actually clear what this release ramped:
+$SURVIVING"
+  fi
+fi
+
 say "graduate"
 set +e
 node "$ROOT/installer/cli.mjs" graduate --dir "$SCAFFOLD" > "$WORK/graduate.log" 2>&1
 GRAD_CODE=$?
 set -e
+# A swept leg exists to execute the SUCCESS branch. If graduate still refuses, the leg has
+# proved only what the other three already prove, and must say so rather than pass quietly.
+if [ "${SWEEP:-0}" = "1" ] && [ "$GRAD_CODE" -ne 0 ]; then
+  die "graduate REFUSED after the documented sweep — this leg's entire purpose is to execute the success branch, so a refusal here means the sweep is incomplete rather than that graduate is wrong:
+$(cat "$WORK/graduate.log")"
+fi
 cat "$WORK/graduate.log"
 BASE_FINAL="$(node -p "require('$SCAFFOLD/.harness/manifest.json').baseVersion")"
 
-if [ "$VALIDATE_CODE" -ne 0 ]; then
-  [ "$GRAD_CODE" -ne 0 ] ||
-    die "validate is RED on this install and graduate SUCCEEDED anyway — it would arm every ramped check on a tree that has not swept its findings"
-  grep -qE 'still outstanding|validate is RED' "$WORK/graduate.log" ||
-    die "graduate refused, but not for the ramp reason — the refusal must name the outstanding findings or the red chain"
-  [ "$BASE_FINAL" = "$BASE_AFTER" ] || die "a refused graduate still moved baseVersion ($BASE_AFTER -> $BASE_FINAL)"
-  GRAD_SUMMARY="graduate refusing (baseVersion held at $BASE_FINAL)"
-else
-  # A green chain — nothing is outstanding, whatever the classifier predicted. Asserting
-  # "at least one NOTE" here would have demanded the release invent a ramp at
-  # minVersion == itself; the real obligation is the opposite one, and it had never run:
-  # graduation must WORK.
-  [ "$GRAD_CODE" -eq 0 ] ||
-    die "validate is GREEN on this install, yet graduate REFUSED (exit $GRAD_CODE) — a door that will not open when nothing blocks it is not an escape with a door. See $WORK/graduate.log"
+# graduate's own predicate for "something is still withheld", per LINE and in its own terms:
+# a `NOTE —` that mentions a ramp. Two greps rather than one pattern, because the two halves
+# are anchored to different things and an ERE trying to span them across arbitrary prose is
+# the kind of clever regex that silently stops matching when a message is reworded.
+has_ramp_note() { grep -E 'NOTE[[:space:]]*—' "$WORK/validate.log" | grep -qi 'ramp'; }
+
+if [ "$GRAD_CODE" -eq 0 ]; then
+  # It opened the door. It may only do that on a green chain with nothing withheld, and the
+  # one thing graduation exists to do must have happened.
+  [ "$VALIDATE_CODE" -eq 0 ] ||
+    die "validate is RED on this install (exit $VALIDATE_CODE) and graduate SUCCEEDED anyway — it would arm every ramped check on a tree that has not swept its findings"
+  if has_ramp_note; then
+    die "graduate advanced baseVersion while the lane's own validate still printed a ramp NOTE — the findings it was supposed to make turn-fatal were never swept"
+  fi
   [ "$BASE_FINAL" = "$HEAD_VERSION" ] ||
     die "graduate exited 0 but baseVersion is $BASE_FINAL, not $HEAD_VERSION — the one thing graduation exists to do did not happen"
   GRAD_SUMMARY="graduate advancing baseVersion $BASE_AFTER -> $BASE_FINAL"
+else
+  # It refused. The refusal must NAME a reason, that reason must be one the lane can see in
+  # its own validate output, and it must not have moved anything on the way out.
+  grep -qE 'still outstanding|validate is RED' "$WORK/graduate.log" ||
+    die "graduate refused, but not for either reason it is allowed to refuse for — the refusal must name the outstanding ramp findings or the red chain. See $WORK/graduate.log"
+  if grep -q 'validate is RED' "$WORK/graduate.log"; then
+    [ "$VALIDATE_CODE" -ne 0 ] ||
+      die "graduate refused saying validate is RED, but the lane's own validate on the same tree exited 0 — two runs of one chain disagreeing is a nondeterministic gate, which is worse than either verdict"
+  elif ! has_ramp_note; then
+    die "graduate refused for outstanding ramp findings, but the lane's validate printed no ramp NOTE at all — a door that will not open when nothing blocks it is not an escape with a door. See $WORK/graduate.log"
+  fi
+  [ "$BASE_FINAL" = "$BASE_AFTER" ] || die "a refused graduate still moved baseVersion ($BASE_AFTER -> $BASE_FINAL)"
+  GRAD_SUMMARY="graduate refusing (baseVersion held at $BASE_FINAL)"
 fi
 
 say "upgrade-lane: OK — $PREV_TAG -> v$HEAD_VERSION on $STEP_COUNT steps, doctor $DOCTOR_CODE, validate exit $VALIDATE_CODE (expired: ${EXPIRED:-none}; noting: ${NOTING:-none}; inert: $INERT), $GRAD_SUMMARY"

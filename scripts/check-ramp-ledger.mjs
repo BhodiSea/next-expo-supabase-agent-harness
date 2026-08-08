@@ -35,6 +35,8 @@ import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import {
+  checkDetailIds,
+  checkVintages,
   classifyForInstall,
   cmpDotted,
   deadlineRegressions,
@@ -42,6 +44,7 @@ import {
   neverArmed,
   rampSitesFromSources,
   shippedRampSites,
+  VINTAGES,
 } from './lib/ramp-sites.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -82,6 +85,11 @@ for (const s of sites.filter((x) => !x.consumed)) {
   )
 }
 
+// The deadline ratchet keys on the detail string, so the detail string has to be an id.
+// Enforced here rather than trusted: without it a mis-parsed or duplicated detail degrades
+// the ratchet to the sorted-list comparison it was adopted to replace, silently.
+problems.push(...checkDetailIds(sites))
+
 for (const s of neverArmed(sites)) {
   problems.push(
     `${s.file}: minVersion ${s.minVersion} is BELOW this lineage's oldest release (${LINEAGE_FLOOR}), so the escape has never been reachable — gate.mjs returns false at \`base >= minVersion\` for every install that has ever existed. Its \`until: ${s.until}\` deadline can never arrive. Delete the rampNote() wrapper and let the check run unconditionally; do not "expire" a ramp that never armed.`,
@@ -90,11 +98,14 @@ for (const s of neverArmed(sites)) {
 
 // The ledger itself. For each released vintage a consumer could still be carrying, what does
 // an upgrade TO this version do? The population is what the release notes state.
-// Every released vintage below the version being cut. 0.4.0 joined in 0.5.0 — its absence
-// was not cosmetic: a ramp opened at minVersion '0.5.0' is aimed squarely at 0.4.0-vintage
-// installs, and with 0.4.0 missing from this list the ledger reported that population as
-// unaffected. The list must grow with every release, which is what the test below pins.
-const VINTAGES = [LINEAGE_FLOOR, '0.2.0', '0.2.1', '0.3.0', '0.4.0']
+// Every released vintage below the version being cut, imported from ONE definition
+// (scripts/lib/ramp-sites.mjs). 0.4.0 joined in 0.5.0 — its absence was not cosmetic: a ramp
+// opened at minVersion '0.5.0' is aimed squarely at 0.4.0-vintage installs, and with 0.4.0
+// missing the ledger reported that population as unaffected.
+//
+// The list must grow with every release, and through 0.5.0 the sentence saying so pointed at
+// a test that did not check it — the test hand-retyped the array instead. `checkVintages`
+// (run against real tags in §2b below) is the control that sentence was promising.
 const ledger = VINTAGES.filter((v) => cmpDotted(v, version) < 0).map((base) => ({
   base,
   ...classifyForInstall(base, version, sites),
@@ -124,6 +135,41 @@ function previousTag() {
     )
   } catch {
     return null
+  }
+}
+
+/** Every release tag, for the VINTAGES closure. Same failure mode as previousTag: none → null. */
+function releaseTags() {
+  try {
+    return git(['tag', '--list', 'v*.*.*'])
+      .split('\n')
+      .map((t) => t.trim())
+      .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
+  } catch {
+    return null
+  }
+}
+
+// ── 2b. THE VINTAGE CLOSURE (0.6.0) ──────────────────────────────────────────────────
+// The control the 0.5.0 comment claimed already existed. VINTAGES is reviewed data, so it can
+// be forgotten; git tags are the record it must agree with. Missing entry = a population this
+// release never classifies and therefore silently reports as unaffected. Same skip-loudly /
+// fail-closed asymmetry as the ratchet below — a fork with no tags gets a NOTE, CI does not.
+const tags = releaseTags()
+let vintageSummary
+if (tags === null || tags.length === 0) {
+  const msg =
+    'no v*.*.* tags are reachable, so VINTAGES cannot be corroborated against what this lineage actually released. This needs full history (fetch-depth: 0).'
+  if (inCI()) {
+    problems.push(`${msg} A skip is not allowed in CI.`)
+  } else {
+    vintageSummary = `vintage closure SKIPPED — ${msg} (FAILS CLOSED in CI)`
+  }
+} else {
+  const vintageProblems = checkVintages(tags, version)
+  problems.push(...vintageProblems)
+  if (vintageProblems.length === 0) {
+    vintageSummary = `vintage closure: ${String(VINTAGES.length)} vintage(s) match the released tags below ${version}`
   }
 }
 
@@ -216,6 +262,7 @@ for (const row of ledger) {
     `  baseVersion ${row.base} → ${detail}; ${String(row.noting.length)} still advisory; ${String(row.inert.length)} already live`,
   )
 }
+if (vintageSummary !== undefined) console.log(`  ${vintageSummary}`)
 if (ratchetSummary !== undefined) console.log(`  ${ratchetSummary}`)
 console.log(
   affected.length === 0

@@ -1,6 +1,7 @@
 import { Text } from '@app/design-system'
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { t } from '../../lib/i18n'
 import { getVerifiedUser } from '../../lib/supabase/server'
 import { SignInForm } from './sign-in-form'
 
@@ -12,7 +13,7 @@ import { SignInForm } from './sign-in-form'
 // form they do not need. Nothing here protects anything, and nothing here needs to — the
 // protection is RLS, and it holds for a caller who never loads this page at all.
 
-export const metadata = { title: 'Sign in' }
+export const metadata = { title: t('route.signIn') }
 
 export default async function SignInPage(): Promise<ReactNode> {
   if ((await getVerifiedUser()) !== null) redirect('/o')
@@ -20,12 +21,9 @@ export default async function SignInPage(): Promise<ReactNode> {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-16">
       <Text as="h1" size="2xl" weight="semibold">
-        Sign in
+        {t('route.signIn')}
       </Text>
-      <Text tone="muted">
-        Your session is verified server-side on every request, and every row you can reach is
-        decided by row-level security in Postgres — never by this browser.
-      </Text>
+      <Text tone="muted">{t('auth.signIn.lede')}</Text>
       <SignInForm />
     </main>
   )

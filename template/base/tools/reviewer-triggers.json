@@ -1,0 +1,105 @@
+{
+  "comment": "WHICH REVIEWER OWES A VERDICT ON WHICH DIFF, as data a machine can evaluate. Every reviewer's frontmatter `description` already says this in prose — 'MUST BE USED after any change to supabase/migrations/**, ... or server-side auth verification' — and eight of those declarations existed for five releases with NOTHING anywhere reading a transcript, hooking SubagentStop, or otherwise observing that any reviewer ran. The harness enforced what a reviewer FILE says (frontmatter parses, tools are a read-only subset, the body ends demanding VERDICT: PASS|BLOCK, the whole surface sha-locked in tools/agents.lock.json) and nothing about whether it RAN. This file is the trigger half moved out of prose; .claude/hooks/subagent-verdict.mjs records the verdicts; tools/check-reviewer-verdicts.mjs is the Stop step that judges one against the other. THE PATTERNS ARE DELIBERATELY NARROWER THAN THE PROSE. A trigger that over-matches makes every diff owe every reviewer, and a gate that fires on everything is one people learn to route around — which is worse than the prose it replaced. When in doubt, leave a path out and widen it in a reviewed diff. SOURCE: template/base/.claude/agents/*.md (the `description` each pattern set is derived from) · CHANGELOG 0.3.0 (process-verified reviewers, deferred with the reason)",
+
+  "matching": "A pattern is a POSIX-style glob over a repo-relative path: `*` matches within one segment, `**` matches across segments. Matching is case-sensitive. A reviewer is OWED a verdict when any changed path matches any of its patterns and no `except` pattern matches that same path.",
+
+  "reviewers": [
+    {
+      "agent": "security-reviewer",
+      "why": "RLS keyed on auth.uid() IS the authorization boundary, and it is the one surface where a mistake is invisible in review and total in production. The paths are the ones where a policy, a grant, or the server-side identity check can change.",
+      "paths": [
+        "supabase/migrations/**",
+        "supabase/schemas/**",
+        "supabase/functions/**",
+        "packages/verticals/*/src/data/**",
+        "packages/api/src/**",
+        "packages/platform/supabase/**",
+        "apps/web/app/actions/**",
+        "apps/web/lib/auth/**",
+        "apps/web/lib/supabase/**"
+      ],
+      "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"],
+      "exceptWhy": "A test file next to a policy is not itself a policy. Excluding them keeps the trigger on the surface that carries the authorization decision — a reviewer summoned by a test edit is the noise that teaches people to skip the reviewer that matters."
+    },
+    {
+      "agent": "web-security-reviewer",
+      "why": "The web half has its own failure modes the Supabase reviewer does not look for: a Server Action that trusts its input, a module-scope client leaking one request's identity into another's render, proxy.ts mistaken for an authorization boundary (CVE-2025-29927), and NEXT_PUBLIC_ names that inline into the shipped bundle.",
+      "paths": [
+        "apps/web/proxy.ts",
+        "apps/web/app/actions/**",
+        "apps/web/app/api/**",
+        "apps/web/lib/supabase/**",
+        "apps/web/lib/security-headers.ts",
+        "apps/web/lib/rate-limit*.ts",
+        "packages/platform/env/**"
+      ],
+      "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"]
+    },
+    {
+      "agent": "mobile-security-reviewer",
+      "why": "The native config surface is the one an ordinary diff cannot show the consequences of: a permission string, an ATS exception or a runtimeVersion policy reads as one line and changes what the store ships and what the OS allows.",
+      "paths": [
+        "apps/mobile/app.config.ts",
+        "apps/mobile/eas.json",
+        "apps/mobile/src/host/**",
+        "apps/mobile/src/lib/supabase/**",
+        "tools/expo-plugins.json",
+        "tools/expo-permissions.json",
+        "tools/identity.lock.json",
+        "tools/store-policy.json"
+      ]
+    },
+    {
+      "agent": "accessibility-reviewer",
+      "why": "The a11y floor is lint plus component tests by the gates-catalog's own admission, and the EAA makes that a legal exposure rather than a quality gap. A human read of a UI diff is the compensating control, so it has to be observed rather than requested.",
+      "paths": [
+        "apps/mobile/src/components/**",
+        "apps/mobile/src/features/**",
+        "apps/mobile/app/**",
+        "apps/web/app/**/page.tsx",
+        "apps/web/app/**/loading.tsx",
+        "apps/web/app/not-found.tsx",
+        "packages/design-system/**",
+        "packages/design-system-native/**"
+      ],
+      "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/page.meta.ts"]
+    },
+    {
+      "agent": "design-reviewer",
+      "why": "AGENTS.md states in its own words that 'UI diffs end with a design-reviewer PASS'. That sentence was advisory for five releases. Same path set as the a11y reviewer because the two look at the same diff for different things.",
+      "paths": [
+        "apps/mobile/src/components/**",
+        "apps/mobile/src/features/**",
+        "apps/mobile/app/**",
+        "apps/web/app/**/page.tsx",
+        "packages/design-tokens/src/**",
+        "packages/design-system/**",
+        "packages/design-system-native/**"
+      ],
+      "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/page.meta.ts"]
+    }
+  ],
+
+  "notTriggered": [
+    {
+      "agent": "torvalds-reviewer",
+      "why": "AGENTS.md says it runs 'before finishing' — that is EVERY turn, which no diff pattern expresses and which a path trigger would model badly. Making it path-triggered would either fire it on everything (noise) or on an arbitrary subset (a rule that reads as coverage and is not). Left out deliberately rather than approximated; a whole-turn obligation needs a different mechanism than a path glob."
+    },
+    {
+      "agent": "citation-verifier",
+      "why": "Driven by the /verify-citations command and closed by the `provenance` chain gate, which reds tree-wide on an uncited decision site. It already has a deterministic control; adding a second, weaker one keyed on paths would let a green path-trigger imply a coverage the gate is the real source of."
+    },
+    {
+      "agent": "dal-author",
+      "why": "An AUTHOR, not a reviewer. It produces the diff; it does not attest to one. Its output is judged by the same gates as any other code."
+    },
+    {
+      "agent": "migration-rls-author",
+      "why": "An author, for the same reason. `security-reviewer` is the one that must attest to what it wrote."
+    },
+    {
+      "agent": "test-author",
+      "why": "An author. `check-test-quality.mjs` and the mutation ratchet are what judge its output, and both are deterministic."
+    }
+  ]
+}

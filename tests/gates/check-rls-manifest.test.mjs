@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -18,7 +18,9 @@ const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-rls-manifest.mjs', import.meta.url),
 )
 const STACK_SUPABASE = fileURLToPath(new URL('../../template/stack/supabase', import.meta.url))
-const SHIPPED_DB_CONTEXT = fileURLToPath(new URL('../../template/base/tests/rls/db-context.ts', import.meta.url))
+const SHIPPED_DB_CONTEXT = fileURLToPath(
+  new URL('../../template/base/tests/rls/db-context.ts', import.meta.url),
+)
 const SHIPPED_DEFINER_ALLOW = fileURLToPath(
   new URL('../../template/base/tools/security-definer-allow.json', import.meta.url),
 )
@@ -31,7 +33,7 @@ const EXEMPT_EMPTY = '{"comment":"x","exempt":[]}\n'
 // A minimal owner-scoped table whose owner column is a SEPARATE indexed column
 // (owner_id), the notes shape. Overridable pieces let each RED case perturb one rule.
 /**
- * @param {{enable?: string, force?: string, index?: string, usingSelect?: string, policies?: string, extra?: string}} [o]
+ * @param {{enable?: string, force?: string, index?: string, usingSelect?: string, policies?: string, grants?: string, extra?: string}} [o]
  */
 function migration(o = {}) {
   const {
@@ -40,6 +42,10 @@ function migration(o = {}) {
     index = 'CREATE INDEX thing_owner_idx ON public.thing (owner_id, created_at DESC);',
     usingSelect = 'USING (owner_id = (SELECT auth.uid()))',
     policies,
+    // The GRANT the 0.6.0 policy→grant closure requires. It is a DEFAULT rather than
+    // part of the fixed prelude because the whole point of the check is that its absence
+    // is invisible: every fixture in this file predates it and every one of them passed.
+    grants = 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO authenticated;',
     extra = '',
   } = o
   const pols =
@@ -57,6 +63,7 @@ ${index}
 ${enable}
 ${force}
 ${pols}
+${grants}
 ${extra}`
 }
 
@@ -122,9 +129,7 @@ function runGate(dir) {
 }
 
 test('GREEN: the untouched shipped supabase/ scaffold passes (profiles inline-PK + notes)', () => {
-  const r = runGate(
-    fixture({ shipped: true }),
-  )
+  const r = runGate(fixture({ shipped: true }))
   assert.equal(r.code, 0, r.out)
 })
 
@@ -145,7 +150,8 @@ ALTER TABLE public.thing FORCE ROW LEVEL SECURITY;
 CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (id = (SELECT auth.uid()));
 CREATE POLICY thing_insert_own ON public.thing FOR INSERT TO authenticated WITH CHECK (id = (SELECT auth.uid()));
 CREATE POLICY thing_update_own ON public.thing FOR UPDATE TO authenticated USING (id = (SELECT auth.uid())) WITH CHECK (id = (SELECT auth.uid()));
-CREATE POLICY thing_delete_own ON public.thing FOR DELETE TO authenticated USING (id = (SELECT auth.uid()));`
+CREATE POLICY thing_delete_own ON public.thing FOR DELETE TO authenticated USING (id = (SELECT auth.uid()));
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO authenticated;`
   const r = runGate(
     fixture({
       migration: mig,
@@ -336,7 +342,10 @@ test('RED (0.2.0): moving auth.uid() into a helper called BARE no longer vacates
     'CREATE FUNCTION public.current_uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT auth.uid() $$;'
   const r = runGate(
     fixture({
-      migration: migration({ extra: helper, usingSelect: 'USING (owner_id = public.current_uid())' }),
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = public.current_uid())',
+      }),
     }),
   )
   assert.equal(r.code, 1, r.out)
@@ -458,7 +467,11 @@ GRANT EXECUTE ON FUNCTION public.org_members(uuid) TO authenticated;`
       definerAllow: JSON.stringify({
         comment: 'x',
         allow: [
-          { function: 'public.org_members', reason: 'the colleague directory read; verifies the callers own membership from auth.uid() before returning rows' },
+          {
+            function: 'public.org_members',
+            reason:
+              'the colleague directory read; verifies the callers own membership from auth.uid() before returning rows',
+          },
         ],
       }),
     }),
@@ -481,4 +494,152 @@ test('RED (0.2.0): a non-public table whose schema is published by PostgREST', (
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('[api].schemas'), r.out)
+})
+
+// ---------------------------------------------------------------------------
+// 0.6.0 — the POLICY → GRANT closure.
+//
+// Table privileges are checked BEFORE row security, so a policy naming a role that holds
+// no privilege on the table is unreachable code. This gate has parsed grants since 0.2.0
+// and consumed only the FUNCTION half; the table half was dead output. Every fixture above
+// shipped without a single GRANT statement and every one of them was green — which is
+// exactly the shape of the defect, because Supabase's default privileges hand
+// anon/authenticated/service_role their privileges on every new table in `public` and
+// therefore make the omission work. Those defaults stop applying to projects created on or
+// after 2026-10-30.
+//
+// The ramp is INERT in these fixtures: rampNote returns false when there is no
+// .harness/manifest.json, so what a fixture sees is the strict form a fresh install sees.
+// ---------------------------------------------------------------------------
+
+test('RED (0.6.0): four policies, four registries, and no GRANT — green until now', () => {
+  const r = runGate(fixture({ migration: migration({ grants: '' }) }))
+  assert.equal(r.code, 1, r.out)
+  // One finding per operation, because the missing privilege is per-operation.
+  for (const op of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+    assert.ok(r.out.includes(`FOR ${op}, but no migration GRANTs ${op}`), `${op}: ${r.out}`)
+  }
+  // The message must carry the DATE and the code, because the reader of this red has a
+  // tree that works today and will not work in a project created after the flip.
+  assert.ok(r.out.includes('2026-10-30'), r.out)
+  assert.ok(r.out.includes('42501'), r.out)
+  // And the exact statement that discharges it — a finding a reader has to translate
+  // into SQL is a finding they will translate wrongly.
+  assert.ok(r.out.includes('GRANT SELECT ON TABLE public.thing TO authenticated;'), r.out)
+})
+
+test('RED (0.6.0): the SHIPPED tree with one GRANT line deleted — the green above is not vacuous', () => {
+  // The strongest form of the proof: not a fixture shaped like the scaffold, but THE
+  // scaffold, minus one line. A closure that passes the shipped tree because it never
+  // looked at it would survive every fixture-only red-proof in this file.
+  const dir = fixture({ shipped: true })
+  const mig = join(dir, 'supabase/migrations/20260101000100_notes.sql')
+  const before = readFileSync(mig, 'utf8')
+  const GRANT = 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;'
+  assert.ok(before.includes(GRANT), 'the shipped notes migration must carry the grant this deletes')
+  writeFileSync(mig, before.replace(GRANT, ''))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('notes: policy notes_select_own'), r.out)
+})
+
+test('GREEN (0.6.0): a deny-all policy needs no grant — the carve-out that keeps the tenancy spine legal', () => {
+  // `WITH CHECK (false)` is how the shipped tenancy spine says "authenticated may never
+  // insert a membership row" while still holding SELECT. Demanding an INSERT grant behind
+  // it would require handing out precisely the privilege the policy exists to refuse.
+  const pols = `CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_insert_none ON public.thing FOR INSERT TO authenticated WITH CHECK (false);
+CREATE POLICY thing_update_none ON public.thing FOR UPDATE TO authenticated USING (false);
+CREATE POLICY thing_delete_none ON public.thing FOR DELETE TO authenticated USING (false);`
+  const r = runGate(
+    fixture({
+      migration: migration({
+        policies: pols,
+        grants: 'GRANT SELECT ON TABLE public.thing TO authenticated;',
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (0.6.0): a RESTRICTIVE policy carries no reachability claim', () => {
+  // A restrictive policy only ever SUBTRACTS rows. Writing one for a role that holds
+  // nothing is coherent defensive SQL, so it is not evidence the role is meant to read.
+  const pols = `CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_insert_own ON public.thing FOR INSERT TO authenticated WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_update_own ON public.thing FOR UPDATE TO authenticated USING (owner_id = (SELECT auth.uid())) WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_delete_own ON public.thing FOR DELETE TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_no_service ON public.thing AS RESTRICTIVE FOR SELECT TO app_reporting USING (owner_id IS NOT NULL);`
+  const r = runGate(fixture({ migration: migration({ policies: pols }) }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.6.0): a CUSTOM role gets the other explanation — it never worked, not "not yet"', () => {
+  // Supabase's default privileges cover anon/authenticated/service_role and nothing else,
+  // so a policy naming a bespoke role with no grant behind it has never admitted a row.
+  // Saying "will break in 2026-10-30" there would be false and would get the finding
+  // deferred to a date that has nothing to do with it.
+  const pols = `CREATE POLICY thing_select_own ON public.thing FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_insert_own ON public.thing FOR INSERT TO authenticated WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_update_own ON public.thing FOR UPDATE TO authenticated USING (owner_id = (SELECT auth.uid())) WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_delete_own ON public.thing FOR DELETE TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_select_rpc ON public.thing FOR SELECT TO app_thing_rpc USING (owner_id = (SELECT auth.uid()));`
+  const r = runGate(fixture({ migration: migration({ policies: pols }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('app_thing_rpc'), r.out)
+  assert.ok(r.out.includes('never has'), r.out)
+  assert.ok(!r.out.includes('2026-10-30'), 'a custom role has no flip date to wait for')
+})
+
+test('RED (0.6.0): the fold is ORDERED — a later REVOKE undoes an earlier GRANT', () => {
+  // A set-union reading of the grant history would report this table fully granted. The
+  // shipped idiom is REVOKE-then-narrow-GRANT, so order is the only faithful reading, and
+  // the direction that must not fail open is the one where the REVOKE comes last.
+  const r = runGate(
+    fixture({
+      migration: migration({
+        grants: `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO authenticated;
+REVOKE DELETE ON TABLE public.thing FROM authenticated;`,
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('FOR DELETE, but no migration GRANTs DELETE'), r.out)
+  assert.ok(!r.out.includes('FOR SELECT, but'), 'the other three privileges survive the REVOKE')
+})
+
+test('RED (0.6.0): a SCHEMA grant is not a TABLE grant', () => {
+  // `GRANT ALL ON SCHEMA public TO authenticated` and `GRANT ALL ON TABLE public.thing TO
+  // authenticated` reduce to the same bare name once the schema prefix is stripped. Folding
+  // the first into the second's ledger would let a USAGE grant read as a SELECT grant —
+  // which is exactly what the shipped audit migration would have triggered
+  // (`REVOKE ALL ON SCHEMA audit FROM anon, authenticated, service_role`).
+  const r = runGate(
+    fixture({ migration: migration({ grants: 'GRANT ALL ON SCHEMA public TO authenticated;' }) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('but no migration GRANTs SELECT'), r.out)
+})
+
+test('GREEN (0.6.0): ALL TABLES IN SCHEMA fans out, and a grant to PUBLIC is held by everyone', () => {
+  // Both are real forms a consumer will reach for after the flip, and reddening either
+  // would be the gate telling correct SQL it is wrong.
+  const fanOut = runGate(
+    fixture({
+      migration: migration({
+        grants:
+          'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;',
+      }),
+    }),
+  )
+  assert.equal(fanOut.code, 0, fanOut.out)
+
+  const toPublic = runGate(
+    fixture({
+      migration: migration({
+        grants: 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.thing TO PUBLIC;',
+      }),
+    }),
+  )
+  assert.equal(toPublic.code, 0, toPublic.out)
 })

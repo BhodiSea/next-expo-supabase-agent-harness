@@ -51,7 +51,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 31-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 33-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -77,17 +77,21 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 31 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
+- The 33 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
   `types`, `lint`,
   `provenance`, `boundaries`, `expo-policy`, `native-deps`, `version-sync`,
-  `prompts`, `licenses`, `schema-rls`, `tenancy`, `types-drift`, `migrations`,
+  `prompts`, `licenses`, `schema-rls`, `tenancy`, `auth-posture`, `data-flow`, `types-drift`, `migrations`,
   `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
   `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
   `route-manifest`, `security-headers`, `e2e`, `docs-sync`
   (docs/harness/gates-catalog.md documents each).
-- The 9 Stop-chain steps, in order: `validate`, `rls-isolation`, `unit`,
+- The 10 Stop-chain steps, in order: `validate`, `rls-isolation`, `unit`,
   `mobile-unit`, `diff-coverage`, `duplication`, `i18n`, `test-quality`,
-  `mobile-perf`. They are FROZEN in `tools/stop.floor.json`: the Stop hook runs
+  `mobile-perf`, `reviewer-verdicts`. The last one is the only check in the
+  harness whose subject is the TURN rather than the tree: every reviewer whose
+  `MUST BE USED` paths this diff touched must have returned `VERDICT: PASS`,
+  recorded by the SubagentStop hook. Triggers are reviewed data in
+  `tools/reviewer-triggers.json`. They are FROZEN in `tools/stop.floor.json`: the Stop hook runs
   the UNION of the local config and that floor, so a project may APPEND a step
   and may never subtract one.
 - **Toolchain asymmetry:** gates needing a live database, an install, or a
@@ -249,6 +253,14 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   gate closes both ways; chrome lives in `tools/route-allowlist.json`. The
   mobile-perf closure requires a Maestro flow + `tools/startup-budget.json` row
   per route — an unmeasured screen cannot land.
+- **Every WEB page registers too**, through a `page.meta.ts` beside its
+  `page.tsx` (id, `titleKey`, the three state testIDs). `path` and `file` are
+  DERIVED — `tools/gen-web-routes.mjs` walks `apps/web/app` and writes the
+  committed `apps/web/lib/routes.generated.ts` (`pnpm gen`), which the same
+  route-manifest step regen-diffs. Render each testID as
+  `data-testid={meta.states.<key>}` so the declared and rendered ids cannot
+  drift; chrome lives in `tools/web-route-allowlist.json`; `app/not-found.tsx`
+  is required.
 - **Data-dense screens follow `features/matrix`**: FlatList IS the virtualizer
   (fixed row height shared with `getItemLayout`, tuned window), keyset
   pagination via `useKeysetQuery`, one accessible element per row, an explicit

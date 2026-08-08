@@ -30,7 +30,7 @@ gate could enforce deterministically.
 ## One gate config, three enforcement layers
 
 `tools/harness.config.mjs` is the single source of truth for what "done" means:
-`VALIDATE_STEPS` (the 31-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
+`VALIDATE_STEPS` (the 33-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
 Stop hook runs — validate plus the runtime suites). Three enforcement layers consume it
 and can therefore never disagree:
 
@@ -42,7 +42,7 @@ and can therefore never disagree:
    `validate` to `true` in package.json (an auto-accepted, unguarded edit) and pass a
    hollow gate. **The Stop gate defines done** locally.
 3. **CI** → re-runs `node tools/validate.mjs --min-floor`, which reads the FROZEN
-   snapshot `tools/validate.floor.json` — a verbatim copy of all 31 canonical steps that
+   snapshot `tools/validate.floor.json` — a verbatim copy of all 33 canonical steps that
    the runner trusts OVER the local config, and **FAILS CLOSED** (missing/corrupt
    snapshot → exit 1) rather than degrade to a possibly-weakened config. **The CI floor**
    means editing the config can ADD steps but can never weaken the non-negotiable ones
@@ -68,14 +68,15 @@ Exit-code semantics (the crux of the design):
 
 | Event | Matcher | Script | Enforces |
 |---|---|---|---|
-| PreToolUse | `Bash` | `.claude/hooks/pretool-bash-guard.mjs` | denies destructive shell, secret access, migration bypasses |
+| PreToolUse | `Bash\|Monitor\|PowerShell` | `.claude/hooks/pretool-bash-guard.mjs` | denies destructive shell, secret access, migration bypasses — on **all three** command-executing tools (0.6.0) |
 | PreToolUse | `Edit\|Write\|MultiEdit\|NotebookEdit` | `.claude/hooks/pretool-write-guard.mjs` | blocks invariant-violating file **content** before it lands; denies edits to harness-owned paths |
 | PreToolUse | `mcp__.*` | `.claude/hooks/pretool-mcp-guard.mjs` | default-deny over `tools/approved-tools.json`: unregistered servers, tools outside a server's list, and write-shaped tool names on a `readOnly` server |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
+| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts` |
 
-Six hooks, and **every command is `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
+Seven hooks, and **every command is `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
 the commands were bare paths relying on the executable bit, and `check-gate-integrity`
 hashes CONTENT and never MODE — so `chmod -x` on the Stop hook silently disarmed the turn
 gate while every sha256 still matched. The fix deletes the vulnerability rather than
@@ -100,9 +101,25 @@ projects may APPEND a step and may never subtract one (the config is manifest mo
 list of checks that decide whether a turn may end). A floored step missing from the config
 still runs, and gate-integrity reds naming it;
 if the config cannot load it falls back to `pnpm validate` and warns — never skips.
-`stop_hook_active` escalates the message on repeat blocks; the block cap in
-`.claude/settings.json` is the safety valve so a genuinely stuck session terminates.
+`stop_hook_active` escalates the message on repeat blocks — a payload field the docs do not
+list for `Stop` and every test supplies synthetically, so 0.6.0 **observed it** against a real
+invocation rather than trusting either (`design/CONTROL-PLANE-FACTS.md`).
 Failure output is truncated tail-first so the model sees the actual errors.
+
+**The block cap leaves a mark (0.6.0).** `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in
+`.claude/settings.json` is the safety valve so a genuinely stuck session terminates: after 8
+CONSECUTIVE blocks Claude Code ends the turn anyway. The valve is right and it stays — a hook
+that can block forever is a bricked machine. But it is also the ONE documented way the
+headline claim ("a turn cannot end on a red build") is false, and through 0.5.0 a turn that
+ran out of blocks left exactly the trace a green turn leaves: none. So every outcome now
+appends to `.harness/turn-outcomes.jsonl`; the last block a turn is allowed says
+`LAST CHANCE` while the transcript can still act on it; and the **next** turn reports a
+predecessor that ended at the cap **even when the tree is green again by then** — which is
+precisely when the fact would otherwise be lost. `subagent-verdict.mjs` writes to the same
+ledger, because the cap is documented over both events in one sentence and a count that saw
+half of them would go quiet on the turns that needed the warning. The file is a diagnostic,
+not a control: it authorizes nothing, so a corrupt line is tolerated rather than fatal — the
+deliberate opposite of the reviewer ledger, which fails closed because it does authorize.
 
 ### pretool-bash-guard
 
@@ -113,6 +130,21 @@ substring checks; the settings.json deny list and CI are the primary controls. D
 `.dev-auth/`, `knip --fix`, bulk `pnpm update` (Renovate-owned), destructive
 raw SQL via psql, and any shell contact with store/signing credentials (`EXPO_TOKEN`,
 keystore/keychain material, store API keys — those live in CI secrets only).
+
+**It matches three tools, not one (0.6.0).** Through 0.5.0 the matcher was the single word
+`Bash`, and both omissions were live bypasses rather than theoretical ones. `Monitor` runs a
+command in the background; permission rules spelled `Bash(...)` *do* cover it, which is
+exactly what made the gap invisible — but a hook matcher is an **exact tool name**, not a
+permission namespace, so the identical command asked for under `Monitor` met no content check
+at all. `PowerShell` is the sharper of the two: on **Windows without Git Bash, Claude Code does
+not register the Bash tool at all**, so a `Bash`-only matcher never fired for those sessions —
+the guard was not weaker there, it was absent. PowerShell also carries its own
+`PowerShell(...)` permission namespace, so the settings deny list does not reach it either;
+this hook is the only layer that does. The rule table gained the canonical cmdlet spellings to
+match (`Remove-Item`, `Get-Content`, `Set-Content`, `Copy-Item`…) — PowerShell's
+bash-compatible aliases were already covered, and `rm -Recurse -Force` turned out to have been
+covered from the day the flag-class regex was written. `check-wiring` holds the matcher to
+naming all three; a project may add a tool, never drop one.
 
 ### pretool-write-guard
 

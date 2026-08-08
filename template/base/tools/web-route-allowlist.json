@@ -1,0 +1,24 @@
+{
+  "comment": "Pages under apps/web/app/ that are shell CHROME, not navigable content routes — exempt from the page.meta.ts closure in tools/check-web-routes.mjs (the web half of the route-manifest gate). Every allow entry must be {\"name\": <app/-relative page DIRECTORY, \"\" for the root route>, \"reason\": non-empty string}; an entry without a reviewed reason is a gate bypass. The name is the DIRECTORY, not the file, because in the App Router the directory IS the route and page.tsx is only the marker. Content routes NEVER belong here — give them a page.meta.ts so the id, the title key and the three data-state test ids are declared and checked. Layouts, loading/error boundaries, not-found and Route Handlers (route.ts) are router plumbing the gate never enumerates; private _folders are excluded from routing entirely and are excluded here too. unreachableStates is the second reviewed escape, identical in shape to tools/route-allowlist.json's: a page.meta.ts may declare a states value of null ONLY when a {\"route\", \"state\", \"reason\"} row here documents why that state provably cannot occur. Stale rows (the page gone, or the state declared with a real test id again) fail the gate.",
+  "allow": [
+    {
+      "name": "",
+      "reason": "the public landing route (app/page.tsx) is marketing chrome, not content: it renders a fixed lede and ONE conditional link, and its single server read (getVerifiedUser) has no loading, empty or error rendering — the anonymous and signed-in branches are both content. Covered by apps/web/e2e/home.spec.ts, which is what a states declaration here would otherwise be restating"
+    },
+    {
+      "name": "sign-in",
+      "reason": "auth chrome, not content — the same call the mobile side makes for apps/mobile/app/sign-in: the sign-in surface has no canonical data states (its pending/failure handling is form state, covered by the sign-in form's own suite) and it must stay reachable to the SIGNED-OUT visitor whose existence a data-state contract presumes away"
+    },
+    {
+      "name": "(protected)/invite/[token]",
+      "reason": "single-action chrome: the page renders NOTHING about the invitation before it is redeemed — no org name, no inviter, no role — because the acceptor holds no seat yet and every policy that could describe the org returns them nothing. There is no query, so there is no loading, empty or error state to declare. Showing a preview would require a definer RPC that answers questions about an org to anyone holding a guessable token, which is the token oracle the invitation design exists to avoid"
+    }
+  ],
+  "unreachableStates": [
+    {
+      "route": "orgs",
+      "state": "error",
+      "reason": "resolveOrgs() returns an EMPTY list on a failed seat lookup rather than throwing — a documented decision in apps/web/lib/auth/session.ts: a signed-in user whose lookup failed is seatless for this request, sees the empty state, and can retry. So this route renders the empty surface where another would render an error one, and there is no error branch to put a test id on"
+    }
+  ]
+}

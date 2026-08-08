@@ -96,7 +96,19 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
       }
     },
   }
-  const supabase = createServerSupabaseClient(cookies)
+  // The cookie POSTURE is passed explicitly, not defaulted. This proxy REWRITES the session
+  // cookie on every pass, so whatever attributes it omits are attributes it strips: a rotated
+  // cookie written without `Secure` silently downgrades the one the browser had set with it,
+  // on every request, for the rest of the session. `httpOnly` is deliberately absent and
+  // cannot be added — the browser client both writes and reads this cookie, and an HttpOnly
+  // cookie is invisible to script by definition (lib/supabase/client.ts states the trade and
+  // what mitigates it). `secure` is derived from the scheme rather than hard-coded so that
+  // http://localhost development still persists a session; a user agent DROPS a Secure cookie
+  // set over plain http.
+  // SOURCE: apps/web/lib/supabase/client.ts (the browser half writes the same attributes)
+  const supabase = createServerSupabaseClient(cookies, {
+    cookieOptions: { secure: request.nextUrl.protocol === 'https:' },
+  })
 
   // getClaims(), never getSession(). getSession() reads the cookie and hands back whatever
   // it finds WITHOUT verifying the JWT signature — on a server that is an unauthenticated

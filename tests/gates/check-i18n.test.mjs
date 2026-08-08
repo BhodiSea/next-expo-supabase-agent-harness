@@ -321,11 +321,14 @@ test('i18n: the gate SELF-DISABLES when the locale seam is not adopted', () => {
   assert.ok(r.out.includes('--refresh-seeded'), r.out)
 })
 
-test('i18n: no mobile surface at all — loud local skip, CI fail-closed', () => {
+test('i18n: NO product surface at all — loud local skip, CI fail-closed', () => {
+  // 0.6.0 widened the subject from one surface to two, so the skip condition widened with
+  // it: the gate steps aside only when NEITHER apps/mobile nor apps/web exists. A tree with
+  // one of them present is a tree this gate has something to say about.
   const dir = mkdtempSync(join(tmpdir(), 'epah-i18n-nosrc-'))
   const local = runGate(dir, { ci: false })
   assert.equal(local.code, 0, local.out)
-  assert.ok(local.out.includes('apps/mobile/src not found'), local.out)
+  assert.ok(local.out.includes('neither apps/mobile nor apps/web found'), local.out)
   const ci = runGate(dir, { ci: true })
   assert.equal(ci.code, 1, ci.out)
 })
@@ -370,7 +373,12 @@ test('i18n: polyfill + matching locale-data closes the loop — green', () => {
   })
   const r = runGate(dir)
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('closed over 1 polyfill(s)'), r.out)
+  // The summary counts across every ADOPTED surface now, so it reads "N polyfill(s) closed
+  // over" rather than "closed over N polyfill(s)". The fixture is mobile-only, so N is 1.
+  assert.ok(r.out.includes('1 polyfill(s) closed over'), r.out)
+  // And the un-judged surface is NAMED, never silently dropped — the property that makes a
+  // green line readable as "what actually ran" instead of "everything".
+  assert.ok(r.out.includes('mobile adopted'), r.out)
 })
 
 test('i18n: locale-data no catalog locale resolves to is dead bundle weight — reds the other way', () => {

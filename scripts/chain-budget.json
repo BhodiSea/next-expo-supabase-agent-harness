@@ -17,7 +17,22 @@
     "ceilingMs is a CHOSEN policy value and may ship. measuredMs is a MEASUREMENT and may not",
     "be invented: it stays null until a real selftest run records one in a reviewed commit.",
     "Until then check-claims.mjs refuses any wall-clock figure in README.md, which is why that",
-    "file still carries none. Measure, commit the measurement, then publish — in that order."
+    "file still carries none. Measure, commit the measurement, then publish — in that order.",
+    "",
+    "0.6.0 BUILT THE WRITER THE PARAGRAPH ABOVE ASSUMED. Until then nothing could record a",
+    "measurement at all: check-chain-budget.mjs judged the numbers against ceilings and threw",
+    "them away, so step one of that ordering had no implementation and measuredMs has been null",
+    "since this file was introduced. It is now `node scripts/check-chain-budget.mjs <log>",
+    "--record`, which stamps a `measurement` block alongside — recordedOn, the RUNNER it came",
+    "from, and the chain step COUNT. The runner string is required rather than inferred, because",
+    "a number with no provenance is worse than null: it licenses a published figure no CI run can",
+    "reproduce. The step count is what stops a figure measured against a 31-step chain from going",
+    "on licensing prose after the chain reached 33 — hasCommittedMeasurement compares it to the",
+    "live chain, which is arithmetic over two committed values and therefore clockless.",
+    "",
+    "And the ordering is enforced now, not merely prescribed: check-claims.mjs imports",
+    "hasCommittedMeasurement and reds on any wall-clock figure in README.md or the latest",
+    "CHANGELOG entry while this file carries none. That sentence was here before the control was."
   ],
   "wall": {
     "ceilingMs": 120000,
@@ -30,36 +45,137 @@
     "toolchainCeilingMs": 60000
   },
   "steps": {
-    "format": { "class": "toolchain", "measuredMs": null },
-    "gate-integrity": { "class": "static", "measuredMs": null },
-    "wiring": { "class": "static", "measuredMs": null },
-    "secrets": { "class": "static", "measuredMs": null },
-    "types": { "class": "toolchain", "measuredMs": null },
-    "lint": { "class": "toolchain", "measuredMs": null },
-    "provenance": { "class": "static", "measuredMs": null },
-    "boundaries": { "class": "static", "measuredMs": null },
-    "expo-policy": { "class": "static", "measuredMs": null },
-    "native-deps": { "class": "toolchain", "measuredMs": null },
-    "version-sync": { "class": "static", "measuredMs": null },
-    "prompts": { "class": "static", "measuredMs": null },
-    "licenses": { "class": "toolchain", "measuredMs": null },
-    "schema-rls": { "class": "static", "measuredMs": null },
-    "tenancy": { "class": "static", "measuredMs": null },
-    "types-drift": { "class": "static", "measuredMs": null },
-    "migrations": { "class": "static", "measuredMs": null },
-    "db-limits": { "class": "static", "measuredMs": null },
-    "contracts": { "class": "toolchain", "measuredMs": null },
-    "query-shapes": { "class": "static", "measuredMs": null },
-    "rate-limits": { "class": "toolchain", "measuredMs": null },
-    "parity": { "class": "static", "measuredMs": null },
-    "dead-code": { "class": "toolchain", "measuredMs": null },
-    "architecture": { "class": "toolchain", "measuredMs": null },
-    "build": { "class": "toolchain", "measuredMs": null },
-    "styleguide": { "class": "toolchain", "measuredMs": null },
-    "perf-budget": { "class": "static", "measuredMs": null },
-    "route-manifest": { "class": "static", "measuredMs": null },
-    "security-headers": { "class": "toolchain", "measuredMs": null },
-    "e2e": { "class": "toolchain", "measuredMs": null },
-    "docs-sync": { "class": "static", "measuredMs": null }
+    "format": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "gate-integrity": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "wiring": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "secrets": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "types": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "lint": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "provenance": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "boundaries": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "expo-policy": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "native-deps": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "version-sync": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "prompts": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "licenses": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "schema-rls": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "tenancy": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "auth-posture": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "data-flow": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "types-drift": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "migrations": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "db-limits": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "contracts": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "query-shapes": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "rate-limits": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "parity": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "dead-code": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "architecture": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "build": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "styleguide": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "perf-budget": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "route-manifest": {
+      "class": "static",
+      "measuredMs": null
+    },
+    "security-headers": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "e2e": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
+    "docs-sync": {
+      "class": "static",
+      "measuredMs": null
+    }
   }
 }

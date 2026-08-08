@@ -36,6 +36,13 @@ allowBuilds:
 # 57.0.x patch wave reddened the selftest canary job 49 minutes short of the
 # cutoff while every earlier pnpm call in the same job passed). Pinning 0
 # makes the project's posture explicit and its gate chain deterministic.
+#
+# THE UNIT IS MINUTES, and pnpm 11's default is 1440 — that is where the 24h
+# above comes from. And if you change this, CHANGE IT HERE: on pnpm 11 the
+# setting is honoured in pnpm-workspace.yaml ONLY. A value in .npmrc is
+# SILENTLY IGNORED — no warning, no error, no effect — so the natural place to
+# reach for is the one place that does nothing, and nothing tells you.
+# SOURCE: design/CONFORMANCE-FACTS.md §8 (all three facts empirically checked)
 minimumReleaseAge: 0
 
 catalog:

@@ -13,6 +13,967 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-07
+
+**The conformance release.** 0.5.0 turned "every claim must be checkable" on the harness's own
+claims and found, everywhere it looked, *a control asserting nothing*. This release asks the
+next question: **the harness enforces what a tree LOOKS LIKE, and nothing about what the agent
+DID to it — and it trusts a control plane it has never audited.**
+
+> **Release in progress.** Sections are added as each wave lands green; the wave order is a
+> dependency order (mechanics → discharge → chain steps → process → control plane →
+> conformance → derived numbers). Nothing below is claimed before its proof runs.
+
+### Two counts nobody was deriving, and a required-set that was a hand-kept list
+
+`check-wiring`'s `SHIPPED_HOOKS` was an array of six names typed by hand. The process layer
+added a seventh hook in this same release and **nothing asserted it was wired** — a list that
+must be edited every time the harness grows is a list that is stale exactly when it matters. It
+is now a UNION: a floor of names that must be wired whatever the directory says (so `rm` on a
+hook cannot delete its own requirement), plus every top-level `.claude/hooks/*.mjs` present (so
+a new hook nobody wired reds). Deriving alone would have been worse than the list, not better.
+
+`check-claims` derived the chain length, the canary registry size, the guard-rule ids and the
+executed canary legs — and not the hook count, so "Six hooks" survived in the root README twice
+and in the shipped doctrine, whose hook table had also quietly lost the new row. Nobody reads
+"six hooks" as a derived number until it is wrong. The matcher reads number **words** as well as
+digits, because the word form is what shipped.
+
+### The controls that were asserting nothing — again, and this time about themselves
+
+- **`scripts/check-claims.mjs` could not read its own subject.** Every matcher is written
+  against a CONTIGUOUS phrase, and markdown soft-wraps prose where the column runs out. The
+  README carried `the 26 can-fail\n> canaries (counted from the matrix itself, not
+  hand-authored)` against a matrix of **29**, and the gate was CLEAN — the newline and the
+  blockquote marker sat between the number and the noun. A stale hand-authored number, live, in
+  the one sentence whose subject is that the number is not hand-authored. The matcher now
+  normalises soft wraps before matching, and both directions are pinned: a wrapped STALE claim
+  reds, a wrapped TRUE claim stays clean (a normaliser that swallowed the phrase would make the
+  red case pass for the wrong reason).
+- **`VINTAGES` promised a control that did not exist.** `check-ramp-ledger.mjs` carried the list
+  of released vintages under the sentence *"The list must grow with every release, which is what
+  the test below pins"* — and the test retyped the array by hand. Two literals, compared to
+  nothing. A release that forgot its predecessor would be green in both places while the ledger
+  reported that whole population as **unaffected**, which is exactly how 0.4.0 went missing until
+  a human noticed in 0.5.0. There is one definition now
+  (`scripts/lib/ramp-sites.mjs#VINTAGES`), and `checkVintages` corroborates it against the tags
+  git actually has — bidirectionally, so a missing vintage AND a vintage this lineage never
+  released both red. The first thing it caught was this release's own missing `0.5.0`.
+- **The upgrade lane was asserting two of seven injected chain steps.**
+  `scripts/ci/upgrade-lane.sh` §4 read `for step in wiring secrets` — the pair 0.3.0 injected —
+  under a heading claiming it proves the `configSteps` injection reached the install. The real
+  set at 0.5.0 is **seven** (`tenancy`, `db-limits`, `query-shapes`, `rate-limits`,
+  `security-headers`, `wiring`, `secrets`). Five injections had no assertion in the section whose
+  title says it checks them; they were caught indirectly by `doctor`'s `requiredConfigSteps`
+  error at §5, which is doctor's property borrowed, not this section's proof. It derives the
+  expectation from the same function `doctor` reads, so it grows with the release instead of
+  being remembered — and an empty expectation is a hard die.
+
+### The seeded web app could not sign anybody in, and nine tier rows said a browser proved it
+
+- **The scaffold shipped a sign-in loop.** `apps/web/lib/supabase/client.ts` constructed the
+  browser client with no `storage`, so `@supabase/supabase-js` persisted the session to
+  `localStorage` — its documented default, confirmed against the installed
+  `@supabase/auth-js` and its compiled `dist`, not from memory. Every server reader —
+  `proxy.ts`, `lib/supabase/server.ts`, the tRPC route's cookie branch — reads the session out
+  of the **cookie jar**. Two disjoint stores: sign-in succeeded, the protected layout's
+  `getVerifiedUser()` saw nothing, and it redirected straight back to `/sign-in`. This is the
+  exact failure `browser.ts`'s own doc comment warns about, in the sentence that names
+  apps/web as the app that avoided it.
+- **Five controls could have caught it and each was aimed one step away.** `storage` is
+  legitimately *optional* — a pure SPA that never server-renders an identity needs none — so
+  the type-checker was correct to be silent. The unit suite tested the cookie **codec** with
+  options passed in, never the **wiring** that passes them. `knip` was told to ignore the one
+  dependency whose absent import would have shouted. And every spec in the browser lane is
+  **anonymous**: `tenancy.spec.ts` says so in its own header, and its only sign-in submits a
+  deliberately wrong password. No test in this repository has ever completed a successful
+  sign-in — while `enforcement-tiers.md` exempts `apps/web/app` from unit coverage on the
+  grounds that Server Components "are proved by a real browser", naming `web-e2e` as the
+  compensating control on nine rows. The lane runs on every PR touching `apps/web/**`. It runs
+  and it is vacuous, which is a failure mode past "'exists' is not 'ran'".
+- **The fix keeps ONE codec on both sides.** apps/web now supplies a `document.cookie`-backed
+  jar to the package's own `cookieSessionStorage`, so the browser WRITES with the same
+  `cookieWrites` the server READS with `readChunkedCookie`. A session does not fit in one
+  cookie, so it is chunked — and chunking is a **format**, which means two implementations are
+  two formats and the one that disagrees presents as "randomly signed out". Reaching for a
+  second cookie-session library here would have reintroduced that drift at the one seam where
+  a mismatch is not an error.
+- **Four comments asserted the session cookie was `httpOnly` and nothing set it — and nothing
+  could.** This architecture signs in browser-side so the password never crosses an extra hop,
+  and a user agent **ignores** `HttpOnly` on a `document.cookie` write. So the claims are not
+  repaired, they are **rewritten**: the cookie is script-readable by construction, and what
+  protects it is `Secure`, `SameSite=Lax`, the CSRF guard on the ambient-credential path, and
+  a short-lived rotating token. `secure` is the half that was both absent and achievable; all
+  three writers now pass it, derived from the scheme rather than hard-coded, because a user
+  agent DROPS a `Secure` cookie set over plain http and hard-coding it would break local
+  development with the same sign-in loop this release just closed.
+- **The test that ratified the un-hardened state is gone.** `cookies.test.ts` asserted the
+  codec "leaves secure and httpOnly to the host" and passed on every run — a test that pins an
+  ABSENCE cannot tell "the host will supply it" from "no host ever does".
+- **The closure rides `auth-posture` rather than a new chain step**, because `[auth]` in
+  `config.toml` is the posture of the auth *server* and this is the posture of the *wire* —
+  the same question over the same kind of reviewed data, at none of the eleven registrations a
+  new step costs. Three axes: transport agreement (the *pairing* is the defect, so an SPA with
+  no cookie-reading server stays clean), `cookieOptions` at EVERY writer (this client rewrites
+  the cookie, so an attribute one writer omits is one it strips off another's value), and the
+  prose rule — an attribute declared unavailable may be **named only to disclaim it**.
+- Every injection in the red-proof is **the code that actually shipped**, not an invented
+  violation: the zero-argument browser client, both bare `createServerSupabaseClient` call
+  sites, and `cookie-server.ts`'s real prior sentence *"The host supplies `secure` and
+  `httpOnly`"*. On the fixed tree the closure reports **0**; on the tree as it shipped, **4**.
+- The general lesson, and why this is a gate and not only a fix: **an optional seam between two
+  halves that must agree will eventually be left unwired, and it fails silently on both
+  sides.** Mobile is structurally immune — `createNativeClient` takes its storage as a required
+  positional. This closes the same hole on the surface where the parameter must stay optional.
+- **And the lane that was supposed to catch it now has to.** `enforcement-tiers.md` exempts
+  `apps/web/app` from unit coverage on the grounds that those files "are proved by a real
+  browser", and names `web-e2e` as the compensating control on **nine** rows. Both claims were
+  checked in exactly one way — that the lane exists and runs. It does run, path-filtered, on
+  every PR touching `apps/web/**`, green every time. **Every spec in it was anonymous**, and
+  the one sign-in it performed submitted a deliberately wrong password to prove the error copy
+  is not an account-existence oracle. No test in the repository had ever completed a successful
+  sign-in. That is a failure past *"'exists' is not 'ran'"*: **vacuity inside a lane that ran.**
+- `tools/check-web-e2e.mjs` gains an **authenticated-render axis** — the suite must contain a
+  spec that mints a real identity, signs in **through the form**, and then calls
+  `page.reload()`. Two positive markers and one negative, each encoding one half of the defect:
+  a real identity, a full reload (because `replace()` + `refresh()` are client-side and React
+  still holds the signed-in render — only a fresh document request makes the server re-read the
+  cookie), and **not** `context.addCookies`, since a planted session proves the server reads a
+  cookie and says nothing about what the browser writes.
+- The seeded `authenticated.spec.ts` is that spec: sign in, land on `/o`, **reload**, and it is
+  still there; the session cookie is in the jar with `SameSite=Lax`; and sign-out clears it in
+  the server render too, which is the same failure inverted.
+- Every axis in that runner now reads code with **comments blanked**, and this release needed
+  it: the new spec *describes* `context.addCookies()` in the paragraph explaining why it
+  refuses to use it, and was disqualified by its own explanation until the reader stopped
+  treating prose as code. The same rule retro-fits the axe and security-header axes, where a
+  marker named only in a comment had always counted.
+- **What is deliberately not claimed:** nothing derives, from a `Compensated by` cell, what the
+  named control must assert. That cell still records a human's judgement. What changed is that
+  this particular judgement now has a red-proof behind it — and the honest limit is written in
+  the runner: a static reader cannot tell that the assertion after the reload is about a
+  protected route.
+- **The spec was EXECUTED, against a real browser, a real production build and a real Supabase
+  stack — and it found two things a reading would not have.** On the fixed tree: 3 passed. On
+  the same tree with the browser client reverted to the zero-argument form it shipped with:
+  **3 failed, received URL `http://127.0.0.1:3117/sign-in`.** The sign-in loop, watched
+  happening.
+
+### The browser lane could not have started, and two of its own tests were the reason
+
+Both found by running it, neither visible from the file.
+
+- **`quality-gate.yml`'s `web-e2e` job pinned `NODE_ENV: development`, and `next build` fails
+  outright under it.** It prerenders the error boundaries against React's development
+  resolution and dies with `Cannot read properties of null (reading 'useContext')` before a
+  single spec runs. Isolated by running it both ways on one tree — **exit 1 with, exit 0
+  without.** The variable was a leftover from when Playwright's `webServer` booted `next dev`;
+  the config moved to `pnpm run build && pnpm run start` (the CSP suite is why — `next dev`
+  injects `eval` and its own overlay, so a CSP suite pointed at it asserts properties of a
+  build nobody ships) and nothing reconciled the two. The job is path-filtered and nightly, and
+  this repository's own CI is `selftest.yml`, so **the shipped job had never executed
+  anywhere.** A lane that cannot start is worse than a missing one: it is on the checks list.
+  Now gated in `tests/gates/workflow-lanes.test.mjs`, scoped to jobs that BUILD — the Metro and
+  Expo lanes set `NODE_ENV: development` correctly and a blanket ban would red two jobs that
+  are right.
+- **The new spec's own fixture identity was a race.** `fullyParallel: true` hands the three
+  tests to three workers and `beforeAll` runs once PER WORKER, so all three raced to create
+  the same account — two lost on `users_email_partial_key` (which GoTrue reports as the
+  uninformative *"Database error creating new user"*) and the first worker to finish then ran
+  its `afterAll` and deleted the account the other two were signed in as. The address is
+  derived from `TEST_WORKER_INDEX` now, which gives the fixture the same scope its lifecycle
+  already had. Read from the environment rather than a `(fixtures, workerInfo)` hook signature
+  because Playwright rejects a first argument that is not an object destructuring pattern —
+  also found by running it.
+
+### Six of seven deadlines came back corrected, and three would have shipped wrong gates
+
+The plan for this release said of its own deadline table: *"re-verify each date against its
+primary source before encoding it — a wrong date in a gate is worse than no gate."* Every row
+is now in **`design/CONFORMANCE-FACTS.md`** — dated, sourced, and carrying its disposition, so
+a *cut* regime and a *forgotten* one stop looking identical six months later.
+
+- **Supabase grants** — date right, everything else wrong. The role set is **three**
+  (`service_role` too), sequences are revoked as well, and the failure is `42501` → **HTTP
+  403**, not the "silent 404" the plan named. A gate written against a 404 would never have
+  fired. **Shipped** as the policy→grant closure above.
+- **splinter** — the plan said "Apache-2.0 and vendorable". It has **no licence at all**: the
+  README badge renders an unrelated PyPI package's, and the LICENSE link 404s. It ships 28
+  lints, not 29, and `splinter.sql` aborts on stock Postgres for want of the `anon` role.
+  **Cut** — vendoring unlicensed code is a legal question, not an engineering trade-off.
+- **CRA Art. 14** — date exactly right (2026-09-11, Art. 71(2)), but recital 19 puts an
+  unmonetised FOSS project **outside CRA scope entirely**, and "three recipients" is wrong:
+  Art. 14(7) is one end-point. The obligation is the **consumer's**, so the deliverable is
+  enablement — **`SECURITY.md` now ships**. `security.txt` is deliberately deferred: RFC 9116
+  makes `Expires` mandatory, and a reviewer-supplied date in a seeded file with nothing
+  bounding it is the exact off-switch shape this release just removed from
+  `framework-floor.json`.
+- **EAA** — date right, conclusion **over-built**: six enumerated service categories, the
+  Directive never mentions WCAG or EN 301 549, and no harmonised standard is cited in the OJ,
+  so the Art. 15 presumption of conformity does not exist. **Cut whole**, per the plan's own
+  rule that a partial map is worse than none. What survives is a measurement worth keeping:
+  `eslint-plugin-react-native-a11y` is **14 rules, 4 of which target props React Native no
+  longer documents** — they can never fire — covering the syntactic half of one success
+  criterion, and it **goes silent on design-system wrapper components**, which is the
+  structure `AGENTS.md` *mandates*. The required architecture defeats the rule. Now stated in
+  the `lint` tier row instead of waiting to be discovered.
+- **Apple** — date right, characterisation wrong: a **fixed floor** (Xcode 26 / iOS 26 SDK or
+  later), not a moving "current SDK", and macOS is excluded. `eas.json` pins **no `image` on
+  any profile**, so there is nothing to check and nothing that could red. **`Target 0.7.0`** on
+  `version-sync`, and not discharged here for a stated reason: it needs a real image name from
+  EAS's published list, and seeding a fabricated one would break every consumer's build.
+- **Google Play** — levels confirmed verbatim, but there are **two requirement families**, TV
+  did not move in 2026, and the form factor is **not derivable** from any config this template
+  can produce. **Cut, already satisfied.** A map would be machinery for a case the scaffold
+  cannot reach, and keying one on `EXPO_TV=1` would reproduce the lane-environment porosity
+  already recorded here.
+- **AI Act Art. 50** — negative confirmed, for a **stronger** reason than the plan gave: Art.
+  50(2) binds the *provider of the generative system*, so the role split carries it without
+  relying on a guidance paragraph that can be revised.
+
+Also recorded because it silently wastes an afternoon: `minimumReleaseAge` is in **minutes**,
+and on pnpm 11 it is honoured in `pnpm-workspace.yaml` **only** — a value in `.npmrc` is
+ignored with no warning. The pinned `0` and its live-observation rationale stay; the comment
+now says where the setting has to live.
+
+### "Measure, commit the measurement, then publish" had no step one
+
+- **`scripts/chain-budget.json` prescribes that order in its own header, and nothing could
+  measure.** `check-chain-budget.mjs` read the chain's `VALIDATE_TIMINGS` line, judged it
+  against ceilings, and **discarded the numbers**. There was no writer, so `measuredMs` has
+  been `null` for every step and for the wall since the file was introduced, and the README
+  has carried no wall-clock figure — not by discipline, but because the first step of the
+  procedure was unimplemented.
+- **`node scripts/check-chain-budget.mjs <log> --record`** is that step now. It stamps a
+  `measurement` block beside the numbers: the date, the **runner** they came from, and the
+  chain's step count. `--runner` is required rather than inferred, because the file's own
+  header says these are one machine's numbers and are not portable — a figure with no
+  provenance is worse than `null`, since it licenses a published claim no CI run can
+  reproduce. Wired into the selftest lane on **`workflow_dispatch` only**: a recorded
+  measurement is reviewed data, and writing it automatically on every green run would make
+  it a number nobody chose, which is the state it exists to replace.
+- **The ordering is enforced now, not merely prescribed.** `hasCommittedMeasurement` was
+  exported, unit-tested, and **imported by no production caller** — so the header's claim that
+  "check-claims.mjs refuses any wall-clock figure in README.md" described no code. The
+  consistency check compares the README and the CHANGELOG *to each other*, which means two
+  documents agreeing on a number neither of them measured was clean: the one shape a
+  consistency check structurally cannot see. `check-claims` reds on it now.
+- **And the measurement expires when the chain changes shape.** A figure taken against a
+  31-step chain, left in place while 0.6.0 added two steps, is not stale — it is wrong, and
+  nothing about a committed integer expires on its own. So the recorded step count must match
+  the live chain. That comparison is arithmetic over two committed values — clockless,
+  offline, same verdict anywhere — the same split this release applied to the framework
+  floor's review window.
+- The first version of `--record` attributed a measurement to
+  `/opt/homebrew/.../bin/node`: `indexOf('--runner')` returns `-1` when the flag is absent,
+  and `argv[-1 + 1]` is `argv[0]`. It reported success. Found by running it, which is the
+  only way that one was ever going to be found — an unattributed number wearing a provenance
+  string is exactly what the flag exists to prevent.
+
+### The gate that guards every release's plant-or-withhold decision was reading a committed tree
+
+- **`check-seeded-migrations.mjs` diffed `prev..HEAD`, which cannot see the release being
+  cut.** Through the whole of 0.6.0 it reported **"0 template file(s) added since v0.5.0"**
+  while a dozen new template files sat untracked. A `CLEAN` with a count in it reads as a
+  finding; this one was a vacuum. It would have corrected itself in CI, on a branch where
+  everything is committed — which is exactly what made it dangerous, because the maintainer
+  making the plant-vs-withhold call is the one running it locally, and they were told there
+  was nothing to decide.
+- Staged and untracked additions are unioned in now. The same command reports **34 files added
+  since v0.5.0** — and found two genuinely unregistered ones on its first honest run.
+- **`DELIBERATE_PLANT`'s reasons were never read.** The list's own header says *"an empty
+  reason is a review reject"*, and the code maps entries to `.file` and drops the rest. The
+  proof that nobody was reading it is in the list: two entries had drifted to a `why:` key
+  that is not the documented name. A reviewed escape whose review nothing checks is an
+  unreviewed escape with a longer entry. Both keys normalised, and the shape is now judged —
+  `file` present, no duplicates, a `reason` of real length.
+- **`SEEDED_FILES` named `SECURITY.md`, and neither template tree could produce it.** The
+  installer advertised a coordinated-disclosure document it would never write, in a list a
+  reviewer reads as the set of artifacts a project receives. Closed by a test that runs the
+  installer's own `storageToInstall` mapper rather than re-deriving the dotless-rename and
+  `.tmpl`-stripping conventions — a re-derived rule would agree only until one of them
+  changed, and the disagreement would look like a missing file.
+
+### The security floor had an off switch reachable from inside the file it protects
+
+- **`framework-floor.json`'s review window was the reviewer's free text, and nothing bounded
+  it.** The floor is a snapshot of what a human knew on `reviewedOn`; `reviewedUntil` is the
+  date that claim stops being made for free, and the scheduled `floor-review` job reds once it
+  passes. What nothing anywhere asked was *how far ahead `reviewedUntil` may be set in the
+  first place*. So one edit writing a distant date retires the whole control — and the only
+  check that would object is the one that edit has just disarmed. A control whose off switch
+  is a field inside its own reviewed data is not a control; it is a default.
+- **The window this repo actually shipped was 92 days.** Next moved to a *scheduled* security
+  programme in July 2026 — releases published on a roughly **monthly** cadence, each with
+  advance notice — so a 92-day window spans about **three** of them, and across all three the
+  file would have kept reporting a live review. The plan for this release said "shorten it";
+  the honest fix is structural rather than numeric, because a shorter number written in the
+  same place can be lengthened again by the same edit.
+- **The window is now the harness's constant, not the reviewer's.** The reviewer supplies
+  WHEN THEY LOOKED; `MAX_REVIEW_WINDOW_DAYS` supplies HOW LONG THAT IS WORTH — 31 days, one
+  calendar month, so a maintainer re-reading the feed monthly is never red for the length of a
+  month. `reviewedUntil` stays in the file because a failure message needs a date a human can
+  act on, but it is derived-and-checked now rather than declared-and-trusted.
+- **And it rides the CHAIN, not the schedule.** Whether a review has *lapsed* is a calendar
+  question and stays on the scheduled job, for the reason `pnpm audit` is not a chain step. But
+  `reviewedUntil - reviewedOn` is arithmetic over two **committed** dates — clockless, offline,
+  same verdict on any machine on any day — so it belongs in `version-sync`, where it reds at
+  the moment the over-long window is written rather than a quarter after. That ordering is the
+  point: a control disarmed silently will not be re-armed by a job that no longer fires.
+- The red-proof is the file's own history: the injection is the exact `2026-08-06 →
+  2026-11-06` pair this repository shipped, and a second proof pins that the distant-date
+  off switch is **inert to `staleReviews` on every real calendar date** — which is why nothing
+  caught it before.
+
+### A policy is not a permission, and the whole scaffold was one Supabase release from finding out
+
+- **`schema-rls` has parsed `GRANT` statements since 0.2.0 and thrown half the parse away.**
+  `parseGrants(allStatements)` is called at line 136 and consumed only for the `SECURITY
+  DEFINER` EXECUTE surface; the TABLE half was dead output. So a table shipping `ENABLE` +
+  `FORCE` + four per-operation policies + both isolation registries + an owner-column index
+  and **no `GRANT` statement anywhere** was fully green — and every fixture in the gate's own
+  test file was exactly that shape. Thirteen red-proofs written against a tree that could not
+  have granted anything.
+- **PostgreSQL checks table privileges FIRST and row security SECOND.** A policy naming a role
+  that holds no privilege on the table is not a narrow permission; it is unreachable code that
+  reads in review as a granted one. The statement raises `42501` — PostgREST's HTTP 403 —
+  before any predicate is evaluated. Writing `CREATE POLICY … TO app_reader` and stopping
+  there produces a table that no reviewer can distinguish from a working one.
+- **The reason it has been invisible is also the reason it now has a deadline.** Supabase's
+  Data API applies default privileges that grant `anon`, `authenticated` and `service_role` on
+  every newly created table in `public`, so the missing `GRANT` genuinely works — the default
+  already handed the role what the policy assumes it has. Those defaults **stop being applied
+  to projects created on or after 2026-10-30**, and the `auto_expose_new_tables` switch that
+  would have restored them is removed on the same date. The same migration file therefore
+  passes review, passes this gate, works in the project it was written against, and 403s in
+  the next project it is replayed into — byte-identical in both. An explicit `GRANT` is the
+  only form that survives the flip.
+- **The assertion is a closure, not "every table must carry a GRANT".** For every
+  `CREATE POLICY`, for every operation it names (`FOR ALL` expands to four), for every role in
+  its `TO` clause, the GRANT/REVOKE history **folded in statement order** must leave that role
+  holding that privilege. Order is the whole point: the shipped idiom is
+  `REVOKE ALL … FROM anon, service_role` followed by a narrow `GRANT … TO authenticated`, and
+  a set-union reading of those two statements concludes that `anon` holds everything.
+- **Three carve-outs, each load-bearing, each with its own green proof** — because a gate that
+  reds correct SQL gets deleted rather than obeyed. A predicate that is literally `false` needs
+  no grant (that is precisely how the tenancy spine says *never*: `memberships_insert_none`
+  refuses the privilege a naive rule would demand be granted). A `RESTRICTIVE` policy only ever
+  subtracts rows, so it carries no claim that anyone can reach them. A policy with no `TO`
+  clause names no role to close over.
+- **And the reverse direction is deliberately not asserted.**
+  `GRANT SELECT, DELETE ON TABLE public.orgs TO service_role` is a legitimate ADR'd grant with
+  no policy behind it, because `service_role` bypasses row security entirely. A grant ⇒ policy
+  rule would red the shipped tree for being right.
+- The proof that matters is not the fixture: it is **the shipped `notes` migration minus one
+  line**, which reds the real scaffold. A closure that passed the shipped tree because it never
+  looked at it would have survived every fixture-only red-proof in the file. Ramped `0.6.0` →
+  `0.7.0` — unlike the two unramped negation checks beside it, this one has a real legacy
+  population, since on a pre-flip project the missing grant genuinely works, and `rampNote`
+  prints every finding while it is armed.
+- `parseGrants` now records the object-type keyword it matched. Without it,
+  `REVOKE ALL ON SCHEMA audit FROM anon, authenticated, service_role` and
+  `REVOKE ALL ON TABLE audit.events FROM anon` reduce to names one fold cannot tell apart, and
+  a `USAGE` grant on a schema would have read as a `SELECT` grant on a table.
+
+### Both dated commitments, discharged
+
+- **The `i18n` gate covers the web surface.** `docs/harness/enforcement-tiers.md` gave the row
+  `Target 0.6.0` after 0.5.0 moved it once, and `Target` is a commitment the `docs-sync` gate
+  now reads: at harness 0.6.0 a still-single-surface gate reds on every install. It is
+  discharged rather than moved a second time.
+  - **It was not a second scan root.** `I18N_DIR`, `CATALOG` and `LOCALES_MODULE` were
+    single-valued and mobile-derived, checks 3 and 4 key off them, and one un-adopted surface
+    used to `ok()` out of the *whole* gate. The gate is parameterised by a `SURFACES` table
+    now: each surface owns its catalog, its `LOCALES` array and its own adoption state, so a
+    consumer who has adopted the mobile seam and not the web one is still judged on the half
+    they have. The green line NAMES the surfaces it did not judge.
+  - **`apps/web/lib/i18n/`** — catalog, `t()`, and the envelope copy. `t()` is a plain
+    function, not a hook, and that is the load-bearing difference from the mobile twin: most
+    web copy is rendered by Server Components, `generateMetadata` and Server Actions, none of
+    which may call a hook. A context-based seam would have forced a second, untranslated code
+    path for exactly the surfaces that render the most copy — which is how the web half came
+    to have no seam at all. next-intl was considered and rejected: it wants a request-scoped
+    provider and a proxy integration, and `apps/web/proxy.ts` is the one file this harness
+    insists is *not* an authorization boundary.
+  - **`apps/web/lib/error-copy.ts` moved into the seam** (`lib/i18n/errors.ts`). It was the
+    single largest block of user-facing copy on the surface and the gate would *not* have
+    caught it even after the web root was added — its object-literal rule matches
+    `label|title|subtitle|description` keys, and these are keyed by error kind. The mobile
+    twin already lived inside the seam. `check-seeded-migrations.mjs` caught the now-stale
+    `seedOnInitOnly` entry the moment the template stopped shipping the old path.
+  - **Check 4 stays mobile-only, and that is the runtime differing rather than a half owed.**
+    Hermes ships no `Intl.PluralRules`/`RelativeTimeFormat`/`Locale`, so the mobile seam
+    force-installs @formatjs polyfills plus per-language CLDR data and the gate holds that
+    closure. Node and every browser ship full ICU; running check 4 on the web half would
+    demand imports that must not exist.
+  - **Bringing the web surface into scope found a false-positive class five releases never
+    saw.** The JSX-text detector ran from a generic close, across intervening code, to the
+    next generic open — reporting `"): Promise"` as user-facing copy. `apps/web` hits it
+    constantly (`useState<AppError | null>(null)`,
+    `submit(e: React.FormEvent<HTMLFormElement>): Promise<void>`); `apps/mobile` happened not
+    to. A generic close ADJACENT to `(`, `)`, `,`, `.`, `[` or `>` is now excluded, and the
+    residual false negative is stated rather than hidden.
+
+- **The `route-manifest` gate covers the web surface.** The second `Target 0.6.0` row, and the
+  one the tiers table described as *"the App Router has no equivalent registry, so a web page
+  can land with no id, no title key and no declared loading/empty/error states."*
+  - **A TWIN GATE, not a parameterised one — the opposite call from `i18n`, on evidence.**
+    `check-route-manifest.mjs` carries expo-router's file→URL derivation and a hand-written
+    parser for the `ROUTES` array literal, and the two routers share no rule: expo-router maps
+    a trailing `index` to its parent path and has no route groups, parallel routes,
+    intercepting routes or private `_folder` exclusion; the App Router has all four and no
+    `index` convention. `check-web-routes.mjs` ships beside it and the one `route-manifest`
+    step runs both — the shape `boundaries` has used since 0.1.x.
+  - **The web registry is GENERATED.** `tools/gen-web-routes.mjs` walks `apps/web/app` and
+    derives `path` and `file` from position into a committed, regen-diffed
+    `apps/web/lib/routes.generated.ts`, so the defect the mobile gate spends thirty lines
+    catching — a manifest that lies about the URL — cannot be written on this surface. Authors
+    write only what position cannot tell you (`id`, `titleKey`, the three state test ids) in a
+    `page.meta.ts` beside the `page.tsx`. It is a FILE WALK and not a runtime import, the
+    opposite choice from `gen-action-inventory.mjs`: a tRPC router is a value that must be
+    built to be enumerated, and a route set IS a file tree — so this needs no install, no
+    `next build` and no network, which is what lets it run inside the chain.
+  - **The check with no mobile counterpart.** Mobile proves its declared test ids exist by
+    DRIVING them in the RNTL states sweep. The web half has none, so the gate proves it
+    statically: each declared id must be rendered somewhere in the route's own segment —
+    non-recursively (a child's markup must not answer for its parent) and never counting
+    `page.meta.ts` itself, or every declaration would prove itself. `data-testid=
+    {meta.states.empty}` is the form the failure message names, because with it the declared
+    id and the rendered id are one expression.
+  - **`app/not-found.tsx` is required chrome**, the twin of `+not-found`: without it an
+    unmatched URL renders Next's built-in 404 — unbranded, untranslated, outside every lane.
+  - Shipped **ramped** (`minVersion 0.6.0`, `until 0.7.0`): an install predating 0.6.0 has
+    pages and no metas anywhere, and projects grow into gates rather than being ambushed.
+
+- **And the derivation those two Targets are judged by was itself wrong.** Both consumers of
+  `singleSurfaceGates` ask a question about a tier ROW, and a row's `Gate` cell names a chain
+  STEP — but the function answered about a SCRIPT. Those coincide only while every step runs
+  one script, and `boundaries` has run two since 0.1.x. Discharging `route-manifest` made it
+  concrete: each of its two scripts is single-surface, the step covers the product, and
+  unfolded the row's arrived `Target` could never discharge no matter what shipped — a control
+  demanding a change that no change could satisfy. Scripts now fold by step key. What the fold
+  deliberately does NOT check is whether the second script asserts anything; the tiers table
+  says which surfaces a control reaches, and `tests/canary/injections.json` says it works.
+
+### The control plane, audited for the first time — three live bypasses
+
+The harness's whole enforcement layer **is** `.claude/settings.json` plus hooks. It held every
+framework it ships to a cited security floor and held the tool it *runs inside* to nothing, and
+never asked whether its own hooks were aimed where it thought. Three answers, none of them
+theoretical.
+
+**The command guard was aimed at one of three command-executing tools.** The matcher was the
+single word `Bash`. Permission rules spelled `Bash(...)` cover **Bash and Monitor** — which is
+exactly what hid this, because it makes the settings file *look* like it covers both — but a
+hook matcher is an **exact tool name**, not a permission namespace. So every command-content
+check in `pretool-bash-guard.mjs` was reachable-around by asking for the same command under
+`Monitor`. The same defect class as the `mcp__` gap 0.3.0 closed, whose own comment reads *"a
+missing entry is not a degraded posture — it is that whole event unguarded."*
+
+`PowerShell` was the sharper half, and it is not "another shell". **On Windows without Git
+Bash, Claude Code does not register the Bash tool at all** — the hooks reference says so in as
+many words: *"A hook that matches only `Bash` never fires there."* The guard was not weaker for
+those sessions; it was absent. PowerShell also carries its own `PowerShell(...)` permission
+namespace, so the settings deny list does not reach it either — this hook is the only layer
+that can. The matcher is now `Bash|Monitor|PowerShell`, and `check-wiring` holds it there: a
+project may add a tool, never drop one.
+
+Widening the matcher without widening the rules would have been a fix that reads like a fix, so
+the rule table gained the canonical cmdlet spellings — `Remove-Item`, `Get-Content`,
+`Set-Content`, `Copy-Item`, `Out-File`. PowerShell's bash-compatible aliases (`rm`, `cp`, `cat`,
+`tee`) already matched, and `rm -Recurse -Force` turned out to have been covered from the day
+the flag-class regex was written — **verified against the shipped rule rather than assumed**,
+which is why only the non-alias spellings were added.
+
+**Seven `Write(path)` deny rules were doing nothing.** Claude Code consults file-permission
+rules under `Edit(...)` and `Read(...)` only; a `Write(path)` rule is accepted, warned about at
+startup, and never consulted. Protection held — every one happens to have an `Edit(...)` twin —
+but that was an accident of authoring in a file whose entire job is to be asserted. `check-wiring`
+now requires the twin. The `Write(...)` lines stay: they cost nothing, they state intent, and
+they are already right if Claude Code ever starts consulting them.
+
+**`tools/cc-floor.json` — a Claude Code version floor, and the citations are the point.** The
+published record was never consulted: `gh api /advisories?ecosystem=npm&affects=@anthropic-ai/claude-code`
+returns **28 advisories**, ten of them landing on this harness's exact surface — configuration
+injection into `settings.json` itself, a repo-controlled-settings trust bypass, **two** git
+worktree escapes, and two command-injection bypasses of file-write restrictions that are this
+repo's own *"the bash guard is a tripwire, not a sandbox"* caveat as shipped CVEs rather than as
+a disclaimer. The required floor is **2.1.163**: the maximum `first_patched_version` across all
+28, which is also the earliest release outside every vulnerable range.
+
+That number is **derived, not written**. A bare `"floor": "2.1.163"` is a number the next
+maintainer lowers the first time a teammate's CLI is old, because nothing in the file says what
+it costs. `version-sync` recomputes the floor from the advisory rows beside it and reds in both
+directions; `setBy` must agree with the evidence **both ways**, because an advisory that
+*quietly starts* setting the floor — a later one added at the same patched version — is the case
+a one-way check never notices. Every row must carry an openable `github.com/advisories/` URL and
+a sentence saying what it does to *this* harness, so the file cannot decay into a stale copy of a
+vulnerability database. The headline proof deletes an advisory row and watches the floor fall
+silently — the one edit a scalar-only floor cannot see.
+
+Split on the clock, the way `framework-floor.json` already argues for: the arithmetic is
+clockless and rides the chain, and "has anyone re-queried lately" rides the scheduled
+`floor-review` job with a 45-day window. Three hook-versus-permission fixes carry **no CVE at
+all** (a PreToolUse hook returning `"allow"` could bypass `permissions.deny` including managed
+settings, 2.1.77; `permissions.deny` not overriding a hook's `"ask"`, 2.1.101;
+`PermissionRequest` `updatedInput` not re-checked against deny, 2.1.110) — all below the floor,
+and recorded because an advisory query alone would have missed every one.
+
+**And the answers came from probing, not reading.** `design/CONTROL-PLANE-FACTS.md` gained four
+facts: the observed `Stop` payload (`stop_hook_active` **is** real, closing a question this
+release opened against its own doctrine); matcher grammar; the inert `Write(path)` class; and
+that **path-scoped rules load on demand and are lost across compaction**. That last one
+*vindicates* a decision already in the tree — `boundaries.md` and `mobile-server-split.md` both
+open with "best-effort scoped; the gates are the invariant", which is now verified rather than
+hopeful. Two things are recorded as **NOT ESTABLISHED** rather than guessed: whether `Monitor`
+commands are sandboxed like Bash commands, and whether a `Bash`-matching hook fires for a
+skill's `` !`command` `` expansion.
+
+### The layer a developer cannot switch off, and the sandbox's honest limits
+
+`disableAllHooks: true` in a user, project or local settings file stops **every non-managed
+hook** — the Stop gate, both PreToolUse guards, the provenance check, the reviewer verdict hook
+— and there is no hook left to notice. No setting forbids it. The one documented property that
+helps is that hooks living in **managed** settings survive it, so
+`docs/security/managed-settings.md` ships the minimal correct policy: the hooks, plus
+`disableBypassPermissionsMode: "disable"`, and nothing else.
+
+Nothing else is the point. `allowManagedHooksOnly` reads like the fix and is its opposite — it
+**blocks non-managed hooks**, so switching it on while the harness hooks still live in the
+project settings disables the harness while trying to protect it.
+`allowManagedPermissionRulesOnly` drops every user and project permission `allow` rule and
+`additionalDirectories`, which is a real change to how each developer's session behaves rather
+than a free hardening line. Both are documented as what NOT to copy.
+
+The doc also solves a problem a managed hook creates: it fires in **every project on the
+machine**, including ones that have never seen this harness — and `stop-validate-gate.mjs`
+*blocks* when it cannot load its config, which is correct inside an install and catastrophic
+outside one. So the policy names a dispatcher that exits 0 when the project has no such hook and
+otherwise passes the payload through, propagating the exit code (fail-closed on a spawn failure,
+because exit 2 IS the block). Verification is `/doctor`, `--debug-file … --init-only`, or
+`--include-hook-events` — explicitly **not** `/hooks`, which has no managed source category at
+all.
+
+`sandbox-and-supply-chain.md` gained the sandbox's limits, stated before its benefits: no CLI
+flag turns it on, `--dangerously-skip-permissions` does not turn it off, a linked worktree can
+write the main repo's shared `.git`, `strictAllowlist` is **ignored from project settings** (so
+committing it achieves nothing), plugin monitors run **unsandboxed at hook trust level**,
+whether `Monitor` commands are sandboxed at all is undocumented, and **there is no native
+Windows support** — the platform that already has no Bash tool without Git Bash. And the network
+allowlist is described as blast-radius reduction, never prevention, because CVE-2026-54316 was
+exfiltration through a *pre-approved* domain.
+
+### The Stop block cap now leaves a mark
+
+`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (default 8) is the documented safety valve that stops a red
+gate looping forever: after N **consecutive** blocks Claude Code ends the turn anyway. The valve
+is right and it stays — a hook that can block forever is a bricked machine. But it is also **the
+one documented way the headline claim is false**, and through 0.5.0 a turn that ran out of blocks
+left exactly the trace a green turn leaves: none.
+
+Every outcome now appends to `.harness/turn-outcomes.jsonl`. The last block a turn is allowed
+says `LAST CHANCE` while the transcript can still act on it, naming the gates still red. And the
+**next** turn reports a predecessor that ended at the cap **even when the tree is green again by
+then** — which is precisely when the fact would otherwise be lost, and is the headline proof.
+`subagent-verdict.mjs` writes to the same ledger, because the cap is documented over `Stop` *and*
+`SubagentStop` in one sentence and a count that saw half of them would go quiet on exactly the
+turns that needed the warning; counting them together can only warn early, which is the safe
+direction. The count is of consecutive blocks at the tail, not blocks keyed by `prompt_id` —
+"consecutive" is the word the cap is defined with, and a green record is what resets it, the same
+reset condition Claude Code uses.
+
+The file is a **diagnostic, not a control**: it authorizes nothing, so a corrupt line is
+tolerated rather than fatal — the deliberate opposite of the reviewer ledger, which fails closed
+because it does authorize. An unusable `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` value is reported rather
+than silently reverting to 8.
+
+**The factory got the same treatment**, because it had the same hole and is the machine where it
+is cheapest to notice: a maintainer whose turn ran out of blocks left the machinery inconsistent
+with no trace, on the one machine where a bug in this code can actually be fixed.
+`stop-factory-gate.mjs` writes the same ledger through the same shipped module — never a second
+copy, since two implementations of "how many times have we blocked" would drift and this hook's
+whole purpose is to be a live test of the exact bytes consumers get.
+
+That sharing is also why the persistence moved into `turn-outcomes.mjs` as its one impure
+function: three hooks write this ledger now — the consumer Stop gate, the SubagentStop verdict
+hook, and the factory's own gate — and it swallows every I/O failure into a reported error, so a
+ledger that cannot be written loses a record rather than bricking every turn on the machine.
+
+**`stop_hook_active` was observed going `true`.** A one-shot probe blocked exactly once, and the
+Stop that followed carried the flag under the *same* `prompt_id`. Two things fell out of that
+capture and are recorded in `design/CONTROL-PLANE-FACTS.md`: the payload of the invocation that
+BLOCKS is still `false` — the flag means "you are here because a hook blocked", not "a hook is
+about to block", which is precisely why the block count is kept by the harness rather than read
+off the field — and `settings.json`'s `env` block does reach a hook's process, so the scaffold's
+`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` is a real input rather than a decoration. Had it not, every
+consumer would have silently fallen back to a default that happens to be the same number, and
+nothing would ever have looked wrong.
+
+### The process layer — the agent surface stops being prose nothing observes
+
+**The governing finding of this release.** Ten subagents, seven slash commands and two skills
+are the layer that is supposed to make Claude Code's behaviour deterministic. Eight of them
+carry `MUST BE USED` declarations. Through 0.5.0, **nothing anywhere read a transcript, hooked
+`SubagentStop`, or otherwise observed that any of them ran.**
+
+What *was* enforced is real but orthogonal: the reviewer files must exist, their frontmatter
+must parse under a pinned grammar, their tools must be a read-only subset, they must carry
+`disallowedTools: Write, Edit`, their bodies must end demanding exactly `VERDICT: PASS` or
+`VERDICT: BLOCK`, and the whole surface is sha-locked in `tools/agents.lock.json`. Every one of
+those is a property of **what the file says**. None is about whether it ran.
+
+The project scoped this itself and deferred it in 0.3.0, with two conditions: it must fail
+closed on an unrecognizable transcript, and it must not move the Stop chain 9 → 10 in the same
+release that first freezes it. 0.3.0 *was* that release. Both conditions are met.
+
+- **The design was probed before it was written, and the probe changed it.** Three facts W4
+  rested on had been read from documentation and never observed. A hook registered in a
+  running session (which, incidentally, is re-read **mid-session** — no restart) recorded a
+  real `SubagentStop` payload. It carries **`last_assistant_message` as a first-class field**
+  holding the subagent's full final text — so the mandated verdict line is read directly, with
+  no transcript scraping and no format to guess at. It also carries `agent_type`, `session_id`
+  and `prompt_id`. Recorded in `design/CONTROL-PLANE-FACTS.md`, dated, re-verify-on-bump —
+  the pattern `EXPO-FACTS.md` and `CI-LANE-FACTS.md` already use, now applied to the harness's
+  most important dependency: the tool it runs inside.
+- **The hook BLOCKS a reviewer that does not give a verdict.** Exit 2 on `SubagentStop`
+  prevents the subagent from stopping, so it gets another chance to say the thing its own file
+  promises it will say. That turns a file-shape assertion into a behavioural one.
+- **The step is keyed to the TURN, and that is the whole control.** The ledger is append-only
+  across a session, so an entry from an earlier `prompt_id` is exactly what a naive reader
+  would accept — and accepting it would report coverage from work somebody did an hour ago.
+  It is the one failure mode here that no later check would catch, and it is the suite's
+  headline must-red. `stop-validate-gate.mjs` passes the turn's identity down; a step that
+  does not receive it fails closed in CI rather than judging the wrong turn.
+- **The roster is derived, not listed.** A reviewer is an agent declaring
+  `disallowedTools: Write, Edit` — the property `check-docs-sync` already enforces and the one
+  that actually separates a reviewer from an author. `dal-author` and `test-author` produce
+  diffs and attest to nothing. A `settings.json` matcher naming the reviewers would have been
+  a second copy of the roster, and two copies of a list drift.
+- **The triggers are narrower than the prose they replace**, deliberately.
+  `tools/reviewer-triggers.json` carries five reviewers with path globs and `except` patterns
+  (a test beside a policy is not a policy). Two reviewers are **deliberately not
+  path-triggered** and say why in the file: `torvalds-reviewer` runs "before finishing", which
+  is every turn and which no path glob expresses without either firing on everything or on an
+  arbitrary subset; `citation-verifier` is already closed by the `provenance` chain gate, and a
+  second, weaker control would let a green path-trigger imply coverage the gate is the real
+  source of.
+- **A guard rule the coverage checker rejected, correctly.** A write-guard entry for the
+  ledger looked prudent and was vacuous: the ledger is runtime output no template ships, and
+  `check-canary-coverage.mjs` reds on a deny over a path that cannot exist — "satisfied by
+  every input, so its canary passes while the rule guards nothing". The existing `harness-dir`
+  rule already covers the whole `.harness/` tree. The rule is deleted and the reason is
+  written where the next person will look for it.
+
+### `data-flow` (chain step 33) — the DSR closure
+
+`docs/adr/20260201-org-scoped-tenancy.md` records that after the org re-scope *"DSR
+completeness is now procedure-backed, not schema-backed… residual rows can no longer be
+enumerated back to the subject."* That sentence was true, serious, and checkable by nothing.
+The procedure lived in one Edge Function's header, the reason for each surviving column lived
+in a different SQL comment, and **no file anywhere listed what actually survives.**
+
+It is decidable. A delete of `auth.users` does exactly what the `FOREIGN KEY` actions say, so
+the gate replays `supabase/migrations/`, walks out from the subject, and puts every link in
+one of four buckets — **erased** (a CASCADE chain), **severed** (`SET NULL`: the row survives
+and only the link is cut), **retained** (no delete will ever reach it), **blocking**. The two
+middle buckets are decisions a human has to defend, and both are legitimate here: the org owns
+its notes, and the audit trail must outlive its subjects. Both are also exactly the kind of
+decision that stops being reviewed once it is three releases old. `tools/data-flow.json`
+carries them, closed both ways — an unreviewed severed link reds, and so does a reviewed one
+the schema no longer has.
+
+- **The bucket nobody watches is the fourth.** An FK to the subject with `ON DELETE RESTRICT`
+  or `NO ACTION` makes the delete FAIL — and `NO ACTION` is what PostgreSQL assumes when the
+  clause is simply **omitted**. So the spelling that breaks account deletion is the one that
+  looks like every other column definition: no keyword to notice, nothing to grep for, a GDPR
+  Art. 17 failure and an Apple 5.1.1(v) rejection from a line a reviewer reads past. It is the
+  suite's headline must-red.
+- **`pii-columns.json` becomes load-bearing twice without changing purpose.** That file says
+  in its own comment that it is "not a general PII inventory" — it is the audit-capture
+  deny-list. So it is used here only as a **lower bound**, which is exactly what it can
+  support: every column it names must be erased with its row, severed with a reason, or
+  retained with a reason **and** a procedure. The procedure must be a file that exists.
+- **The shared SQL parser never replayed a dropped foreign key.** `parseColumnFacts` folded
+  `ADD CONSTRAINT` and ignored `DROP CONSTRAINT`, so a foreign key removed by a later
+  migration kept its recorded reference forever — and no parser in the repo captured an
+  `ON DELETE` action at all. Both are fixed, including the generated `<table>_<column>_fkey`
+  name that real migrations drop. This is not academic: `notes.owner_id` was created
+  `ON DELETE CASCADE` and demoted to `SET NULL` by a later `ALTER`, so before this the
+  CASCADE and SET NULL states were indistinguishable to every consumer of the parser.
+- **`check-migrations.mjs` claimed a compensating control that does not exist.** Its header
+  said the schema↔migration drift check "runs in CI's db lane via `supabase db diff`".
+  **No workflow in this repository runs `supabase db diff`** — not migration-safety.yml, not
+  either database lane, not the selftest matrix. So the reconciliation was attributed to a job
+  nobody wrote, which is worse than an open deferral because it reads as coverage. The header
+  is corrected, and `data-flow` now closes the slice that decides whether a row dies with its
+  owner: it is the only place in the repo where `supabase/schemas/` and
+  `supabase/migrations/` are compared on a column fact.
+- **The export half ships as a closed projection with an undelivered surface, declared.**
+  `export.projection` is closed against the schema both ways and every subject-data table is
+  projected or excluded with a reason. `export.surface` is `"none"` with a dated target,
+  the same shape `store-policy.json` already uses for `accountDeletion` — because a projection
+  closed against the schema is worth something on its own, and an *undeclared* absence is how
+  "we have an export" becomes true in a README and false in the product. The plan called for
+  `supabase/functions/export-account/`; the repo's own rule forbids it (an export runs as the
+  caller under RLS, and `supabase/functions/README.md` rule 1 says anything expressible as a
+  procedure running as the user is not an Edge Function). That correction is recorded in the
+  policy rather than silently followed.
+
+`docs/runbooks/data-subject-requests.md` is the procedure the whole gate points at.
+
+### The deadline ratchet could be walked around by re-opening a ramp, and this release did it
+
+0.5.0 shipped the ratchet that makes *"there is no flag that extends a deadline"* an
+enforced sentence rather than a promise: every `until` is compared against the previous
+release **tag's** tree, and a date that moved later reds unless a `rampExtensions` record
+excuses it. It grouped sites by `(file, minVersion)`.
+
+This release had to **re-open** one. `check-docs-sync.mjs`'s AGENTS.md gate-list ramp expired
+at 0.5.0; injecting `auth-posture` through `configSteps` grows an existing install's chain to
+32 steps while its seeded `AGENTS.md` still documents 31, and `update` cannot rewrite project
+memory — so closing the escape at 0.5.0 would hard-red every install in the lineage for a file
+the harness handed them and then refused to update. Re-opening means a wider population
+(`minVersion` 0.3.0 → 0.6.0) and a later date (`until` 0.5.0 → 0.7.0).
+
+Under the old key that is **not one site moving**. It is one key vanishing — read as a
+deletion, which is stricter, so allowed — and another appearing, read as a new escape, so
+also allowed. Two individually-permitted acts composing into the one act the runbook promises
+consumers cannot happen, at the cost of editing a single version literal. Every control in the
+repository stayed green, including the ratchet's own ledger.
+
+- **The key is now the DETAIL string** — `rampNote`'s third argument, the prose that names the
+  escape, already present at all 22 call sites and stable across a re-open, a line move and a
+  reflow. `scripts/check-ramp-ledger.mjs` enforces the property that makes it an id rather than
+  a comment: every site parses one, and no two sites in a file share one.
+- **It closed 0.5.0's documented residual hole as a side effect.** That hole — move one
+  deadline while adding a sibling at the old one, so the sorted lists line up — needed a
+  per-site id, and 0.5.0 said so in the source and pinned the limit with a test carrying the
+  instruction *"if a later release adds ids, this test fails and is DELETED, which is the
+  signal."* It failed. It is deleted, and the fixture now asserts the opposite.
+- **The residual hole that replaces it is stated, not implied:** rewording the detail in the
+  same commit that moves the deadline still evades the ratchet. That is a sentence a consumer
+  reads in a NOTE, inside a CODEOWNERS-covered gate script — a visible act rather than a
+  one-character edit.
+- **The extension is recorded.** `template/migrations.json`'s `0.6.0.rampExtensions` is the
+  first entry of its kind in this lineage, and a test closes it against the tree: its `detail`
+  must be byte-equal to a shipped call site's, so an excuse cannot name an escape that is not
+  there. The record shape changed with the key — `{ file, detail, from, to, why }`, because an
+  excuse pinned to `minVersion` would go stale in the exact act it is written for.
+- **A must-red went green because the roadmap caught up with its fixture.**
+  `chain-budget.test.mjs`'s "a chain step with no budget row reds" used `auth-posture` as its
+  unbudgeted step, with a comment explaining that 0.6.0 planned to inject it. Injecting it gave
+  the name a budget row, so there was nothing left to be missing and the test passed for the
+  wrong reason. It now names a step no release can add, and asserts that of itself.
+
+### Two more the upgrade lane found — both in this release's own fixes
+
+The lane's rule is that no `migrations.json` record is trustworthy until an `update` has
+actually executed. 0.6.0 added two records — the `data-flow` chain step and the
+`reviewer-verdicts` **Stop-chain** step — and running the lane reddened twice, on the lane
+itself both times.
+
+**§4 could not see a Stop-chain injection.** 0.6.0 had already replaced its hardcoded
+`for step in wiring secrets` with a set derived from `requiredConfigSteps`, which was the
+right fix and an incomplete one: it checked every required step against `validate --list`.
+`reviewer-verdicts` targets `STOP_HOOK_STEPS`, so a correct injection was reported MISSING.
+The derivation now carries the target array and the Stop chain is read from the installed
+config — deliberately **not** from `tools/stop.floor.json`, because the floor is harness-owned
+and `update` refreshes it, so a step the union would still RUN could be silently absent from
+the consumer's own config. The union is a safety net for a weakened config, never a substitute
+for the injection landing.
+
+**§7b made an inference §8 already knew was unsound.** It required every gate with a live ramp
+to have printed a NOTE. But `rampNote` prints on every armed call, which is why several gates
+now call it only when they have findings to withhold — so on a correct 0.6.0 upgrade
+`auth-posture` announces its two findings and `data-flow` says `OK`, because its policy ships
+planted and the stack schema already satisfies it. The old assertion called that honest `OK` a
+check shipped disabled. §8 had been fixed exactly this way one wave earlier and its comment
+names §7a as making "the same unsound step"; §7b was making it too.
+
+The inference is now reversed to match: a ramped gate must have **run** (an `OK`, `SKIPPED` or
+`NOTE` line — silence means it never executed), and separately, anything a gate reports as
+withheld must carry the ramp banner naming its deadline. That second check is the real
+"shipped disabled" failure, and it is judged from the run rather than predicted from the site
+list.
+
+All four legs then pass end to end — A (0.5.0), B (0.1.3, where **eleven** expiries land at
+once), C (0.2.1) and D (0.3.0, the only shape that can reach the `RAMP EXPIRED` branch at all)
+— each upgrading cleanly on 33 steps with `doctor` 0 and `graduate` correctly refusing.
+
+### Leg E: the door nobody had opened
+
+`graduate` has two branches and only one had ever been executed. Every leg above ends with it
+REFUSING, because an upgraded install always has ramped findings outstanding — that is what a
+ramp is *for*. The SUCCESS branch is the one that moves `baseVersion` and arms every ramped
+check at once, and through 0.5.0 nothing anywhere had run it. **A door nobody has opened is not
+a door you know opens.**
+
+Leg E performs the sweep `docs/runbooks/harness-upgrade.md` prescribes, then requires
+`graduate` to succeed. That makes it a proof of two things at once: that the door opens, and
+that **the runbook is sufficient** — a runbook whose steps do not actually clear the findings
+is worse than no runbook, and nothing else in this repository would notice. It shares leg D's
+baseline deliberately, so the only difference between the two results is the sweep.
+
+The file list is DERIVED, not written: `seedOnInitOnly` is the set a release deliberately
+withheld from `update`, which is exactly the set a consumer must adopt by hand — so the same
+data that withholds them names the sweep. It refuses to run if that set is empty, because a
+sweep that clears nothing cannot prove anything.
+
+**Building it found two more defects, both in this release's own work.**
+
+`apps/web/lib/i18n/errors.ts` was **dead code on any install that adopted the seam**. On a
+fresh scaffold a page imports it, so `knip --strict` is happy; on an upgrade the page bodies
+are seeded from 0.2.0 and nothing references it — so a consumer following the instruction to
+adopt the new i18n seam earned a red `dead-code` step for their trouble. Its two siblings were
+declared production entries when the seam was built and this one was missed. This is the same
+class as the orphan 0.4.0 shipped, arrived at from the opposite direction, and only an
+*upgraded* tree shows it.
+
+And the seam creates an obligation `update` cannot discharge: a `page.meta.ts` **declares**
+state test ids, and the gate requires the page to **render** them — but page bodies belong to
+the consumer. Adopting the meta file alone therefore leaves a finding the meta file itself
+created. The runbook now says so, with the `data-testid={meta.states.<key>}` form that cannot
+drift and the `unreachableStates` escape for a state that genuinely cannot occur. Leg E
+executes that instruction, so if it ever stops being sufficient the lane reds rather than a
+consumer discovering it.
+
+### What running the upgrade lane found, which nothing else could
+
+The lane is the release gate for every ramp and migration claim, and its own header says so.
+Running it against this release's tree — rather than reading it — turned up four defects in
+one execution, three of them in machinery this release had just written.
+
+- **A shipped gate script was not formatted, and no factory check has ever run the
+  formatter.** `format` is step ONE of every consumer's chain and it runs over the files the
+  harness ships. Nothing on the factory side ran it — eslint, tsc and knip moved here in
+  0.3.0 for exactly this reason and biome was the one left behind. So one over-long line in
+  `check-auth-posture.mjs` was invisible to a maintainer's turn and red on step one for every
+  consumer who upgraded; the lane reported it, correctly, as a REGRESSION rather than an
+  expiry. The factory Stop gate is 13 steps now, and the thirteenth runs the TEMPLATE's own
+  `biome.jsonc` — never a factory copy that could drift from what consumers get.
+- **`check-web-routes.mjs` armed its ramp before it knew whether it had findings, which
+  would have made `graduate` unreachable forever.** `rampNote` PRINTS its NOTE on every armed
+  call, and `graduate` refuses while any NOTE stands — so a ramp evaluated unconditionally
+  announces itself on a CLEAN tree, and since only `graduate` advances the baseVersion that
+  disarms the ramp, the install could never graduate at all. Every other shipped site guards
+  the call on having something to withhold; this one shipped for one wave without it.
+- **The lane's model of `graduate` was half its contract.** 0.5.0 rewrote §8 to key on the
+  chain's exit code, reading the refusal text as *"refuses while validate is RED"*.
+  `graduate` refuses on a red chain **and**, separately, while any ramp NOTE stands — which
+  is the entire point of graduating. The half was invisible for exactly one release because
+  0.5.0 opened no ramp at its own minVersion, so on leg A "green chain" and "no NOTEs"
+  coincided. 0.6.0 opens three, every leg's baseline is below 0.6.0, and the old branch would
+  have called a CORRECT refusal a defect on all four legs. The direction of inference is
+  reversed to fix it: judge what `graduate` DID and require the reason to be true, rather
+  than predicting which way it must go and calling the other one a bug.
+- **No leg reached `graduate`'s success branch**, and until this release nothing had noticed
+  because nothing needed to: 0.5.0 opened no ramp at its own minVersion, so leg A's "green
+  chain" and "no NOTEs" coincided and the door appeared to open. 0.6.0 opens three, every
+  leg's baseline is below 0.6.0, and all four legs took the refusal branch — the mechanism
+  working, and the proof that the door OPENS gone at the same time. That is what leg E was
+  built for (above); the gap is recorded here because finding it is what caused it.
+
+### Every existing install was going to keep the sign-in loop, and only leg E could say so
+
+The release's headline fix — the seeded web app could not sign anybody in — **reached no
+existing install, and the release had no channel that could carry it.** The browser Supabase
+client persisted its session to `localStorage` while every server render read the cookie jar,
+so a correct sign-in bounced straight back to `/sign-in`. 0.6.0 fixed that in nine seeded
+files. `update` does not write seeded files; that is what seeded *means*. So a consumer who
+upgraded got the gate that detects the loop and none of the fix for it.
+
+`auth-posture` did its job: six findings, each naming the file and the exact change, withheld
+as NOTEs until 0.7.0. What was missing was everything after the alarm — no runbook step, no
+declaration, nothing that would ever clear them. And because `graduate` refuses while any NOTE
+stands, **an upgraded install could never graduate at all.** That is precisely the state leg E
+exists to detect, and it is the first thing it detected: `ramp NOTE(s) survive the documented
+sweep — the runbook does not actually clear what this release ramped`. Four legs were green;
+the chain after the sweep was green on all 33 steps; the defect was visible only to the leg
+that requires the door to open.
+
+`template/migrations.json` gains **`seededSourceFixes`**, the opposite number to
+`seedOnInitOnly`: that key is for files a release WITHHOLDS, this one for files the harness
+authored and a release CORRECTED, where the consumer's ownership is exactly what blocks
+delivery. `configSteps`, `configCommandUpdates` and `dependencyObligations` each cover a
+different channel and none covers this one. **It is an instruction, not an action** — nothing
+copies these into a real install. The runbook names the set and says why the nine move as one
+(a browser client cannot take a storage adapter the platform package does not export), the
+sweep models the edit on the lane's pristine scaffold, and `check-seeded-migrations` closes the
+record against the template: `adopt()` skips a missing source in **silence**, so a path that
+stopped existing would quietly shrink the sweep while the runbook kept prescribing it.
+
+The runbook section is deliberately not written like the others on that page. Every other item
+is a new surface a consumer chooses to adopt; this one is a defect they already have.
+
+### The factory gate reddened on the release's own proof, and the file that fixed it caught itself
+
+Re-running the acceptance ladder against the finished tree turned the release's subject onto the
+release's own tooling. `scripts/hygiene.mjs` sweeps every text file for a literal NUL — the byte
+that makes a file `data`, so `grep` skips it in **silence** — and it chose which files to read by
+walking the repo behind a hand-maintained exclude list (`node_modules`, `.git`, `dist`, `build`,
+`.next`, `coverage`) that knew nothing about `.gitignore`.
+
+Acceptance rung 4 plants a **git worktree at an old release tag** under `.selftest/`. So running
+the lane that is the release gate for every ramp and migration claim made the factory Stop gate
+red on two **v0.1.3** files that predate the sweep entirely. Nobody can fix a file in history:
+the available moves were *delete your lane output* or *stop running the lane*, and the second is
+the one people take. **A gate that punishes running the release proof is a gate that deletes the
+release proof.**
+
+The inflated counter is the worse half. `textFilesScanned` is this sweep's anti-vacuity control
+— *"a sweep that scanned nothing is a false green"* — and with six scratch scaffolds in scope it
+was counting trees that are not the harness. The number that exists to prove the sweep read
+**the repository** could not fall while any scratch output sat on disk, so the control could not
+fire. The set is now `git ls-files --cached --others --exclude-standard`: tracked, plus
+untracked-but-not-ignored so a new NUL reds *before* it is committed, honouring `.gitignore` so
+the next scratch directory is out of scope by construction rather than by remembering to extend
+a literal. It fails closed when git cannot answer, because a filesystem walk cannot tell source
+from scratch — which is how this started. The other two whole-tree factory scripts were checked
+in the same pass: `check-residue.mjs` takes a scaffold argument and `check-syntax.mjs` names its
+four roots, so neither could reach `.selftest/`.
+
+**The fix introduced the defect it fixes.** The line that splits git's `-z` output was written
+with a literal NUL instead of the `\u0000` escape — the fourth time in this repository's history
+that this bug has been reproduced *by the act of addressing it*, after the two files it was
+written for and the changelog entry describing it. The sweep caught it on the next run, which is
+the only reason this sentence is accurate.
+
+And the sweep had no red-proof at all. Factory-gate steps carry no canary-registry entry — that
+registry closes over the shipped chain and the Stop chain, and these scripts ship to nobody — so
+`hygiene` had spent five releases as a gate whose failure nobody had watched. It now has three
+executed tests: the tree as it stands, a planted NUL that must red, and **the same NUL under
+`.selftest/` that must not**. Both fixtures assert `git check-ignore` first, because each half
+has a silent-green failure mode — a fixture git ignores makes the red test pass for the wrong
+reason, and a fixture git tracks makes the green test pass for the wrong reason.
+
+### Fixed
+
+- **`CONTRIBUTING.md` described CI that does not exist, in the file maintainers follow
+  literally.** Rule 1 claimed *"the `bootstrap` CI jobs (linux **and** windows)"* — there has
+  never been a Windows bootstrap job; the matrix's only Windows runner is `installer-unit`, which
+  exists for the path-separator/CRLF bug class and builds no scaffold. So "green on Windows" has
+  never meant "a Windows scaffold is green". And the local pre-flight block, whose own header
+  says *"This list is the whole of what CI blocks on"*, omitted **four** blocking `machinery-lint`
+  checks (`check-escape-registry`, `check-tier-coverage`, `check-ramp-ledger`,
+  `check-dependency-channel`) — so following it exactly is how a maintainer goes red in CI on
+  four checks they never ran, which is the failure the paragraph above the block warns about.
+
+- **`tools/web-route-allowlist.json` would have shipped `owned`,** because `owned` is what a new
+  `tools/` file defaults to and its mobile twin's `seeded` classification is an explicit list
+  entry. The gate's own failure text tells a consumer to add a row to it; `check-gate-integrity`'s
+  surface is `/^tools\//`, so an owned file there is sha-pinned. The harness would have issued
+  two contradictory demands at once — *edit this file* and *your hash moved, restore it* — and
+  `update` would have reverted the edit anyway. It is the same defect 0.2.0 fixed for six other
+  reviewed-data files, found this time by `scripts/check-escape-registry.mjs` in the same commit
+  that created the file.
+
+- **`role="status"` and `role="progressbar"` are both lint errors on the web half**, and the
+  divergence from mobile is the platform rather than an inconsistency. jsx-a11y's
+  `prefer-tag-over-role` requires the ELEMENT where HTML has one, and every a11y rule here is an
+  error. So the new `loading.tsx` surfaces are `<output>` (implicit polite `status` live region)
+  while their mobile counterparts stay `role="progressbar"` on a View, which is the only thing a
+  View can be. A role attribute is a promise to assistive tech; the element is the thing itself.
+
 ## [0.5.0] — 2026-08-07
 
 **The accounting release.** Every claim in this repository is supposed to be checkable by

@@ -10,9 +10,7 @@
       "WITHHELD — generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record — which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
       "WITHHELD — the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately — both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
     ],
-    "removed": [
-      "apps/mobile/__tests__/a11y-deep.test.tsx"
-    ],
+    "removed": ["apps/mobile/__tests__/a11y-deep.test.tsx"],
     "removedWhy": "Not a deletion — a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome — a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
     "configSteps": [
       {
@@ -49,7 +47,6 @@
       "apps/web/e2e/security-headers.spec.ts",
       "apps/web/e2e/tenancy.spec.ts",
       "apps/web/lib/auth/",
-      "apps/web/lib/error-copy.ts",
       "apps/web/lib/rate-limit-runtime.ts",
       "apps/web/lib/rate-limit.ts",
       "apps/web/lib/security-headers.ts",
@@ -154,5 +151,88 @@
       "why": "Eight escapes close. Four are docs lockstep (AGENTS.md's gate list after an injected step, the approved-tools registry/doc pair, the doctrine token map, and the enforcement-tiers shape); the other four are gate-integrity's hash coverage of the enforcement CONFIGS, check-wiring's whole CODEOWNERS finding set, check-wiring's web a11y plugin seam, and check-diff-coverage's per-file floors over apps/web/lib plus the layered packages. The a11y one is the only expiry whose remedy the harness itself has to deliver: this release's dependencyObligations record is that remedy, and `doctor` reds until it is met. Sweep, then `graduate`. docs/runbooks/harness-upgrade.md carries a section per expiring gate."
     },
     "rampExtensions": []
+  },
+  "0.6.0": {
+    "//": [
+      "0.6.0 the conformance release. THE FLEET GREW FROM 20 SITES TO 22 AND ONE DEADLINE MOVED. The two new ones are the ordinary treatment every new check gets — `auth-posture` and the web half of `route-manifest` both ship ramped at minVersion 0.6.0, until 0.7.0, so an install that predates the surface gets NOTEs and grows into it. The moved one is `rampExtensions` below and is the only entry of its kind this lineage has recorded. None of that changes the population in `rampExpiry`: a ramp opened at 0.6.0 expires at 0.7.0, so nothing newly EXPIRES here and the four vintages below are entirely carried forward. `affects` is what check-ramp-ledger.mjs computes from the shipped call sites, not a number anybody typed.",
+      "THE WEB LOCALE SEAM (apps/web/lib/i18n/) IS WITHHELD, and it is the ordinary seeded-exemplar reasoning rather than a new rule: the catalog is only reachable from pages that call `t()`, a consumer's apps/web has its own pages, and planting an unreferenced module reds `dead-code` on their next validate — the exact defect 0.4.0 shipped with apps/web/lib/action-outcome.ts. The `i18n` gate ramps on the catalog's ABSENCE per surface (0.6.0 made adoption per-surface precisely so an un-adopted web half cannot silence the adopted mobile one), so withholding leaves the consumer green until they adopt with `update --refresh-seeded apps/web/lib/i18n/`.",
+      "THE WEB ROUTE REGISTRY IS WITHHELD TOO, and the not-found page with it — which looks wrong, because check-web-routes.mjs REQUIRES apps/web/app/not-found.tsx and reds without it. It is right for two reasons. The planted file would import ../lib/i18n, which the entry above withholds, so planting it breaks the build of every install that has not adopted the seam. And an unmatched-route surface is exactly the kind of page a project should own: ours says what a scaffold's 404 should say, not what theirs should. The gate ships RAMPED (minVersion 0.6.0, until 0.7.0) so an install that predates the registry gets its findings as a NOTE and grows into them, which is the same treatment every new check gets. `update --refresh-seeded apps/web/lib/routes.ts` (and the metas) is the documented opt-in.",
+      "tools/web-route-allowlist.json IS PLANTED, and the split is the seeded-migrations rule applied literally rather than a preference: readAllowlist() treats an absent file as an EMPTY allowlist, and an empty allowlist reds every chrome page. Fails-closed-when-absent means plant. It is a DELIBERATE_PLANT entry in scripts/check-seeded-migrations.mjs, same shape as approved-tools.json.",
+      "apps/web/lib/error-copy.ts LEFT the 0.2.0 seedOnInitOnly list in this release, and the reason is worth stating because it looks like a deletion and is not. The file MOVED into the seam (apps/web/lib/i18n/errors.ts) so the web half matches the mobile half, where envelope copy has always lived inside src/i18n/. There is deliberately NO `renamed` record: apps/web is seeded, so an existing install owns its error-copy.ts and its pages import it — renaming would delete the file they import while the replacement is withheld by the entry directly above. A consumer moves it when they adopt the seam, not when they upgrade. scripts/check-seeded-migrations.mjs caught the stale entry the moment the template stopped shipping that path, which is the control working."
+    ],
+    "configSteps": [
+      {
+        "//": "The ONLY channel by which a new chain step reaches an existing install: harness.config.mjs is SEEDED, so `update` never rewrites it, and without this record CI's --min-floor would run a step the consumer's Stop hook never does — green CI over a weaker local gate. Placed after `tenancy` because it reads supabase/config.toml, the file the steps around it are about, and because it is a <100ms static parse that should red before anything expensive runs.",
+        "name": "auth-posture",
+        "cmd": "node tools/check-auth-posture.mjs",
+        "after": "tenancy"
+      },
+      {
+        "//": "The second injected step of this release, placed directly after `auth-posture` for the same two reasons: it is a <100ms static parse over committed SQL, so it belongs before anything that shells out to a toolchain, and it sits beside the other gates whose subject is the database. It reads supabase/migrations and supabase/schemas and nothing else — no install, no network, no running stack.",
+        "name": "data-flow",
+        "cmd": "node tools/check-data-flow.mjs",
+        "after": "auth-posture"
+      },
+      {
+        "//": "THE STOP CHAIN, 9 -> 10, and the `array` field is what makes this record reach the right one. Without it the step would be injected into VALIDATE_STEPS, where it would run over a TREE and know nothing about a turn — and `check-reviewer-verdicts.mjs` asks a question only a turn can answer. 0.3.0 deferred process-verified reviewers with the condition that the Stop chain must not move 9 -> 10 in the same release that first freezes it; 0.3.0 WAS that release, so this is legal three releases later. The step ships RAMPED (0.6.0 -> 0.7.0): an existing install has no ledger and no wired SubagentStop hook at the moment the step arrives, so every finding would land at once on an upgrade nobody asked for.",
+        "name": "reviewer-verdicts",
+        "cmd": "node tools/check-reviewer-verdicts.mjs",
+        "after": "mobile-perf",
+        "array": "STOP_HOOK_STEPS"
+      }
+    ],
+    "configCommandUpdates": [
+      {
+        "//": "The `route-manifest` step gained a SECOND script (the App Router half). harness.config.mjs is SEEDED, so `update` never rewrites it — without this record an upgraded install would keep running only the mobile script while CI's --min-floor runs both, which is green CI over a weaker local gate: the exact inversion the floor exists to prevent. This is `configSteps`' sibling for the case where the step already exists and only its command moved.",
+        "name": "route-manifest",
+        "from": "node tools/check-route-manifest.mjs",
+        "to": "node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs"
+      }
+    ],
+    "seedOnInitOnly": [
+      "apps/web/lib/i18n/",
+      "apps/web/lib/routes.ts",
+      "apps/web/lib/routes.generated.ts",
+      "apps/web/app/not-found.tsx",
+      "apps/web/app/(protected)/o/page.meta.ts",
+      "apps/web/app/(protected)/o/loading.tsx",
+      "apps/web/app/(protected)/o/[orgSlug]/notes/page.meta.ts",
+      "apps/web/app/(protected)/o/[orgSlug]/notes/loading.tsx",
+      "apps/web/__tests__/routes.test.ts",
+      "apps/web/e2e/authenticated.spec.ts"
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "THE FIRST ENTRY OF THIS KIND, and leg E of the upgrade lane is what forced it. `seedOnInitOnly` is for files a release WITHHOLDS; `configSteps` and `configCommandUpdates` are for the chain; `dependencyObligations` is for the catalog. None of them covers the case this release actually hit: a SEEDED SOURCE FILE whose harness-authored content was CORRECTED, where the correction fixes a functional break and a gate now enforces it. `update` cannot write these — the whole point of seeded is that the consumer owns them — so a 0.6.0 upgrade left every existing install with the sign-in loop this release fixed, and the only thing that said so was a ramped auth-posture NOTE with no runbook step behind it. graduate could therefore never succeed on an upgraded install, which is exactly what leg E is built to detect. THIS IS AN INSTRUCTION TO A HUMAN, NOT AN ACTION: nothing copies these files into a real install. The gate names the defect per file, the runbook names the set, and scripts/ci/upgrade-sweep.mjs models the edit on the lane's pristine scaffold so that the instruction is proven sufficient rather than merely plausible. THE UNIT IS THE SUBSYSTEM, NOT THE LINE: the browser client cannot take a cookie-backed storage that the platform package does not export, so the nine files move together or not at all.",
+        "why": "0.6.0 fixed a functional break in the seeded web session handoff: the browser client persisted its session to localStorage while every server render read the cookie jar, so a correct sign-in was followed by a redirect back to /sign-in — a sign-in LOOP, on the shipped scaffold. The same wave removed four comments claiming `httpOnly` on cookies a browser-side sign-in cannot set it on. An install that predates 0.6.0 still carries both, and `auth-posture` withholds the six findings under the 0.6.0 ramp until 0.7.0.",
+        "paths": [
+          "apps/web/lib/supabase/client.ts",
+          "apps/web/lib/supabase/server.ts",
+          "apps/web/app/sign-in/page.tsx",
+          "apps/web/app/sign-in/sign-in-form.tsx",
+          "packages/platform/supabase/src/client.ts",
+          "packages/platform/supabase/src/cookies.ts",
+          "packages/platform/supabase/src/cookies.test.ts",
+          "packages/platform/supabase/src/cookie-server.ts",
+          "packages/platform/supabase/src/index.ts"
+        ],
+        "gate": "auth-posture"
+      }
+    ],
+    "rampExpiry": {
+      "//": "CARRIED FORWARD, NOT NEWLY OPENED. The four vintages below are the same four 0.5.0 named, and for the same reason: the escapes that close for them opened at minVersion 0.3.0 and 0.4.0, so every install whose baseVersion predates 0.4.0 meets them on any upgrade that crosses the deadline — including this one, if they skipped 0.5.0. A 0.4.0 or 0.5.0 install meets nothing here. The honest count for a given tree is still `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list: nine of the sites are adoption seams that fire only when the surface is genuinely absent.",
+      "affects": ["0.1.3", "0.2.0", "0.2.1", "0.3.0"],
+      "why": "Nothing newly EXPIRES in this release — the three ramps it opens or re-opens all fall due at 0.7.0 — so this record carries 0.5.0's population forward rather than declaring a new one: an install that skipped 0.5.0 meets its escapes on the way through 0.6.0. Seven of the eight 0.5.0 escapes are unchanged; the eighth was re-opened and is recorded under `rampExtensions`, which means a pre-0.4.0 install that has NOT yet swept its AGENTS.md gate list now has until 0.7.0 rather than being red on arrival. The remediation is unchanged and is per-gate in docs/runbooks/harness-upgrade.md — sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time: each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
+    },
+    "rampExtensions": [
+      {
+        "//": "THE FIRST ENTRY OF THIS KIND IN THE LINEAGE, and the release that made it visible is the release that needed it. check-docs-sync.mjs's AGENTS.md gate-list ramp expired at 0.5.0. This release injects `auth-posture` through configSteps, so on every existing install the chain grows to 32 steps while their AGENTS.md still documents 31 — and AGENTS.md is SEEDED, so `update` cannot fix it and the consumer is the only one who can. Hard-redding them on an upgrade they did not ask for is precisely the ambush the ramp mechanism exists to prevent, so the site was re-opened at minVersion 0.6.0 (the population is now every install below this release, not just below 0.3.0) with a fresh deadline at 0.7.0. WHAT MAKES THIS A RECORD RATHER THAN A QUIET EDIT: under the 0.5.0 ratchet it would have BEEN a quiet edit. That ratchet keyed sites by (file, minVersion), so changing minVersion retired one key and created another — a deletion plus a new escape, both individually allowed — and a deadline moved two releases later with every control green. 0.6.0 re-keys the ratchet on the detail string (scripts/lib/ramp-sites.mjs) and this is the first thing it caught.",
+        "file": "check-docs-sync.mjs",
+        "detail": "'AGENTS.md gate-list lockstep after an injected chain step'",
+        "from": "0.5.0",
+        "to": "0.7.0",
+        "why": "The escape must outlive the injection that reopens the drift. `auth-posture` reaches existing installs through configSteps, which grows their chain to 32 steps; their AGENTS.md is seeded and still documents 31, and only they can edit it. Closing the ramp at 0.5.0 while injecting a step in 0.6.0 would red every install in the lineage for a file the harness handed them and then refused to update. The deadline moves once, to 0.7.0, and the NOTE tells them exactly which names to paste."
+      }
+    ]
   }
 }

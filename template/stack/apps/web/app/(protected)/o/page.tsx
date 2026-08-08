@@ -3,8 +3,10 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { resolveOrgs } from '../../../lib/auth/session'
+import { t } from '../../../lib/i18n'
 import { createRequestScopedClient } from '../../../lib/supabase/server'
 import { CreateWorkspaceButton } from './create-workspace-button'
+import { meta } from './page.meta'
 
 // The org picker, and the landing spot after sign-in.
 //
@@ -13,7 +15,10 @@ import { CreateWorkspaceButton } from './create-workspace-button'
 // present. With several it lists them — it does NOT pick the first, because a default that
 // depends on sort order is a default that silently moves when a user joins an org.
 
-export const metadata = { title: 'Organizations' }
+// The title comes from the route's OWN meta, so the browser tab and the registry cannot say
+// different things about what this page is called. `t()` is a plain function, not a hook —
+// that is what lets a Server Component's module-scope `metadata` export use it at all.
+export const metadata = { title: t(meta.titleKey) }
 
 export default async function OrgPickerPage(): Promise<ReactNode> {
   const orgs = await resolveOrgs(await createRequestScopedClient())
@@ -23,16 +28,15 @@ export default async function OrgPickerPage(): Promise<ReactNode> {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <Text as="h1" size="2xl" weight="semibold">
-        Organizations
+        {t('route.orgs')}
       </Text>
 
       {orgs.length === 0 ? (
-        <Card>
+        <Card testID={meta.states.empty}>
           <div className="flex flex-col items-start gap-3">
-            <Text weight="medium">You are not in any organization yet.</Text>
+            <Text weight="medium">{t('orgs.empty.title')}</Text>
             <Text tone="muted" size="sm">
-              Create your personal workspace to get started, or open an invitation link someone sent
-              you.
+              {t('orgs.empty.description')}
             </Text>
             <CreateWorkspaceButton />
           </div>

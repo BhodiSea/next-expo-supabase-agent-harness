@@ -42,6 +42,15 @@
 //      because PostgREST switches to the JWT's role before calling and there is no
 //      other way for a client-callable RPC to exist.
 //
+// AND ONE ADDED IN 0.6.0 — the POLICY → GRANT closure. Table privileges are checked
+// BEFORE row security, so a policy naming a role that holds no privilege is unreachable
+// code. This gate has parsed grants since 0.2.0 and used only the FUNCTION half; the table
+// half was dead output, so a table with ENABLE + FORCE + four policies + both registries +
+// an owner index and no GRANT statement anywhere was green. It is invisible today because
+// Supabase's default privileges cover anon/authenticated/service_role in `public` — and
+// those defaults stop applying to projects created on or after 2026-10-30. See
+// tools/lib/table-grants.mjs.
+//
 // Static and <100ms: statement-level SQL parsing via tools/lib/sql-parse.mjs, not
 // substring vibes — an early regex version was defeated by the shipped migration's
 // own `AS PERMISSIVE` syntax and never looked at predicates at all. The runtime
@@ -62,6 +71,7 @@ import {
   splitStatements,
   stripSchema,
 } from './lib/sql-parse.mjs'
+import { policyGrantProblems } from './lib/table-grants.mjs'
 
 const GATE = 'schema-rls'
 const SCHEMAS_DIR = 'supabase/schemas'
@@ -72,6 +82,7 @@ const DB_CONTEXT = 'tests/rls/db-context.ts'
 const PGTAP_STRUCTURE = 'supabase/tests/rls_structure.test.sql'
 const CONFIG_TOML = 'supabase/config.toml'
 const RAMP = '0.2.0'
+const RAMP_GRANTS = '0.6.0'
 
 if (!existsSync(SCHEMAS_DIR)) skipOrFail(GATE, `${SCHEMAS_DIR} not found (no schema surface yet)`)
 
@@ -348,6 +359,34 @@ for (const table of [...createdTables].sort()) {
 }
 
 // ---------------------------------------------------------------------------
+// THE POLICY → GRANT CLOSURE (0.6.0)
+// ---------------------------------------------------------------------------
+// Table privileges are checked BEFORE row security, so a policy naming a role that holds
+// no privilege on the table is unreachable code that reads in review as a granted one.
+// Until now this gate parsed the grants (parseGrants has been called since 0.2.0) and used
+// only the FUNCTION half of that parse for the EXECUTE surface above — the table half was
+// dead output, which is why a table shipping ENABLE + FORCE + four policies + both isolation
+// registries + an owner index and NO GRANT statement anywhere was fully green.
+//
+// It is dated. Supabase's default privileges have always granted anon/authenticated/
+// service_role on every new table in `public`, which is exactly what makes the omission
+// invisible — the policy works because the default already handed the role its privileges.
+// For projects created on or after 2026-10-30 that stops, so the same migration file 403s
+// in the next project it is replayed into. The reasoning, the carve-outs and the reason the
+// reverse direction is NOT asserted live in tools/lib/table-grants.mjs.
+// SOURCE: https://supabase.com/docs/guides/api (Data API grants and exposed schemas)
+//
+// The domain is POLICIES, not declared tables: it runs over exempt tables too, because an
+// exemption in tools/rls-exempt.json is an exemption from the per-operation MODEL (the audit
+// trail must have no UPDATE policy) and says nothing about whether the policies a table does
+// carry are reachable.
+const grantErrs = policyGrantProblems({
+  policies,
+  grants,
+  tables: new Set([...declaredTables, ...createdTables, ...policies.keys()]),
+})
+
+// ---------------------------------------------------------------------------
 // SECURITY DEFINER discipline
 // ---------------------------------------------------------------------------
 // A definer function runs as its OWNER. That is the correct tool for the one job RLS
@@ -487,6 +526,31 @@ if (rampedErrs.length > 0) {
   else errs.push(...rampedErrs)
 }
 
+// RAMPED, for one release, and the argument is narrower than "it is new".
+//
+// On a Supabase project created before 2026-10-30 a policy with no GRANT behind it WORKS —
+// the default privileges already handed the role what it needs — so a consumer's committed,
+// reviewed, passing migration becomes red on upgrade for a defect that has not yet bitten.
+// That is the population a ramp exists for, and it is not the population the unramped
+// checks above address (no legitimate install has ever turned RLS off, and the 0.1.3
+// scaffold shipped no definer functions, so those two ramps would have protected only a
+// tampered tree). Here there is a real legacy population and a real, dated fuse.
+//
+// The grace is one release, not one quarter: at this line's cadence 0.7.0 lands months
+// before 2026-10-30, so the deadline the ramp ledger enforces arrives well ahead of the
+// deadline the check is about. And a NOTE here is not silence — rampNote prints on every
+// armed call, and each finding below carries the exact GRANT statement that discharges it.
+if (grantErrs.length > 0) {
+  const ramped = rampNote(
+    GATE,
+    RAMP_GRANTS,
+    `${grantErrs.length} policy/policies whose role holds no matching table GRANT (the 2026-10-30 Data API default-privilege flip)`,
+    { until: '0.7.0' },
+  )
+  if (ramped) for (const e of grantErrs) console.log(`${GATE}: NOTE — ${e}`)
+  else errs.push(...grantErrs)
+}
+
 failures(
   GATE,
   errs,
@@ -494,5 +558,5 @@ failures(
 )
 ok(
   GATE,
-  `${declaredTables.size} table(s): FORCE RLS (never disabled) + per-op policies + real, uncorrelated predicates + owner-column indexes + dual isolation-registry coverage${functions.some((f) => f.securityDefiner) ? ` + ${functions.filter((f) => f.securityDefiner).length} reviewed definer function(s)` : ''}`,
+  `${declaredTables.size} table(s): FORCE RLS (never disabled) + per-op policies + real, uncorrelated predicates + owner-column indexes + dual isolation-registry coverage + every policy role holds a matching table GRANT${functions.some((f) => f.securityDefiner) ? ` + ${functions.filter((f) => f.securityDefiner).length} reviewed definer function(s)` : ''}`,
 )

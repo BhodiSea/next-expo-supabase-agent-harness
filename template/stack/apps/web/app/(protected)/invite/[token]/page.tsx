@@ -1,5 +1,6 @@
 import { Card, Text } from '@app/design-system'
 import type { ReactNode } from 'react'
+import { t } from '../../../../lib/i18n'
 import { AcceptInviteButton } from './accept-invite-button'
 
 // Invitation acceptance — in scope despite the "no member-management UI" cut, because
@@ -16,7 +17,7 @@ import { AcceptInviteButton } from './accept-invite-button'
 // preview would require a definer RPC that answers questions about an org to anyone holding
 // a guessable token, which is the token oracle the whole invitation design avoids.
 
-export const metadata = { title: 'Accept invitation' }
+export const metadata = { title: t('route.acceptInvite') }
 
 export default async function InvitePage({
   params,
@@ -28,13 +29,12 @@ export default async function InvitePage({
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-6 py-16">
       <Text as="h1" size="2xl" weight="semibold">
-        Accept invitation
+        {t('route.acceptInvite')}
       </Text>
       <Card>
         <div className="flex flex-col items-start gap-3">
           <Text tone="muted" size="sm">
-            Accepting adds your account to the organization that issued this link. The link works
-            once and then stops working.
+            {t('invite.lede')}
           </Text>
           {/* The token is passed to a CLIENT component and straight back to a Server Action.
               It is never rendered, never logged, and never put in a query string — the URL

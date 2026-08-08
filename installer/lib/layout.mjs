@@ -106,6 +106,13 @@ export const SEEDED_FILES = new Set([
   // template scaffold's bytes never ratchet someone else's bundle).
   'tools/perf-baseline.json',
   'tools/route-allowlist.json',
+  // 0.6.0, and it belongs here for the reason the block below spells out rather than by
+  // analogy: check-web-routes.mjs's own failure text says "allowlist the chrome page … with a
+  // reason in tools/web-route-allowlist.json", and check-gate-integrity's SURFACE is
+  // /^tools\//. Left `owned` (the default for a new tools/ file, which is what it was until
+  // this line), the harness would tell a consumer to edit a file, call the edit tampering on
+  // the next validate, and revert it on the next `update`.
+  'tools/web-route-allowlist.json',
   'tools/dto-bounds-allow.json',
   'tools/duplication-allow.json',
   'tools/decision-groups.json',
@@ -126,6 +133,8 @@ export const SEEDED_FILES = new Set([
   'tools/audit-columns.json',
   'tools/pii-columns.json',
   'tools/db-limits.json',
+  'tools/data-flow.json',
+  'tools/reviewer-triggers.json',
   'tools/security-headers.json',
   'tools/rate-limit-budget.json',
   'tools/db-perf-baseline.json',

@@ -93,9 +93,15 @@ test('RED: a drifted gate list names the documented vs actual chains', () => {
 // hard red there is a gate ambushing an update. The distinction has to be decidable, or
 // the fix is just "ramp everything", which retires the check.
 
-test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.3.0 install', () => {
+test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 install', () => {
   // Every documented gate still exists, in order — so the difference is steps something
   // else added, and the only thing that adds steps to a seeded config is `update`.
+  //
+  // THE RAMP MOVED IN 0.6.0 and these two tests moved with it, in the same diff. The 0.3.0
+  // ramp expired at 0.5.0; 0.6.0 injects `auth-posture` via configSteps, so the same ambush is
+  // live again for every install whose AGENTS.md still says 31. A ramp's tests are pinned to
+  // its version by construction — leaving them on the old one is how a re-opened escape ends
+  // up asserting the previous release's deadline.
   const r = runGate(
     fixture({
       agents: shippedAgents
@@ -103,11 +109,11 @@ test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.3.0 instal
         .replace(/the (\d+)-step chain/, 'the 29-step chain')
         .replace(' `wiring`,\n  `secrets`,', '')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} },
+      manifest: { harnessVersion: '0.6.0', baseVersion: '0.5.0', files: {} },
     }),
   )
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('expires in 0.5.0'), `the NOTE must carry its deadline:\n${r.out}`)
+  assert.ok(r.out.includes('expires in 0.7.0'), `the NOTE must carry its deadline:\n${r.out}`)
   assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
 })
 
@@ -117,7 +123,7 @@ test('RED: the same additive drift is LIVE on a fresh install — no legacy, no 
       agents: shippedAgents
         .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.3.0', baseVersion: '0.3.0', files: {} },
+      manifest: { harnessVersion: '0.6.0', baseVersion: '0.6.0', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)
@@ -505,20 +511,53 @@ test('TIERS: the shipped table is GREEN at 0.5.0 — the deferred rows are not y
   assert.match(r.out, /every arrived Target discharged/)
 })
 
-test('TIERS RED: an ARRIVED Target on a still-single-surface gate reds', () => {
-  // THE CONTROL. Three rows carried `Target: 0.5.0` under a sentence calling Target "a
-  // commitment, not a wish", and nothing read the column. At harness 0.6.0 the two rows
-  // this release deferred come due, and if their web halves still do not exist they red —
-  // which is what makes the deferral a commitment rather than a way to buy a green release.
+test('TIERS: BOTH 0.6.0 commitments are discharged — the shipped table is green AT 0.6.0', () => {
+  // THIS TEST WAS A MUST-RED, AND ITS SUBJECT GOT FIXED — twice, in one release. Through
+  // 0.5.0 it asserted that `i18n` and `route-manifest` both red at harness 0.6.0, which is
+  // what made those deferrals commitments rather than a way to buy a green release. 0.6.0
+  // paid both: `i18n` is surface-parameterised (`SURFACES` in check-i18n.mjs) and the
+  // `route-manifest` STEP now runs check-web-routes.mjs beside check-route-manifest.mjs.
+  //
+  // So the assertion inverts, and it has to invert in the same diff that closes the gaps —
+  // a must-red test left asserting a fixed defect is a test that reds on the fix. The
+  // control itself is unchanged and still proven, by the two tests below: one re-dates a
+  // discharged row and watches it red, the other holds a genuinely single-surface gate to an
+  // arrived date. What is gone is only the harness's own outstanding debt.
   const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+  assert.doesNotMatch(r.out, /gate `i18n`/)
+  assert.doesNotMatch(r.out, /gate `route-manifest`/)
+})
+
+test('TIERS RED: an ARRIVED Target on a still-single-surface gate reds', () => {
+  // THE CONTROL, proven against a gate that really is single-surface rather than against
+  // the harness's own debt — which is what keeps this test meaningful now that the debt is
+  // paid. `perf-budget` scans apps/mobile only and says so with `Target —`; re-dating it to
+  // a release that has arrived must red.
+  const due = shippedTiers.replace(/^(\| `perf-budget` \|.*)\| — \|$/m, '$1| 0.6.0 |')
+  assert.notEqual(due, shippedTiers, 'the perf-budget row must be found for this test to mean anything')
+  const r = runGate(tiersFixture(due, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /committed to closing its gap in 0\.6\.0 and this install runs harness 0\.6\.0/)
-  assert.match(r.out, /gate `i18n`/)
-  assert.match(r.out, /gate `route-manifest`/)
-  // The six rows that carry `Target —` mean "no other half is owed" and must NOT red: a
-  // draft of this check treated the em dash as a missing commitment and reddened all six.
+  assert.match(r.out, /gate `perf-budget`/)
+  // The rows that carry `Target —` mean "no other half is owed" and must NOT red: a draft of
+  // this check treated the em dash as a missing commitment and reddened all of them.
   assert.doesNotMatch(r.out, /gate `expo-policy`/)
   assert.doesNotMatch(r.out, /gate `native-deps`/)
+})
+
+test('TIERS: the TWIN-SCRIPT step discharges — a fold over the step, not the script', () => {
+  // 0.6.0's derivation fix, asserted where it matters. `route-manifest` runs TWO scripts and
+  // each is single-surface; the STEP covers both, and a tier row names a step. Before the
+  // fold this row could never have discharged no matter what shipped, because the mobile
+  // script would have kept it in the single-surface set forever — a control demanding a
+  // change that no change could satisfy.
+  const due = shippedTiers.replace(/^(\| `route-manifest` \|.*)\| — \|$/m, '$1| 0.6.0 |')
+  assert.notEqual(due, shippedTiers, 'the route-manifest row must be found for this test to mean anything')
+  const r = runGate(tiersFixture(due, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /gate `route-manifest`/)
 })
 
 test('TIERS: a Target DISCHARGES when the gate stops being single-surface', () => {

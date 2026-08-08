@@ -3,7 +3,8 @@
 import { Button } from '@app/design-system'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { errorCopy } from '../../../../lib/error-copy'
+import { t } from '../../../../lib/i18n'
+import { errorCopy } from '../../../../lib/i18n/errors'
 import { acceptInvitationAction } from '../../../actions/orgs'
 
 export function AcceptInviteButton({ token }: { readonly token: string }): React.ReactNode {
@@ -32,7 +33,7 @@ export function AcceptInviteButton({ token }: { readonly token: string }): React
   return (
     <div className="flex flex-col gap-2">
       <Button
-        label="Accept invitation"
+        label={t('invite.accept')}
         onPress={() => {
           void accept()
         }}

@@ -18,6 +18,11 @@
       // The committed contract inventories — emitted by tools/gen-{action-inventory,event-catalog}.mjs
       // and byte-diffed by the `contracts` gate; a formatter pass would read as drift.
       "!**/tools/generated/**",
+      // The web route registry — emitted by tools/gen-web-routes.mjs and byte-diffed by the
+      // `route-manifest` gate. Same reasoning as the inventories above, plus one specific to
+      // this artifact: its import list is one line per route, so ANY change to how the import
+      // organizer sorts specifiers would rewrite the file and read as "a route moved".
+      "!**/apps/web/lib/routes.generated.ts",
       // Installer-written manifest (JSON.stringify shape, hash-verified by doctor).
       "!**/.harness/manifest.json",
       // Vendored third-party CSS (the metal token preset's rim system) —

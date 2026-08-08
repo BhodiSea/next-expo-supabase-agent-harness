@@ -48,5 +48,5 @@
     "@app/notes",
     "postgres"
   ],
-  "ignoreBinaries": ["biome", "vitest", "stryker", "supabase"]
+  "ignoreBinaries": ["vitest", "stryker", "supabase"]
 }

@@ -1,8 +1,10 @@
 import { Card, EmptyState, Text } from '@app/design-system'
 import type { ReactNode } from 'react'
 import { loadNotesPage } from '../../../../../lib/app-data/notes'
-import { errorCopy } from '../../../../../lib/error-copy'
+import { t } from '../../../../../lib/i18n'
+import { errorCopy } from '../../../../../lib/i18n/errors'
 import { NoteComposer } from './note-composer'
+import { meta } from './page.meta'
 
 // One org's notes. The route segment IS the tenant selector — loadNotesPage resolves it
 // against the caller's real seats and scopes the query to the RESOLVED org's id, never to
@@ -12,7 +14,8 @@ import { NoteComposer } from './note-composer'
 // rows" cannot silently render as a list. That is the whole reason the matching lives in a
 // module instead of inside this JSX.
 
-export const metadata = { title: 'Notes' }
+// Title from the route's OWN meta — the registry and the browser tab read one declaration.
+export const metadata = { title: t(meta.titleKey) }
 
 export default async function NotesPage({
   params,
@@ -27,16 +30,16 @@ export default async function NotesPage({
       <NoteComposer orgSlug={orgSlug} />
 
       {model.status === 'error' && (
-        <p role="alert" className="text-sm text-danger" data-testid="notes-error">
+        <p role="alert" className="text-sm text-danger" data-testid={meta.states.error}>
           {errorCopy(model.error)}
         </p>
       )}
 
       {model.status === 'empty' && (
         <EmptyState
-          title="No notes yet"
-          description="Anything you write here is visible to everyone in this organization."
-          testID="notes-empty"
+          title={t('notes.empty.title')}
+          description={t('notes.empty.description')}
+          testID={meta.states.empty}
         />
       )}
 

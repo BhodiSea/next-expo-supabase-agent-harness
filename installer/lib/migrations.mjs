@@ -49,7 +49,10 @@ export function cmpVersions(a, b) {
   return 0
 }
 
-const VERSION_KEY = /^\d+\.\d+\.\d+/ // migrations.json also carries a "//" doc key
+// migrations.json also carries a "//" doc key — and nested records carry their own.
+// Exported because every reader of this file has to make the same distinction, and a
+// second copy is how one of them ends up walking a prose string as if it were a record.
+export const VERSION_KEY = /^\d+\.\d+\.\d+/
 
 // Versions v with from < v <= to, ascending — the records update must apply.
 export function versionsBetween(migrations, from, to) {

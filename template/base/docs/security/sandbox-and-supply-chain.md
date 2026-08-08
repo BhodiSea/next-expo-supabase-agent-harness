@@ -83,6 +83,57 @@ If an agent has all three, an attacker can trick it into exfiltrating private da
   standing access to SSH keys, `.env`, or production DSNs.
 - Reserve `--dangerously-skip-permissions` for sandboxed CI only.
 - `disableBypassPermissionsMode: "disable"` is set so one developer cannot undo team rules.
-- Keep Claude Code itself updated (repository-controlled-config CVEs are fixed only in
-  current versions). New MCP servers / Skills must be on `approved-tools.md` (scanned,
-  pinned) before first use.
+- **Keep Claude Code at or above the floor.** `tools/cc-floor.json` is not a preference: it
+  carries the published advisories, each with a link, and `version-sync` recomputes the floor
+  from them. Repository-controlled-config bypasses are fixed only in current versions.
+- New MCP servers / Skills must be on `approved-tools.md` (scanned, pinned) before first use.
+- Managing this across a team is `managed-settings.md` — the layer a developer cannot switch
+  off, and the only defence against `disableAllHooks`.
+
+## The sandbox, with its limits stated first (0.6.0)
+
+The harness **does not turn the sandbox on for you**, and this section says why rather than
+leaving the recommendation floating. The sandbox is the only primitive here that binds child
+processes regardless of what the model chose to run — every other control in this repo judges
+text before a command runs. That makes it worth adopting deliberately, and worth understanding
+before you do.
+
+**How it is turned on.** Through settings only. There is no CLI flag that enables or disables
+it; `--settings` is the only flag that carries sandbox keys. `--dangerously-skip-permissions`
+does **not** disable it — that flag governs whether each tool call is approved, not whether the
+process is confined. `--add-dir` / `/add-dir` widens the directory set sandboxed tools can see,
+so it is a sandbox-relevant flag even though it never mentions the sandbox.
+
+**What it allows by default.** Writes to the working directory and below, and the session temp
+directory. Plus one that surprises people: in a **linked git worktree**, writes to the main
+repository's shared `.git` are allowed so `git commit` can update refs and the index — with
+`hooks/` and `config` inside it still denied. If you are reasoning about "nothing outside the
+worktree is writable", that is the exception.
+
+**The network rules are not an exfiltration control, and this is the important one.** The
+allowlist the sandbox prompts against is the same list `WebFetch(domain:...)` allow rules feed,
+so widening one widens the other. Non-allowlisted hosts *prompt* rather than fail unless you set
+`network.strictAllowlist` (v2.1.219+, honoured from user, managed or `--settings` only —
+**ignored from project settings**, so committing it to the repo does nothing) or, at the managed
+level, `allowManagedDomainsOnly`. And CVE-2026-54316 was out-of-band exfiltration through a
+*pre-approved* domain: a host allowlist bounds where data can go, not whether it goes. Treat it
+as blast-radius reduction, never as prevention. Note also that the sandbox's network config does
+not restrict `WebFetch` itself — that tool is governed by permission rules.
+
+**Escape hatches and blind spots, named:**
+
+- `dangerouslyDisableSandbox` is a per-command escape on the **Bash** tool input. Set
+  `allowUnsandboxedCommands: false` to remove it entirely, or at minimum an `ask` rule on it.
+- Whether `Monitor` commands are sandboxed at all is **not documented** — the sandbox reference
+  never mentions the tool, and `MonitorInput` carries no `dangerouslyDisableSandbox` field. Do
+  not assume parity with Bash.
+- **Plugin monitors run unsandboxed, at the same trust level as hooks**, and start without
+  Claude calling any tool. A plugin is not a lesser trust boundary than a hook.
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` makes Claude Code ignore `filesystem.disabled` **from
+  every source, including managed settings**, keeping filesystem isolation on. It is the one
+  place an environment variable overrides policy rather than the other way round — useful, and
+  worth knowing before you debug why a managed `filesystem.disabled` is not taking effect.
+- **There is no native Windows support** (macOS Seatbelt, Linux and WSL2 only). Windows is
+  already the platform where this harness is thinnest — no Bash tool without Git Bash, and its
+  own privilege-escalation advisory (CVE-2026-35603). Do not write a policy that assumes the
+  sandbox is present everywhere; it is absent on the platform that needs it most.

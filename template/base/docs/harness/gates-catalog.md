@@ -1,7 +1,7 @@
 # Gates catalog
 
 Companion to [the harness doctrine](./README.md). One section per default-on gate (the
-31-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
+33-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
 suites, the CI-only lanes, every opt-in module, and the gates we considered and rejected.
 
 Every section carries an **anti-vacuity proof**: how to inject a violation and watch the
@@ -83,7 +83,20 @@ every hash, and still have a hook unwired, `pnpm validate` pointed somewhere els
 CLAUDE.md that silently replaced project memory, an enforcement-surface path no CODEOWNERS
 rule covers, and `defaultMode: "bypassPermissions"` — with the whole chain green.
 
-Asserts, by value: all **six** hooks wired; the permission posture
+**Two things wiring a hook does not settle, both added in 0.6.0.** First, whether it is AIMED
+correctly: the command guard's matcher must name `Bash`, `Monitor` **and** `PowerShell`. A
+`Bash(...)` *permission rule* covers Monitor, which is what made the omission invisible — but a
+hook matcher is an exact tool name, so a `Bash`-only matcher left every command-content check
+reachable-around via `Monitor`, and on Windows without Git Bash (where Claude Code registers no
+Bash tool at all) it never fired. A project may ADD a tool to that matcher; it may not drop one.
+Second, whether a deny rule is CONSULTED: Claude Code honours file-permission rules under
+`Edit(...)` and `Read(...)` only, so every `Write(path)` deny must carry an `Edit(path)` twin or
+it reads as protection and enforces nothing.
+
+Asserts, by value: **every** hook wired — a UNION of a required floor and every top-level
+`.claude/hooks/*.mjs` present, so `rm`-ing a hook cannot delete its own requirement and a new
+hook nobody wired still reds (0.6.0 learned this when a hand-kept list of six silently failed
+to require the seventh); the permission posture
 (`disableBypassPermissionsMode == "disable"`, `defaultMode != "bypassPermissions"`) as a
 hard red; `package.json`'s `validate` script still runs `tools/validate.mjs`; `CLAUDE.md`
 is a pure `@AGENTS.md` include; `VALIDATE_STEPS ⊇ tools/validate.floor.json`; and
@@ -279,6 +292,17 @@ surface's graph (web and mobile pin React independently — separate bundles —
 versions across surfaces is correct; two within one bundle break the hooks dispatcher).
 Stamped for warm runs; CI always re-runs.
 
+**The Claude Code floor (0.6.0).** `tools/cc-floor.json` holds the tool this harness RUNS
+INSIDE to a cited minimum — the one dependency whose compromise compromises every other control,
+and the only one that had no floor. The scalar is DERIVED: this step recomputes it as the newest
+`patched` among the advisories cited in the file and reds if the two disagree in either
+direction, `required.setBy` must match the evidence **both ways**, and every row must carry an
+openable `github.com/advisories/` URL plus a sentence on what it does to this harness. The edit
+worth catching is not lowering the number — it is deleting an advisory row, after which the
+derived floor falls with it and nothing else would notice. Clockless and offline by design;
+"has anyone re-queried the advisory database lately" is the scheduled `floor-review` job's
+question, on a 45-day window.
+
 **The framework security floor (0.5.0).** Every package in `tools/framework-floor.json`
 resolves at or above the patched release for its major line — read from the RESOLVED
 `pnpm-lock.yaml`, not the catalog string, so a transitive resolution below the floor reds
@@ -294,7 +318,17 @@ reason `pnpm audit` is not in this chain at all. This half is CLOCKLESS and OFFL
 lockfile, same floor, same verdict on any machine on any day. Whether the review is still
 FRESH is the one time-dependent question, and it rides the scheduled `floor-review` job in
 `osv-scan.yml` (`reviewedUntil`, schedule + workflow_dispatch only — never a PR, because a
-lapsed review must not block a contributor's unrelated patch). The floor is harness-OWNED,
+lapsed review must not block a contributor's unrelated patch).
+**The review WINDOW is judged here, though (0.6.0), because it is not a calendar question.**
+`reviewedUntil - reviewedOn` must be at most **31 days** — one calendar month, matching the
+roughly monthly cadence upstream now publishes security releases on. Before this the window
+was the reviewer's free text, and the file shipped with 92 days: a review that read as live
+across about three releases. Worse than long, it was an **off switch reachable from inside
+the file it protects** — a single distant `reviewedUntil` retires the freshness control, and
+the only check that would object is the scheduled one that edit just disarmed. So the
+reviewer now supplies WHEN THEY LOOKED and the harness supplies HOW LONG THAT IS WORTH; the
+arithmetic is over two committed dates, which is why it can red at the moment the window is
+written rather than a quarter later. The floor is harness-OWNED,
 so `update` carries a new advisory to existing installs, and `gate-integrity` sha-pins it,
 so lowering a minimum without a reviewed commit reds at step 2.
 **Anti-vacuity:** drift `apps/mobile/package.json` from root → FAIL listing the
@@ -304,7 +338,9 @@ replace the versionCode derivation with a literal → FAIL on the next version b
 revert the `next` catalog pin below its floor → FAIL naming the resolved version, the
 floor and the HIGH advisory ids; move a version onto a major line the floor has no row
 for → FAIL naming the supported lines; a present `pnpm-lock.yaml` the scanner matches
-ZERO packages in → FAIL, because that is the shape a silently vacuous floor takes.
+ZERO packages in → FAIL, because that is the shape a silently vacuous floor takes;
+push `reviewedUntil` more than 31 days past `reviewedOn` → FAIL naming the window, the
+maximum, and roughly how many upstream releases that many days hides.
 
 ### 12. prompts — `node tools/check-prompts-lock.mjs`
 
@@ -391,11 +427,39 @@ switches to the JWT's role before calling and there is no other way a client-cal
 RPC can exist. Unramped, by the same reasoning as the negation set: the shipped
 scaffold has no definer functions, so ramping would protect only a tree that added
 one.
+
+**The POLICY → GRANT closure (0.6.0).** Table privileges are checked BEFORE row
+security, so a policy naming a role that holds no privilege on the table is
+**unreachable code that reads in review as a granted one** — the statement raises
+`42501` (PostgREST: HTTP 403) before any policy is consulted. This gate has parsed
+grants since 0.2.0 and consumed only the FUNCTION half, above; the TABLE half was dead
+output, so a table with ENABLE + FORCE + four policies + both registries + an owner
+index and **no `GRANT` statement anywhere** was green. It is invisible because
+Supabase's default privileges hand `anon`/`authenticated`/`service_role` their
+privileges on every new table in `public` — and those defaults **stop applying to
+projects created on or after 2026-10-30**, which makes the same migration file work in
+the project it was written against and 403 in the next one it is replayed into. So: for
+every `CREATE POLICY`, for every operation it names (`FOR ALL` expands to four), for
+every role in its `TO` clause, the GRANT/REVOKE history **folded in statement order**
+must leave that role holding that privilege. Three carve-outs, each load-bearing — a
+predicate that is literally `false` needs no grant (that is how the tenancy spine says
+"never"), a `RESTRICTIVE` policy only subtracts rows and so carries no reachability
+claim, and a policy with no `TO` clause names no role to close over. **The reverse
+direction is not asserted:** `GRANT SELECT, DELETE ON TABLE public.orgs TO
+service_role` is a legitimate ADR'd grant with no policy behind it, because
+`service_role` bypasses row security. Ramped `0.6.0` → `0.7.0`, unlike the negation set:
+here there IS a legacy population, because on a pre-flip project the missing grant
+genuinely works.
+SOURCE: https://supabase.com/docs/guides/api (Data API grants and exposed schemas)
+
 **Anti-vacuity:** declare a table with no migration → FAIL (no ENABLE, no FORCE, missing
 policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth.uid()` →
 FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
 to one registry but not the other → FAIL naming the gap; append a `DISABLE ROW LEVEL
-SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22).
+SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22); delete the
+one `GRANT` line from the **shipped** `notes` migration → FAIL naming the policy, the
+date and the exact statement that discharges it (which is what makes the shipped-tree
+green non-vacuous, as opposed to a fixture merely shaped like it).
 
 ### 15. tenancy — `node tools/check-tenancy.mjs`
 
@@ -544,7 +608,146 @@ that `TRUNCATE` on a partition raises, and that the read path admits rank 40 and
 refuses a rank-20 member **of the same org** — the bidirectional pair that separates a
 working floor from one that refuses everybody.
 
-### 16. types-drift — `node tools/check-types-drift.mjs`
+### 16. auth-posture — `node tools/check-auth-posture.mjs`
+
+The Supabase auth configuration matches the reviewed policy in
+`tools/auth-posture.json`, BY VALUE and IN BOTH DIRECTIONS. It is the deferral CHANGELOG
+0.3.0 recorded under "Deferred, with the reason" — *"the Supabase `[auth]` posture gate (a
+CLI-compatibility spike goes first)"* — discharged in 0.6.0 after the spike ran.
+
+**The spike, and what it actually found.** The stated blocker did not reproduce: against the
+CLI the `^2.34.3` pin resolves to today (2.111.0), a config carrying
+`minimum_password_length`, `password_requirements`, `[auth.mfa]` and `[auth.mfa.totp]` brought
+the stack all the way up — Postgres started, all eight migrations applied, the seed ran, GoTrue
+came up. What it found instead is the reason this gate is worth more than it looked: **the CLI
+parses `config.toml` leniently.** An unknown key under `[auth]` produces no error and no
+warning, so `enable_refresh_token_rotaton = true` — one letter short — reads to every reviewer
+as a security property while GoTrue quietly applies its default. `supabase/config.toml` is the
+most heavily commented file in the scaffold, and every one of those comments could have been
+describing a posture the platform never applied.
+
+Covers, all four closures both ways: the reviewed `[auth*]` values (`jwt_expiry`,
+`enable_refresh_token_rotation`, `refresh_token_reuse_interval`, `enable_anonymous_sign_ins`,
+`enable_signup`, `enable_confirmations`, `double_confirm_changes`) — a changed value reds and a
+DELETED line reds, because the CLI silently applies its own default for an absent key; every
+`[auth*]` key present in config appears in the policy (an unreviewed widening and a typo the
+CLI is ignoring are indistinguishable to the gate, which is why it asks a human); project-valued
+keys (`site_url`) reviewed for presence and SHAPE rather than equality, so a plaintext origin
+reds while a filled-in one does not; the redirect allowlist's entry ceiling and wildcard ban,
+because the provider hands the authorization code to any URL the list matches; and a section
+census, since a Supabase config SECTION is a surface — `[realtime]` replays row changes through
+its own policy check, `[storage]` has a separate bucket policy model, and both ship
+`enabled = false`.
+
+**Does NOT cover the deployed project.** `config.toml` governs the local stack; a production
+project's posture lives in its `[remotes]` blocks or the Dashboard, and neither is visible from
+here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
+locally and wrong in production — and `tools/auth-posture.json` says so in writing.
+
+**Deferred to 0.7.0: asking the CLI directly.** A check that read the CLI's own deprecation
+warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
+CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
+warning. It is not shipped, because no subcommand at this pin parses `config.toml` without side
+effects: `config push` needs a project ref, `functions list` needs an access token, and
+`status` — the one that works — binds to whatever stack holds the default ports (it reported
+*another project's* containers during the spike) and prints `SECRET_KEY` and `JWT_SECRET` into
+output the gate would then handle. A control that reads a neighbour's stack and handles their
+credentials is not a control. The `[inbucket]` defect itself is fixed; the standing check waits.
+
+Static, <100ms, no Docker, no install: a hand-written TOML reader
+(`tools/lib/toml.mjs`) over the committed file, for the same reason every other gate hand-parses
+its subject — the chain must run on a checkout with cold `node_modules`.
+**Anti-vacuity:** widen `jwt_expiry` → FAIL naming both values; misspell
+`enable_refresh_token_rotation` → FAIL TWICE (missing reviewed key, unreviewed key present);
+`enable_anonymous_sign_ins = true` → FAIL; add a wildcard redirect → FAIL; delete a reviewed
+line → FAIL; point `site_url` at an `http://` host → FAIL; rename `[local_smtp]` back to
+`[inbucket]` → FAIL both ways; remove `tools/auth-posture.json` → FAIL closed.
+
+**The SESSION TRANSPORT half (0.6.0).** `[auth]` above is the posture of the auth *server*;
+this is the posture of the *wire*. It exists because the seeded web app shipped a **sign-in
+loop** for two releases: `apps/web/lib/supabase/client.ts` built the browser client with no
+`storage`, so supabase-js persisted the session to `localStorage` — its documented default —
+while `proxy.ts`, `lib/supabase/server.ts` and the tRPC cookie branch all read the session out
+of the **cookie jar**. Two disjoint stores. Sign-in succeeded, every protected server render
+saw an anonymous caller, and the layout redirected straight back to `/sign-in`.
+
+Nothing saw it, and the reasons are worth keeping: `storage` is legitimately **optional** (a
+pure SPA that never server-renders an identity needs none), so the type-checker was right to
+be silent; the unit suite tested the cookie *codec* with options passed in, never the *wiring*
+that passes them; `knip` was told to ignore the one dependency whose missing import would have
+shouted; and every spec in the browser lane is **anonymous**, so no test in the repository has
+ever completed a successful sign-in — while `enforcement-tiers.md` exempts `apps/web/app` from
+unit coverage on the grounds that a real browser proves it. That is vacuity *inside a lane that
+ran*, which "'exists' is not 'ran'" does not catch.
+
+Three assertions over committed source, all pure text: **(1) transport agreement** — an app
+whose server reads sessions from cookies must construct its browser client with a `storage`
+(the *pairing* is the defect; neither half is wrong alone, so an SPA with no cookie-reading
+server stays clean); **(2) every writer** — each `createServerSupabaseClient` call site must
+pass `cookieOptions` naming every `requiredCookieAttributes` entry, because that client
+*rewrites* the cookie and an attribute one writer omits is one it strips off the value another
+set; **(3) prose** — an attribute listed under `unavailableCookieAttributes` may be **named
+only to disclaim it**. `httpOnly` is that attribute here: the browser writes this cookie, and a
+user agent ignores `HttpOnly` on a `document.cookie` write, so it cannot be set at all. Four
+separate comments asserted apps/web set it while every executable control stayed green — a
+false hardening claim is worse than a missing one, because it is read as a control by everyone
+who reviews the file.
+
+The general lesson, and why this is a gate rather than only a fix: **an optional seam between
+two halves that must agree will eventually be left unwired, and it fails silently on both
+sides.** Mobile is structurally immune — `createNativeClient` takes its storage as a *required
+positional* — so this closes the same hole on the surface where the parameter has to stay
+optional.
+**Anti-vacuity:** drop the browser client's `storage` → FAIL naming the sign-in loop; drop
+`cookieOptions` at either server writer → FAIL naming the silent downgrade; name `httpOnly` in
+a comment without disclaiming it → FAIL quoting the comment. The factory's own *definition*
+must not read as a call site, and that is pinned too.
+
+### 17. data-flow — `node tools/check-data-flow.mjs`
+
+What happens to a person's data when they ask to be forgotten, and what a portability
+request has to hand back. Both are decided from files this repository already commits: a
+delete of `auth.users` does exactly what the `FOREIGN KEY` actions say it does, and those
+are in the migration history.
+
+`docs/adr/20260201-org-scoped-tenancy.md` records that after the org re-scope *"DSR
+completeness is now procedure-backed, not schema-backed… residual rows can no longer be
+enumerated back to the subject."* That sentence was true, serious, and checkable by nothing:
+the procedure lived in one Edge Function's header, the reason for each surviving column lived
+in a different SQL comment, and no file listed what actually survives. This gate is that
+sentence made mechanical.
+
+Every link out of the subject lands in exactly one bucket:
+
+- **ERASED** — a chain of `ON DELETE CASCADE` reaches it. Nothing to review.
+- **SEVERED** — `ON DELETE SET NULL` / `SET DEFAULT`. The **row survives** and only the link
+  is cut. Needs a reviewed reason in `tools/data-flow.json` `severed[]`, because it is a
+  decision that somebody else is the data controller for that row.
+- **RETAINED** — no delete will ever reach it (`audit.events.actor_id` has no foreign key at
+  all, deliberately). Needs a reason **and** a `procedure` naming a committed file — the gate
+  requires that file to exist, because procedure-backed with no procedure is not backed.
+- **BLOCKING** — `RESTRICT`, `NO ACTION`, **or no `ON DELETE` clause at all**, which
+  PostgreSQL treats as `NO ACTION`. The delete **fails**: a GDPR Art. 17 failure and an Apple
+  5.1.1(v) rejection from a line that looks like every other column definition. Allowed only
+  with a reviewed pre-delete sweep, the way `delete-account` sweeps the personal org first.
+
+The portability half closes `export.projection` against the schema both ways, and every table
+carrying subject data is either projected or excluded **with a reason**. `export.surface`
+declares how the export is delivered, or states its absence with a dated `target` — the same
+shape `store-policy.json` uses for `accountDeletion`.
+
+It also does the one thing nothing else in the repo does: it compares `supabase/schemas/`
+against `supabase/migrations/` on the referential actions. `check-migrations.mjs` used to
+claim that reconciliation ran in "CI's db lane"; no workflow runs `supabase db diff`, and that
+header is corrected in 0.6.0. The gap mattered here more than most, because `notes.owner_id`
+was created `ON DELETE CASCADE` and demoted to `SET NULL` by a later `ALTER` — so a reviewer
+reading the declarative file and one reading the creating migration reach opposite conclusions
+about whether a note dies with its author.
+
+Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced). Procedure:
+`docs/runbooks/data-subject-requests.md`. Ramped at `minVersion 0.6.0`, expiring **0.7.0**.
+
+### 18. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
 running local stack and byte-diffs it against the committed
@@ -560,7 +763,7 @@ compile-time licence to skip validation.
 FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
 while the stack is up".
 
-### 17. migrations — `node tools/check-migrations.mjs`
+### 19. migrations — `node tools/check-migrations.mjs`
 
 Append-only (no committed migration modified/deleted vs HEAD, or vs the PR base in
 CI); no DML without `-- harness-allow-dml: <reason>`; destructive DDL requires
@@ -583,7 +786,7 @@ file; the migration **must already exist at the diff base**, so one written toda
 be exempted at all; and a **stale entry reds**. Absent by default — creating it is a
 widening, so it is in `ESCAPE_LISTS` and must be committed.
 
-### 18. db-limits — `node tools/check-db-limits.mjs`
+### 20. db-limits — `node tools/check-db-limits.mjs`
 
 The per-role resource ceilings and the per-org quota machinery, judged as data
 (`tools/db-limits.json`). Runs right after `migrations` because it reads the same
@@ -661,7 +864,7 @@ pg_db_role_setting + quota block in `supabase/tests/rls_structure.test.sql` and
 `tests/rls/resource-limits.test.ts`, which proves the ceilings are in FORCE through
 PostgREST rather than merely present in the catalog.
 
-### 19. contracts — `node tools/check-contract-drift.mjs`
+### 21. contracts — `node tools/check-contract-drift.mjs`
 
 (1) Contract-inventory regen-diff: regenerate the three committed inventories —
 `tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
@@ -680,7 +883,7 @@ memory-amplification vector.
 `references` entry from a package tsconfig → FAIL naming the missing ref; add an
 unbounded `z.string()` to a wire DTO → FAIL naming the site.
 
-### 20. query-shapes — `node tools/check-query-shapes.mjs`
+### 22. query-shapes — `node tools/check-query-shapes.mjs`
 
 Every statement the DALs actually issue is BOUNDED and SERVED BY AN INDEX — judged
 against `tools/generated/query-shapes.json`, which is written by executing the DALs
@@ -723,7 +926,7 @@ FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL functi
 no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
 manifest passes every rule above without judging anything).
 
-### 21. rate-limits — `node tools/check-rate-limits.mjs`
+### 23. rate-limits — `node tools/check-rate-limits.mjs`
 
 The rate-limit budget as reviewed data (`tools/rate-limit-budget.json`), closed against
 the router the deployment actually exposes. Runs right after `contracts`, and the order is
@@ -782,7 +985,7 @@ its backend is unavailable — an explicit, recorded decision (see
 `docs/adr/20260204-rate-limiting.md`), which means a Redis outage is a window with no rate
 limiting at all.
 
-### 22. parity — `node tools/check-mobile-parity.mjs`
+### 24. parity — `node tools/check-mobile-parity.mjs`
 
 Two-way surface parity: every action in the contracts-verified inventory
 (`tools/generated/action-inventory.json`) maps to EXACTLY ONE row in the seeded
@@ -799,16 +1002,30 @@ forces strict anywhere.
 the action; leave a row for a removed action → FAIL naming the stale row; set a
 surface cell to `—` with an empty Notes cell → FAIL demanding the reason.
 
-### 23. dead-code — `pnpm exec knip --strict`
+### 25. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
 Deliberate test-facing seam exports carry an explicit `@public` JSDoc tag — a
 visible, greppable claim, reviewed like code. NEVER `knip --fix` (blocked): it
 auto-deletes with false positives.
+
+**A SEAM A GATE READS IS A PRODUCTION ENTRY, not an ignore.** `knip.json` has no
+comments, so the reasoning lives here. `apps/web/lib/i18n/index.ts` and
+`apps/web/lib/routes.generated.ts` are declared production entries (`"…!"`), the same
+declaration `apps/mobile` makes for `src/host/env.ts` and `src/crash/redact.ts`. Both
+are seams a GATE reads rather than only the app: `check-i18n.mjs` parses `LOCALES` out
+of the locale module and bans `Intl`/`toLocale*`/`.toFixed()` everywhere else, so
+`formatNumber`/`formatDate` are the one legal way to format even before a screen needs
+one; `check-web-routes.mjs` regen-diffs the registry. `--strict` ignores non-production
+entries, so a test-only consumer does not keep either alive — and the alternative,
+deleting the unused half of a seam, deletes the API the other gate exists to funnel code
+into. An `ignore` entry would silence the file entirely; an entry keeps the rest of the
+closure live over it.
+
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 24. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 26. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; `verticals ⊥ verticals`; `shared ↛ verticals`;
 `platform/* → {errors,events}` only; `packages/api ↛ next/*` (the reversibility wall);
@@ -819,7 +1036,7 @@ graph; `expo-secure-store` only under `src/lib/supabase/**`; LLM SDKs only from
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 25. build — `node tools/build-check.mjs`
+### 27. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -836,7 +1053,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 26. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 28. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
 (the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
@@ -875,7 +1092,7 @@ naming the literal; call `Animated.timing` from a screen → FAIL pointing at th
 spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
 home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
-### 27. perf-budget — `node tools/check-perf-budget.mjs`
+### 29. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -902,9 +1119,21 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 28. route-manifest — `node tools/check-route-manifest.mjs`
+### 30. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 
-Every screen is REGISTERED: `apps/mobile/src/routes.ts` ROUTES must be non-empty;
+Every screen and every page is REGISTERED. Two scripts, one step — the shape
+`boundaries` has used since 0.1.x — because the two routers share no rule: expo-router
+maps a trailing `index` to its parent path and has no route groups, parallel routes,
+intercepting routes or private `_folder` exclusion; the App Router has all four and no
+`index` convention. Forcing one parser to serve both would mean branching on surface at
+every line, which is two parsers with worse names.
+
+**The mobile half** (`check-route-manifest.mjs`) — a hand-authored manifest, re-derived.
+**The web half** (`check-web-routes.mjs`, 0.6.0) — a generated registry.
+
+#### 28a. the mobile half — `apps/mobile/src/routes.ts`
+
+`apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
 / path / file / `states.{loading,empty,error}` test ids (the RNTL states sweep
 drives each; the Maestro flows and startup budgets iterate the same array); every
@@ -919,7 +1148,55 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-### 29. security-headers — `node tools/check-security-headers.mjs`
+#### 28b. the web half — `apps/web/lib/routes.generated.ts` (0.6.0)
+
+The commitment `docs/harness/enforcement-tiers.md` dated to 0.6.0, in its own words:
+*"the App Router has no equivalent registry, so a web page can land with no id, no
+title key and no declared loading/empty/error states."*
+
+The registry is **generated, not authored** — `tools/gen-web-routes.mjs` walks
+`apps/web/app` for `page.*` files and derives `path` and `file` from position, so the
+defect the mobile half spends thirty lines catching (a manifest that disagrees with the
+URL the router serves) cannot be written on this surface at all. What an author writes is
+only what position cannot tell you — id, `titleKey`, and the three state test ids — in a
+`page.meta.ts` colocated with the `page.tsx` it describes. (`page.meta.ts`, not
+`route.meta.ts`: `route.ts` is the Route Handler convention and this tree ships two.)
+
+Enumeration is a file walk, not a runtime import, which is the opposite choice from
+`gen-action-inventory.mjs` and deliberate: the tRPC router is a value that must be built to
+be read, and the App Router's route set IS a file tree. So this generator needs no install,
+no `next build` and no network, and runs inside the chain on cold `node_modules`.
+
+Covers: every page has a `page.meta.ts` or is reviewed chrome in
+`tools/web-route-allowlist.json` (reasons required); every `titleKey` RESOLVES in
+`apps/web/lib/i18n/catalog.ts`; ids and derived URLs are globally unique (two pages under
+different route groups at the same position are a build-time conflict, not two routes);
+state test ids are globally unique; a `null` state needs a reviewed `unreachableStates`
+row; the committed registry matches the file tree; `app/not-found.tsx` exists, because
+without it an unmatched URL renders Next's built-in 404 — unbranded, untranslated, outside
+every lane. Route groups, `[param]`, `[...param]` and `[[...param]]` are derived;
+parallel (`@slot`) and intercepting (`(.)`/`(..)`/`(...)`) routes are REFUSED by name
+rather than guessed at, because a page reached at two URLs cannot have one manifest row.
+
+**And the one the mobile half gets for free:** mobile proves its declared test ids exist
+by DRIVING them in the RNTL states sweep. The web half has no such sweep, so the gate
+proves it statically — each declared id must be rendered somewhere in the route's own
+segment (non-recursively, and never counting `page.meta.ts` itself, or every declaration
+would prove itself). `data-testid={meta.states.empty}` is the form named in the failure
+message because with it the declared id and the rendered id are one expression and cannot
+drift apart.
+
+Shipped **ramped** (`minVersion 0.6.0`, `until 0.7.0`): an install created before 0.6.0 has
+pages and no `page.meta.ts` anywhere, and projects grow into gates rather than being
+ambushed by them.
+
+**Anti-vacuity:** add `app/(protected)/o/[orgSlug]/settings/page.tsx` with no
+`page.meta.ts` → FAIL naming the page and the URL it would be served at; declare a state
+test id nothing in the segment renders → FAIL; delete `app/not-found.tsx` → FAIL; change a
+meta's `id` without regenerating → FAIL ("stale"); allowlist a page that no longer exists
+→ FAIL; declare `error: null` with no reviewed reason → FAIL.
+
+### 31. security-headers — `node tools/check-security-headers.mjs`
 
 The web response posture, asserted BY VALUE. The gate EVALUATES
 `apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
@@ -970,7 +1247,7 @@ shorten the HSTS `max-age` → FAIL; drop `camera=()` → FAIL; drop `x-org-id` 
 missing a section FAILS rather than silently skipping the checks that section governed,
 and a `decisions.coep` reason shorter than 20 characters FAILS.
 
-### 30. e2e — `node tools/check-e2e.mjs`
+### 32. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -989,7 +1266,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 31. docs-sync — `node tools/check-docs-sync.mjs`
+### 33. docs-sync — `node tools/check-docs-sync.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -1221,8 +1498,8 @@ flow and budget row; leave a stale row for a deleted route → FAIL.
   an EMPTY `apps/web/e2e` suite (Playwright exits 0 on an empty run — the reason
   the lane runs a runner, not a bare `playwright test`), an assertion-free spec,
   or a spec set with no axe scan; then it runs Playwright, whose `webServer` boots
-  `next dev` against the Supabase local stack (started in the job; its URL +
-  publishable key exported from `supabase status` at runtime — no key is
+  a PRODUCTION build against the Supabase local stack (started in the job; its URL
+  + publishable key exported from `supabase status` at runtime — no key is
   committed). The seeded `home.spec.ts` asserts the landing heading renders and
   axe finds no critical/serious WCAG 2 A/AA violations. Path-filtered (the `web`
   arm covers `apps/web` + the packages it bundles) + nightly, like the device
@@ -1230,6 +1507,22 @@ flow and budget row; leave a stale row for a deleted route → FAIL.
   `tests/gates/check-web-e2e.test.mjs` spawns the runner against a fake `pnpm` and
   proves each closure above reds (the browser run itself is CI-only, like the
   Maestro half of `mobile-e2e`).
+  **The AUTHENTICATED-RENDER axis (0.6.0).** The suite must also contain a spec
+  that mints a real identity, signs in **through the form**, and then calls
+  `page.reload()`. Until 0.6.0 every spec in the lane was anonymous — its only
+  sign-in submitted a deliberately wrong password — so no test in the repository
+  had ever completed a successful sign-in, while the seeded app shipped for two
+  releases persisting the browser session to `localStorage` and reading it back
+  from the cookie jar on the server. The lane ran on every relevant PR and was
+  green throughout: **vacuity inside a lane that ran**, which is past what
+  *"'exists' is not 'ran'"* catches, and `enforcement-tiers.md` names this lane as
+  the compensating control on nine rows that assume otherwise. Two positive
+  markers and one negative — a real identity, a full reload, and NOT
+  `context.addCookies` (a planted session proves the server reads a cookie and says
+  nothing about what the browser writes, which is the half that broke). Every axis
+  reads code with comments blanked, so a marker named only in prose satisfies
+  nothing. The honest limit is stated in the runner: a static reader cannot tell
+  that the assertion after the reload is about a protected route.
 - **mutation** — `pnpm mutation` (StrykerJS over the critical surface —
   authorization and transport boundary code), a SET-based ratchet against
   `tools/mutation-baseline.json`: a NEW surviving mutant reds; accepting one is a

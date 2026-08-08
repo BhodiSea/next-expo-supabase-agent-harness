@@ -202,12 +202,85 @@ export function judgeFloor({ floor, resolved, catalogPins, haveLock }) {
   return { problems, judged }
 }
 
+/** Zero-padded ISO calendar date — the only shape either review half will judge. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * How far ahead a reviewer may pre-authorize their own review, in days.
+ *
+ * ONE CALENDAR MONTH, because that is the cadence the upstream program publishes at. Next
+ * moved to a SCHEDULED security programme in July 2026 — "roughly once a month", with
+ * advance notice of each release — so a review window longer than the cadence is a window
+ * that can hide a whole release, and one three times the cadence hides three. The floor
+ * shipped with a 92-day window against that cadence.
+ *
+ * 31 rather than 30 so an honest monthly reviewer never reds on the length of a month:
+ * `reviewedOn` + one calendar month is at most 31 days, so a maintainer who re-reads the
+ * feed every month and moves both dates together is always inside this bound.
+ * SOURCE: https://nextjs.org/blog/next-security-release-program (scheduled monthly security
+ * releases with advance notice) · https://nextjs.org/blog/july-2026-security-release
+ */
+export const MAX_REVIEW_WINDOW_DAYS = 31
+
+/**
+ * The CLOCKLESS review-discipline half: is the window a reviewer granted themselves bounded?
+ *
+ * WHY THIS IS SEPARATE FROM `staleReviews`, and why it is the half that matters. The
+ * scheduled job asks "has this review LAPSED", which compares `reviewedUntil` against the
+ * calendar. Nothing asked how far ahead `reviewedUntil` was allowed to be set in the first
+ * place — so a single edit writing `"reviewedUntil": "2099-01-01"` retires the entire
+ * control, and the only check that would notice is the one that edit just disarmed. That is
+ * an off switch reachable from inside the file the switch protects.
+ *
+ * The fix is to move the WINDOW from the reviewer to the harness: the reviewer supplies when
+ * they looked, and this constant supplies how long that is worth. `reviewedUntil` stays in
+ * the file because the failure message needs a date a human can act on, but it is now
+ * derived-and-checked rather than declared-and-trusted.
+ *
+ * CLOCKLESS by construction — it is arithmetic over two dates that are both COMMITTED, so it
+ * rides `version-sync` in the chain and reds on the reviewer's own machine at edit time,
+ * which is the only moment at which the over-long window is a decision anyone is making.
+ * `staleReviews` cannot do this job: it runs on a schedule, and a control that is disarmed
+ * silently will not be re-armed by a job that no longer has a reason to fire.
+ *
+ * @param {{ floor: {packages?: Record<string, {reviewedOn?: string, reviewedUntil?: string}>}, maxWindowDays?: number }} input
+ * @returns {string[]}
+ */
+export function reviewWindowProblems({ floor, maxWindowDays = MAX_REVIEW_WINDOW_DAYS }) {
+  const problems = []
+  for (const [name, entry] of Object.entries(floor.packages ?? {})) {
+    const on = String(entry?.reviewedOn ?? '')
+    const until = String(entry?.reviewedUntil ?? '')
+    // Shape is `staleReviews`' complaint to make, not this one's — reporting the same
+    // malformed date twice from two halves reads as two defects.
+    if (!ISO_DATE.test(on) || !ISO_DATE.test(until)) continue
+    if (until < on) {
+      problems.push(
+        `tools/framework-floor.json \`${name}\`: reviewedUntil (${until}) is BEFORE reviewedOn (${on}) — the review expired before it happened, so the floor has never carried a live review at all.`,
+      )
+      continue
+    }
+    const days = Math.round(
+      (Date.parse(`${until}T00:00:00Z`) - Date.parse(`${on}T00:00:00Z`)) / 86_400_000,
+    )
+    if (days > maxWindowDays) {
+      problems.push(
+        `tools/framework-floor.json \`${name}\`: the review window is ${String(days)} days (${on} → ${until}), over the ${String(maxWindowDays)}-day maximum. Upstream security releases arrive on a roughly MONTHLY cadence, so a ${String(days)}-day window silently spans about ${String(Math.max(1, Math.round(days / 30)))} of them — the review would still read as live while that many releases went unread. Set reviewedUntil no more than ${String(maxWindowDays)} days after reviewedOn, and move BOTH in the commit that re-reads the feed.`,
+      )
+    }
+  }
+  return problems
+}
+
 /**
  * The CLOCKFUL half, run only by the scheduled `floor-review` job.
  *
  * A floor is a snapshot of what a human knew on `reviewedOn`. Left alone it decays into an
  * assertion that nothing has been published since — which is the failure mode this whole
  * release is about. `reviewedUntil` is the date that claim stops being made for free.
+ *
+ * It answers "has the review LAPSED"; `reviewWindowProblems` answers "was the window
+ * legitimate", and only the second one can red at the moment the window is written.
  *
  * @param {{ floor: {packages?: Record<string, {reviewedOn?: string, reviewedUntil?: string}>}, today: string }} input
  * @returns {string[]}
@@ -220,7 +293,7 @@ export function staleReviews({ floor, today }) {
   }
   for (const [name, entry] of packages) {
     for (const field of ['reviewedOn', 'reviewedUntil']) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(entry[field] ?? ''))) {
+      if (!ISO_DATE.test(String(entry[field] ?? ''))) {
         problems.push(
           `tools/framework-floor.json \`${name}\`: ${field} is ${JSON.stringify(entry[field])} — it must be an ISO date (YYYY-MM-DD), or the freshness check cannot judge it.`,
         )

@@ -83,7 +83,7 @@ const MIN_SUPPORTED_CLIENT: string | null = process.env['MIN_SUPPORTED_CLIENT'] 
  *
  * apps/mobile authenticates with `Authorization: Bearer <access token>` from the platform
  * keychain: no cookie jar exists on that host, and a Set-Cookie aimed at it is ignored or, in
- * a shared jar, actively harmful. apps/web's browser authenticates with the httpOnly Supabase
+ * a shared jar, actively harmful. apps/web's browser authenticates with the script-readable Supabase
  * session cookie. Choosing per request keeps ONE endpoint serving both surfaces rather than
  * forking the API by client — and it is why proxy.ts's matcher EXCLUDES this path: the cookie
  * refresh must happen in exactly one place per request, and for /api/trpc that place is the

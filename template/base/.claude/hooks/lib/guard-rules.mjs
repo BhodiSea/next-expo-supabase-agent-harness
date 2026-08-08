@@ -42,7 +42,25 @@ const SHELL_WRITE_RES = [
   // Patch application: `git apply` / `patch` reconstruct arbitrary bytes at a protected
   // path with no redirect operator to match on.
   new RegExp(String.raw`\b(?:git\s+apply|patch)\b[^|;&]*${PROT}`),
+  // POWERSHELL (0.6.0), and the reason it is a separate line rather than more alternatives
+  // above: PowerShell's bash-compatible ALIASES (`cp`, `mv`, `tee`, `rm`, `cat`) already
+  // match the patterns above, and `>`/`>>` redirect there too — so the gap was never the
+  // aliases, it was the CANONICAL cmdlet spelling, which shares no token with its alias.
+  // This matters more than it sounds: on Windows without Git Bash, Claude Code does not
+  // register the Bash tool at all, so PowerShell is the only shell those sessions have.
+  // SOURCE: https://code.claude.com/docs/en/hooks (PowerShell tool; Bash unregistered on Windows without Git Bash)
+  new RegExp(
+    String.raw`\b(?:Set-Content|Add-Content|Out-File|Tee-Object|New-Item|Copy-Item|Move-Item|Rename-Item)\b[^|;&]*${PROT}`,
+    'i',
+  ),
 ]
+
+// The delete VERB, in every shell the harness's hooks now see. PowerShell's `-Recurse` and
+// `-Force` already satisfy the flag classes in the `rm-rf` rule below (they are just longer
+// spellings of the same letter classes), so `rm -Recurse -Force` was covered on the day that
+// rule was written — verified, not assumed. What was never covered is the canonical
+// `Remove-Item` and the non-bash aliases, which share no token with `rm`.
+const DELETE_VERB = String.raw`(?:rm|Remove-Item|ri|rd|rmdir|del|erase)`
 
 // An INTERPRETER is a write primitive: `node -e "fs.appendFileSync('tools/rls-exempt.json',…)"`
 // lands the same bytes as `>` while matching none of the redirect spellings above — it was
@@ -108,9 +126,14 @@ export const BASH_RULES = [
   {
     id: 'rm-rf',
     // Both a recursive and a force flag anywhere in the same command segment:
-    // covers -rf, -fr, -Rf, split `-r -f`, and the long/reversed spellings.
-    re: /\brm(?=\s)(?=[^|;&]*\s-(?:[a-zA-Z]*[rR][a-zA-Z]*\b|-recursive\b))(?=[^|;&]*\s-(?:[a-zA-Z]*[fF][a-zA-Z]*\b|-force\b))/,
-    message: "Blocked: 'rm -rf' (any flag spelling) is forbidden by the harness.",
+    // covers -rf, -fr, -Rf, split `-r -f`, the long/reversed spellings, and (0.6.0) the
+    // PowerShell verbs. Case-insensitive because PowerShell is.
+    re: new RegExp(
+      String.raw`\b${DELETE_VERB}(?=\s)(?=[^|;&]*\s-(?:[a-zA-Z]*[rR][a-zA-Z]*\b|-recursive\b))(?=[^|;&]*\s-(?:[a-zA-Z]*[fF][a-zA-Z]*\b|-force\b))`,
+      'i',
+    ),
+    message:
+      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove.",
   },
   {
     id: 'shell-write-protected',
@@ -231,7 +254,9 @@ export const BASH_RULES = [
     // Real secret files only — .env, .env.local, .env.production … but NOT the committed,
     // secret-free .env.example / .env.sample / .env.template that document required vars.
     id: 'read-env-file',
-    re: /\b(cat|less|more|head|tail|grep|nano|vim|code|xxd|strings|sed|awk|base64|od|dd)\s+[^|;&]*\.env(?!\.(example|sample|template)\b)(\.|\b)/,
+    // The PowerShell cmdlet spellings ride along (0.6.0). Its bash-compatible aliases
+    // (`cat`, `more`, `sls`) already matched; `Get-Content` and `Select-String` did not.
+    re: /\b(cat|less|more|head|tail|grep|nano|vim|code|xxd|strings|sed|awk|base64|od|dd|Get-Content|Select-String|Format-Hex)\s+[^|;&]*\.env(?!\.(example|sample|template)\b)(\.|\b)/i,
     message: 'Blocked: reading .env files is forbidden; secrets are injected at runtime.',
   },
   {
@@ -245,7 +270,7 @@ export const BASH_RULES = [
     // keys and PKCS#12 identities, Firebase/Google service files. Never read, copied,
     // or echoed from shell — credentials live in the EAS/CI secret store.
     id: 'credential-file-read',
-    re: /\b(cat|less|more|head|tail|grep|nano|vim|code|xxd|strings|sed|awk|base64|od|dd|cp|mv|scp|open)\s+[^|;&]*(\.keystore|\.jks|\.p8|\.p12|google-services\.json|GoogleService-Info\.plist)\b/,
+    re: /\b(cat|less|more|head|tail|grep|nano|vim|code|xxd|strings|sed|awk|base64|od|dd|cp|mv|scp|open|Get-Content|Select-String|Format-Hex|Copy-Item|Move-Item)\s+[^|;&]*(\.keystore|\.jks|\.p8|\.p12|google-services\.json|GoogleService-Info\.plist)\b/i,
     message:
       'Blocked: app-signing/credential material (*.keystore, *.jks, *.p8, *.p12, google-services.json, GoogleService-Info.plist) is never read, copied, or echoed from shell — credentials live only in the EAS/CI secret store.',
   },
@@ -368,6 +393,17 @@ export const WRITE_PROTECTED = [
   // judges the migrations against, so raising one in this file makes a widened
   // statement_timeout or a raised [api].max_rows pass as reviewed.
   { id: 'db-limits', re: /^tools\/db-limits\.json$/ },
+
+  // WHAT SURVIVES A PERSON'S DELETION. Every entry in data-flow.json is a decision that some
+  // data outlives the account it belongs to, or that a portability response leaves something
+  // out. Both are answers a controller has to be able to defend, and an agent widening either
+  // one mid-turn is the change least likely to be noticed in a diff and most likely to matter.
+  { id: 'data-flow', re: /^tools\/data-flow\.json$/ },
+
+  // WHO OWES A REVIEW. Narrowing a pattern here is how a reviewer stops being summoned by
+  // the diff it exists for, and it is a one-word edit in a file that reads like config.
+  { id: 'reviewer-triggers', re: /^tools\/reviewer-triggers\.json$/ },
+
   // The rate-limit budget. Raising a number here raises what a single caller may cost
   // everyone else on the deployment, and the gate judges the running code against it —
   // so an agent that could edit this file could widen its own limit and stay green.
@@ -392,6 +428,14 @@ export const WRITE_PROTECTED = [
   // sha-pins it (step 2) and this denies the edit mid-turn; the two answer different
   // questions, and only this one answers it before the write lands.
   { id: 'framework-floor', re: /^tools\/framework-floor\.json$/ },
+  // The CLAUDE CODE floor, and it earns its own line rather than riding the one above for a
+  // reason worth stating: every OTHER floor in this repo protects something the harness
+  // ships. This one protects the thing the harness RUNS INSIDE — lower it and the tool
+  // enforcing all thirty-three gates may itself carry a published settings-injection or
+  // sandbox-escape. The file's value is its citations, so the edit that matters is the quiet
+  // one: drop an advisory row, and the derived floor falls with it and version-sync stays
+  // green. That is precisely the diff a human must see.
+  { id: 'cc-floor', re: /^tools\/cc-floor\.json$/ },
   // The plan-probe floor and budgets. `minRows` is the anti-vacuity floor: lower it and
   // tools/check-db-perf.mjs happily certifies a plan against a four-row table, which is
   // the exact state every structural check in the repo is already green in. An agent
@@ -445,6 +489,7 @@ export const WRITE_PROTECTED = [
   { id: 'styleguide-manifest', re: /^tools\/styleguide\.manifest\.json$/ },
   { id: 'mutation-baseline', re: /^tools\/mutation-baseline\.json$/ }, // accepting a surviving mutant is a human decision
   { id: 'route-allowlist', re: /^tools\/route-allowlist\.json$/ }, // exempting a screen from ROUTES is a human decision
+  { id: 'web-route-allowlist', re: /^tools\/web-route-allowlist\.json$/ }, // exempting a web PAGE from the registry is the same decision on the other surface
   { id: 'dto-bounds-allow', re: /^tools\/dto-bounds-allow\.json$/ }, // exempting a wire string from the .max() bound is a human decision
   { id: 'duplication-allow', re: /^tools\/duplication-allow\.json$/ }, // accepting a code clone is a human decision
   { id: 'i18n-allow', re: /^tools\/i18n-allow\.json$/ }, // letting a string bypass the catalog is a human decision
@@ -531,6 +576,10 @@ export const WRITE_PROTECTED = [
   { id: 'claude-settings', re: /^\.claude\/settings\.json$/ },
   { id: 'claude-settings-local', re: /^\.claude\/settings\.local\.json$/ },
   { id: 'mcp-json', re: /^\.mcp\.json$/ },
+  // Covers .harness/reviewer-ledger.jsonl too — the SubagentStop verdict ledger (0.6.0).
+  // No rule of its own: it is RUNTIME output no template ships, and a deny over a path that
+  // cannot exist is satisfied by every input, so its canary would pass while guarding nothing.
+  // scripts/check-canary-coverage.mjs reds on exactly that, and did when one was written here.
   { id: 'harness-dir', re: /^\.harness\// },
   // CNG purity: the native dirs are GENERATED (prebuild output) — never committed,
   // never hand-edited. Native surface changes go through app.config.ts + reviewed

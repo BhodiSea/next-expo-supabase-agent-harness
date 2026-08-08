@@ -55,12 +55,24 @@ export interface SupabaseCookie {
 /**
  * Attributes for a cookie being written.
  *
- * `httpOnly` and `secure` are deliberately ABSENT from the defaults below and
- * are the HOST's call, because only the host knows two things this package
- * cannot: whether it is served over TLS (a hard-coded `secure: true` makes
- * plain-http local development fail to persist a session in some browsers), and
- * whether its own browser-side client needs to read this cookie (`httpOnly`
- * makes that impossible). apps/web sets both, per environment, in its adapter.
+ * `secure` is deliberately ABSENT from the defaults below and is the HOST's
+ * call, because only the host knows whether it is served over TLS: a hard-coded
+ * `secure: true` makes plain-http local development fail to persist a session at
+ * all, since a user agent DROPS a Secure cookie set over http. apps/web derives
+ * it from the scheme at all three writers (the browser jar, `proxy.ts`, and
+ * `lib/supabase/server.ts`) and passes it explicitly at each — an omitted value
+ * at one writer is that writer STRIPPING the attribute the others set.
+ *
+ * `httpOnly` is a different case and it is worth being blunt about, because the
+ * comment that used to sit here claimed apps/web set it and nothing did. On an
+ * architecture where the BROWSER writes the session cookie — which is the one
+ * apps/web chose, so the password never crosses an extra hop — `httpOnly` is not
+ * merely unset, it is UNAVAILABLE: the attribute exists to make a cookie
+ * invisible to script, and a user agent ignores it on a `document.cookie` write.
+ * A host that needs an httpOnly session cookie must move sign-in server-side
+ * first; until then the honest mitigations are `Secure`, `SameSite`, the CSRF
+ * guard on the ambient-credential path, and a short-lived rotating token.
+ * SOURCE: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies
  */
 export interface SupabaseCookieOptions {
   readonly domain?: string
@@ -94,10 +106,15 @@ export interface SupabaseCookieAdapter {
 /**
  * Bytes per chunk. Under RFC 6265 §6.1's 4096-byte floor with ~900 bytes of
  * headroom for the cookie NAME and its attributes (`Path`, `Max-Age`,
- * `SameSite`, `Secure`, `HttpOnly`, and a `Domain` long enough to matter), all
- * of which count against the same budget. Sizing to exactly 4096 is the classic
+ * `SameSite`, `Secure`, and a `Domain` long enough to matter), all of which
+ * count against the same budget. Sizing to exactly 4096 is the classic
  * off-by-attributes bug: it works until someone adds a domain attribute, and
  * then the last chunk is silently dropped by the user agent.
+ *
+ * The headroom is deliberately conservative rather than computed: `HttpOnly` is
+ * never written on this architecture (it cannot be — see the options doc above),
+ * so the budget already carries slack for an attribute that does not appear, and
+ * a host that later moves sign-in server-side gains it without a resize.
  */
 const CHUNK_BYTES = 3180
 

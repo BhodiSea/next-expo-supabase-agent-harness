@@ -1,0 +1,100 @@
+{
+  "comment": "What survives a data subject's deletion, and what a portability request has to return — as reviewed data rather than as prose in six file headers. tools/check-data-flow.mjs replays supabase/migrations/, walks the foreign-key graph out from auth.users, and puts every link in exactly one bucket: ERASED (a chain of ON DELETE CASCADE — nothing to review), SEVERED (ON DELETE SET NULL / SET DEFAULT — the row SURVIVES and only the link is cut), BLOCKING (RESTRICT / NO ACTION, including an FK with no clause at all, which is NO ACTION by default and means the delete FAILS), or UNREACHABLE (subject data with no FK path at all). Every entry below is a human decision that the schema cannot make for itself, and the gate closes each list BOTH ways: an unreviewed site reds, and a reviewed site the schema no longer has reds too. WHY THIS IS NOT A COMPLIANCE CHECKBOX: the tenancy ADR already records that after the org re-scope 'DSR completeness is procedure-backed, not schema-backed', and that sentence was true, unenforced, and impossible to verify from any file. This is that sentence made mechanical. SOURCE: docs/adr/20260201-org-scoped-tenancy.md · https://www.postgresql.org/docs/current/ddl-constraints.html",
+
+  "subjectRoot": "auth.users",
+
+  "severed": [
+    {
+      "table": "notes",
+      "column": "owner_id",
+      "reason": "The ORG is the data controller for its notes, not the author. An employee closing their personal account must not delete the company's content, so owner_id is nullable attribution with ON DELETE SET NULL and the row survives without an author. This is the decision docs/adr/20260201-org-scoped-tenancy.md was written for; it is also the decision that ended the one-statement account sweep, which is why supabase/functions/delete-account carries a personal-org sweep instead."
+    },
+    {
+      "table": "orgs",
+      "column": "created_by",
+      "reason": "Attribution, not ownership. In B2B the data controller is the organization: the person who created the workspace leaving the company must not delete the workspace. NOTE THE ORDERING HAZARD this creates and that delete-account exists to handle — because this action NULLS the column, running auth.admin.deleteUser before the personal-org sweep makes that org permanently unsweepable and unauthenticatable, so the sweep runs first and is verified."
+    },
+    {
+      "table": "invitations",
+      "column": "invited_by",
+      "reason": "Attribution for a pending seat grant. The invitation belongs to the ORG and stays valid when its sender leaves — revoking every outstanding invitation because an admin closed their account would be a surprising second effect of an unrelated act. The invitee's own email is a separate matter and is recorded under retained[] below."
+    }
+  ],
+
+  "retained": [
+    {
+      "table": "audit.events",
+      "column": "actor_id",
+      "reason": "The trail must outlive the rows it describes. audit.events deliberately carries NO foreign key — with ON DELETE CASCADE, deleting an org or a user would delete the record of what they did, so the evidence would be destroyed by the act most likely to need investigating; with any other action the constraint would block the deletion outright. The id is retained as an opaque value that outlives the row it names. This is the clearest case in the schema of a legitimate legal-basis conflict: Art. 17(3)(b)/(e) against Art. 17(1), resolved in favour of retention with a bounded window.",
+      "procedure": "docs/runbooks/data-subject-requests.md",
+      "retention": "audit.drop_partitions_older_than() removes whole monthly partitions, so the retention window is the bound on this data rather than any per-row erasure."
+    },
+    {
+      "table": "invitations",
+      "column": "email",
+      "reason": "This is the one identifier in the schema that reaches a human directly, and it belongs to someone who may have NO account at all — so there is no auth.users row to delete and no FK that could ever reach it. A pending invitation leaves only by redemption, by re-invite replacing it, or when its org is deleted; nothing reaps expired rows. An erasure request from a never-registered invitee is therefore a procedure, not a cascade.",
+      "procedure": "docs/runbooks/data-subject-requests.md"
+    },
+    {
+      "table": "notes",
+      "column": "title",
+      "reason": "Customer content on a row that SURVIVES by design — notes.owner_id is the severed link above, so the note keeps its title with no author attached. The org is the data controller and an Art. 17 request from a departing employee does not reach it; the org's own deletion does, by CASCADE on org_id. This entry exists because the surviving-row decision is recorded against owner_id, and a reader looking for what happens to the CONTENT would not find it there.",
+      "procedure": "docs/runbooks/data-subject-requests.md"
+    },
+    {
+      "table": "notes",
+      "column": "body",
+      "reason": "Customer content, bounded at 20000 characters, on the same surviving row as the title above. It is the largest quantity of free text in the schema and therefore the most likely place for a subject to have written something about themselves that no column name predicts — which is exactly why the request is answered by a procedure that can look, rather than by a cascade that cannot.",
+      "procedure": "docs/runbooks/data-subject-requests.md"
+    },
+    {
+      "table": "orgs",
+      "column": "slug",
+      "reason": "A PERSONAL org's slug embeds the subject's own auth id: public.ensure_personal_org mints it as 'personal-' || replace(<uid>::text,'-',''). So the slug is a pseudonymous identifier for exactly one person, on a row whose created_by goes NULL when they are deleted — meaning that after a FAILED sweep the identifier survives with nothing left pointing at it. The delete-account function exists to make that state unreachable: it sweeps the personal org FIRST, verifies both the error and the row count, and refuses to call deleteUser on any mismatch. Recorded here because the property that protects it is application ordering, not a constraint, and an unrecorded application-ordering guarantee is the kind that a later refactor removes.",
+      "procedure": "supabase/functions/delete-account/index.ts"
+    }
+  ],
+
+  "blockingAllowed": [],
+  "blockingAllowedWhy": "A foreign key to the subject with ON DELETE RESTRICT or NO ACTION makes account deletion FAIL — a GDPR Art. 17 failure and an Apple 5.1.1(v) review rejection at the same time — and the spelling nobody notices is the omitted clause, because NO ACTION is what PostgreSQL assumes when none is written. The list is empty and should stay empty. An entry is legal only with a `procedure` naming the committed file that clears the rows BEFORE the delete is attempted, the way delete-account sweeps the personal org; the gate requires that file to exist.",
+
+  "export": {
+    "//": "The portability half. A projection is the answer to 'what is MY data' and it is the same question the erasure half asks, which is why one gate owns both: a column that survives erasure with a reviewed reason and a column that must appear in an export are drawn from one inventory. Closed both ways against the schema — a projected column no migration creates is a promise nobody can keep, and a subject-data column that is neither projected nor excluded is a gap.",
+    "surface": {
+      "kind": "none",
+      "reason": "No delivered export surface ships yet. The projection below is reviewed and closed against the schema, so the inventory is real; what is missing is the procedure that returns it. It belongs on the tRPC `system` router running AS THE CALLER under RLS — every projected row is readable by the subject's own policies, so no elevated privilege is involved, and supabase/functions/README.md rule 1 is explicit that anything expressible as a procedure running as the user is NOT an Edge Function — so the harness plan's original placement of this under supabase/functions/ was wrong by the repo's own rule, and is recorded here rather than silently followed. The date below is the commitment; this gate reds if it passes without either a surface or a re-reviewed target.",
+      "target": "0.7.0"
+    },
+    "projection": [
+      { "table": "profiles", "columns": ["id", "display_name", "created_at", "updated_at"] },
+      { "table": "memberships", "columns": ["user_id", "org_id", "role_rank", "created_at"] },
+      { "table": "notes", "columns": ["id", "org_id", "title", "body", "created_at", "updated_at"] }
+    ],
+    "excluded": [
+      {
+        "table": "orgs",
+        "reason": "An organization is not the subject's data — it is a separate controller's record that the subject happens to have created or joined. Exporting the org row into a personal archive would hand one member the workspace's metadata, and for a TEAM org that is other people's data. The subject's RELATIONSHIP to the org is exported: memberships is in the projection above."
+      },
+      {
+        "table": "invitations",
+        "reason": "An invitation the subject SENT is the org's record of a seat grant, and it carries a third party's email address — exporting it would put someone else's identifier in the subject's archive. An invitation the subject RECEIVED is not linked to them at all until redemption (there is no FK; see retained[]), so it cannot be found by projection in the first place. Both directions are procedure-handled."
+      },
+      {
+        "table": "audit.events",
+        "reason": "The trail records what was done inside an ORG, keyed by org_id with actor_id as an opaque value. Projecting a subject's audit rows would export the org's operational record filtered by one actor — and payload/changed_columns can name other people's rows. Art. 20 portability covers data the subject PROVIDED; an audit trail is data the controller OBSERVED, which is the distinction this exclusion rests on."
+      },
+      {
+        "table": "org_quota",
+        "reason": "Commercial configuration belonging to the org, not to any member. It contains no personal data and no column referencing the subject."
+      },
+      {
+        "table": "org_usage",
+        "reason": "An org-level counter with no personal data and no column referencing the subject. Aggregate metering, not the subject's content."
+      },
+      {
+        "table": "quota_defaults",
+        "reason": "Static harness-authored reference data — the metric names and their default ceilings. Nothing about any person."
+      }
+    ]
+  }
+}

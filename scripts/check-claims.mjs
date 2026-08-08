@@ -14,15 +14,29 @@
 //      release do not CONTRADICT each other — which is exactly the defect found.
 //
 // Run by the repo's own CI (hygiene lane) and `pnpm test`.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { hasCommittedMeasurement } from './lib/chain-budget.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
 
-const readme = read('../README.md')
-const changelog = read('../CHANGELOG.md')
+// SOFT-WRAP NORMALISATION, and it is not cosmetic: it is the fix for a claim that went
+// stale IN THE SENTENCE THAT CLAIMS IT IS DERIVED. The README said "the 26 can-fail
+// canaries (counted from the matrix itself, not hand-authored)" while the matrix declared
+// 29, and this script passed — because markdown soft-wrapped the phrase as
+// `26 can-fail\n> canaries`, and every matcher below is written against a CONTIGUOUS
+// phrase. A prose file wraps where the column runs out, which is a place no author picks
+// and no reviewer sees; a matcher that depends on it is a matcher that silently stops
+// asking. Collapsing a newline plus its blockquote marker and indent into ONE space makes
+// the matchers read the sentence a human reads. Byte offsets are not preserved and nothing
+// here needs them — every consumer below matches phrases, never positions.
+const unwrap = (s) => s.replace(/\n[ \t]*>?[ \t]*/g, ' ')
+
+const readme = unwrap(read('../README.md'))
+const changelog = unwrap(read('../CHANGELOG.md'))
+const chainBudget = JSON.parse(read('./chain-budget.json'))
 
 const { VALIDATE_STEPS } = await import(
   new URL('../template/base/tools/harness.config.mjs', import.meta.url).href
@@ -87,11 +101,26 @@ const doctrineText = existsSync(doctrinePath) ? readFileSync(doctrinePath, 'utf8
 const runnerPath = new URL('../template/base/tools/validate.mjs', import.meta.url)
 const runnerText = existsSync(runnerPath) ? readFileSync(runnerPath, 'utf8') : ''
 
+// ── DERIVED (0.6.0): how many hooks are actually shipped ────────────────────────
+// 0.5.0 wired six; 0.6.0's process layer added a seventh (SubagentStop), and the number
+// stayed "six" in the root README twice and in the shipped doctrine's own hook table —
+// which also silently lost a row. Every other count in this file was derived years before
+// this one, and the reason it was not is instructive: nobody thinks of "six hooks" as a
+// derived figure until it is wrong. Top-level `.mjs` only; `lib/` holds modules, and
+// nothing wires a module.
+const hooksDirUrl = new URL('../template/base/.claude/hooks/', import.meta.url)
+const shippedHooks = existsSync(hooksDirUrl)
+  ? readdirSync(hooksDirUrl)
+      .sort()
+      .filter((f) => f.endsWith('.mjs'))
+  : []
+
 const truth = {
   chainSteps: VALIDATE_STEPS.length,
   canarySteps: injections === null ? null : Object.keys(injections.steps).length,
   guardRuleIds: ruleIds.length,
   canaryLegs: canaryNumbers.size,
+  hooks: shippedHooks.length,
 }
 
 const problems = []
@@ -141,6 +170,27 @@ for (const [file, text] of [
     }
   }
 }
+// The hook count, in the two places a reader meets it — the root README's "how it works"
+// and the shipped doctrine's hook table. Number WORDS are matched as well as digits because
+// both sites spell it out, and a matcher that only reads digits would have passed the exact
+// drift that prompted this check. CHANGELOG is deliberately NOT scanned: "all six hooks
+// wired" inside the 0.2.1 entry is a true statement about 0.2.1, and rewriting history to
+// satisfy a present-tense claim is the opposite of what this file is for.
+const NUM_WORDS = { four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
+for (const [file, text] of [
+  ['README.md', readme],
+  ['template/base/docs/harness/README.md', unwrap(doctrineText)],
+]) {
+  for (const [, word] of text.matchAll(/\b(\d+|four|five|six|seven|eight|nine|ten) hooks\b/gi)) {
+    const claimed = NUM_WORDS[word.toLowerCase()] ?? Number(word)
+    if (claimed !== truth.hooks) {
+      problems.push(
+        `${file} claims "${word} hooks" but template/base/.claude/hooks/ ships ${String(truth.hooks)} (${shippedHooks.join(', ')}) — the directory is the source of truth, and check-wiring.mjs holds every one of them to being wired`,
+      )
+    }
+  }
+}
+
 for (const [, n] of catalogText.matchAll(/(\d+)-step `VALIDATE_STEPS` chain/g)) {
   if (Number(n) !== truth.chainSteps) {
     problems.push(
@@ -213,6 +263,32 @@ for (const kind of ['cold', 'warm']) {
   if (a !== undefined && b !== undefined && a !== b) {
     problems.push(
       `README says ${kind} ≈ ${String(a)} s but the latest CHANGELOG entry says ${kind} ≈ ${String(b)} s — the same release cannot have two measured timings; make them agree (or drop the figure)`,
+    )
+  }
+}
+
+// MEASURE, COMMIT THE MEASUREMENT, THEN PUBLISH — enforced here (0.6.0).
+//
+// `scripts/chain-budget.json`'s header states that "check-claims.mjs refuses any wall-clock
+// figure in README.md" until a real run records one, and until now that was a sentence about
+// a control nobody had written: `hasCommittedMeasurement` was exported, unit-tested, and
+// imported by no production caller. So the ordering the file's own comment prescribes held
+// only for as long as everyone remembered it, which is the definition this repo uses for a
+// rule that is not enforced. Two documents agreeing about a number neither of them measured
+// is the failure mode the consistency check above cannot see: it compares the figures to each
+// other, never to a measurement.
+if (
+  !hasCommittedMeasurement(
+    chainBudget,
+    VALIDATE_STEPS.map(([name]) => name),
+  )
+) {
+  for (const [kind, value] of [
+    ...Object.entries(rTimes).map(([k, v]) => [`README ${k}`, v]),
+    ...Object.entries(cTimes).map(([k, v]) => [`the latest CHANGELOG entry's ${k}`, v]),
+  ]) {
+    problems.push(
+      `${kind} ≈ ${String(value)} s is published, but scripts/chain-budget.json carries no committed measurement (wall.measuredMs is null) — so the figure rests on nothing a reader can check. Record one from a selftest run (\`node scripts/check-chain-budget.mjs <log> --record\`, which only writes in CI because the numbers are that runner's and are not portable), commit it, and then publish.`,
     )
   }
 }

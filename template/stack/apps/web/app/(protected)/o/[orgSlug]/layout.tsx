@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { requireOrgContext } from '../../../../lib/auth/session'
+import { t } from '../../../../lib/i18n'
 
 // The org chrome, and the org SWITCHER.
 //
@@ -33,7 +34,7 @@ export default async function OrgLayout({
 
   return (
     <div className="flex flex-1 flex-col">
-      <nav aria-label="Organization" className="border-b border-line px-6 py-2">
+      <nav aria-label={t('nav.organization')} className="border-b border-line px-6 py-2">
         <div className="mx-auto flex max-w-3xl items-center gap-3 overflow-x-auto">
           {orgs.map((candidate) => {
             const current = candidate.id === org.id

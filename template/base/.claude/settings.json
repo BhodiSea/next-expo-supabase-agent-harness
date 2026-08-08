@@ -1,6 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "enabledMcpjsonServers": ["corpus_search", "rls_verify"],
+  "enabledMcpjsonServers": [
+    "corpus_search",
+    "rls_verify"
+  ],
   "env": {
     "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "8"
   },
@@ -31,7 +34,7 @@
             "type": "command"
           }
         ],
-        "matcher": "Bash"
+        "matcher": "Bash|Monitor|PowerShell"
       },
       {
         "hooks": [
@@ -64,6 +67,18 @@
           }
         ],
         "matcher": ""
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/subagent-verdict.mjs\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
       }
     ]
   },

@@ -1,7 +1,7 @@
 import type { SupabaseCookieAdapter, SupabaseServerClient } from '@app/supabase'
 import { createBearerSupabaseClient, createServerSupabaseClient } from '@app/supabase'
 import type { User } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 // The server-side Supabase seam for apps/web. @app/supabase owns client construction, the
 // typed Database generic and the env resolution, and imports nothing from next/* (the
@@ -10,7 +10,10 @@ import { cookies } from 'next/headers'
 // module supplies exactly that: a SupabaseCookieAdapter over next/headers, and nothing else.
 //
 // Two factories, because this app has two kinds of caller and they authenticate differently:
-//   createRequestScopedClient()  browser sessions — the credential is an httpOnly cookie
+//   createRequestScopedClient()  browser sessions — the credential is the session COOKIE
+//                                that lib/supabase/client.ts writes (script-readable by
+//                                construction; `Secure` + `SameSite` + the CSRF guard are
+//                                what protect it, never `httpOnly`)
 //   createBearerScopedClient()   apps/mobile — the credential is an Authorization header
 // app/api/trpc/[trpc]/route.ts picks between them per request; everything else in the web
 // surface (Server Components, Server Actions, lib/app-data/*) uses the cookie one.
@@ -29,6 +32,12 @@ import { cookies } from 'next/headers'
  */
 export async function createRequestScopedClient(): Promise<SupabaseServerClient> {
   const store = await cookies()
+  // `x-forwarded-proto`, because behind Vercel (or any proxy) the process itself terminates
+  // plain http and `request.url` reports http even for a request the browser made over TLS.
+  // Absent header = a direct local http server, which is the one case where a `Secure` cookie
+  // would be DROPPED by the user agent rather than merely unenforced — so failing to "http"
+  // is what keeps `pnpm dev:web` able to hold a session at all.
+  const forwardedProto = (await headers()).get('x-forwarded-proto')
   const adapter: SupabaseCookieAdapter = {
     getAll: () => store.getAll(),
     setAll: (cookiesToSet) => {
@@ -46,7 +55,14 @@ export async function createRequestScopedClient(): Promise<SupabaseServerClient>
       }
     },
   }
-  return createServerSupabaseClient(adapter)
+  // Same reviewed posture as proxy.ts and lib/supabase/client.ts, passed explicitly at every
+  // writer. An omitted `cookieOptions` here is not "the default" — it is this writer stripping
+  // `Secure` off a cookie the other two set it on, which is a silent downgrade rather than a
+  // visible failure. `httpOnly` is unavailable by construction on this architecture: the
+  // browser client both writes and reads the session cookie.
+  return createServerSupabaseClient(adapter, {
+    cookieOptions: { secure: forwardedProto === 'https' },
+  })
 }
 
 /**

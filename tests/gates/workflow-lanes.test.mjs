@@ -82,7 +82,10 @@ test('every shipped lane actually does something (steps, or a reusable-workflow 
   for (const f of FILES) {
     for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
       const hasWork = /^\s{4}steps:\s*$/m.test(job.body) || /^\s{4}uses:\s*\S/m.test(job.body)
-      assert.ok(hasWork, `${f} job '${job.id}' has neither steps: nor a reusable-workflow uses: — it is green by construction`)
+      assert.ok(
+        hasWork,
+        `${f} job '${job.id}' has neither steps: nor a reusable-workflow uses: — it is green by construction`,
+      )
     }
   }
 })
@@ -148,4 +151,33 @@ test('the device-lane paths filter covers the packages the installed app is MADE
     /'packages\/design-system\/\*\*'/,
     'the mobile paths filter names packages/design-system/**, which apps/mobile is forbidden to import (depcruise `mobile-not-into-web-only`)',
   )
+})
+
+test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.6.0)', () => {
+  // A LANE THAT CANNOT PASS IS NOT A LANE, and this one could not. The web-e2e job carried
+  // `NODE_ENV: development` from the era when Playwright's webServer booted `next dev`. The
+  // config later moved to `pnpm run build && pnpm run start` — the CSP suite is why, since
+  // `next dev` injects eval and its own overlay scripts and asserts properties of a build
+  // nobody ships. Nothing reconciled the two, because this job is path-filtered and nightly
+  // and this repository's own CI is selftest.yml, so the shipped job never executed here.
+  //
+  // `next build` under NODE_ENV=development prerenders the error boundaries against React's
+  // development resolution and dies with `Cannot read properties of null (reading
+  // 'useContext')` before a single spec runs. Verified by running it: same tree, same env,
+  // only that variable differing — exit 1 with it, exit 0 without.
+  //
+  // Scoped to jobs that BUILD, deliberately. NODE_ENV=development is correct for the Metro
+  // and Expo lanes (integration-lane, mobile-e2e), which bundle a development client on
+  // purpose — a blanket ban would red two jobs that are right.
+  const BUILDS = /\bnext build\b|pnpm run build|playwright test/
+  for (const f of FILES) {
+    for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
+      if (!BUILDS.test(job.body)) continue
+      assert.doesNotMatch(
+        job.body,
+        /^\s*NODE_ENV:\s*development\s*$/m,
+        `${f} job \`${job.id}\` runs a production build AND pins NODE_ENV: development — \`next build\` fails outright under it, so the lane can never reach its first assertion. Leave NODE_ENV unset and let the toolchain decide.`,
+      )
+    }
+  }
 })

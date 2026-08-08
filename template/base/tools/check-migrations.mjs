@@ -1,7 +1,19 @@
 #!/usr/bin/env node
 // Gate: migrations — migration files are append-only, DML-free, and destructive
-// changes are ADR-coupled. Checks (all static; the schema↔migration drift check via
-// `supabase db diff` runs in CI's db lane where an install exists):
+// changes are ADR-coupled.
+//
+// A DEFERRAL THIS HEADER USED TO CLAIM WAS COVERED, corrected in 0.6.0. It read "the
+// schema↔migration drift check via `supabase db diff` runs in CI's db lane where an install
+// exists". No workflow in this repository runs `supabase db diff` — not migration-safety.yml,
+// not either database lane in quality-gate.yml, not the selftest matrix. So the reconciliation
+// between the declarative `supabase/schemas/` and the applied `supabase/migrations/` was
+// deferred to a lane that does not exist, which is worse than an open deferral because it
+// reads as coverage. `check-data-flow.mjs` now closes the slice of it that decides whether a
+// row dies with its owner (the ON DELETE actions on every foreign key, both directions); the
+// REST of the drift surface — column types, defaults, check constraints — is still unclosed
+// and is now stated as such rather than attributed to a job nobody wrote.
+//
+// Checks (all static):
 //   1. append-only: no committed migration is modified or deleted in the working tree
 //      or (in CI) relative to the PR base
 //   2. no DML: INSERT/UPDATE/DELETE in migrations only with an explicit

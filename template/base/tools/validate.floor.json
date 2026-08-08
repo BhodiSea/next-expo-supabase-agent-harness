@@ -16,6 +16,8 @@
     ["licenses", "node tools/check-licenses.mjs"],
     ["schema-rls", "node tools/check-rls-manifest.mjs"],
     ["tenancy", "node tools/check-tenancy.mjs"],
+    ["auth-posture", "node tools/check-auth-posture.mjs"],
+    ["data-flow", "node tools/check-data-flow.mjs"],
     ["types-drift", "node tools/check-types-drift.mjs"],
     ["migrations", "node tools/check-migrations.mjs"],
     ["db-limits", "node tools/check-db-limits.mjs"],
@@ -28,7 +30,7 @@
     ["build", "node tools/build-check.mjs"],
     ["styleguide", "node tools/check-styleguide-manifest.mjs"],
     ["perf-budget", "node tools/check-perf-budget.mjs"],
-    ["route-manifest", "node tools/check-route-manifest.mjs"],
+    ["route-manifest", "node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs"],
     ["security-headers", "node tools/check-security-headers.mjs"],
     ["e2e", "node tools/check-e2e.mjs"],
     ["docs-sync", "node tools/check-docs-sync.mjs"]

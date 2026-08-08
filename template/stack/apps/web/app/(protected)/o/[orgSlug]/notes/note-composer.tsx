@@ -3,7 +3,8 @@
 import { Button, Field, Input } from '@app/design-system'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { errorCopy } from '../../../../../lib/error-copy'
+import { t } from '../../../../../lib/i18n'
+import { errorCopy } from '../../../../../lib/i18n/errors'
 import { createNoteAction } from '../../../../actions/notes'
 
 // The write surface. `orgSlug` is a PROP, bound from the route segment this composer was
@@ -45,7 +46,7 @@ export function NoteComposer({ orgSlug }: { readonly orgSlug: string }): React.R
       className="flex flex-col gap-3"
       noValidate
     >
-      <Field label="New note">
+      <Field label={t('notes.new')}>
         <Input value={title} onChangeText={setTitle} testID="note-composer-input" />
       </Field>
       {error !== null && (
@@ -54,7 +55,7 @@ export function NoteComposer({ orgSlug }: { readonly orgSlug: string }): React.R
         </p>
       )}
       <Button
-        label="Add note"
+        label={t('notes.add')}
         type="submit"
         busy={busy}
         disabled={title.trim() === ''}

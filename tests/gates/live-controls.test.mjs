@@ -153,28 +153,88 @@ test('singleSurfaceGates keys by the STEP name, not the filename', () => {
   // `styleguide` runs check-styleguide-manifest.mjs and `build` runs build-check.mjs. A
   // filename-only key would demand tier rows under names nobody would think to write, and
   // — worse for the Target check — would never match the rows that do exist.
+  // `check-i18n.mjs` was this test's example until 0.6.0 made it two-surface, which is
+  // exactly the event this file exists to notice: it left the set, so the example moved to a
+  // gate that is still single-surface BY NATURE rather than by omission.
   const gates = singleSurfaceGates({
     toolsDir: SHIPPED_TOOLS,
-    configText: `export const VALIDATE_STEPS = [\n  ['i18n', 'node tools/check-i18n.mjs'],\n]\n`,
+    configText: `export const VALIDATE_STEPS = [\n  ['styleguide', 'node tools/check-styleguide-manifest.mjs'],\n]\n`,
   })
   const byFile = new Map(gates.map((g) => [g.file, g]))
-  assert.equal(byFile.get('check-i18n.mjs')?.key, 'i18n', 'the config maps file -> step')
-  assert.equal(byFile.get('check-i18n.mjs')?.surface, 'mobile')
+  assert.equal(
+    byFile.get('check-styleguide-manifest.mjs')?.key,
+    'styleguide',
+    'the config maps file -> step',
+  )
+  assert.equal(byFile.get('check-styleguide-manifest.mjs')?.surface, 'mobile')
   assert.ok(gates.length >= 8, `the harness ships more single-surface gates: ${gates.length}`)
 })
 
-test('ANTI-VACUITY: build-check.mjs is NOT single-surface any more, and that is the discharge', () => {
-  // 0.5.0 gave it a `--web` mode over the .next client chunks. This is the mechanical fact
-  // the tiers Target check reads to decide the `build` row's commitment was met — so if the
-  // web mode is ever removed, the row's Target stops discharging and reds instead.
+test('ANTI-VACUITY: the DISCHARGED gates are not single-surface, and that is what discharges them', () => {
+  // Two releases' commitments, asserted as the mechanical facts the tiers Target check
+  // actually reads. If either gate's second-surface support is ever removed, the matching
+  // row's Target stops discharging and reds instead — which is the whole design.
+  //   build-check.mjs  — 0.5.0 gave it a `--web` mode over the .next client chunks.
+  //   check-i18n.mjs   — 0.6.0 made it surface-parameterised (SURFACES), so it scans
+  //                      apps/web/{lib,app} alongside apps/mobile/{src,app}.
   const gates = singleSurfaceGates({ toolsDir: SHIPPED_TOOLS })
-  assert.equal(
-    gates.some((g) => g.file === 'build-check.mjs'),
-    false,
-    'build-check.mjs scans both apps/mobile and apps/web',
-  )
+  for (const [file, why] of [
+    ['build-check.mjs', 'scans both apps/mobile and apps/web'],
+    ['check-i18n.mjs', 'is surface-parameterised over mobile AND web'],
+  ]) {
+    assert.equal(gates.some((g) => g.file === file), false, `${file} ${why}`)
+  }
   assert.ok(
-    gates.some((g) => g.file === 'check-i18n.mjs'),
+    gates.some((g) => g.file === 'check-perf-budget.mjs'),
     'and the derivation still finds the gates that ARE single-surface',
   )
+})
+
+test('THE STEP FOLD: two single-surface scripts under one step are not a single-surface gate', () => {
+  // 0.6.0. Both consumers of this derivation ask about a tier ROW, and a row names a chain
+  // STEP — but the derivation answered about a SCRIPT, and those coincide only while every
+  // step runs one script. `boundaries` has run two since 0.1.x, and `route-manifest` became
+  // the case that made it matter: check-route-manifest.mjs is mobile-only, check-web-routes.mjs
+  // is web-only, and the step covers the product. Unfolded, the row's arrived Target could
+  // never discharge no matter what shipped.
+  const gates = singleSurfaceGates({
+    toolsDir: SHIPPED_TOOLS,
+    configText:
+      "export const VALIDATE_STEPS = [\n  ['route-manifest', 'node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs'],\n]\n",
+  })
+  assert.equal(
+    gates.some((g) => g.key === 'route-manifest'),
+    false,
+    'the STEP reaches both surfaces, so neither of its scripts is reported',
+  )
+  for (const file of ['check-route-manifest.mjs', 'check-web-routes.mjs']) {
+    assert.equal(gates.some((g) => g.file === file), false, `${file} folds into its step`)
+  }
+})
+
+test('THE STEP FOLD does not hide a one-surface step that happens to run two scripts', () => {
+  // The fold is over SURFACES, not over script count. Two mobile-only scripts under one step
+  // are still a mobile-only control and still owe a row — otherwise "add a second script"
+  // would be a way to leave the table.
+  const gates = singleSurfaceGates({
+    toolsDir: SHIPPED_TOOLS,
+    configText:
+      "export const VALIDATE_STEPS = [\n  ['mobile-only', 'node tools/check-route-manifest.mjs && node tools/check-expo-policy.mjs'],\n]\n",
+  })
+  const folded = gates.filter((g) => g.key === 'mobile-only')
+  assert.equal(folded.length, 2, 'both scripts stay reported under the shared step key')
+  assert.deepEqual([...new Set(folded.map((g) => g.surface))], ['mobile'])
+})
+
+test('a script with NO step keys on its own basename and never folds with another', () => {
+  // The two lane RUNNERS tier rows name directly (check-web-e2e.mjs, check-e2e-device.mjs)
+  // are each other's compensating control, not two halves of one step. They carry no config
+  // entry, so they key on their own basenames and group alone — which is what keeps the fold
+  // from silently discharging the pair.
+  const gates = singleSurfaceGates({ toolsDir: SHIPPED_TOOLS })
+  const byFile = new Map(gates.map((g) => [g.file, g]))
+  assert.equal(byFile.get('check-web-e2e.mjs')?.key, 'web-e2e')
+  assert.equal(byFile.get('check-e2e-device.mjs')?.key, 'e2e-device')
+  assert.equal(byFile.get('check-web-e2e.mjs')?.surface, 'web')
+  assert.equal(byFile.get('check-e2e-device.mjs')?.surface, 'mobile')
 })

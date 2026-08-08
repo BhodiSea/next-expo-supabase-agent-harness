@@ -16,12 +16,13 @@
 // classification reuses fileMode + seedOnInitOnlyPatterns/matchSeedOnInitOnly —
 // zero duplicated rename or mode logic, so this gate cannot drift from `update`.
 import { execFileSync } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { storageToInstall, walkTemplate } from '../installer/lib/copy.mjs'
 import { fileMode } from '../installer/lib/manifest.mjs'
 import {
+  VERSION_KEY,
   matchSeedOnInitOnly,
   readTemplateMigrations,
   seedOnInitOnlyPatterns,
@@ -53,12 +54,37 @@ const DELIBERATE_PLANT = [
   {
     file: 'template/base/tools/approved-tools.json',
     reason:
-      'The registry pretool-mcp-guard.mjs reads, and the guard FAILS CLOSED without it: an absent registry is not an empty policy, it is no policy, so every mcp__ call in an updated install would be denied against a file that is not there. `update` wires the sixth hook into existing installs, so withholding its one input would ship the deny and hold back the policy. It is seeded rather than owned because the guard\'s own deny message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering; its integrity is the write-guard rule plus gate-integrity\'s escape-list dirty check. Same shape as tenancy.json above. Recorded in template/migrations.json under 0.3.0, and upgrade-lane.sh asserts the plant actually lands.',
+      "The registry pretool-mcp-guard.mjs reads, and the guard FAILS CLOSED without it: an absent registry is not an empty policy, it is no policy, so every mcp__ call in an updated install would be denied against a file that is not there. `update` wires the sixth hook into existing installs, so withholding its one input would ship the deny and hold back the policy. It is seeded rather than owned because the guard's own deny message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering; its integrity is the write-guard rule plus gate-integrity's escape-list dirty check. Same shape as tenancy.json above. Recorded in template/migrations.json under 0.3.0, and upgrade-lane.sh asserts the plant actually lands.",
+  },
+  {
+    file: 'template/base/tools/auth-posture.json',
+    reason:
+      'check-auth-posture.mjs FAILS CLOSED when the policy is missing, and that check runs before any ramp — an install with the `auth-posture` step injected and no policy reds on its first validate. Identical reasoning to tenancy.json and db-limits.json above: the file is a POSTURE (token lifetimes, rotation, the anonymous-sign-in decision, the redirect-allowlist ceiling), not project data — nothing in it names a consumer table, route or procedure. Planting it is what makes the injected step ramp instead of fail.',
+  },
+  {
+    file: 'template/base/tools/data-flow.json',
+    reason:
+      "check-data-flow.mjs FAILS CLOSED when the policy is missing — an install with the `data-flow` step injected and no policy reds on its first validate, exactly like tenancy.json, db-limits.json and auth-posture.json above. It is the schema-shaped one of the four, and that is deliberate rather than an exception: the entries name THIS template stack's tables, and an install whose schema differs gets those as stale-entry findings, which the 0.6.0 ramp holds as NOTEs until 0.7.0. Withholding it instead would hard-fail the step on every upgraded install, because a missing policy is not an empty policy — it is no policy, and the whole subject of the gate is that data surviving a deletion must be REVIEWED rather than merely absent from a list. Seeded rather than owned because the gate's own failure text tells the consumer to record their reasons in it, and sha-pinning a file you are told to edit calls that edit tampering.",
+  },
+  {
+    file: 'template/base/tools/reviewer-triggers.json',
+    reason:
+      'check-reviewer-verdicts.mjs FAILS CLOSED when the trigger table is missing — the Stop step cannot evaluate who owed a review, and a step that cannot tell must not report that nobody did. Same call as approved-tools.json, whose guard `update` wires into existing installs and which would otherwise deny against a file that is not there: this release wires the SubagentStop hook the same way, so withholding its one input would ship the obligation and hold back the policy. The patterns name HARNESS paths (supabase/migrations, packages/api, apps/web/app/actions) that every scaffold from this template has, and a consumer narrows or widens them in a reviewed diff — which is why it is seeded rather than owned.',
+  },
+  {
+    file: 'template/base/tools/web-route-allowlist.json',
+    reason:
+      "readAllowlist() treats an ABSENT allowlist as an EMPTY one, and an empty allowlist reds every chrome page — so check-web-routes.mjs fails closed without it, and the seeded-migrations rule says plant. Identical reasoning to approved-tools.json above, and the same seeded-not-owned choice for the same reason: the gate's failure message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering. The registry it guards (apps/web/lib/routes.generated.ts, the page.meta.ts files, app/not-found.tsx) is WITHHELD in the same release, so on an un-adopted install this file is data the gate reads and finds nothing to exempt — which is the correct empty state, not a bypass.",
+  },
+  {
+    file: 'template/base/SECURITY.md',
+    reason:
+      "PLANT, and the reasoning is the inverse of every entry above it: no gate reads this file, so there is no fail-closed argument — the argument is that an existing install has nothing to lose and something to gain. `update` plants a seeded file only when it is ABSENT, so a project that already wrote its own coordinated-disclosure policy keeps it untouched, and a project with none gets one with its placeholders already rendered from the manifest. Withholding it instead would leave the CRA Art. 14 enablement (from 2026-09-11, and the obligation is the CONSUMER'S — this repo is out of scope as unmonetised FOSS; see design/CONFORMANCE-FACTS.md §4) reaching only new scaffolds, which is the population least likely to be shipping commercially yet. It carries no dated field of its own on purpose: security.txt's mandatory RFC 9116 `Expires` is a reviewer-supplied date in a seeded file, which is exactly the off-switch shape 0.6.0 removed from framework-floor.json, and it is deferred until it ships with a bound.",
   },
   {
     file: 'template/modules/eval-live/packages/eval/package.json.tmpl',
     reason:
-      'The eval-live module shipped src/adapters/live.ts with NO package.json — `@app/eval` never resolved, so every install that enabled the module had a workspace package pnpm could not link. Planting completes it. There is nothing of the consumer\'s to clobber: the file has never existed in any install.',
+      "The eval-live module shipped src/adapters/live.ts with NO package.json — `@app/eval` never resolved, so every install that enabled the module had a workspace package pnpm could not link. Planting completes it. There is nothing of the consumer's to clobber: the file has never existed in any install.",
   },
   {
     file: 'template/modules/eval-live/packages/eval/tsconfig.json',
@@ -68,7 +94,7 @@ const DELIBERATE_PLANT = [
   {
     file: 'template/modules/eval-live/packages/eval/src/providers.ts',
     reason:
-      "adapters/live.ts imports `../providers.js` and that module did not exist: the module did not compile. This is a repair to a shipped package, so every install with eval-live enabled needs it — withholding it would leave the import dangling exactly as it is today.",
+      'adapters/live.ts imports `../providers.js` and that module did not exist: the module did not compile. This is a repair to a shipped package, so every install with eval-live enabled needs it — withholding it would leave the import dangling exactly as it is today.',
   },
 ]
 
@@ -101,7 +127,110 @@ export function findUngroundedPatterns({ patterns, shippedInstallPaths }) {
 // Accepted path shapes: as git prints them ('template/base/…') or already
 // template-relative ('base/…'); files directly under template/ (migrations.json
 // itself) are packaging metadata and never install anywhere.
-export function findUnregisteredSeededAdditions({ addedTemplatePaths, migrations, allowlist = [] }) {
+/**
+ * The allowlist's own shape, judged (0.6.0).
+ *
+ * The header above says "an empty reason is a review reject" and until now NOTHING read the
+ * field: `findUnregisteredSeededAdditions` maps the entries to `.file` and drops everything
+ * else. The evidence that nobody was reading it is in the list itself — two entries had
+ * drifted to a `why:` key, which is not the documented name and which no consumer would have
+ * noticed either way. A reviewed escape whose review nothing checks is an unreviewed escape
+ * with a longer entry.
+ *
+ * The length floor is the same instrument the ramp ledger and the mutation ratchet use: a
+ * one-word reason is the shape a reason takes when the entry is being added to make a gate
+ * stop complaining.
+ */
+export function plantAllowlistProblems(allowlist) {
+  const problems = []
+  const seen = new Set()
+  for (const entry of allowlist) {
+    const at = typeof entry?.file === 'string' ? entry.file : JSON.stringify(entry)
+    if (typeof entry?.file !== 'string' || entry.file === '') {
+      problems.push(
+        `DELIBERATE_PLANT entry ${at} has no \`file\` — it can never match an addition.`,
+      )
+      continue
+    }
+    if (seen.has(entry.file)) {
+      problems.push(`DELIBERATE_PLANT lists ${entry.file} twice — one of them is unreachable.`)
+    }
+    seen.add(entry.file)
+    if (typeof entry.reason !== 'string' || entry.reason.trim().length < 40) {
+      problems.push(
+        `DELIBERATE_PLANT entry ${entry.file} carries no usable \`reason\` (the key is \`reason\`, not \`why\`, and it must say what the gate does when the file is ABSENT — that is the whole decision). Planting a file into every existing install is the act this list exists to make reviewable.`,
+      )
+    }
+  }
+  return problems
+}
+
+/**
+ * `seededSourceFixes` records, judged (0.6.0).
+ *
+ * The key's whole purpose is to be an INSTRUCTION TO A HUMAN — nothing copies these files
+ * into a real install, because the consumer owns them. That makes it the exact shape of
+ * declaration that rots silently: the runbook prints the table, the sweep leg adopts the
+ * paths, and if a path stops existing in the template both keep working while pointing at
+ * nothing. `adopt()` in scripts/ci/upgrade-sweep.mjs returns quietly when the source is
+ * missing, so a typo'd entry would make leg E adopt eight files instead of nine and the
+ * ninth finding would come back as an unexplained failure two waves later.
+ *
+ * The `why` floor is the same instrument as DELIBERATE_PLANT's above, and for a stronger
+ * reason: this record tells consumers to edit their own source, which is the largest thing
+ * this repository ever asks of them.
+ *
+ * @param {object} migrations  parsed template/migrations.json
+ * @param {string} root
+ */
+export function seededSourceFixProblems(migrations, root) {
+  return Object.entries(migrations)
+    .filter(([version]) => VERSION_KEY.test(version))
+    .flatMap(([version, entry]) =>
+      (entry.seededSourceFixes ?? []).flatMap((fix, i) =>
+        oneSourceFixProblems(fix, `${version}.seededSourceFixes[${String(i)}]`, root),
+      ),
+    )
+}
+
+/**
+ * One record's shape. Split out for the complexity bar the harness holds consumers to.
+ * @param {{ paths?: string[], why?: string, gate?: string }} fix
+ * @param {string} at
+ * @param {string} root
+ */
+function oneSourceFixProblems(fix, at, root) {
+  const problems = []
+  if (typeof fix?.gate !== 'string' || fix.gate === '') {
+    problems.push(
+      `${at} names no \`gate\` — a consumer following this record needs to know which check reports the finding, and the record needs an owner that can go red.`,
+    )
+  }
+  if (typeof fix?.why !== 'string' || fix.why.trim().length < 40) {
+    problems.push(
+      `${at} carries no usable \`why\`. This record asks a consumer to edit their OWN source; the reason is the whole of what makes that reviewable.`,
+    )
+  }
+  const paths = fix?.paths ?? []
+  if (paths.length === 0) {
+    problems.push(`${at} lists no \`paths\` — a fix that names no file cannot be swept.`)
+  }
+  const missing = paths.filter(
+    (rel) => !['template/stack', 'template/base'].some((t) => existsSync(join(root, t, rel))),
+  )
+  for (const rel of missing) {
+    problems.push(
+      `${at} names ${rel}, which is in neither template/stack nor template/base. The sweep's \`adopt()\` skips a missing source in SILENCE, so this entry would quietly stop being applied while the runbook kept telling consumers to apply it.`,
+    )
+  }
+  return problems
+}
+
+export function findUnregisteredSeededAdditions({
+  addedTemplatePaths,
+  migrations,
+  allowlist = [],
+}) {
   const patterns = seedOnInitOnlyPatterns(migrations)
   const allowed = new Set(allowlist.map((a) => a.file))
   const violations = []
@@ -215,10 +344,53 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1)
   }
 
-  const added = git(['diff', '--name-only', '--diff-filter=A', `${prev}..HEAD`, '--', 'template/'])
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
+  // THREE SOURCES, NOT ONE (0.6.0). `prev..HEAD` sees only what is COMMITTED, and the
+  // release being cut is by definition the one that is not committed yet. Through the whole
+  // of 0.6.0 this gate reported `0 template file(s) added since v0.5.0` while a dozen new
+  // template files sat untracked in the working tree — a CLEAN that reads as a finding and
+  // is a vacuum. It would have corrected itself in CI, on a branch where everything is
+  // committed, which is precisely the asymmetry that makes it dangerous: the maintainer
+  // deciding plant-vs-withhold is the one running it locally, and they were told there was
+  // nothing to decide.
+  //
+  // Staged and untracked are unioned in so the check judges the tree in front of you.
+  // `--exclude-standard` keeps .gitignore'd paths out — a build artifact under template/ is
+  // not a seeded addition.
+  // SOURCE: docs/runbooks/harness-upgrade.md (the plant-or-withhold decision is per release)
+  const lines = (args) =>
+    git(args)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+  const added = [
+    ...new Set([
+      ...lines(['diff', '--name-only', '--diff-filter=A', `${prev}..HEAD`, '--', 'template/']),
+      ...lines(['diff', '--name-only', '--diff-filter=A', '--cached', '--', 'template/']),
+      ...lines(['ls-files', '--others', '--exclude-standard', '--', 'template/']),
+    ]),
+  ].sort()
+
+  // The allowlist's own shape first, because it is the thing the additions are judged
+  // AGAINST: a malformed entry silently forgives whatever it names.
+  const allowlistProblems = plantAllowlistProblems(DELIBERATE_PLANT)
+  if (allowlistProblems.length > 0) {
+    console.error(
+      `SEEDED-MIGRATIONS: FAIL (${allowlistProblems.length}) — the DELIBERATE_PLANT allowlist is malformed:`,
+    )
+    for (const p of allowlistProblems) console.error(`  - ${p}`)
+    process.exit(1)
+  }
+
+  // The other half of the plant-or-withhold decision: files the harness AUTHORED, a
+  // release CORRECTED, and `update` cannot deliver because the consumer owns them.
+  const fixProblems = seededSourceFixProblems(migrations, ROOT)
+  if (fixProblems.length > 0) {
+    console.error(
+      `SEEDED-MIGRATIONS: FAIL (${fixProblems.length}) — a seededSourceFixes record is malformed:`,
+    )
+    for (const p of fixProblems) console.error(`  - ${p}`)
+    process.exit(1)
+  }
 
   const violations = findUnregisteredSeededAdditions({
     addedTemplatePaths: added,
@@ -242,7 +414,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     )
     process.exit(1)
   }
+  // The seededSourceFixes count is printed rather than merely checked: it is a set that
+  // SHRINKS to nothing in most releases, and a silently-empty closure reads identically to
+  // a closure that had something to say.
+  const fixPaths = Object.entries(migrations)
+    .filter(([v]) => VERSION_KEY.test(v))
+    .flatMap(([, e]) => (e.seededSourceFixes ?? []).flatMap((f) => f.paths ?? []))
   console.log(
-    `SEEDED-MIGRATIONS: CLEAN (${added.length} template file(s) added since ${prev}; every seeded/config addition is registered seedOnInitOnly or a reviewed deliberate plant)`,
+    `SEEDED-MIGRATIONS: CLEAN (${added.length} template file(s) added since ${prev}; every seeded/config addition is registered seedOnInitOnly or a reviewed deliberate plant; ${fixPaths.length} seededSourceFixes path(s) resolve in the template)`,
   )
 }

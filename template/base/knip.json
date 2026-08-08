@@ -23,10 +23,20 @@
         "postcss.config.mjs",
         "app/**/*.test.{ts,tsx}",
         "lib/**/*.test.{ts,tsx}",
+        "__tests__/**/*.{ts,tsx}",
         "playwright.config.ts",
-        "e2e/**/*.spec.ts"
+        "e2e/**/*.spec.ts",
+        "lib/i18n/index.ts!",
+        "lib/i18n/errors.ts!",
+        "lib/routes.generated.ts!"
       ],
-      "project": ["app/**/*.{ts,tsx}!", "lib/**/*.{ts,tsx}!", "e2e/**/*.ts", "*.{ts,mjs}"],
+      "project": [
+        "app/**/*.{ts,tsx}!",
+        "lib/**/*.{ts,tsx}!",
+        "__tests__/**/*.{ts,tsx}",
+        "e2e/**/*.ts",
+        "*.{ts,mjs}"
+      ],
       "ignore": ["lib/app-data/notes.ts", "lib/app-data/notes-model.ts", "lib/supabase/client.ts"],
       "ignoreDependencies": ["@app/design-system", "@supabase/ssr", "@supabase/supabase-js"]
     },

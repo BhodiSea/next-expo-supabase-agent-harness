@@ -2,6 +2,7 @@ import { oklchToHex, themes } from '@app/design-tokens'
 import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
+import { t } from '../lib/i18n'
 import { Providers } from './providers'
 
 // The root layout: the only place in the app that renders <html> and <body>, and the only
@@ -25,7 +26,9 @@ export const metadata: Metadata = {
     default: 'Web',
     template: '%s · Web',
   },
-  description: 'Next.js web client and API host.',
+  // The product NAME above stays a literal for the placeholder hazard the comment records;
+  // this sentence is prose, so it goes through the catalog like every other sentence.
+  description: t('app.description'),
   // Explicitly non-indexable by default. A scaffold that ships crawlable is a scaffold whose
   // half-built staging deploy ends up in search results; turning this off is a deliberate
   // act at launch, which is the right direction for the default to fail in.
