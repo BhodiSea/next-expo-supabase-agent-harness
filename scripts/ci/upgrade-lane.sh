@@ -413,7 +413,8 @@ cat "$WORK/expect.sh" | sed 's/^/  /'
 # test-quality and mobile-perf ramp on the Stop side, so asserting their NOTEs against
 # validate.log would fail on a lane that is behaving correctly. Filtering silently would be
 # worse than the bug: a gate that quietly leaves the expectation set is a gate nobody is
-# checking, which is this repository's whole subject. So it is filtered AND printed.
+# checking, which is this repository's whole subject. So it is filtered, printed, and — for
+# a met DEADLINE — held to a registered compensating proof in §7e below.
 CHAIN_STEPS="$(cut -d' ' -f1 < "$WORK/steps.txt" | tr '\n' ' ')"
 in_chain() { case " $CHAIN_STEPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 narrow() {
@@ -422,10 +423,61 @@ narrow() {
     if in_chain "$g"; then kept="$kept $g"; else dropped="$dropped $g"; fi
   done
   [ -z "$dropped" ] || echo "  not in this chain (Stop-chain gates, not asserted here):$dropped" >&2
+  # The dropped set is recorded to a file, not a variable: narrow() runs inside $(…), so
+  # anything it assigns dies with the subshell — and dropping now has a consequence (§7e).
+  printf '%s' "${dropped# }" > "$2"
   printf '%s' "${kept# }"
 }
-EXPIRED="$(narrow "$EXPIRED")"
-NOTING="$(narrow "$NOTING")"
+EXPIRED="$(narrow "$EXPIRED" "$WORK/dropped-expired.txt")"
+NOTING="$(narrow "$NOTING" "$WORK/dropped-noting.txt")"
+DROPPED_EXPIRED="$(cat "$WORK/dropped-expired.txt")"
+
+# ── 7e. a DROPPED expiry must carry a compensating proof, registered and reviewed ─
+# narrow() above can drop a MET DEADLINE, not just an advisory NOTE: diff-coverage's
+# 0.4.0 surface ramp and reviewer-verdicts' 0.6.0 ramp both live outside the validate
+# chain, where this lane never looks. The 0.4.0 header explains why the default leg could
+# not execute an expiry; this is the same hole one chain over — a Stop-side (or CI-lane)
+# RAMP EXPIRED fires in NO lane, structurally, and until now its only trace was a stderr
+# line in a 45-minute log. scripts/ci/stop-side-expiries.json is the reviewed answer:
+# every gate whose expiry this lane cannot execute names the unit proof that drives the
+# REAL gate to its RAMP EXPIRED exit on a fixture. An unregistered drop dies — silently
+# narrowing a deadline out of the expectation set is a check nobody is checking.
+STOP_EXPIRIES="$ROOT/scripts/ci/stop-side-expiries.json"
+# The stale direction first, and judged per leg: an entry whose gate IS in this leg's
+# chain excuses a drop that cannot happen — the lane executes that gate's expiry itself
+# (§7a), so the entry's "the lane cannot see this" claim is false. Deliberately NOT
+# "must be a Stop step": check-web-e2e.mjs ramps in the consumer's CI lane, outside BOTH
+# chains, and an entry for it would be as legitimate as diff-coverage's.
+# console.log per key, never a join without a trailing newline: `read` returns nonzero on
+# an unterminated final line, so the LAST registered gate would silently skip this check.
+node -e '
+  const m = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
+  for (const k of Object.keys(m).filter((k) => k !== "//")) console.log(k)
+' "$STOP_EXPIRIES" > "$WORK/stop-expiry-gates.txt" ||
+  die "scripts/ci/stop-side-expiries.json is missing or unparseable — §7e cannot judge a dropped expiry without the reviewed proof map"
+while IFS= read -r g; do
+  [ -n "$g" ] || continue
+  if in_chain "$g"; then
+    die "scripts/ci/stop-side-expiries.json registers \`$g\`, but \`$g\` is in this leg's validate chain — its expiry is executed right here (§7a), so the entry excuses a drop that cannot happen. Remove it."
+  fi
+done < "$WORK/stop-expiry-gates.txt"
+if [ -n "$DROPPED_EXPIRED" ]; then
+  say "stop-side expiries — every deadline this lane cannot execute must name its proof"
+  for g in $DROPPED_EXPIRED; do
+    PROOF="$(node -e '
+      const m = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
+      const e = m[process.argv[2]]
+      if (e === undefined || typeof e.proof !== "string" || typeof e.note !== "string") process.exit(1)
+      process.stdout.write(e.proof)
+    ' "$STOP_EXPIRIES" "$g")" ||
+      die "gate \`$g\` meets its deadline at baseVersion $BASE_AFTER and this lane cannot execute it (not a chain step) — its RAMP EXPIRED branch fires in NO lane. Register the compensating unit proof in scripts/ci/stop-side-expiries.json: { \"$g\": { \"proof\": \"tests/gates/<file>\", \"note\": \"<why the lane cannot execute it>\" } }"
+    [ -f "$ROOT/$PROOF" ] ||
+      die "scripts/ci/stop-side-expiries.json points \`$g\` at $PROOF, which does not exist — a proof that is not in the tree proves nothing"
+    grep -qF 'RAMP EXPIRED' "$ROOT/$PROOF" ||
+      die "$PROOF never mentions RAMP EXPIRED — it is registered as the proof that \`$g\`'s expiry actually fires, and a proof that does not execute the expiry branch is decorative coverage"
+    echo "  dropped:   $g (deadline met; expiry executed by $PROOF)"
+  done
+fi
 
 # ── 7a. deadlines MET: the alarm must actually ring, and it must be a red ─────────
 # The branch no lane could reach before `--from`: every ramp old enough to expire opens at
@@ -526,7 +578,7 @@ fi
 # true — no second copy of graduate's NOTE predicate to drift against, and both failure modes
 # still closed: it must never open on a red chain, and it must never refuse for a reason the
 # lane's own run cannot corroborate.
-# ── 7d. THE SWEEP (0.6.0, --sweep) — the only shape that opens graduate's door ────
+# ── 7d. THE SWEEP (--sweep) — the only shape that opens graduate's door ───────────
 # `graduate` has two branches and only one had ever been executed. Every leg above ends with
 # it REFUSING, because an upgraded install always has ramped findings outstanding — that is
 # what a ramp is FOR. The SUCCESS branch is the one that moves baseVersion and arms every
@@ -539,8 +591,12 @@ fi
 # the findings is worse than no runbook, and nothing else here would notice.
 if [ "${SWEEP:-0}" = "1" ]; then
   say "sweep — adopt this release's seams, the way the runbook says to"
-  node "$ROOT/scripts/ci/upgrade-sweep.mjs" "$SCAFFOLD" "$ROOT" "$HEAD_VERSION" ||
-    die "the sweep failed. Its file list is DERIVED from this release's seedOnInitOnly set, so an empty or failing sweep means the release withheld nothing a consumer must adopt — and a sweep that clears nothing cannot prove graduate opens."
+  # The sweep spans the whole hop, not just HEAD's record: it takes the baseline this lane
+  # already proved unmoved (BASE_AFTER, §2) and derives per crossed version — so an expiry
+  # release whose own record withholds nothing still sweeps the seams of the versions the
+  # upgrade crossed.
+  node "$ROOT/scripts/ci/upgrade-sweep.mjs" "$SCAFFOLD" "$ROOT" "$BASE_AFTER" "$HEAD_VERSION" ||
+    die "the sweep failed. Its file list is DERIVED per crossed version (seedOnInitOnly + seededSourceFixes between baseVersion $BASE_AFTER and HEAD, through the reviewed SWEEPS table), so an empty or failing sweep means no crossed version withheld anything a consumer must adopt — and a sweep that clears nothing cannot prove graduate opens."
   say "re-validate after the sweep"
   set +e
   (cd "$SCAFFOLD" && node tools/validate.mjs --report-all) > "$WORK/validate.log" 2>&1

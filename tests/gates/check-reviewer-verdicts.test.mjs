@@ -13,6 +13,13 @@
 // been asserted about the reviewer FILE by check-docs-sync.mjs since 0.3.0 and enforced at
 // runtime by nothing. Exit 2 on SubagentStop prevents the subagent from stopping, which is
 // what turns a file-shape assertion into a behavioural one.
+//
+// The third (0.7.0): the 0.6.0 ramp's RAMP EXPIRED branch, EXECUTED rather than inferred.
+// This step runs only in the Stop chain, which no upgrade-lane leg executes, so its expiry
+// fires in no lane at all — scripts/ci/stop-side-expiries.json registers THIS file as the
+// compensating proof (upgrade-lane.sh §7e refuses to drop a met deadline that has no
+// registered proof), and the sibling case pins that a 0.6.0-vintage install reds plainly,
+// without the banner: the ramp is inert there, not expired.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -92,6 +99,10 @@ function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
   // shell, red the moment it matters. Eighteen sibling test files already delete this; the
   // one written in the release that added the gate did not.
   delete env.GITHUB_BASE_REF
+  // And the maintainer's own escape hatch stays out for the same reason: the fixture
+  // plays a CONSUMER, and a consumer does not have HARNESS_ALLOW_SELF_EDIT set
+  // (upgrade-lane.sh unsets it script-wide with the full argument).
+  delete env.HARNESS_ALLOW_SELF_EDIT
   env.CI = 'true'
   if (session === null) delete env.HARNESS_SESSION_ID
   else env.HARNESS_SESSION_ID = session
@@ -239,6 +250,40 @@ test('GREEN: the owed reviewer ran and passed', () => {
 test('CANARY — the owed reviewer did NOT run: no ledger at all', () => {
   const r = runStep(fixture({ ledger: null }))
   assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
+})
+
+// Stamp an install vintage onto a fixture: rampNote reads .harness/manifest.json from the
+// gate's cwd, comparing baseVersion against the ramp and harnessVersion against the deadline.
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion, harnessVersion }, null, 2),
+  )
+  return dir
+}
+
+test('CANARY — the 0.6.0 ramp EXPIRES at harness 0.7.0: the banner fires and the red is hard', () => {
+  // A pre-0.6.0 vintage running 0.7.0 code: baseVersion is below the ramp, harnessVersion
+  // has reached the deadline. The findings must NOT be withheld as a NOTE — the banner
+  // names the expiry and the exit is the same hard 1 a fresh install gets.
+  const dir = withManifest(fixture({ ledger: null }), '0.3.0', '0.7.0')
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED/)
+  assert.match(r.out, /deadline of 0\.7\.0/)
+  assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
+})
+
+test('CANARY — a 0.6.0-vintage install reds WITHOUT the banner: the ramp is inert, not expired', () => {
+  // baseVersion at the ramp's minVersion: rampNote's first guard makes the check plainly
+  // live. The same finding, the same exit — but an expiry banner here would tell a consumer
+  // who was never inside the escape that a deadline they never had has passed.
+  const dir = withManifest(fixture({ ledger: null }), '0.6.0', '0.7.0')
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
   assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
 })
 

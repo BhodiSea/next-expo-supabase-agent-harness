@@ -43,7 +43,15 @@ import {
   siteKey,
   spelledAction,
 } from './lib/data-flow.mjs'
-import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  cmpDotted,
+  fail,
+  failures,
+  installedHarnessVersion,
+  ok,
+  rampNote,
+  skipOrFail,
+} from './lib/gate.mjs'
 import { parseColumnFacts, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
 
 const GATE = 'data-flow'
@@ -219,6 +227,32 @@ if (policy !== null && (surface === null || surface === undefined)) {
   )
 }
 
+// ── 5b. THE TARGET IS A DEADLINE, not a format (0.7.0) ───────────────────────────────
+// The surface's own reason string promises "this gate reds if it passes without either a
+// surface or a re-reviewed target" — and through 0.6.0 the check above only asked whether
+// the target LOOKED like a version, so the promise was false in the file that made it. This
+// is the enforcement-tiers Target-column mechanism (check-docs-sync.mjs, 0.5.0) reproduced
+// in the sibling file that reproduced the defect: the deadline is judged against
+// .harness/manifest.json's harnessVersion — never the wall clock, never package.json — and
+// it is what makes ANY re-target of this date real rather than decoration.
+const targetErrs = []
+if (surface?.kind === 'none' && /^\d+\.\d+\.\d+$/.test(surface.target ?? '')) {
+  const running = installedHarnessVersion(GATE)
+  if (running === null) {
+    // The template dev tree and the gate fixtures have no .harness/manifest.json, so there
+    // is no installed release to measure the deferral against. Defined rather than silent:
+    // a quiet pass here would unenforce the date in exactly the tree the stale target was
+    // written in — the same call check-docs-sync.mjs makes for the Target column.
+    console.log(
+      `${GATE}: NOTE — no .harness/manifest.json, so the \`target\` date in ${POLICY} export.surface is not judged (there is no installed release to compare it against). tests/gates/check-data-flow.test.mjs covers the deadline in the harness's own tree.`,
+    )
+  } else if (cmpDotted(running, surface.target) >= 0) {
+    targetErrs.push(
+      `${POLICY} export.surface deferred the delivery surface to ${surface.target} and this install runs harness ${running} — the deferral has ARRIVED. Ship the export ({ kind: "procedure", procedure }) or move the target to a release you mean in a reviewed diff; the file is git-clean-enforced by check-gate-integrity.mjs, so moving the date is a deliberate act rather than a flag.`,
+    )
+  }
+}
+
 // ── 6. THE DECLARATIVE SCHEMA MUST NOT DISAGREE ──────────────────────────────────────
 // The only place in this repo where supabase/schemas and supabase/migrations are compared on
 // COLUMN facts. check-migrations defers schema↔migration drift to CI's db lane and
@@ -235,6 +269,25 @@ if (existsSync(SCHEMAS_DIR)) {
     errs.push(
       `${siteKey(e.table, e.column)}: ${SCHEMAS_DIR} declares ON DELETE ${spelledAction(d.onDelete)} but the applied history in ${MIGRATIONS_DIR} leaves it ON DELETE ${spelledAction(e.onDelete)}. The database does what the migrations say; the declarative file is what a reviewer reads. On this column those two sentences answer "is this erased with the account" differently.`,
     )
+  }
+}
+
+// ── the 0.7.0 ramp over the target deadline, SEPARATE from the 0.6.0 ramp below ──────
+// Every install seeded before 0.7.0 carries a data-flow.json whose target literally says
+// 0.7.0 — the HARNESS's deferral, not the consumer's — so without its own ramp the first
+// `update` onto 0.7.0 would hard-red every one of them on a date they never chose. The NOTE
+// names their two legitimate moves (ship their surface, or re-review their own target in a
+// reviewed diff); the escape ends at 0.8.0. Kept apart from the 0.6.0 closure ramp below,
+// which expires this release — folding the new finding into it would re-open an escape the
+// deadline ratchet has already counted closed. The comment lives HERE and not inside the
+// condition: scripts/check-ramp-ledger.mjs reads the line preceding `rampNote(` to decide
+// whether the result is consumed, and a comment between `if (` and the call reads to it as
+// a discarded result — a ramp that gates nothing.
+if (targetErrs.length > 0) {
+  if (rampNote(GATE, '0.7.0', 'the export.surface.target deadline', { until: '0.8.0' })) {
+    for (const e of targetErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  } else {
+    errs.push(...targetErrs)
   }
 }
 

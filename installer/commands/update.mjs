@@ -27,6 +27,7 @@ import {
   applyDependencyObligations,
   applyConfigSteps,
   applyFileMigrations,
+  applySeededSourceFixObligations,
   matchSeedOnInitOnly,
   readTemplateMigrations,
   seedOnInitOnlyPatterns,
@@ -179,6 +180,20 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
   // whose lockfile no longer matches its manifests fails the `pnpm install
   // --frozen-lockfile` the shipped workflows run twelve times.
   applyDependencyObligations({
+    targetDir,
+    report,
+    migrations,
+    version: installerVersion(),
+    dryRun: opts.dryRun,
+  })
+
+  // The seeded-source channel (0.7.0): same unconditional re-evaluation as the dependency
+  // channel above (the fix is applied by the CONSUMER, not by this run), same EMIT-never-
+  // write boundary — the correction lives in SEEDED files only they can edit, so this
+  // parks the instruction at .harness/pending/source-fixes.json and the record's probes
+  // let it self-clear once their tree stops matching the broken shape. All logic lives in
+  // installer/lib/migrations.mjs: this file's complexity-ratchet row only moves DOWN.
+  applySeededSourceFixObligations({
     targetDir,
     report,
     migrations,

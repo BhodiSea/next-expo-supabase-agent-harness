@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -585,6 +585,97 @@ test('TIERS: with NO manifest the Target check SAYS it is not judging, rather th
   // maintainers work in, which is where the three stale ones were written.
   const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: null }))
   assert.match(r.out, /no \.harness\/manifest\.json, so `Target` dates .* are not judged/)
+})
+
+// ── the SECOND discharge form (0.7.0): the declared `closes:` probe ──────────────────
+//
+// The surface derivation can only discharge a Target whose gap is "the gate scans one
+// product surface". A row whose declared gap is a reviewed-data floor (version-sync's
+// iOS toolchain) would stand red forever after shipping the floor — a control demanding
+// a change no change can satisfy, the same defect the 0.6.0 step-fold fixed for
+// twin-script steps. The declared form lets the row name its own evidence:
+// `0.7.0 — closes: `tools/store-policy.json#iosToolchain`` discharges iff the record
+// carries a non-empty value at the key AND a script implementing the row's step
+// references the key on a non-comment line. `perf-budget` is the deliberate subject
+// throughout: it is GENUINELY single-surface (the arrived-Target red above proves
+// exactly that), so a probe-form green is proof the probe REPLACED the surface
+// derivation rather than riding it.
+
+const PROBE_CELL = '0.6.0 — closes: `tools/probe-policy.json#probeDischargeKey`'
+const PROBE_REF = "\nconst PROBE_POLICY_KEY = 'probeDischargeKey'\nvoid PROBE_POLICY_KEY\n"
+
+/**
+ * Plant a probe-form Target on the perf-budget row, plus (optionally) the JSON record
+ * the probe names and a reference to the key inside the step's own gate script.
+ * @param {{ cell?: string, record?: object, reference?: string }} parts
+ */
+function probeFixture({ cell = PROBE_CELL, record, reference } = {}) {
+  const probed = shippedTiers.replace(/^(\| `perf-budget` \|.*)\| — \|$/m, `$1| ${cell} |`)
+  assert.notEqual(probed, shippedTiers, 'the perf-budget row must be found for the probe fixtures to mean anything')
+  const dir = tiersFixture(probed, { allTools: true, allWorkflows: true, harness: '0.6.0' })
+  if (record !== undefined) writeFileSync(join(dir, 'tools/probe-policy.json'), JSON.stringify(record))
+  if (reference !== undefined) appendFileSync(join(dir, 'tools/check-perf-budget.mjs'), reference)
+  return dir
+}
+
+test('TIERS PROBE: an arrived, SATISFIED probe discharges a still-single-surface gate', () => {
+  const r = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } }, reference: PROBE_REF }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+  // The sharp half: perf-budget still hard-codes one surface, so the surface form would
+  // red this row (the arrived-Target test above proves it). Green means the probe governed.
+  assert.doesNotMatch(r.out, /STILL scans one product surface/, r.out)
+})
+
+test('TIERS PROBE RED: an arrived probe with no record — key absent, or file absent — cannot discharge', () => {
+  const noKey = runGate(probeFixture({ record: {}, reference: PROBE_REF }))
+  assert.equal(noKey.code, 1, noKey.out)
+  assert.match(noKey.out, /carries no non-empty value at top-level key 'probeDischargeKey'/)
+
+  const noFile = runGate(probeFixture({ reference: PROBE_REF }))
+  assert.equal(noFile.code, 1, noFile.out)
+  assert.match(noFile.out, /tools\/probe-policy\.json does not exist/)
+})
+
+test('TIERS PROBE RED: a key NO step script reads cannot discharge — comment mentions do not count', () => {
+  // The record is present and non-empty; nothing under tools/ references the key.
+  const unread = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } } }))
+  assert.equal(unread.code, 1, unread.out)
+  assert.match(unread.out, /no script implementing the row's step .* references 'probeDischargeKey' on a non-comment line/)
+
+  // A comment-only mention is not a reference — a key a gate merely talks about is a
+  // record nothing enforces, which is the self-certification the reference check exists
+  // to refuse.
+  const commentOnly = runGate(
+    probeFixture({
+      record: { probeDischargeKey: { xcodeFloor: 26 } },
+      reference: '\n// a later release will read probeDischargeKey from the policy file\n',
+    }),
+  )
+  assert.equal(commentOnly.code, 1, commentOnly.out)
+  assert.match(commentOnly.out, /on a non-comment line/)
+})
+
+test('TIERS PROBE: before the date arrives the probe is NOT judged — the deadline arms it', () => {
+  // No record, no reference: the probe is UNSATISFIED, and still green — the probe is
+  // the arrived-discharge question, not a standing lint. The date is what arms it, the
+  // same way the surface form leaves an undue row alone.
+  const r = runGate(probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json#probeDischargeKey`' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+})
+
+test('TIERS PROBE RED: a malformed `closes:` annotation reds even before the date arrives', () => {
+  // No backticked path — nothing can evaluate this, and waiting for the date would let a
+  // typo sleep until the deadline and then fail the discharge for a clerical reason.
+  const bare = runGate(probeFixture({ cell: '0.9.0 — closes: tools/probe-policy.json#probeDischargeKey' }))
+  assert.equal(bare.code, 1, bare.out)
+  assert.match(bare.out, /`closes:` annotation does not parse/)
+
+  // A backticked path with no `#key` names a file but no record to look for.
+  const keyless = runGate(probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json`' }))
+  assert.equal(keyless.code, 1, keyless.out)
+  assert.match(keyless.out, /annotation does not parse/)
 })
 
 test('TIERS RED: an only-conditional compensating control must admit it is path-filtered', () => {

@@ -533,13 +533,15 @@ if (existsSync(TIERS)) {
   // column, so the commitment was a sentence next to a date. A date nobody checks is the
   // exact shape of claim this file's own opening line calls illegitimate.
   //
-  // WHAT "DISCHARGED" MEANS, mechanically. The gap a Target promises to close is always
-  // the same gap: the gate hard-codes ONE product surface. So the question is re-derived
+  // WHAT "DISCHARGED" MEANS, mechanically. The gap a Target promises to close is, by
+  // default, one gap: the gate hard-codes ONE product surface. So the question is re-derived
   // from the gate SOURCE — is it still single-surface? — using the identical derivation
   // scripts/check-tier-coverage.mjs uses to demand the row in the first place. Moving the
   // date is the other legitimate answer, and it is a reviewed diff in an owned, sha-pinned
-  // file, which is what makes it deliberate rather than a flag.
+  // file, which is what makes it deliberate rather than a flag. A row whose gap is NOT a
+  // scan root may DECLARE its evidence instead — the `closes:` probe form below (0.7.0).
   const running = installedHarnessVersion(GATE)
+  const configText = existsSync(HARNESS_CONFIG) ? readFileSync(HARNESS_CONFIG, 'utf8') : ''
   let stillSingleSurface = null
   if (running === null) {
     // The template dev tree and the gate fixtures have no .harness/manifest.json, so there
@@ -557,7 +559,7 @@ if (existsSync(TIERS)) {
           // The config maps a script basename to the STEP name a row may key on
           // (`styleguide` runs check-styleguide-manifest.mjs), so without it a row keyed by
           // step would never match and its Target would discharge for the wrong reason.
-          configText: existsSync(HARNESS_CONFIG) ? readFileSync(HARNESS_CONFIG, 'utf8') : '',
+          configText,
         }).flatMap((g) => [g.key, g.file.replace(/\.mjs$/, ''), g.file]),
       )
     } catch (e) {
@@ -565,6 +567,109 @@ if (existsSync(TIERS)) {
         `${TIERS}: the Target check could not read tools/ to re-derive which gates are still single-surface (${String(e.message).slice(0, 120)}). It fails rather than skipping: an unreadable scan root would silently discharge every dated commitment in this table.`,
       )
     }
+  }
+
+  // ── the SECOND discharge form (0.7.0): the declared `closes:` probe ───────────────
+  //
+  // The surface derivation above can only discharge a Target whose gap is "the gate
+  // scans one product surface". The version-sync row's declared gap is a toolchain
+  // FLOOR: shipping the floor changes no scan root, so under the surface form its
+  // arrived Target would stand red forever — a control demanding a change no change
+  // can satisfy, the same defect the 0.6.0 step-fold in lib/live-controls.mjs fixed
+  // for twin-script steps. So a Target cell may declare its own evidence instead:
+  // `0.7.0 — closes: \`tools/store-policy.json#iosToolchain\`` discharges iff the
+  // named file carries a non-empty value at that top-level key AND a script
+  // implementing the row's step references the key on a non-comment line — both
+  // re-derived from the tree on every run, never taken on trust.
+  //
+  // DIVISION OF LABOR, stated so a reviewer cannot mistake the probe for a proof of
+  // enforcement: the reference check is a static read and can be satisfied by a line
+  // that asserts nothing. That is the identical standard the surface form sets (see
+  // lib/live-controls.mjs on what the step fold deliberately does not verify): this
+  // table says which evidence a discharge rests on; the canary registry
+  // (tests/canary/injections.json) is what proves the gate reading the key can
+  // actually fail. Choosing the form — like moving a date — is a reviewed diff in
+  // this owned, sha-pinned file, which is what makes it deliberate rather than a flag.
+
+  // step -> the script basenames implementing it, read from the config's command text:
+  // the IDENTICAL derivation singleSurfaceGates uses to key a row on its step, run in
+  // the opposite direction. A second, different derivation here would let a row's step
+  // resolve under one discharge form and not the other — the exact disagreement
+  // lib/live-controls.mjs exists to prevent.
+  const scriptsForStep = new Map()
+  for (const m of configText.matchAll(/\[\s*'([\w-]+)'\s*,\s*'([^']*)'/g)) {
+    for (const s of m[2].matchAll(/tools\/([\w.-]+\.mjs)/g)) {
+      scriptsForStep.set(m[1], [...(scriptsForStep.get(m[1]) ?? []), s[1]])
+    }
+  }
+
+  /**
+   * The `closes:` annotation, parsed. null = no annotation (the surface form governs);
+   * 'malformed' = an annotation nothing can evaluate, which is a red regardless of the
+   * date — a probe with a typo would otherwise sleep until the deadline and then fail
+   * the discharge for a clerical reason.
+   * @param {string} t
+   * @returns {null | 'malformed' | { file: string, key: string }}
+   */
+  const parseProbe = (t) => {
+    if (!t.includes('closes:')) return null
+    const m = /closes:\s*`([^`#]+)#([^`#\s]+)`/.exec(t)
+    return m === null ? 'malformed' : { file: m[1], key: m[2] }
+  }
+
+  // A non-comment reference — the same `//`-strip the scan-root reader in
+  // lib/live-controls.mjs applies, because a key a gate merely talks about in a comment
+  // is a record nothing enforces.
+  const referencesKey = (src, key) =>
+    src.split('\n').some((line) => {
+      const at = line.indexOf(key)
+      return at !== -1 && !line.slice(0, at).includes('//') && !/^\s*\*/.test(line)
+    })
+
+  /**
+   * An ARRIVED probe-form Target: discharged iff the record landed and the step's own
+   * gate reads it. Every failure names the missing half — a probe that cannot be
+   * evaluated reds rather than discharging, or the annotation is self-certification.
+   * @param {{layer: string, key: string, due: string, probe: {file: string, key: string}}} row
+   */
+  const judgeProbeCell = ({ layer, key, due, probe }) => {
+    const row = `the '${layer}' row (gate \`${key}\`) declares its discharge probe as \`${probe.file}#${probe.key}\` and its Target (${due}) has arrived`
+    if (!existsSync(probe.file)) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} does not exist — a probe over a file the tree does not carry can never discharge. Ship the reviewed record, or move the Target to a release you mean in a reviewed diff.`,
+      ]
+    }
+    let value
+    try {
+      value = JSON.parse(readFileSync(probe.file, 'utf8'))[probe.key]
+    } catch (e) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} is not valid JSON (${e.message}) — an unreadable probe fails CLOSED rather than discharging the row. Restore the file from git history.`,
+      ]
+    }
+    const empty =
+      value === undefined ||
+      value === null ||
+      (typeof value === 'string' && value.trim() === '') ||
+      (typeof value === 'object' && Object.keys(value).length === 0)
+    if (empty) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} carries no non-empty value at top-level key '${probe.key}' — the reviewed record the probe promises has not landed. Land it, or move the Target to a release you mean in a reviewed diff.`,
+      ]
+    }
+    const scripts =
+      scriptsForStep.get(key) ??
+      [key, `${key}.mjs`].filter((f) => f.endsWith('.mjs') && existsSync(`tools/${f}`))
+    const read = scripts.some(
+      (f) =>
+        existsSync(`tools/${f}`) && referencesKey(readFileSync(`tools/${f}`, 'utf8'), probe.key),
+    )
+    if (!read) {
+      return [
+        `${TIERS}: ${row} and the record exists, but no script implementing the row's step (${scripts.length > 0 ? scripts.map((f) => `tools/${f}`).join(', ') : `none resolve from ${HARNESS_CONFIG}`}) references '${probe.key}' on a non-comment line — a key no gate reads is a record nothing enforces, so the probe cannot discharge the row. Wire the step's gate to the record, or move the Target in a reviewed diff.`,
+      ]
+    }
+    return [] // discharged: the record landed and the step's own gate reads it
   }
 
   /** @param {{layer: string, target: string, gate: string}} row */
@@ -581,8 +686,18 @@ if (existsSync(TIERS)) {
         `${TIERS}: the '${layer}' row's Target is ${JSON.stringify(t)} — it must be a release (x.y.z) or \`—\`. A Target nothing can compare is a deadline with no date.`,
       ]
     }
+    const probe = parseProbe(t)
+    if (probe === 'malformed') {
+      return [
+        `${TIERS}: the '${layer}' row's Target is ${JSON.stringify(t)} — its \`closes:\` annotation does not parse. The declared discharge form is \`x.y.z — closes: \`<file>#<top-level key>\`\` (one backticked path, one \`#\`, one key), judged the moment it is written: a probe nothing can evaluate is a deadline with no date, the same failure as a Target of "soon".`,
+      ]
+    }
     if (cmpDotted(running, due) < 0) return [] // not yet due
     const key = gate.replaceAll('`', '').trim()
+    // The declared form REPLACES the surface question for its row: the probe is the
+    // discharge evidence the reviewed cell names, so the scan-root derivation — which
+    // this row's gap was never about — must not get a vote either way.
+    if (probe !== null) return judgeProbeCell({ layer, key, due, probe })
     if (!stillSingleSurface.has(key) && !stillSingleSurface.has(key.replace(/\.mjs$/, ''))) {
       return [] // the gap closed: the gate no longer hard-codes one surface
     }

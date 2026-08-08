@@ -1,0 +1,11 @@
+{
+  "//": "Deadlines the upgrade lane cannot execute, each naming the unit proof that does. The lane's §7 narrow() keeps only gates in the validate chain, so a gate outside it whose ramp EXPIRES is dropped from the expectation set — its RAMP EXPIRED branch fires in no lane, structurally (the hole the 0.4.0 `--from` header describes, one chain over). An entry here is the reviewed compensating control: `proof` is the test file that drives the REAL gate to its RAMP EXPIRED exit on a fixture (upgrade-lane.sh §7e asserts the file exists and executes the expiry); `note` says why the lane cannot. §7e dies on a dropped expiry with no entry, and on an entry naming a gate this leg's chain runs — that expiry IS lane-executed (§7a), so the entry would excuse a drop that cannot happen.",
+  "diff-coverage": {
+    "proof": "tests/gates/check-diff-coverage.test.mjs",
+    "note": "Stop-chain step: it reads the coverage maps the two unit steps just wrote, and no lane runs the Stop chain (rls-isolation/unit/mobile-unit fail closed under CI without a full toolchain). Its 0.4.0 surface ramp (until 0.5.0) therefore expires where only the unit proof looks."
+  },
+  "reviewer-verdicts": {
+    "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+    "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. Its 0.6.0 ramp (until 0.7.0) therefore expires where only the unit proof looks."
+  }
+}
