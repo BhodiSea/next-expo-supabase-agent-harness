@@ -873,6 +873,40 @@ one execution, three of them in machinery this release had just written.
   working, and the proof that the door OPENS gone at the same time. That is what leg E was
   built for (above); the gap is recorded here because finding it is what caused it.
 
+### Two the local ladder could not see, both found by CI on the release PR
+
+The whole local ladder was green — 1790 tests, factory gate, nine machinery-lint checks,
+fresh scaffold 33/33, five upgrade legs — and the first CI run failed three jobs. Both causes
+were **structurally invisible** to what had been run, which is the more useful half of the
+finding than either defect.
+
+- **`duplication` reds on a fresh 0.6.0 scaffold**, so no consumer's turn could have ended.
+  The web i18n seam this release added mirrors mobile, and mirroring reproduced the eight-line
+  `PluralMessage` interface — 139 tokens, over the clone gate's threshold. It could not be
+  seen locally because `duplication` is a **Stop-chain** step and the fresh-scaffold rung runs
+  `validate --report-all`, which is the 33-gate chain only. The rung proved the chain and was
+  read as proving the scaffold.
+
+  The clone is the type preamble, not the copy — the tokenizer normalizes string literals, so
+  the entries fall below the threshold on their own (verified by collapsing the interface to
+  one line: the gate goes clean). It is accepted rather than extracted, and the reason is a
+  property of the harness rather than of this file: **every shared package source root is
+  seeded**, so `update` can never deliver a new export into an existing install. Extracting
+  the type would compile on a fresh scaffold and break `types` on every consumer who adopted
+  the seam, with no remedy short of asking them to re-adopt their own wire contracts. The
+  runbook now tells an adopting consumer to add the entry, because their allowlist is theirs.
+
+- **Nine of `check-reviewer-verdicts.test.mjs`'s twenty-one tests fail on a PR run and nowhere
+  else.** The fixture builds a throwaway git repo with one commit and no remote, then spread
+  the ambient environment into the gate — so on `pull_request`, `GITHUB_BASE_REF` leaked in,
+  the gate resolved a diff base of `origin/main` that does not exist there, and it failed
+  closed. Correctly: it genuinely could not compute a diff. Nine tests then asserted against
+  the fail-closed verdict instead of the one they meant. **Eighteen sibling test files already
+  delete that variable**; the file written in the release that added the gate did not. This is
+  the fourth appearance of this class in the repository, after `bootstrap-linux`, the canary
+  job's per-gate unset, and the upgrade lane's script-wide one — and the first where the
+  green-in-every-shell / red-only-on-a-PR asymmetry hid it.
+
 ### Every existing install was going to keep the sign-in loop, and only leg E could say so
 
 The release's headline fix — the seeded web app could not sign anybody in — **reached no

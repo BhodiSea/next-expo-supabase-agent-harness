@@ -24,6 +24,10 @@
     {
       "fingerprint": "26b8aaec6dd1",
       "reason": "design-system/variants.ts vs design-system-native/variants.ts (the cva card/input region) — the mirror's core. design-system-native/src/variants.ts documents in-source why this is deliberately NOT an import of the web file: differing Tailwind majors, no RN cascade or pseudo-classes, and differing box models. The variant names are the contract; the class strings cannot be shared."
+    },
+    {
+      "fingerprint": "e83e21400fb2",
+      "reason": "apps/mobile/src/i18n/catalog.ts vs apps/web/lib/i18n/catalog.ts — the PluralMessage/Message declaration, which both seams need and neither can import. The clone is the TYPE PREAMBLE, not the copy: the tokenizer normalizes string literals, so the entries themselves fall below the threshold and only the eight-line CLDR-category interface matches (verified by collapsing it to one line — the gate goes clean). It is load-bearing on both surfaces: each `resolve()` selects a branch via Intl.PluralRules and needs the shape, so deleting it from either side removes plural support rather than duplication. WHY IT CANNOT BE EXTRACTED, and this is a property of the harness rather than of this file: every shared package source root — packages/contracts, packages/platform/*, packages/api, packages/design-tokens — is SEEDED, so `update` can never deliver a new export into an existing install. Extracting the type would compile on a fresh scaffold and break `types` on every consumer who adopted the web i18n seam, and the only remedy would be asking them to re-adopt packages/contracts/src/index.ts — the file most likely to carry their own domain schemas. Eight lines of pure type in two places is the smaller cost. The variant names are the contract, exactly as with the design-system mirror above; here the CLDR categories are."
     }
   ]
 }

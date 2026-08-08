@@ -336,6 +336,30 @@ If a state genuinely cannot occur on a route, declare it `null` with a reason in
 the worked example of that judgement in the other direction: `resolveOrgs()` returns an
 empty list rather than throwing, so the route has no error branch to put a test id on.
 
+### Adopting `apps/web/lib/i18n/` adds one accepted clone — add the entry with it
+
+The web and mobile catalogs each declare the same eight-line `PluralMessage` interface (the
+CLDR categories `Intl.PluralRules` selects between). Both `resolve()` implementations need
+it, and **it cannot be extracted**: every shared package source root is *seeded*, so `update`
+can never deliver a new export into an existing install — extracting the type would compile
+on a fresh scaffold and break `types` on yours.
+
+So the moment you adopt the web seam, `duplication` reports one clone. It is accepted in the
+shipped `tools/duplication-allow.json`, but that file is **yours** — `update` will not touch
+it, because it also holds the clones *you* have accepted. Add the entry by hand; the gate
+prints the fingerprint you need:
+
+```sh
+pnpm exec node tools/check-duplication.mjs
+```
+
+```json
+{ "fingerprint": "e83e21400fb2", "reason": "mobile/web i18n catalogs — the PluralMessage type preamble; see docs/runbooks/harness-upgrade.md" }
+```
+
+This is a **Stop-chain** step, not one of the 33 chain gates, so `pnpm validate` alone will
+not show it — it appears when your turn tries to end.
+
 ### THE ONE THAT IS A BUG FIX, NOT AN ADOPTION: your web sign-in is broken
 
 Every other item on this page is a new surface you are choosing to adopt. This one is

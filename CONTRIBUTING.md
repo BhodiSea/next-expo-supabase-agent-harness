@@ -57,7 +57,14 @@ node scripts/check-release-lockstep.mjs # one version across package.json, plugi
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
 node scripts/check-canary-coverage.mjs  # every gate AND every job in all eight shipped workflows has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
-node --test "tests/**/*.test.mjs"       # gate proofs + installer lifecycle + hook contracts
+# RUN THE SUITE IN THE CI ENVIRONMENT SHAPE, not your shell's. Gate fixtures build a
+# THROWAWAY git repo with no remote, and on a `pull_request` run GITHUB_BASE_REF names the
+# base branch of the PR against THIS repo — so a gate that resolves a diff base looks for an
+# `origin/main` the fixture does not have and fails CLOSED, correctly. Nine tests in one file
+# then asserted against the fail-closed verdict: green in every maintainer's shell, red only
+# on the PR. CI is the enforcement (this is exactly how it was caught); the export is how you
+# find out in seconds instead of after a full matrix run.
+GITHUB_BASE_REF=main CI=true node --test "tests/**/*.test.mjs"   # gate proofs + installer lifecycle + hook contracts
 
 # The machinery under its own bar (pnpm install once at the repo root):
 pnpm exec eslint . --max-warnings 0     # no-unused-vars + complexity <= 15 over the machinery

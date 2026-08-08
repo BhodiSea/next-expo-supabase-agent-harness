@@ -82,6 +82,16 @@ const entry = (agent_type, verdict, over = {}) => ({
 function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
   const env = { ...process.env }
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  // THE FIXTURE IS A DIFFERENT REPOSITORY, and this is the fourth time that has had to be
+  // said in this codebase. `fixture()` builds a throwaway git repo with one commit and no
+  // remote. On a `pull_request` run GITHUB_BASE_REF names the base branch of the PR against
+  // THIS repo, so leaking it inward makes the gate resolve a diff base of `origin/main` that
+  // does not exist there — and it fails CLOSED under CI, correctly, because it genuinely
+  // cannot compute a diff. Nine of this file's twenty-one tests then get the fail-closed
+  // verdict instead of the one they asserted, and ONLY on a PR: green in every maintainer's
+  // shell, red the moment it matters. Eighteen sibling test files already delete this; the
+  // one written in the release that added the gate did not.
+  delete env.GITHUB_BASE_REF
   env.CI = 'true'
   if (session === null) delete env.HARNESS_SESSION_ID
   else env.HARNESS_SESSION_ID = session
