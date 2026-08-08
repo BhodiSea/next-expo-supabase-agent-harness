@@ -65,6 +65,74 @@
     "kind": "single"
   },
   {
+    "id": "notes.listAuthoredNotes#page",
+    "vertical": "notes",
+    "fn": "listAuthoredNotes",
+    "columns": "id, org_id, title, body, created_at, updated_at",
+    "eq": [
+      "org_id",
+      "owner_id"
+    ],
+    "is": [],
+    "limit": 21,
+    "op": "select",
+    "or": null,
+    "orColumns": [],
+    "order": [
+      {
+        "ascending": false,
+        "column": "created_at"
+      },
+      {
+        "ascending": false,
+        "column": "id"
+      }
+    ],
+    "payload": [],
+    "range": [],
+    "table": "notes",
+    "extra": [],
+    "kind": "keyset"
+  },
+  {
+    "id": "notes.listAuthoredNotes#seek",
+    "vertical": "notes",
+    "fn": "listAuthoredNotes",
+    "columns": "id, org_id, title, body, created_at, updated_at",
+    "eq": [
+      "org_id",
+      "owner_id"
+    ],
+    "is": [],
+    "limit": 21,
+    "op": "select",
+    "or": "created_at.lt.?,id.lt.?",
+    "orColumns": [
+      "created_at",
+      "id"
+    ],
+    "order": [
+      {
+        "ascending": false,
+        "column": "created_at"
+      },
+      {
+        "ascending": false,
+        "column": "id"
+      }
+    ],
+    "payload": [],
+    "range": [
+      {
+        "column": "created_at",
+        "op": "lte"
+      }
+    ],
+    "table": "notes",
+    "extra": [],
+    "kind": "keyset"
+  },
+  {
     "id": "notes.listNotes#archived",
     "vertical": "notes",
     "fn": "listNotes",

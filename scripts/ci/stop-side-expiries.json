@@ -7,5 +7,9 @@
   "reviewer-verdicts": {
     "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
     "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. Its 0.6.0 ramp (until 0.7.0) therefore expires where only the unit proof looks."
+  },
+  "web-e2e": {
+    "proof": "tests/gates/check-web-e2e.test.mjs",
+    "note": "Not a chain member AT ALL — validate's e2e step is check-e2e.mjs and the Stop chain never names it; its home is the consumer quality-gate CI lane (the path-filtered browser job), which needs Chromium and which no upgrade-lane leg runs. Its 0.6.0 authenticated-render ramp (until 0.7.0) therefore expires where only the unit proof looks."
   }
 }

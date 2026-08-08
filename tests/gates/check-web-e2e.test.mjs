@@ -289,3 +289,56 @@ test('RED: a failing `playwright test` reds naming the command — never a silen
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('`playwright test` failed'), r.out)
 })
+
+// ---- the 0.6.0 authenticated-render ramp's EXPIRY, executed rather than inferred ─────
+// web-e2e is a chain member NOWHERE: validate's e2e step is check-e2e.mjs, the Stop chain
+// never names this gate, and its home is the consumer quality-gate CI lane (the
+// path-filtered browser job) — which no upgrade-lane leg runs. So when a pre-0.6.0
+// baseVersion meets the 0.7.0 deadline, the RAMP EXPIRED branch fires in NO lane,
+// structurally: upgrade-lane.sh §7 narrows it out of the expectation set, and §7e refuses
+// the drop unless scripts/ci/stop-side-expiries.json names a registered compensating
+// proof. THIS is that proof — it drives the REAL gate to its RAMP EXPIRED exit on a
+// fixture. rampNote reads .harness/manifest.json from the gate's cwd: baseVersion against
+// the ramp, harnessVersion against the deadline.
+
+/** @param {string} dir @param {string} baseVersion @param {string} harnessVersion */
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion, harnessVersion }, null, 2),
+  )
+}
+
+test('CANARY — the 0.6.0 authenticated-render ramp EXPIRES: banner + hard red on a pre-0.6.0 vintage', () => {
+  // An entirely anonymous suite is exactly the population the ramp withheld the finding
+  // from: an install that upgraded into 0.6.0 got the AXIS without the seeded SPEC
+  // (authenticated.spec.ts is seedOnInitOnly — its assertions name this template's
+  // routes). baseVersion below the ramp, harnessVersion at the 0.7.0 deadline: the
+  // escape is over, so the finding must be REPORTED (never a NOTE), with the banner
+  // naming the expiry.
+  const dir = fixture({ specs: [{ name: 'anonymous.spec.ts', content: ANONYMOUS_ONLY_SPEC }] })
+  withManifest(dir, '0.3.0', '0.7.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('web-e2e: RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('deadline of 0.7.0'), r.out)
+  assert.ok(r.out.includes('completed a successful sign-in'), r.out)
+  // The load-bearing half: in CI without node_modules the gate exits 1 no matter what
+  // (fail-closed), and the finding TEXT also appears inside a withheld NOTE — so only
+  // these two lines separate "reported" from "withheld". A neutralized deadline turns
+  // exactly them off (watched red: the NOTE carried the same words and this red stood).
+  assert.ok(r.out.includes('web-e2e: FAIL (1)'), r.out)
+  assert.ok(!r.out.includes('web-e2e: NOTE'), r.out)
+})
+
+test('CANARY — a 0.6.0-vintage install reds on the same suite WITHOUT the banner (inert)', () => {
+  // baseVersion at the ramp's minVersion: the axis was live for this install from day
+  // one, and an expiry banner here would announce a deadline it never had.
+  const dir = fixture({ specs: [{ name: 'anonymous.spec.ts', content: ANONYMOUS_ONLY_SPEC }] })
+  withManifest(dir, '0.6.0', '0.7.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('completed a successful sign-in'), r.out)
+})

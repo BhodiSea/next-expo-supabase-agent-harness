@@ -46,6 +46,10 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
   // The frozen Stop floor comes too: it is the universe of the gate's Stop-catalog
   // closure, and the shipped tree always carries it (owned; `update` restores it).
   cpSync(join(TOOLS, 'stop.floor.json'), join(dir, 'tools/stop.floor.json'))
+  // The deferral ledger comes for the same reason (0.7.0): the shipped catalog carries a
+  // dated deferral sentence, and without its ledger entry every fixture would red on the
+  // scan rather than on its own subject.
+  cpSync(join(TOOLS, 'deferrals.json'), join(dir, 'tools/deferrals.json'))
   cpSync(ROSTER_TEMPLATE, join(dir, '.claude/agents'), { recursive: true })
   for (const [name, content] of Object.entries(roster ?? {})) {
     if (content === null) rmSync(join(dir, '.claude/agents', name))
@@ -806,4 +810,209 @@ test('SANDBOX RED: a --web mode the doc never mentions understates a real contro
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /never names the `web-build` lane/)
+})
+
+// ── the deferral ledger (0.7.0): tools/deferrals.json + the dated-sentence scan ───────
+//
+// Prose in the OWNED surfaces makes dated promises ("Deferred to x.y.z", "out of scope
+// for x.y.z"), and for a release three sites carried the SAME stale one — each internally
+// consistent, none read by any machine, so the date rolled past while still reading as a
+// plan. The scan closes sentence <-> ledger both ways over a DECLARED surface list
+// (the catalog, the top-level tools/*.mjs, tools/auth-posture.json — enforcement-tiers.md
+// excluded because its Target column has its own reader; SEEDED files excluded because a
+// consumer's prose is not the harness's to red), and an ARRIVED target reds until the
+// author ships the check or moves the date in a reviewed diff.
+
+const shippedLedger = JSON.parse(
+  readFileSync(join(TOOLS, 'deferrals.json'), 'utf8'),
+)
+const LONG_REASON =
+  'A test-fixture deferral reason comfortably past the forty-character review floor.'
+
+/**
+ * A minimal fixture plus a planted scan subject: `sentence` becomes a consumer-style
+ * tools/check-custom-lane.mjs (top-level tools/*.mjs ARE the declared surface, so a
+ * consumer's own gate script is scanned — the residual-false-positive answer is rewording
+ * to the ledger form, which is the behavior the control wants). `extraEntries` are
+ * appended to the SHIPPED ledger rather than replacing it: the shipped catalog carries a
+ * real dated sentence, and dropping its entry would red every case on the wrong subject.
+ * @param {{ sentence?: string, extraEntries?: object[], manifest?: any, catalog?: any }} parts
+ */
+function deferralFixture({ sentence, extraEntries = [], manifest, catalog } = {}) {
+  const dir = fixture({
+    agents: shippedAgents,
+    manifest,
+    ...(catalog === undefined ? {} : { catalog }),
+  })
+  if (sentence !== undefined) writeFileSync(join(dir, 'tools/check-custom-lane.mjs'), sentence)
+  if (extraEntries.length > 0) {
+    writeFileSync(
+      join(dir, 'tools/deferrals.json'),
+      JSON.stringify({ deferrals: [...shippedLedger.deferrals, ...extraEntries] }),
+    )
+  }
+  return dir
+}
+
+const LIVE_070 = { harnessVersion: '0.7.0', baseVersion: '0.7.0', files: {} }
+
+test('DEFERRAL RED: an ARRIVED target reds naming the entry, both versions, and the two legitimate moves', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.6.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.6.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /entry 'custom-scale-census' committed to 0\.6\.0 and this install runs harness 0\.7\.0/)
+  assert.match(r.out, /has ARRIVED/)
+  assert.match(r.out, /move the date to a release you mean in a reviewed diff/)
+})
+
+test('DEFERRAL GREEN: the same sentence with a FUTURE target is a ledgered plan, not a finding', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.8.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.8.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /dated deferral\(s\) ledgered over \d+ owned prose surface\(s\)/)
+})
+
+test('DEFERRAL RED: a dated sentence with NO ledger entry is a plan nothing reads', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/check-custom-lane\.mjs:1 defers something to 0\.9\.0/)
+  assert.match(r.out, /has no entry for this file at that target/)
+})
+
+test('DEFERRAL RED: a ledger entry whose file dropped the sentence is a second stale doctrine', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// an ordinary comment with no dated promise in it\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /entry 'custom-scale-census' says tools\/check-custom-lane\.mjs defers to 0\.9\.0/)
+  assert.match(r.out, /no longer carries that dated sentence/)
+})
+
+test('DEFERRAL RED: a reason under 40 characters is not a review', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.9.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: 'too short',
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /'reason' must carry at least 40 characters/)
+})
+
+test('DEFERRAL: with NO manifest the arrival check SAYS it is not judging — the closure still runs', () => {
+  // The template dev tree and every gate fixture: no .harness/manifest.json, so there is
+  // no installed release to measure an arrival against. Defined rather than inherited,
+  // exactly like the tiers Target NOTE — and the sentence<->ledger closure is NOT version
+  // arithmetic, so it stays live: the stale-entry case must red even here.
+  const quiet = runGate(deferralFixture({}))
+  assert.equal(quiet.code, 0, quiet.out)
+  assert.match(quiet.out, /deferral targets in tools\/deferrals\.json are not judged for arrival/)
+
+  const stale = runGate(
+    deferralFixture({
+      sentence: '// an ordinary comment with no dated promise in it\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+    }),
+  )
+  assert.equal(stale.code, 1, stale.out)
+  assert.match(stale.out, /no longer carries that dated sentence/)
+})
+
+test('DEFERRAL RAMP: findings are dated NOTEs on a pre-0.7.0 install, and the escape expires at 0.8.0', () => {
+  // An install whose own tools/*.mjs carry dated prose gets one release to ledger or
+  // re-word it rather than a red on the update that shipped the scanner.
+  const noted = runGate(
+    deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
+      manifest: { harnessVersion: '0.7.0', baseVersion: '0.6.0', files: {} },
+    }),
+  )
+  assert.equal(noted.code, 0, noted.out)
+  assert.ok(noted.out.includes('expires in 0.8.0'), `the NOTE must carry its deadline:\n${noted.out}`)
+  assert.match(noted.out, /NOTE — \(ramp\).*has no entry for this file at that target/)
+
+  // At harness 0.8.0 the escape is over — and the SHIPPED re-deferral (target 0.8.0) has
+  // arrived with it, which is the whole point: the date cannot roll silently again.
+  const expired = runGate(
+    deferralFixture({
+      manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0', files: {} },
+    }),
+  )
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /RAMP EXPIRED/)
+  assert.match(expired.out, /entry 'auth-posture-cli-census' committed to 0\.8\.0/)
+})
+
+test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
+  // The anti-regression for the 0.7.0 prose sweep: the shipped catalog says the CLI census
+  // is deferred with the LEDGER's target. Rewinding the sentence to the previous release's
+  // date reds forward (a dated sentence at a target no entry carries) AND backward (the
+  // entry's file no longer carries ITS sentence) — the sweep cannot quietly un-happen.
+  const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
+  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.7.0')
+  assert.notEqual(refrozen, shippedCatalog, 'the catalog must carry the ledgered sentence')
+  const r = runGate(deferralFixture({ catalog: refrozen, manifest: LIVE_070 }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.7\.0/)
+  assert.match(r.out, /no longer carries that dated sentence/)
 })

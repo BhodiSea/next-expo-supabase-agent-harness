@@ -15,9 +15,14 @@
 // build-tool-subtree exemptions, banner-tolerant JSON parse). W8: apps/server dropped from
 // this lineage — the version machinery now targets apps/web (independent cadence, major-
 // bounded) and @app/api instead.
+// 0.7.0 adds the iOS BUILD-TOOLCHAIN floor to the static half: the production profile's
+// ios.image, resolved through the eas.json `extends` chain, must be a CONCRETE name whose
+// -xcode-<major> meets the reviewed tools/store-policy.json#iosToolchain floor — absent and
+// alias pins (auto/latest/sdk-NN) red as unverifiable, ramped 0.7.0 → until 0.8.0 for
+// pre-0.7.0 installs. Facts: design/CONFORMANCE-FACTS.md §3.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { test } from 'node:test'
@@ -26,6 +31,18 @@ import { fileURLToPath } from 'node:url'
 const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-version-sync.mjs', import.meta.url),
 )
+const TEMPLATE_EAS = fileURLToPath(
+  new URL('../../template/stack/apps/mobile/eas.json', import.meta.url),
+)
+// The SHIPPED reviewed floor record — the green fixtures ride it so they can only be green
+// while the template actually carries the iosToolchain record the tier-row probe names.
+const shippedStorePolicy = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../template/base/tools/store-policy.json', import.meta.url)),
+    'utf8',
+  ),
+)
+const PINNED_IMAGE = 'macos-tahoe-26.5-xcode-26.6'
 
 const versionCode = (v) => {
   const [maj = 0, min = 0, pat = 0] = v.split('.').map(Number)
@@ -55,7 +72,8 @@ const EXACT_CATALOG = [
 /**
  * @param {{ version?: string, mobileVersion?: string, webVersion?: string,
  *   apiVersion?: string, packageManager?: string, nvmrc?: string, nodeVersion?: string,
- *   enginesNode?: string, eas?: Record<string, unknown>, workspace?: string }} [knobs]
+ *   enginesNode?: string, eas?: Record<string, unknown>, workspace?: string,
+ *   storePolicy?: Record<string, unknown>, manifest?: Record<string, unknown> }} [knobs]
  */
 function fixture({
   version = '1.2.3',
@@ -68,6 +86,8 @@ function fixture({
   enginesNode,
   eas,
   workspace,
+  storePolicy,
+  manifest,
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-versionsync-'))
   const root = { name: 'root', private: true }
@@ -105,8 +125,32 @@ function fixture({
   if (nvmrc !== undefined) writeFileSync(join(dir, '.nvmrc'), nvmrc)
   if (nodeVersion !== undefined) writeFileSync(join(dir, '.node-version'), nodeVersion)
   if (workspace !== undefined) writeFileSync(join(dir, 'pnpm-workspace.yaml'), workspace)
+  // The reviewed toolchain floor (tools/store-policy.json) and the install record the
+  // 0.7.0 ramp reads — both written only when set, like every other knob.
+  if (storePolicy !== undefined) {
+    mkdirSync(join(dir, 'tools'), { recursive: true })
+    writeFileSync(join(dir, 'tools/store-policy.json'), JSON.stringify(storePolicy))
+  }
+  if (manifest !== undefined) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
+  }
   return dir
 }
+
+// eas.json with a production profile extending base: the image (when given) rides the
+// PRODUCTION profile, which is what the toolchain floor resolves through the extends chain.
+/** @param {string} [image] */
+const easWith = (image) => ({
+  build: {
+    base: { node: '22.14.0', pnpm: '11.11.0' },
+    production: {
+      extends: 'base',
+      autoIncrement: false,
+      ...(image === undefined ? {} : { ios: { image } }),
+    },
+  },
+})
 
 // Arm the RESOLVED half: node_modules present plus a fake `pnpm` on PATH (sh + .cmd twin
 // for Windows) serving canned `expo config` / `pnpm list -r … zod` output. The canned
@@ -229,7 +273,10 @@ function greenFixture(version = '1.2.3', overrides = {}) {
     nvmrc: '22\n',
     nodeVersion: '22\n',
     enginesNode: '>=22',
-    eas: { build: { base: { node: '22.14.0', pnpm: '11.11.0' } } },
+    // 0.7.0: green now REQUIRES the toolchain floor to be satisfiable — a pinned
+    // -xcode->=26 production image plus the shipped reviewed floor record.
+    eas: easWith(PINNED_IMAGE),
+    storePolicy: shippedStorePolicy,
     workspace: EXACT_CATALOG,
     ...overrides.fixture,
   })
@@ -547,6 +594,156 @@ test('react walk failure: loud NOTE locally, red in CI — the invariant never s
   const c = runGate(ci.dir, { bin: ci.bin, ci: true })
   assert.equal(c.code, 1, c.out)
   assert.ok(c.out.includes('cannot verify the single-React-instance invariant'), c.out)
+})
+
+// ── the iOS build-toolchain floor (0.7.0, static half; design/CONFORMANCE-FACTS.md §3) ──
+// Apple requires uploads to build against Xcode 26 / iOS 26 SDK or later (in force since
+// 2026-04-28, a FIXED floor). Only a concrete pinned image name is statically checkable, so
+// absent and alias pins red rather than read green — a check that passes an unpinned
+// profile passes every profile.
+
+/**
+ * A static-half fixture whose every OTHER check is green, so a toolchain red is
+ * attributable to the toolchain half alone.
+ * @param {{ image?: string, storePolicy?: Record<string, unknown>,
+ *   manifest?: Record<string, unknown> }} [knobs]
+ */
+const toolchainFixture = ({ image, storePolicy = shippedStorePolicy, manifest } = {}) =>
+  fixture({
+    nodeVersion: '22\n',
+    nvmrc: '22\n',
+    packageManager: 'pnpm@11.11.0',
+    eas: easWith(image),
+    storePolicy,
+    manifest,
+  })
+
+test('RED: no ios.image on the production profile (nor via extends) — no pin means nothing can red', () => {
+  const r = runGate(toolchainFixture())
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('pins no ios.image on the production profile'), r.out)
+  assert.ok(r.out.includes('no pin means nothing can red'), r.out)
+})
+
+test('RED: auto / latest / sdk-52 are UNVERIFIABLE aliases — none may read as green', () => {
+  for (const image of ['auto', 'latest', 'sdk-52']) {
+    const r = runGate(toolchainFixture({ image }))
+    assert.equal(r.code, 1, `${image} must red\n${r.out}`)
+    assert.ok(r.out.includes(`"${image}"`), r.out)
+    assert.ok(r.out.includes('UNVERIFIABLE'), r.out)
+    assert.ok(r.out.includes('must not read as green'), r.out)
+  }
+})
+
+test('RED: an image below the floor names both majors, the in-force date and the source', () => {
+  const r = runGate(toolchainFixture({ image: 'macos-sonoma-14.5-xcode-25.1' }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('builds with Xcode 25, below the floor of 26'), r.out)
+  assert.ok(r.out.includes('2026-04-28'), r.out)
+  assert.ok(r.out.includes('developer.apple.com'), r.out)
+})
+
+test('GREEN: -xcode-26.0 meets the floor — the static half stays silent about the toolchain', () => {
+  const r = runGate(toolchainFixture({ image: 'macos-sequoia-15.6-xcode-26.0' }), { ci: false })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('SKIPPED'), r.out)
+  assert.ok(!r.out.includes('ios.image'), r.out)
+})
+
+test('RED: a store-policy.json without the iosToolchain record reds while eas.json exists', () => {
+  // A floor nobody reviewed: the file is harness-owned, so a missing record is a stale or
+  // tampered tree — even a fully-pinned image cannot green over it.
+  const unfloored = { ...shippedStorePolicy }
+  delete unfloored.iosToolchain
+  const r = runGate(toolchainFixture({ image: PINNED_IMAGE, storePolicy: unfloored }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('carries no iosToolchain record'), r.out)
+})
+
+test('RAMP: a pre-0.7.0 baseVersion install gets dated NOTEs naming the 0.8.0 deadline, not reds', () => {
+  // Seeded eas.json is the consumer's file, so the floor arrives as a ramp: findings are
+  // withheld as NOTEs until 0.8.0 (the seededSourceFixes channel carries the pin itself).
+  const r = runGate(
+    toolchainFixture({ manifest: { baseVersion: '0.6.0', harnessVersion: '0.7.0', files: {} } }),
+    { ci: false },
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('the iOS build-toolchain floor over eas.json'), r.out)
+  assert.ok(r.out.includes('expires in 0.8.0'), r.out)
+  assert.ok(r.out.includes('(ramp)'), r.out)
+  assert.ok(r.out.includes('no pin means nothing can red'), r.out)
+})
+
+test('RAMP: a 0.7.0 baseVersion install is LIVE — the identical tree reds', () => {
+  const r = runGate(
+    toolchainFixture({ manifest: { baseVersion: '0.7.0', harnessVersion: '0.7.0', files: {} } }),
+    { ci: false },
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('no pin means nothing can red'), r.out)
+  assert.ok(!r.out.includes('(ramp)'), r.out)
+})
+
+test('REAL TREE: the shipped eas.json pin + the shipped store-policy floor satisfy the shipped gate', () => {
+  // The discharge must be sufficient, not plausible: the template's own production profile
+  // is judged against the template's own reviewed record, byte-for-byte as shipped.
+  const realEas = JSON.parse(readFileSync(TEMPLATE_EAS, 'utf8'))
+  const r = runGate(
+    fixture({
+      nodeVersion: '22\n',
+      nvmrc: '22\n',
+      packageManager: 'pnpm@11.11.0',
+      eas: realEas,
+      storePolicy: shippedStorePolicy,
+    }),
+    { ci: false },
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('SKIPPED'), r.out)
+  assert.ok(!r.out.includes('ios.image'), r.out)
+  assert.ok(!r.out.includes('iosToolchain'), r.out)
+})
+
+test('DOCS-SYNC at 0.7.0: the version-sync Target discharges through the iosToolchain probe', () => {
+  // Assembled the way tests/gates/check-docs-sync.test.mjs builds tiersFixture({ allTools,
+  // allWorkflows }): the REAL tools/ (this gate referencing iosToolchain on a non-comment
+  // line + the shipped store-policy.json carrying the record), the real roster, catalog,
+  // tiers table, security docs and workflows, and a manifest at 0.7.0 so the row's Target
+  // has ARRIVED. Before this item the row carried a plain `0.7.0` and this exact run red
+  // with "STILL scans one product surface" — a floor changes no scan root, which is why
+  // the row now declares its evidence via the `closes:` probe instead.
+  const base = fileURLToPath(new URL('../../template/base', import.meta.url))
+  const dir = mkdtempSync(join(tmpdir(), 'epah-versionsync-docs-'))
+  cpSync(join(base, 'tools'), join(dir, 'tools'), { recursive: true })
+  cpSync(join(base, '.claude/agents'), join(dir, '.claude/agents'), { recursive: true })
+  cpSync(join(base, 'github/workflows'), join(dir, '.github/workflows'), { recursive: true })
+  mkdirSync(join(dir, 'docs/harness'), { recursive: true })
+  cpSync(join(base, 'docs/harness/gates-catalog.md'), join(dir, 'docs/harness/gates-catalog.md'))
+  cpSync(
+    join(base, 'docs/harness/enforcement-tiers.md'),
+    join(dir, 'docs/harness/enforcement-tiers.md'),
+  )
+  cpSync(join(base, 'docs/security'), join(dir, 'docs/security'), { recursive: true })
+  cpSync(join(base, 'AGENTS.md'), join(dir, 'AGENTS.md'))
+  writeFileSync(join(dir, 'CLAUDE.md'), '@AGENTS.md\n')
+  const scripts = JSON.parse(
+    readFileSync(join(base, 'package.json.tmpl'), 'utf8').replace(/\{\{[A-Z0-9_]+\}\}/g, 'x'),
+  ).scripts
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts }))
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.7.0', harnessVersion: '0.7.0', files: {} }),
+  )
+  const res = spawnSync('node', ['tools/check-docs-sync.mjs'], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CI: 'true' },
+  })
+  const out = `${res.stdout ?? ''}${res.stderr ?? ''}`
+  assert.equal(res.status, 0, out)
+  assert.match(out, /every arrived Target discharged/)
+  assert.doesNotMatch(out, /gate `version-sync`/)
 })
 
 // ── content-addressed stamp: kills both subprocesses on a warm unchanged run ──────

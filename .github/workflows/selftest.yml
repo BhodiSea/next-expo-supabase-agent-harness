@@ -792,27 +792,9 @@ jobs:
       # WHICH step moved, and it reds on a chain step nobody budgeted.
       - name: Chain budget (per-step ceilings, from scripts/chain-budget.json)
         run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log
-      # RECORDING the measurement, which until 0.6.0 nothing could do. chain-budget.json's
-      # header prescribes "measure, commit the measurement, then publish — in that order",
-      # and step one had no implementation: the check above judged the numbers against
-      # ceilings and discarded them, so measuredMs has been null since the file was added
-      # and README.md carries no wall-clock figure because of it.
-      #
-      # DISPATCH-ONLY, and deliberately not on every push. A recorded measurement is
-      # REVIEWED DATA — its whole value is that a human looked at the number and the runner
-      # it came from before it licensed a published claim. Writing it automatically on every
-      # green run would turn it into a number nobody chose, which is the state it is meant
-      # to replace. Run the workflow by hand, download the artifact, commit it.
-      - name: Record the measurement (workflow_dispatch only — reviewed data, not a side effect)
-        if: github.event_name == 'workflow_dispatch'
-        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log --record
-      - name: Upload the recorded chain budget for review
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: chain-budget-measured
-          path: scripts/chain-budget.json
-          if-no-files-found: error
+      # (0.7.0: the dispatch-only measurement recording moved BELOW the Stop-chain budget
+      # step — the stop-chain log exists only once the Supabase stack is live, and one
+      # upload must carry BOTH stamps in the same reviewed artifact.)
       - name: Warm-lane positive control — the e2e stamp engaged (skipped the jest re-run)
         working-directory: .selftest/boot
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
@@ -893,6 +875,70 @@ jobs:
           test -f apps/mobile/coverage/coverage-final.json \
             || { echo '::error::jest-expo wrote no coverage map — the mobile-unit step did not actually run'; exit 1; }
           echo 'stop chain OK: the union ran end-to-end via the real hook (rls live, both coverage maps written, reviewer-verdicts executed, ledger green)'
+      # W7: the Stop chain's COST, captured where the chain can actually run — the stack
+      # is live (rls-isolation), stamps are warm (the cold --min-floor run recorded them;
+      # CI=false keeps them engaged), so this measures the turn-end latency an agent
+      # actually waits through, not the fail-closed CI shape the hook e2e above just
+      # proved. `validate --stop-chain` resolves the SAME floor∪config union the hook
+      # runs (one lib, two callers) and shares the VALIDATE_TIMINGS emitter — which is
+      # the whole reason this is a dedicated run rather than a tee of the hook e2e: the
+      # hook does not emit timings, so its log can prove the chain green but can never
+      # name the step that got slower. Synthetic turn identity so reviewer-verdicts
+      # EXECUTES with owed=[] (a skip's timing budgets nothing). pipefail is
+      # LOAD-BEARING: --report-all runs every member even when one reds, so notRun stays
+      # 0 and the exit code is the only red signal — tee must not launder it.
+      - name: Stop-chain timings (validate --stop-chain --report-all, stamped, stack live)
+        working-directory: .selftest/boot
+        env:
+          CI: 'false'
+          HARNESS_REQUIRE_TOOLCHAINS: ''
+          HARNESS_SESSION_ID: selftest-stop-budget
+          HARNESS_PROMPT_ID: selftest-stop-budget
+        run: |
+          set -o pipefail
+          # env -u GITHUB_BASE_REF: the scaffold is a different repo — see THE GATE above.
+          env -u GITHUB_BASE_REF node tools/validate.mjs --stop-chain --report-all 2>&1 | tee stop-chain.log
+          {
+            echo '### Stop chain (stamped) — per-step ms'
+            echo '```'
+            grep -E '^  ' stop-chain.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The Stop half of the budget (stopSteps/stopWall in scripts/chain-budget.json).
+      # `validate` is deliberately rowless there — its cost IS the `wall` row, judged
+      # above on the warm-validate log — and the row closure covers the floor∪config
+      # union, so a future injected Stop step forces a budget row exactly like a validate
+      # step does today.
+      - name: Stop-chain budget (stopSteps ceilings, from scripts/chain-budget.json)
+        run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --stop-chain
+      # RECORDING the measurement, which until 0.6.0 nothing could do. chain-budget.json's
+      # header prescribes "measure, commit the measurement, then publish — in that order",
+      # and step one had no implementation: the check above judged the numbers against
+      # ceilings and discarded them, so measuredMs has been null since the file was added
+      # and README.md carries no wall-clock figure because of it.
+      #
+      # DISPATCH-ONLY, and deliberately not on every push. A recorded measurement is
+      # REVIEWED DATA — its whole value is that a human looked at the number and the runner
+      # it came from before it licensed a published claim. Writing it automatically on every
+      # green run would turn it into a number nobody chose, which is the state it is meant
+      # to replace. Run the workflow by hand, download the artifact, commit it.
+      - name: Record the measurement (workflow_dispatch only — reviewed data, not a side effect)
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log --record
+      # The Stop half rides the SAME reviewed-dispatch path: both writers stamp the same
+      # scripts/chain-budget.json (each preserves the other's surface — the stop writer
+      # never touches wall/steps/measurement and vice versa), so the one artifact below
+      # carries both stamps for one human review.
+      - name: Record the Stop-chain measurement (workflow_dispatch only — same reviewed-dispatch path)
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --record --stop-chain
+      - name: Upload the recorded chain budget for review
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chain-budget-measured
+          path: scripts/chain-budget.json
+          if-no-files-found: error
       # W6 armed (the registry-level PORT NOTE retired with it): the source
       # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
       # looking at the DAL's real SQL, not a statement nobody runs.

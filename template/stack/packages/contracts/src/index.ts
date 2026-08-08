@@ -417,3 +417,118 @@ export const HealthReport = z.object({
   version: z.string().min(1).max(VERSION_MAX),
 })
 export type HealthReport = z.infer<typeof HealthReport>
+
+// ---------------------------------------------------------------------------
+// Data export — the DSR portability surface (`system.exportMyData`).
+//
+// These shapes are the WIRE form of the reviewed projection in
+// tools/data-flow.json `export.projection` — profiles, memberships and notes,
+// exactly the columns a human reviewed there and no more. The projection file
+// is the authority; these schemas are how it crosses the wire, so a column
+// added to one without the other is a drift the export test suite catches.
+// SOURCE: docs/runbooks/data-subject-requests.md (Art. 20 — the portability half)
+// ---------------------------------------------------------------------------
+
+/**
+ * The unconditional LIMIT on the memberships read. A person's seat list is
+ * small by nature (tens, not thousands), but the API doctrine admits no
+ * unbounded read whatever the caller's expectations — 200 is an order of
+ * magnitude past any real seat count while staying well under the PostgREST
+ * `[api].max_rows` ceiling (1000), past which rows are truncated SILENTLY.
+ * The honest limit: a subject holding more seats than this sees the first 200
+ * (ordered by org id); the runbook records it beside the procedure.
+ */
+export const EXPORT_MEMBERSHIPS_LIMIT = 200
+
+/**
+ * The export page cursor is a COMPOUND token — the org being walked plus the
+ * notes keyset within it (see @app/notes `encodeNotesExportCursor`) — so it is
+ * roughly an org id longer than the plain notes cursor. 512 bounds it with the
+ * same headroom ratio NOTES_CURSOR_MAX gives the inner token.
+ * SOURCE: opaque page tokens per Google AIP-158 https://google.aip.dev/158
+ */
+export const EXPORT_CURSOR_MAX = 512
+
+/**
+ * The subject's own profiles row. `displayName` has NO min(1), unlike
+ * ActorView's: the column default is '' and an export must return the stored
+ * value verbatim, not fail to parse the account of someone who never set one.
+ */
+export const ProfileExport = z.object({
+  createdAt: WireTimestamp,
+  displayName: z.string().max(DISPLAY_NAME_MAX),
+  id: z.uuid(),
+  updatedAt: WireTimestamp,
+})
+export type ProfileExport = z.infer<typeof ProfileExport>
+
+/**
+ * One seat, as the reviewed projection returns it: the subject's RELATIONSHIP
+ * to an org, which is exported precisely because the org row itself is not
+ * (see tools/data-flow.json export.excluded — the org is another controller's
+ * record).
+ */
+export const MembershipExport = z.object({
+  createdAt: WireTimestamp,
+  // eslint-disable-next-line local/org-id-from-session-only -- OUTPUT attribution, not an input field: this is a row the server READ BACK for the subject's archive, naming which org the seat is in (the reviewed export.projection's memberships.org_id). The rule's target is payload fields flowing INTO handlers; nothing parses this shape off a request.
+  orgId: z.uuid(),
+  /** Mirrors memberships_rank_known CHECK (role_rank IN (10,20,30,40)) — the tenancy ladder, closed like OrgRole. */
+  roleRank: z.number().int().min(10).max(40),
+  userId: z.uuid(),
+})
+export type MembershipExport = z.infer<typeof MembershipExport>
+
+/**
+ * One authored note in the export projection. Field bounds are BORROWED from
+ * NoteRecord so the two cannot drift; `orgId` rides along because the export
+ * spans every org the subject can still read, and a note with no tenant would
+ * be unattributable in the archive. Archived notes are included — an export is
+ * about completeness, not about what a working list shows.
+ */
+export const ExportedNote = z.object({
+  body: NoteRecord.shape.body,
+  createdAt: WireTimestamp,
+  id: z.uuid(),
+  // eslint-disable-next-line local/org-id-from-session-only -- OUTPUT attribution, same reading as MembershipExport.orgId above: the reviewed export.projection names notes.org_id, and this schema is that projection's wire form, never a request input.
+  orgId: z.uuid(),
+  title: NoteRecord.shape.title,
+  updatedAt: WireTimestamp,
+})
+export type ExportedNote = z.infer<typeof ExportedNote>
+
+/** One page of authored notes plus the compound cursor for the next. */
+export const ExportedNotesPage = z.object({
+  items: z.array(ExportedNote).max(NOTES_PAGE_LIMIT_MAX),
+  nextCursor: z.string().min(1).max(EXPORT_CURSOR_MAX).nullable(),
+})
+export type ExportedNotesPage = z.infer<typeof ExportedNotesPage>
+
+/**
+ * One page of the export. Profile and memberships repeat on every page —
+ * they are small, and a page that is complete on its own can be handed over
+ * without stitching; notes are the unbounded half and carry the cursor.
+ */
+export const DataExportPage = z.object({
+  memberships: z.array(MembershipExport).max(EXPORT_MEMBERSHIPS_LIMIT),
+  notes: ExportedNotesPage,
+  profile: ProfileExport,
+})
+export type DataExportPage = z.infer<typeof DataExportPage>
+
+/**
+ * The input. NOTE THE ABSENCE, same law as every input in this file: no org
+ * field. Which org a page reads from is carried INSIDE the opaque cursor and
+ * is resolved server-side against the caller's real seats before it means
+ * anything — a cursor naming an org the caller no longer holds simply resumes
+ * at their next held org.
+ */
+export const ExportMyDataSchema = z.object({
+  cursor: z
+    .string()
+    .min(1)
+    .max(EXPORT_CURSOR_MAX)
+    .regex(/^[A-Za-z0-9_-]+$/) // base64url alphabet — anything else is not our token
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(NOTES_PAGE_LIMIT_MAX).default(NOTES_PAGE_LIMIT_DEFAULT),
+})
+export type ExportMyDataSchema = z.infer<typeof ExportMyDataSchema>

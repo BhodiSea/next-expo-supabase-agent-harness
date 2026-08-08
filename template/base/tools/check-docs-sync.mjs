@@ -862,8 +862,182 @@ if (existsSync(SANDBOX_DOC) && existsSync(BUILD_GATE)) {
   sandboxSummary = `${SANDBOX_DOC} states the build gate's surfaces in lockstep with ${BUILD_GATE} (web mode ${hasWebMode ? 'present' : 'absent'})`
 }
 
+// ── 9. THE DEFERRAL LEDGER (0.7.0) — every dated sentence gets one machine-read home ──
+//
+// Prose in the OWNED surfaces makes dated promises, and until this release nothing read
+// them. Three sites carried the SAME promise about the auth-posture CLI census into the
+// very release it named — each internally consistent, none machine-read, so the date
+// rolled past while still reading as a plan. A fourth sentence froze a scoping decision
+// at a release four versions gone. The Target column in docs/harness/enforcement-tiers.md
+// got its reader above (0.5.0, plus the `closes:` probe); this is the same control for
+// every OTHER dated deferral sentence in the harness's prose.
+//
+// The universe is a DECLARED list — the catalog, the top-level tools/*.mjs gate scripts,
+// and tools/auth-posture.json — never an open scan (an open scan of prose would drown in
+// historical sentences and be turned off within a release). enforcement-tiers.md is
+// excluded because its Target column has its own reader above; SEEDED files are excluded
+// because a consumer's prose is not the harness's to red (tools/data-flow.json's export
+// target has its own enforcement in check-data-flow.mjs). Two sentence shapes are read,
+// `\s+`-joined because markdown hard-wraps: the four-releases-stale scoping line carried
+// its own date on the NEXT line, which is exactly how a per-line reader would miss it.
+//
+// Closure BOTH ways against tools/deferrals.json, in the house style: a dated sentence
+// with no ledger entry for its file is a plan nothing reads and it reds; a ledger entry
+// whose file no longer carries the sentence is a second stale doctrine and it reds; and
+// an entry whose target this install has REACHED reds until the author ships the check
+// or moves the date. The ledger is harness-owned and git-clean-enforced by
+// check-gate-integrity's tools/ surface, so moving a date is a deliberate act that
+// appears in the PR diff — which is what makes the recorded re-deferral honest.
+const LEDGER = 'tools/deferrals.json'
+let deferralSummary = `${LEDGER} absent (pre-0.7.0 install)`
+{
+  const defErrs = []
+  /** @type {Array<{id: string, files: string[], target: string}>} */
+  const entries = []
+  if (existsSync(LEDGER)) {
+    let raw
+    try {
+      raw = JSON.parse(readFileSync(LEDGER, 'utf8'))
+    } catch (e) {
+      defErrs.push(
+        `${LEDGER} is not valid JSON (${e.message}) — an unreadable ledger fails CLOSED rather than un-dating every deferral; restore it from git history`,
+      )
+    }
+    if (raw !== undefined && !Array.isArray(raw.deferrals)) {
+      defErrs.push(
+        `${LEDGER} has no \`deferrals\` array — a ledger with no readable entries un-dates every deferral; restore it from git history`,
+      )
+    }
+    const seen = new Set()
+    for (const row of Array.isArray(raw?.deferrals) ? raw.deferrals : []) {
+      const id = typeof row?.id === 'string' && row.id.trim() !== '' ? row.id.trim() : null
+      const files =
+        typeof row?.file === 'string' ? [row.file] : Array.isArray(row?.file) ? row.file : []
+      const shapeErrs = []
+      if (id === null) shapeErrs.push("no usable 'id'")
+      else if (seen.has(id)) shapeErrs.push(`duplicate id '${id}'`)
+      if (files.length === 0 || files.some((f) => typeof f !== 'string' || f.trim() === '')) {
+        shapeErrs.push(
+          "'file' must be one path or a non-empty array of paths (an array when one decision is stated at several sites)",
+        )
+      }
+      if (typeof row?.target !== 'string' || !/^\d+\.\d+\.\d+$/.test(row.target)) {
+        shapeErrs.push(
+          "'target' must be a release (x.y.z) — a target nothing can compare is a deadline with no date",
+        )
+      }
+      if (typeof row?.reason !== 'string' || row.reason.trim().length < 40) {
+        shapeErrs.push(
+          "'reason' must carry at least 40 characters — an unreasoned deferral is not a review",
+        )
+      }
+      if (typeof row?.reviewedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.reviewedOn)) {
+        shapeErrs.push(
+          "'reviewedOn' must be a YYYY-MM-DD date — an undated review cannot go stale visibly",
+        )
+      }
+      if (shapeErrs.length > 0) {
+        defErrs.push(
+          `${LEDGER}: entry ${JSON.stringify(id ?? row?.id ?? '?')}: ${shapeErrs.join('; ')}`,
+        )
+        continue
+      }
+      seen.add(id)
+      entries.push({ id, files, target: row.target })
+    }
+  }
+
+  const SENTENCES = [
+    /\b[Dd]eferred\s+(?:to|until)\s+v?(\d+\.\d+\.\d+)/g,
+    /\bout\s+of\s+scope\s+for\s+v?(\d+\.\d+\.\d+)/g,
+  ]
+  const surfaces = [
+    CATALOG,
+    'tools/auth-posture.json',
+    ...(existsSync('tools')
+      ? readdirSync('tools')
+          .filter((f) => f.endsWith('.mjs'))
+          .sort()
+          .map((f) => `tools/${f}`)
+      : []),
+  ].filter((f) => existsSync(f))
+  /** @type {Map<string, Array<{target: string, line: number}>>} dated sentences per file */
+  const found = new Map()
+  for (const file of surfaces) {
+    const text = readFileSync(file, 'utf8')
+    const hits = []
+    for (const re of SENTENCES) {
+      for (const m of text.matchAll(re)) {
+        hits.push({ target: m[1], line: text.slice(0, m.index).split('\n').length })
+      }
+    }
+    if (hits.length > 0) found.set(file, hits)
+  }
+
+  // FORWARD: a dated sentence with no ledger entry for its file at that exact date.
+  for (const [file, hits] of found) {
+    for (const h of hits) {
+      if (!entries.some((e) => e.files.includes(file) && e.target === h.target)) {
+        defErrs.push(
+          `${file}:${String(h.line)} defers something to ${h.target} but ${LEDGER} has no entry for this file at that target — a dated sentence no machine reads is a plan that can roll past its date while still reading as one (three shipped sites did exactly that). Add the reviewed entry { id, file, target, reason, reviewedOn }, or make the sentence dateless if it states a permanent scoping CONDITION rather than a plan.`,
+        )
+      }
+    }
+  }
+
+  // BACKWARD and ARRIVAL, per entry. Arrival is judged against harnessVersion — the same
+  // authority as every other deadline here — and with no manifest it SAYS so rather than
+  // passing silently, because the template dev tree is where stale dates get written.
+  const deferralRunning = installedHarnessVersion(GATE)
+  if (deferralRunning === null && entries.length > 0) {
+    console.log(
+      `${GATE}: NOTE — no .harness/manifest.json, so the deferral targets in ${LEDGER} are not judged for arrival (there is no installed release to compare them against); the sentence↔ledger closure still ran. tests/gates/check-docs-sync.test.mjs holds the arrival case in the harness's own tree.`,
+    )
+  }
+  for (const e of entries) {
+    const existing = e.files.filter((f) => existsSync(f))
+    if (existing.length === 0) {
+      defErrs.push(
+        `${LEDGER}: entry '${e.id}' names only file(s) the tree does not carry (${e.files.join(', ')}) — a ledger row that outlives its prose is a second stale doctrine; delete the entry in the same diff that removed the file(s).`,
+      )
+    }
+    for (const f of existing) {
+      if (!(found.get(f) ?? []).some((h) => h.target === e.target)) {
+        defErrs.push(
+          `${LEDGER}: entry '${e.id}' says ${f} defers to ${e.target}, but the file no longer carries that dated sentence — a ledger row that outlives its prose is a second stale doctrine, the exact failure the doctrine token map ended for symbols. Delete or re-date the entry in the same diff that changed the sentence.`,
+        )
+      }
+    }
+    if (deferralRunning !== null && cmpDotted(deferralRunning, e.target) >= 0) {
+      defErrs.push(
+        `${LEDGER}: entry '${e.id}' committed to ${e.target} and this install runs harness ${deferralRunning} — the deferral has ARRIVED. Ship the deferred check and delete the sentence + entry, or move the date to a release you mean in a reviewed diff — the ledger is harness-owned and git-clean-enforced, so moving it is a deliberate act rather than a flag.`,
+      )
+    }
+  }
+
+  if (existsSync(LEDGER)) {
+    deferralSummary = `${String(entries.length)} dated deferral(s) ledgered over ${String(surfaces.length)} owned prose surface(s), sentence↔ledger closed both ways`
+  }
+  if (defErrs.length > 0) {
+    // Ramped like every new check on an existing gate: the scanned subjects are owned
+    // files shipped in lockstep with this code, so a fresh install cannot red here — but
+    // an install whose own tools/*.mjs carry dated prose gets one release to ledger or
+    // re-word it rather than a red on the update that shipped the scanner.
+    if (
+      rampNote(GATE, '0.7.0', 'the deferral ledger over the owned prose surfaces', {
+        until: '0.8.0',
+      })
+    ) {
+      for (const e of defErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      deferralSummary = `deferral ledger NOTE-only (${String(defErrs.length)} finding(s) withheld by the 0.7.0 ramp)`
+    } else {
+      errs.push(...defErrs)
+    }
+  }
+}
+
 failures(GATE, errs)
 ok(
   GATE,
-  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}; ${sandboxSummary}`,
+  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}; ${sandboxSummary}; ${deferralSummary}`,
 )

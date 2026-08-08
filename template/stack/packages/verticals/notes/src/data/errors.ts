@@ -22,7 +22,7 @@ import { NOTES_TABLE } from './rows.js'
 // ---------------------------------------------------------------------------
 
 /** What the caller was doing. Appears in developer-facing messages and codes only. */
-export type NoteOperation = 'create' | 'delete' | 'list' | 'read' | 'update'
+export type NoteOperation = 'create' | 'delete' | 'export' | 'list' | 'read' | 'update'
 
 // ---------------------------------------------------------------------------
 // SQLSTATE classes and PostgREST codes.

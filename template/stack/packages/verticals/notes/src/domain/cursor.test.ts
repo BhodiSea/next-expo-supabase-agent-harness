@@ -1,6 +1,18 @@
-import { NOTES_CURSOR_MAX, NotesListQuery } from '@app/contracts'
+import {
+  EXPORT_CURSOR_MAX,
+  ExportMyDataSchema,
+  NOTES_CURSOR_MAX,
+  NotesListQuery,
+} from '@app/contracts'
 import { describe, expect, it } from 'vitest'
-import { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from './cursor.js'
+import {
+  decodeNotesCursor,
+  decodeNotesExportCursor,
+  encodeNotesCursor,
+  encodeNotesExportCursor,
+  type NoteCursor,
+  type NotesExportCursor,
+} from './cursor.js'
 
 const KEY: NoteCursor = {
   createdAt: '2026-01-01T00:00:00.123456+00:00',
@@ -196,5 +208,43 @@ describe('length + codec guards each reject on their own, not by luck downstream
     expect(() =>
       encodeNotesCursor({ ...KEY, createdAt: '2026-01-01T00:00:00Z2026-01-01T00:00:00Z' }),
     ).toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The EXPORT cursor — the compound token, held to the same strictness.
+// ---------------------------------------------------------------------------
+
+describe('the export cursor codec', () => {
+  const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+  const START: NotesExportCursor = { note: null, orgId: ORG_ID }
+  const MID: NotesExportCursor = { note: encodeNotesCursor(KEY), orgId: ORG_ID }
+
+  it('round-trips both positions: the start of an org and a keyset within one', () => {
+    expect(decodeNotesExportCursor(encodeNotesExportCursor(START))).toEqual(START)
+    expect(decodeNotesExportCursor(encodeNotesExportCursor(MID))).toEqual(MID)
+  })
+
+  it('the inner token is a REAL notes cursor — one codec validates it, not two', () => {
+    const decoded = decodeNotesExportCursor(encodeNotesExportCursor(MID))
+    expect(decoded).not.toBeNull()
+    if (decoded?.note == null) return
+    expect(decodeNotesCursor(decoded.note)).toEqual(KEY)
+  })
+
+  it('emits a token the wire contract accepts, within its own bound', () => {
+    const token = encodeNotesExportCursor(MID)
+    expect(token.length).toBeLessThanOrEqual(EXPORT_CURSOR_MAX)
+    expect(() => ExportMyDataSchema.parse({ cursor: token })).not.toThrow()
+  })
+
+  it('rejects what it did not mint: bad org, smuggled fields, oversize, garbage', () => {
+    expect(() => encodeNotesExportCursor({ note: null, orgId: 'not-a-uuid' })).toThrow()
+    expect(() => encodeNotesExportCursor({ note: 'not base64url!', orgId: ORG_ID })).toThrow()
+    expect(decodeNotesExportCursor('%%%')).toBeNull()
+    expect(decodeNotesExportCursor('A'.repeat(EXPORT_CURSOR_MAX + 1))).toBeNull()
+    // A decoded object with a passenger key is not our token.
+    const smuggled = encodeNotesCursor(KEY) // a NOTES token is not an EXPORT token
+    expect(decodeNotesExportCursor(smuggled)).toBeNull()
   })
 })

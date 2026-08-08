@@ -1,4 +1,11 @@
-import type { NoteDeletion, NoteRecord, NotesPage, NoteView } from '@app/contracts'
+import type {
+  ExportedNote,
+  ExportedNotesPage,
+  NoteDeletion,
+  NoteRecord,
+  NotesPage,
+  NoteView,
+} from '@app/contracts'
 import { type ActionOutcome, type AppError, outcomeErr, outcomeOk } from '@app/errors'
 import { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from '../domain/cursor.js'
 import { normalizeTitle, toNoteView } from '../domain/note.js'
@@ -25,8 +32,15 @@ import {
   type NoteOperation,
   unreadableWrite,
 } from './errors.js'
-import type { NotesDatabase, PostgrestOutcome } from './port.js'
-import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
+import type { NotesDatabase, PostgrestOutcome, PostgrestQuery } from './port.js'
+import {
+  asRowArray,
+  NOTE_COLUMNS,
+  NOTE_EXPORT_COLUMNS,
+  NOTES_TABLE,
+  toExportedNote,
+  toNoteRecord,
+} from './rows.js'
 
 // ---------------------------------------------------------------------------
 // The notes DAL.
@@ -46,8 +60,11 @@ import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
 // enough to be worth spelling out — because the wrong reading of it is how a
 // tenant boundary quietly becomes decorative.
 //
-// EVERY FUNCTION HERE FILTERS BY `org_id`. NO FUNCTION HERE FILTERS BY
-// `owner_id`. Those look like the same kind of statement and are opposites.
+// EVERY FUNCTION HERE FILTERS BY `org_id`. EXACTLY ONE FUNCTION HERE FILTERS
+// BY `owner_id` — `listAuthoredNotes`, the DSR export read — and the carve-out
+// is argued below, because the general rule and its one exception rest on the
+// same test. First the rule. Those look like the same kind of statement and
+// are opposites.
 //
 //   `org_id` is a SELECTOR. Its value originates at the client (the `x-org-id`
 //   header), is resolved server-side against the caller's real memberships
@@ -68,8 +85,22 @@ import { asRowArray, NOTE_COLUMNS, NOTES_TABLE, toNoteRecord } from './rows.js'
 //
 // The test: could this filter be deleted and the database still refuse? For
 // `org_id`, no — and it does not need to, because the policies already refuse
-// the rows it is not narrowing. For `owner_id`, yes — which is exactly why it is
-// absent.
+// the rows it is not narrowing. For `owner_id` restating a policy, yes — which
+// is exactly why the screens' reads never carry it.
+//
+// AND THE ONE EXCEPTION, judged by the same test run in the other direction.
+// `listAuthoredNotes` (the `system.exportMyData` read) filters
+// `owner_id = <the verified actor>`, and deleting THAT filter is not a leak the
+// database would catch — it is an OVER-EXPORT the database would happily serve:
+// the SELECT policy admits every org-mate's notes to this caller, so an
+// unfiltered export would copy the whole org's content into one member's
+// personal archive, exactly the shape tools/data-flow.json export.excluded[]
+// forbids for orgs and invitations. Authored-only is APPLICATION LOGIC — a
+// projection decision about whose data this is, not an authorization
+// derivation — which is why the filter lives in the query, is recorded in
+// tools/data-flow.json's export comment, and carries its own red-proof
+// (packages/api/src/routers/system.export.test.ts) instead of leaning on RLS
+// suites that cannot see it.
 // ---------------------------------------------------------------------------
 
 /**
@@ -153,6 +184,36 @@ function keysetTieBreak(cursor: NoteCursor): string {
 }
 
 /**
+ * Apply the two-predicate seek to a builder — the range half AND the tie-break,
+ * always together. A helper so the split documented above cannot be half-copied
+ * into a new read with only the disjunction, which is the O(page-number) form
+ * nothing else in this file can catch.
+ */
+function applyKeyset(builder: PostgrestQuery, cursor: NoteCursor | null): PostgrestQuery {
+  if (cursor === null) return builder
+  return builder.lte('created_at', cursor.createdAt).or(keysetTieBreak(cursor))
+}
+
+/**
+ * The sentinel-row fold every keyset read shares: limit+1 records in, one page
+ * and the next cursor out. The cursor is minted from the last row ON the page
+ * (not the sentinel), so the next seek resumes strictly after what the caller
+ * has already seen.
+ */
+function pageOf<T extends { readonly createdAt: string; readonly id: string }>(
+  records: readonly T[],
+  limit: number,
+): { items: T[]; nextCursor: string | null } {
+  const items = records.slice(0, limit)
+  const last = items.at(-1)
+  const nextCursor =
+    records.length > limit && last !== undefined
+      ? encodeNotesCursor({ createdAt: last.createdAt, id: last.id })
+      : null
+  return { items, nextCursor }
+}
+
+/**
  * One page of notes, newest first.
  *
  * A sentinel row (limit + 1) is fetched as the has-more probe: cheaper than a
@@ -180,14 +241,11 @@ export async function listNotes(
   // Archived notes are excluded by default: the list is a working surface, and
   // an archive that keeps showing up is not an archive.
   if (!query.includeArchived) builder = builder.is('archived_at', null)
+
   // The range FIRST: it is the half the planner can push into the Index Cond, and
   // sending it separately from the tie-break is what keeps the seek O(1) per page
-  // rather than O(page number). See keysetTieBreak.
-  if (cursor !== null) {
-    builder = builder.lte('created_at', cursor.createdAt).or(keysetTieBreak(cursor))
-  }
-
-  const result = await builder
+  // rather than O(page number). See keysetTieBreak / applyKeyset.
+  const result = await applyKeyset(builder, cursor)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(limit + 1)
@@ -203,14 +261,77 @@ export async function listNotes(
     return outcomeErr(contractDrift('list'))
   }
 
-  const items = records.slice(0, limit)
-  const last = items.at(-1)
-  const nextCursor =
-    records.length > limit && last !== undefined
-      ? encodeNotesCursor({ createdAt: last.createdAt, id: last.id })
-      : null
+  const page = pageOf(records, limit)
+  return outcomeOk({ items: page.items.map(toNoteView), nextCursor: page.nextCursor })
+}
 
-  return outcomeOk({ items: items.map(toNoteView), nextCursor })
+/**
+ * The acting org plus the verified actor — the export read's scope. `actorId`
+ * here is a PROJECTION FILTER (whose data is this archive about), never
+ * authorization; see the header's carve-out for the full argument.
+ */
+export interface AuthoredNoteScope extends NoteScope {
+  readonly actorId: string
+}
+
+/** The export read's inputs: the INNER (per-org) cursor and the page limit. */
+export interface AuthoredNotesQuery {
+  readonly cursor: string | null
+  readonly limit: number
+}
+
+/**
+ * One page of the notes the actor AUTHORED in one org, newest first — the
+ * `system.exportMyData` read (tools/data-flow.json export.projection.notes).
+ *
+ * THE ONE FILTER RLS DOES NOT PROVIDE: `owner_id = scope.actorId` is in the
+ * query because the SELECT policy admits every org-mate's notes to this caller,
+ * and an export without it would copy the whole org's content into one member's
+ * personal archive. See the header carve-out; the red-proof lives in
+ * packages/api/src/routers/system.export.test.ts.
+ *
+ * Archived notes are INCLUDED, deliberately: an export answers "what is my
+ * data", not "what does the working list show", and an archive flag does not
+ * make a note less the subject's. Same reason the projection has no
+ * archived_at column but the ROWS still appear.
+ */
+export async function listAuthoredNotes(
+  db: NotesDatabase,
+  scope: AuthoredNoteScope,
+  query: AuthoredNotesQuery,
+): Promise<ActionOutcome<ExportedNotesPage>> {
+  const limit = clampPageLimit(query.limit)
+
+  let cursor: NoteCursor | null = null
+  if (query.cursor !== null) {
+    cursor = decodeNotesCursor(query.cursor)
+    if (cursor === null) return outcomeErr(invalidCursor())
+  }
+
+  // org_id FIRST — the leading column of the serving index
+  // (notes_org_id_owner_id_created_at_id_idx) — then the authored-only filter,
+  // THE line this function exists for.
+  const builder = db
+    .from(NOTES_TABLE)
+    .select(NOTE_EXPORT_COLUMNS)
+    .eq('org_id', scope.orgId)
+    .eq('owner_id', scope.actorId)
+
+  const result = await applyKeyset(builder, cursor)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
+
+  if (result.error !== null) return outcomeErr(mapPostgrestFailure(result.error, 'export'))
+
+  let records: ExportedNote[]
+  try {
+    records = asRowArray(result.data).map(toExportedNote)
+  } catch {
+    return outcomeErr(contractDrift('export'))
+  }
+
+  return outcomeOk(pageOf(records, limit))
 }
 
 /**

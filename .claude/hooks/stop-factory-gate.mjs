@@ -33,7 +33,10 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { block, pass, readHookInput } from '../../template/base/.claude/hooks/lib/hookio.mjs'
-import { recordTurnOutcome } from '../../template/base/.claude/hooks/lib/turn-outcomes.mjs'
+import {
+  capHitBlockEligible,
+  recordTurnOutcome,
+} from '../../template/base/.claude/hooks/lib/turn-outcomes.mjs'
 
 // The repository root. The pure-node steps below are spawned with the hook's own cwd (the
 // project root, which is where Claude Code runs a hook), but `format` runs from a
@@ -241,7 +244,17 @@ const turn = recordTurnOutcome({
   input,
   ledgerPath: join(ROOT, '.harness/turn-outcomes.jsonl'),
 })
-if (turn.priorCapHit !== null) {
+// THE ONE-TIME BLOCK (0.7.0), factory parity: a `v`-stamped mark (written by a 0.7.0+ hook —
+// 0.6.0-written state has no `v` and stays a NOTE, so this ships rampless) converts the note
+// below into ONE exit 2 when this run is otherwise green: the maintainer must state which
+// steps the previous turn abandoned red before this turn may end. Exactly once, by
+// construction — this run's own ledger append already moved the tail, so the next Stop
+// passes; the append IS the acknowledgment. A red run is unchanged (the reds already block),
+// and a ledger that could not be written must not block either: the tail never moved, so the
+// block would repeat every Stop, and bookkeeping never decides a turn.
+const capBlock =
+  failures.length === 0 && turn.error === null && capHitBlockEligible(turn.priorCapHit)
+if (turn.priorCapHit !== null && !capBlock) {
   process.stderr.write(
     `stop-factory-gate: THE PREVIOUS TURN ENDED RED — blocked ${String(turn.priorCapHit.blocks)} time(s) (the cap), with ${turn.priorCapHit.gates?.join(', ') || 'the factory gate'} still failing. Treat those as outstanding, not as history.\n`,
   )
@@ -258,6 +271,13 @@ if (failures.length > 0) {
   // --report-all.
   block(
     `Harness factory gate FAILED (${String(failures.length)} of ${String(STEPS.length + TOOLCHAIN_STEPS.length)} step(s)). The machinery that enforces quality for consumers is itself inconsistent — fix these before ending the turn.\n\n${failures.join('\n')}`,
+  )
+}
+if (capBlock) {
+  const prior = turn.priorCapHit
+  const gates = prior.gates?.length > 0 ? prior.gates.join(', ') : 'the factory gate'
+  block(
+    `stop-factory-gate: THE PREVIOUS TURN ENDED RED — blocked ${String(prior.blocks)} time(s) (the cap), with ${gates} still failing when Claude Code ended it anyway. This run is green NOW, which is exactly when that fact would otherwise vanish. ONE-TIME BLOCK: state plainly in the transcript which steps that turn abandoned red (${gates}) and whether this green run settles them or work is still outstanding, then end the turn again. This run's own ledger append has already moved the mark, so the next Stop passes.`,
   )
 }
 pass()

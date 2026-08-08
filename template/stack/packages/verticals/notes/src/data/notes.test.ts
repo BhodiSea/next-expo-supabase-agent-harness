@@ -6,6 +6,7 @@ import {
   createNote,
   deleteNote,
   getNote,
+  listAuthoredNotes,
   listNotes,
   type NoteWriteContext,
   updateNote,
@@ -791,5 +792,133 @@ describe('every scoped DAL function filters on the tenant column', () => {
     const { calls, db } = fakeDatabase(rows([row(1)]))
     await deleteNote(db, writeContext(), ref)
     expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+
+  it('listAuthoredNotes filters on org_id like every other scoped read', async () => {
+    const { calls, db } = fakeDatabase(rows([]))
+    await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(calls).toContainEqual(['eq', 'org_id', ORG_ID])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// listAuthoredNotes — the DSR export read, and the header's ONE owner_id
+// carve-out. The invariant proof at the router layer lives in
+// packages/api/src/routers/system.export.test.ts; these are the DAL's own
+// branches, driven the same way as every sibling above.
+// ---------------------------------------------------------------------------
+
+const authoredScope = { actorId: ACTOR_ID, orgId: ORG_ID }
+
+/** An export-projection row — no owner_id, no archived_at, org_id present. */
+function exportRow(index: number): Record<string, unknown> {
+  const suffix = String(index).padStart(2, '0')
+  return {
+    body: `body ${index}`,
+    created_at: `2026-01-${suffix}T00:00:00.000000+00:00`,
+    id: `3f2504e0-4f89-41d3-9a0c-0305e82c33${suffix}`,
+    org_id: ORG_ID,
+    title: `note ${index}`,
+    updated_at: `2026-01-${suffix}T00:00:00.000000+00:00`,
+  }
+}
+
+describe('listAuthoredNotes (the export read)', () => {
+  it('filters owner_id = the actor IN the query — authored-only is application logic', async () => {
+    // RLS admits every org-mate's notes to this caller; without this filter the
+    // page is green, well-formed, and somebody else's data. The one filter in
+    // this file whose deletion the database would NOT catch — see the header.
+    const { calls, db } = fakeDatabase(rows([]))
+    await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(calls).toContainEqual(['eq', 'owner_id', ACTOR_ID])
+  })
+
+  it('returns the export projection: org attribution rides, owner does not echo back', async () => {
+    const { calls, db } = fakeDatabase(rows([exportRow(1)]))
+    const outcome = await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.data.items).toEqual([
+      {
+        body: 'body 1',
+        createdAt: '2026-01-01T00:00:00.000000+00:00',
+        id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+        orgId: ORG_ID,
+        title: 'note 1',
+        updatedAt: '2026-01-01T00:00:00.000000+00:00',
+      },
+    ])
+    // The export projection, not the list projection: no owner_id round trip.
+    expect(calls).toContainEqual(['select', 'id, org_id, title, body, created_at, updated_at'])
+  })
+
+  it('includes archived rows — an export answers "what is mine", not "what is on screen"', async () => {
+    const { calls, db } = fakeDatabase(rows([]))
+    await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(calls.some(([method]) => method === 'is')).toBe(false)
+  })
+
+  it('pages with the sentinel row and mints the next inner cursor from the LAST page row', async () => {
+    const { calls, db } = fakeDatabase(rows([exportRow(3), exportRow(2), exportRow(1)]))
+    const outcome = await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 2 })
+    expect(calls).toContainEqual(['limit', 3])
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.data.items).toHaveLength(2)
+    expect(outcome.data.nextCursor).not.toBeNull()
+    if (outcome.data.nextCursor === null) return
+    expect(decodeNotesCursor(outcome.data.nextCursor)).toEqual({
+      createdAt: '2026-01-02T00:00:00.000000+00:00',
+      id: '3f2504e0-4f89-41d3-9a0c-0305e82c3302',
+    })
+  })
+
+  it('sends the seek as range + tie-break, like the list it mirrors', async () => {
+    const cursor = encodeNotesCursor({
+      createdAt: '2026-01-02T00:00:00.000000+00:00',
+      id: '3f2504e0-4f89-41d3-9a0c-0305e82c3302',
+    })
+    const { calls, db } = fakeDatabase(rows([]))
+    await listAuthoredNotes(db, authoredScope, { cursor, limit: 50 })
+    expect(calls).toContainEqual(['lte', 'created_at', '2026-01-02T00:00:00.000000+00:00'])
+    expect(calls.some(([method]) => method === 'or')).toBe(true)
+  })
+
+  it('rejects a cursor the codec did not mint, before any query is built', async () => {
+    const { calls, db } = fakeDatabase(rows([]))
+    const outcome = await listAuthoredNotes(db, authoredScope, { cursor: '!!!', limit: 50 })
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.validation({
+        code: 'invalid_cursor',
+        fields: ['cursor'],
+        message: 'the page cursor is not one this server minted',
+      }),
+    })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('maps a store refusal through the shared taxonomy, naming the export operation', async () => {
+    const { db } = fakeDatabase(denied('42501'))
+    const outcome = await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.rlsDenied({
+        relation: 'notes',
+        message: 'a row-security policy refused the export',
+      }),
+    })
+  })
+
+  it('folds a drifted row into contract_drift for the export operation', async () => {
+    const { db } = fakeDatabase(rows([{ ...exportRow(1), created_at: 'not-a-timestamp' }]))
+    const outcome = await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unknown({
+        code: 'contract_drift',
+        message: 'a notes row did not match its contract during the export',
+      }),
+    })
   })
 })

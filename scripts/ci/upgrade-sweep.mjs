@@ -92,9 +92,17 @@ const SWEEPS = {
     // auth-posture ramp names, so it is 0.6.0's step.
     tomlSectionRenames: [['[inbucket]', '[local_smtp]']],
   },
-  // 0.7.0 withholds no files — the expiry release: everything it reds was seeded by the
-  // versions above, so its own sweep is empty and the hop's work is the versions crossed.
-  '0.7.0': {},
+  // 0.7.0 — the graduation release ships the DSR export surface and the toolchain pin, and
+  // its sweep must adopt what it withholds: the three seedOnInitOnly files (the export
+  // procedure, its colocated proof, the notes-export index) because the swept install's
+  // refreshed data-flow.json says {kind: "procedure"} and check-data-flow requires the named
+  // procedure file to EXIST — adopting the surface and refreshing the review file are one
+  // move or neither. The two seededSourceFixes (the eas.json -xcode- pin, the data-flow.json
+  // surface flip) need no entry here — the derived §1c pass adopts every correction the
+  // record names, for every crossed version, unconditionally.
+  '0.7.0': {
+    adoptSeedOnInitOnly: true,
+  },
 }
 
 /**

@@ -6,7 +6,7 @@
 import { execSync } from 'node:child_process'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
-import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
+import { TURN_LOG, capHitBlockEligible, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
 export const HARNESS_HOOK_VERSION = '0.6.0'
 
@@ -163,7 +163,22 @@ const turn = recordTurnOutcome({
   ledgerPath: TURN_LOG,
 })
 
-if (turn.priorCapHit !== null) {
+// ---- THE ONE-TIME BLOCK (0.7.0): the cap-ended mark costs the next green turn one block --
+// 0.6.0 recorded the one documented way a turn CAN end red; the record surfaced as a NOTE,
+// and a note on a green run is exactly the line nobody acts on. So a mark carrying `v` —
+// written by a 0.7.0+ hook; 0.6.0-written state has none and stays a NOTE, which is why this
+// tightening ships rampless — converts the note into ONE exit 2 when the chain is otherwise
+// green: the agent must state which gates the previous turn abandoned red before this turn
+// may end. Exactly once, by construction: this run's own ledger append has already moved the
+// tail, so the next Stop passes — the append IS the acknowledgment, the same no-second-state
+// trick priorCapHit itself documents. A RED chain is unchanged (the reds already block; the
+// mark stays a note so the message stays about them). A ledger that could not be READ
+// degrades to no-mark upstream, and one that could not be WRITTEN (turn.error) must not
+// block either — the tail never moved, so the block would repeat every Stop, and bookkeeping
+// never decides a turn.
+const capBlock =
+  failures.length === 0 && turn.error === null && capHitBlockEligible(turn.priorCapHit)
+if (turn.priorCapHit !== null && !capBlock) {
   const prior = turn.priorCapHit
   notes.push(
     `stop-validate-gate: THE PREVIOUS TURN ENDED RED. It was blocked ${String(prior.blocks)} time(s) — its CLAUDE_CODE_STOP_HOOK_BLOCK_CAP — so Claude Code ended it anyway with ${prior.gates?.length > 0 ? prior.gates.join(', ') : 'the gate'} still failing. That is the documented safety valve working, not a bug; it does mean work stopped on a red build, so treat those gates as outstanding rather than as history.`,
@@ -183,6 +198,14 @@ if (turn.error !== null) {
 if (notes.length > 0) process.stderr.write(`${notes.join('\n')}\n`)
 
 if (failures.length === 0) {
+  if (capBlock) {
+    const prior = turn.priorCapHit
+    const gates = prior.gates?.length > 0 ? prior.gates.join(', ') : 'the gate'
+    process.stderr.write(
+      `stop-validate-gate: THE PREVIOUS TURN ENDED RED. It was blocked ${String(prior.blocks)} time(s) — its CLAUDE_CODE_STOP_HOOK_BLOCK_CAP — so Claude Code ended it anyway with ${gates} still failing. The chain is green NOW, which is exactly when that fact would otherwise vanish. ONE-TIME BLOCK: state plainly in the transcript which gates that turn abandoned red (${gates}) and whether this turn's green chain settles them or work is still outstanding, then end the turn again. This run's own ledger append has already moved the mark, so the next Stop passes.\n`,
+    )
+    process.exit(2)
+  }
   // Green — but never let a loud skip masquerade as silence: surface any
   // skipped layers so the transcript records what did NOT run.
   if (skips.length > 0) {

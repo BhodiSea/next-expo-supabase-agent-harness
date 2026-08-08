@@ -20,6 +20,10 @@
     "type": "mutation"
   },
   {
+    "action": "system.exportMyData",
+    "type": "query"
+  },
+  {
     "action": "system.health",
     "type": "query"
   },

@@ -214,6 +214,64 @@ test('a MISSING union lib is a loud NOTE and the config chain still runs — nev
   assert.match(r.out, /could not load tools\/lib\/stop-chain\.mjs/)
 })
 
+// ── the one-time block (0.7.0): a v-stamped cap-ended mark converts its NOTE into ONE
+// exit 2. The recording landed in 0.6.0; this is the enforcement — the only documented path
+// by which a turn ends on a red build now costs the NEXT turn one block, in which the agent
+// must state which gates the previous turn abandoned. Exactly once, by construction: the
+// blocking run's own ledger append moves the tail, so no acknowledgment state exists.
+
+const V_MARK = {
+  kind: 'block',
+  v: '0.7.0',
+  at: '2026-08-08T00:00:00.000Z',
+  session_id: 's0',
+  prompt_id: 'p0',
+  blocks: 8,
+  cap: 8,
+  capReached: true,
+  gates: ['validate', 'unit'],
+}
+
+/** @param {string} dir @param {object} mark */
+function seedLedger(dir, mark) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness/turn-outcomes.jsonl'), `${JSON.stringify(mark)}\n`)
+}
+
+test('a v-stamped cap mark blocks a GREEN chain exactly once, naming the abandoned gates', () => {
+  const dir = fixture({ config: ['validate'], floor: ['validate'] })
+  seedLedger(dir, V_MARK)
+  const first = runStopHook(dir)
+  assert.equal(first.code, 2, `the all-green chain must still block ONCE on the mark:\n${first.out}`)
+  assert.ok(ran(dir, 'validate'), 'the chain itself ran — the block is about the predecessor, not this tree')
+  assert.match(first.out, /ONE-TIME BLOCK/)
+  assert.match(first.out, /validate, unit/, 'it must NAME the gates the previous turn abandoned red')
+
+  // The blocking run's own ledger append moved the tail — the append IS the acknowledgment.
+  const second = runStopHook(dir)
+  assert.equal(second.code, 0, `the second Stop must pass — the block happens exactly once:\n${second.out}`)
+})
+
+test('the one-time block never fires on a RED chain — the reds already block, the mark stays a note', () => {
+  const dir = fixture({ config: ['validate'], floor: ['validate'] })
+  writeFileSync(join(dir, 'mark-validate.mjs'), 'process.exit(3)\n')
+  seedLedger(dir, V_MARK)
+  const r = runStopHook(dir)
+  assert.equal(r.code, 2, r.out)
+  assert.match(r.out, /### validate FAILED/, 'the message stays about the reds')
+  assert.ok(!r.out.includes('ONE-TIME BLOCK'), r.out)
+  assert.match(r.out, /THE PREVIOUS TURN ENDED RED/, 'the predecessor note survives on the red path')
+})
+
+test('a mark WITHOUT v never blocks — 0.6.0-written state stays a NOTE on a green chain', () => {
+  const { v: _v, ...unstamped } = V_MARK
+  const dir = fixture({ config: ['validate'], floor: ['validate'] })
+  seedLedger(dir, unstamped)
+  const r = runStopHook(dir)
+  assert.equal(r.code, 0, `pre-0.7.0 state must never trigger the new block:\n${r.out}`)
+  assert.match(r.out, /THE PREVIOUS TURN ENDED RED/, 'the 0.6.0 note behavior is preserved')
+})
+
 test('the SHIPPED floor equals the shipped STOP_HOOK_STEPS (generate-floor lockstep)', async () => {
   const { readFileSync } = await import('node:fs')
   const { STOP_HOOK_STEPS } = await import(

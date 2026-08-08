@@ -6,6 +6,14 @@
 //   node tools/validate.mjs --report-all | tee validate.log
 //   node scripts/check-chain-budget.mjs validate.log
 //
+// --stop-chain (0.7.0, W7): judge a `validate --stop-chain --report-all` log — the SAME
+//   VALIDATE_TIMINGS emitter, a different chain — against the stopSteps/stopWall section.
+//   The chain being judged is the floor∪config Stop union, resolved by the SAME lib the
+//   Stop hook imports (template/base/tools/lib/stop-chain.mjs), and this runner FAILS
+//   CLOSED on a floor problem for the same reason `validate --stop-chain` does: a judge
+//   asked to hold the Stop chain must never hold a weakened one. `--record --stop-chain`
+//   stamps stopSteps/stopWall measuredMs the same reviewed-dispatch way as below.
+//
 // FACTORY-SIDE ONLY. It is not a chain step and never will be: a consumer's hardware is
 // not the harness's runner, and scripts/check-claims.mjs:12 already carries the honest
 // version of this — "wall-clock timings are hardware-dependent, so no gate can assert
@@ -14,43 +22,70 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { judgeBudget, parseTimings, recordMeasurement } from './lib/chain-budget.mjs'
+import {
+  judgeBudget,
+  judgeStopBudget,
+  parseTimings,
+  recordMeasurement,
+  recordStopMeasurement,
+} from './lib/chain-budget.mjs'
 
 const HERE = (p) => fileURLToPath(new URL(p, import.meta.url))
 const budget = JSON.parse(readFileSync(HERE('./chain-budget.json'), 'utf8'))
-const { VALIDATE_STEPS } = await import(HERE('../template/base/tools/harness.config.mjs'))
+const { STOP_HOOK_STEPS, VALIDATE_STEPS } = await import(
+  HERE('../template/base/tools/harness.config.mjs')
+)
+
+const stopMode = process.argv.includes('--stop-chain')
+const label = stopMode ? 'CHAIN BUDGET (stop-chain)' : 'CHAIN BUDGET'
 
 // A FILE PATH, deliberately not stdin. A synchronous read of fd 0 raises EAGAIN on macOS
 // whenever the writer has not finished, which would make this check flaky in exactly the
 // way a timing check must not be — a control that intermittently dies is indistinguishable
 // from one that intermittently passes. The lane already tees to a file.
 const logPath = process.argv[2]
-if (logPath === undefined) {
+if (logPath === undefined || logPath.startsWith('--')) {
   console.error(
-    'usage: node scripts/check-chain-budget.mjs <validate-log-path>\n  e.g. node tools/validate.mjs --report-all | tee validate.log && node scripts/check-chain-budget.mjs validate.log',
+    'usage: node scripts/check-chain-budget.mjs <log-path> [--stop-chain] [--record [--runner "<desc>"]]\n  validate log:   node tools/validate.mjs --report-all | tee validate.log\n  stop-chain log: node tools/validate.mjs --stop-chain --report-all | tee stop-chain.log',
   )
   process.exit(2)
 }
 const stdout = readFileSync(logPath, 'utf8')
 
-const { problems, warnings } = judgeBudget({
-  budget,
-  timings: parseTimings(stdout),
-  chainSteps: VALIDATE_STEPS.map(([name]) => name),
-})
+// The chain the log claims to describe. Default mode: VALIDATE_STEPS. Stop mode: the
+// floor∪config union — one implementation (the hook's own lib), fail-closed on the floor.
+async function resolveChainSteps() {
+  if (!stopMode) return VALIDATE_STEPS.map(([name]) => name)
+  const { loadStopChain } = await import(HERE('../template/base/tools/lib/stop-chain.mjs'))
+  const { steps, floorNote } = loadStopChain(
+    Array.isArray(STOP_HOOK_STEPS) ? STOP_HOOK_STEPS : [],
+    new URL('../template/base/tools/stop.floor.json', import.meta.url),
+  )
+  if (floorNote !== null) {
+    console.error(
+      `${label}: ${floorNote} — FAILING CLOSED (a judge asked to hold the Stop chain must never hold a weakened one)`,
+    )
+    process.exit(1)
+  }
+  return steps.map(([name]) => name)
+}
+const chainSteps = await resolveChainSteps()
 
-for (const w of warnings) console.log(`::warning::CHAIN BUDGET: ${w}`)
+const timings = parseTimings(stdout)
+const { problems, warnings } = stopMode
+  ? judgeStopBudget({ budget, timings, unionSteps: chainSteps })
+  : judgeBudget({ budget, timings, chainSteps })
+
+for (const w of warnings) console.log(`::warning::${label}: ${w}`)
 
 if (problems.length > 0) {
-  console.error(`CHAIN BUDGET: ${String(problems.length)} problem(s):`)
+  console.error(`${label}: ${String(problems.length)} problem(s):`)
   for (const p of problems) console.error(`  - ${p}`)
   console.error(
     '\nCeilings are a reviewed policy value in scripts/chain-budget.json, not a measurement. Moving one is a commit; measuring is what the lane does.',
   )
   process.exit(1)
 }
-
-const timings = parseTimings(stdout)
 
 // `--record` — the writer chain-budget.json's own header promised and nobody had built.
 //
@@ -81,23 +116,22 @@ if (process.argv.includes('--record')) {
   const runner = flagged !== undefined && !flagged.startsWith('--') ? flagged : fromActions
   if (runner === undefined) {
     console.error(
-      'CHAIN BUDGET: --record needs `--runner "<what you measured on>"` outside GitHub Actions. scripts/chain-budget.json\'s header states these numbers are the harness runner\'s and are NOT portable, so a measurement with no provenance is worse than none — it unlocks a published figure that no CI run can reproduce.',
+      `${label}: --record needs \`--runner "<what you measured on>"\` outside GitHub Actions. scripts/chain-budget.json's header states these numbers are the harness runner's and are NOT portable, so a measurement with no provenance is worse than none — it unlocks a published figure that no CI run can reproduce.`,
     )
     process.exit(2)
   }
-  const next = recordMeasurement({
-    budget,
-    timings,
-    chainSteps: VALIDATE_STEPS.map(([name]) => name),
-    runner,
-    recordedOn: new Date().toISOString().slice(0, 10),
-  })
+  const recordedOn = new Date().toISOString().slice(0, 10)
+  const next = stopMode
+    ? recordStopMeasurement({ budget, timings, unionSteps: chainSteps, runner, recordedOn })
+    : recordMeasurement({ budget, timings, chainSteps, runner, recordedOn })
   writeFileSync(HERE('./chain-budget.json'), `${JSON.stringify(next, null, 2)}\n`)
+  const count = stopMode ? next.stopMeasurement.chainSteps : next.measurement.chainSteps
   console.log(
-    `CHAIN BUDGET: RECORDED wall ${String(timings.totalMs)}ms over ${String(next.measurement.chainSteps)} step(s) on ${runner}. Commit scripts/chain-budget.json — the figure may be published only after that lands.`,
+    `${label}: RECORDED wall ${String(timings.totalMs)}ms over ${String(count)} step(s) on ${runner}. Commit scripts/chain-budget.json — the figure may be published only after that lands.`,
   )
 }
 
+const wallCeiling = stopMode ? budget.stopWall.ceilingMs : budget.wall.ceilingMs
 console.log(
-  `CHAIN BUDGET: CLEAN (${String(Object.keys(timings.steps).length)} step(s) inside ceiling, wall ${String(timings.totalMs)}ms of ${String(budget.wall.ceilingMs)}ms)`,
+  `${label}: CLEAN (${String(Object.keys(timings.steps).length)} step(s) inside ceiling, wall ${String(timings.totalMs)}ms of ${String(wallCeiling)}ms)`,
 )

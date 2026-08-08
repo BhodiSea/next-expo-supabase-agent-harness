@@ -16,9 +16,9 @@
 // DELETE CASCADE and demoted to SET NULL by a later ALTER.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
@@ -34,8 +34,22 @@ import {
 const GATE = fileURLToPath(new URL('../../template/base/tools/check-data-flow.mjs', import.meta.url))
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
 const STACK = fileURLToPath(new URL('../../template/stack/supabase', import.meta.url))
+const STACK_ROOT = fileURLToPath(new URL('../../template/stack', import.meta.url))
 const DOCS = fileURLToPath(new URL('../../template/base/docs', import.meta.url))
 const SHIPPED_POLICY = JSON.parse(readFileSync(join(TOOLS, 'data-flow.json'), 'utf8'))
+
+/**
+ * The 0.7.0 pre-ship surface shape — what every install seeded BEFORE the
+ * export procedure shipped carries in its own data-flow.json, and therefore the
+ * shape the target-deadline fixtures below must construct rather than inherit
+ * (the SHIPPED policy now declares `kind: "procedure"`).
+ */
+const DEFERRED_SURFACE = {
+  kind: 'none',
+  reason:
+    'No delivered export surface ships yet; the projection is reviewed and closed against the schema, the procedure is the missing half.',
+  target: '0.7.0',
+}
 
 /**
  * A project root carrying the real supabase tree. `policy` may be mutated by `edit`; an
@@ -56,6 +70,20 @@ function fixture({ policy, edit, extraSql, schemaEdit, manifest } = {}) {
   if (manifest !== undefined) {
     mkdirSync(join(dir, '.harness'), { recursive: true })
     writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
+  }
+
+  // The SHIPPED surface names a procedure file that lives in template/stack (a
+  // scaffold has both trees merged; these fixtures copy only supabase/). Plant
+  // the SHIPPED path — and only it — so the shipped-policy fixture is judged
+  // against the tree a real install has, while an EDIT naming any other path
+  // still finds it absent (the missing-procedure red below depends on that).
+  const shippedProcedure = SHIPPED_POLICY.export?.surface?.procedure
+  if (typeof shippedProcedure === 'string' && shippedProcedure !== '') {
+    mkdirSync(join(dir, dirname(shippedProcedure)), { recursive: true })
+    writeFileSync(
+      join(dir, shippedProcedure),
+      '// fixture stand-in for the shipped export procedure (template/stack owns the real one)\n',
+    )
   }
 
   if (schemaEdit) {
@@ -274,6 +302,7 @@ test('RED: export.surface "none" with no dated target — a deferral nobody has 
   const r = runGate(
     fixture({
       edit: (p) => {
+        p.export.surface = { ...DEFERRED_SURFACE }
         delete p.export.surface.target
       },
     }),
@@ -302,10 +331,20 @@ test('RED: export.surface names a procedure file that does not exist', () => {
 // enforcement-tiers.md's Target column. These fixtures plant a .harness/manifest.json
 // because the deadline is judged against harnessVersion, never the wall clock.
 
+// The SHIPPED policy now declares the DELIVERED surface (the 0.7.0 ship), so the
+// deadline fixtures below construct DEFERRED_SURFACE — the `kind: "none",
+// target: "0.7.0"` shape every install seeded before 0.7.0 still carries in its
+// own seeded data-flow.json. The reader exists for THOSE trees.
+const deferred = (p) => {
+  p.export.surface = { ...DEFERRED_SURFACE }
+}
+
 test('RED: the deferred target has ARRIVED — a 0.7.0 install meets target 0.7.0', () => {
-  // The SHIPPED policy says target 0.7.0, so this fixture is the release's own tree the
-  // moment it installs — the reader must red it unless the surface ships or the date moves.
-  const r = runGate(fixture({ manifest: { harnessVersion: '0.7.0', baseVersion: '0.7.0' } }))
+  // A pre-ship policy on a 0.7.0 install — the reader must red it unless the
+  // surface ships or the date moves.
+  const r = runGate(
+    fixture({ edit: deferred, manifest: { harnessVersion: '0.7.0', baseVersion: '0.7.0' } }),
+  )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /export\.surface deferred the delivery surface to 0\.7\.0/)
   assert.match(r.out, /this install runs harness 0\.7\.0 — the deferral has ARRIVED/)
@@ -317,7 +356,7 @@ test('GREEN: a target still in the future is not yet due', () => {
     fixture({
       manifest: { harnessVersion: '0.7.0', baseVersion: '0.7.0' },
       edit: (p) => {
-        p.export.surface.target = '0.8.0'
+        p.export.surface = { ...DEFERRED_SURFACE, target: '0.8.0' }
       },
     }),
   )
@@ -329,14 +368,18 @@ test('NOTE: a pre-0.7.0 install is ramped, not ambushed — its seeded file says
   // Every install seeded before 0.7.0 carries the harness's own deferral date, so the first
   // `update` onto 0.7.0 would hard-red them on a date they never chose. The ramp is the
   // dated escape; the finding still prints so the two legitimate moves are in front of them.
-  const r = runGate(fixture({ manifest: { harnessVersion: '0.7.0', baseVersion: '0.6.0' } }))
+  const r = runGate(
+    fixture({ edit: deferred, manifest: { harnessVersion: '0.7.0', baseVersion: '0.6.0' } }),
+  )
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /NOTE — the export\.surface\.target deadline \(ramp: live from baseVersion 0\.7\.0/)
   assert.match(r.out, /NOTE — \(ramp\) .*deferred the delivery surface to 0\.7\.0/)
 })
 
 test('RED: the ramp itself expires at 0.8.0 — the escape ends, loudly', () => {
-  const r = runGate(fixture({ manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0' } }))
+  const r = runGate(
+    fixture({ edit: deferred, manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0' } }),
+  )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /RAMP EXPIRED/)
   assert.match(r.out, /deferred the delivery surface to 0\.7\.0/)
@@ -344,10 +387,31 @@ test('RED: the ramp itself expires at 0.8.0 — the escape ends, loudly', () => 
 
 test('NOTE: no manifest — the date is not judged, and SAYS so rather than passing silently', () => {
   // The template dev tree and these fixtures have no install record; a silent pass here
-  // would unenforce the date in exactly the tree the stale target was written in.
-  const r = runGate(fixture())
+  // would unenforce the date in exactly the tree a stale target would be written in.
+  const r = runGate(fixture({ edit: deferred }))
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /`target` date in tools\/data-flow\.json export\.surface is not judged/)
+})
+
+// ── the surface SHIPPED (0.7.0) ──────────────────────────────────────────────────────
+
+test('GREEN: the shipped policy declares the DELIVERED surface, and the template ships its file', () => {
+  // Two closures in one test. (1) The committed policy took the ship path, not the
+  // re-target escape: kind is "procedure". (2) The path it names exists in the template
+  // STACK tree — the file a fresh scaffold will actually hold — so the seeded promise and
+  // the seeded tree cannot drift. The gate's own existsSync check covers the scaffold; this
+  // covers the factory, where the two template halves live apart.
+  assert.equal(SHIPPED_POLICY.export.surface.kind, 'procedure')
+  const procedure = SHIPPED_POLICY.export.surface.procedure
+  assert.ok(
+    existsSync(join(STACK_ROOT, procedure)),
+    `${procedure} is named by tools/data-flow.json but does not exist under template/stack`,
+  )
+  // And the shipped-policy fixture (procedure planted, no manifest) is green with NO
+  // deadline note — a delivered surface has no date left to judge.
+  const r = runGate(fixture())
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /is not judged/)
 })
 
 // ── the two directories, closed against each other ───────────────────────────────────

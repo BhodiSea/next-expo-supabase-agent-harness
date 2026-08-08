@@ -204,7 +204,9 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.7.0 with this note as its reason.
+// deferred to 0.8.0 (deferral ledger: auth-posture-cli-census) — the upstream condition is a
+// side-effect-free `config lint`-shaped subcommand, re-checked at every CLI pin bump, and the
+// docs-sync deferral scan reds this sentence the release the date arrives.
 const known = policy.knownSections ?? []
 for (const name of sections) {
   if (!known.includes(name)) {

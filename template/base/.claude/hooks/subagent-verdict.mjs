@@ -30,7 +30,10 @@
 //      which "prevents the subagent from stopping"). That enforces at RUNTIME the contract
 //      check-docs-sync.mjs has only ever checked in the FILE.
 //   2. Appends the verdict to a session-scoped ledger, which tools/check-reviewer-verdicts.mjs
-//      reads as Stop-chain step 10.
+//      reads as Stop-chain step 10. Since 0.7.0 the entry also carries `path_state` — the
+//      shared pathStateDigest over the changed files this reviewer's triggers own, computed
+//      AT RECORD TIME — which is what lets the Stop step refuse a PASS that predates the
+//      last edit to the paths that summoned it.
 //
 // IT IS SILENT FOR NON-REVIEWERS. The roster is read from .claude/agents/, not duplicated into
 // a settings.json matcher — a matcher string would be a second copy of the roster, and the one
@@ -40,7 +43,8 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
-import { readVerdict } from '../../tools/lib/reviewer-verdicts.mjs'
+import { changedFiles } from '../../tools/lib/git-diff.mjs'
+import { pathStateDigest, readVerdict } from '../../tools/lib/reviewer-verdicts.mjs'
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
@@ -48,6 +52,31 @@ export const HARNESS_HOOK_VERSION = '0.6.0'
 
 const AGENTS_DIR = '.claude/agents'
 const LEDGER = '.harness/reviewer-ledger.jsonl'
+const TRIGGERS = 'tools/reviewer-triggers.json'
+
+/**
+ * The tree state this verdict attests to (0.7.0): pathStateDigest over the changed files
+ * this reviewer's triggers own, computed at RECORD time so the Stop step can prove the PASS
+ * post-dates the last edit to the paths that summoned it.
+ *
+ * Null on ANY failure — a missing or corrupt trigger table, an agent it does not name, a
+ * git it cannot ask — and the swallow is safe in exactly one direction, the same direction
+ * `recordTurnOutcome` swallows: bookkeeping must never be the reason a verdict is not
+ * recorded, and check-reviewer-verdicts.mjs reads a null binding as "re-review", never as a
+ * pass. Failing OPEN here would require the judge to fail closed anyway; failing the WRITE
+ * would eat the verdict itself.
+ * @param {string} agentType
+ */
+function pathState(agentType) {
+  try {
+    const cfg = JSON.parse(readFileSync(TRIGGERS, 'utf8'))
+    return pathStateDigest(agentType, cfg, changedFiles(), (p) =>
+      existsSync(p) ? readFileSync(p) : null,
+    )
+  } catch {
+    return null
+  }
+}
 
 /**
  * Record a block into the SHARED turn ledger before exiting 2.
@@ -124,6 +153,7 @@ appendFileSync(
     agent_type: agentType,
     agent_id: input.agent_id ?? null,
     verdict,
+    path_state: pathState(agentType),
   })}\n`,
 )
 process.exit(0)

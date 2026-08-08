@@ -177,5 +177,83 @@
       "class": "static",
       "measuredMs": null
     }
+  },
+  "stopComment": [
+    "0.7.0 (W7): the STOP chain's cost, same doctrine as everything above. Nine rows — the",
+    "floor∪config Stop union minus `validate`, whose cost IS the `wall` row above (a",
+    "stopSteps row naming it is itself a red, so the same number is never judged twice).",
+    "The subject is the VALIDATE_TIMINGS line a `node tools/validate.mjs --stop-chain",
+    "--report-all` run emits — the emitter is shared — captured by the bootstrap-linux",
+    "selftest job with the Supabase stack live and stamps warm (the turn-end latency an",
+    "agent actually waits through, not the fail-closed CI shape) and judged by",
+    "`node scripts/check-chain-budget.mjs <log> --stop-chain`. The row closure covers the",
+    "union, so a future injected Stop step forces a budget row exactly like a validate",
+    "step does today; a stale row reds the same way.",
+    "",
+    "Ceilings are CHOSEN policy, per step, with NO class defaults: nine members whose",
+    "natures differ too much for two classes to be honest. The two coverage-instrumented",
+    "unit suites dominate turn latency — jest-expo's RN transform pipeline is the",
+    "documented slow tail, vitest next — and rls-isolation pays live database round-trips",
+    "(db reset + pgTAP + the SDK cross-tenant suite). The five static scans get tight",
+    "ceilings on purpose: a static Stop step that needs more than a handful of seconds has",
+    "stopped being the cheap half of its control, and 'a Stop gate that takes a minute is",
+    "a Stop gate people disable'. stopWall is the whole chain wall-to-wall INCLUDING the",
+    "nested validate member, ceiling 10 min with the warn band at 75% like the wall above.",
+    "",
+    "Every measuredMs ships NULL for the same reason wall.measuredMs does: a measurement",
+    "may not be invented. `--record --stop-chain` (workflow_dispatch only, same reviewed-",
+    "dispatch path as the validate recording step) stamps them from a real run."
+  ],
+  "stopWall": {
+    "ceilingMs": 600000,
+    "warnMs": 450000,
+    "measuredMs": null
+  },
+  "stopSteps": {
+    "rls-isolation": {
+      "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
+      "ceilingMs": 90000,
+      "measuredMs": null
+    },
+    "unit": {
+      "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
+      "ceilingMs": 180000,
+      "measuredMs": null
+    },
+    "mobile-unit": {
+      "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
+      "ceilingMs": 240000,
+      "measuredMs": null
+    },
+    "diff-coverage": {
+      "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
+      "ceilingMs": 10000,
+      "measuredMs": null
+    },
+    "duplication": {
+      "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
+      "ceilingMs": 15000,
+      "measuredMs": null
+    },
+    "i18n": {
+      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
+      "ceilingMs": 10000,
+      "measuredMs": null
+    },
+    "test-quality": {
+      "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
+      "ceilingMs": 10000,
+      "measuredMs": null
+    },
+    "mobile-perf": {
+      "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
+      "ceilingMs": 5000,
+      "measuredMs": null
+    },
+    "reviewer-verdicts": {
+      "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
+      "ceilingMs": 5000,
+      "measuredMs": null
+    }
   }
 }

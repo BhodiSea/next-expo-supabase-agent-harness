@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  capHitBlockEligible,
   consecutiveBlocks,
   DEFAULT_CAP,
   KEEP,
@@ -209,6 +210,29 @@ test('the ledger is trimmed to the tail — a turn log is a diagnostic, not an a
   assert.equal(records[0].n, 51, 'the OLDEST records are the ones dropped')
 })
 
+test('nextLedger stamps `v` on block records — the field the one-time reader keys on (0.7.0)', () => {
+  // The stamp is what makes the 0.7.0 tightening need NO ramp: only a mark carrying `v` may
+  // convert the green-turn NOTE into a block, and nothing written before 0.7.0 carries one.
+  const r = nextLedger([], {
+    blocked: true,
+    cap: 8,
+    sessionId: 's',
+    promptId: 'p',
+    gates: ['validate'],
+    at: 'T',
+  })
+  assert.equal(r.entry.v, '0.7.0')
+  const g = nextLedger([], {
+    blocked: false,
+    cap: 8,
+    sessionId: 's',
+    promptId: 'p',
+    gates: [],
+    at: 'T',
+  })
+  assert.ok(!('v' in g.entry), 'green records carry no stamp — only block marks are ever read back')
+})
+
 // ---- reading it back ------------------------------------------------------------
 
 test('parseLedger is TOLERANT — and its fail-closed sibling is the deliberate contrast', () => {
@@ -225,6 +249,19 @@ test('parseLedger is TOLERANT — and its fail-closed sibling is the deliberate 
   const { records, dropped } = parseLedger(raw)
   assert.equal(records.length, 2)
   assert.equal(dropped, 2)
+})
+
+test('capHitBlockEligible: a v-stamped mark may block; 0.6.0-written state stays a NOTE (0.7.0)', () => {
+  // The versioned split IS the no-ramp argument: a mark written by a 0.6.0 hook has no `v`,
+  // so no state that exists on an upgraded install can ever trigger the new one-time block.
+  const stamped = { ...blockRec(8, 8, true, 'p0'), v: '0.7.0' }
+  assert.equal(capHitBlockEligible(priorCapHit([stamped], 'p1')), true)
+  assert.equal(
+    capHitBlockEligible(priorCapHit([blockRec(8, 8, true, 'p0')], 'p1')),
+    false,
+    'a mark WITHOUT v is note-only',
+  )
+  assert.equal(capHitBlockEligible(null), false, 'no mark, no block')
 })
 
 test('priorCapHit reports a PREVIOUS turn only, and reports it once', () => {

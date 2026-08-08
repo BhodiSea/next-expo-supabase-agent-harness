@@ -10,7 +10,9 @@
       "WITHHELD — generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record — which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
       "WITHHELD — the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately — both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
     ],
-    "removed": ["apps/mobile/__tests__/a11y-deep.test.tsx"],
+    "removed": [
+      "apps/mobile/__tests__/a11y-deep.test.tsx"
+    ],
     "removedWhy": "Not a deletion — a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome — a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
     "configSteps": [
       {
@@ -131,7 +133,9 @@
     ],
     "rampExpiry": {
       "//": "Recorded RETROACTIVELY in 0.5.0, when scripts/check-ramp-ledger.mjs gained the assertion that a release's stated population must equal its computed one. The prose above said 'only 0.1.3' from the day 0.4.0 shipped and it was correct — but nothing compared the sentence to the call sites, so it was a claim rather than a control. This is the same sentence as data.",
-      "affects": ["0.1.3"],
+      "affects": [
+        "0.1.3"
+      ],
       "why": "Every escape expiring in 0.4.0 opens at minVersion 0.2.0, and rampNote is inert once baseVersion >= minVersion, so only installs whose baseVersion predates 0.2.0 meet a deadline. Sweep the RAMP EXPIRED findings (`pnpm validate 2>&1 | grep 'RAMP EXPIRED'` is the only honest count for a given tree), then `graduate`. docs/runbooks/harness-upgrade.md carries a section per expiring gate."
     }
   },
@@ -147,7 +151,12 @@
     ],
     "rampExpiry": {
       "//": "THE SECOND ALARM, and a wider one than 0.4.0's. 0.4.0's expiring escapes all opened at minVersion 0.2.0, so only baseVersion 0.1.3 met a deadline. The eight expiring here open at 0.3.0 (four in docs-sync, one each in gate-integrity and wiring) and at 0.4.0 (diff-coverage, and the wiring a11y seam), so the population reaches every vintage BELOW 0.4.0. A 0.4.0 install meets nothing: it is the only released vintage this release does not red, which is also why scripts/ci/upgrade-lane.sh keeps its default leg — leg A is the only one that reaches `graduate`'s success branch, and replacing it with older baselines would introduce a break and delete its proof in one act.",
-      "affects": ["0.1.3", "0.2.0", "0.2.1", "0.3.0"],
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0"
+      ],
       "why": "Eight escapes close. Four are docs lockstep (AGENTS.md's gate list after an injected step, the approved-tools registry/doc pair, the doctrine token map, and the enforcement-tiers shape); the other four are gate-integrity's hash coverage of the enforcement CONFIGS, check-wiring's whole CODEOWNERS finding set, check-wiring's web a11y plugin seam, and check-diff-coverage's per-file floors over apps/web/lib plus the layered packages. The a11y one is the only expiry whose remedy the harness itself has to deliver: this release's dependencyObligations record is that remedy, and `doctor` reds until it is met. Sweep, then `graduate`. docs/runbooks/harness-upgrade.md carries a section per expiring gate."
     },
     "rampExtensions": []
@@ -209,8 +218,18 @@
         ],
         "why": "0.6.0 fixed a functional break in the seeded web session handoff: the browser client persisted its session to localStorage while every server render read the cookie jar, so a correct sign-in was followed by a redirect back to /sign-in — a sign-in LOOP, on the shipped scaffold. The same wave removed four comments claiming `httpOnly` on cookies a browser-side sign-in cannot set it on. An install that predates 0.6.0 still carries both, and `auth-posture` withholds the six findings under the 0.6.0 ramp until 0.7.0.",
         "probes": [
-          { "path": "apps/web/lib/supabase/client.ts", "brokenWhen": { "lacks": "cookieSessionStorage" } },
-          { "path": "packages/platform/supabase/src/client.ts", "brokenWhen": { "lacks": "cookieSessionStorage" } }
+          {
+            "path": "apps/web/lib/supabase/client.ts",
+            "brokenWhen": {
+              "lacks": "cookieSessionStorage"
+            }
+          },
+          {
+            "path": "packages/platform/supabase/src/client.ts",
+            "brokenWhen": {
+              "lacks": "cookieSessionStorage"
+            }
+          }
         ],
         "paths": [
           "apps/web/lib/supabase/client.ts",
@@ -228,7 +247,12 @@
     ],
     "rampExpiry": {
       "//": "CARRIED FORWARD, NOT NEWLY OPENED. The four vintages below are the same four 0.5.0 named, and for the same reason: the escapes that close for them opened at minVersion 0.3.0 and 0.4.0, so every install whose baseVersion predates 0.4.0 meets them on any upgrade that crosses the deadline — including this one, if they skipped 0.5.0. A 0.4.0 or 0.5.0 install meets nothing here. The honest count for a given tree is still `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list: nine of the sites are adoption seams that fire only when the surface is genuinely absent.",
-      "affects": ["0.1.3", "0.2.0", "0.2.1", "0.3.0"],
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0"
+      ],
       "why": "Nothing newly EXPIRES in this release — the three ramps it opens or re-opens all fall due at 0.7.0 — so this record carries 0.5.0's population forward rather than declaring a new one: an install that skipped 0.5.0 meets its escapes on the way through 0.6.0. Seven of the eight 0.5.0 escapes are unchanged; the eighth was re-opened and is recorded under `rampExtensions`, which means a pre-0.4.0 install that has NOT yet swept its AGENTS.md gate list now has until 0.7.0 rather than being red on arrival. The remediation is unchanged and is per-gate in docs/runbooks/harness-upgrade.md — sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time: each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
     },
     "rampExtensions": [
@@ -239,6 +263,48 @@
         "from": "0.5.0",
         "to": "0.7.0",
         "why": "The escape must outlive the injection that reopens the drift. `auth-posture` reaches existing installs through configSteps, which grows their chain to 32 steps; their AGENTS.md is seeded and still documents 31, and only they can edit it. Closing the ramp at 0.5.0 while injecting a step in 0.6.0 would red every install in the lineage for a file the harness handed them and then refused to update. The deadline moves once, to 0.7.0, and the NOTE tells them exactly which names to paste."
+      }
+    ]
+  },
+  "0.7.0": {
+    "//": "0.7.0 the graduation release — PARTIAL RECORD, authored in the wave that created the files it names; the rampExpiry population, rampExtensions (none), and the runbook section land with the release-records wave so the record moves once per concern rather than once per commit. What is here is what the factory bar demands the moment the files exist: the three seeded files the DSR export ships (the procedure, its colocated proof, and the notes-export covering index — an install that predates them gets the export surface by choosing it, per the seedOnInitOnly contract), and the two seeded corrections 0.7.0 makes to files earlier releases authored.",
+    "seedOnInitOnly": [
+      "packages/api/src/export.ts",
+      "packages/api/src/routers/system.export.test.ts",
+      "supabase/migrations/20260808000000_notes_export_index.sql"
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "THE TOOLCHAIN PIN. 0.6.0 declared the iOS build-toolchain floor a GAP in the version-sync tier row (Apple requires uploads built against Xcode 26 / iOS 26 SDK since 2026-04-28); 0.7.0 closes it: the gate now reds an eas.json whose production iOS profile pins no concrete -xcode- image, and the template pins macos-tahoe-26.5-xcode-26.6 (the concrete name behind the sdk-57 alias on 2026-08-08 — concrete precisely so the alias's future movement cannot move a consumer's toolchain silently). eas.json is SEEDED, so the pin reaches no existing install through update; the probe matches every pre-0.7.0 eas.json (no -xcode- anywhere) and self-clears once the consumer pins ANY concrete -xcode- image — the gate, not the probe, stays the authority on the major.",
+        "gate": "version-sync",
+        "why": "Apple's fixed floor (Xcode 26 / iOS 26 SDK, in force since 2026-04-28) is now enforced by version-sync: an unpinned or alias-pinned production ios.image reds under the 0.7.0 ramp (NOTEs until 0.8.0). The seeded eas.json predating 0.7.0 carries no image pin at all, so every upgraded install meets the finding; the remedy is one line — pin a concrete -xcode->=26 image, ours or their own.",
+        "paths": [
+          "apps/mobile/eas.json"
+        ],
+        "probes": [
+          {
+            "path": "apps/mobile/eas.json",
+            "brokenWhen": {
+              "lacks": "-xcode-"
+            }
+          }
+        ]
+      },
+      {
+        "//": "THE SURFACE THE DATE PROMISED. data-flow.json's export.surface carried {kind: none, target: 0.7.0} — an absence with a date — and 0.7.0 ships the surface: system.exportMyData, running AS THE CALLER under RLS, notes filtered authored-only IN THE QUERY. The template file now reads {kind: procedure}; a consumer's seeded copy still says target 0.7.0, which the (also new in 0.7.0) date enforcement in check-data-flow NOTEs until 0.8.0 and then reds. The probe matches exactly the stale dated absence and self-clears when the consumer either adopts the surface (update --refresh-seeded tools/data-flow.json plus the seedOnInitOnly files above) or re-reviews their own target to a release they mean — both are legitimate; the gate says so in its finding.",
+        "gate": "data-flow",
+        "why": "The export surface the file's own target promised for 0.7.0 exists in the template, but data-flow.json is seeded-with-reason (consumers record their erasure/export review in it), so update cannot rewrite it; an upgraded install keeps {kind: none, target: 0.7.0} and meets the arrived-deadline finding under the 0.7.0 ramp. Adopt the surface or re-review the target — a reviewed diff either way.",
+        "paths": [
+          "tools/data-flow.json"
+        ],
+        "probes": [
+          {
+            "path": "tools/data-flow.json",
+            "brokenWhen": {
+              "contains": "\"target\": \"0.7.0\""
+            }
+          }
+        ]
       }
     ]
   }

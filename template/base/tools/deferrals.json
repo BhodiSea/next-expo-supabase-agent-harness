@@ -1,0 +1,16 @@
+{
+  "comment": "The harness's own dated deferrals, as reviewed data — the ONE machine-read home for every dated deferral sentence in the harness-OWNED prose surfaces (docs/harness/gates-catalog.md, the top-level tools/*.mjs gate scripts, tools/auth-posture.json). tools/check-docs-sync.mjs closes sentence <-> entry BOTH ways and reds an entry whose target this install has reached: at the named release the author must ship the deferred check or move the date in a reviewed diff. This file is harness-owned and git-clean-enforced by check-gate-integrity's tools/ surface, so moving a date is a deliberate act that appears in the PR diff — a date can never roll silently again, which is what happened before this ledger existed: three prose sites carried the same stale promise into the release it named, with nothing reading any of them. `file` is one path or an ARRAY of paths when a single decision is stated at several sites; every listed file must carry the dated sentence, at this entry's exact target. enforcement-tiers.md is deliberately NOT ledgered here — its Target column has its own reader in check-docs-sync.mjs (the surface derivation and the closes: probe) — and SEEDED files are the consumer's prose, not the harness's to red (tools/data-flow.json's export target has its own enforcement in check-data-flow.mjs).",
+  "deferrals": [
+    {
+      "id": "auth-posture-cli-census",
+      "file": [
+        "tools/auth-posture.json",
+        "tools/check-auth-posture.mjs",
+        "docs/harness/gates-catalog.md"
+      ],
+      "target": "0.8.0",
+      "reason": "The standing ask-the-CLI section census (reading the Supabase CLI's own deprecation warnings instead of a hand-maintained knownSections list). The 0.6.0 spike built it, it worked, and it found the shipped [inbucket] rename — but the blocker is UPSTREAM, not scheduling: at this CLI pin (^2.34.3, resolving to 2.111.0) no subcommand parses config.toml without side effects. `config push` needs a project ref, `functions list` needs an access token, and `status` — the one that runs — binds to whatever stack holds the default ports (it reported another project's containers during the spike) and prints SECRET_KEY and JWT_SECRET into output a gate would then handle. A safe standing check needs a side-effect-free `config lint`-shaped subcommand; re-check for one at every CLI pin bump, and if 0.8.0 arrives without it, move this date in a reviewed diff rather than letting the scanner's red stand.",
+      "reviewedOn": "2026-08-08"
+    }
+  ]
+}
