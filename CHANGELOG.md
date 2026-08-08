@@ -873,6 +873,38 @@ one execution, three of them in machinery this release had just written.
   working, and the proof that the door OPENS gone at the same time. That is what leg E was
   built for (above); the gap is recorded here because finding it is what caused it.
 
+### Two more that only the TAG could expose — a release cannot be its own predecessor
+
+Cutting the tag put the repository into a state nothing had ever run in, and two controls
+answered differently there. Both had been green on the PR, on `main`, and on every local run,
+because in every one of those states **the release's own tag did not exist yet.**
+
+- **`check-ramp-ledger` took the highest tag as "the previous release".** The moment `v0.6.0`
+  existed, that was `v0.6.0` — so the deadline ratchet diffed HEAD against its own tree, found
+  no deadline move, and reported this release's reviewed `rampExtensions` record as a stale
+  standing permission slip. Not a one-build failure: `main` would have been red on that check
+  from the tag onward, and every future release would have reproduced it on the day it
+  shipped. The function's own comment named the hazard exactly — *"Not `git describe`: on a
+  release commit that resolves to itself"* — and then reimplemented it one line later.
+  `scripts/ci/upgrade-lane.sh` had the rule right and stated why: *"upgrading from the version
+  you are is a no-op that would pass this lane while proving nothing."* It is now
+  `highestReleaseBelow` in `scripts/lib/ramp-sites.mjs`, one home, with the pre-tag and
+  post-tag answers asserted to be equal.
+
+- **The VINTAGES closure asserted against a one-element view of history.** Its guard was
+  `tags.length === 0` — a template copy with no tags — which misses the case that actually
+  happened: on a **tag push** `actions/checkout` at its default depth fetches exactly the ref
+  being built, so `git tag --list` returns `["v0.6.0"]` and every released vintage looks like
+  a tag that never existed. It reported all six of its own releases as fabrications. It now
+  skips when no tag below the current version is reachable, because a truncated history
+  cannot corroborate anything, and `release.yml` checks out with `fetch-depth: 0` — its gates
+  ask questions about release history, and `machinery-lint` already checked out that way for
+  the same reason.
+
+The shape is worth naming: **the same commit was green on `main` and red on its own tag.**
+Not because the tree differed — it was byte-identical — but because two checks read the
+answer out of how the repository had been fetched rather than out of what it contained.
+
 ### Two the local ladder could not see, both found by CI on the release PR
 
 The whole local ladder was green — 1790 tests, factory gate, nine machinery-lint checks,

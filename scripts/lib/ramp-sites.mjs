@@ -107,6 +107,36 @@ export function cmpDotted(a, b) {
 }
 
 /**
+ * The highest `v*.*.*` tag STRICTLY BELOW `version`, or null.
+ *
+ * STRICTLY BELOW is the entire content of this function, and the version that introduced its
+ * caller shipped without it. "The previous release" is the tree a release compares ITSELF
+ * against — the deadline ratchet, the dependency channel, the seeded-additions diff all key
+ * on it — and the moment the release is tagged, the highest tag IS this version. The caller
+ * then diffs HEAD against its own tree, finds no deadline move, and reports the release's own
+ * reviewed `rampExtensions` record as a stale permission slip: green through development and
+ * red on `main` forever after the tag lands.
+ *
+ * scripts/ci/upgrade-lane.sh states the rule and implements it correctly — "upgrading from
+ * the version you are is a no-op that would pass this lane while proving nothing." This is
+ * that rule with one home, so the next reader of release history cannot get a different
+ * answer from the one the lane gets.
+ * @param {string[]} tags  every tag, any order, `v`-prefixed or not
+ * @param {string} version this tree's package.json version
+ * @returns {string|null}  the tag as given (prefix preserved), or null when none qualifies
+ */
+export function highestReleaseBelow(tags, version) {
+  return (
+    tags
+      .map((t) => String(t).trim())
+      .filter((t) => /^v?\d+\.\d+\.\d+$/.test(t))
+      .filter((t) => cmpDotted(t.replace(/^v/, ''), version) < 0)
+      .sort((a, b) => cmpDotted(a.replace(/^v/, ''), b.replace(/^v/, '')))
+      .at(-1) ?? null
+  )
+}
+
+/**
  * Advance past a quoted run starting at `open`; returns the index of its closing quote, or
  * the end of the text when the quote never closes.
  * @param {string} text @param {number} open

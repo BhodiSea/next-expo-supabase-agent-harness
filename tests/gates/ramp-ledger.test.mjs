@@ -31,6 +31,7 @@ import {
   classifyForInstall,
   cmpDotted,
   deadlineRegressions,
+  highestReleaseBelow,
   LINEAGE_FLOOR,
   neverArmed,
   rampNoteCalls,
@@ -510,10 +511,21 @@ test('GREEN: the SHIPPED VINTAGES is closed against this repository real tags', 
     .split('\n')
     .map((t) => t.trim())
     .filter(Boolean)
-  if (tags.length === 0) return // a template copy has no tags; the ledger fails closed in CI
   const pkg = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
   )
+  // AN INCOMPLETE TAG SET CANNOT CORROBORATE ANYTHING, and "none at all" is not the only way
+  // to be incomplete. The old guard was `tags.length === 0`, which covers a template copy —
+  // and misses the case that actually happened: on a TAG PUSH, `actions/checkout` at its
+  // default depth fetches exactly the ref being built, so `git tag --list` returns
+  // ["v0.6.0"] and nothing else. Every VINTAGES entry then looks like a release that never
+  // happened, and this assertion reported all six as stale on the release build of the very
+  // version it was tagging. The set that matters is the tags BELOW this version — the
+  // populations an upgrade to it can affect — so skip when that set is empty rather than
+  // assert against a truncated view of history. (Workflows that need the real answer supply
+  // it: fetch-depth: 0.)
+  const below = tags.filter((t) => cmpDotted(t.slice(1), pkg.version) < 0)
+  if (below.length === 0) return
   assert.deepEqual(checkVintages(tags, pkg.version), [])
 })
 
@@ -562,4 +574,37 @@ test('the SHIPPED 0.6.0 rampExpiry record equals what the shipped call sites com
   // 0.4.0 AND 0.5.0 are both untouched — the property leg A of the upgrade lane rests on.
   assert.equal(classifyForInstall('0.4.0', '0.6.0', sites).expired.length, 0)
   assert.equal(classifyForInstall('0.5.0', '0.6.0', sites).expired.length, 0)
+})
+
+// ── highestReleaseBelow (0.6.1) ──────────────────────────────────────────────────
+//
+// The release-history question every "compare against the previous release" check asks, with
+// one home. The bug it exists to prevent shipped in 0.6.0 and fired the moment that release
+// was tagged: the caller took the HIGHEST tag, which IS this version's tag once the release
+// is cut, so the deadline ratchet compared HEAD against its own tree and reported the
+// release's own reviewed rampExtensions record as a stale permission slip. Green through
+// development, red on `main` from the tag onward.
+test('highestReleaseBelow: the release being cut is NOT its own predecessor', () => {
+  const tags = ['v0.1.3', 'v0.2.0', 'v0.5.0', 'v0.6.0']
+  assert.equal(highestReleaseBelow(tags, '0.6.0'), 'v0.5.0')
+  // The pre-tag state and the post-tag state must give the SAME answer — that is the whole
+  // property. Before the tag exists the list simply lacks v0.6.0.
+  assert.equal(highestReleaseBelow(['v0.1.3', 'v0.2.0', 'v0.5.0'], '0.6.0'), 'v0.5.0')
+})
+
+test('highestReleaseBelow: a tag set with nothing below the version answers null, never a guess', () => {
+  // The tag-push checkout: `actions/checkout` at its default depth fetches exactly the ref
+  // being built, so this is the real shape, not a hypothetical.
+  assert.equal(highestReleaseBelow(['v0.6.0'], '0.6.0'), null)
+  assert.equal(highestReleaseBelow([], '0.6.0'), null)
+  // A FUTURE tag never counts either — a release cannot be compared against its successor.
+  assert.equal(highestReleaseBelow(['v0.7.0', 'v1.0.0'], '0.6.0'), null)
+})
+
+test('highestReleaseBelow: ordering is numeric and non-release refs are ignored', () => {
+  // 0.10.0 > 0.9.0 lexically fails; this is the ordering bug that hides for nine releases.
+  assert.equal(highestReleaseBelow(['v0.9.0', 'v0.10.0'], '0.11.0'), 'v0.10.0')
+  assert.equal(highestReleaseBelow(['v0.5.0', 'v0.6.0-rc.1', 'nightly', ''], '0.6.0'), 'v0.5.0')
+  // Prefix is preserved as given, because callers hand the result to `git`.
+  assert.equal(highestReleaseBelow(['0.5.0', '0.4.0'], '0.6.0'), '0.5.0')
 })

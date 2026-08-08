@@ -40,6 +40,7 @@ import {
   classifyForInstall,
   cmpDotted,
   deadlineRegressions,
+  highestReleaseBelow,
   LINEAGE_FLOOR,
   neverArmed,
   rampSitesFromSources,
@@ -122,17 +123,25 @@ const affected = ledger.filter((r) => r.expired.length > 0).map((r) => r.base)
 const git = (args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
-/** The highest v*.*.* tag. Not `git describe`: on a release commit that resolves to itself. */
-function previousTag() {
+/**
+ * The highest v*.*.* tag STRICTLY BELOW this tree's version.
+ *
+ * The strictly-below half is the whole point, and this function shipped without it. Its
+ * previous comment read "Not `git describe`: on a release commit that resolves to itself" —
+ * it named the hazard exactly and then reimplemented it, because the highest tag IS this
+ * version's tag the moment the release is cut. Every check downstream then diffs HEAD
+ * against its own tree, sees no deadline move, and reports the release's own `rampExtensions`
+ * record as a stale permission slip. Green through development, red forever after tagging —
+ * on `main`, on the tag build, and on every commit that follows.
+ *
+ * scripts/ci/upgrade-lane.sh states this rule in prose and implements it correctly:
+ * "upgrading from the version you are is a no-op that would pass this lane while proving
+ * nothing." Same rule, same reason, and the second copy is where it went missing.
+ * @param {string} current  this tree's package.json version
+ */
+function previousTag(current) {
   try {
-    return (
-      git(['tag', '--list', 'v*.*.*'])
-        .split('\n')
-        .map((t) => t.trim())
-        .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
-        .sort((a, b) => cmpDotted(a.slice(1), b.slice(1)))
-        .at(-1) ?? null
-    )
+    return highestReleaseBelow(git(['tag', '--list', 'v*.*.*']).split('\n'), current)
   } catch {
     return null
   }
@@ -173,7 +182,7 @@ if (tags === null || tags.length === 0) {
   }
 }
 
-const tag = previousTag()
+const tag = previousTag(version)
 let ratchetSummary
 if (tag === null) {
   const msg =
