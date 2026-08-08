@@ -4,7 +4,6 @@
 // stop_hook_active; bounded by CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (settings env).
 // SOURCE: docs/harness/README.md (stop-validate-gate)
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
@@ -65,23 +64,24 @@ try {
 let floorNote = null
 let injected = []
 try {
-  const floorUrl = new URL('../../tools/stop.floor.json', import.meta.url)
-  const floor = JSON.parse(readFileSync(floorUrl, 'utf8'))?.steps
-  const wellFormed =
-    Array.isArray(floor) &&
-    floor.length > 0 &&
-    floor.every((s) => Array.isArray(s) && typeof s[0] === 'string' && typeof s[1] === 'string')
-  if (!wellFormed) {
-    floorNote = 'tools/stop.floor.json has no well-formed `steps` array'
-  } else {
-    const present = new Set(STEPS.map(([name]) => name))
-    injected = floor.filter(([name]) => !present.has(name))
-    // Floor order first, then the config's own steps: a floor step that a weakened config
-    // dropped must run where the floor puts it, and appended project steps stay last.
-    if (injected.length > 0) STEPS = [...floor, ...STEPS.filter(([n]) => !floor.some(([f]) => f === n))]
-  }
+  // ONE implementation of the union (0.7.0): the same lib `validate --stop-chain`
+  // resolves with, so a runner outside a live turn can never disagree with this hook
+  // about what the chain is. Imported dynamically so a missing or mangled lib degrades
+  // exactly like an unreadable floor — a loud NOTE and the config chain alone, never a
+  // bricked turn. The lib lives under tools/lib, inside gate-integrity's hashed surface
+  // and the write-guard table like the floor itself, so the tamper is evidenced on the
+  // very next validate rather than depending on this hook to notice.
+  const { loadStopChain } = await import(
+    new URL('../../tools/lib/stop-chain.mjs', import.meta.url).href
+  )
+  const union = loadStopChain(STEPS, new URL('../../tools/stop.floor.json', import.meta.url))
+  // Floor order first, then the config's own steps: a floor step that a weakened config
+  // dropped must run where the floor puts it, and appended project steps stay last.
+  STEPS = union.steps
+  injected = union.injected
+  floorNote = union.floorNote
 } catch (e) {
-  floorNote = `could not read tools/stop.floor.json (${e?.message ?? e})`
+  floorNote = `could not load tools/lib/stop-chain.mjs (${e?.message ?? e}) — the floor union could not be computed`
 }
 
 const failures = []

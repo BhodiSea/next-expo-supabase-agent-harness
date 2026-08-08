@@ -13,11 +13,12 @@
 // Windows leg of the unit lane runs the identical assertions.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { loadStopChain, unionSteps } from '../../template/base/tools/lib/stop-chain.mjs'
 
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
 
@@ -30,7 +31,10 @@ const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
 function fixture({ config, floor, corruptFloor }) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-stopfloor-'))
   cpSync(join(TEMPLATE, '.claude/hooks'), join(dir, '.claude/hooks'), { recursive: true })
-  mkdirSync(join(dir, 'tools'), { recursive: true })
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  // The hook resolves the union through the shared lib (0.7.0) — part of the rendered
+  // install layout, exactly like harness.config.mjs below.
+  copyFileSync(join(TEMPLATE, 'tools/lib/stop-chain.mjs'), join(dir, 'tools/lib/stop-chain.mjs'))
 
   const names = [...new Set([...config, ...(floor ?? [])])]
   for (const n of names) {
@@ -122,6 +126,92 @@ test('a MISSING or CORRUPT floor is a loud NOTE, never a bricked turn', () => {
   const s = runStopHook(shapeless)
   assert.equal(s.code, 0, s.out)
   assert.match(s.out, /no well-formed `steps` array/)
+})
+
+// ── the union LIB (0.7.0): ONE implementation, imported by the hook AND `validate
+// --stop-chain`. These pin the semantics the spawn tests above prove end-to-end, at the
+// seam both consumers share — so the two callers can never disagree about what the union IS.
+
+test('unionSteps: floor-first order — a floored step a weakened config dropped runs where the floor puts it', () => {
+  const config = [
+    ['house-rule', 'node mark-house-rule.mjs'],
+    ['validate', 'node mark-validate.mjs'],
+  ]
+  const floor = [
+    ['validate', 'node mark-validate.mjs'],
+    ['test-quality', 'node mark-test-quality.mjs'],
+  ]
+  const { steps, injected } = unionSteps(config, floor)
+  assert.deepEqual(
+    steps.map(([n]) => n),
+    ['validate', 'test-quality', 'house-rule'],
+    'floor order first, appended project steps last',
+  )
+  assert.deepEqual(injected.map(([n]) => n), ['test-quality'])
+})
+
+test('unionSteps: a config that subtracts nothing is returned AS IS — config-append preserved, no reorder', () => {
+  const config = [
+    ['validate', 'node mark-validate.mjs'],
+    ['house-rule', 'node mark-house-rule.mjs'],
+  ]
+  const floor = [['validate', 'node mark-validate.mjs']]
+  const { steps, injected } = unionSteps(config, floor)
+  assert.equal(steps, config, 'identity, not a copy — the hook ran the config array untouched here')
+  assert.deepEqual(injected, [])
+})
+
+test('unionSteps: subtraction is impossible — every floor step survives even an EMPTY config', () => {
+  const floor = [
+    ['validate', 'node mark-validate.mjs'],
+    ['test-quality', 'node mark-test-quality.mjs'],
+    ['diff-coverage', 'node mark-diff-coverage.mjs'],
+  ]
+  const { steps, injected } = unionSteps([], floor)
+  for (const [n] of floor) {
+    assert.ok(steps.some(([s]) => s === n), `floor step ${n} must survive the maximal subtraction`)
+  }
+  assert.equal(injected.length, floor.length)
+})
+
+test('loadStopChain mirrors the hook posture: missing/corrupt/shapeless floor is a NOTE, never a throw', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-stopchain-lib-'))
+  const config = [['validate', 'node mark-validate.mjs']]
+  const floorUrl = pathToFileURL(join(dir, 'stop.floor.json'))
+
+  const missing = loadStopChain(config, floorUrl)
+  assert.equal(missing.steps, config)
+  assert.deepEqual(missing.injected, [])
+  assert.match(String(missing.floorNote), /could not read tools\/stop\.floor\.json/)
+
+  writeFileSync(join(dir, 'stop.floor.json'), '{ not json')
+  assert.match(String(loadStopChain(config, floorUrl).floorNote), /could not read tools\/stop\.floor\.json/)
+
+  writeFileSync(join(dir, 'stop.floor.json'), '{"steps": "all"}')
+  assert.match(String(loadStopChain(config, floorUrl).floorNote), /no well-formed `steps` array/)
+
+  writeFileSync(
+    join(dir, 'stop.floor.json'),
+    JSON.stringify({ steps: [['validate', 'node mark-validate.mjs'], ['boom', 'node mark-boom.mjs']] }),
+  )
+  const good = loadStopChain(config, floorUrl)
+  assert.equal(good.floorNote, null)
+  assert.deepEqual(good.steps.map(([n]) => n), ['validate', 'boom'])
+  assert.deepEqual(good.injected.map(([n]) => n), ['boom'])
+})
+
+test('a MISSING union lib is a loud NOTE and the config chain still runs — never a bricked turn', () => {
+  // The one failure mode the extraction ADDS. The lib lives under tools/lib — inside
+  // gate-integrity's hashed surface and the write-guard table like the floor itself — so
+  // the hook degrades exactly as it does on an unreadable floor: config chain alone, said
+  // out loud, evidenced on the very next validate rather than bricking every turn here.
+  const dir = fixture({ config: ['validate'], floor: ['validate', 'test-quality'] })
+  rmSync(join(dir, 'tools/lib/stop-chain.mjs'))
+  const r = runStopHook(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(ran(dir, 'validate'), r.out)
+  assert.ok(!ran(dir, 'test-quality'), 'without the lib the union cannot be computed — the config chain ran alone')
+  assert.match(r.out, /could not load tools\/lib\/stop-chain\.mjs/)
 })
 
 test('the SHIPPED floor equals the shipped STOP_HOOK_STEPS (generate-floor lockstep)', async () => {

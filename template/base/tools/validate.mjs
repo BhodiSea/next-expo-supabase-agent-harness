@@ -12,13 +12,21 @@
 // --report-all (Stop hook): run EVERY step instead of stopping at the first failure, so
 //   an agent sees all reds at once — with ~33 gates and a per-turn block budget, serial
 //   one-red-per-turn discovery would exhaust the budget before the chain is green.
+// --stop-chain (0.7.0): resolve the STOP-HOOK chain instead of VALIDATE_STEPS — the union
+//   of the frozen tools/stop.floor.json and the config's STOP_HOOK_STEPS, computed by the
+//   SAME lib the Stop hook imports (tools/lib/stop-chain.mjs), so nothing outside a live
+//   turn can disagree with the hook about what the chain is. Composes with --list and
+//   --report-all. FAILS CLOSED on a missing/corrupt floor: the hook's fail-open-with-NOTE
+//   trade belongs to a live turn (a corrupt floor must not brick every turn on a machine);
+//   a runner asked to PROVE the chain must never quietly prove a weakened one. This is a
+//   resolution MODE — membership of both chains is untouched and neither floor moves.
 // --list: print the resolved steps without running them.
 // SOURCE: docs/harness/README.md (the Stop gate defines done; CI floor) [corpus: harness/doctrine]
 import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import process from 'node:process'
-import { VALIDATE_STEPS } from './harness.config.mjs'
+import { STOP_HOOK_STEPS, VALIDATE_STEPS } from './harness.config.mjs'
 
 // --report-all ONLY (the Stop-hook path): read-only gates that touch nothing another
 // gate writes and so may share a CPU. Anything NOT in this set — including any
@@ -99,7 +107,22 @@ function loadFloor() {
   return steps
 }
 
-function resolveSteps() {
+async function resolveSteps() {
+  if (flags.has('--stop-chain')) {
+    // Imported lazily: the default chain must not grow a new load-bearing file, and the
+    // lib is shared with the Stop hook — one implementation of the union, two postures.
+    const { loadStopChain } = await import('./lib/stop-chain.mjs')
+    const config = Array.isArray(STOP_HOOK_STEPS) ? STOP_HOOK_STEPS : []
+    const { steps: union, floorNote } = loadStopChain(
+      config,
+      new URL('./stop.floor.json', import.meta.url),
+    )
+    if (floorNote !== null) {
+      console.error(`validate --stop-chain: ${floorNote} — FAILING CLOSED; ${FLOOR_HINT}`)
+      process.exit(1)
+    }
+    return union
+  }
   if (!flags.has('--min-floor')) return VALIDATE_STEPS
   const floor = loadFloor()
   const floorNames = new Set(floor.map(([name]) => name))
@@ -107,7 +130,7 @@ function resolveSteps() {
   return [...floor, ...extras]
 }
 
-const steps = resolveSteps()
+const steps = await resolveSteps()
 
 if (flags.has('--list')) {
   for (const [name, cmd] of steps) console.log(`${name}  ${cmd}`)

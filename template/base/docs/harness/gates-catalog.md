@@ -1417,6 +1417,37 @@ lane's `artifacts/perf-results.json`: cold-start `am start -W` TotalTime,
 **Anti-vacuity:** register a route with no flow file → FAIL naming the missing
 flow and budget row; leave a stale row for a deleted route → FAIL.
 
+### reviewer-verdicts — `node tools/check-reviewer-verdicts.mjs`
+
+Stop-chain step 10, and the only check in the harness whose subject is the TURN
+rather than the tree: every reviewer whose `MUST BE USED` trigger patterns
+(reviewed data in `tools/reviewer-triggers.json`) match this turn's diff must
+have returned `VERDICT: PASS`, recorded by the SubagentStop hook
+(`.claude/hooks/subagent-verdict.mjs`) into the session-scoped ledger at
+`.harness/reviewer-ledger.jsonl`. The Stop hook passes the turn's identity down
+(`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`) and the step narrows the ledger to
+THIS turn, so last turn's PASS satisfies nothing. Three failure modes: an owed
+reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
+reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
+finding it exists to produce, and a turn does not end on a BLOCK; and on an
+install whose baseVersion predates 0.6.0 running harness >= 0.7.0, the
+formerly NOTE-withheld findings land as hard reds under a `RAMP EXPIRED`
+banner (the 0.6.0 ramp's deadline arrived — sweep the findings, then
+graduate), while a 0.6.0-vintage install reds plainly with no banner: its ramp
+is inert, not expired. Fail closed in every direction that matters: a missing
+`tools/reviewer-triggers.json` is a broken control, not an empty policy
+(FAIL); a missing, unreadable, or unparseable ledger BLOCKS; a missing turn
+identity skips loudly outside the Stop hook and FAILS in CI, where the hook
+that supplies it must have changed. What it deliberately does NOT judge is the
+CONTENT of a review: a PASS is an attestation by a read-only agent whose
+tools, model, and body are locked in `tools/agents.lock.json` — whether it was
+a GOOD review is not a property any file can hold.
+**Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
+reviewer that never ran, last turn's PASS refused, the cross-session PASS
+refused, the BLOCK that blocks, the unparseable ledger failing closed, and the
+`RAMP EXPIRED` branch EXECUTED at harness 0.7.0 (with the 0.6.0-vintage
+sibling case pinning the plain red, no banner).
+
 ## CI-only lanes (outside the chain and the Stop hook)
 
 - **db-perf** (`db-scale` lane) — `node tools/check-db-perf.mjs`, after

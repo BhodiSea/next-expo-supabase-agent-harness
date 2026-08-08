@@ -15,7 +15,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -43,6 +43,49 @@ const jobIds = readdirSync(WORKFLOW_DIR)
     const text = readFileSync(join(WORKFLOW_DIR, f), 'utf8')
     const at = text.indexOf('\njobs:')
     return at === -1 ? [] : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+  })
+
+// The FACTORY universes (0.7.0), derived the same way the checker derives them. The gate
+// scripts: every scripts/check-*.mjs plus hygiene.mjs and generate-floor.mjs. The hook
+// members: the STEPS/TOOLCHAIN_STEPS tables of .claude/hooks/stop-factory-gate.mjs, PARSED
+// rather than imported — the hook executes on import (top-level readHookInput() + the gate
+// spawns), so a text parse is the only honest mechanism. A hook step invoking a
+// scripts/*.mjs identifies with that script member; a toolchain step (eslint, tests, …)
+// stands alone under its own name.
+function parseFactoryHookMembers(src) {
+  const members = []
+  for (const table of ['STEPS', 'TOOLCHAIN_STEPS']) {
+    const open = src.indexOf(`const ${table} = [`)
+    const close = src.indexOf('\n]', open)
+    assert.notEqual(open, -1, `stop-factory-gate.mjs lost its ${table} table`)
+    for (const m of src.slice(open, close).matchAll(/\[\s*'([a-z][a-z0-9-]+)',\s*\[([^\]]*)\]/g)) {
+      const script = /scripts\/([A-Za-z0-9._-]+\.mjs)/.exec(m[2])
+      members.push(script === null ? m[1] : script[1])
+    }
+  }
+  return members
+}
+const factoryGateMembers = [
+  ...new Set([
+    ...readdirSync(join(ROOT_DIR, 'scripts'))
+      .filter((f) => /^check-[a-z0-9-]+\.mjs$/.test(f) || f === 'hygiene.mjs' || f === 'generate-floor.mjs')
+      .sort(),
+    ...parseFactoryHookMembers(
+      readFileSync(join(ROOT_DIR, '.claude/hooks/stop-factory-gate.mjs'), 'utf8'),
+    ),
+  ]),
+]
+// The factory's own workflows, keyed '<file>#<job>' — never bare ids, because the consumer
+// lanes registry above already claims 'actionlint' and 'zizmor'.
+const factoryJobKeys = readdirSync(join(ROOT_DIR, '.github/workflows'))
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort()
+  .flatMap((f) => {
+    const text = readFileSync(join(ROOT_DIR, '.github/workflows', f), 'utf8')
+    const at = text.indexOf('\njobs:')
+    return at === -1
+      ? []
+      : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => `${f}#${m[1]}`)
   })
 
 const guardRules = await import(
@@ -73,6 +116,49 @@ function greenRegistry() {
       stepNames.map((n) => [n, [{ kind: 'fixture', ref: 'scripts/lib/complexity.mjs' }]]),
     ),
     lanes: Object.fromEntries(jobIds.map((j) => [j, [{ kind: 'steps', note: 'fixture note' }]])),
+    factoryGates: Object.fromEntries(
+      factoryGateMembers.map((m) => [m, [{ kind: 'fixture', ref: 'scripts/lib/complexity.mjs' }]]),
+    ),
+    factoryLanes: Object.fromEntries(
+      factoryJobKeys.map((k) => [k, [{ kind: 'steps', note: 'fixture note' }]]),
+    ),
+  }
+}
+
+// A fully-synthetic factory universe: a scripts dir, a hook file carrying the two step
+// tables, and a workflows dir — everything the three factory positional overrides accept.
+const SYNTHETIC_HOOK = `const STEPS = [
+  ['alpha', ['scripts/check-alpha.mjs']],
+]
+const TOOLCHAIN_STEPS = [
+  ['fmt', ['exec', 'fmt', '.']],
+]
+`
+function factoryFixture({ scripts = ['check-alpha.mjs'], workflows = { 'ci.yml': ['build'] } } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-cancov-factory-'))
+  const scriptsDir = join(dir, 'scripts')
+  mkdirSync(scriptsDir)
+  for (const name of scripts) writeFileSync(join(scriptsDir, name), '// synthetic gate\n')
+  const hookPath = join(dir, 'stop-factory-gate.mjs')
+  writeFileSync(hookPath, SYNTHETIC_HOOK)
+  const workflowsDir = join(dir, 'workflows')
+  mkdirSync(workflowsDir)
+  for (const [file, jobs] of Object.entries(workflows)) {
+    writeFileSync(
+      join(workflowsDir, file),
+      `name: x\non: push\njobs:\n${jobs.map((j) => `  ${j}:\n    runs-on: ubuntu-latest\n    steps: []\n`).join('')}`,
+    )
+  }
+  return { scriptsDir, hookPath, workflowsDir }
+}
+/** Registry factory sections covering exactly the SYNTHETIC universe above. */
+function syntheticFactorySections() {
+  return {
+    factoryGates: {
+      'check-alpha.mjs': [{ kind: 'fixture', ref: 'scripts/lib/complexity.mjs' }],
+      fmt: [{ kind: 'lane', ref: 'ci.yml#build', note: 'synthetic' }],
+    },
+    factoryLanes: { 'ci.yml#build': [{ kind: 'steps', note: 'synthetic note' }] },
   }
 }
 
@@ -81,10 +167,12 @@ function greenRegistry() {
  * exercise the STATIC lockstep, and spawning would recurse — the suite is already running
  * proof files the checker would spawn. The spawn cases opt in to prove the G28 execution
  * path itself reds/greens.
- * @param {string} registryPath @param {string} hookContractPath @param {{ spawn?: boolean }} [opts]
+ * @param {string} registryPath @param {string} hookContractPath
+ * @param {{ spawn?: boolean, factory?: { scriptsDir: string, hookPath: string, workflowsDir: string } }} [opts]
  */
-function run(registryPath, hookContractPath, { spawn = false } = {}) {
+function run(registryPath, hookContractPath, { spawn = false, factory } = {}) {
   const args = [registryPath, hookContractPath]
+  if (factory !== undefined) args.push(factory.scriptsDir, factory.hookPath, factory.workflowsDir)
   if (!spawn) args.push('--no-spawn')
   const env = { ...process.env }
   delete env.CI
@@ -188,6 +276,93 @@ test('RED: a CI lane with no red-proof, and a stale lane entry, both fail (the l
   const r2 = run(p2, c2)
   assert.equal(r2.code, 1, r2.out)
   assert.ok(r2.out.includes("lanes registry covers 'no-such-lane'"), r2.out)
+})
+
+test('LIVE LOCKSTEP (static): the shipped registry closes over the factory gates and factory lanes', () => {
+  // The 0.7.0 closure: the gates that guard the guards, and the factory's own CI lanes,
+  // were the last enforcement surfaces with no falsifiability ledger — 'hygiene had none'.
+  assert.ok(factoryGateMembers.length > 0 && factoryJobKeys.length > 0)
+  assert.deepEqual(
+    [...Object.keys(realRegistry.factoryGates ?? {})].sort(),
+    [...factoryGateMembers].sort(),
+    'tests/canary/injections.json#factoryGates must equal the scripts/check-*.mjs ∪ hygiene.mjs ∪ generate-floor.mjs ∪ stop-factory-gate step universe, bidirectionally',
+  )
+  assert.deepEqual(
+    [...Object.keys(realRegistry.factoryLanes ?? {})].sort(),
+    [...factoryJobKeys].sort(),
+    "tests/canary/injections.json#factoryLanes must equal every '<file>#<job>' of the factory's own .github/workflows, bidirectionally",
+  )
+  for (const proofs of Object.values(realRegistry.factoryGates ?? {})) {
+    for (const proof of proofs) {
+      assert.ok(['fixture', 'lane'].includes(proof.kind), JSON.stringify(proof))
+      if (proof.kind === 'lane') {
+        assert.ok(
+          factoryJobKeys.includes(proof.ref),
+          `factoryGates lane declaration ${proof.ref} names no real factory workflow job`,
+        )
+      }
+    }
+  }
+  for (const proofs of Object.values(realRegistry.factoryLanes ?? {})) {
+    for (const proof of proofs) assert.ok(['fixture', 'steps'].includes(proof.kind), JSON.stringify(proof))
+  }
+})
+
+test('GREEN: a synthetic factory universe fully covered by the registry is CLEAN', () => {
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { factory: factoryFixture() })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: a factory gate script with no factoryGates entry fails, naming the gate', () => {
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  const { registryPath, contractPath } = fixture(reg)
+  const factory = factoryFixture({ scripts: ['check-alpha.mjs', 'check-new-gate.mjs'] })
+  const r = run(registryPath, contractPath, { factory })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("factory gate 'check-new-gate.mjs'"), r.out)
+  assert.ok(r.out.includes('NO red-proof'), r.out)
+})
+
+test('RED: a stale factoryGates entry naming a vanished gate fails', () => {
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  reg.factoryGates['check-vanished.mjs'] = [{ kind: 'fixture', ref: 'scripts/lib/complexity.mjs' }]
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { factory: factoryFixture() })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("factoryGates registry covers 'check-vanished.mjs'"), r.out)
+  assert.ok(r.out.includes('stale entry'), r.out)
+})
+
+test('RED: a factory workflow job with no factoryLanes entry fails, keyed <file>#<job>', () => {
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  const { registryPath, contractPath } = fixture(reg)
+  const factory = factoryFixture({ workflows: { 'ci.yml': ['build', 'deploy'] } })
+  const r = run(registryPath, contractPath, { factory })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("factory workflow job 'ci.yml#deploy'"), r.out)
+})
+
+test("RED: a bare-id factoryLanes key is rejected — '<file>#<job>' keying is mandatory", () => {
+  // A bare id would silently share one proof across two workflows: the consumer lanes
+  // registry already claims 'actionlint' and 'zizmor', so the factory copy of either
+  // would be covered by a proof written for the template's workflow.
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  reg.factoryLanes.build = [{ kind: 'steps', note: 'a bare id' }]
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { factory: factoryFixture() })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("factoryLanes key 'build' is a bare job id"), r.out)
+})
+
+test('RED: a factoryGates lane declaration naming a nonexistent workflow job fails', () => {
+  const reg = { ...greenRegistry(), ...syntheticFactorySections() }
+  reg.factoryGates.fmt = [{ kind: 'lane', ref: 'ci.yml#no-such-job', note: 'dangling' }]
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { factory: factoryFixture() })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("factory gate 'fmt': lane declaration \"ci.yml#no-such-job\""), r.out)
 })
 
 test('RED: a guard rule id with no behavioral canary fails, naming the rule', () => {

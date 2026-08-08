@@ -12,7 +12,10 @@
 //      gate. Version-ramped: NOTE-only on installs whose baseVersion predates
 //      the check (a consumer's custom step must not red the update that shipped
 //      it) — in this lineage it ships in 0.1.0, so it is live from the first
-//      install and on the template tree.
+//      install and on the template tree. Since 0.7.0 the same closure covers
+//      the frozen Stop floor: every tools/stop.floor.json step except
+//      `validate` needs its UNNUMBERED `### <name> — ` section — name-keyed,
+//      floor-scoped (a consumer-APPENDED Stop step is the consumer's business).
 //   5. The agent roster matches the docs' claim: every .claude/agents/*.md
 //      parses under the pinned frontmatter grammar (a parse failure is a RED,
 //      never a skip) and carries name (== filename), description, and model;
@@ -171,8 +174,54 @@ if (!existsSync(CATALOG)) {
       )
     }
   }
+
+  // THE STOP FLOOR IS PART OF THE SAME CLOSURE (0.7.0). The Stop-chain steps are frozen
+  // in tools/stop.floor.json, and for a release the newest of them — reviewer-verdicts,
+  // the only turn-scoped control in the harness — was the one chain member with no
+  // documented way to watch it fail. The universe is the FLOOR, deliberately NOT the
+  // live config's STOP_HOOK_STEPS: on a consumer tree the config may carry
+  // consumer-APPENDED steps, and their documentation is the consumer's business — the
+  // harness documents what the harness ships. The grammar is NAME-keyed (`### <name> — `
+  // with anything after the dash), never command-keyed, because a real heading
+  // paraphrases its command (mobile-unit's names jest-expo, not the pnpm invocation).
+  // Membership is checked one direction only, floor -> catalog, so an unnumbered
+  // heading that is not a floor step (the '### the validate runner —' note, whose
+  // multi-word title never even parses as a step name) can neither satisfy nor break
+  // it. `validate` is the one exclusion: its documentation IS the numbered chain
+  // sections plus that runner note.
+  const FLOOR = 'tools/stop.floor.json'
+  if (!existsSync(FLOOR)) {
+    catalogErrs.push(
+      `${FLOOR} missing — the harness ships it (owned; \`update\` restores it), and without the frozen floor the catalog closure over the Stop chain has no universe`,
+    )
+  } else {
+    let floorSteps = []
+    try {
+      const floor = JSON.parse(readFileSync(FLOOR, 'utf8'))
+      floorSteps = (Array.isArray(floor.steps) ? floor.steps : [])
+        .map((s) => (Array.isArray(s) ? s[0] : null))
+        .filter((n) => typeof n === 'string')
+      if (floorSteps.length === 0) {
+        catalogErrs.push(
+          `${FLOOR} declares no readable steps — an empty floor closes over nothing; restore it from git history`,
+        )
+      }
+    } catch (e) {
+      catalogErrs.push(
+        `${FLOOR} is not valid JSON (${e.message}) — an unreadable universe fails CLOSED here; restore it from git history`,
+      )
+    }
+    const stopSections = new Set([...catalog.matchAll(/^### ([a-z0-9-]+) — /gm)].map((m) => m[1]))
+    for (const name of floorSteps) {
+      if (name !== 'validate' && !stopSections.has(name)) {
+        catalogErrs.push(
+          `Stop-floor step '${name}' has no section in ${CATALOG} — add an unnumbered heading (### ${name} — \`<what it runs>\`) with its anti-vacuity proof. The floor (${FLOOR}) is the documented universe; a turn-fatal check nobody can watch fail is an untrusted check.`,
+        )
+      }
+    }
+  }
 }
-let catalogSummary = 'gates-catalog documents every step'
+let catalogSummary = 'gates-catalog documents every chain step and every Stop-floor step'
 if (catalogErrs.length > 0) {
   // 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
   // this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for

@@ -156,28 +156,22 @@ jobs:
             echo '::error::CANARY: the RLS runner exited 0 with no database reachable — a skip is reading as a pass'; exit 1
           fi
           echo 'canary OK: rls runner fails closed without a database'
-      - name: Baseline — every canaried gate PASSES on the clean scaffold
+      - name: Baseline — the DERIVED Stop-chain union PASSES on the clean scaffold
         working-directory: ${{ runner.temp }}/canary
         run: |
-          # GITHUB_BASE_REF belongs to the harness checkout, not this scaffold
-          # repo — unset it so the diff-based gates diff against the scaffold's
-          # own HEAD instead of a ref that does not exist here.
-          env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
-          env -u GITHUB_BASE_REF node tools/check-native-deps.mjs
-          env -u GITHUB_BASE_REF node tools/check-migrations.mjs
-          env -u GITHUB_BASE_REF node tools/check-sources.mjs
-          env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-gate-integrity.mjs
-          env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs
-          env -u GITHUB_BASE_REF node tools/check-styleguide-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-mobile-perf.mjs --closure
-          env -u GITHUB_BASE_REF node tools/check-docs-sync.mjs
-          env -u GITHUB_BASE_REF node tools/check-duplication.mjs
-          env -u GITHUB_BASE_REF node tools/check-test-quality.mjs
-          env -u GITHUB_BASE_REF node tools/check-i18n.mjs
-          env -u GITHUB_BASE_REF node tools/check-e2e.mjs
-          env -u GITHUB_BASE_REF node tools/build-check.mjs
+          # DERIVED, not hand-typed (0.7.0). The sixteen gate invocations that used to sit
+          # here were a hand-copy of the chain they claimed to prove, and a hand-copy can
+          # drift — a step added to the union never joined this baseline, a renamed one
+          # rotted in it. The runner asks the scaffold's own `validate --stop-chain --list`
+          # for the floor∪config union (the SAME lib the Stop hook imports) and executes
+          # every member not declared in scripts/ci/stop-chain-exclusions.json — each
+          # exclusion PRINTED with its reason and the selftest step that DOES run it, and a
+          # stale entry reds the run before anything executes. The `validate` member runs
+          # the full 33-gate chain, which subsumes every gate the old list named. The
+          # runner itself scrubs GITHUB_BASE_REF (this scaffold is a different git repo)
+          # and exports a synthetic turn identity, so reviewer-verdicts EXECUTES with
+          # owed=[] instead of skipping.
+          node "$GITHUB_WORKSPACE/scripts/ci/run-stop-chain.mjs" .
       - name: 'Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -859,6 +853,46 @@ jobs:
           # so this grep cannot false-green a run that never reached the database.
           grep -q '\[rls\] OK' rls.log \
             || { echo '::error::RLS suite did not complete green against the live stack (a self-skip or truncated run)'; exit 1; }
+      # The 0.7.0 release headline: through 0.6.0, NOTHING executed STOP_HOOK_STEPS as a
+      # chain except a live agent turn — every member had a proof, the chain the whole
+      # promise rests on had none. This is the first end-to-end execution of the real
+      # mechanism: a synthetic Stop payload piped into the SCAFFOLD's own hook, on the
+      # live stack, with exit 0 required and vacuity ruled out afterwards.
+      - name: 'THE STOP CHAIN — as a chain, via the real hook'
+        working-directory: .selftest/boot
+        run: |
+          # The union assembles from tools/stop.floor.json ∪ STOP_HOOK_STEPS inside the
+          # hook (via tools/lib/stop-chain.mjs), rls-isolation runs against the running
+          # database (HARNESS_STOP_GATE=1 makes a skip a failure), unit/mobile-unit run
+          # with coverage, diff-coverage reads the merged maps, and reviewer-verdicts
+          # EXECUTES — the session/prompt ids flow down from the payload; clean scaffold →
+          # owed=[] — a real code path, not a skip. CI=true so nothing rides a stamp;
+          # env -u GITHUB_BASE_REF for the same reason THE GATE above uses it. The log
+          # lands in RUNNER_TEMP so the hook's own validate never judges a tree this step
+          # dirtied. Coverage maps and the turn ledger are cleared first so the
+          # non-vacuity assertions below can only be satisfied by THIS run.
+          rm -rf coverage apps/mobile/coverage .harness/turn-outcomes.jsonl
+          if ! printf '%s' '{"session_id":"selftest","prompt_id":"selftest-stop","stop_hook_active":false}' \
+            | env -u GITHUB_BASE_REF CI=true node .claude/hooks/stop-validate-gate.mjs \
+            > "$RUNNER_TEMP/stop-chain-hook.log" 2>&1; then
+            tail -n 150 "$RUNNER_TEMP/stop-chain-hook.log"
+            echo '::error::the REAL Stop hook exited non-zero on a clean scaffold with the stack live — the chain the whole promise rests on is red'
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/stop-chain-hook.log"
+          # NOT VACUOUS, proven from the hook's own side effects: the turn ledger recorded
+          # a green outcome under the synthetic prompt id (the payload identity really
+          # flowed down — the same pass-down that reached reviewer-verdicts), and both
+          # coverage-instrumented unit suites freshly wrote their maps.
+          grep -q '"kind":"green"' .harness/turn-outcomes.jsonl \
+            || { echo '::error::the hook exited 0 but its turn ledger recorded no green outcome — the run was vacuous'; exit 1; }
+          grep -q '"prompt_id":"selftest-stop"' .harness/turn-outcomes.jsonl \
+            || { echo '::error::the ledger entry does not carry the synthetic prompt id — the payload identity never flowed down'; exit 1; }
+          test -f coverage/coverage-final.json \
+            || { echo '::error::vitest wrote no coverage map — the unit step did not actually run'; exit 1; }
+          test -f apps/mobile/coverage/coverage-final.json \
+            || { echo '::error::jest-expo wrote no coverage map — the mobile-unit step did not actually run'; exit 1; }
+          echo 'stop chain OK: the union ran end-to-end via the real hook (rls live, both coverage maps written, reviewer-verdicts executed, ledger green)'
       # W6 armed (the registry-level PORT NOTE retired with it): the source
       # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
       # looking at the DAL's real SQL, not a statement nobody runs.

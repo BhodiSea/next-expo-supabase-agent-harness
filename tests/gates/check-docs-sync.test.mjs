@@ -43,6 +43,9 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'harness.config.mjs'), join(dir, 'tools/harness.config.mjs'))
   cpSync(join(TOOLS, 'check-docs-sync.mjs'), join(dir, 'tools/check-docs-sync.mjs'))
+  // The frozen Stop floor comes too: it is the universe of the gate's Stop-catalog
+  // closure, and the shipped tree always carries it (owned; `update` restores it).
+  cpSync(join(TOOLS, 'stop.floor.json'), join(dir, 'tools/stop.floor.json'))
   cpSync(ROSTER_TEMPLATE, join(dir, '.claude/agents'), { recursive: true })
   for (const [name, content] of Object.entries(roster ?? {})) {
     if (content === null) rmSync(join(dir, '.claude/agents', name))
@@ -229,6 +232,67 @@ test('a catalog miss reds on ANY vintage — the gates-catalog lockstep is uncon
   )
   assert.equal(live.code, 1, live.out)
   assert.ok(live.out.includes("gate 'perf-budget' has no section"), live.out)
+})
+
+// ── the Stop floor joins the closure (0.7.0): every step frozen in
+// tools/stop.floor.json except `validate` needs its UNNUMBERED `### <name> — `
+// section in the catalog. The universe is the FLOOR, deliberately not the live
+// config's STOP_HOOK_STEPS — a consumer may APPEND steps, and documenting those
+// is the consumer's business; the harness documents what the harness ships. ──
+
+test('RED: a catalog missing the reviewer-verdicts heading reds naming the Stop-floor step', () => {
+  // The motivating case: the newest, most novel control in the chain was the only
+  // member with no documented way to watch it fail. The renamed heading also pins the
+  // ONE-DIRECTIONAL membership: 'reviewer-verdicts-renamed' enters the catalog's
+  // unnumbered set and satisfies nothing, because no floor step carries that name.
+  const gutted = shippedCatalog.replace(
+    /^### reviewer-verdicts — .*$/m,
+    '### reviewer-verdicts-renamed — `node tools/check-reviewer-verdicts.mjs`',
+  )
+  assert.notEqual(gutted, shippedCatalog, 'fixture must actually remove the heading')
+  const r = runGate(fixture({ agents: shippedAgents, catalog: gutted }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("Stop-floor step 'reviewer-verdicts' has no section"), r.out)
+})
+
+test("RED: deleting ANY Stop-floor step's heading reds — name-keyed, never command-keyed", () => {
+  // mobile-unit is the deliberate second subject: its real heading PARAPHRASES its
+  // command (jest-expo, not the pnpm invocation), so a command-keyed grammar would
+  // have redded the accurate shipped catalog. The NAME is the key.
+  for (const name of ['duplication', 'mobile-unit']) {
+    const gutted = shippedCatalog.replace(new RegExp(`^### ${name} — `, 'm'), `### ex-${name} — `)
+    assert.notEqual(gutted, shippedCatalog, `the ${name} heading must be found`)
+    const r = runGate(fixture({ agents: shippedAgents, catalog: gutted }))
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes(`Stop-floor step '${name}' has no section`), r.out)
+  }
+})
+
+test('GREEN: a consumer-APPENDED config-only Stop step needs no harness doc — the closure is floor-scoped', () => {
+  const dir = fixture({ agents: shippedAgents })
+  const cfg = join(dir, 'tools/harness.config.mjs')
+  const appended = readFileSync(cfg, 'utf8').replace(
+    "  ['reviewer-verdicts', 'node tools/check-reviewer-verdicts.mjs'],\n]",
+    "  ['reviewer-verdicts', 'node tools/check-reviewer-verdicts.mjs'],\n  ['consumer-smoke', 'node tools/consumer-smoke.mjs'],\n]",
+  )
+  assert.ok(appended.includes('consumer-smoke'), 'the fixture must actually append a Stop step')
+  writeFileSync(cfg, appended)
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('the validate-runner heading is INERT: not required, and unable to satisfy the closure', () => {
+  // `validate` is excluded from the Stop-floor closure — its documentation IS the
+  // numbered chain sections plus the runner note — so the shipped catalog carries no
+  // unnumbered `### validate — ` heading, and green above proves the exclusion is
+  // real rather than satisfied by an accident of grammar...
+  assert.doesNotMatch(shippedCatalog, /^### validate — /m)
+  // ...and deleting the runner note changes nothing: "the validate runner" is not a
+  // step name, so the heading never enters the closure's set in either direction.
+  const gone = shippedCatalog.replace(/^### the validate runner — .*$/m, '')
+  assert.notEqual(gone, shippedCatalog, 'fixture must actually remove the runner note')
+  const r = runGate(fixture({ agents: shippedAgents, catalog: gone }))
+  assert.equal(r.code, 0, r.out)
 })
 
 // ── agent roster: "read-only by construction" is machine-asserted.

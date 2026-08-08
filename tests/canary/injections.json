@@ -646,5 +646,285 @@
         "note": "0.5.0. Unlike its two neighbours in this workflow, this lane is NOT a vendor call — the harness owns every line of it, so the proof is executable rather than structural: the fixture backdates every reviewedUntil in a copy of the shipped floor, spawns tools/check-framework-floor.mjs, and asserts exit 1 naming the lapsed date; then it runs the SAME script against the SHIPPED floor and asserts exit 0, so the red is the backdating and not a broken script. The clock is a `--today=` parameter for exactly this reason — a red-proof that has to wait for a calendar is a red-proof nobody runs."
       }
     ]
+  },
+  "factoryComment": "THE FACTORY CLOSURE (0.7.0). #factoryGates: every gate script in scripts/ (check-*.mjs, hygiene.mjs, generate-floor.mjs) unioned with every step name in .claude/hooks/stop-factory-gate.mjs — a hook step invoking a scripts/*.mjs identifies with that script, so each gate carries ONE entry; toolchain-only steps (eslint, types, dead-code, format, tests) stand alone. Kinds: 'fixture' (a repo test that drives the gate red — executed in spawn mode under the same G28 bars as #steps proofs) and 'lane' (a '<file>#<job>' declaration naming the factory workflow job that executes what no fixture can — a vendor toolchain or a network scan). #factoryLanes: every job in the factory's own .github/workflows, keyed '<workflow-file>#<job>' — NEVER bare ids, because #lanes above already claims 'actionlint' and 'zizmor' and one proof must never silently stand in for two workflows. Kinds: 'fixture' (the lane logic's own death-tests) and 'steps' (a reasoned declaration — the note must name what already proves the job's work; a note-less declaration is rejected). This closes the class the 0.6.0 lineage named 'hygiene had none': the gates that guard the guards, and the lanes that run them, were the last enforcement surfaces with no falsifiability ledger.",
+  "factoryGates": {
+    "check-canary-coverage.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-canary-coverage.test.mjs",
+        "note": "the closure closing over itself: every red/green this checker owns is driven through its positional overrides — including the factoryGates/factoryLanes closures this very section satisfies, proven against synthetic scripts-dir/hook/workflows fixtures"
+      }
+    ],
+    "check-chain-budget.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/chain-budget.test.mjs"
+      }
+    ],
+    "check-claims.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-claims.test.mjs"
+      }
+    ],
+    "check-complexity-ratchet.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-complexity-ratchet.test.mjs"
+      }
+    ],
+    "check-corpus-fidelity.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-corpus-fidelity.test.mjs",
+        "note": "the OFFLINE half (0.7.0): a repo-relative url naming a missing file reds without touching the network"
+      },
+      {
+        "kind": "lane",
+        "ref": "hygiene.yml#corpus-fidelity",
+        "note": "the NETWORK half: the gate's own header bans agent-time runs (a flaky host must never red a turn), so the schedule/dispatch lane is its execution — declared here because no fixture can prove a live URL resolves"
+      }
+    ],
+    "check-dependency-channel.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-dependency-channel.test.mjs",
+        "note": "0.7.0, includes the tag-time pin: the baseline resolves STRICTLY BELOW the version being cut (highestReleaseBelow), so the v0.6.0 self-predecessor class cannot regress"
+      }
+    ],
+    "check-escape-registry.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-escape-registry.test.mjs"
+      }
+    ],
+    "check-plugin-manifest.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-plugin-manifest.test.mjs"
+      }
+    ],
+    "check-ramp-ledger.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/ramp-ledger.test.mjs"
+      }
+    ],
+    "check-release-lockstep.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-release-lockstep.test.mjs"
+      }
+    ],
+    "check-residue.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/installer/lifecycle.test.mjs",
+        "note": "residue scanning goes through the ONE shared scanner, and the lifecycle suite spawns it against rendered trees; the selftest render-smoke/metal jobs run the same script on real scaffolds"
+      }
+    ],
+    "check-reuse.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-reuse.test.mjs"
+      }
+    ],
+    "check-rule-integrity.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-rule-integrity.test.mjs"
+      }
+    ],
+    "check-seeded-migrations.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/installer/check-seeded-migrations.test.mjs"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/installer/source-fix-obligations.test.mjs",
+        "note": "0.7.0: the seeded-source fix-obligation half — a seeded file fixed at the source without a migrations.json obligation record reds"
+      }
+    ],
+    "check-syntax.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-syntax.test.mjs"
+      }
+    ],
+    "check-tier-coverage.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/live-controls.test.mjs",
+        "note": "the shared live-controls derivation both this factory gate and the consumer docs-sync closure consume — an undeclared one-surface gate reds"
+      }
+    ],
+    "generate-floor.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/floor-lockstep.test.mjs",
+        "note": "covers --check (the floor-sync factory Stop-hook step): a floor snapshot out of lockstep with harness.config.mjs reds"
+      }
+    ],
+    "hygiene.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/hygiene.test.mjs"
+      }
+    ],
+    "eslint": [
+      {
+        "kind": "lane",
+        "ref": "lint.yml#machinery-lint",
+        "note": "the machinery-eslint step; the vendor's non-zero exit is the red, same posture as the consumer 'lint' runner entry in #steps. The Stop-hook step skips loudly when the toolchain is absent and this lane is the fail-closed backstop."
+      }
+    ],
+    "types": [
+      {
+        "kind": "lane",
+        "ref": "lint.yml#machinery-lint",
+        "note": "the machinery-types step (tsc --noEmit over installer/scripts/tools/hooks); vendor exit is the red, lane is the fail-closed backstop for the loud local skip"
+      }
+    ],
+    "dead-code": [
+      {
+        "kind": "lane",
+        "ref": "lint.yml#machinery-lint",
+        "note": "the machinery-knip step; vendor exit is the red, lane is the fail-closed backstop for the loud local skip"
+      }
+    ],
+    "format": [
+      {
+        "kind": "lane",
+        "ref": "selftest.yml#bootstrap-linux",
+        "note": "no factory workflow runs biome over template/ directly; the rendered scaffold's `pnpm validate` step ONE is `biome ci` over the same shipped files, which is the fail-closed backstop the Stop-hook header names — and the 0.6.0 upgrade lane redding on check-auth-posture.mjs's over-width line is this path having actually fired"
+      }
+    ],
+    "tests": [
+      {
+        "kind": "lane",
+        "ref": "selftest.yml#installer-unit",
+        "note": "the Stop-hook step runs the scoped tests/gates + tests/hooks corpus per turn; this lane runs the FULL suite under coverage floors on ubuntu AND windows, plus this checker in spawn mode — the superset that catches what the scoped run deliberately leaves to CI (tests/installer)"
+      }
+    ]
+  },
+  "factoryLanes": {
+    "hygiene.yml#hygiene": [
+      {
+        "kind": "steps",
+        "note": "runs scripts/hygiene.mjs and scripts/check-claims.mjs, both proven in #factoryGates"
+      }
+    ],
+    "hygiene.yml#corpus-fidelity": [
+      {
+        "kind": "steps",
+        "note": "the network half of check-corpus-fidelity.mjs, schedule/dispatch-only because redness is a property of the internet that day — the offline half is proven by the #factoryGates fixture, and the release lane deliberately does NOT await this one"
+      }
+    ],
+    "lint.yml#actionlint": [
+      {
+        "kind": "steps",
+        "note": "vendor scanner over the factory workflows plus the staged template fixtures; its non-zero exit is the red. The neutered-lane failure shape (continue-on-error, constant-false condition, emptied steps) is proven for the TEMPLATE workflow copies by tests/gates/workflow-lanes.test.mjs — the factory copy runs the same pinned action in the same posture, and no equivalent factory-side structural proof exists yet (stated, not hidden)."
+      }
+    ],
+    "lint.yml#zizmor": [
+      {
+        "kind": "steps",
+        "note": "vendor Actions-security scanner (advanced-security: false so findings FAIL the job rather than needing a SARIF path); non-zero exit is the red. Same honest residual as lint.yml#actionlint: the neutered-lane proof covers the template copies."
+      }
+    ],
+    "lint.yml#reuse-lint": [
+      {
+        "kind": "steps",
+        "note": "the real reuse tool asserting REUSE spec 3.3 (vendor exit) plus scripts/check-reuse.mjs, proven in #factoryGates"
+      }
+    ],
+    "lint.yml#syntax-and-plugin": [
+      {
+        "kind": "steps",
+        "note": "runs check-syntax.mjs and check-seeded-migrations.mjs (both proven in #factoryGates, fetch-depth 0 so the seeded diff has its release tags) plus an advisory plugin validate"
+      }
+    ],
+    "lint.yml#machinery-lint": [
+      {
+        "kind": "steps",
+        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus six machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel — every one proven in #factoryGates"
+      }
+    ],
+    "release.yml#release": [
+      {
+        "kind": "steps",
+        "note": "runs check-syntax, hygiene and check-release-lockstep (proven in #factoryGates) plus the full node --test suite, then blocks publish on a green selftest run for the tag SHA. HONEST RESIDUAL: the selftest-wait poller is inline YAML until W8 extracts it into scripts/ci/wait-for-workflows.mjs with its own death-tests — this entry must gain that fixture ref when it lands."
+      }
+    ],
+    "scorecard.yml#analysis": [
+      {
+        "kind": "steps",
+        "note": "OSSF Scorecard, a vendor posture-measurement lane publishing to the security tab; the verdict is the vendor action's, and the reason-to-exist is supply-chain posture measurement, not a blocking gate"
+      }
+    ],
+    "selftest.yml#installer-unit": [
+      {
+        "kind": "steps",
+        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu AND windows — the job is the execution vehicle for every fixture proof in this registry"
+      }
+    ],
+    "selftest.yml#render-smoke": [
+      {
+        "kind": "fixture",
+        "ref": "tests/installer/lifecycle.test.mjs",
+        "note": "init on real scratch dirs (core + metal) then check-residue and check-syntax on each; the lifecycle suite is where the render/residue logic is proven red-able, and the lane proves it on a REAL rendered scaffold"
+      }
+    ],
+    "selftest.yml#canary": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/run-stop-chain.test.mjs",
+        "note": "0.7.0: the job's baseline is DERIVED by scripts/ci/run-stop-chain.mjs, and these are its death-tests — a provenBy string absent from selftest.yml reds, exclusions are reviewed data with reasons. The job then executes the 'Canary <n>:' injections that #steps selftest-kind proofs grep-match into this workflow."
+      }
+    ],
+    "selftest.yml#canary-mutation": [
+      {
+        "kind": "steps",
+        "note": "the job IS an executed red-proof: one untested branch must red the mutation lane while every other gate stays green — registered as the #lanes mutation selftest proof ('an untested branch must red the mutation lane')"
+      }
+    ],
+    "selftest.yml#bootstrap-linux": [
+      {
+        "kind": "steps",
+        "note": "a real scaffold plus the live Supabase stack: the full chain, the Stop chain as a chain via the real hook, and the live canaries (17, 18, 22, 23, 24) that #steps/#lanes selftest-kind proofs grep-match into this workflow — deleting any of those steps reds the grep, which is this job's staleness guard"
+      }
+    ],
+    "selftest.yml#metal-bootstrap": [
+      {
+        "kind": "steps",
+        "note": "the metal design-token variant of the bootstrap job: proves the second token set renders and validates through the same proven chain on its own scaffold"
+      }
+    ],
+    "selftest.yml#upgrade-linux": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/ramp-verdict.test.mjs",
+        "note": "the five-leg upgrade matrix via scripts/ci/upgrade-lane.sh; its expiry judgement (fired vs expected, the 'expected-but-silent' defect class) lives in scripts/lib/ramp-verdict.mjs precisely so these death-tests can falsify it"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/upgrade-sweep.test.mjs",
+        "note": "0.7.0: leg E's multi-version sweep set is computed by scripts/ci/upgrade-sweep.mjs over a reviewed SWEEPS table — a crossed version withholding files with no entry throws, and the (0.3.0, 0.6.0) set is pinned byte-identical to the single-version behavior it replaced"
+      }
+    ],
+    "selftest.yml#integration": [
+      {
+        "kind": "steps",
+        "note": "runs the scaffold's LIVE_PROOF suite against a real server and Postgres; its red-proof is Canary C01 (strip the Authorization header), registered as the #lanes integration-lane selftest proof"
+      }
+    ],
+    "selftest.yml#maestro-smoke": [
+      {
+        "kind": "steps",
+        "note": "the emulator canaries (19, 20) on a real Android emulator, schedule/dispatch-only for cost — registered as the #lanes mobile-e2e and perf-lane selftest proofs, which grep-match their leg titles into this workflow"
+      }
+    ]
   }
 }
