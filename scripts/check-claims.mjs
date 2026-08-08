@@ -115,6 +115,44 @@ const shippedHooks = existsSync(hooksDirUrl)
       .filter((f) => f.endsWith('.mjs'))
   : []
 
+// ── DERIVED (0.7.0): CONTRIBUTING.md — the one document where a derived number survived ──
+// unchecked. It told a release-cutter "--report-all runs all **31** steps" against a 33-step
+// chain and "the **six** HARNESS_HOOK_VERSION stamps" against seven shipped hooks — in the
+// exact file whose Local-development section warns that running a stale subset is how four
+// checks came to be red at once. Guarded like every other input: the fixture tests run a
+// byte-identical copy in a mirrored tree that need not model this file.
+const contributingPath = new URL('../CONTRIBUTING.md', import.meta.url)
+const contributingText = existsSync(contributingPath)
+  ? readFileSync(contributingPath, 'utf8')
+  : ''
+const contributing = unwrap(contributingText)
+// The "Local development" section, cut from the RAW text (unwrap erases the heading
+// structure the boundaries live on; a command in a code block never soft-wraps mid-token).
+const localDevSection = (() => {
+  const m = contributingText.match(/^## Local development\b.*$/m)
+  if (!m) return ''
+  const start = (m.index ?? 0) + m[0].length
+  const rest = contributingText.slice(start)
+  const next = rest.search(/^## /m)
+  return next === -1 ? rest : rest.slice(0, next)
+})()
+// The lint workflow's blocking `node scripts/check-*.mjs` steps, DERIVED from the workflow
+// file — a hand-typed list here would drift exactly the way the list it polices did. Steps
+// marked continue-on-error: true are advisory, not blocking, and must not impose themselves
+// on the local list, so the text is split into per-step blocks before matching.
+const lintYmlPath = new URL('../.github/workflows/lint.yml', import.meta.url)
+const lintYmlText = existsSync(lintYmlPath) ? readFileSync(lintYmlPath, 'utf8') : ''
+const lintBlockingChecks = (() => {
+  const names = new Set()
+  for (const block of lintYmlText.split(/\n(?=[ \t]+- )/)) {
+    if (/^[ \t]+continue-on-error:[ \t]*true\b/m.test(block)) continue
+    for (const [, base] of block.matchAll(/node scripts\/(check-[A-Za-z0-9._-]+\.mjs)/g)) {
+      names.add(base)
+    }
+  }
+  return [...names].sort()
+})()
+
 const truth = {
   chainSteps: VALIDATE_STEPS.length,
   canarySteps: injections === null ? null : Object.keys(injections.steps).length,
@@ -186,6 +224,43 @@ for (const [file, text] of [
     if (claimed !== truth.hooks) {
       problems.push(
         `${file} claims "${word} hooks" but template/base/.claude/hooks/ ships ${String(truth.hooks)} (${shippedHooks.join(', ')}) — the directory is the source of truth, and check-wiring.mjs holds every one of them to being wired`,
+      )
+    }
+  }
+}
+
+// CONTRIBUTING's three verifiable facts, judged only when the file exists (fixture trees
+// need not model it). Targeted matchers, not broad numeric scans: CONTRIBUTING is full of
+// numbers that are not claims about the chain.
+if (contributingText !== '') {
+  // (a) "--report-all runs all **31** steps" — the count a release-cutter trusts.
+  for (const [, n] of contributing.matchAll(/all \*\*(\d+)\*\* steps/g)) {
+    if (Number(n) !== truth.chainSteps) {
+      problems.push(
+        `CONTRIBUTING.md says \`--report-all\` runs all **${n}** steps but VALIDATE_STEPS has ${String(truth.chainSteps)} — the chain is the source of truth (tools/harness.config.mjs)`,
+      )
+    }
+  }
+  // (b) "the **six** HARNESS_HOOK_VERSION stamps" — word or digit, same table as the README's
+  // hook count, because the word form is what actually shipped stale.
+  for (const [, word] of contributing.matchAll(
+    /\*\*(\d+|four|five|six|seven|eight|nine|ten)\*\*\s*`HARNESS_HOOK_VERSION`\s*stamps/gi,
+  )) {
+    const claimed = NUM_WORDS[word.toLowerCase()] ?? Number(word)
+    if (claimed !== truth.hooks) {
+      problems.push(
+        `CONTRIBUTING.md's release list says "**${word}** HARNESS_HOOK_VERSION stamps" but template/base/.claude/hooks/ ships ${String(truth.hooks)} (${shippedHooks.join(', ')}) — the lockstep gate iterates the directory, and so must this sentence`,
+      )
+    }
+  }
+  // (c) The local-list closure. The section opens with "this list is the whole of what CI
+  // blocks on" — so every blocking check-*.mjs step lint.yml runs must appear in it, or a
+  // maintainer who runs the list literally goes red in CI on a check they never ran: the
+  // exact failure the section's own preamble documents, made mechanical.
+  for (const base of lintBlockingChecks) {
+    if (!localDevSection.includes(base)) {
+      problems.push(
+        `.github/workflows/lint.yml blocks on \`node scripts/${base}\` but CONTRIBUTING.md's "Local development" list omits it — that list claims to be "the whole of what CI blocks on", so an omitted gate is a maintainer red on a check they never ran`,
       )
     }
   }

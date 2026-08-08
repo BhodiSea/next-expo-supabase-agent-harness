@@ -48,7 +48,7 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, contributing?: string | null, lintYml?: string | null, config?: string, hooks?: string[] }} parts
  */
 function runFixture({
   readme,
@@ -58,6 +58,12 @@ function runFixture({
   // file was introduced — so every fixture below judges prose against a budget that
   // carries no measurement, exactly like the live tree.
   measuredWallMs = null,
+  // CONTRIBUTING.md and lint.yml are absent by default — the 0.7.0 checks are guarded
+  // on their existence, so every pre-0.7.0 fixture above stays byte-identical in intent.
+  contributing = null,
+  lintYml = null,
+  config = FIXTURE_CONFIG,
+  hooks = ['alpha.mjs', 'beta.mjs'],
 }) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-claims-'))
   const files = {
@@ -83,16 +89,17 @@ function runFixture({
             },
           }),
     }),
-    'template/base/tools/harness.config.mjs': FIXTURE_CONFIG,
+    'template/base/tools/harness.config.mjs': config,
     'template/base/.claude/hooks/lib/guard-rules.mjs': FIXTURE_GUARDS,
-    // TWO hooks — and `lib/guard-rules.mjs` above is the point of the pair: it sits under the
-    // same tree and must NOT count, because nothing wires a module.
-    'template/base/.claude/hooks/alpha.mjs': '',
-    'template/base/.claude/hooks/beta.mjs': '',
     'README.md': readme,
     'CHANGELOG.md': changelog,
   }
+  // TWO hooks by default — and `lib/guard-rules.mjs` above is the point of the pair: it sits
+  // under the same tree and must NOT count, because nothing wires a module.
+  for (const hook of hooks) files[`template/base/.claude/hooks/${hook}`] = ''
   if (registry !== null) files['tests/canary/injections.json'] = registry
+  if (contributing !== null) files['CONTRIBUTING.md'] = contributing
+  if (lintYml !== null) files['.github/workflows/lint.yml'] = lintYml
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), content)
@@ -297,4 +304,104 @@ test('RED (0.6.0): a measurement taken against a DIFFERENT chain stops licensing
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
   assert.equal(r.status, 1, out)
   assert.match(out, /carries no committed measurement/)
+})
+
+// ── CONTRIBUTING.md (0.7.0): the one document where a derived number survived unchecked ──
+// The live defect this class repairs: CONTRIBUTING told a release-cutter "--report-all runs
+// all **31** steps" against a 33-step chain, "the **six** HARNESS_HOOK_VERSION stamps"
+// against seven shipped hooks, and its Local-development list — which opens with "this list
+// is the whole of what CI blocks on" — omitted check-seeded-migrations, a blocking lint.yml
+// step. All three were observed red on the real tree before the prose was fixed.
+
+test('RED (0.7.0): CONTRIBUTING claiming 31 steps against a 33-step chain reds, naming the file', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    config: `export const VALIDATE_STEPS = Array.from({ length: 33 }, (_, i) => [\`s\${i}\`, 'x'])\nexport const STOP_HOOK_STEPS = []\n`,
+    contributing: '`--report-all` runs all **31** steps and shows every red at once.\n',
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /CONTRIBUTING\.md says `--report-all` runs all \*\*31\*\* steps but VALIDATE_STEPS has 33/,
+  )
+})
+
+test('RED (0.7.0): CONTRIBUTING claiming six stamps against seven shipped hooks reds — soft-wrapped, as it actually shipped', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    hooks: ['h1.mjs', 'h2.mjs', 'h3.mjs', 'h4.mjs', 'h5.mjs', 'h6.mjs', 'h7.mjs'],
+    // The claim is wrapped across the line break exactly as the live CONTRIBUTING wraps it —
+    // the soft-wrap class the unwrap normaliser exists for.
+    contributing:
+      '2. Bump the version everywhere the lockstep gate looks: and the **six**\n' +
+      '   `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`.\n',
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /CONTRIBUTING\.md's release list says "\*\*six\*\* HARNESS_HOOK_VERSION stamps" but template\/base\/\.claude\/hooks\/ ships 7/,
+  )
+})
+
+test('RED (0.7.0): a blocking lint.yml check script absent from the Local-development list reds — advisory steps do not count, nor do mentions outside the section', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    lintYml: [
+      'jobs:',
+      '  syntax:',
+      '    steps:',
+      '      - run: node scripts/check-syntax.mjs',
+      '      - name: the blocking step the list omits',
+      '        run: node scripts/check-widget.mjs',
+      '      - name: advisory, must not impose itself on the list',
+      '        continue-on-error: true',
+      '        run: node scripts/check-advisory.mjs',
+      '',
+    ].join('\n'),
+    contributing: [
+      '## Local development',
+      '',
+      '```sh',
+      'node scripts/check-syntax.mjs',
+      '```',
+      '',
+      '## Releases',
+      '',
+      'A mention of node scripts/check-widget.mjs OUTSIDE the section must not satisfy the closure.',
+      '',
+    ].join('\n'),
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /lint\.yml blocks on `node scripts\/check-widget\.mjs` but CONTRIBUTING\.md's "Local development" list omits it/,
+  )
+  assert.ok(
+    !r.out.includes('check-advisory.mjs'),
+    `continue-on-error steps are advisory, not blocking:\n${r.out}`,
+  )
+  assert.ok(
+    !r.out.includes('check-syntax.mjs'),
+    `a script present in the list must not be reported:\n${r.out}`,
+  )
+})
+
+test('GREEN (0.7.0): a CONTRIBUTING whose counts are true and whose list covers every blocking check is CLEAN', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    lintYml: 'jobs:\n  syntax:\n    steps:\n      - run: node scripts/check-syntax.mjs\n',
+    contributing: [
+      '## Local development',
+      '',
+      '```sh',
+      'node scripts/check-syntax.mjs',
+      '```',
+      '',
+      '`--report-all` runs all **3** steps. Bump the **2**',
+      '`HARNESS_HOOK_VERSION` stamps.',
+      '',
+    ].join('\n'),
+  })
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /CLAIMS: CLEAN/)
 })

@@ -127,14 +127,22 @@ export const STAMP_INPUTS = {
   // advisory) is meant to red a tree whose code did not change at all. Without it here,
   // `update` shipping a new floor would ride the warm stamp and the very advisory the
   // release exists to close would not be judged until the next unrelated version edit.
+  // tools/cc-floor.json (0.6.0's Claude Code floor, judged by judgeCcFloor) and
+  // tools/store-policy.json (0.7.0's iosToolchain record, the floor the production
+  // ios.image is resolved against) join in 0.7.0 for the identical reason: each is a
+  // reviewed floor whose edit is MEANT to re-judge a tree whose code did not change,
+  // and both were read by this gate while missing from this list — so a warm local
+  // stamp rode over exactly the edits the records exist to make visible.
   'version-sync': [
     'package.json',
     'tools/framework-floor.json',
+    'tools/cc-floor.json',
     'apps/mobile/package.json',
     'apps/web/package.json',
     'packages/api/package.json',
     'apps/mobile/app.config.ts',
     'apps/mobile/eas.json',
+    'tools/store-policy.json',
     '.nvmrc',
     '.node-version',
     'pnpm-workspace.yaml',

@@ -857,8 +857,9 @@
     ],
     "release.yml#release": [
       {
-        "kind": "steps",
-        "note": "runs check-syntax, hygiene and check-release-lockstep (proven in #factoryGates) plus the full node --test suite, then blocks publish on a green selftest run for the tag SHA. HONEST RESIDUAL: the selftest-wait poller is inline YAML until W8 extracts it into scripts/ci/wait-for-workflows.mjs with its own death-tests — this entry must gain that fixture ref when it lands."
+        "kind": "fixture",
+        "ref": "tests/gates/wait-for-workflows.test.mjs",
+        "note": "0.7.0 (W8): the publish-blocking wait is scripts/ci/wait-for-workflows.mjs — release blocks on green selftest.yml AND lint.yml runs at the tag SHA (tag-time parity) — and these are its death-tests: all-green → 0, any all-failed → hard fail naming it, still-running → keep polling, ZERO runs for a required workflow → hard fail after the timeout (absence-as-pending-forever is the silent-skip shape). The job's remaining inline steps — check-syntax, hygiene, check-release-lockstep, the full node --test suite — are proven in #factoryGates; hygiene.yml stays deliberately unawaited, with the reason written at the invocation."
       }
     ],
     "scorecard.yml#analysis": [

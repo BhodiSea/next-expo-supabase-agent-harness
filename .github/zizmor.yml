@@ -2,13 +2,16 @@
 # workflow set dotless under template/**/github/). See CONTRIBUTING.md.
 rules:
   cache-poisoning:
-    # selftest/hygiene/release are tag-triggered (release acceptance runs on v*
-    # tags), which puts zizmor's cache-poisoning heuristic on alert. The caches
-    # in selftest (pnpm store, rust-cache) only feed THROWAWAY scaffolds whose
-    # gates must fail on tampering; hygiene/release configure no dependency
-    # cache at all, and the released tarball is packed from a fresh checkout
+    # selftest/hygiene/release/lint are tag-triggered (release acceptance runs
+    # on v* tags; lint joined at 0.7.0 for tag-time parity — release blocks on
+    # its verdict at the tag SHA), which puts zizmor's cache-poisoning heuristic
+    # on alert. The caches in selftest (pnpm store, rust-cache) only feed
+    # THROWAWAY scaffolds whose gates must fail on tampering; hygiene/release/
+    # lint configure no dependency cache at all (their setup-node steps leave
+    # `cache:` unset), and the released tarball is packed from a fresh checkout
     # with no cache in the path. Suppress the heuristic for these files.
     ignore:
       - selftest.yml
       - hygiene.yml
       - release.yml
+      - lint.yml

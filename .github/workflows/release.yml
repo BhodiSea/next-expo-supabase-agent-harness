@@ -41,29 +41,23 @@ jobs:
           node scripts/hygiene.mjs
           node scripts/check-release-lockstep.mjs
           node --test "tests/**/*.test.mjs"
-      - name: Publish blocks on the selftest acceptance matrix for this exact SHA
+      - name: Publish blocks on green selftest.yml AND lint.yml runs for this exact SHA
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "waiting for a green selftest run on $GITHUB_SHA"
-          for _ in $(seq 1 90); do
-            runs=$(gh run list --workflow=selftest.yml --commit "$GITHUB_SHA" \
-              --json status,conclusion --limit 10)
-            if echo "$runs" | node -e '
-              const runs = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
-              const green = runs.some((r) => r.status === "completed" && r.conclusion === "success")
-              const failed = runs.length > 0 && runs.every((r) => r.status === "completed" && r.conclusion !== "success")
-              if (green) process.exit(0)
-              if (failed) { console.error("selftest matrix FAILED on this SHA"); process.exit(2) }
-              process.exit(1) // still running
-            '; then
-              echo 'selftest matrix: green'; exit 0
-            elif [ $? -eq 2 ]; then
-              exit 1
-            fi
-            sleep 60
-          done
-          echo '::error::timed out waiting for the selftest matrix'; exit 1
+        # Tag-time parity (0.7.0, W8): lint.yml now runs at the tag ref too, so the
+        # ref-contextual gates (machinery-lint's dependency-channel diff above all) are
+        # proven AT the ref being released, and publish blocks on both workflows. The
+        # wait's verdict logic lives in scripts/ci/wait-for-workflows.mjs — extracted
+        # from the inline YAML it replaced, same gh transport and same 90 × 60 s budget —
+        # precisely so tests/gates/wait-for-workflows.test.mjs can falsify it (all-green
+        # → 0; any all-failed → hard fail naming it; ZERO runs for a required workflow →
+        # hard fail after the timeout, because absence-as-pending-forever is the
+        # silent-skip shape). hygiene.yml is tag-triggered as well but deliberately
+        # UNAWAITED here: its corpus-fidelity job is a network scan whose redness is a
+        # property of the internet that day, not of this SHA — blocking a release on it
+        # converts flake into a stuck tag (the hygiene GATE itself already ran inline in
+        # the Gates step above).
+        run: node scripts/ci/wait-for-workflows.mjs selftest.yml lint.yml
       - name: CHANGELOG must have a section for this tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"

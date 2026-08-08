@@ -15,7 +15,7 @@
 # Usage: scripts/ci/upgrade-lane.sh [workdir] [--from <tag>]
 #        (default workdir .selftest/upgrade; default tag = newest release below HEAD)
 # Requires: git with tags (fetch-depth: 0), node >= 22, corepack/pnpm.
-# SOURCE: docs/harness/README.md (the release acceptance matrix) [corpus: harness/doctrine]
+# SOURCE: CONTRIBUTING.md §Releases (the release ladder — its step 4 is this lane) [corpus: harness/doctrine]
 #
 # ── 0.4.0: `--from`, and why the lane could not previously execute an EXPIRY ──────
 #
@@ -409,7 +409,7 @@ cat "$WORK/expect.sh" | sed 's/^/  /'
 # NARROW TO WHAT THIS LANE ACTUALLY RUNS, and say what was dropped.
 #
 # The expectation covers every shipped ramp site; this step ran `validate`, which is the
-# 31-step chain and NOT the 9-step Stop chain. diff-coverage, duplication, i18n,
+# 33-step chain and NOT the 10-step Stop chain. diff-coverage, duplication, i18n,
 # test-quality and mobile-perf ramp on the Stop side, so asserting their NOTEs against
 # validate.log would fail on a lane that is behaving correctly. Filtering silently would be
 # worse than the bug: a gate that quietly leaves the expectation set is a gate nobody is

@@ -53,7 +53,7 @@ export const LINEAGE_FLOOR = '0.1.3'
  * tags, and a check that silently weakens in a fork is worse than one that states its
  * authority. Corroborated against git whenever tags are present.
  */
-export const VINTAGES = [LINEAGE_FLOOR, '0.2.0', '0.2.1', '0.3.0', '0.4.0', '0.5.0']
+export const VINTAGES = [LINEAGE_FLOOR, '0.2.0', '0.2.1', '0.3.0', '0.4.0', '0.5.0', '0.6.0']
 
 /**
  * Bidirectional closure of VINTAGES against the tags git actually has.

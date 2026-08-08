@@ -1,10 +1,12 @@
 // THE FACTORY GATE'S OWN TREE (0.6.0).
 //
-// scripts/hygiene.mjs is a factory-gate step, so it carries no entry in the canary
-// registry — that registry closes over the shipped chain and the Stop chain, and this
-// script ships to nobody. It had, in consequence, no red-proof at all, and its NUL sweep
+// scripts/hygiene.mjs is a factory-gate step, and when this file was written the canary
+// registry closed over only the shipped chain and the Stop chain — this script ships to
+// nobody, so it carried no entry and, in consequence, no red-proof at all; its NUL sweep
 // spent the whole release deciding which files to read from a hand-maintained exclude list
-// that did not know about `.gitignore`.
+// that did not know about `.gitignore`. 0.7.0's #factoryGates closure ended that class:
+// every factory gate now needs a registered proof, and hygiene.mjs's entry points at THIS
+// file (tests/canary/injections.json#factoryGates).
 //
 // The failure that produced this file is worth stating exactly, because it is the release's
 // own subject turned on the release's own tooling: running the upgrade lane — acceptance

@@ -13,6 +13,13 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+- **Observability containment is deferred to 0.8.0, and the deferral is machine-held.** The
+  `packages/platform/observability` seam ships with its invariant as header contract (no vendor
+  telemetry SDK import outside declared sinks; every sink behind the redaction pass), and the gate
+  asserting it is 0.8.0's — recorded as the `check-observability.mjs` row in
+  `docs/harness/enforcement-tiers.md`, whose dated `Target` column `docs-sync` reads, so the
+  commitment is a deadline a gate judges rather than a sentence.
+
 ## [0.6.0] — 2026-08-07
 
 **The conformance release.** 0.5.0 turned "every claim must be checkable" on the harness's own

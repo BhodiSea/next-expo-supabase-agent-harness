@@ -267,7 +267,10 @@
     ]
   },
   "0.7.0": {
-    "//": "0.7.0 the graduation release — PARTIAL RECORD, authored in the wave that created the files it names; the rampExpiry population, rampExtensions (none), and the runbook section land with the release-records wave so the record moves once per concern rather than once per commit. What is here is what the factory bar demands the moment the files exist: the three seeded files the DSR export ships (the procedure, its colocated proof, and the notes-export covering index — an install that predates them gets the export surface by choosing it, per the seedOnInitOnly contract), and the two seeded corrections 0.7.0 makes to files earlier releases authored.",
+    "//": [
+      "0.7.0 the graduation release. Authored once per concern rather than once per commit: the seeded entries below landed with the wave that created the files they name — the three seeded files the DSR export ships (the procedure, its colocated proof, and the notes-export covering index; an install that predates them gets the export surface by choosing it, per the seedOnInitOnly contract) plus the two seeded corrections 0.7.0 makes to files earlier releases authored — and the rampExpiry below landed with the release-records wave, proven by tests/gates/ramp-ledger.test.mjs the moment it was written and re-proven by check-ramp-ledger.mjs at the bump. rampExtensions is deliberately ABSENT rather than empty: the deadline ratchet compares this tree against v0.6.0 and finds zero moves, so there is nothing to excuse and no entry to go stale.",
+      "WHAT THIS RELEASE OPENS, recorded beside what it closes: four new ramps, all minVersion 0.7.0 until 0.8.0 — version-sync (the iOS build-toolchain floor over eas.json), data-flow (the export.surface.target deadline), docs-sync (the deferral ledger over the owned prose surfaces), and reviewer-verdicts (the path_state binding). The ramps this release opens fall due at 0.8.0: a 0.6.0-vintage install upgrading here meets NO expiry — the property the upgrade lane's leg A graduates on — but carries all four as advisory NOTEs, and the 0.8.0 record will owe their expiry the way the rampExpiry below pays for 0.6.0's."
+    ],
     "seedOnInitOnly": [
       "packages/api/src/export.ts",
       "packages/api/src/routers/system.export.test.ts",
@@ -306,6 +309,18 @@
           }
         ]
       }
-    ]
+    ],
+    "rampExpiry": {
+      "//": "THE THIRD ALARM, AND THE WIDEST — and the first that reds the release's own recent predecessors. 0.4.0's expiry reached one vintage and 0.5.0's reached four; the seven escapes expiring here all opened at minVersion 0.6.0, so the affected population is EVERY released vintage below 0.6.0. For baseVersion 0.4.0 and 0.5.0 — populations every earlier record could still pin as untouched, and did — this is the first deadline they ever meet, and they meet exactly the seven with no older debt: the cleanest sweep in the lineage. 0.3.0 and below also re-meet the 0.5.0-era diff-coverage and wiring debt on the way through (the ledger computes per-vintage; this prose does not).",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0"
+      ],
+      "why": "Seven escapes close at once — the whole 0.6.0 fleet: auth-posture (the seeded sign-in/session cookie fix), data-flow (the planted policy's stale entries against your schema), docs-sync (the re-opened AGENTS.md gate-list lockstep), reviewer-verdicts (the SubagentStop review obligation), route-manifest (the web App Router half), schema-rls (the GRANT posture migration), and web-e2e (the authenticated spec against your routes). Every one opened at minVersion 0.6.0, so every install whose baseVersion predates 0.6.0 meets all seven. Sweep by the '## 0.7.0' section of docs/runbooks/harness-upgrade.md, which routes each gate into the 0.6.0 prose that already explains the work; the auth-posture half is also parked as data at .harness/pending/source-fixes.json by `update`, self-clearing when your tree stops matching the recorded broken shape. The honest count is computed on YOUR install, never quoted: pnpm validate 2>&1 | grep \"RAMP EXPIRED\"."
+    }
   }
 }

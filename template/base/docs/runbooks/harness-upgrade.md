@@ -413,6 +413,148 @@ sweep on this page ever stops being sufficient, that leg reds rather than a cons
 discovering it. It is also the only thing in this repository that has ever run graduate's
 success branch: every other leg ends with it correctly refusing.
 
+## 0.7.0 — THE THIRD ALARM, AND THE WIDEST
+
+Nothing in this section is new work. **The seven ramps 0.6.0 opened all fall due
+here** — `auth-posture`, `data-flow`, `docs-sync`, `reviewer-verdicts`, the web half
+of `route-manifest`, `schema-rls`, `web-e2e` — so every advisory NOTE the 0.6.0
+section describes is now a red, and the sweep for each is the one that section
+already wrote down. What IS new is who this reaches: **this is the first release
+that reds its own recent predecessors.** 0.4.0 — the one released vintage 0.5.0
+left alone — and 0.5.0 both meet a deadline for the first time; the affected
+population is every released vintage below 0.6.0.
+
+Two of the seven never appear in `pnpm validate` output, so the count command
+below under-reports them by construction: `reviewer-verdicts` is a Stop-chain
+step (it fires when a turn tries to end), and `web-e2e` runs only in the
+path-filtered browser-lane CI job — both have their caveat spelled out in their
+rows below.
+
+| Your `baseVersion` | What 0.7.0 does to you |
+|---|---|
+| **0.6.0** | None of the seven touches you — every one has been live on your install since you graduated. Instead you meet this release's **new** ramps as NOTEs: `version-sync`'s iOS toolchain floor and `data-flow`'s export-target deadline fire on the seeded files exactly as they shipped, so expect both; the other two (`docs-sync`'s deferral ledger, `reviewer-verdicts`' verdict-to-diff binding) fire only if your tree or turn carries the finding. All four expire in 0.8.0 — and `graduate` refuses while any chain NOTE stands, so graduating to 0.7.0 sweeps the first three anyway. The fourth is a Stop-chain matter: it fires inside a live turn, where only the sweep in its row below clears it. |
+| **0.5.0 / 0.4.0** | **The seven close at once** — your first deadline ever. **The 0.6.0 section above IS your sweep list**; this section adds only the parked-fix channel and the new-ramp NOTEs below. A 0.5.0 install meets all seven with no older debt, which makes it the cleanest sweep in the lineage — and the parked artifact plus the `doctor` warning is how you discover the `auth-posture` half without reading anything. |
+| **0.3.0** | **Nine**: the seven, plus the two 0.5.0 deadlines you have not met yet (`diff-coverage`, `wiring`) — on the way through, not because of this release. Follow the 0.5.0 section for those two. |
+| **0.2.0 / 0.2.1** | Ten. Do not fight it head-on: follow 0.4.0's section, then 0.5.0's, then 0.6.0's, one `graduate` per hop — each hop shrinks the next. |
+| **0.1.3** | Seventeen. Same advice, more so. |
+| fresh `init` at 0.7.0 | Nothing ever ramped. |
+
+The honest count is still the command, never this table — minus the Stop-side and
+browser-lane caveat above:
+
+```sh
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'
+```
+
+And the population is not prose either: `template/migrations.json`'s
+`0.7.0.rampExpiry` record states it as data, and `scripts/check-ramp-ledger.mjs`
+reds if it disagrees with what the shipped call sites actually compute.
+
+### The seven, and where their sweeps already live
+
+Every remedy was already written on this page; the rows point INTO it rather than
+restate it.
+
+| Gate | The finding | Sweep |
+|---|---|---|
+| `auth-posture` | the sign-in loop — the browser session in `localStorage` while every server read takes the cookie jar | The nine-file set in **"THE ONE THAT IS A BUG FIX"** above, unchanged. New in 0.7.0: `update` also parks the instruction as data — see the parked-fix channel below. |
+| `route-manifest` (web) | the seam files absent, or a `page.meta.ts` declaring state ids the page never renders | **"Sweeping the web route seam has a second half"** above: `--refresh-seeded` the seam, then render `meta.states.*` in each adopted page. Adopting `lib/i18n/` adds the accepted clone — its own subsection above carries the entry. |
+| `schema-rls` | a `CREATE POLICY` with no table `GRANT` behind it | The policy→grant bullet at the top of the 0.6.0 section: the finding prints the exact `GRANT` statement; put them in a new migration. Supabase's default-privilege change lands **2026-10-30** — closer than another release cycle, so do this for the date, not for the deadline. |
+| `docs-sync` | `AGENTS.md` still documents the gate list from before `update` injected this release's chain steps | Paste the gate names the finding prints. This is the one deadline 0.6.0 moved LATER — recorded as its `rampExtensions` entry — and the escape ends here. |
+| `web-e2e` | no spec has ever completed a real sign-in | Author `authenticated.spec.ts` against YOUR routes, per the 0.6.0 section's authenticated-render bullet: sign in through the form — never `context.addCookies`, a planted session proves only that the server reads a cookie — then `page.reload()`. **This red is invisible to `pnpm validate`**: `tools/check-web-e2e.mjs` runs only in the path-filtered `web-e2e` CI job (plus the nightly/dispatch net), so the banner arrives on your first web-touching PR after the upgrade. Do not read its absence as a pass. |
+| `reviewer-verdicts` | the turn's diff owed a reviewer and no verdict answers for it | `update` wires the machinery itself — `.claude/settings.json` and the hooks are owned, and the SubagentStop hook records each reviewer's verdict into `.harness/reviewer-ledger.jsonl`. The red fires only inside a live agent turn whose diff matches a `tools/reviewer-triggers.json` pattern, so the sweep is RUNNING the owed reviewers to a `VERDICT: PASS` — not editing files. |
+| `data-flow` | the erasure/portability closure over your schema | Review `tools/data-flow.json` against YOUR schema — `update` plants the file when absent, and a planted or stale file's `severed[]`/`retained[]` rows are claims about tables you own. Its export half is the second new-ramp sweep below. |
+
+### The parked-fix channel: `.harness/pending/source-fixes.json`
+
+0.5.0 introduced the pattern for dependencies; 0.7.0 extends it to seeded source.
+When a release CORRECTS harness-authored content inside files that are **yours**
+(so `update` cannot write them), `update` now parks the instruction as data at
+`.harness/pending/source-fixes.json` and prints one `SEEDED SOURCE FIX` note per
+set, naming the gate, the files, and the release section on this page that
+carries the fix. `doctor` warns while the file stands. It clears **itself**: each
+set carries probes describing the broken shape, and once your tree no longer
+matches it — you applied the fix, or you rewrote the files your own way — the
+next `update` or `doctor` removes the artifact. An absent file is never "broken";
+the gate, not the probe, stays the authority on the finding.
+
+On an upgrade to 0.7.0, up to three sets can park: 0.6.0's `auth-posture`
+nine-file sign-in set, and the two 0.7.0 corrections the next section sweeps.
+
+### The new ramps — the debt this release opens, expiring in 0.8.0
+
+Four new checks arrive ramped, on the same terms every ramp on this page has
+carried: NOTE-only while your `baseVersion` predates 0.7.0. Three are chain
+gates, so `graduate` refuses while their NOTEs stand; the fourth
+(`reviewer-verdicts`) is a Stop-chain step and surfaces only inside a live
+turn.
+
+**`version-sync`: the iOS build-toolchain floor over `eas.json` — expect it,
+whatever your vintage.** Apple requires uploads built against Xcode 26 / iOS 26
+SDK, in force since 2026-04-28 (`tools/store-policy.json` `iosToolchain`), and
+every seeded `eas.json` before 0.7.0 pins no build image at all — no pin means
+nothing can red, and a too-old toolchain burns a whole build-and-submit cycle
+with no gate output. Pin a concrete image on the production iOS profile:
+`"image": "macos-tahoe-26.5-xcode-26.6"` is the template's pin (the concrete name
+behind the `sdk-57` alias when 0.7.0 shipped), and any image whose `-xcode-`
+major is `>= 26` satisfies the gate. `auto`, `latest`, and `sdk-NN` do not count
+— an alias moves under the build, so it is unverifiable offline. If you have
+never modified `eas.json`, `update --refresh-seeded apps/mobile/eas.json` pulls
+the whole file.
+
+**`data-flow`: the export-target deadline.** If your `tools/data-flow.json`
+`export.surface` still reads `{ "kind": "none", "target": "0.7.0" }` — the
+harness's own dated absence, seeded into every 0.6.0 install — the date has
+ARRIVED, and the finding names your two legitimate moves. Either adopt the
+delivered surface: pull the three withheld files
+(`update --refresh-seeded <path>`, once per path) —
+`packages/api/src/export.ts` (the `exportMyData` assembly: runs AS THE CALLER
+under RLS, notes filtered authored-only in the query), its colocated test
+`packages/api/src/routers/system.export.test.ts`, and the covering-index
+migration `supabase/migrations/20260808000000_notes_export_index.sql` — then
+mount `exportMyData` on your system router (the template's
+`packages/api/src/routers/system.ts` is the worked pattern) and set
+`export.surface` to `{ "kind": "procedure", "procedure": "<your router file>" }`
+(`--refresh-seeded tools/data-flow.json` does that wholesale, but only if the
+file carries no reviews of your own). The index file is a NEW migration, not
+history: read it, re-timestamp it to the tail of your own history if you have
+applied later ones, then apply it like a migration you wrote — the 0.4.0 rule
+forbids planting DDL into the MIDDLE of applied history, and this lands at the
+end. Or, second move: re-review YOUR target to a release you mean, in a reviewed
+diff — the file is git-clean-enforced, so moving the date shows in the PR.
+
+**`docs-sync`: the deferral ledger over the owned prose surfaces.** The gate now
+scans `docs/harness/gates-catalog.md`, `tools/auth-posture.json`, and every
+top-level `tools/*.mjs` for sentences that defer work to a named release, and
+closes them both ways against `tools/deferrals.json`. The harness-owned surfaces
+ship clean, so this NOTEs only if YOUR OWN `tools/*.mjs` carry a dated sentence.
+The moves are the finding's: add the reviewed entry
+(`{ id, file, target, reason, reviewedOn }`) to `tools/deferrals.json`, or make
+the sentence dateless if it states a permanent scoping condition rather than a
+plan.
+
+**`reviewer-verdicts`: the verdict-to-diff binding.** A `PASS` now carries a
+`path_state` binding — the digest, at the moment the reviewer passed, of the
+paths that summoned it. A `PASS` that pre-dates the last edit to those paths, or
+carries no binding at all (a pre-0.7.0 hook wrote it), blocks toward re-review:
+"a reviewer ran" and "a reviewer reviewed THIS" are different claims, and the
+difference is exactly the files that moved after the `PASS`. The sweep is
+behavioral, like the gate itself: run the owed reviewer again AFTER the last
+edit to the paths it covers.
+
+### Then graduate
+
+`npx next-expo-supabase-agent-harness graduate` advances `baseVersion` to 0.7.0
+once `pnpm validate` is green — and it still refuses while any ramp NOTE stands,
+including the three chain-side ones this release opens.
+
+**This section is executed, not reviewed.** The upgrade lane's `--sweep` leg
+performs exactly this page's steps on a v0.3.0 install — crossing 0.4.0, 0.5.0,
+0.6.0, and 0.7.0 in a single `update`, sweeping every crossed release's seams,
+fixes, and NOTEs — and then requires `graduate` to SUCCEED with zero surviving
+ramp NOTEs. If what is written here ever stops being sufficient, that leg reds
+before a consumer finds out.
+
 ## How to graduate
 
 1. **Sweep.** Run `pnpm validate` and fix everything the ramped check reports in
