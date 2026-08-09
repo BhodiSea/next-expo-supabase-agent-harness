@@ -77,6 +77,13 @@
         "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system"
       }
     ],
+    "observability": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-observability.test.mjs",
+        "note": "vendor telemetry containment over apps/ + packages/ + supabase/functions/: an undeclared @sentry import reds naming the file and both moves (register the sink or remove the import); dynamic import() and require() red the same way; a REGISTERED sink whose file never references its declared redaction symbol reds quoting the seam header's ordering ('NO VENDOR SDK, on purpose'); the register is closed both directions (a sink naming a missing file, and a sink whose vendor import went away, both red); narrowing vendorSpecifiers below the shipped REQUIRED_VENDOR_FLOOR reds (the detector is extend-only); a malformed register fails closed, an absent one fails asking for the seeded exemplar AFTER the floor-detector scan still ran, and a zero-file scan is vacuous rather than green. The 0.8.0 ramp NOTEs on pre-0.8.0 installs in the exact shape the upgrade lane's §7b greps, and the RAMP EXPIRED branch at harness 0.9.0 is EXECUTED — the registered proof for the next release, written the release the ramp opens. The green case runs on the SHIPPED template/stack trees and asserts a non-vacuous scan count."
+      }
+    ],
     "expo-policy": [
       {
         "kind": "selftest",
@@ -438,7 +445,10 @@
     },
     "pretool-mcp-guard.mjs": {
       "denyToolCallSites": 8,
-      "denyExamples": ["mcp__wide__apply_migration", "mcp__wide__execute_sql"]
+      "denyExamples": [
+        "mcp__wide__apply_migration",
+        "mcp__wide__execute_sql"
+      ]
     }
   },
   "lanes": {

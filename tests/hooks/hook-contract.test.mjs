@@ -475,6 +475,8 @@ const RULE_CANARIES = {
   // Raising a ceiling here makes a widened statement_timeout pass as reviewed.
   'db-limits': [pathDeny('tools/db-limits.json')],
   'data-flow': [pathDeny('tools/data-flow.json')],
+  // 0.8.0. A sinks[] row licenses a telemetry egress path; a narrowed detector unsees one.
+  'observability-sinks': [pathDeny('tools/observability.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates

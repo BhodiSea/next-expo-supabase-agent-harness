@@ -10,7 +10,7 @@
 //   and FAILS CLOSED if it is missing or corrupt (a validate that cannot read its floor
 //   must not silently fall back to a weakened config).
 // --report-all (Stop hook): run EVERY step instead of stopping at the first failure, so
-//   an agent sees all reds at once — with ~33 gates and a per-turn block budget, serial
+//   an agent sees all reds at once — with ~34 gates and a per-turn block budget, serial
 //   one-red-per-turn discovery would exhaust the budget before the chain is green.
 // --stop-chain (0.7.0): resolve the STOP-HOOK chain instead of VALIDATE_STEPS — the union
 //   of the frozen tools/stop.floor.json and the config's STOP_HOOK_STEPS, computed by the

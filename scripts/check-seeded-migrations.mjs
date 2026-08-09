@@ -39,6 +39,11 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // reject. Example: { file: 'template/stack/tools/new-budget.json', reason: '…' }
 const DELIBERATE_PLANT = [
   {
+    file: 'template/base/tools/observability.json',
+    reason:
+      'check-observability.mjs without this file still SCANS (on the built-in REQUIRED_VENDOR_FLOOR detector) but then FAILS asking for the register — there is no sinks[] to judge egress against, and that failure fires after the ramp, so a pre-0.8.0 install would trade its dated NOTE for a hard red the moment the ramp expires. The shipped content is the detector floor plus zero sinks — a contract, not project data — and planting it is what keeps the first post-update validate deterministic on every vintage.',
+  },
+  {
     file: 'template/base/tools/tenancy.json',
     reason:
       'check-tenancy.mjs FAILS CLOSED when the contract is missing, and that check runs before any ramp — an install with the `tenancy` step injected and no contract reds on its first validate. The file is a contract (the closed predicate-form set, the rank ladder, the two helper names), not project data: nothing in it names a consumer table. Planting it is what makes the injected step ramp instead of fail.',

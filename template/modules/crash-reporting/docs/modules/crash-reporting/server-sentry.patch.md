@@ -6,6 +6,13 @@ automatically; copy the snippets deliberately, after your self-hosted Sentry (or
 GlitchTip) instance exists. The mobile app and the web server are separate crash surfaces
 with separate SDKs; the POLICY is the same on both.
 
+> **SAME DIFF as its `tools/observability.json` `sinks[]` row (0.8.0).** The
+> `observability` chain gate reds any `@sentry/*` import outside the reviewed sink
+> register. Register the one file that imports the SDK — `{ "file": "<path>",
+> "vendors": ["@sentry/"], "redaction": "redactFields", "reason": "<40+ chars>" }` —
+> and have that file reference the redaction symbol in code. Land the row, the
+> import, and the wiring in ONE reviewed diff.
+
 ## 1. Install (web workspace)
 
 ```

@@ -41,6 +41,15 @@ export const VALIDATE_STEPS = [
   // pure-node, static. The import-GRAPH half of the triad (the census-derived
   // dependency-cruiser layering) is enforced by the later `architecture` step.
   ['boundaries', 'node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs'],
+  // The observability seam's containment half (0.8.0): no vendor telemetry SDK import
+  // outside the reviewed tools/observability.json sinks[] register, and every declared sink
+  // behind the redaction pass — the seam header's own invariant ("NO VENDOR SDK, on
+  // purpose"). It sits with its family: `boundaries` above is the same shape (import walls
+  // with reviewed escapes), and this is a <100ms pure-node import scan that should red
+  // before anything expensive runs. `boundaries` is also a 0.1.x-vintage anchor present in
+  // every consumer chain, which is what makes this the safe injection point for existing
+  // installs (template/migrations.json "0.8.0" configSteps anchors on it).
+  ['observability', 'node tools/check-observability.mjs'],
   ['expo-policy', 'node tools/check-expo-policy.mjs'],
   ['native-deps', 'node tools/check-native-deps.mjs'],
   ['version-sync', 'node tools/check-version-sync.mjs'],
