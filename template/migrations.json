@@ -354,5 +354,42 @@
       ],
       "why": "Seven escapes close at once — the whole 0.6.0 fleet: auth-posture (the seeded sign-in/session cookie fix), data-flow (the planted policy's stale entries against your schema), docs-sync (the re-opened AGENTS.md gate-list lockstep), reviewer-verdicts (the SubagentStop review obligation), route-manifest (the web App Router half), schema-rls (the GRANT posture migration), and web-e2e (the authenticated spec against your routes). Every one opened at minVersion 0.6.0, so every install whose baseVersion predates 0.6.0 meets all seven. Sweep by the '## 0.7.0' section of docs/runbooks/harness-upgrade.md, which routes each gate into the 0.6.0 prose that already explains the work; the auth-posture half is also parked as data at .harness/pending/source-fixes.json by `update`, self-clearing when your tree stops matching the recorded broken shape. The honest count is computed on YOUR install, never quoted: pnpm validate 2>&1 | grep \"RAMP EXPIRED\"."
     }
+  },
+  "0.8.0": {
+    "//": [
+      "0.8.0 the containment release. Two things happen here, recorded side by side the way the 0.7.0 record modeled: the four ramps 0.7.0 opened all fall due (the rampExpiry below), and one new chain step lands (the configSteps below) with the one deadline move that injection forces (the rampExtensions below). The census deferral this release also met did NOT need an entry here: tools/deferrals.json targets are not rampNote sites, so the reviewed four-site diff IS the control (see the docs-sync deferral scan).",
+      "WHAT THIS RELEASE OPENS, recorded beside what it closes: two ramps, both until 0.9.0 — observability (the vendor-telemetry containment closure over declared sinks, minVersion 0.8.0: a pre-0.8.0 install may have hand-wired a vendor transport before the gate existed) and the RE-OPENED docs-sync gate-list escape (minVersion 0.8.0: the injected 34th step grows every existing chain while the seeded AGENTS.md still documents 33). Both fall due at 0.9.0, and the 0.9.0 record will owe their expiry the way the rampExpiry below pays for 0.7.0's."
+    ],
+    "configSteps": [
+      {
+        "//": "The ONLY channel by which a new chain step reaches an existing install: harness.config.mjs is SEEDED, so `update` never rewrites it, and without this record CI's --min-floor would run a step the consumer's Stop hook never does — green CI over a weaker local gate. Placed after `boundaries` because it is the same family (import walls with reviewed escapes), it is a <100ms pure-node import scan that should red before anything expensive runs, and `boundaries` is a 0.1.x-vintage anchor present in every consumer chain the injector will ever see.",
+        "name": "observability",
+        "cmd": "node tools/check-observability.mjs",
+        "after": "boundaries"
+      }
+    ],
+    "rampExtensions": [
+      {
+        "//": "THE SECOND ENTRY OF THIS KIND IN THE LINEAGE, and the same site as the first: check-docs-sync.mjs's AGENTS.md gate-list ramp expired at 0.7.0, and this release injects `observability` through configSteps — the chain grows to 34 on every existing install while their seeded AGENTS.md documents 33 (or fewer), and only they can edit it. The 0.6.0 entry's reasoning applies verbatim one release on; the ratchet keys on the detail string, so this move is a reviewed record rather than the quiet re-key the 0.5.0-era ratchet would have allowed.",
+        "file": "check-docs-sync.mjs",
+        "detail": "'AGENTS.md gate-list lockstep after an injected chain step'",
+        "from": "0.7.0",
+        "to": "0.9.0",
+        "why": "The escape must outlive the injection that reopens the drift. `observability` reaches existing installs through configSteps, which grows their chain to 34 steps; their AGENTS.md is seeded and still documents 33, and only they can edit it. The deadline moves once, to 0.9.0, and the NOTE tells them exactly which names to paste — the same shape as the 0.6.0 move, for the same injected-step reason."
+      }
+    ],
+    "rampExpiry": {
+      "//": "THE FOURTH ALARM: everything 0.7.0 opened falls due, exactly as its record promised. The four escapes expiring here all opened at minVersion 0.7.0, so the affected population is EVERY released vintage below 0.7.0 — and 0.7.0 itself is the one vintage this release does not red, which is the property the upgrade lane's leg A graduates on. The honest count for a given tree is still `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list: for older vintages the four land on top of the earlier debt the ledger computes per-vintage.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0"
+      ],
+      "why": "Four escapes close at once — everything 0.7.0 ramped: version-sync (the iOS build-toolchain floor over eas.json; the sweep is the one-line concrete -xcode->=26 image pin), data-flow (the export.surface.target deadline; adopt the shipped export or re-review your own target), docs-sync (the deferral ledger over the owned prose surfaces; ledger or de-date your own tools/*.mjs sentences), and reviewer-verdicts (the path_state verdict-to-diff binding; a Stop-side expiry no lane executes, proven by its registered stop-side proof). Per-gate remediation is docs/runbooks/harness-upgrade.md '0.8.0 — the fourth alarm'; the honest count on a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'` (minus the Stop-side caveat), never this list. Sweep, then graduate, one minor at a time if the pile is large."
+    }
   }
 }

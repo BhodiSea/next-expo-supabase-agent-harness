@@ -6,7 +6,7 @@
   },
   "reviewer-verdicts": {
     "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
-    "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. Its 0.6.0 ramp (until 0.7.0) therefore expires where only the unit proof looks."
+    "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. Its 0.6.0 roster ramp expired at 0.7.0 this same way; at 0.8.0 the expiring escape is the 0.7.0 path_state BINDING ramp — a PASS must post-date the last edit to the paths that summoned it — and the proof file executes that RAMP EXPIRED branch at a harness-0.8.0 fixture."
   },
   "web-e2e": {
     "proof": "tests/gates/check-web-e2e.test.mjs",
