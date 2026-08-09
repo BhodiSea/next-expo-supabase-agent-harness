@@ -953,17 +953,19 @@ jobs:
         if: matrix.node == 22
         working-directory: .selftest/boot
         run: |
-          # notes.org_id is the tenant key every policy qual filters on, and TWO indexes
+          # notes.org_id is the tenant key every policy qual filters on, and THREE indexes
           # lead with it since the org re-scope: notes_org_id_created_at_id_idx (which
-          # also carries the keyset ORDER BY tail) and notes_pkey, which became
-          # (org_id, id) so the table is partition-ready. The pgTAP structure suite
-          # asserts every owner column leads SOME index, so BOTH have to go for the
-          # invariant to be exercised — dropping only the secondary one leaves the PK
-          # satisfying it and the canary silently stops biting, which is the exact shape
-          # of rot this job exists to catch. Applied directly (not via a migration edit)
-          # and restored below.
+          # also carries the keyset ORDER BY tail), notes_pkey — (org_id, id), partition-
+          # ready — and, since 0.7.0, notes_org_id_owner_id_created_at_id_idx (the DSR
+          # export's covering index). The pgTAP structure suite asserts every owner column
+          # leads SOME index, so ALL THREE have to go for the invariant to be exercised —
+          # leaving any one satisfies it and the canary silently stops biting, which is
+          # the exact shape of rot this job exists to catch (0.7.0 proved it: the export
+          # index landed and this canary fired on its own vacuity within one PR round).
+          # Applied directly (not via a migration edit) and restored below.
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_owner_id_created_at_id_idx'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes DROP CONSTRAINT notes_pkey'
           if supabase test db > plan-canary.log 2>&1; then
             tail -n 60 plan-canary.log
@@ -978,9 +980,10 @@ jobs:
             exit 1
           fi
           grep -Ei 'Failed test|LEADING column of some index|org_id' plan-canary.log | tail -n 6 || true
-          # Restore both so the job's remaining steps see the intended schema.
+          # Restore all three so the job's remaining steps see the intended schema.
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes ADD CONSTRAINT notes_pkey PRIMARY KEY (org_id, id)'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_owner_id_created_at_id_idx ON public.notes (org_id, owner_id, created_at DESC, id DESC)'
           echo 'canary OK: the RLS structure test went red on the dropped keyset index'
       - name: 'Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)'
         if: matrix.node == 22

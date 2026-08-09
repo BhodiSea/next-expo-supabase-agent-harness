@@ -605,6 +605,17 @@ if [ "${SWEEP:-0}" = "1" ]; then
   # upgrade crossed.
   node "$ROOT/scripts/ci/upgrade-sweep.mjs" "$SCAFFOLD" "$ROOT" "$BASE_AFTER" "$HEAD_VERSION" ||
     die "the sweep failed. Its file list is DERIVED per crossed version (seedOnInitOnly + seededSourceFixes between baseVersion $BASE_AFTER and HEAD, through the reviewed SWEEPS table), so an empty or failing sweep means no crossed version withheld anything a consumer must adopt — and a sweep that clears nothing cannot prove graduate opens."
+  # COMMIT THE SWEEP, because the runbook does: every gate-integrity NOTE this lane has
+  # ever printed ends "commit it along with the rest of the upgrade", and 0.7.0's sweep
+  # is the first to adopt a CONFIG-mode file (.gitignore) — the commit-not-dirty rule
+  # correctly reds an uncommitted threshold-bearing config, and a lane that models the
+  # consumer's edits but not the consumer's commit is modeling half the instruction.
+  # The message is CONVENTIONAL and the commit runs the scaffold's own hooks
+  # (lefthook + commitlint are live after pnpm install) — the consumer's commit
+  # faces them, so the modeled one does too. --no-verify is banned for exactly
+  # this reason.
+  git -C "$SCAFFOLD" add -A
+  git -C "$SCAFFOLD" -c user.email=selftest@localhost -c user.name=selftest commit -qm "chore(harness): adopt the release's seams per the upgrade runbook"
   say "re-validate after the sweep"
   set +e
   (cd "$SCAFFOLD" && node tools/validate.mjs --report-all) > "$WORK/validate.log" 2>&1
