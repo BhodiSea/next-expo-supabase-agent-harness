@@ -3,8 +3,8 @@ import {
   EXPORT_MEMBERSHIPS_LIMIT,
   type ExportedNotesPage,
   type ExportMyDataSchema,
-  MembershipExport,
-  ProfileExport,
+  MembershipExportRows,
+  ProfileExportRows,
 } from '@app/contracts'
 import { type ActionOutcome, type AppError, appError, outcomeErr, outcomeOk } from '@app/errors'
 import {
@@ -14,7 +14,6 @@ import {
   type NotesDatabase,
   type PostgrestFailure,
 } from '@app/notes'
-import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
 // The `system.exportMyData` assembly — the DSR portability surface's one
@@ -74,26 +73,12 @@ const MEMBERSHIPS_TABLE = 'memberships'
 /** tools/data-flow.json export.projection.memberships, verbatim. */
 const MEMBERSHIP_COLUMNS = 'user_id, org_id, role_rank, created_at'
 
-// Row schemas BORROW their bounds from the wire DTOs (the rows.ts law, applied
-// to the two self-reads that live in this package): snake_case in, camelCase
-// out, and the bound stated once, in @app/contracts.
-const ProfileRows = z.array(
-  z.object({
-    created_at: ProfileExport.shape.createdAt,
-    display_name: ProfileExport.shape.displayName,
-    id: ProfileExport.shape.id,
-    updated_at: ProfileExport.shape.updatedAt,
-  }),
-)
-
-const MembershipRows = z.array(
-  z.object({
-    created_at: MembershipExport.shape.createdAt,
-    org_id: MembershipExport.shape.orgId,
-    role_rank: MembershipExport.shape.roleRank,
-    user_id: MembershipExport.shape.userId,
-  }),
-)
+// Row schemas live in @app/contracts (ProfileExportRows / MembershipExportRows):
+// they borrow every bound from the wire DTOs — the rows.ts law — and contracts
+// owns zod, so this package validates through them without a zod dependency of
+// its own for two derived shapes.
+const ProfileRows = ProfileExportRows
+const MembershipRows = MembershipExportRows
 
 /**
  * SQLSTATE classes where retrying the identical request is sane — same set the

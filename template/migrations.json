@@ -294,14 +294,27 @@
         ]
       },
       {
-        "//": "THE SURFACE THE DATE PROMISED — and everything one adoption actually touches, learned from leg E: the first sweep shipped only tools/data-flow.json here and the lane went RED on `contracts` and `parity`, because the flip is one file but the ADOPTION is four. system.ts carries the mount (seeded — the consumer's router), PARITY.md carries the surface-parity row (seeded — their ledger), and tools/generated/action-inventory.json is the regenerated inventory (seeded as of 0.7.0 for query-shapes.json's exact reason: it is generated FROM their router, and `owned` meant update planted the template's router description into a different repo — every upgraded install redded `contracts` on a tree nobody had touched, whichever legitimate move they intended). ONE probe, on the review file only: their data-flow.json still saying target 0.7.0 means they have neither adopted nor re-reviewed; it self-clears on EITHER move, so a consumer who re-reviews their target to a release they mean carries no parked warning for a surface they chose not to ship.",
+        "//": "THE SURFACE THE DATE PROMISED — and the 0.6.0 record's own law applied to it the hard way: THE UNIT IS THE SUBSYSTEM, NOT THE LINE. The first sweep shipped one file (the review flip) and leg E went red on `contracts` and `parity`; the second shipped four and leg E went red on `types` — the mount imports the export DTOs from contracts and the authored-notes walk from the notes vertical, so the adoption is the whole subsystem: the review file, the parity row, both regenerated manifests (action inventory and query shapes — each generated from THEIR code, both seeded for exactly that reason), the router mount, the contracts barrel (which carries the row schemas precisely so the adoption adds no dependency — contracts already owns zod, and a sweep cannot run pnpm install), the eight notes-vertical files (the data fn, its probes, the cursor codec, their tests), and the declarative schema source the covering-index migration was diffed from. ONE probe, on the review file only: their data-flow.json still saying target 0.7.0 means they have neither adopted nor re-reviewed; it self-clears on EITHER move, so a consumer who re-reviews their target carries no parked warning for a surface they chose not to ship.",
         "gate": "data-flow",
         "why": "The export surface the file's own target promised for 0.7.0 exists in the template, but every file the adoption touches is seeded — data-flow.json (their review), system.ts (their router), PARITY.md (their ledger), action-inventory.json (generated from their router) — so update can deliver none of it. The two legitimate moves are unchanged: adopt (refresh the four files or mount + add the row + run `pnpm gen`, plus the three seedOnInitOnly files) or re-review the target in a reviewed diff; the arrived-deadline finding under the 0.7.0 ramp names both.",
         "paths": [
           "tools/data-flow.json",
-          "packages/api/src/routers/system.ts",
           "PARITY.md",
-          "tools/generated/action-inventory.json"
+          "tools/generated/action-inventory.json",
+          "tools/generated/query-shapes.json",
+          "packages/api/src/routers/system.ts",
+          "packages/contracts/src/index.ts",
+          "packages/contracts/src/index.test.ts",
+          "packages/verticals/notes/src/index.ts",
+          "packages/verticals/notes/src/data/errors.ts",
+          "packages/verticals/notes/src/data/notes.ts",
+          "packages/verticals/notes/src/data/notes.test.ts",
+          "packages/verticals/notes/src/data/query-probes.ts",
+          "packages/verticals/notes/src/data/rows.ts",
+          "packages/verticals/notes/src/data/rows.test.ts",
+          "packages/verticals/notes/src/domain/cursor.ts",
+          "packages/verticals/notes/src/domain/cursor.test.ts",
+          "supabase/schemas/20_notes.sql"
         ],
         "probes": [
           {

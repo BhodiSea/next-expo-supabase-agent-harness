@@ -513,7 +513,10 @@ under RLS, notes filtered authored-only in the query), its colocated test
 `packages/api/src/routers/system.export.test.ts`, and the covering-index
 migration `supabase/migrations/20260808000000_notes_export_index.sql` — then
 mount `exportMyData` on your system router (the template's
-`packages/api/src/routers/system.ts` is the worked pattern) and set
+`packages/api/src/routers/system.ts` is the worked pattern), merge the export
+DTOs and row schemas into your contracts barrel (the template's
+`packages/contracts/src/index.ts` — the row schemas live there so the adoption
+adds no dependency to your api package), and set
 `export.surface` to `{ "kind": "procedure", "procedure": "<your router file>" }`
 (`--refresh-seeded tools/data-flow.json` does that wholesale, but only if the
 file carries no reviews of your own). The mount has two trailing edits leg E

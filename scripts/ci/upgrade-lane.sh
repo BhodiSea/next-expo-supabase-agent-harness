@@ -529,6 +529,14 @@ for g in $NOTING; do
     echo "  noting:    $g (withholding findings, announced)"
   elif grep -qE "^$g: (OK|SKIPPED)" "$WORK/validate.log"; then
     echo "  clean:     $g (ramp live, nothing to withhold — no NOTE is the honest answer)"
+  elif grep -qF "$g: RAMP EXPIRED" "$WORK/validate.log"; then
+    # 0.7.0 taught this loop a third honest outcome: ONE GATE, TWO RAMPS OF DIFFERENT
+    # VINTAGES (docs-sync — the 0.6.0 AGENTS gate-list ramp EXPIRING here while the
+    # 0.7.0 deferral-ledger ramp is merely live). The expired concern hard-reds the gate
+    # before the younger concern produces any line, so demanding OK/NOTE reads a gate
+    # that VISIBLY EXECUTED as "did not run". RAMP EXPIRED is execution evidence by
+    # definition; the sweep clears the expiry and the post-sweep chain judges the rest.
+    echo "  expired-first: $g (an older ramp's expiry preempted the younger ramp's output)"
   else
     die "gate \`$g\` has a live ramp at baseVersion $BASE_AFTER but produced no OK, SKIPPED or NOTE line at all — it did not run. A ramped gate that never executes is a check shipped disabled with nobody told.
 $(grep -E "^$g:" "$WORK/validate.log" || echo '    (no output from this gate)')"

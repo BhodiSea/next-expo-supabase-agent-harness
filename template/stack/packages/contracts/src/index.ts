@@ -504,6 +504,32 @@ export const ExportedNotesPage = z.object({
 export type ExportedNotesPage = z.infer<typeof ExportedNotesPage>
 
 /**
+ * The two self-reads' ROW shapes (snake_case, as the database returns them),
+ * borrowing every field bound from the wire DTOs above so the two can never
+ * drift — the rows.ts law, stated once, here, because this package owns zod:
+ * the api package validates what it read against these before shaping the
+ * wire form, and giving it a private zod dependency for two derived schemas
+ * would put the same bound in two packages.
+ */
+export const ProfileExportRows = z.array(
+  z.object({
+    created_at: ProfileExport.shape.createdAt,
+    display_name: ProfileExport.shape.displayName,
+    id: ProfileExport.shape.id,
+    updated_at: ProfileExport.shape.updatedAt,
+  }),
+)
+
+export const MembershipExportRows = z.array(
+  z.object({
+    created_at: MembershipExport.shape.createdAt,
+    org_id: MembershipExport.shape.orgId,
+    role_rank: MembershipExport.shape.roleRank,
+    user_id: MembershipExport.shape.userId,
+  }),
+)
+
+/**
  * One page of the export. Profile and memberships repeat on every page —
  * they are small, and a page that is complete on its own can be handed over
  * without stitching; notes are the unbounded half and carry the cursor.
