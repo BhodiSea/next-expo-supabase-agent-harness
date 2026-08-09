@@ -45,7 +45,7 @@
   "wall": {
     "ceilingMs": 120000,
     "warnMs": 90000,
-    "measuredMs": 24916
+    "measuredMs": 24337
   },
   "defaults": {
     "comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
@@ -55,59 +55,59 @@
   "steps": {
     "format": {
       "class": "toolchain",
-      "measuredMs": 2973
+      "measuredMs": 2820
     },
     "gate-integrity": {
       "class": "static",
-      "measuredMs": 292
+      "measuredMs": 309
     },
     "wiring": {
       "class": "static",
-      "measuredMs": 46
+      "measuredMs": 44
     },
     "secrets": {
       "class": "static",
-      "measuredMs": 98
+      "measuredMs": 101
     },
     "types": {
       "class": "toolchain",
-      "measuredMs": 6025
+      "measuredMs": 5733
     },
     "lint": {
       "class": "toolchain",
-      "measuredMs": 2136
+      "measuredMs": 2063
     },
     "provenance": {
       "class": "static",
-      "measuredMs": 106
+      "measuredMs": 107
     },
     "boundaries": {
       "class": "static",
-      "measuredMs": 86
+      "measuredMs": 88
     },
     "observability": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 90
     },
     "expo-policy": {
       "class": "static",
-      "measuredMs": 50
+      "measuredMs": 51
     },
     "native-deps": {
       "class": "toolchain",
-      "measuredMs": 47
+      "measuredMs": 48
     },
     "version-sync": {
       "class": "static",
-      "measuredMs": 43
+      "measuredMs": 42
     },
     "prompts": {
       "class": "static",
-      "measuredMs": 41
+      "measuredMs": 45
     },
     "licenses": {
       "class": "toolchain",
-      "measuredMs": 40
+      "measuredMs": 43
     },
     "schema-rls": {
       "class": "static",
@@ -115,71 +115,71 @@
     },
     "tenancy": {
       "class": "static",
-      "measuredMs": 47
+      "measuredMs": 45
     },
     "auth-posture": {
       "class": "static",
-      "measuredMs": 57
+      "measuredMs": 59
     },
     "data-flow": {
       "class": "static",
-      "measuredMs": 73
+      "measuredMs": 71
     },
     "types-drift": {
       "class": "static",
-      "measuredMs": 1507
+      "measuredMs": 1492
     },
     "migrations": {
       "class": "static",
-      "measuredMs": 60
+      "measuredMs": 62
     },
     "db-limits": {
       "class": "static",
-      "measuredMs": 107
+      "measuredMs": 118
     },
     "contracts": {
       "class": "toolchain",
-      "measuredMs": 2404
+      "measuredMs": 2534
     },
     "query-shapes": {
       "class": "static",
-      "measuredMs": 43
+      "measuredMs": 44
     },
     "rate-limits": {
       "class": "toolchain",
-      "measuredMs": 40
+      "measuredMs": 42
     },
     "parity": {
       "class": "static",
-      "measuredMs": 38
+      "measuredMs": 40
     },
     "dead-code": {
       "class": "toolchain",
-      "measuredMs": 2568
+      "measuredMs": 2480
     },
     "architecture": {
       "class": "toolchain",
-      "measuredMs": 1990
+      "measuredMs": 1885
     },
     "build": {
       "class": "toolchain",
-      "measuredMs": 46
+      "measuredMs": 48
     },
     "styleguide": {
       "class": "toolchain",
-      "measuredMs": 745
+      "measuredMs": 699
     },
     "perf-budget": {
       "class": "static",
-      "measuredMs": 2886
+      "measuredMs": 2806
     },
     "route-manifest": {
       "class": "static",
-      "measuredMs": 81
+      "measuredMs": 80
     },
     "security-headers": {
       "class": "toolchain",
-      "measuredMs": 40
+      "measuredMs": 41
     },
     "e2e": {
       "class": "toolchain",
@@ -187,7 +187,7 @@
     },
     "docs-sync": {
       "class": "static",
-      "measuredMs": 73
+      "measuredMs": 77
     }
   },
   "stopComment": [
@@ -221,60 +221,60 @@
   "stopWall": {
     "ceilingMs": 600000,
     "warnMs": 450000,
-    "measuredMs": 52480
+    "measuredMs": 50531
   },
   "stopSteps": {
     "rls-isolation": {
       "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
       "ceilingMs": 90000,
-      "measuredMs": 6768
+      "measuredMs": 6735
     },
     "unit": {
       "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
       "ceilingMs": 180000,
-      "measuredMs": 7221
+      "measuredMs": 6819
     },
     "mobile-unit": {
       "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
       "ceilingMs": 240000,
-      "measuredMs": 9867
+      "measuredMs": 9336
     },
     "diff-coverage": {
       "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
       "ceilingMs": 10000,
-      "measuredMs": 65
+      "measuredMs": 69
     },
     "duplication": {
       "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
       "ceilingMs": 15000,
-      "measuredMs": 280
+      "measuredMs": 282
     },
     "i18n": {
       "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
       "ceilingMs": 10000,
-      "measuredMs": 95
+      "measuredMs": 92
     },
     "test-quality": {
       "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
       "ceilingMs": 10000,
-      "measuredMs": 83
+      "measuredMs": 78
     },
     "mobile-perf": {
       "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
       "ceilingMs": 5000,
-      "measuredMs": 44
+      "measuredMs": 42
     },
     "reviewer-verdicts": {
       "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
       "ceilingMs": 5000,
-      "measuredMs": 58
+      "measuredMs": 61
     }
   },
   "measurement": {
     "recordedOn": "2026-08-09",
     "runner": "Linux/X64 (selftest)",
-    "chainSteps": 33,
-    "stepsMeasured": 33
+    "chainSteps": 34,
+    "stepsMeasured": 34
   },
   "stopMeasurement": {
     "recordedOn": "2026-08-09",

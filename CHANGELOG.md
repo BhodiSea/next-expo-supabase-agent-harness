@@ -11,6 +11,20 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Added
+
+- **The 34-step chain measurement.** `scripts/chain-budget.json` carries fresh `measuredMs`
+  values for all 34 validate steps (the new `observability` gate measured at 90ms), the ten
+  Stop-side members, and both walls — recorded from the reviewed post-release selftest
+  dispatch (run 31342080611) and committed as the CI artifact verbatim. 0.8.0 shipped in the
+  deliberate interim state (`hasCommittedMeasurement` false: the committed integer described
+  the 33-step chain this release no longer ran, so no wall-clock figure was licensed for
+  prose); this recording restores the count-matched invariant, and the test pin flips back
+  with it. Both halves of the artifact survived the review that d378b15's first artifact
+  failed — the parser fixes held on their second live exercise.
+
 ## [0.8.0] — 2026-08-10
 
 **The containment release.** The question this release answers is the one 0.7.0 left armed:
