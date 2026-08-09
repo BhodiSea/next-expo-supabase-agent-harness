@@ -75,7 +75,9 @@ if (policy !== null) {
     }
   }
   if (!Array.isArray(policy.sinks)) {
-    errs.push(`${POLICY} sinks must be an array (empty is the shipped state: no vendor transport wired).`)
+    errs.push(
+      `${POLICY} sinks must be an array (empty is the shipped state: no vendor transport wired).`,
+    )
   }
 }
 
