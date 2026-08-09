@@ -9,6 +9,7 @@
     ["lint", "pnpm exec eslint . --max-warnings 0 --cache"],
     ["provenance", "node tools/check-sources.mjs"],
     ["boundaries", "node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs"],
+    ["observability", "node tools/check-observability.mjs"],
     ["expo-policy", "node tools/check-expo-policy.mjs"],
     ["native-deps", "node tools/check-native-deps.mjs"],
     ["version-sync", "node tools/check-version-sync.mjs"],

@@ -8,9 +8,9 @@
         "tools/check-auth-posture.mjs",
         "docs/harness/gates-catalog.md"
       ],
-      "target": "0.8.0",
-      "reason": "The standing ask-the-CLI section census (reading the Supabase CLI's own deprecation warnings instead of a hand-maintained knownSections list). The 0.6.0 spike built it, it worked, and it found the shipped [inbucket] rename — but the blocker is UPSTREAM, not scheduling: at this CLI pin (^2.34.3, resolving to 2.111.0) no subcommand parses config.toml without side effects. `config push` needs a project ref, `functions list` needs an access token, and `status` — the one that runs — binds to whatever stack holds the default ports (it reported another project's containers during the spike) and prints SECRET_KEY and JWT_SECRET into output a gate would then handle. A safe standing check needs a side-effect-free `config lint`-shaped subcommand; re-check for one at every CLI pin bump, and if 0.8.0 arrives without it, move this date in a reviewed diff rather than letting the scanner's red stand.",
-      "reviewedOn": "2026-08-08"
+      "target": "0.9.0",
+      "reason": "The standing ask-the-CLI section census (reading the Supabase CLI's own deprecation warnings instead of a hand-maintained knownSections list). The 0.6.0 spike built it, it worked, and it found the shipped [inbucket] rename — but the blocker is UPSTREAM, not scheduling. RE-CHECKED AT 0.8.0 against the pin's current resolution (^2.34.3 -> 2.113.0): the Go CLI's `config` command group still registers exactly one subcommand, `push` (no --dry-run; needs a project ref and the management API), the in-progress TypeScript rewrite's command tree carries no config group at all, and the exact ask is open upstream as https://github.com/supabase/cli/issues/5894 ('Add a `supabase config validate` preflight command', no milestone). The original spike findings stand: `functions list` needs an access token, and `status` — the one that runs — binds to whatever stack holds the default ports (it reported another project's containers) and prints SECRET_KEY and JWT_SECRET into output a gate would then handle. A safe standing check needs a side-effect-free `config lint`-shaped subcommand; re-check for one at every CLI pin bump, and if 0.9.0 arrives without it, move this date in a reviewed diff rather than letting the scanner's red stand — this move IS that mechanism firing on schedule, once.",
+      "reviewedOn": "2026-08-10"
     }
   ]
 }

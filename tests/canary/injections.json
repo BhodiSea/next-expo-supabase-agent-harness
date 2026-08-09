@@ -77,6 +77,13 @@
         "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system"
       }
     ],
+    "observability": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-observability.test.mjs",
+        "note": "vendor telemetry containment over apps/ + packages/ + supabase/functions/: an undeclared @sentry import reds naming the file and both moves (register the sink or remove the import); dynamic import() and require() red the same way; a REGISTERED sink whose file never references its declared redaction symbol reds quoting the seam header's ordering ('NO VENDOR SDK, on purpose'); the register is closed both directions (a sink naming a missing file, and a sink whose vendor import went away, both red); narrowing vendorSpecifiers below the shipped REQUIRED_VENDOR_FLOOR reds (the detector is extend-only); a malformed register fails closed, an absent one fails asking for the seeded exemplar AFTER the floor-detector scan still ran, and a zero-file scan is vacuous rather than green. The 0.8.0 ramp NOTEs on pre-0.8.0 installs in the exact shape the upgrade lane's §7b greps, and the RAMP EXPIRED branch at harness 0.9.0 is EXECUTED — the registered proof for the next release, written the release the ramp opens. The green case runs on the SHIPPED template/stack trees and asserts a non-vacuous scan count."
+      }
+    ],
     "expo-policy": [
       {
         "kind": "selftest",
@@ -288,7 +295,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-docs-sync.test.mjs",
-        "note": "0.7.0 adds the DEFERRAL-LEDGER injections beside the existing chain/catalog/roster/tiers/probe proofs: an ARRIVED tools/deferrals.json target (manifest at the target) reds naming the entry, both versions and the two legitimate moves, while the same sentence at a future target greens; a dated sentence in a scanned surface (a planted consumer tools/*.mjs is the subject — top-level gate scripts ARE the declared universe) with no ledger entry reds naming file:line; an entry whose file dropped its sentence reds as a second stale doctrine, and that closure runs even with NO manifest (the arrival half prints the defined not-judged NOTE instead of passing silently); a reason under 40 characters reds as not-a-review; findings are dated NOTEs on a pre-0.7.0 baseVersion and the escape RAMP-EXPIRES at harness 0.8.0 — where the shipped auth-posture-cli-census re-deferral (target 0.8.0) arrives with it, executed in the same test; re-freezing the catalog's old sentence date reds BOTH directions, which is the anti-regression for the 0.7.0 prose sweep"
+        "note": "0.7.0 adds the DEFERRAL-LEDGER injections beside the existing chain/catalog/roster/tiers/probe proofs: an ARRIVED tools/deferrals.json target (manifest at the target) reds naming the entry, both versions and the two legitimate moves, while the same sentence at a future target greens; a dated sentence in a scanned surface (a planted consumer tools/*.mjs is the subject — top-level gate scripts ARE the declared universe) with no ledger entry reds naming file:line; an entry whose file dropped its sentence reds as a second stale doctrine, and that closure runs even with NO manifest (the arrival half prints the defined not-judged NOTE instead of passing silently); a reason under 40 characters reds as not-a-review; findings are dated NOTEs on a pre-0.7.0 baseVersion and the escape RAMP-EXPIRES at harness 0.8.0 on a planted finding — the shipped ledger carries none there, because the census moved to 0.9.0 in the reviewed 0.8.0 diff, and the shipped tree at 0.8.0 is proven GREEN beside the expiry; the ARRIVAL tripwire is a separate test that DERIVES its manifest from the shipped ledger's target, so it re-arms itself at every future move; re-freezing the catalog's sentence to the newly-old date reds BOTH directions, which is the anti-regression for the census date-move"
       },
       {
         "kind": "selftest",
@@ -438,7 +445,10 @@
     },
     "pretool-mcp-guard.mjs": {
       "denyToolCallSites": 8,
-      "denyExamples": ["mcp__wide__apply_migration", "mcp__wide__execute_sql"]
+      "denyExamples": [
+        "mcp__wide__apply_migration",
+        "mcp__wide__execute_sql"
+      ]
     }
   },
   "lanes": {

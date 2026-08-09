@@ -85,6 +85,10 @@
       "class": "static",
       "measuredMs": 86
     },
+    "observability": {
+      "class": "static",
+      "measuredMs": null
+    },
     "expo-policy": {
       "class": "static",
       "measuredMs": 50

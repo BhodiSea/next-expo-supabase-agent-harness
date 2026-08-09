@@ -8,6 +8,13 @@ Next.js instrumentation hook — NOT a server-framework middleware. Two decision
 are yours before pasting anything: the OTLP target (your collector, on-prem) and
 the sampling rate.
 
+> **SAME DIFF as its `tools/observability.json` `sinks[]` row (0.8.0).** The
+> `observability` chain gate reds any `@opentelemetry/*` import outside the reviewed
+> sink register. Register each file that imports the SDK — `{ "file": "<path>",
+> "vendors": ["@opentelemetry/"], "redaction": "redactFields", "reason": "<40+
+> chars>" }` — and have that file reference the redaction symbol in code. Land the
+> rows, the imports, and the wiring in ONE reviewed diff.
+
 ## 1. Install (pin in the catalog like everything else)
 
 ```

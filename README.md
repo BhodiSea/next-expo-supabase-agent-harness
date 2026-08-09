@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.7.x).** This repo was forked from
+> **Status: pre-release (0.8.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -19,7 +19,7 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 33 gates — and the selftest matrix proves
+> fresh scaffold with zero edits — all 34 gates — and the selftest matrix proves
 > it on every push, including the live-Supabase RLS suite and the 29 can-fail
 > canaries (counted from the matrix itself, not hand-authored). Nothing is claimed here that that matrix does not run.
 >
@@ -49,7 +49,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (124 guard-rule ids: shell-command denials, write-protected harness paths,
+   (125 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -66,7 +66,7 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-33 gates, cheap → expensive:
+34 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
 `node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen
@@ -82,7 +82,9 @@ strictTypeChecked + react-native/a11y every-rule-error + React Compiler rules +
 cognitive-complexity ≤ 15 + the fetch/secure-store/chart-library boundary
 bans) → provenance (`SOURCE:` on every decision site) → **boundaries** (the two
 census consumers off one `tools/exports-walls.json`: the `./client` wall + the
-declared-dependency allow-matrix) → **expo-policy**
+declared-dependency allow-matrix) → **observability** (vendor telemetry
+containment: no telemetry SDK import outside the reviewed `tools/observability.json`
+sinks register, every sink behind the redaction pass) → **expo-policy**
 (identity lock, ATS/cleartext, permissions + config-plugin allowlists, CNG
 purity, secret-shaped `extra` ban, splash-color lockstep, eas.json sanity) →
 **native-deps** (`expo install --check`, CNG purity, plugin allowlist) →

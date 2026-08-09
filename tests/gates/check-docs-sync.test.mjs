@@ -104,11 +104,12 @@ test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 instal
   // Every documented gate still exists, in order — so the difference is steps something
   // else added, and the only thing that adds steps to a seeded config is `update`.
   //
-  // THE RAMP MOVED IN 0.6.0 and these two tests moved with it, in the same diff. The 0.3.0
-  // ramp expired at 0.5.0; 0.6.0 injects `auth-posture` via configSteps, so the same ambush is
-  // live again for every install whose AGENTS.md still says 31. A ramp's tests are pinned to
-  // its version by construction — leaving them on the old one is how a re-opened escape ends
-  // up asserting the previous release's deadline.
+  // THE RAMP MOVED AGAIN IN 0.8.0 and these two tests moved with it, in the same diff —
+  // exactly as the 0.6.0 move before it. The 0.6.0 ramp expired at 0.7.0; 0.8.0 injects
+  // `observability` via configSteps, so the same ambush is live again for every install
+  // whose AGENTS.md still says 33 (or fewer). A ramp's tests are pinned to its version by
+  // construction — leaving them on the old one is how a re-opened escape ends up asserting
+  // the previous release's deadline.
   const r = runGate(
     fixture({
       agents: shippedAgents
@@ -116,11 +117,11 @@ test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 instal
         .replace(/the (\d+)-step chain/, 'the 29-step chain')
         .replace(' `wiring`,\n  `secrets`,', '')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.6.0', baseVersion: '0.5.0', files: {} },
+      manifest: { harnessVersion: '0.8.0', baseVersion: '0.7.0', files: {} },
     }),
   )
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('expires in 0.7.0'), `the NOTE must carry its deadline:\n${r.out}`)
+  assert.ok(r.out.includes('expires in 0.9.0'), `the NOTE must carry its deadline:\n${r.out}`)
   assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
 })
 
@@ -130,7 +131,7 @@ test('RED: the same additive drift is LIVE on a fresh install — no legacy, no 
       agents: shippedAgents
         .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.6.0', baseVersion: '0.6.0', files: {} },
+      manifest: { harnessVersion: '0.8.0', baseVersion: '0.8.0', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)
@@ -598,6 +599,38 @@ test('TIERS: BOTH 0.6.0 commitments are discharged — the shipped table is gree
   assert.doesNotMatch(r.out, /gate `route-manifest`/)
 })
 
+test('TIERS: the 0.8.0 commitment discharges through its PROBE — the vacuous-surface trap, closed', () => {
+  // THE TRAP THIS RELEASE FOUND AND CLOSED. The observability row's Target (0.8.0) was
+  // declared at 0.7.0 while the gate did not exist — and the surface-derivation discharge
+  // form asks whether the gate "still scans one product surface": a gate that is NOT in the
+  // derived set discharges, and a NONEXISTENT gate is never in the set. Had the date
+  // arrived on the 0.7.0-shaped row, it would have discharged VACUOUSLY — a machine-held
+  // commitment self-satisfying with nothing shipped. The shipped row now carries the
+  // `closes:` probe (`tools/observability.json#vendorSpecifiers`), so the discharge rests
+  // on the shipped register and the gate reading it, re-derived every run.
+  const r = runGate(
+    tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.8.0' }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+  assert.doesNotMatch(r.out, /gate `observability`/)
+
+  // And the probe is LIVE, not decoration: empty the record it names and the same run
+  // reds naming the missing half — the discharge cannot survive the register it rests on.
+  const broken = tiersFixture(shippedTiers, {
+    allTools: true,
+    allWorkflows: true,
+    harness: '0.8.0',
+  })
+  const registerPath = join(broken, 'tools/observability.json')
+  const register = JSON.parse(readFileSync(registerPath, 'utf8'))
+  register.vendorSpecifiers = []
+  writeFileSync(registerPath, JSON.stringify(register, null, 2))
+  const red = runGate(broken)
+  assert.equal(red.code, 1, red.out)
+  assert.match(red.out, /carries no non-empty value at top-level key 'vendorSpecifiers'/)
+})
+
 test('TIERS RED: an ARRIVED Target on a still-single-surface gate reds', () => {
   // THE CONTROL, proven against a gate that really is single-surface rather than against
   // the harness's own debt — which is what keeps this test meaningful now that the debt is
@@ -991,16 +1024,41 @@ test('DEFERRAL RAMP: findings are dated NOTEs on a pre-0.7.0 install, and the es
   assert.ok(noted.out.includes('expires in 0.8.0'), `the NOTE must carry its deadline:\n${noted.out}`)
   assert.match(noted.out, /NOTE — \(ramp\).*has no entry for this file at that target/)
 
-  // At harness 0.8.0 the escape is over — and the SHIPPED re-deferral (target 0.8.0) has
-  // arrived with it, which is the whole point: the date cannot roll silently again.
+  // At harness 0.8.0 the escape is over: the same planted finding is a hard failure under
+  // the RAMP EXPIRED banner. Planted, because the SHIPPED ledger no longer carries an
+  // arrived date here — the census moved to 0.9.0 in the reviewed 0.8.0 diff — so the
+  // expiry proof needs its own finding rather than riding the ledger's.
   const expired = runGate(
     deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
       manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0', files: {} },
     }),
   )
   assert.equal(expired.code, 1, expired.out)
   assert.match(expired.out, /RAMP EXPIRED/)
-  assert.match(expired.out, /entry 'auth-posture-cli-census' committed to 0\.8\.0/)
+  assert.match(expired.out, /has no entry for this file at that target/)
+
+  // And the SHIPPED tree at 0.8.0, nothing planted, is GREEN — the move bought exactly
+  // one release, which is what a date-move is for.
+  const clean = runGate(
+    deferralFixture({ manifest: { harnessVersion: '0.8.0', baseVersion: '0.8.0', files: {} } }),
+  )
+  assert.equal(clean.code, 0, clean.out)
+})
+
+test('DEFERRAL ARRIVAL: the shipped census target is a live tripwire, derived — never hardcoded', () => {
+  // THE FACTORY-SIDE FORCING FUNCTION: the template dev tree has no manifest, so this test
+  // IS the arrival enforcement for the shipped ledger (check-docs-sync.mjs says so in its
+  // no-manifest NOTE). Deriving the target from the ledger keeps it self-updating at the
+  // next move: whatever release the census commits to, an install running that release
+  // reds until the census ships or the date moves again in a reviewed diff.
+  const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
+  const r = runGate(
+    deferralFixture({ manifest: { harnessVersion: target, baseVersion: target, files: {} } }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, new RegExp(`entry 'auth-posture-cli-census' committed to ${target.replaceAll('.', '\\.')}`))
+  assert.match(r.out, /has ARRIVED/)
 })
 
 test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
@@ -1009,10 +1067,10 @@ test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directio
   // date reds forward (a dated sentence at a target no entry carries) AND backward (the
   // entry's file no longer carries ITS sentence) — the sweep cannot quietly un-happen.
   const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
-  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.7.0')
+  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.8.0')
   assert.notEqual(refrozen, shippedCatalog, 'the catalog must carry the ledgered sentence')
   const r = runGate(deferralFixture({ catalog: refrozen, manifest: LIVE_070 }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.7\.0/)
+  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.8\.0/)
   assert.match(r.out, /no longer carries that dated sentence/)
 })

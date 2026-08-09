@@ -156,16 +156,20 @@ test('the wall warn band warns and the ceiling reds', () => {
   assert.ok(red.problems.some((p) => /over the 120000ms ceiling/.test(p)))
 })
 
-test('the committed measurement describes THIS chain — and licenses prose without writing any', () => {
-  // Until 2026-08-09 this test pinned the absence: no measurement, so no figure licensed.
-  // The first reviewed recording (selftest run 31307386944) flips the pin to the invariant
-  // that keeps the number honest from here on: it must be count-matched to the live chain
-  // and carry its provenance. README still publishes no figure — a committed measurement
-  // LICENSES prose, it does not oblige it — so the sentinel half of the old pin stands.
-  assert.equal(hasCommittedMeasurement(budget, chainSteps), true)
+test('the 0.8.0 interim: the committed measurement describes the 33-step chain, so it licenses nothing', () => {
+  // The 0.7.0 measurement (selftest run 31307386944) is real and stays committed — deleting
+  // a true number to satisfy a count check would discard its provenance for nothing. But
+  // 0.8.0 grew the chain to 34 (`observability`), so the count-match that keeps a published
+  // figure honest now answers NO: the committed integer describes a chain this release no
+  // longer runs, and hasCommittedMeasurement is exactly the refusal that keeps `cold ≈ N s`
+  // out of prose until a post-release selftest `--record` re-measures the 34-step chain
+  // (the d378b15 doctrine: measure → commit → only then publish). The measurement's own
+  // provenance still holds, and the README sentinel stands either way.
+  assert.equal(hasCommittedMeasurement(budget, chainSteps), false)
+  assert.equal(budget.measurement.stepsMeasured, budget.measurement.chainSteps)
+  assert.equal(budget.measurement.chainSteps, chainSteps.length - 1)
   assert.ok(budget.measurement.runner.trim(), 'a measurement with no runner is unattributed')
   assert.match(budget.measurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
-  assert.equal(budget.measurement.stepsMeasured, chainSteps.length)
   assert.ok(budget.wall.measuredMs <= budget.wall.ceilingMs, 'a committed wall over its own ceiling')
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.match(readme, /No wall-clock timings appear in this README/)

@@ -186,6 +186,15 @@ export const SEEDED_FILES = new Set([
   // write-guard rule plus gate-integrity's escape-list dirty check — the widening is the
   // commit, under CODEOWNERS.
   'tools/approved-tools.json',
+  // The observability sink register (0.8.0). Seeded for the approved-tools reason: the
+  // gate's own failure text asks the consumer to add a sinks[] row (their egress
+  // decision), and an owned file under tools/ is sha-pinned — the harness would be
+  // demanding an edit and then calling it tampering. NOT seedOnInitOnly: the gate fails
+  // closed without it (after scanning on the built-in detector floor), so `update` must
+  // PLANT it or the first post-upgrade validate asks for a file update withheld. Its
+  // integrity is the observability-sinks write-guard rule plus gate-integrity's
+  // escape-list dirty check — the widening is the commit, under CODEOWNERS.
+  'tools/observability.json',
   // The accepted-survivor list for the mutation lane, and the reviewed escapes for the
   // assertion gate. Both are project-owned JUDGEMENTS ("this mutant is genuinely
   // equivalent", "this test is deliberately pending") — write-guard-protected against

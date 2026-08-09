@@ -15,18 +15,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-
-// Windows-safe dynamic import: a raw absolute path (D:\…) is not loadable by the
-// ESM loader — go through a file:// URL.
-const JSONC = pathToFileURL(
-  fileURLToPath(new URL('../../template/base/tools/lib/jsonc.mjs', import.meta.url)),
-).href
-const { parseJsonc } = await import(JSONC)
-const INV = pathToFileURL(
-  fileURLToPath(new URL('../../template/base/tools/lib/inventory.mjs', import.meta.url)),
-).href
-const { renderActions, renderEvents } = await import(INV)
+import { fileURLToPath } from 'node:url'
+// Static relative specifiers, deliberately (0.8.0): the computed file:// dynamic
+// imports these replaced were opaque to `knip --strict` and carried a maintained
+// Windows workaround — a static specifier has neither cost on any platform
+// (the check-query-shapes.test.mjs precedent).
+import { renderActions, renderEvents } from '../../template/base/tools/lib/inventory.mjs'
+import { parseJsonc } from '../../template/base/tools/lib/jsonc.mjs'
 
 const GATE = fileURLToPath(
   new URL('../../template/base/tools/check-contract-drift.mjs', import.meta.url),

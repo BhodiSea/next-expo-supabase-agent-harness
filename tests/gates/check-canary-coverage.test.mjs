@@ -18,16 +18,18 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+// Static relative specifiers, deliberately (0.8.0): the computed file:// dynamic
+// imports these replaced were opaque to `knip --strict` and carried a Windows
+// workaround a static specifier does not need (check-query-shapes precedent).
+import * as guardRules from '../../template/base/.claude/hooks/lib/guard-rules.mjs'
+import * as config from '../../template/base/tools/harness.config.mjs'
 
 const CHECKER = fileURLToPath(new URL('../../scripts/check-canary-coverage.mjs', import.meta.url))
 const ROOT_DIR = fileURLToPath(new URL('../..', import.meta.url))
 const REGISTRY = fileURLToPath(new URL('../canary/injections.json', import.meta.url))
 
 const realRegistry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
-const config = await import(
-  pathToFileURL(join(ROOT_DIR, 'template/base/tools/harness.config.mjs')).href
-)
 const stepNames = [...config.VALIDATE_STEPS, ...config.STOP_HOOK_STEPS].map(([name]) => name)
 
 // The same job-id parse the checker itself performs — over ALL EIGHT shipped workflows
@@ -88,9 +90,6 @@ const factoryJobKeys = readdirSync(join(ROOT_DIR, '.github/workflows'))
       : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => `${f}#${m[1]}`)
   })
 
-const guardRules = await import(
-  pathToFileURL(join(ROOT_DIR, 'template/base/.claude/hooks/lib/guard-rules.mjs')).href
-)
 // The same table list the checker itself walks — kept in lockstep by hand, and the
 // LIVE LOCKSTEP test below reds if a table exists in guard-rules but is missing here.
 const RULE_TABLES = [

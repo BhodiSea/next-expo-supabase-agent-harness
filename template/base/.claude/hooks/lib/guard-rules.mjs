@@ -400,6 +400,12 @@ export const WRITE_PROTECTED = [
   // one mid-turn is the change least likely to be noticed in a diff and most likely to matter.
   { id: 'data-flow', re: /^tools\/data-flow\.json$/ },
 
+  // WHERE TELEMETRY MAY LEAVE (0.8.0). A sinks[] row in observability.json LICENSES a
+  // vendor transport for operational data, and narrowing vendorSpecifiers is how an
+  // egress SDK stops being seen at all — an agent that could edit this file could
+  // register its own bypass of the redaction seam mid-turn and stay green.
+  { id: 'observability-sinks', re: /^tools\/observability\.json$/ },
+
   // WHO OWES A REVIEW. Narrowing a pattern here is how a reviewer stops being summoned by
   // the diff it exists for, and it is a one-word edit in a file that reads like config.
   { id: 'reviewer-triggers', re: /^tools\/reviewer-triggers\.json$/ },

@@ -104,6 +104,14 @@ const SWEEPS = {
   '0.7.0': {
     adoptSeedOnInitOnly: true,
   },
+  // 0.8.0 — the containment release withholds NOTHING: the observability gate and its lib
+  // are owned (update plants them), the sink register is a DELIBERATE_PLANT (update plants
+  // it too, per scripts/check-seeded-migrations.mjs), and there are no seededSourceFixes.
+  // The empty object is the reviewed decision that the sweep set for this hop is empty —
+  // computeSweepSet fails closed on ABSENCE, never on emptiness — and the injected 34th
+  // step is covered by the sweep's own §3 AGENTS.md rewrite, which derives the gate list
+  // from the install's post-injection chain rather than from any adopted file.
+  '0.8.0': {},
 }
 
 /**

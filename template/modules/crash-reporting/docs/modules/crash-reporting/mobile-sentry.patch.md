@@ -12,6 +12,15 @@ Verified against `@sentry/react-native` 8.19.0 and the Sentry Expo setup guide
 (<https://docs.sentry.io/platforms/react-native/manual-setup/expo/>),
 2026-07-18.
 
+> **SAME DIFF as its `tools/observability.json` `sinks[]` row (0.8.0).** The
+> `observability` chain gate reds any `@sentry/*` import outside the reviewed sink
+> register: `<file> imports "@sentry/react-native" … and is not a declared sink`.
+> Register the one file that imports the SDK — `{ "file": "<path>", "vendors":
+> ["@sentry/"], "redaction": "redactFields", "reason": "<40+ chars>" }` — and have
+> that file reference the redaction symbol in code (the attach-behind-the-pass
+> ordering the seam header mandates). Land the row, the import, and the wiring in
+> ONE reviewed diff, exactly like the `tools/expo-plugins.json` row below.
+
 ## 1. Install (mobile workspace)
 
 ```

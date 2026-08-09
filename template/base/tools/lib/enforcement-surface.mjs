@@ -38,6 +38,11 @@ export const ESCAPE_LISTS = [
   // that until this release had no registry to be exempt from.
   'tools/web-route-allowlist.json',
   'tools/dto-bounds-allow.json', // exempting a wire string from the .max() bound
+  // 0.8.0. Registering a sinks[] row licenses a vendor transport for operational data —
+  // an off-device egress path for redacted-but-real values — and extending
+  // vendorSpecifiers is the benign direction only because narrowing it is refused by the
+  // gate's floor check; the row itself is the widening a reviewer must see.
+  'tools/observability.json',
   'tools/duplication-allow.json', // accepting a code clone
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
   'tools/expo-permissions.json', // granting the app a new platform permission

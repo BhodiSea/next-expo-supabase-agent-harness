@@ -43,6 +43,25 @@ export default [
       // Same budget the consumer config enforces (BUILD-SPEC §Lint).
       'sonarjs/cognitive-complexity': ['error', 15],
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // 0.8.0: no RAW-PATH specifier inside import() in the machinery. On Windows,
+      // `import(fileURLToPath(...))` / `import(join(...))` hands the ESM loader a bare
+      // `D:\…` path, whose drive letter reads as a protocol — ERR_UNSUPPORTED_ESM_URL_SCHEME
+      // — and it broke a red-proof on windows-latest once (the check-query-shapes.test.mjs
+      // header records the incident). The rule bans exactly the broken shape (the DIRECT
+      // argument), not the safe one: `import(pathToFileURL(...).href)` is the correct form
+      // for the imports that are GENUINELY runtime-computed (a fixture dir minted by
+      // mkdtemp, a consumer tree a shipped gate walks) and stays legal. Where the target is
+      // statically known, prefer a static relative specifier — `knip --strict` can see it —
+      // which the 0.8.0 sweep applied to the last five convertible test files.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "ImportExpression > CallExpression[callee.name='fileURLToPath'], ImportExpression > CallExpression[callee.name='join'], ImportExpression > CallExpression[callee.name='resolve']",
+          message:
+            'import() of a raw filesystem path is ERR_UNSUPPORTED_ESM_URL_SCHEME on a Windows drive path — wrap it (`pathToFileURL(p).href`), or use a static relative specifier when the target is fixed.',
+        },
+      ],
     },
   },
 ]

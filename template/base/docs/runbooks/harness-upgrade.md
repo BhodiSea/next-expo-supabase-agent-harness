@@ -569,6 +569,72 @@ fixes, and NOTEs — and then requires `graduate` to SUCCEED with zero surviving
 ramp NOTEs. If what is written here ever stops being sufficient, that leg reds
 before a consumer finds out.
 
+## 0.8.0 — THE FOURTH ALARM: everything 0.7.0 opened falls due
+
+Nothing in this section invents a sweep. **The four ramps 0.7.0 opened all fall
+due here** — `version-sync` (the iOS toolchain floor), `data-flow` (the
+export-target deadline), `docs-sync` (the deferral ledger), `reviewer-verdicts`
+(the path_state binding) — and the remedy for each is the one the 0.7.0 section
+above already wrote down, in "The new ramps" rows. What IS new is the injected
+step: `update` grows your chain to **34** (`observability`, right after
+`boundaries`), which re-opens the AGENTS.md gate-list NOTE one more time and
+adds this release's own new ramp.
+
+One of the four never appears in `pnpm validate` output, so the count command
+below under-reports it by construction: `reviewer-verdicts` is a Stop-chain step
+— it fires when a turn tries to end, and the sweep is RUNNING the owed reviewers
+to a `VERDICT: PASS` after the last edit to the paths that summoned them, not
+editing files.
+
+| Your `baseVersion` | What 0.8.0 does to you |
+|---|---|
+| **0.7.0** | **None of the four touches you** — every one has been live on your install since you graduated. You meet only this release's NOTEs: the AGENTS.md gate-list drift (paste the 34 names the finding prints) and, if your tree hand-wired a vendor telemetry SDK before the gate existed, `observability`'s containment findings. Both expire in 0.9.0. |
+| **0.6.0** | **The four close at once** — your first deadline ever, met with no older debt: the cleanest sweep in the lineage since 0.7.0 said the same of 0.5.0. The 0.7.0 section's "The new ramps" rows ARE your sweep list — the eas.json pin, the export adopt-or-re-review, the deferral ledger, the reviewer re-run — plus the AGENTS.md paste for the injected step. |
+| **0.5.0 / 0.4.0** | The four, plus the 0.6.0-era fleet you have not met yet — on the way through, not because of this release. Follow the 0.7.0 section first (it is your biggest pile), then this one. |
+| **0.3.0 and below** | Follow 0.4.0's section, then 0.5.0's, then 0.6.0's, then 0.7.0's, one `graduate` per hop — each hop shrinks the next. This page's own CI proof (leg E) crosses 0.3.0 → 0.8.0 by exactly that route, sweeping as it goes. |
+| fresh `init` at 0.8.0 | Nothing ever ramped. |
+
+The honest count is still the command, never this table — minus the Stop-side
+caveat above:
+
+```sh
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'
+```
+
+And the population is not prose either: `template/migrations.json`'s
+`0.8.0.rampExpiry` record states it as data, and `scripts/check-ramp-ledger.mjs`
+reds if it disagrees with what the shipped call sites actually compute.
+
+### The new ramps — the debt this release opens, expiring in 0.9.0
+
+**`observability`: vendor telemetry containment** (the injected 34th step). No
+telemetry SDK import outside the reviewed `tools/observability.json` `sinks[]`
+register, and every declared sink referencing its redaction symbol in code — the
+seam header's own invariant (`packages/platform/observability/src/index.ts`,
+"NO VENDOR SDK, on purpose"). A fresh 0.8.0 tree is clean by construction; this
+NOTEs only if YOUR tree wired a transport by hand (the module patch docs predate
+the gate). The moves are the finding's: register the sink —
+`{ "file": "<path>", "vendors": ["@sentry/"], "redaction": "redactFields",
+"reason": "<40+ chars>" }`, with the file referencing the symbol — or remove the
+import and attach the vendor at the seam's `LogSink` per the module patches. The
+register is planted when absent; the detector may be extended, never narrowed.
+
+**`docs-sync`: the AGENTS.md gate-list NOTE, re-opened.** Same as 0.6.0, same
+reason, recorded the same way (the `rampExtensions` entry in
+`template/migrations.json` `"0.8.0"`): the injected step grows your chain while
+your seeded AGENTS.md is yours alone to edit. Paste the 34 names the finding
+prints into the "The N gates, in order:" sentence and the "N-step chain" line.
+The escape ends at 0.9.0.
+
+### Then graduate
+
+Sweep the reds (the 0.7.0 rows), paste the gate list, clear any containment
+NOTEs, then `npx next-expo-supabase-agent-harness graduate` — it refuses while a
+chain NOTE stands, and moving `baseVersion` to 0.8.0 is what retires every ramp
+at or below it. This section is executed, not reviewed: the upgrade lane's leg E
+runs exactly this page against a v0.3.0 install and reds the release if
+`graduate` cannot reach its success branch.
+
 ## How to graduate
 
 1. **Sweep.** Run `pnpm validate` and fix everything the ramped check reports in
