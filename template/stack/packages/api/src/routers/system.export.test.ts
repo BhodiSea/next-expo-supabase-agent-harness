@@ -373,3 +373,161 @@ describe('the envelope', () => {
     expect(outcome).toEqual({ ok: false, error: appError.notFound({ resource: 'profile' }) })
   })
 })
+
+describe('the projections and filters each read sends (mutation kills)', () => {
+  it('profiles: the reviewed projection verbatim, positioned on the PK', async () => {
+    // tools/data-flow.json export.projection.profiles — a projection that drifts to ''
+    // is select('') and a page whose columns nobody reviewed.
+    const { calls, db } = exportDatabase(happyScript())
+    await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(calls.get('profiles')).toContainEqual([
+      'select',
+      'id, display_name, created_at, updated_at',
+    ])
+    expect(calls.get('profiles')).toContainEqual(['eq', 'id', ACTOR_ID])
+  })
+
+  it('memberships: the reviewed projection, self-filtered, in stable org order', async () => {
+    // The user_id filter positions the PK scan; the org_id ASC order is what makes
+    // the export byte-stable across runs. Each half is asserted verbatim.
+    const { calls, db } = exportDatabase(happyScript())
+    await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(calls.get('memberships')).toContainEqual([
+      'select',
+      'user_id, org_id, role_rank, created_at',
+    ])
+    expect(calls.get('memberships')).toContainEqual(['eq', 'user_id', ACTOR_ID])
+    expect(calls.get('memberships')).toContainEqual(['order', 'org_id', { ascending: true }])
+  })
+})
+
+describe('the walk order is minted here, never trusted from the seat list', () => {
+  // A held org that sorts AFTER every org the caller still holds — the walk has
+  // nowhere left to resume. Lexicographically past ORG_A and ORG_B by its first byte.
+  const AFTER_ALL_ORGS_ID = 'ffffffff-2a44-4a3e-8f5d-6c1a2b3c4d5e'
+
+  it('starts at the lexicographically FIRST held org even when seats arrive unsorted', async () => {
+    // heldOrgsSorted sorts HERE precisely because ctx.orgs carries no ordering
+    // promise — an unsorted walk would mint cursors that skip whole orgs.
+    const unsorted: Session = { actor: oneOrgMember.actor, orgs: [ORG_B, ORG_A] }
+    const { calls, db } = exportDatabase(happyScript())
+    const outcome = await (await callerFor(unsorted, db)).system.exportMyData({})
+    expect(outcome.ok).toBe(true)
+    expect(calls.get('notes')).toContainEqual(['eq', 'org_id', ORG_A_ID])
+    expect(calls.get('notes')).not.toContainEqual(['eq', 'org_id', ORG_B_ID])
+  })
+
+  it('a stale cursor past the LAST held org ends the walk — never a read against a null org', async () => {
+    const stale = encodeNotesExportCursor({ note: null, orgId: AFTER_ALL_ORGS_ID })
+    const { calls, db } = exportDatabase(happyScript())
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({ cursor: stale })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.data.notes).toEqual({ items: [], nextCursor: null })
+    expect(calls.get('notes')).toBeUndefined()
+  })
+})
+
+describe('the store-failure taxonomy for the export’s own reads (mutation kills)', () => {
+  it('a class-08 connection failure reads as unavailable, naming the relation', async () => {
+    const { db } = exportDatabase({
+      profiles: [{ data: null, error: { code: '08006', message: 'connection failure' } }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unavailable({
+        message: 'the profiles store was unreachable during the export',
+      }),
+    })
+  })
+
+  it('a class-53 shedding failure reads as unavailable too', async () => {
+    const { db } = exportDatabase({
+      profiles: [{ data: null, error: { code: '53300', message: 'too many connections' } }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unavailable({
+        message: 'the profiles store was unreachable during the export',
+      }),
+    })
+  })
+
+  it('a non-retryable rejection is unknown, named export_store_rejected', async () => {
+    const { db } = exportDatabase({
+      profiles: [{ data: null, error: { code: '22000', message: 'data exception' } }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unknown({
+        code: 'export_store_rejected',
+        message: 'the profiles store rejected the export read',
+      }),
+    })
+  })
+
+  it('a failure with NO code at all is the same unknown — never a crash on code.slice', async () => {
+    // The optional-chain on failure.code is load-bearing: PostgREST failures may
+    // carry no SQLSTATE, and a bare .slice would turn that into a 500.
+    const { db } = exportDatabase({
+      profiles: [{ data: null, error: { message: 'no code' } }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unknown({
+        code: 'export_store_rejected',
+        message: 'the profiles store rejected the export read',
+      }),
+    })
+  })
+
+  it('an RLS refusal carries the relation and the operator-facing message', async () => {
+    const { db } = exportDatabase({
+      memberships: [{ data: null, error: { code: '42501', message: 'denied' } }],
+      profiles: [{ data: [PROFILE_ROW], error: null }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.rlsDenied({
+        relation: 'memberships',
+        message: 'a row-security policy refused the memberships export read',
+      }),
+    })
+  })
+
+  it('a memberships row off its contract is export drift, named', async () => {
+    const { db } = exportDatabase({
+      memberships: [{ data: [{ ...MEMBERSHIP_ROW, role_rank: 'owner' }], error: null }],
+      profiles: [{ data: [PROFILE_ROW], error: null }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.unknown({
+        code: 'contract_drift',
+        message: 'a memberships row did not match its contract during the export',
+      }),
+    })
+  })
+
+  it('a notes-read failure is THE page failure — the walk does not paper over it', async () => {
+    const { db } = exportDatabase({
+      memberships: [{ data: [MEMBERSHIP_ROW], error: null }],
+      notes: [{ data: null, error: { code: '42501', message: 'denied' } }],
+      profiles: [{ data: [PROFILE_ROW], error: null }],
+    })
+    const outcome = await (await callerFor(oneOrgMember, db)).system.exportMyData({})
+    expect(outcome).toEqual({
+      ok: false,
+      error: appError.rlsDenied({
+        relation: 'notes',
+        message: 'a row-security policy refused the export',
+      }),
+    })
+  })
+})

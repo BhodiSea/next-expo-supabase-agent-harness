@@ -36,6 +36,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFi
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
+import { templateCandidates } from '../../installer/lib/layout.mjs'
 import { versionsBetween } from '../../installer/lib/migrations.mjs'
 
 // ── the reviewed per-version sweep table ─────────────────────────────────────────
@@ -148,11 +149,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const done = []
   const TEMPLATE_ROOTS = ['template/stack', 'template/base']
 
-  /** Where in the template a given install-relative path lives, or null. */
+  /**
+   * Where in the template a given install-relative path lives, or null —
+   * RENAMES-aware, because dotless storage ships '.gitignore' as 'gitignore'
+   * and a direct join reads the whole entry as "the template does not ship it".
+   */
   const sourceOf = (rel) => {
     for (const root of TEMPLATE_ROOTS) {
-      const p = join(repoRoot, root, rel)
-      if (existsSync(p)) return p
+      for (const cand of templateCandidates(rel)) {
+        const p = join(repoRoot, root, cand)
+        if (existsSync(p)) return p
+      }
     }
     return null
   }

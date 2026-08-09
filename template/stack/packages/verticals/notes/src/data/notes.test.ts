@@ -858,6 +858,16 @@ describe('listAuthoredNotes (the export read)', () => {
     expect(calls.some(([method]) => method === 'is')).toBe(false)
   })
 
+  it('orders newest-first on BOTH keyset columns — the exact total order the cursor resumes', async () => {
+    // The cursor codec and this ORDER BY state one total order between them. An
+    // export read that dropped a column, flipped a direction, or lost the options
+    // object would page green and silently skip or repeat rows at every boundary.
+    const { calls, db } = fakeDatabase(rows([]))
+    await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 50 })
+    expect(calls).toContainEqual(['order', 'created_at', { ascending: false }])
+    expect(calls).toContainEqual(['order', 'id', { ascending: false }])
+  })
+
   it('pages with the sentinel row and mints the next inner cursor from the LAST page row', async () => {
     const { calls, db } = fakeDatabase(rows([exportRow(3), exportRow(2), exportRow(1)]))
     const outcome = await listAuthoredNotes(db, authoredScope, { cursor: null, limit: 2 })

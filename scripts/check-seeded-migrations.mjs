@@ -20,6 +20,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { storageToInstall, walkTemplate } from '../installer/lib/copy.mjs'
+import { templateCandidates } from '../installer/lib/layout.mjs'
 import { fileMode } from '../installer/lib/manifest.mjs'
 import {
   VERSION_KEY,
@@ -217,7 +218,10 @@ function oneSourceFixProblems(fix, at, root) {
     problems.push(`${at} lists no \`paths\` — a fix that names no file cannot be swept.`)
   }
   const missing = paths.filter(
-    (rel) => !['template/stack', 'template/base'].some((t) => existsSync(join(root, t, rel))),
+    (rel) =>
+      !['template/stack', 'template/base'].some((t) =>
+        templateCandidates(rel).some((c) => existsSync(join(root, t, c))),
+      ),
   )
   for (const rel of missing) {
     problems.push(
@@ -258,7 +262,7 @@ function oneProbeProblems(probe, at, paths, root) {
     )
   }
   const shipped = ['template/stack', 'template/base']
-    .map((t) => join(root, t, rel))
+    .flatMap((t) => templateCandidates(rel).map((c) => join(root, t, c)))
     .find((p) => rel !== '' && existsSync(p))
   if (shipped === undefined) {
     problems.push(

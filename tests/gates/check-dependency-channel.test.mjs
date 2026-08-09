@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { devNull, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -35,9 +35,12 @@ function cleanEnv(extra = {}) {
 
 // Hermetic git: the fixture's history must not depend on the machine's config (hooks,
 // signing, default branch prompts), or the proof reds on somebody else's dotfiles.
+// The LITERAL '/dev/null', not os.devNull: Git for Windows translates the literal string
+// to its NUL device, while os.devNull is `\\.\nul` there — a path git cannot open, so
+// every fixture `git init` died on windows-latest. Mirrors check-gate-integrity.test.mjs.
 const GIT_ENV = {
-  GIT_CONFIG_GLOBAL: devNull,
-  GIT_CONFIG_SYSTEM: devNull,
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
   GIT_AUTHOR_NAME: 'fixture',
   GIT_AUTHOR_EMAIL: 'fixture@invalid.example',
   GIT_COMMITTER_NAME: 'fixture',

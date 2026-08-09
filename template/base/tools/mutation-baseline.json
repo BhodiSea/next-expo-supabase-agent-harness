@@ -42,6 +42,16 @@
       "reason": "genuinely equivalent: emptying the `if (origin === null)` body drops to the same `return origin !== selfOrigin`, which for a null origin against the non-null string `selfOrigin` is `true` — the identical fail-closed verdict. Same underlying reason as a700c396bb99 (a null origin can never equal a string selfOrigin); no input distinguishes the removed block. VERIFIED: the suite stays green under this mutant."
     },
     {
+      "id": "e3d846834b4a",
+      "file": "packages/api/src/export.ts",
+      "mutator": "StringLiteral",
+      "original": "''",
+      "replacement": "\"Stryker was here!\"",
+      "snippet": "const sqlstateClass = failure.code?.slice(0, 2) ?? ''",
+      "status": "Survived",
+      "reason": "Genuinely equivalent: the `?? ''` fallback for a nullish failure.code feeds ONLY `RETRYABLE_CLASSES.has(sqlstateClass)`. The empty string is a non-member of {'08','53','57'} exactly as the arbitrary 'Stryker was here!' is, so a code-less failure lands on appError.unknown('export_store_rejected') either way (system.export.test.ts pins that landing). The literal is a placeholder for 'not a retryable class'; any non-member string substitutes identically. No input distinguishes the two — the same equivalence already accepted for this line's siblings in @app/supabase errors.ts and the notes vertical's errors.ts."
+    },
+    {
       "id": "002d314ca140",
       "file": "packages/api/src/skew.ts",
       "mutator": "EqualityOperator",
@@ -512,6 +522,16 @@
       "reason": "Genuinely equivalent: clampPageLimit floors the page size at 1 (`Math.min(Math.max(Math.trunc(limit),1), MAX)`), so `records.length > limit` implies limit>=1 and items = records.slice(0, limit) is non-empty, which makes last = items.at(-1) necessarily defined. `last !== undefined` can never be false when the left operand `records.length > limit` is true, so replacing it with `true` changes nothing — it is a TypeScript narrowing necessity for encodeNotesCursor (last is NoteRecord | undefined from .at). No input distinguishes them."
     },
     {
+      "id": "6be7c093500a",
+      "file": "packages/verticals/notes/src/data/rows.ts",
+      "mutator": "MethodExpression",
+      "original": "Object.keys(NoteExportRow.shape).sort()",
+      "replacement": "Object.keys(NoteExportRow.shape)",
+      "snippet": "export const NOTE_EXPORT_ROW_KEYS = Object.keys(NoteExportRow.shape).sort()",
+      "status": "Survived",
+      "reason": "Genuinely equivalent: NoteExportRow's object literal already lists its keys in alphabetical order (body, created_at, id, org_id, title, updated_at), so Object.keys returns them already sorted and .sort() is a no-op on this fixed shape. NOTE_EXPORT_ROW_KEYS is a module constant with no runtime input, so both forms yield byte-identical arrays and the projection-lockstep test (`projected sorted === NOTE_EXPORT_ROW_KEYS`) passes against either. The .sort() is defensive against a future reordering of the literal, not behaviour on any input, so no test can distinguish the mutant without editing the source key order — the same equivalence already accepted for NOTE_ROW_KEYS above it."
+    },
+    {
       "id": "d2cf487898d6",
       "file": "packages/verticals/notes/src/data/rows.ts",
       "mutator": "MethodExpression",
@@ -532,6 +552,16 @@
       "reason": "`index < ALPHABET.length` → `index <= ALPHABET.length` runs one extra iteration that does `DECODE.set(ALPHABET.charAt(64), 64)`; charAt(64) on a length-64 string is the empty string, so the mutant merely adds a phantom `'' -> 64` entry to the reverse table. fromBase64Url reads DECODE via `for (const char of token)`, which yields code points — never the empty string — so the phantom entry is never consulted, and the encoder never touches DECODE at all. No input distinguishes the mutant."
     },
     {
+      "id": "7020a0ad995f",
+      "file": "packages/verticals/notes/src/domain/cursor.ts",
+      "mutator": "ConditionalExpression",
+      "original": "json === null",
+      "replacement": "false",
+      "snippet": "if (json === null) return null",
+      "status": "Survived",
+      "reason": "`json === null` → false drops the early return when fromBase64Url returned null; control then reaches `JSON.parse(json)` with json===null. JSON.parse(null) stringifies null to the string \"null\" and yields the value null, which ExportCursorKey.parse rejects (not an object) by throwing, caught by the surrounding try/catch — so the function still returns null. When json is non-null the branch is untaken and behavior is identical. Every token for which the original returns null via this branch also returns null under the mutant; no input distinguishes it — the same equivalence already accepted for decodeNotesCursor's identical guard."
+    },
+    {
       "id": "c543c52e6b32",
       "file": "packages/verticals/notes/src/domain/cursor.ts",
       "mutator": "ConditionalExpression",
@@ -550,6 +580,16 @@
       "snippet": "if (token.length === 0 || token.length > NOTES_CURSOR_MAX) return null",
       "status": "Survived",
       "reason": "`token.length === 0` → false in `length===0 || length>256`. The only token for which this clause is ever true is the empty string; dropping it lets '' fall through to fromBase64Url(''), whose loop body never executes, returning '' (not null), after which JSON.parse('') throws and is caught → still null. Every non-empty token leaves this clause false regardless. No input distinguishes the mutant."
+    },
+    {
+      "id": "ef625ca14102",
+      "file": "packages/verticals/notes/src/domain/cursor.ts",
+      "mutator": "ConditionalExpression",
+      "original": "token.length === 0",
+      "replacement": "false",
+      "snippet": "if (token.length === 0 || token.length > EXPORT_CURSOR_MAX) return null",
+      "status": "Survived",
+      "reason": "`token.length === 0` → false in `length===0 || length>512`. The only token for which this clause is ever true is the empty string; dropping it lets '' fall through to fromBase64Url(''), whose loop body never executes, returning '' (not null), after which JSON.parse('') throws and is caught → still null. Every non-empty token leaves this clause false regardless (the oversize arm and its > boundary are pinned by cursor.test.ts). No input distinguishes the mutant — the same equivalence already accepted for decodeNotesCursor's identical guard."
     },
     {
       "id": "6e0b118da9bd",

@@ -324,6 +324,22 @@
             }
           }
         ]
+      },
+      {
+        "//": "THE STACK'S OWN SECRETS, UNIGNORED — found by the Stop-chain e2e's first CI run, which was the first time the full chain ever executed AFTER `supabase start` on a pristine scaffold: the stack writes minted service-role keys and credentialed DSNs under supabase/.temp, the seeded .gitignore never mentioned it, and the secrets gate correctly redded on files the stack itself had just written. Every install that runs `pnpm db:up` carries the same exposure — one `git add -A` from a committed credential. The fix is one gitignore line; the probe self-clears the moment the consumer's .gitignore covers the directory, however they spell it into their own file.",
+        "gate": "secrets",
+        "why": "supabase start writes credentialed runtime state (docker.env with the service-role key and a password-carrying DSN) under supabase/.temp, and the seeded .gitignore predating 0.7.0 does not ignore it — the secrets gate reds on the working tree the first time validate runs with the local stack up, and the credential is committable until the line lands. Add `supabase/.temp/` to .gitignore.",
+        "paths": [
+          ".gitignore"
+        ],
+        "probes": [
+          {
+            "path": ".gitignore",
+            "brokenWhen": {
+              "lacks": "supabase/.temp"
+            }
+          }
+        ]
       }
     ],
     "rampExpiry": {

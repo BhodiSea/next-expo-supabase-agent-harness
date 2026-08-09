@@ -248,3 +248,40 @@ describe('the export cursor codec', () => {
     expect(decodeNotesExportCursor(smuggled)).toBeNull()
   })
 })
+
+describe('the export-cursor guards each reject on their own, not by luck downstream (mutation kills)', () => {
+  const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+  const inner = `"note":null,"orgId":"${ORG_ID}"`
+  const decoded = { note: null, orgId: ORG_ID }
+
+  it('accepts a token whose length is EXACTLY the contract bound (the bound is inclusive)', () => {
+    // 384-byte whitespace-padded valid-cursor JSON -> exactly EXPORT_CURSOR_MAX chars.
+    // The `>` vs `>=` boundary: exactly-at-the-bound must PASS while past-the-bound
+    // (the test below) must reject — the pair pins the operator, not just the guard.
+    const token = encodeAsciiForTest(`{${' '.repeat(384 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(EXPORT_CURSOR_MAX)
+    expect(decodeNotesExportCursor(token)).toEqual(decoded)
+  })
+
+  it('rejects a token PAST the bound purely on length — even one that would otherwise decode', () => {
+    // 387-byte payload -> 516 chars: 4n length, valid alphabet, valid strict JSON.
+    // Every later guard would wave it through, so only the length bound can say no —
+    // which is exactly what makes this the discriminating case for the bound itself.
+    const token = encodeAsciiForTest(`{${' '.repeat(387 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(EXPORT_CURSOR_MAX + 4)
+    expect(decodeNotesExportCursor(token)).toBeNull()
+  })
+
+  it('rejects an inner token that merely ENDS in base64url — the alphabet check is anchored', () => {
+    // Without the ^ anchor the regex would match the valid tail of '!AAAA' and let a
+    // non-base64url inner token reach toBase64Url, which silently mangles it.
+    expect(() => encodeNotesExportCursor({ note: '!AAAA', orgId: ORG_ID })).toThrow()
+  })
+
+  it('rejects a hand-built token whose inner note starts outside the alphabet', () => {
+    // The decode-side twin of the anchor test: the schema is shared, so a token this
+    // codec never minted must fail the strict parse on the way back in.
+    const hostile = encodeAsciiForTest(`{"note":"!AAAA","orgId":"${ORG_ID}"}`)
+    expect(decodeNotesExportCursor(hostile)).toBeNull()
+  })
+})

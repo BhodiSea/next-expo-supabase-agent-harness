@@ -4,6 +4,23 @@
 // as pack-ignore manifests; storing .github dotless also prevents template
 // workflows from executing in this repo's own Actions). `.claude/` is the one
 // dotted exception: verified to survive npm pack, and hooks reference it.
+// The template spellings an INSTALL-relative path may live under: itself, and —
+// for the top-level dotless-storage entries below — the RENAMES source name
+// ('.gitignore' ships as 'gitignore'). Factory tooling that resolves a record's
+// install paths back to template sources (check-seeded-migrations, the upgrade
+// sweep's adopt()) must try every candidate, or a dotless-stored path silently
+// reads as "the template does not ship this".
+/** @param {string} installRel @returns {string[]} */
+export function templateCandidates(installRel) {
+  const out = [installRel]
+  for (const [templateName, installName] of RENAMES) {
+    if (installRel === installName) out.push(templateName)
+    else if (installRel.startsWith(`${installName}/`))
+      out.push(`${templateName}${installRel.slice(installName.length)}`)
+  }
+  return out
+}
+
 export const RENAMES = new Map([
   ['gitignore', '.gitignore'],
   ['github', '.github'],

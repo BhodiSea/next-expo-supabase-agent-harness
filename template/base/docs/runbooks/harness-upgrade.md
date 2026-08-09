@@ -478,8 +478,13 @@ matches it — you applied the fix, or you rewrote the files your own way — th
 next `update` or `doctor` removes the artifact. An absent file is never "broken";
 the gate, not the probe, stays the authority on the finding.
 
-On an upgrade to 0.7.0, up to three sets can park: 0.6.0's `auth-posture`
-nine-file sign-in set, and the two 0.7.0 corrections the next section sweeps.
+On an upgrade to 0.7.0, up to four sets can park: 0.6.0's `auth-posture`
+nine-file sign-in set, the two 0.7.0 corrections the next section sweeps, and
+one line of `.gitignore`: `supabase/.temp/` — the local stack writes minted
+service-role keys and credentialed DSNs there, the pre-0.7.0 seeded ignore
+file never covered it, and the `secrets` gate reds on the working tree the
+first time validate runs with the stack up. Add the line (however your own
+ignore file is organized); the parked set self-clears when it appears.
 
 ### The new ramps — the debt this release opens, expiring in 0.8.0
 

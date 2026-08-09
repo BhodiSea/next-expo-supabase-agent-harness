@@ -32,8 +32,12 @@ import {
 
 const HERE = (p) => fileURLToPath(new URL(p, import.meta.url))
 const budget = JSON.parse(readFileSync(HERE('./chain-budget.json'), 'utf8'))
+// Dynamic imports take the file: URL, never HERE(): fileURLToPath yields `D:\...` on
+// Windows, which is not a valid ESM specifier (ERR_UNSUPPORTED_ESM_URL_SCHEME) — the
+// gate crashed at startup on every Windows invocation, so its red-proof could never
+// see the exit codes it asserts.
 const { STOP_HOOK_STEPS, VALIDATE_STEPS } = await import(
-  HERE('../template/base/tools/harness.config.mjs')
+  new URL('../template/base/tools/harness.config.mjs', import.meta.url).href
 )
 
 const stopMode = process.argv.includes('--stop-chain')
@@ -56,7 +60,9 @@ const stdout = readFileSync(logPath, 'utf8')
 // floor∪config union — one implementation (the hook's own lib), fail-closed on the floor.
 async function resolveChainSteps() {
   if (!stopMode) return VALIDATE_STEPS.map(([name]) => name)
-  const { loadStopChain } = await import(HERE('../template/base/tools/lib/stop-chain.mjs'))
+  const { loadStopChain } = await import(
+    new URL('../template/base/tools/lib/stop-chain.mjs', import.meta.url).href
+  )
   const { steps, floorNote } = loadStopChain(
     Array.isArray(STOP_HOOK_STEPS) ? STOP_HOOK_STEPS : [],
     new URL('../template/base/tools/stop.floor.json', import.meta.url),
