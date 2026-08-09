@@ -11,7 +11,97 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [0.8.0] — 2026-08-10
+
+**The containment release.** The question this release answers is the one 0.7.0 left armed:
+**when a machine-held commitment arrives, does the machine actually hold it?** Three dated
+promises fell due here, and each resolved the way its own record prescribed — one shipped
+(the observability gate, after this release found and closed the trap by which its Target
+would have discharged VACUOUSLY with nothing built), one moved loudly with the evidence
+attached (the CLI census, still blocked upstream), and four ramps expired for every vintage
+below 0.7.0 exactly as the 0.7.0 record promised, with the bookkeeping — population as data,
+runbook as executed procedure, lane as witness — landing beside them.
+
+### The expiry, as data
+
+The four ramps 0.7.0 opened all fall due: `version-sync` (the iOS build-toolchain floor over
+`eas.json`), `data-flow` (the `export.surface.target` deadline), `docs-sync` (the deferral
+ledger over the owned prose surfaces), and `reviewer-verdicts` (the path_state
+verdict-to-diff binding — a Stop-chain step, so its expiry fires where only its registered
+stop-side proof looks). The affected population is every released vintage below 0.7.0 —
+seven vintages — and a v0.7.0 install meets nothing, which is the property leg A graduates
+on. `template/migrations.json`'s `0.8.0.rampExpiry` states the population as data,
+`scripts/check-ramp-ledger.mjs` reds if it disagrees with what the shipped call sites
+compute, and the honest count on any given tree remains
+`pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never the list. The new lane leg G (`--from
+v0.6.0`) watches the headline population go red for real: exactly the four, no older debt —
+the cleanest expiry population in the lineage. Sweeps: `docs/runbooks/harness-upgrade.md`
+"0.8.0 — THE FOURTH ALARM", whose rows point into the 0.7.0 section that already wrote them.
+
+### The gate that could not be allowed to discharge itself
+
+`check-observability.mjs` ships as the 34th chain step (`observability`, after
+`boundaries`), discharging the enforcement-tiers Target declared at 0.7.0 — and the way it
+discharges is half the point. The Target's surface-derivation form asks whether the gate
+"still scans one product surface"; a gate that does not exist is never in that derived set,
+so the arrived date would have discharged **vacuously** — a machine-held commitment
+self-satisfying with nothing shipped, and `check-tier-coverage.mjs` blind to it because it
+only walks gates that exist. The row now carries the `closes:` probe form
+(`tools/observability.json#vendorSpecifiers`), judged every run: record present, non-empty,
+and read by the step's own gate on a non-comment line — with the docs-sync suite proving
+both directions on the shipped row (discharge, and red when the register empties).
+
+The gate itself makes the seam header's invariant decidable ("NO VENDOR SDK, on purpose… a
+vendor transport attaches HERE, at the sink, behind the redaction pass"): every import
+specifier under `apps/`, `packages/` and `supabase/functions/` — static, side-effect,
+dynamic `import()`, `require()`, `npm:`/URL-normalized — judged against an extend-only
+vendor detector, with the reviewed `sinks[]` register closed both directions, every declared
+sink required to reference its redaction symbol in code, and a zero-file scan a hard red
+rather than a vacuous green. Honest limits stated in the tier row: no call-graph proof of
+argument flow, no transitive-dependency detection, no raw-`fetch` telemetry; the redaction
+pass's behavior stays the `unit` lane's. The register is seeded and planted-when-absent (the
+approved-tools reasoning), write-guard-protected (`observability-sinks`), in
+`ESCAPE_LISTS`, and a reviewed `DELIBERATE_PLANT`. Ramped for pre-0.8.0 installs until
+0.9.0, with the `RAMP EXPIRED` branch executed in the proof suite the release the ramp opens.
+
+### The date that moved, loudly
+
+`auth-posture-cli-census` committed to 0.8.0, and 0.8.0 arrived: the record's mandated
+re-check ran against the pin's current resolution (`^2.34.3` → 2.113.0). The CLI's `config`
+group is still push-only (no `--dry-run`; needs a project ref and the management API), the
+TypeScript-rewrite command tree carries no config group, and the exact ask is open upstream
+as supabase/cli#5894. So the record's own escape clause applied: the date moved to 0.9.0 in
+one reviewed diff across all four lockstep sites — which is the mechanism doing precisely
+what it was built to do, once, with the evidence attached. The arrival tripwire now DERIVES
+its target from the shipped ledger, so it re-arms itself at every future move.
+
+### The enforcement of the enforcement
+
+- **Injecting a step re-opens the gate-list escape, and the move is a record.** The chain
+  grows to 34 on every existing install via `configSteps` while the seeded AGENTS.md
+  documents 33 — so the AGENTS.md gate-list ramp re-opens (minVersion 0.8.0, until 0.9.0),
+  excused by the lineage's SECOND `rampExtensions` entry: same site as the first, same
+  injected-step reason, one release on. The ramp's tests moved with it in the same diff,
+  per their own stated discipline.
+- **The committed chain measurement stops licensing prose, deliberately.** 0.7.0's recorded
+  numbers stay — true and attributed — but the chain they describe has 33 steps and this
+  release runs 34, so `hasCommittedMeasurement` now answers NO and no wall-clock figure
+  appears in this entry. Re-measuring the 34-step chain is a post-release selftest
+  `--record` dispatch, per the measure → commit → publish doctrine.
+- **The stop-side expiry registry carries the 0.8.0 story.** `reviewer-verdicts`' entry now
+  names the path_state binding as the escape expiring where only its unit proof looks, and
+  that proof executes the `RAMP EXPIRED` branch at a harness-0.8.0 fixture.
+- **The raw-path `import()` shape is banned in the machinery.** The form that broke a
+  red-proof on windows-latest at 0.7.0 (`import(fileURLToPath(...))` — a drive letter reads
+  as a protocol) is now an eslint error; the last five computed file-URL dynamic imports in
+  the test suite became static relative specifiers `knip --strict` can see, and the safe
+  `pathToFileURL(...).href` form stays legal for the imports that are genuinely
+  runtime-computed.
+- **Chain accounting moved everywhere it is asserted:** canary registry 43 → 44 steps (the
+  new gate's fixture proof covers every finding class, both ramp branches, and the
+  anti-vacuity floor), guard rules 124 → 125 ids (`observability-sinks`, with its
+  hook-contract canary), floors regenerated 34/10, counts in AGENTS.md / gates-catalog /
+  READMEs / CONTRIBUTING in lockstep — each held by the gate that already asserted it.
 
 ### Fixed
 
@@ -33,7 +123,9 @@ This lineage's own history starts at 0.1.3.
   validate half from the CI artifact verbatim and the stop half re-derived from the same run's
   log after review rejected the artifact's (see Fixed above). Every committed number sits
   under a provenance stamp and inside its own ceiling, and the null-pin tests flipped to
-  enforce exactly that invariant.
+  enforce exactly that invariant. (Superseded within this same release by the 34th step —
+  see "The enforcement of the enforcement" — the numbers stand as provenance; the license
+  they carried is suspended until the 34-step re-record.)
 
 ## [0.7.0] — 2026-08-08
 
