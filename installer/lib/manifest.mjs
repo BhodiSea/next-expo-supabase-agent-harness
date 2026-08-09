@@ -17,6 +17,29 @@ export function fileMode(installPath) {
   return 'owned'
 }
 
+// The recorded mode wins — an install's ownership state is its own — with ONE
+// directional exception: when a release reclassifies a path the install recorded
+// as `owned` into seeded/config territory, the new classification applies
+// immediately. That direction only ever STOPS update from writing a file the
+// consumer is now understood to own (0.7.0's action-inventory.json: generated
+// from THEIR router, so the owned refresh planted a description of the template's
+// router into every upgraded repo — leg E caught it as a contracts red on a tree
+// nobody had touched). The reverse — seeded → owned, which would START clobbering
+// a consumer file — never applies from classification alone; it would need a
+// reviewed migration channel, and none exists on purpose.
+export function effectiveMode(recordedMode, installPath) {
+  const classified = fileMode(installPath)
+  if (recordedMode === 'owned' && classified !== 'owned') return classified
+  return recordedMode ?? classified
+}
+
+// Re-record a reclassified mode even though the bytes stay the consumer's — a
+// manifest still calling the file `owned` would keep gate-integrity judging
+// their edits as tampering with a file the harness no longer owns.
+export function reRecordMode(files, installPath, recorded, mode, dryRun) {
+  if (recorded && recorded.mode !== mode && !dryRun) files[installPath] = { ...recorded, mode }
+}
+
 export function manifestPath(targetDir) {
   return join(targetDir, '.harness', 'manifest.json')
 }

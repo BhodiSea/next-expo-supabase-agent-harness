@@ -147,6 +147,14 @@ export const SEEDED_FILES = new Set([
   // with the code that produces it, or not at all. Its integrity is the `contracts`
   // regen-diff plus the write-guard, never a mode.
   'tools/generated/query-shapes.json',
+  // Same defect, one artifact over, found by leg E at 0.7.0: the action inventory is
+  // GENERATED from the consumer's own tRPC router by `pnpm gen`. Shipping it `owned`
+  // meant `update` planted a description of the TEMPLATE's router into a repo whose
+  // router is different — the moment 0.7.0 added system.exportMyData, every upgraded
+  // install's inventory named a procedure its router does not mount, and `contracts`
+  // redded on a tree the consumer never touched. Seeded (plant-when-absent, never
+  // clobber): the regen-diff in `contracts` plus `pnpm gen` keep it honest, never a mode.
+  'tools/generated/action-inventory.json',
   // Reviewed platform-capability data: every entry carries a reason. The
   // expo-policy/native-deps gates read them; a project extends them
   // deliberately — write-guard-protected against agents.

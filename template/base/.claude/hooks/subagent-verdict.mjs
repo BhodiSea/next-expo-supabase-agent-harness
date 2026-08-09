@@ -48,7 +48,7 @@ import { pathStateDigest, readVerdict } from '../../tools/lib/reviewer-verdicts.
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.6.0'
+export const HARNESS_HOOK_VERSION = '0.7.0'
 
 const AGENTS_DIR = '.claude/agents'
 const LEDGER = '.harness/reviewer-ledger.jsonl'

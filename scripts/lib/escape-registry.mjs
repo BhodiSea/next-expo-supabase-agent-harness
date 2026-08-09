@@ -57,6 +57,14 @@ export const KINDS = new Map([
       owes: ['seeded', 'guard'],
     },
   ],
+  [
+    'tools/generated/action-inventory.json',
+    {
+      kind: 'generated',
+      why: 'generated from the consumer’s tRPC router by `pnpm gen` and regen-diffed by the `contracts` step (seeded as of 0.7.0 — while it was owned, `update` planted the template router’s census into every upgraded repo). Nothing may hand-edit it, so "commit the widening" is not the applicable rule.',
+      owes: ['seeded', 'guard'],
+    },
+  ],
 ])
 
 // Tolerated-absent escapes: in ESCAPE_LISTS but deliberately NOT seeded, because their

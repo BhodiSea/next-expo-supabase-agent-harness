@@ -16,9 +16,11 @@ import { join } from 'node:path'
 import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import {
+  effectiveMode,
   fileMode,
   installerVersion,
   readManifest,
+  reRecordMode,
   sha256,
   writeManifest,
 } from '../lib/manifest.mjs'
@@ -224,7 +226,9 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     }
     const dest = join(targetDir, ip)
     const recorded = manifest.files?.[ip]
-    const mode = recorded?.mode ?? fileMode(ip)
+    // Ownership only ever moves TOWARD the consumer without a record — see
+    // effectiveMode's header for the 0.7.0 defect (leg E) that forced this.
+    const mode = effectiveMode(recorded?.mode, ip)
     const incomingSha = sha256(entry.content)
 
     // Raw bytes, not utf8: hashing a lossy utf8 decode of a binary asset would
@@ -258,6 +262,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     }
 
     if (current !== null && mode !== 'owned') {
+      reRecordMode(files, ip, recorded, mode, opts.dryRun)
       report.skipped.push(ip)
       continue
     }

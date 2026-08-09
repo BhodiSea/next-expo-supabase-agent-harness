@@ -294,11 +294,14 @@
         ]
       },
       {
-        "//": "THE SURFACE THE DATE PROMISED. data-flow.json's export.surface carried {kind: none, target: 0.7.0} — an absence with a date — and 0.7.0 ships the surface: system.exportMyData, running AS THE CALLER under RLS, notes filtered authored-only IN THE QUERY. The template file now reads {kind: procedure}; a consumer's seeded copy still says target 0.7.0, which the (also new in 0.7.0) date enforcement in check-data-flow NOTEs until 0.8.0 and then reds. The probe matches exactly the stale dated absence and self-clears when the consumer either adopts the surface (update --refresh-seeded tools/data-flow.json plus the seedOnInitOnly files above) or re-reviews their own target to a release they mean — both are legitimate; the gate says so in its finding.",
+        "//": "THE SURFACE THE DATE PROMISED — and everything one adoption actually touches, learned from leg E: the first sweep shipped only tools/data-flow.json here and the lane went RED on `contracts` and `parity`, because the flip is one file but the ADOPTION is four. system.ts carries the mount (seeded — the consumer's router), PARITY.md carries the surface-parity row (seeded — their ledger), and tools/generated/action-inventory.json is the regenerated inventory (seeded as of 0.7.0 for query-shapes.json's exact reason: it is generated FROM their router, and `owned` meant update planted the template's router description into a different repo — every upgraded install redded `contracts` on a tree nobody had touched, whichever legitimate move they intended). ONE probe, on the review file only: their data-flow.json still saying target 0.7.0 means they have neither adopted nor re-reviewed; it self-clears on EITHER move, so a consumer who re-reviews their target to a release they mean carries no parked warning for a surface they chose not to ship.",
         "gate": "data-flow",
-        "why": "The export surface the file's own target promised for 0.7.0 exists in the template, but data-flow.json is seeded-with-reason (consumers record their erasure/export review in it), so update cannot rewrite it; an upgraded install keeps {kind: none, target: 0.7.0} and meets the arrived-deadline finding under the 0.7.0 ramp. Adopt the surface or re-review the target — a reviewed diff either way.",
+        "why": "The export surface the file's own target promised for 0.7.0 exists in the template, but every file the adoption touches is seeded — data-flow.json (their review), system.ts (their router), PARITY.md (their ledger), action-inventory.json (generated from their router) — so update can deliver none of it. The two legitimate moves are unchanged: adopt (refresh the four files or mount + add the row + run `pnpm gen`, plus the three seedOnInitOnly files) or re-review the target in a reviewed diff; the arrived-deadline finding under the 0.7.0 ramp names both.",
         "paths": [
-          "tools/data-flow.json"
+          "tools/data-flow.json",
+          "packages/api/src/routers/system.ts",
+          "PARITY.md",
+          "tools/generated/action-inventory.json"
         ],
         "probes": [
           {

@@ -448,6 +448,14 @@ export const WRITE_PROTECTED = [
   // could describe a query it did not write and be believed. `pnpm gen` is the only
   // author; `contracts` reds the moment the file and the code disagree.
   { id: 'query-shapes-manifest', re: /^tools\/generated\/query-shapes\.json$/ },
+  // Its sibling, for the router: generated from the consumer's tRPC router by `pnpm gen`,
+  // regen-diffed by `contracts`, and read by `parity` and `rate-limits` as the census of
+  // what the backend exposes. An agent that could edit it could add an action nobody
+  // wrote (or hide one that exists) and the budget/parity closures would judge the
+  // fiction. Seeded as of 0.7.0 — the file is the CONSUMER's record — which is exactly
+  // why the guard exists: nothing may hand-edit it, theirs or ours; `pnpm gen` is the
+  // only author.
+  { id: 'action-inventory-manifest', re: /^tools\/generated\/action-inventory\.json$/ },
   // THE AGENT SURFACE — the most privileged prose in the repository, and until 0.2.0 the
   // least protected. `.claude/rules/` is loaded into every turn; `.claude/agents/` decides
   // which reviewers exist and what they may touch; `.claude/commands/` and

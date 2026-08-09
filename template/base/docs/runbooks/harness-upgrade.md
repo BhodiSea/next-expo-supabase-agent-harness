@@ -516,7 +516,13 @@ mount `exportMyData` on your system router (the template's
 `packages/api/src/routers/system.ts` is the worked pattern) and set
 `export.surface` to `{ "kind": "procedure", "procedure": "<your router file>" }`
 (`--refresh-seeded tools/data-flow.json` does that wholesale, but only if the
-file carries no reviews of your own). The index file is a NEW migration, not
+file carries no reviews of your own). The mount has two trailing edits leg E
+found the hard way: add the `system.exportMyData` row to `PARITY.md` (the
+`parity` gate closes the ledger both ways) and run `pnpm gen` so
+`tools/generated/action-inventory.json` — generated from YOUR router, seeded as
+of 0.7.0 for exactly that reason — names the procedure (`contracts` regen-diffs
+it). The parked fix set at `.harness/pending/source-fixes.json` lists all four
+files and self-clears on either move. The index file is a NEW migration, not
 history: read it, re-timestamp it to the tail of your own history if you have
 applied later ones, then apply it like a migration you wrote — the 0.4.0 rule
 forbids planting DDL into the MIDDLE of applied history, and this lands at the
