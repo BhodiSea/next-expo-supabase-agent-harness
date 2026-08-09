@@ -64,6 +64,27 @@ test('malformed JSON on the line parses as absent rather than throwing', () => {
   assert.equal(parseTimings('VALIDATE_TIMINGS {not json}'), null)
 })
 
+test('parseTimings takes the LAST line — a nested member’s earlier line must not win', () => {
+  // 2026-08-09, the FIRST recorded artifact (selftest run 31307386944): `validate
+  // --stop-chain` runs `validate` as a MEMBER, and the member's own VALIDATE_TIMINGS line
+  // rides the same stream ahead of the union's. The first-match parser stamped stopWall
+  // from the nested line (27955ms, 33 validate step names), matched zero of the nine stop
+  // rows, and shipped an artifact whose stop half was a measurement of the wrong chain.
+  // "Emits last" was always the doctrine at the top of this lib; now it is the
+  // implementation.
+  const out = [
+    '  ✓ validate (27995ms)',
+    'VALIDATE_TIMINGS {"totalMs":27955,"notRun":0,"steps":{"format":2839,"types":6174}}',
+    '  ✓ rls-isolation (6768ms)',
+    'VALIDATE_TIMINGS {"totalMs":52480,"notRun":0,"steps":{"validate":27995,"rls-isolation":6768}}',
+  ].join('\n')
+  assert.deepEqual(parseTimings(out), {
+    totalMs: 52480,
+    notRun: 0,
+    steps: { validate: 27995, 'rls-isolation': 6768 },
+  })
+})
+
 test('the shipped budget covers every shipped chain step — no unbudgeted step today', () => {
   const { problems } = judgeBudget({ budget, timings: timingsFor(), chainSteps })
   assert.deepEqual(problems, [])
@@ -135,10 +156,17 @@ test('the wall warn band warns and the ceiling reds', () => {
   assert.ok(red.problems.some((p) => /over the 120000ms ceiling/.test(p)))
 })
 
-test('NO wall-clock measurement is committed yet, so no prose figure is licensed', () => {
-  // The doctrine ordering: measure, commit the measurement, wire check-claims to it, THEN
-  // publish. Until a lane records one, README.md must stay silent — and it does.
-  assert.equal(hasCommittedMeasurement(budget), false)
+test('the committed measurement describes THIS chain — and licenses prose without writing any', () => {
+  // Until 2026-08-09 this test pinned the absence: no measurement, so no figure licensed.
+  // The first reviewed recording (selftest run 31307386944) flips the pin to the invariant
+  // that keeps the number honest from here on: it must be count-matched to the live chain
+  // and carry its provenance. README still publishes no figure — a committed measurement
+  // LICENSES prose, it does not oblige it — so the sentinel half of the old pin stands.
+  assert.equal(hasCommittedMeasurement(budget, chainSteps), true)
+  assert.ok(budget.measurement.runner.trim(), 'a measurement with no runner is unattributed')
+  assert.match(budget.measurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(budget.measurement.stepsMeasured, chainSteps.length)
+  assert.ok(budget.wall.measuredMs <= budget.wall.ceilingMs, 'a committed wall over its own ceiling')
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.match(readme, /No wall-clock timings appear in this README/)
 })
@@ -148,6 +176,7 @@ test('recordMeasurement fills the file the header promised nobody could write (0
   // reviewed commit" — and until 0.6.0 there was no writer at all. The runner judged against
   // ceilings and discarded the numbers, so step one of "measure, commit, publish" had no
   // implementation and the file has shipped all-null since it was introduced.
+  const before = structuredClone(budget)
   const next = recordMeasurement({
     budget,
     timings: timingsFor({ alpha: 40, beta: 60 }, 100),
@@ -159,7 +188,7 @@ test('recordMeasurement fills the file the header promised nobody could write (0
   assert.equal(next.measurement.runner, 'ubuntu-latest')
   assert.equal(next.measurement.chainSteps, chainSteps.length)
   // PURE: the input is not mutated, so a caller that decides not to write has not already.
-  assert.equal(budget.wall.measuredMs, null)
+  assert.deepEqual(budget, before)
 })
 
 test('an unattributed measurement is refused at the seam, not just at the CLI', () => {
@@ -211,6 +240,28 @@ const stopTimingsFor = (overrides = {}, totalMs = 60000, notRun = 0) => ({
   totalMs,
   notRun,
   steps: { ...Object.fromEntries(stopUnion.map((n) => [n, 100])), ...overrides },
+})
+
+test('a stop judge fed a VALIDATE-chain line reds instead of judging nothing — the incident pin', () => {
+  // The exact shape of the 2026-08-09 defect, downstream of the parser bug above and a
+  // hole of its own: 33 validate step names, none in the union, notRun 0. The old judge
+  // skipped every row (`typeof ms === 'number'`), found no closure violation, passed the
+  // 27955ms "wall", and CI printed `CHAIN BUDGET (stop-chain): CLEAN (33 step(s) inside
+  // ceiling)` — a stop verdict describing 33 steps. A judge handed the wrong chain's line
+  // must say so, not judge nothing and call it CLEAN.
+  const { problems } = judgeStopBudget({ budget, timings: timingsFor(), unionSteps: stopUnion })
+  assert.ok(
+    problems.some((p) => /describes a different chain/.test(p)),
+    `expected the wrong-chain refusal, got: ${JSON.stringify(problems)}`,
+  )
+})
+
+test('the mirror holds for the validate judge — a stop-chain line cannot be judged as the validate chain', () => {
+  const { problems } = judgeBudget({ budget, timings: stopTimingsFor(), chainSteps })
+  assert.ok(
+    problems.some((p) => /describes a different chain/.test(p)),
+    `expected the wrong-chain refusal, got: ${JSON.stringify(problems)}`,
+  )
 })
 
 test('the Stop union resolves from the shipped floor — the judge never holds a weakened chain', () => {
@@ -326,14 +377,26 @@ test('a missing VALIDATE_TIMINGS line in a stop-chain log is a problem, never a 
   assert.match(problems[0], /A missing measurement is not a passing measurement/)
 })
 
-test('every shipped stopSteps measuredMs is NULL — a measurement may not be invented', () => {
-  assert.equal(budget.stopWall.measuredMs, null)
+test('the shipped stop measurement is REAL — every measuredMs sits under a provenance stamp', () => {
+  // Until 2026-08-09 this test pinned every row NULL ("a measurement may not be invented").
+  // The first reviewed recording flips the invariant, not the doctrine: a number may exist
+  // only under a stopMeasurement stamp naming the runner and count-matched to the union it
+  // measured, and no committed number may sit over its own ceiling — a budget whose own
+  // data reds it is a contradiction someone committed without looking.
+  assert.equal(typeof budget.stopWall.measuredMs, 'number')
+  assert.ok(budget.stopWall.measuredMs <= budget.stopWall.ceilingMs)
   for (const [name, row] of Object.entries(budget.stopSteps)) {
-    assert.equal(row.measuredMs, null, `${name} ships a measuredMs nobody measured`)
+    assert.equal(typeof row.measuredMs, 'number', `${name} lost its measurement`)
+    assert.ok(row.measuredMs <= row.ceilingMs, `${name} committed a measuredMs over its own ceiling`)
   }
+  assert.ok(budget.stopMeasurement.runner.trim(), 'a stop measurement with no runner is unattributed')
+  assert.match(budget.stopMeasurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(budget.stopMeasurement.chainSteps, stopUnion.length)
+  assert.equal(budget.stopMeasurement.stepsMeasured, stopUnion.length)
 })
 
 test('recordStopMeasurement stamps the stop rows + stopWall with provenance, purely', () => {
+  const before = structuredClone(budget)
   const next = recordStopMeasurement({
     budget,
     timings: stopTimingsFor({ 'rls-isolation': 41000 }, 300000),
@@ -346,8 +409,9 @@ test('recordStopMeasurement stamps the stop rows + stopWall with provenance, pur
   assert.equal(next.stopMeasurement.runner, 'ubuntu-latest')
   assert.equal(next.stopMeasurement.chainSteps, stopUnion.length)
   // PURE, and the validate-chain measurement surface is untouched by the stop stamp.
-  assert.equal(budget.stopWall.measuredMs, null)
+  assert.deepEqual(budget, before)
   assert.equal(next.wall.measuredMs, budget.wall.measuredMs)
+  assert.deepEqual(next.measurement, budget.measurement)
   // The provenance refusal holds at the seam for the new mode too.
   for (const runner of [undefined, '', '   ']) {
     assert.throws(
@@ -370,6 +434,8 @@ test('--record --stop-chain refuses to stamp outside Actions without --runner (C
   const dir = mkdtempSync(join(tmpdir(), 'chain-budget-stop-'))
   const logPath = join(dir, 'stop-chain.log')
   writeFileSync(logPath, `noise\nVALIDATE_TIMINGS ${JSON.stringify(stopTimingsFor())}\n`)
+  const shippedPath = fileURLToPath(new URL('../../scripts/chain-budget.json', import.meta.url))
+  const shippedBefore = readFileSync(shippedPath, 'utf8')
   const env = { ...process.env }
   delete env.GITHUB_ACTIONS // the refusal is about where the LOG came from, not where we run
   const r = spawnSync(
@@ -384,9 +450,6 @@ test('--record --stop-chain refuses to stamp outside Actions without --runner (C
   )
   assert.equal(r.status, 2, `expected the provenance refusal (exit 2), got ${String(r.status)}:\n${r.stdout}\n${r.stderr}`)
   assert.match(r.stderr, /--record needs `--runner "<what you measured on>"` outside GitHub Actions/)
-  // And the shipped file was NOT stamped on the way to the refusal.
-  const after = JSON.parse(
-    readFileSync(fileURLToPath(new URL('../../scripts/chain-budget.json', import.meta.url)), 'utf8'),
-  )
-  assert.equal(after.stopWall.measuredMs, null)
+  // And the shipped file was NOT touched on the way to the refusal.
+  assert.equal(readFileSync(shippedPath, 'utf8'), shippedBefore)
 })

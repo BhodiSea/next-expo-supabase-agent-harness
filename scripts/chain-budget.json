@@ -32,12 +32,20 @@
     "",
     "And the ordering is enforced now, not merely prescribed: check-claims.mjs imports",
     "hasCommittedMeasurement and reds on any wall-clock figure in README.md or the latest",
-    "CHANGELOG entry while this file carries none. That sentence was here before the control was."
+    "CHANGELOG entry while this file carries none. That sentence was here before the control was.",
+    "",
+    "THE FIRST MEASUREMENT LANDED 2026-08-09, from selftest run 31307386944 (the post-0.7.0",
+    "reviewed dispatch). The validate half is the CI artifact verbatim. The stop half was",
+    "re-derived from the same run's log AFTER review rejected the artifact's: the first-match",
+    "timings parser had stamped stopWall from the nested validate member's line — 33 validate",
+    "step names, zero stop rows matched — and the stop judge passed it vacuously. Both defects",
+    "are pinned in tests/gates/chain-budget.test.mjs; recording from a downloaded CI log with",
+    "an explicit --runner is the blessed path check-chain-budget.mjs's own header describes."
   ],
   "wall": {
     "ceilingMs": 120000,
     "warnMs": 90000,
-    "measuredMs": null
+    "measuredMs": 24916
   },
   "defaults": {
     "comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
@@ -47,135 +55,135 @@
   "steps": {
     "format": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 2973
     },
     "gate-integrity": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 292
     },
     "wiring": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 46
     },
     "secrets": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 98
     },
     "types": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 6025
     },
     "lint": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 2136
     },
     "provenance": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 106
     },
     "boundaries": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 86
     },
     "expo-policy": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 50
     },
     "native-deps": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 47
     },
     "version-sync": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 43
     },
     "prompts": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 41
     },
     "licenses": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 40
     },
     "schema-rls": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 82
     },
     "tenancy": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 47
     },
     "auth-posture": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 57
     },
     "data-flow": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 73
     },
     "types-drift": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 1507
     },
     "migrations": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 60
     },
     "db-limits": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 107
     },
     "contracts": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 2404
     },
     "query-shapes": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 43
     },
     "rate-limits": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 40
     },
     "parity": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 38
     },
     "dead-code": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 2568
     },
     "architecture": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 1990
     },
     "build": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 46
     },
     "styleguide": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 745
     },
     "perf-budget": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 2886
     },
     "route-manifest": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 81
     },
     "security-headers": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 40
     },
     "e2e": {
       "class": "toolchain",
-      "measuredMs": null
+      "measuredMs": 43
     },
     "docs-sync": {
       "class": "static",
-      "measuredMs": null
+      "measuredMs": 73
     }
   },
   "stopComment": [
@@ -200,60 +208,74 @@
     "a Stop gate people disable'. stopWall is the whole chain wall-to-wall INCLUDING the",
     "nested validate member, ceiling 10 min with the warn band at 75% like the wall above.",
     "",
-    "Every measuredMs ships NULL for the same reason wall.measuredMs does: a measurement",
-    "may not be invented. `--record --stop-chain` (workflow_dispatch only, same reviewed-",
-    "dispatch path as the validate recording step) stamps them from a real run."
+    "Every measuredMs SHIPPED NULL until 2026-08-09 for the same reason wall.measuredMs did:",
+    "a measurement may not be invented. `--record --stop-chain` (workflow_dispatch only, same",
+    "reviewed-dispatch path as the validate recording step) stamps them from a real run — the",
+    "committed numbers are run 31307386944's, re-derived post-review (see the header's last",
+    "paragraph for why the artifact's own stop half did not survive it)."
   ],
   "stopWall": {
     "ceilingMs": 600000,
     "warnMs": 450000,
-    "measuredMs": null
+    "measuredMs": 52480
   },
   "stopSteps": {
     "rls-isolation": {
       "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
       "ceilingMs": 90000,
-      "measuredMs": null
+      "measuredMs": 6768
     },
     "unit": {
       "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
       "ceilingMs": 180000,
-      "measuredMs": null
+      "measuredMs": 7221
     },
     "mobile-unit": {
       "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
       "ceilingMs": 240000,
-      "measuredMs": null
+      "measuredMs": 9867
     },
     "diff-coverage": {
       "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
       "ceilingMs": 10000,
-      "measuredMs": null
+      "measuredMs": 65
     },
     "duplication": {
       "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
       "ceilingMs": 15000,
-      "measuredMs": null
+      "measuredMs": 280
     },
     "i18n": {
       "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
       "ceilingMs": 10000,
-      "measuredMs": null
+      "measuredMs": 95
     },
     "test-quality": {
       "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
       "ceilingMs": 10000,
-      "measuredMs": null
+      "measuredMs": 83
     },
     "mobile-perf": {
       "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
       "ceilingMs": 5000,
-      "measuredMs": null
+      "measuredMs": 44
     },
     "reviewer-verdicts": {
       "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
       "ceilingMs": 5000,
-      "measuredMs": null
+      "measuredMs": 58
     }
+  },
+  "measurement": {
+    "recordedOn": "2026-08-09",
+    "runner": "Linux/X64 (selftest)",
+    "chainSteps": 33,
+    "stepsMeasured": 33
+  },
+  "stopMeasurement": {
+    "recordedOn": "2026-08-09",
+    "runner": "Linux/X64 (selftest)",
+    "chainSteps": 10,
+    "stepsMeasured": 10
   }
 }

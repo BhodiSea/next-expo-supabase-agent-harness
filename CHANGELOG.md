@@ -13,6 +13,28 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`parseTimings` now takes the LAST `VALIDATE_TIMINGS` line, and both chain-budget judges
+  refuse a line naming steps outside the chain under judgment.** The first post-release
+  measurement dispatch (2026-08-09) exposed both at once: `validate --stop-chain` runs
+  `validate` as a member whose own timings line rides the same stream ahead of the union's,
+  the first-match parser stamped the stop measurement from that nested line (33 validate step
+  names, zero of the nine stop rows matched), and the stop judge — which silently skips rows
+  with no matching timing — passed the wrong chain's summary as `CLEAN`. "Emits last" was
+  always the lib's stated doctrine; now it is the implementation, and a wrong-chain line is a
+  named problem in both judges instead of a vacuous pass.
+
+### Added
+
+- **The first committed chain measurement.** `scripts/chain-budget.json` carries real
+  `measuredMs` values for the 33-step validate chain, the nine Stop-side members, and both
+  walls — recorded from the reviewed post-release selftest dispatch (run 31307386944), the
+  validate half from the CI artifact verbatim and the stop half re-derived from the same run's
+  log after review rejected the artifact's (see Fixed above). Every committed number sits
+  under a provenance stamp and inside its own ceiling, and the null-pin tests flipped to
+  enforce exactly that invariant.
+
 ## [0.7.0] — 2026-08-08
 
 **The graduation release.** Every deadline the harness ever wrote falls due at once, and the

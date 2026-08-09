@@ -2,22 +2,28 @@
 // test can inject a timings line without the check being able to kill the test runner.
 // Same split as scripts/lib/ramp-sites.mjs and scripts/lib/escape-registry.mjs.
 //
-// The subject is the one machine-readable line tools/validate.mjs emits last:
+// The subject is the machine-readable line tools/validate.mjs emits LAST:
 //   VALIDATE_TIMINGS {"totalMs":…,"notRun":…,"steps":{"format":123,…}}
+// "Last" is load-bearing, not narration: `validate --stop-chain` runs `validate` as a
+// MEMBER, and the member's own line rides the same stream ahead of the union's. The
+// first recorded artifact (2026-08-09) was stamped by a first-match parser from the
+// nested line — a stop measurement wearing 33 validate step names.
 // SOURCE: scripts/chain-budget.json (the comment block states why this is factory-side)
 
-const LINE_RE = /^VALIDATE_TIMINGS (\{.*\})$/m
+const LINE_RE = /^VALIDATE_TIMINGS (\{.*\})$/gm
 
 /**
- * Pull the timings object out of a validate run's stdout.
+ * Pull the timings object out of a validate run's stdout — the LAST line, because a
+ * nested member's earlier one is a different chain's summary.
  * @param {string} stdout
  * @returns {{ totalMs: number, notRun: number, steps: Record<string, number> } | null}
  */
 export function parseTimings(stdout) {
-  const m = LINE_RE.exec(stdout)
-  if (m === null) return null
+  let last = null
+  for (const m of stdout.matchAll(LINE_RE)) last = m[1]
+  if (last === null) return null
   try {
-    const parsed = JSON.parse(m[1])
+    const parsed = JSON.parse(last)
     if (typeof parsed?.totalMs !== 'number' || typeof parsed?.steps !== 'object') return null
     return parsed
   } catch {
@@ -39,6 +45,8 @@ export function judgeBudget({ budget, timings, chainSteps }) {
     )
     return { problems, warnings }
   }
+
+  pushForeignStepsProblem(timings, new Set([...chainSteps, ...Object.keys(budget.steps ?? {})]), problems)
 
   const ceilingFor = (name) => {
     const row = budget.steps?.[name]
@@ -113,6 +121,26 @@ function judgeWall({ wall, totalMs, label, problems, warnings }) {
   }
 }
 
+/**
+ * A timings line naming steps neither the chain under judgment nor the budget knows is
+ * a DIFFERENT chain's summary — the wrong log for the mode, or a nested member's line
+ * (the emitter is shared, and `--stop-chain` runs `validate` as a member). Shared by
+ * both judges, because the 2026-08-09 incident fit through both directions: the stop
+ * judge skipped every row a 33-name validate line failed to match and printed CLEAN.
+ * @param {{ steps?: Record<string, number> }} timings
+ * @param {Set<string>} allowed
+ * @param {string[]} problems
+ */
+function pushForeignStepsProblem(timings, allowed, problems) {
+  const foreign = Object.keys(timings.steps ?? {}).filter((n) => !allowed.has(n))
+  if (foreign.length > 0) {
+    const shown = foreign.slice(0, 3).join(', ') + (foreign.length > 3 ? ', …' : '')
+    problems.push(
+      `the timings name ${String(foreign.length)} step(s) the chain under judgment does not have (${shown}) — this VALIDATE_TIMINGS line describes a different chain: the wrong log for this mode, or a nested member's line riding the same stream. Nothing it says has been judged.`,
+    )
+  }
+}
+
 /** A run that stopped early measured a PREFIX of the chain — shared by both judges. */
 function pushPrefixProblem(timings, problems) {
   if (timings.notRun > 0) {
@@ -158,6 +186,8 @@ export function judgeStopBudget({ budget, timings, unionSteps }) {
       'scripts/chain-budget.json carries a stopSteps row for `validate` — its cost IS the `wall` row (the stop rows deliberately exclude it, so the same number is never judged twice). Remove the row.',
     )
   }
+
+  pushForeignStepsProblem(timings, new Set([...unionSteps, ...Object.keys(rows)]), problems)
 
   // 1. Every budgeted stop step that RAN is inside its explicit ceiling.
   for (const [name, row] of Object.entries(rows)) {
