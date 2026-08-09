@@ -6,7 +6,6 @@
 // RUNNER the moment the real tree had a finding — the failure would look like a crash
 // rather than a report.
 // SOURCE: template/base/tools/lib/enforcement-surface.mjs (the drift-is-invisible header)
-import { fileURLToPath } from 'node:url'
 import {
   KINDS,
   OUT_OF_POPULATION,
@@ -14,7 +13,10 @@ import {
   deriveRegistry,
 } from './lib/escape-registry.mjs'
 
-const HERE = (p) => fileURLToPath(new URL(p, import.meta.url))
+// URL hrefs, never fileURLToPath output: a Windows drive path is an invalid ESM
+// specifier (ERR_UNSUPPORTED_ESM_URL_SCHEME) — the class that crashed
+// check-chain-budget on windows-latest, written identically here.
+const HERE = (p) => new URL(p, import.meta.url).href
 
 const { SEEDED_FILES } = await import(HERE('../installer/lib/layout.mjs'))
 const { ESCAPE_LISTS } = await import(HERE('../template/base/tools/lib/enforcement-surface.mjs'))

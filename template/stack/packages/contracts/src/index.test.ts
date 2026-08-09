@@ -8,9 +8,14 @@ import {
   ActorView,
   atLeastRole,
   CLIENT_VERSION_HEADER,
+  DataExportPage,
   DISPLAY_NAME_MAX,
   EMAIL_MAX,
+  EXPORT_CURSOR_MAX,
+  EXPORT_MEMBERSHIPS_LIMIT,
+  ExportMyDataSchema,
   HealthReport,
+  MembershipExport,
   NewNoteInput,
   NOTE_BODY_MAX,
   NOTE_EXCERPT_MAX,
@@ -30,6 +35,7 @@ import {
   OrgRole,
   OrgSlug,
   type OrgSummary,
+  ProfileExport,
   TransportErrorCode,
   WireTimestamp,
 } from './index.js'
@@ -296,5 +302,64 @@ describe('transport contract', () => {
     expect(HealthReport.parse(report)).toEqual(report)
     expect(() => HealthReport.parse({ ok: false, version: '0.1.0' })).toThrow()
     expect(() => HealthReport.parse({ ok: true, version: '' })).toThrow()
+  })
+})
+
+describe('data export (DSR portability)', () => {
+  const wire = '2026-01-01T00:00:00.123456+00:00'
+  const profile = { createdAt: wire, displayName: 'Sam', id: OWNER_ID, updatedAt: wire }
+  const membership = { createdAt: wire, orgId: ORG_ID, roleRank: 40, userId: OWNER_ID }
+  const exportedNote = {
+    body: 'hello',
+    createdAt: wire,
+    id: NOTE_ID,
+    orgId: ORG_ID,
+    title: 'a note',
+    updatedAt: wire,
+  }
+  const page: DataExportPage = {
+    memberships: [membership],
+    notes: { items: [exportedNote], nextCursor: null },
+    profile,
+  }
+
+  it('accepts the reviewed projection shape and nothing unbounded', () => {
+    expect(DataExportPage.parse(page)).toEqual(page)
+    // Every string on the page is bounded — the body bound is the biggest and
+    // therefore the one worth pinning: one char over NOTE_BODY_MAX fails.
+    const oversize = { ...exportedNote, body: 'x'.repeat(NOTE_BODY_MAX + 1) }
+    expect(() =>
+      DataExportPage.parse({ ...page, notes: { items: [oversize], nextCursor: null } }),
+    ).toThrow()
+  })
+
+  it('an empty display name PARSES — the export returns the stored value, not a prettier one', () => {
+    // Unlike ActorView.displayName (min(1), a render contract), the export is
+    // a portability contract: the column default is '' and an account that
+    // never set a name must still be exportable.
+    expect(ProfileExport.parse({ ...profile, displayName: '' }).displayName).toBe('')
+  })
+
+  it('keeps the rank mirror closed to the tenancy ladder', () => {
+    // memberships_rank_known CHECK (role_rank IN (10, 20, 30, 40)) — a rank
+    // outside the ladder is drift the export must fail loudly on, not archive.
+    expect(() => MembershipExport.parse({ ...membership, roleRank: 50 })).toThrow()
+  })
+
+  it('bounds the page arrays and the compound cursor', () => {
+    const notes = { items: [exportedNote], nextCursor: 'A'.repeat(EXPORT_CURSOR_MAX + 1) }
+    expect(() => DataExportPage.parse({ ...page, notes })).toThrow()
+    const seats = Array.from({ length: EXPORT_MEMBERSHIPS_LIMIT + 1 }, () => membership)
+    expect(() => DataExportPage.parse({ ...page, memberships: seats })).toThrow()
+  })
+
+  it('the input takes only an opaque cursor and a clamped limit — no org field exists to send', () => {
+    expect(ExportMyDataSchema.parse({})).toEqual({ limit: NOTES_PAGE_LIMIT_DEFAULT })
+    expect(() => ExportMyDataSchema.parse({ cursor: 'not base64url!' })).toThrow()
+    expect(() => ExportMyDataSchema.parse({ limit: NOTES_PAGE_LIMIT_MAX + 1 })).toThrow()
+    // The walk position travels INSIDE the opaque cursor; an orgId payload
+    // field would let the request name its own tenant, which the whole file
+    // forbids (see ORG_ID_HEADER).
+    expect('orgId' in ExportMyDataSchema.shape).toBe(false)
   })
 })

@@ -13,6 +13,161 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-08
+
+**The graduation release.** Every deadline the harness ever wrote falls due at once, and the
+question this release answers is the one the ramp mechanism has owed since 0.3.0: **when the
+door is supposed to open, does it?** Seven ramps expire the moment this version is installed —
+`auth-posture`, `data-flow`, `docs-sync`, `reviewer-verdicts`, `route-manifest`'s web half,
+`schema-rls`'s POLICY→GRANT closure, and `web-e2e` — the whole 0.6.0 fleet, and for the first
+time in the lineage the affected population includes the release's own recent predecessors.
+
+### The expiry, as data
+
+`template/migrations.json`'s `0.7.0.rampExpiry` states the population — baseVersion **0.1.3,
+0.2.0, 0.2.1, 0.3.0, 0.4.0 and 0.5.0**, six vintages, computed by `check-ramp-ledger` from the
+shipped call sites and byte-compared against the record — with the why: seven escapes close at
+once, every one opened at minVersion 0.6.0, so every install predating 0.6.0 meets all seven.
+The sweep is `docs/runbooks/harness-upgrade.md` "## 0.7.0 — THE THIRD ALARM, AND THE WIDEST",
+per-baseVersion, each remedy pointing into the section that shipped it; the honest count is
+`pnpm validate 2>&1 | grep "RAMP EXPIRED"` (with the stated caveat that `reviewer-verdicts` and
+`web-e2e` red outside that output — the Stop chain and the path-filtered browser lane). Two
+tests pin the lineage's widest claim as intent, not accident:
+`classifyForInstall('0.4.0'|'0.5.0','0.7.0').expired.length === 7`.
+
+### Leg E's third catch — and the two defects it found this time
+
+The lane that executes the runbook (init at v0.3.0 → update → the documented sweep → `graduate`
+must SUCCEED) went red twice before this release was allowed to exist, and both were real:
+
+- **The adoption was one file where it needed four.** Shipping the DSR export flips
+  `data-flow.json` to `{kind: "procedure"}`, but the ADOPTION touches the consumer's router
+  (the mount), their `PARITY.md` (the surface row), and their regenerated action inventory —
+  all seeded. The `seededSourceFixes` entry now names all four, keyed by ONE probe on the
+  review file (`"target": "0.7.0"` still present = neither adopted nor re-reviewed), so it
+  self-clears on either legitimate move and a consumer who re-reviews carries no parked
+  warning for a surface they chose not to ship.
+- **Ownership could never move toward the consumer.** `tools/generated/action-inventory.json`
+  is generated from the CONSUMER's tRPC router, and it was `owned` — so the moment the
+  template's router gained a procedure, `update` planted a description of OUR router into
+  every upgraded repo and `contracts` redded on trees nobody had touched, whichever legitimate
+  move they intended. It is seeded now (query-shapes.json's exact rationale, one artifact
+  over), and `update` learned the directional rule that makes such a reclassification
+  DELIVERABLE: a path the install recorded as `owned` that this release classifies seeded
+  stops being written immediately and has its manifest mode re-recorded — that direction only
+  ever takes the harness's hands OFF a file; the reverse (seeded → owned, which would START
+  clobbering) never applies from classification alone.
+
+### The three dated targets, discharged
+
+- **The iOS build-toolchain floor exists** (CONFORMANCE-FACTS §3, `Target 0.7.0`, discharged
+  2026-08-08). `tools/store-policy.json#iosToolchain` records the reviewed floor (Xcode ≥ 26,
+  in force since 2026-04-28); `version-sync` resolves the production profile's `ios.image`
+  through the `extends` chain and reds absent/`auto`/`latest`/`sdk-NN` as UNVERIFIABLE, never
+  green; the template pins `macos-tahoe-26.5-xcode-26.6` — the concrete name behind the
+  `sdk-57` alias, concrete precisely so the alias's future movement cannot move a consumer's
+  toolchain silently. Ramped 0.7.0 → 0.8.0, with the eas.json pin as a probed seeded fix. And
+  the Target column can now SEE a discharge that is not a surface change: the tier row's cell
+  reads `0.7.0 — closes: `tools/store-policy.json#iosToolchain``, the second discharge form —
+  judged by the reviewed key existing AND the gate reading it — because the surface-only form
+  would have demanded a change no change could satisfy.
+- **The DSR export ships; the date is kept, not moved.** `system.exportMyData` on the tRPC
+  system router runs AS THE CALLER under RLS: profile own-row, memberships own-rows bounded,
+  notes keyset-paginated and filtered authored-only IN THE QUERY — RLS admits org-mates'
+  notes to this caller, and exporting an org into one member's archive is the over-export the
+  file's own `excluded[]` rationale forbids. And the deadline that demanded it is REAL now:
+  `check-data-flow` compares `export.surface.target` against the installed harness version
+  (it only format-checked the date before — the file's claim that the gate "reds" on an
+  arrived target was false), ramped 0.7.0 → 0.8.0 so the seeded copies saying `target: 0.7.0`
+  NOTE rather than ambush.
+- **The auth-posture CLI census is re-deferred ON THE RECORD.** `tools/deferrals.json` opens
+  with `auth-posture-cli-census` (target 0.8.0, the 0.6.0 spike's side-effect findings as the
+  reason), and `docs-sync` now scans the owned prose surfaces for dated deferral sentences,
+  closed both ways against the ledger, arrived = red — a deferral a control reads cannot roll
+  silently again. The four-releases-stale "out of scope for 0.2.0" sentence is restated
+  dateless as the permanent condition it always was.
+
+### The enforcement of the enforcement
+
+- **The Stop chain runs as a chain outside a live turn for the first time.** The floor-union
+  moved to `tools/lib/stop-chain.mjs` (one implementation; the hook imports it), `validate`
+  gained `--stop-chain` (fail-closed on a corrupt floor — the deliberate contrast with the
+  hook's fail-open-loudly posture), and selftest pipes a synthetic Stop payload into the REAL
+  hook on the live-DB scaffold. The canary job's sixteen hand-typed baseline lines — the shape
+  that let `duplication` redden on a fresh 0.6.0 scaffold — are replaced by a runner that
+  DERIVES the list from the union minus `scripts/ci/stop-chain-exclusions.json`: reviewed,
+  printed, staleness-checked exclusions whose `provenBy` must still appear in the workflow.
+- **The canary registry closes over the factory itself.** `factoryGates` (23 members) and
+  `factoryLanes` (18 jobs) are bidirectional closures; five factory gates that had ZERO test
+  references have executable red-proofs, and `check-dependency-channel`'s private
+  `previousTag()` — the last surviving `.at(-1)` copy of the bug the v0.6.0 hotfix
+  consolidated — is repointed at `highestReleaseBelow`. Its own green summary was the watched
+  red: `CLEAN (vs v0.6.0)` on a tree whose package.json IS 0.6.0. The "hygiene had none"
+  class is closed permanently.
+- **The factory Stop hook grows 13 → 20 steps**, including a scoped CI-shaped test step over
+  the red-proof corpus itself — measured, not assumed: dropping the hooks half saves zero
+  wall time on the reference machine, and the decision procedure is recorded in the header.
+- **A verdict binds to the tree it judged.** The SubagentStop ledger entry gains
+  `path_state` — a digest of the owed files at PASS time — and `reviewer-verdicts` reds a
+  PASS that predates the last edit to a path that summoned it: "a reviewer ran" and "a
+  reviewer reviewed THIS" are different claims. Fresh ramp 0.7.0 → 0.8.0 on only the new
+  finding class.
+- **The cap-ended turn blocks once.** v-stamped block records in the turn-outcomes ledger
+  convert the next green Stop into a one-time exit 2 naming what the previous turn abandoned
+  red; the ledger's own append is the acknowledgment. 0.6.0-written marks stay NOTEs — no
+  install is ambushed by its own history.
+- **Stop steps have budgets.** `chain-budget.json` gains `stopSteps` (nine rows + a stop
+  wall); `check-chain-budget --stop-chain` judges the union and a future injected Stop step
+  forces a budget row exactly like a validate step. Ceilings are chosen policy; every
+  `measuredMs` ships null — the dispatch-only recording now stamps BOTH measurements into one
+  artifact, and publishing a figure still requires the measure-commit-publish order.
+- **Tag-time parity, both halves.** `lint.yml` runs on `v*` tags (the v0.6.0 failure class
+  was a control answering differently at the tag ref) AND `release.yml` blocks on green
+  selftest + lint for the SHA via `scripts/ci/wait-for-workflows.mjs` — zero runs for a
+  required workflow is a hard fail after timeout, never absence-read-as-green. `hygiene.yml`
+  stays tag-triggered but unawaited: a network scan's flake must not stick a tag.
+- **The upgrade lane cannot eat a Stop-side expiry.** `narrow()` still filters the executed
+  set to the validate chain, but §7e now requires every dropped expiry to carry a registered
+  compensating proof in `scripts/ci/stop-side-expiries.json` — `reviewer-verdicts`,
+  `diff-coverage` and `web-e2e` each point at a unit proof that drives the REAL gate to its
+  RAMP EXPIRED exit (none existed). And the matrix gains **leg F (v0.5.0)**: the first
+  release that reds its own recent predecessors watches that population in a lane, not in a
+  classifier test.
+- **`update` names what it cannot write.** `seededSourceFixes` entries carry probes
+  describing the harness-authored BROKEN shape; `update` parks
+  `.harness/pending/source-fixes.json`, `doctor` WARNS (exit 2 — never error; the lane's
+  doctor step permits only 0/2), and the artifact self-clears when the tree no longer
+  matches. The 0.6.0 sign-in-loop fix set carries probes retroactively.
+- **The multi-version sweep.** `upgrade-sweep.mjs` iterates every version an upgrade crossed
+  with a reviewed per-version SWEEPS table, fail-closed on any crossed version whose sweep
+  posture nobody wrote down — at head 0.7.0 the old head-only sweep would have adopted
+  nothing and leg E would have died on the release whose expiries most need its proof.
+  Backward pin: the (0.3.0 → 0.6.0) sweep set is byte-identical to the single-version
+  behavior, proven twice.
+
+### Also
+
+- `check-claims` closes over CONTRIBUTING.md — the one document where a stale derived number
+  survived ("all **31** steps", "the **six** stamps", the omitted `check-seeded-migrations`
+  were all live and all watched red). The local-list closure is DERIVED from `lint.yml`'s
+  blocking steps.
+- `gates-catalog.md` documents `reviewer-verdicts` (the newest control was the only chain
+  member with no documented failure mode), and `check-docs-sync` closes the catalog over
+  every `tools/stop.floor.json` step — floor-keyed, so consumer-appended Stop steps stay the
+  consumer's business.
+- `STAMP_INPUTS["version-sync"]` learns `tools/store-policy.json` and `tools/cc-floor.json` —
+  a warm local stamp could ride over a reviewed-floor edit.
+- The upgrade-lane SOURCE citation points at a section that exists; the selftest leg
+  commentary states computed 0.7.0 truth (leg A meets no expiry for the first time in the
+  lineage — and still refuses on the new ramps' NOTEs; graduate SUCCESS stays leg E's alone).
+
+- **Observability containment is deferred to 0.8.0, and the deferral is machine-held.** The
+  `packages/platform/observability` seam ships with its invariant as header contract (no vendor
+  telemetry SDK import outside declared sinks; every sink behind the redaction pass), and the gate
+  asserting it is 0.8.0's — recorded as the `check-observability.mjs` row in
+  `docs/harness/enforcement-tiers.md`, whose dated `Target` column `docs-sync` reads, so the
+  commitment is a deadline a gate judges rather than a sentence.
+
 ## [0.6.0] — 2026-08-07
 
 **The conformance release.** 0.5.0 turned "every claim must be checkable" on the harness's own

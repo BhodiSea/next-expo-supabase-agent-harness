@@ -16,14 +16,16 @@
 // classification reuses fileMode + seedOnInitOnlyPatterns/matchSeedOnInitOnly —
 // zero duplicated rename or mode logic, so this gate cannot drift from `update`.
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { storageToInstall, walkTemplate } from '../installer/lib/copy.mjs'
+import { templateCandidates } from '../installer/lib/layout.mjs'
 import { fileMode } from '../installer/lib/manifest.mjs'
 import {
   VERSION_KEY,
   matchSeedOnInitOnly,
+  probeMatchesBroken,
   readTemplateMigrations,
   seedOnInitOnlyPatterns,
 } from '../installer/lib/migrations.mjs'
@@ -195,7 +197,7 @@ export function seededSourceFixProblems(migrations, root) {
 
 /**
  * One record's shape. Split out for the complexity bar the harness holds consumers to.
- * @param {{ paths?: string[], why?: string, gate?: string }} fix
+ * @param {{ paths?: string[], why?: string, gate?: string, probes?: object[] }} fix
  * @param {string} at
  * @param {string} root
  */
@@ -216,11 +218,68 @@ function oneSourceFixProblems(fix, at, root) {
     problems.push(`${at} lists no \`paths\` — a fix that names no file cannot be swept.`)
   }
   const missing = paths.filter(
-    (rel) => !['template/stack', 'template/base'].some((t) => existsSync(join(root, t, rel))),
+    (rel) =>
+      !['template/stack', 'template/base'].some((t) =>
+        templateCandidates(rel).some((c) => existsSync(join(root, t, c))),
+      ),
   )
   for (const rel of missing) {
     problems.push(
       `${at} names ${rel}, which is in neither template/stack nor template/base. The sweep's \`adopt()\` skips a missing source in SILENCE, so this entry would quietly stop being applied while the runbook kept telling consumers to apply it.`,
+    )
+  }
+  // The probes are the record's RUNTIME half (0.7.0): `update` parks the set and `doctor`
+  // warns only while a probe file exists and matches the recorded BROKEN shape, so a record
+  // without probes raises nothing and a mis-aimed one parks an artifact nobody can clear.
+  const probes = fix?.probes ?? []
+  if (probes.length === 0) {
+    problems.push(
+      `${at} carries no \`probes\` — without a recorded BROKEN shape the runtime channel (\`update\`/\`doctor\`) can neither raise the obligation nor self-clear it. Describe the PRE-fix shape: probes: [{ path, brokenWhen: { contains } | { lacks } }].`,
+    )
+  }
+  for (const [i, probe] of probes.entries()) {
+    problems.push(...oneProbeProblems(probe, `${at}.probes[${String(i)}]`, paths, root))
+  }
+  return problems
+}
+
+/**
+ * One probe's shape, judged against the record's own paths AND the current template copy.
+ * The template ships FIXED, so an honest probe — one describing the PRE-fix broken shape —
+ * must NOT match it: a probe that does would hold the parked obligation open on every
+ * install that already took the fix, and the channel could never self-clear.
+ * @param {{ path?: string, brokenWhen?: { contains?: string, lacks?: string } }} probe
+ * @param {string} at
+ * @param {string[]} paths
+ * @param {string} root
+ */
+function oneProbeProblems(probe, at, paths, root) {
+  const problems = []
+  const rel = typeof probe?.path === 'string' ? probe.path : ''
+  if (!paths.includes(rel)) {
+    problems.push(
+      `${at} names ${rel === '' ? '(no path)' : rel}, which is not in the record's own \`paths\` — a probe must sample the fix set it judges.`,
+    )
+  }
+  const shipped = ['template/stack', 'template/base']
+    .flatMap((t) => templateCandidates(rel).map((c) => join(root, t, c)))
+    .find((p) => rel !== '' && existsSync(p))
+  if (shipped === undefined) {
+    problems.push(
+      `${at} names ${rel === '' ? '(no path)' : rel}, which is in neither template/stack nor template/base — a probe over a file the template does not ship judges nothing.`,
+    )
+  }
+  const brokenWhen = probe?.brokenWhen ?? {}
+  const predicates = ['contains', 'lacks'].filter(
+    (k) => typeof brokenWhen[k] === 'string' && brokenWhen[k] !== '',
+  )
+  if (predicates.length !== 1 || Object.keys(brokenWhen).length !== 1) {
+    problems.push(
+      `${at} must carry exactly one of \`contains\` or \`lacks\` as a non-empty string — \`brokenWhen\` is a single decidable predicate, not a rule language, and installer/lib/migrations.mjs reads a malformed one as NOT broken.`,
+    )
+  } else if (shipped !== undefined && probeMatchesBroken(readFileSync(shipped, 'utf8'), brokenWhen)) {
+    problems.push(
+      `${at} (${rel}): the recorded BROKEN shape matches the CURRENT template copy, which ships FIXED — this probe would hold the obligation open on every install that already took the fix, and the parked artifact could never self-clear. Probes describe the PRE-fix shape.`,
     )
   }
   return problems

@@ -186,6 +186,9 @@ const GOOD = {
   gate: 'auth-posture',
   why: 'a reason long enough to say what actually broke and why the consumer must act on it',
   paths: ['apps/web/lib/supabase/client.ts'],
+  // A well-formed probe: names a path inside `paths`, one predicate, and describes the
+  // PRE-fix shape (the shipped template CONTAINS the symbol, so `lacks` does not match it).
+  probes: [{ path: 'apps/web/lib/supabase/client.ts', brokenWhen: { lacks: 'cookieSessionStorage' } }],
 }
 
 test('seededSourceFixes: the shipped record resolves against the template', () => {
@@ -199,8 +202,10 @@ test('seededSourceFixes: the shipped record resolves against the template', () =
 })
 
 test('seededSourceFixes: a path the template does not ship is named, not skipped', () => {
+  // The typo'd path is APPENDED so GOOD's probe still samples the record's own `paths` —
+  // this test isolates the missing-template problem, not the probe-aim one.
   const problems = seededSourceFixProblems(
-    { '0.6.0': { seededSourceFixes: [{ ...GOOD, paths: ['apps/web/lib/supabase/clientt.ts'] }] } },
+    { '0.6.0': { seededSourceFixes: [{ ...GOOD, paths: [...GOOD.paths, 'apps/web/lib/supabase/clientt.ts'] }] } },
     REAL_ROOT,
   )
   assert.equal(problems.length, 1)
@@ -214,4 +219,62 @@ test('seededSourceFixes: an unreasoned, ungated or empty record is a review reje
   assert.match(p({ ...GOOD, paths: [] }).join('\n'), /lists no `paths`/)
   // The doc key is not a version and must never be walked as one.
   assert.deepEqual(seededSourceFixProblems({ '//': 'prose' }, REAL_ROOT), [])
+})
+
+// ── probes (0.7.0) ──────────────────────────────────────────────────────────────
+//
+// The runtime channel (`update` parks .harness/pending/source-fixes.json, `doctor` warns)
+// decides "is this fix APPLIED" from the probes and nothing else — so a record whose probes
+// are missing, mis-aimed, or aimed at the FIXED shape produces a parked artifact that either
+// never appears or can never self-clear. Both are silent in every other check, because both
+// are perfectly valid JSON. These reds are what keep future entries honest.
+const p = (fix) => seededSourceFixProblems({ '0.6.0': { seededSourceFixes: [fix] } }, REAL_ROOT)
+
+test('probes: an entry WITHOUT probes reds — a channel that cannot self-clear must be unauthorable', () => {
+  const { probes: _dropped, ...probeless } = GOOD
+  assert.match(p(probeless).join('\n'), /carries no `probes`/)
+})
+
+test('probes: a probe naming a path outside the record’s own `paths` reds', () => {
+  const stray = {
+    ...GOOD,
+    probes: [{ path: 'apps/web/lib/supabase/server.ts', brokenWhen: { lacks: 'cookieSessionStorage' } }],
+  }
+  assert.match(p(stray).join('\n'), /not in the record's own `paths`/)
+})
+
+test('probes: a probe path the template does not ship reds on the probe, not only on `paths`', () => {
+  const typo = {
+    ...GOOD,
+    paths: ['apps/web/lib/supabase/clientt.ts'],
+    probes: [{ path: 'apps/web/lib/supabase/clientt.ts', brokenWhen: { lacks: 'cookieSessionStorage' } }],
+  }
+  assert.match(p(typo).join('\n'), /probes\[0\][^\n]*neither template\/stack nor template\/base/)
+})
+
+test('probes: brokenWhen must be exactly one of contains/lacks, non-empty', () => {
+  const probeAt = (brokenWhen) =>
+    p({ ...GOOD, probes: [{ path: 'apps/web/lib/supabase/client.ts', brokenWhen }] }).join('\n')
+  assert.match(probeAt({ contains: 'x', lacks: 'y' }), /exactly one of `contains` or `lacks`/)
+  assert.match(probeAt({}), /exactly one of `contains` or `lacks`/)
+  assert.match(probeAt({ lacks: '' }), /exactly one of `contains` or `lacks`/)
+  assert.match(probeAt({ lacks: 'cookieSessionStorage', typo: 'z' }), /exactly one of `contains` or `lacks`/)
+})
+
+test('probes: a broken shape that matches the FIXED template reds — it could never self-clear', () => {
+  // The template ships the CORRECTED files, so a probe is honest only when it does NOT
+  // match them. `contains cookieSessionStorage` matches the fix itself: every install that
+  // took the fix would hold the obligation open forever.
+  const inverted = {
+    ...GOOD,
+    probes: [{ path: 'apps/web/lib/supabase/client.ts', brokenWhen: { contains: 'cookieSessionStorage' } }],
+  }
+  assert.match(p(inverted).join('\n'), /matches the CURRENT template copy/)
+  // Same inversion, lacks-shaped: the template lacks this marker, so "broken = lacks it"
+  // is a predicate the fixed tree satisfies.
+  const nonsense = {
+    ...GOOD,
+    probes: [{ path: 'apps/web/lib/supabase/client.ts', brokenWhen: { lacks: 'zz-no-such-marker-zz' } }],
+  }
+  assert.match(p(nonsense).join('\n'), /matches the CURRENT template copy/)
 })

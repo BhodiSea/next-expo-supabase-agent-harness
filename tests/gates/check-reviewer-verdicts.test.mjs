@@ -13,6 +13,24 @@
 // been asserted about the reviewer FILE by check-docs-sync.mjs since 0.3.0 and enforced at
 // runtime by nothing. Exit 2 on SubagentStop prevents the subagent from stopping, which is
 // what turns a file-shape assertion into a behavioural one.
+//
+// The third (0.7.0): the 0.6.0 ramp's RAMP EXPIRED branch, EXECUTED rather than inferred.
+// This step runs only in the Stop chain, which no upgrade-lane leg executes, so its expiry
+// fires in no lane at all — scripts/ci/stop-side-expiries.json registers THIS file as the
+// compensating proof (upgrade-lane.sh §7e refuses to drop a met deadline that has no
+// registered proof), and the sibling case pins that a 0.6.0-vintage install reds plainly,
+// without the banner: the ramp is inert there, not expired.
+//
+// The fourth (0.7.0): THE DIFF BINDING. Until now a PASS was a fact about the TURN —
+// recorded once, satisfied forever within the prompt — so a reviewer could PASS and the
+// agent could then keep editing the very paths that summoned it, shipping code no reviewer
+// ever saw. The hook now records `path_state` beside each verdict (sha256 over the sorted
+// (path, content-sha256) pairs of the reviewer-owned changed files), the step recomputes it
+// at Stop time, and a PASS whose binding is missing or mismatched fails TOWARD RE-REVIEW.
+// That class alone rides a fresh 0.7.0 ramp (until 0.8.0): a mid-session upgrade delivers
+// the new gate into a turn whose earlier PASSes lack the binding, which is the ambush shape
+// the ramp doctrine exists for — so its NOTE and its RAMP EXPIRED branches are both
+// executed below, the same way the 0.6.0 ramp's are above.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -23,6 +41,7 @@ import { fileURLToPath } from 'node:url'
 import {
   globToRe,
   owedBy,
+  pathStateDigest,
   readLedger,
   readVerdict,
 } from '../../template/base/tools/lib/reviewer-verdicts.mjs'
@@ -36,12 +55,13 @@ const TRIGGERS = JSON.parse(readFileSync(join(TOOLS, 'reviewer-triggers.json'), 
 
 const SESSION = 'session-under-test'
 const PROMPT = 'prompt-under-test'
+const CHANGED = 'supabase/migrations/29990101_x.sql'
 
 /**
  * A git repo with a real changed file, the shipped triggers, and an optional ledger.
  * @param {{ changed?: string, ledger?: Array<object>|string|null, triggers?: any }} [opts]
  */
-function fixture({ changed = 'supabase/migrations/29990101_x.sql', ledger = null, triggers } = {}) {
+function fixture({ changed = CHANGED, ledger = null, triggers } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-verdicts-'))
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
@@ -79,6 +99,23 @@ const entry = (agent_type, verdict, over = {}) => ({
   ...over,
 })
 
+/** Write the fixture's ledger AFTER its tree state is known — the diff-binding tests need it. */
+function writeLedger(dir, entries) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/reviewer-ledger.jsonl'),
+    `${entries.map((e) => JSON.stringify(e)).join('\n')}\n`,
+  )
+}
+
+/**
+ * The binding the hook would have recorded at this moment: the digest over the fixture's
+ * reviewer-owned files AS THEY ARE NOW. Computed by the same shared function the hook and
+ * the step call, which is the point — one implementation, no second chance to disagree.
+ */
+const digestFor = (dir, agent, files = [CHANGED]) =>
+  pathStateDigest(agent, TRIGGERS, files, (p) => readFileSync(join(dir, p)))
+
 function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
   const env = { ...process.env }
   delete env.HARNESS_REQUIRE_TOOLCHAINS
@@ -92,6 +129,10 @@ function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
   // shell, red the moment it matters. Eighteen sibling test files already delete this; the
   // one written in the release that added the gate did not.
   delete env.GITHUB_BASE_REF
+  // And the maintainer's own escape hatch stays out for the same reason: the fixture
+  // plays a CONSUMER, and a consumer does not have HARNESS_ALLOW_SELF_EDIT set
+  // (upgrade-lane.sh unsets it script-wide with the full argument).
+  delete env.HARNESS_ALLOW_SELF_EDIT
   env.CI = 'true'
   if (session === null) delete env.HARNESS_SESSION_ID
   else env.HARNESS_SESSION_ID = session
@@ -141,12 +182,18 @@ test('GREEN: a reviewer PASS is recorded, keyed to session and prompt', () => {
   })
   assert.equal(r.code, 0, r.out)
   const line = JSON.parse(readFileSync(join(r.dir, '.harness/reviewer-ledger.jsonl'), 'utf8').trim())
+  // path_state is NULL here by design, not omitted: this fixture has no trigger table and no
+  // git repo, and a hook that cannot compute the binding must still record the verdict —
+  // null is safe in exactly one direction (the step fails an unbound PASS toward re-review).
+  // The bound case, with a real repo underneath, lives in
+  // tests/hooks/subagent-verdict-pathstate.test.mjs.
   assert.deepEqual(line, {
     session_id: 's1',
     prompt_id: 'p1',
     agent_type: 'security-reviewer',
     agent_id: 'a9',
     verdict: 'PASS',
+    path_state: null,
   })
 })
 
@@ -230,8 +277,15 @@ test('GREEN: a diff that owes nobody passes without a ledger at all', () => {
   assert.match(r.out, /no reviewer is owed a verdict by this diff/)
 })
 
-test('GREEN: the owed reviewer ran and passed', () => {
-  const r = runStep(fixture({ ledger: [entry('security-reviewer', 'PASS')] }))
+test('GREEN: the owed reviewer ran and passed, its PASS bound to this tree', () => {
+  // The edit exists FIRST (fixture() writes and stages it), the PASS is recorded after —
+  // which is the ordering the binding demands: a verdict post-dating the last edit to the
+  // paths that summoned it.
+  const dir = fixture()
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  const r = runStep(dir)
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /returned PASS this turn/)
 })
@@ -239,6 +293,40 @@ test('GREEN: the owed reviewer ran and passed', () => {
 test('CANARY — the owed reviewer did NOT run: no ledger at all', () => {
   const r = runStep(fixture({ ledger: null }))
   assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
+})
+
+// Stamp an install vintage onto a fixture: rampNote reads .harness/manifest.json from the
+// gate's cwd, comparing baseVersion against the ramp and harnessVersion against the deadline.
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion, harnessVersion }, null, 2),
+  )
+  return dir
+}
+
+test('CANARY — the 0.6.0 ramp EXPIRES at harness 0.7.0: the banner fires and the red is hard', () => {
+  // A pre-0.6.0 vintage running 0.7.0 code: baseVersion is below the ramp, harnessVersion
+  // has reached the deadline. The findings must NOT be withheld as a NOTE — the banner
+  // names the expiry and the exit is the same hard 1 a fresh install gets.
+  const dir = withManifest(fixture({ ledger: null }), '0.3.0', '0.7.0')
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED/)
+  assert.match(r.out, /deadline of 0\.7\.0/)
+  assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
+})
+
+test('CANARY — a 0.6.0-vintage install reds WITHOUT the banner: the ramp is inert, not expired', () => {
+  // baseVersion at the ramp's minVersion: rampNote's first guard makes the check plainly
+  // live. The same finding, the same exit — but an expiry banner here would tell a consumer
+  // who was never inside the escape that a deadline they never had has passed.
+  const dir = withManifest(fixture({ ledger: null }), '0.6.0', '0.7.0')
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
   assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
 })
 
@@ -272,6 +360,138 @@ test('CANARY — a BLOCK verdict blocks the turn, and says that is the point', (
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /returned VERDICT: BLOCK/)
   assert.match(r.out, /A turn does not end on a BLOCK/)
+})
+
+// ── the diff binding (0.7.0) ─────────────────────────────────────────────────────────
+
+test('CANARY — a PASS recorded, then the owed file EDITED: the verdict is stale', () => {
+  // The gap the binding closes: nothing above stops an agent from summoning the reviewer,
+  // collecting its PASS, and then editing the very file that summoned it. The recorded
+  // digest is honest — it covers the tree the reviewer saw — and the tree moved.
+  const dir = fixture()
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  writeFileSync(join(dir, CHANGED), '-- a change\n-- and a post-PASS edit the reviewer never saw\n')
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /security-reviewer returned PASS for a different tree/)
+  assert.match(r.out, /changed after its PASS/)
+  assert.match(r.out, /29990101_x\.sql/)
+})
+
+test('GREEN: edit, re-run, PASS again — the LATEST entry is the one that binds', () => {
+  // The recovery path the stale finding prescribes. The first PASS is genuinely stale; the
+  // re-run appends a fresh one, and the step judges the newest entry — otherwise re-running
+  // the reviewer could never clear the finding it raised.
+  const dir = fixture()
+  const staleDigest = digestFor(dir, 'security-reviewer')
+  writeFileSync(join(dir, CHANGED), '-- a change\n-- edited between the two reviews\n')
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: staleDigest }),
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  const r = runStep(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /returned PASS this turn/)
+})
+
+test('CANARY — a PASS with NO binding (a pre-0.7.0 hook entry) fails toward re-review', () => {
+  // The mid-session-upgrade shape, and the direction the failure must point: an entry the
+  // old hook wrote — or one whose digest the hook could not compute — proves nothing about
+  // WHICH tree was reviewed, so it is treated as un-reviewed, never as reviewed-enough.
+  for (const over of [{}, { path_state: null }]) {
+    const dir = fixture()
+    writeLedger(dir, [entry('security-reviewer', 'PASS', over)])
+    const r = runStep(dir)
+    assert.equal(r.code, 1, `${JSON.stringify(over)}: ${r.out}`)
+    assert.match(r.out, /no path_state binding/)
+    assert.match(r.out, /fails toward re-review/)
+  }
+})
+
+test('GREEN: a post-PASS edit to a NON-owed path does not invalidate the verdict', () => {
+  // Per-reviewer scoping is what keeps the binding from being a whole-tree freeze: the
+  // digest covers only the paths that reviewer's triggers own, so ordinary follow-up work
+  // elsewhere (docs, tests, unrelated packages) does not send every verdict stale.
+  const dir = fixture()
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  mkdirSync(join(dir, 'docs'), { recursive: true })
+  writeFileSync(join(dir, 'docs/notes.md'), 'a post-PASS edit outside the reviewer paths\n')
+  const r = runStep(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /returned PASS this turn/)
+})
+
+test('pathStateDigest: order-independent, POSIX-normalized, per-reviewer scoped, deletion-aware', () => {
+  const read = (m) => (p) => m[p] ?? null
+  const files = ['supabase/migrations/b.sql', 'supabase/migrations/a.sql']
+  const m = { 'supabase/migrations/a.sql': 'A', 'supabase/migrations/b.sql': 'B' }
+  const d1 = pathStateDigest('security-reviewer', TRIGGERS, files, read(m))
+  // Enumeration order must not matter — git-diff local mode returns a Set's insertion order.
+  assert.equal(pathStateDigest('security-reviewer', TRIGGERS, [...files].reverse(), read(m)), d1)
+  // Windows separators normalize to the POSIX spelling before matching and hashing.
+  assert.equal(
+    pathStateDigest(
+      'security-reviewer',
+      TRIGGERS,
+      ['supabase\\migrations\\a.sql', 'supabase\\migrations\\b.sql'],
+      read(m),
+    ),
+    d1,
+  )
+  // Content moves the digest; so does a deletion (readFileLike returning null).
+  assert.notEqual(
+    pathStateDigest('security-reviewer', TRIGGERS, files, read({ ...m, 'supabase/migrations/a.sql': 'A2' })),
+    d1,
+  )
+  assert.notEqual(
+    pathStateDigest('security-reviewer', TRIGGERS, files, read({ 'supabase/migrations/b.sql': 'B' })),
+    d1,
+  )
+  // A changed file OUTSIDE the reviewer's patterns does not participate — the scoping half.
+  assert.equal(
+    pathStateDigest('security-reviewer', TRIGGERS, [...files, 'docs/x.md'], read({ ...m, 'docs/x.md': 'D' })),
+    d1,
+  )
+})
+
+test('pathStateDigest: an agent the trigger table does not name digests to NULL', () => {
+  // torvalds-reviewer is a real reviewer with no path trigger (whole-turn obligation, see
+  // reviewer-triggers.json#notTriggered). Null — not the empty-set digest — because "no
+  // patterns own this diff" and "nobody knows what this agent owns" must not collide.
+  assert.equal(
+    pathStateDigest('torvalds-reviewer', TRIGGERS, ['supabase/migrations/a.sql'], () => 'x'),
+    null,
+  )
+})
+
+test('the 0.7.0 binding ramp: a pre-0.7.0 vintage sees the stale finding as a NOTE', () => {
+  // The install the ramp exists for: a 0.6.0-vintage consumer mid-upgrade, whose earlier
+  // PASSes were written by the old hook and cannot carry a binding. Advisory, with the
+  // deadline named — while the ABSENT class on the same vintage still reds hard (its 0.6.0
+  // ramp is inert there; the sibling case above pins that).
+  const dir = withManifest(fixture(), '0.6.0', '0.7.0')
+  writeLedger(dir, [entry('security-reviewer', 'PASS')])
+  const r = runStep(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /NOTE — the verdict-to-diff binding/)
+  assert.match(r.out, /expires in 0\.8\.0/)
+  assert.match(r.out, /no path_state binding/)
+})
+
+test('the 0.7.0 binding ramp EXPIRES at harness 0.8.0 — the branch EXECUTED, like the 0.6.0 one', () => {
+  // The registered stop-side-expiries proof for the NEXT release, written the release the
+  // ramp opens: no lane runs the Stop chain, so this is where the 0.8.0 deadline fires.
+  const dir = withManifest(fixture(), '0.6.0', '0.8.0')
+  writeLedger(dir, [entry('security-reviewer', 'PASS')])
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED/)
+  assert.match(r.out, /deadline of 0\.8\.0/)
+  assert.match(r.out, /no path_state binding/)
 })
 
 test('CANARY — an unparseable ledger FAILS CLOSED', () => {

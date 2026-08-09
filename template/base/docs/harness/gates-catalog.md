@@ -20,8 +20,13 @@ the resolved Expo toolchain, the surface itself) is absent locally, and fail clo
   UPDATE and DELETE on every org-scoped table, and nothing at all about reads. A user
   who only *looks* leaves no trace, so the trail cannot answer "who saw this" — the
   question a data-access investigation usually starts from. `SELECT` auditing needs
-  `pgaudit` configuration that is not expressible in a migration and is out of scope
-  for 0.2.0. Related: `request_id` on an audit row is a **correlation** field, not
+  `pgaudit` configuration that is not expressible in a migration, so it stays out of
+  scope until that changes — a permanent scoping CONDITION in the `tenancy.json`
+  `directoryRpc` style, deliberately carrying no release number (this sentence read
+  "for 0.2.0" through four releases that shipped after it, a deferral that had quietly
+  become a permanent state while still reading as a plan), re-opened if pgaudit's
+  SELECT-audit configuration ever becomes expressible in a migration.
+  Related: `request_id` on an audit row is a **correlation** field, not
   evidence — it is server-minted on the paths the server controls and forgeable by a
   client talking straight to PostgREST. `actor_id` is the field with integrity,
   because it comes from the verified JWT and the insert policy re-checks it against
@@ -331,6 +336,27 @@ arithmetic is over two committed dates, which is why it can red at the moment th
 written rather than a quarter later. The floor is harness-OWNED,
 so `update` carries a new advisory to existing installs, and `gate-integrity` sha-pins it,
 so lowering a minimum without a reviewed commit reds at step 2.
+**The iOS build-toolchain floor (0.7.0).** Apple has required uploads to build against
+**Xcode 26 / iOS 26 SDK or later since 2026-04-28** — a FIXED floor, not a moving
+"current SDK" requirement, and macOS is excluded (facts: `design/CONFORMANCE-FACTS.md`
+§3). The reviewed floor lives in `tools/store-policy.json` (`iosToolchain`: `xcodeFloor`,
+`inForceSince`, `source`, `why` — the record the enforcement-tiers version-sync Target
+discharges through), and the check is static, offline and clockless: it resolves the
+production profile's `ios.image` through the `eas.json` `extends` chain and matches
+`-xcode-(\d+)` against the floor. **The red directions, and why each one reds:** an
+ABSENT image reds because *no pin means nothing can red* — a too-old toolchain would
+burn a whole build-and-submit cycle with no gate output; `auto`, `latest`, `sdk-NN`
+and any name without a literal `-xcode-<major>` red as UNVERIFIABLE, because an alias
+moves under the build and a check that passes an unpinned profile passes every profile;
+a matched major BELOW the floor reds naming both numbers, the in-force date and the
+source; and a `store-policy.json` carrying no `iosToolchain` record while `eas.json`
+exists reds, because a floor nobody reviewed is not a floor (the file is harness-owned —
+`update` restores it). The template pins the CONCRETE image `macos-tahoe-26.5-xcode-26.6`
+(the `sdk-57` alias's resolution on 2026-08-08), never the alias. Ramped for pre-0.7.0
+installs (their seeded `eas.json` predates the pin; the `seededSourceFixes` channel
+carries it) with dated NOTEs until 0.8.0. Honest limit: no lane runs an EAS build, so an
+image RETIRED upstream is invisible here — the pin's freshness rides the consumer's next
+build and the floor's rides review.
 **Anti-vacuity:** drift `apps/mobile/package.json` from root → FAIL listing the
 disagreeing versions; set `apps/web`'s major off `@app/api`'s → FAIL the skew-contract
 check; resolve two `react` versions inside one surface → FAIL naming the project;
@@ -340,7 +366,10 @@ floor and the HIGH advisory ids; move a version onto a major line the floor has 
 for → FAIL naming the supported lines; a present `pnpm-lock.yaml` the scanner matches
 ZERO packages in → FAIL, because that is the shape a silently vacuous floor takes;
 push `reviewedUntil` more than 31 days past `reviewedOn` → FAIL naming the window, the
-maximum, and roughly how many upstream releases that many days hides.
+maximum, and roughly how many upstream releases that many days hides; drop the
+production `ios.image` (or alias it to `auto`/`latest`/`sdk-NN`, or pin
+`-xcode-25.x`) → FAIL per the toolchain directions above; delete the `iosToolchain`
+record while `eas.json` exists → FAIL naming the missing review.
 
 ### 12. prompts — `node tools/check-prompts-lock.mjs`
 
@@ -644,7 +673,8 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.7.0: asking the CLI directly.** A check that read the CLI's own deprecation
+**Deferred to 0.8.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
 warning. It is not shipped, because no subcommand at this pin parses `config.toml` without side
@@ -652,7 +682,13 @@ effects: `config push` needs a project ref, `functions list` needs an access tok
 `status` — the one that works — binds to whatever stack holds the default ports (it reported
 *another project's* containers during the spike) and prints `SECRET_KEY` and `JWT_SECRET` into
 output the gate would then handle. A control that reads a neighbour's stack and handles their
-credentials is not a control. The `[inbucket]` defect itself is fixed; the standing check waits.
+credentials is not a control. The `[inbucket]` defect itself is fixed; the standing check waits
+on an UPSTREAM condition — a side-effect-free `config lint`-shaped subcommand, re-checked at
+every CLI pin bump — and the date is no longer decoration: this sentence, the twin notes in
+`tools/auth-posture.json` and `tools/check-auth-posture.mjs`, and the `tools/deferrals.json`
+entry are closed both ways by the `docs-sync` deferral scan, which reds the release the target
+arrives. The first deferral of this check rolled past its own date with nothing reading it;
+this one cannot.
 
 Static, <100ms, no Docker, no install: a hand-written TOML reader
 (`tools/lib/toml.mjs`) over the committed file, for the same reason every other gate hand-parses
@@ -1282,10 +1318,39 @@ a skip) and the seven reviewers (`security-reviewer`, `web-security-reviewer`,
 `torvalds-reviewer`, `citation-verifier`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
 "read-only by construction" claim, machine-asserted.
+
+**The deferral ledger (0.7.0).** The harness's prose makes dated promises —
+"Deferred to x.y.z", "out of scope for x.y.z" — and until this release nothing read
+them: three sites carried the same stale one into the very release it named, and a
+scoping line stayed frozen four versions. Every such sentence now has ONE machine-read
+home, `tools/deferrals.json` (entries `{ id, file, target, reason ≥ 40 chars,
+reviewedOn }`; `file` may be an array when one decision is stated at several sites),
+closed BOTH ways over a DECLARED surface list: this catalog, the top-level
+`tools/*.mjs` gate scripts, and `tools/auth-posture.json`. A dated sentence with no
+entry for its file reds; an entry whose file dropped the sentence reds as stale; and
+an entry whose target the installed `harnessVersion` has reached reds until the author
+ships the check or moves the date — the ledger is git-clean-enforced, so a move is a
+reviewed diff, never a flag. The sentence regexes are `\s+`-joined because markdown
+hard-wraps dates onto the next line, which is how a per-line reader missed the stale
+one. `enforcement-tiers.md` is deliberately excluded (its Target column has its own
+reader — the surface derivation and the `closes:` probe), as is every SEEDED file
+(a consumer's prose is not the harness's to red; `tools/data-flow.json`'s export
+target has its own enforcement in `check-data-flow.mjs`). Honest limit: the scan
+reads the template's OWNED surfaces only — a factory-side dated sentence (e.g. inside
+`scripts/check-*.mjs` in the harness repo) needs a factory-side reader and is flagged
+to the factory-coverage workstream rather than half-covered here. Version-ramped
+(0.7.0, expires 0.8.0): an install whose own `tools/*.mjs` carry dated prose gets one
+release of dated NOTEs to ledger or re-word it.
+
 **Anti-vacuity:** add a gate to VALIDATE_STEPS without touching AGENTS.md → FAIL
 printing documented-vs-actual chains; advertise `pnpm ghost` → FAIL naming it;
 delete a numbered section here → FAIL naming the undocumented gate; grant
-`security-reviewer` Bash → FAIL naming the agent, the grant, and the doctrine.
+`security-reviewer` Bash → FAIL naming the agent, the grant, and the doctrine;
+write "Deferred to x.y.z" (a real release number) in any scanned surface with no
+ledger entry → FAIL naming file, line and target; delete the sentence an entry
+ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
+target → FAIL demanding discharge or a reviewed re-date
+(`tests/gates/check-docs-sync.test.mjs`).
 
 ### the validate runner — serial by default, pooled under `--report-all`
 
@@ -1416,6 +1481,52 @@ lane's `artifacts/perf-results.json`: cold-start `am start -W` TotalTime,
 `reportFullyDrawn`, per-screen budgets) needs an emulator and minutes — CI-only.
 **Anti-vacuity:** register a route with no flow file → FAIL naming the missing
 flow and budget row; leave a stale row for a deleted route → FAIL.
+
+### reviewer-verdicts — `node tools/check-reviewer-verdicts.mjs`
+
+Stop-chain step 10, and the only check in the harness whose subject is the TURN
+rather than the tree: every reviewer whose `MUST BE USED` trigger patterns
+(reviewed data in `tools/reviewer-triggers.json`) match this turn's diff must
+have returned `VERDICT: PASS`, recorded by the SubagentStop hook
+(`.claude/hooks/subagent-verdict.mjs`) into the session-scoped ledger at
+`.harness/reviewer-ledger.jsonl`. The Stop hook passes the turn's identity down
+(`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`) and the step narrows the ledger to
+THIS turn, so last turn's PASS satisfies nothing. Four failure modes: an owed
+reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
+reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
+finding it exists to produce, and a turn does not end on a BLOCK; a PASS whose
+`path_state` binding does not match the tree at Stop time reds as the reviewer
+having seen a DIFFERENT TREE than the one the turn is shipping — the hook
+records, beside each verdict, a sha256 over the sorted (path, content-sha256)
+pairs of the changed files matching that reviewer's triggers (per-reviewer
+scope, so follow-up work on non-owed paths sends nothing stale; deleted files
+hash as `DELETED`), the step recomputes it, and a mismatched binding — or a
+null/missing one, as every pre-0.7.0 hook entry is — fails toward re-review,
+because "a reviewer ran" and "a reviewer reviewed THIS" are different claims
+(this class alone rides a fresh 0.7.0 ramp, until 0.8.0: a mid-session upgrade
+delivers the new gate into a turn whose earlier PASSes lack the binding); and
+on an install whose baseVersion predates 0.6.0 running harness >= 0.7.0, the
+formerly NOTE-withheld findings land as hard reds under a `RAMP EXPIRED`
+banner (the 0.6.0 ramp's deadline arrived — sweep the findings, then
+graduate), while a 0.6.0-vintage install reds plainly with no banner: its ramp
+is inert, not expired. Fail closed in every direction that matters: a missing
+`tools/reviewer-triggers.json` is a broken control, not an empty policy
+(FAIL); a missing, unreadable, or unparseable ledger BLOCKS; a missing turn
+identity skips loudly outside the Stop hook and FAILS in CI, where the hook
+that supplies it must have changed. What it deliberately does NOT judge is the
+CONTENT of a review: a PASS is an attestation by a read-only agent whose
+tools, model, and body are locked in `tools/agents.lock.json` — whether it was
+a GOOD review is not a property any file can hold.
+**Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
+reviewer that never ran, last turn's PASS refused, the cross-session PASS
+refused, the BLOCK that blocks, the unparseable ledger failing closed, the
+`RAMP EXPIRED` branch EXECUTED at harness 0.7.0 (with the 0.6.0-vintage
+sibling case pinning the plain red, no banner), the PASS-then-edit stale
+binding red (with edit-then-PASS green, the non-owed post-PASS edit staying
+green, and the unbound PASS failing toward re-review), and the 0.7.0 binding
+ramp's NOTE and `RAMP EXPIRED` branches both executed; the record half — the
+hook appending `path_state` and the digest MOVING when the owed file moves —
+is tests/hooks/subagent-verdict-pathstate.test.mjs.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 

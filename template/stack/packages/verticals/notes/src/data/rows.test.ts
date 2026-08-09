@@ -1,6 +1,15 @@
-import { NoteRecord } from '@app/contracts'
+import { ExportedNote, NoteRecord } from '@app/contracts'
 import { describe, expect, it } from 'vitest'
-import { asRowArray, NOTE_COLUMNS, NOTE_ROW_KEYS, NOTES_TABLE, toNoteRecord } from './rows.js'
+import {
+  asRowArray,
+  NOTE_COLUMNS,
+  NOTE_EXPORT_COLUMNS,
+  NOTE_EXPORT_ROW_KEYS,
+  NOTE_ROW_KEYS,
+  NOTES_TABLE,
+  toExportedNote,
+  toNoteRecord,
+} from './rows.js'
 
 const ROW = {
   archived_at: null,
@@ -117,5 +126,64 @@ describe('asRowArray', () => {
     // `data[0]` on a non-array is `undefined`, which would read as "no rows"
     // instead of "the protocol did something unexpected".
     expect(asRowArray(data)).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The EXPORT projection — the second explicit projection this file owns, held
+// to the same lockstep law as the first.
+// ---------------------------------------------------------------------------
+
+const EXPORT_ROW = {
+  body: 'the body',
+  created_at: '2026-01-01T00:00:00.123456+00:00',
+  id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+  org_id: '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f',
+  title: 'Ship the vertical',
+  updated_at: '2026-02-01T09:30:00+00:00',
+}
+
+describe('the export projection', () => {
+  it('selects exactly the export row schema’s columns — no more, no fewer', () => {
+    const projected = NOTE_EXPORT_COLUMNS.split(',')
+      .map((column) => column.trim())
+      .sort()
+    expect(projected).toEqual(NOTE_EXPORT_ROW_KEYS)
+  })
+
+  it('mirrors tools/data-flow.json export.projection.notes, and echoes no owner back', () => {
+    // The reviewed projection: id, org_id, title, body, created_at, updated_at.
+    // owner_id is deliberately ABSENT — every exported row is the subject's own
+    // by construction (the query filters it), so echoing it back would add
+    // their identifier to every row for nothing.
+    expect(NOTE_EXPORT_ROW_KEYS).toEqual([
+      'body',
+      'created_at',
+      'id',
+      'org_id',
+      'title',
+      'updated_at',
+    ])
+    expect(NOTE_EXPORT_COLUMNS).not.toContain('owner_id')
+    expect(NOTE_EXPORT_COLUMNS).not.toContain('*')
+  })
+
+  it('renames every snake_case column onto the wire DTO, which re-parses clean', () => {
+    const exported = toExportedNote(EXPORT_ROW)
+    expect(exported).toEqual({
+      body: 'the body',
+      createdAt: '2026-01-01T00:00:00.123456+00:00',
+      id: EXPORT_ROW.id,
+      orgId: EXPORT_ROW.org_id,
+      title: 'Ship the vertical',
+      updatedAt: '2026-02-01T09:30:00+00:00',
+    })
+    expect(ExportedNote.parse(exported)).toEqual(exported)
+    expect(exported).not.toHaveProperty('org_id')
+  })
+
+  it('throws on a drifted row — same loud law as toNoteRecord', () => {
+    expect(() => toExportedNote({ ...EXPORT_ROW, org_id: 'not-a-uuid' })).toThrow()
+    expect(() => toExportedNote(null)).toThrow()
   })
 })

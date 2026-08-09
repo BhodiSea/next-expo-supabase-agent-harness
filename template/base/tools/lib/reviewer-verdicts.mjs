@@ -7,8 +7,11 @@
 // like, and which turn an entry belongs to. Two copies of that agreement is the drift this
 // release has spent itself deleting.
 //
-// Pure: no process exit, no I/O. Every consumer supplies its own failure vocabulary.
+// Pure: no process exit, no I/O (hashing is computation, not I/O — pathStateDigest takes a
+// reader precisely so the file system stays the caller's business). Every consumer supplies
+// its own failure vocabulary.
 // SOURCE: design/CONTROL-PLANE-FACTS.md (the observed SubagentStop payload)
+import { createHash } from 'node:crypto'
 
 /** The mandated terminal line. `check-docs-sync.mjs` requires every reviewer body to demand it. */
 const VERDICT_RE = /^VERDICT:\s*(PASS|BLOCK)\s*$/
@@ -73,6 +76,57 @@ export function owedBy(files, reviewers) {
     if (hit !== undefined) owed.push({ agent: r.agent, because: hit, why: r.why })
   }
   return owed
+}
+
+/** @param {string|Uint8Array} data */
+const sha256 = (data) => createHash('sha256').update(data).digest('hex')
+
+/**
+ * The tree state a verdict binds to (0.7.0): sha256 over the SORTED (path, content-sha256)
+ * pairs of the changed files matching this reviewer's trigger patterns — or null for an
+ * agent the trigger table does not name.
+ *
+ * One implementation, in the lib both ends import, because the two ends must AGREE: the
+ * hook records this digest beside the verdict at SubagentStop, and the Stop step recomputes
+ * it and refuses a PASS whose binding no longer matches — "a reviewer ran" and "a reviewer
+ * reviewed THIS" are different claims, and the difference is exactly the files that moved
+ * after the PASS.
+ *
+ * The mechanics, each load-bearing:
+ *   - PER-REVIEWER SCOPE: only files matching this reviewer's paths (minus its excepts)
+ *     participate, so a post-PASS edit elsewhere does not send an unrelated verdict stale.
+ *   - SORTED, DEDUPLICATED: git-diff local mode yields Set insertion order; a digest that
+ *     moved with enumeration order would be nondeterministic noise wearing a hash's clothes.
+ *   - POSIX-NORMALIZED: a Windows hook and a POSIX CI must compute the same digest for the
+ *     same tree, so `\` becomes `/` before matching and before hashing.
+ *   - PER-FILE INNER HASH, NUL-DELIMITED (the escape spelling — a literal NUL makes a
+ *     source file binary to grep): hashing `(path, sha256(content))` pairs rather than
+ *     concatenated bytes means no adjacent pair of files can collide by content reflow.
+ *   - DELETED FILES HASH AS (path, "DELETED"): a changed path can be absent from disk at
+ *     either end (staged-then-deleted), and a reader that threw would turn bookkeeping into
+ *     the reason a verdict is not recorded. The caller signals deletion by returning null.
+ * @param {string} agentType
+ * @param {{reviewers?: Array<{agent: string, paths?: string[], except?: string[]}>}|null} triggers
+ *   parsed tools/reviewer-triggers.json
+ * @param {readonly string[]} files repo-relative changed paths (tools/lib/git-diff.mjs shape)
+ * @param {(path: string) => string|Uint8Array|null} readFileLike the file's bytes, or null
+ *   when the path no longer exists
+ * @returns {string|null}
+ */
+export function pathStateDigest(agentType, triggers, files, readFileLike) {
+  const reviewer = (triggers?.reviewers ?? []).find((r) => r?.agent === agentType)
+  if (reviewer === undefined) return null
+  const owned = [...new Set((files ?? []).map((f) => String(f).split('\\').join('/')))]
+    .filter((f) => matchesAny(f, reviewer.paths) && !matchesAny(f, reviewer.except))
+    .sort()
+  const h = createHash('sha256')
+  for (const path of owned) {
+    const content = readFileLike(path)
+    h.update(
+      `${path}\u0000${content === null || content === undefined ? 'DELETED' : sha256(content)}\n`,
+    )
+  }
+  return h.digest('hex')
 }
 
 /**

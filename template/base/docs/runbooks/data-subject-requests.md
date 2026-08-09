@@ -55,11 +55,45 @@ Run `node tools/check-data-flow.mjs` for the current list. As shipped:
 the gate closes it against the schema in both directions — a projected column no migration
 creates reds, and a subject-data table that is neither projected nor excluded reds.
 
-**There is no delivered export surface yet** (`export.surface.kind` is `"none"`, with a
-`target`). Until there is, run the projection by hand as the subject's own role — every
-projected row is readable under their policies, so no elevated credential is involved, and
-that is deliberate: an export that needs `service_role` is an export that can return somebody
-else's rows if the filter is wrong.
+**The delivered surface is `system.exportMyData`** (`export.surface` names
+`packages/api/src/routers/system.ts`) — a tRPC query on `authedProcedure` that runs **as the
+subject, under RLS**. Every projected row is readable under their own policies, so no
+elevated credential is involved anywhere in the path, and that is deliberate: an export that
+needs `service_role` is an export that can return somebody else's rows if the filter is
+wrong. It is a procedure, not a screen (see `PARITY.md`): the subject triggers it from any
+authenticated client, or support walks them through it — it is never fulfilled by an
+operator acting as someone else.
+
+To fulfil a request:
+
+1. Authenticate **as the subject** (their session; never a service credential).
+2. Call `system.exportMyData` with no cursor. Each page carries the profile, the full seat
+   list, and one org's slice of the notes they **authored**, newest first.
+3. Follow `notes.nextCursor` until it is `null` — the walk visits each org the subject holds
+   a seat in, one org at a time, and a page may carry fewer than `limit` notes (an export is
+   a batch walk, not a screen). Concatenate the `notes.items` arrays; the final page's
+   profile + memberships are current.
+4. Deliver the collected JSON to the subject.
+
+Three properties worth knowing when someone asks why the numbers look the way they do:
+
+- **Authored-only is application logic, in the query.** RLS admits every *org-mate's* notes
+  to the caller; the procedure filters `owner_id = <the subject>` because exporting the
+  whole org's content into one member's personal archive is the same over-export the
+  `excluded[]` reasons forbid. Archived notes are **included** — an archive flag does not
+  make a note less the subject's.
+- **Memberships are bounded** at `EXPORT_MEMBERSHIPS_LIMIT` (200) seats, ordered by org id —
+  an unconditional LIMIT like every read in the repo. A subject somehow past it needs a
+  manual query, and you will know, because the memberships array arrives exactly at the cap.
+- **Installs seeded before 0.7.0** predate the procedure: your `packages/` tree is seeded
+  (yours, never overwritten by `update`), and your own `tools/data-flow.json` still records
+  *your* state. The data-flow gate now enforces the `export.surface.target` date, so your two
+  legitimate moves are to ship your own surface (the template's
+  `packages/api/src/routers/system.ts` + `packages/api/src/export.ts` +
+  `@app/notes` `listAuthoredNotes` are the worked pattern, and
+  `npx next-expo-supabase-agent-harness update --refresh-seeded tools/data-flow.json` pulls
+  the reviewed exemplar of the policy file) or to re-review the target to a release you mean,
+  in a reviewed diff.
 
 The exclusions are as much a part of the answer as the projection, and each carries its
 reason in the same file. The one worth understanding: an **audit trail is data the controller

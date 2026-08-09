@@ -29,5 +29,6 @@ authoring-vertical-slice adds web screens, these `—` cells become paths.
 | notes.list | — | apps/mobile/src/features/notes/NotesPanel.tsx | Mobile: the home panel + the matrix (keyset) list notes. Web: no notes list screen yet — W9 adds it (the app-data read exists at apps/web/lib/app-data/notes.ts). |
 | notes.remove | — | — | Delete affordance not surfaced on either surface yet; the procedure exists ahead of the UI. W9 wires it into the note row. |
 | notes.update | — | — | Edit affordance not surfaced yet; the procedure exists ahead of the UI. W9 wires it into the note-detail screen. |
+| system.exportMyData | — | — | DSR delivery surface: the Art. 20 portability export (tools/data-flow.json export.surface), invoked per docs/runbooks/data-subject-requests.md as the subject — deliberately not a screen on either surface; it exists to be called when a request arrives, like system.me it belongs to the account layer, not a rendered page. |
 | system.health | — | apps/mobile/src/features/connection/ConnectionStatus.tsx | Mobile: the liveness indicator polls it. Web: infra liveness is not a user screen — intentionally web-exempt. |
 | system.me | — | — | Session identity: consumed by the auth/session layer (the supabase provider, server getVerifiedUser), not a rendered screen on either surface — intentionally exempt. |

@@ -8,9 +8,13 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { loadStopChain } from '../../template/base/tools/lib/stop-chain.mjs'
 
 const VALIDATE = fileURLToPath(new URL('../../template/base/tools/validate.mjs', import.meta.url))
+const STOP_LIB = fileURLToPath(
+  new URL('../../template/base/tools/lib/stop-chain.mjs', import.meta.url),
+)
 
 function cleanEnv(extra = {}) {
   const env = { ...process.env }
@@ -153,6 +157,114 @@ test('--report-all: a non-PARALLEL_SAFE step runs EXCLUSIVE — serialized betwe
   // and it finishes before the next batch starts
   assert.ok(at('end:custom-step') < at('start:licenses'), r.log.join(','))
   assert.ok(at('end:custom-step') < at('start:docs-sync'), r.log.join(','))
+})
+
+// ── --stop-chain: the STOP union as a resolution MODE ────────────────────────
+// The Stop chain finally has a runner outside a live turn: `--stop-chain` swaps
+// resolveSteps() for the floor∪config union computed by the SAME lib the hook imports
+// (tools/lib/stop-chain.mjs), composing with --list and --report-all. Membership of both
+// chains is untouched — this is a resolution mode, not a new chain.
+
+/**
+ * A scaffold-shaped fixture for the stop-chain mode: validate.mjs + the shared union lib,
+ * marker-script STOP steps, a deliberately RED VALIDATE_STEPS decoy (so any leak of the
+ * default resolution into --stop-chain reds the assertion), and a floor under our control.
+ * @param {{ config: string[], floor: string[] | null, corruptFloor?: string }} spec
+ */
+function stopChainFixture({ config, floor, corruptFloor }) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-validate-stop-'))
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  copyFileSync(VALIDATE, join(dir, 'tools/validate.mjs'))
+  copyFileSync(STOP_LIB, join(dir, 'tools/lib/stop-chain.mjs'))
+  for (const n of new Set([...config, ...(floor ?? [])])) {
+    writeFileSync(
+      join(dir, `mark-${n}.mjs`),
+      `import { writeFileSync } from 'node:fs'\nwriteFileSync('ran-${n}', '1')\n`,
+    )
+  }
+  const tuple = (n) => `['${n}', 'node mark-${n}.mjs']`
+  writeFileSync(
+    join(dir, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = [['decoy', 'node -e "process.exit(1)"']]\nexport const STOP_HOOK_STEPS = [${config.map(tuple).join(', ')}]\n`,
+  )
+  if (corruptFloor !== undefined) {
+    writeFileSync(join(dir, 'tools/stop.floor.json'), corruptFloor)
+  } else if (floor !== null) {
+    writeFileSync(
+      join(dir, 'tools/stop.floor.json'),
+      `${JSON.stringify({ comment: 'fixture', steps: floor.map((n) => [n, `node mark-${n}.mjs`]) }, null, 2)}\n`,
+    )
+  }
+  return dir
+}
+
+function runStopChain(dir, args) {
+  const res = spawnSync('node', ['tools/validate.mjs', ...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: cleanEnv(),
+  })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+test('--stop-chain --list output EQUALS the union the shared lib computes (floor-first, config-append, no subtraction)', () => {
+  const dir = stopChainFixture({
+    config: ['validate', 'house-rule'],
+    floor: ['validate', 'test-quality'],
+  })
+  const r = runStopChain(dir, ['--stop-chain', '--list'])
+  assert.equal(r.code, 0, r.out)
+  const lines = r.out.split(/\r?\n/).filter((l) => l.trim() !== '')
+  // The expected union comes from the LIB ITSELF over the same fixture files — the pin is
+  // that the CLI and the lib can never disagree, which is the whole point of one implementation.
+  const expected = loadStopChain(
+    [
+      ['validate', 'node mark-validate.mjs'],
+      ['house-rule', 'node mark-house-rule.mjs'],
+    ],
+    pathToFileURL(join(dir, 'tools/stop.floor.json')),
+  )
+  assert.equal(expected.floorNote, null)
+  assert.deepEqual(
+    lines,
+    expected.steps.map(([n, c]) => `${n}  ${c}`),
+  )
+  assert.deepEqual(
+    lines.map((l) => l.split('  ')[0]),
+    ['validate', 'test-quality', 'house-rule'],
+    'floor order first (the dropped test-quality is back), appended house-rule last',
+  )
+  assert.ok(!r.out.includes('decoy'), 'VALIDATE_STEPS must not leak into the stop-chain resolution')
+})
+
+test('--stop-chain RUNS the union and composes with --report-all: a floored step the config dropped still executes, and its red fails the run', () => {
+  const dir = stopChainFixture({ config: ['validate'], floor: ['validate', 'boom'] })
+  writeFileSync(join(dir, 'mark-boom.mjs'), 'process.exit(3)\n')
+  const r = runStopChain(dir, ['--stop-chain', '--report-all'])
+  assert.equal(r.code, 1, r.out)
+  assert.ok(existsSync(join(dir, 'ran-validate')), 'the config step must run')
+  assert.ok(r.out.includes('✗ boom'), `the floored step the config dropped must run and red: ${r.out}`)
+  assert.ok(r.out.includes('✓ validate'), r.out)
+  assert.ok(!r.out.includes('not run'), 'report-all never stops early')
+})
+
+test('--stop-chain FAILS CLOSED on a missing or corrupt floor — a runner asked to PROVE the chain must not prove a weakened one', () => {
+  // The deliberate contrast with the hook (fail-open-with-NOTE): a corrupt floor must not
+  // brick every live turn on a machine, but a CI runner deriving the canary baseline from
+  // this mode must abort rather than quietly derive it from the config alone.
+  const missing = runStopChain(stopChainFixture({ config: ['validate'], floor: null }), [
+    '--stop-chain',
+    '--list',
+  ])
+  assert.equal(missing.code, 1)
+  assert.match(missing.out, /FAILING CLOSED/)
+
+  const corrupt = runStopChain(
+    stopChainFixture({ config: ['validate'], floor: [], corruptFloor: '{ not json' }),
+    ['--stop-chain', '--list'],
+  )
+  assert.equal(corrupt.code, 1)
+  assert.match(corrupt.out, /FAILING CLOSED/)
 })
 
 test('default mode (no --report-all) stays serial and stops at first failure even for PARALLEL_SAFE names', () => {

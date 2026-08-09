@@ -61,6 +61,16 @@ CREATE TRIGGER notes_set_updated_at
 CREATE INDEX notes_org_id_created_at_id_idx
   ON public.notes (org_id, created_at DESC, id DESC);
 
+-- The DSR export's seek (system.exportMyData): one org's notes AUTHORED BY the
+-- subject, same keyset order. The index above serves the org list but leaves
+-- owner_id to a per-row filter; this one carries the equality pair
+-- (org_id leading — tenant tables lead with the tenant key) and then the
+-- keyset tail, so the authored-notes walk is an ordered index scan too.
+-- Applied by 20260808000000_notes_export_index.sql.
+-- SOURCE: https://www.postgresql.org/docs/17/indexes-ordering.html
+CREATE INDEX notes_org_id_owner_id_created_at_id_idx
+  ON public.notes (org_id, owner_id, created_at DESC, id DESC);
+
 -- org_id is immutable: without this every scope predicate above is advisory, because
 -- an UPDATE that passes its own policy could rewrite org_id and hand the row to
 -- another tenant. No WHEN clause — a freeze that can be disarmed is not a freeze.

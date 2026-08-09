@@ -156,28 +156,22 @@ jobs:
             echo '::error::CANARY: the RLS runner exited 0 with no database reachable — a skip is reading as a pass'; exit 1
           fi
           echo 'canary OK: rls runner fails closed without a database'
-      - name: Baseline — every canaried gate PASSES on the clean scaffold
+      - name: Baseline — the DERIVED Stop-chain union PASSES on the clean scaffold
         working-directory: ${{ runner.temp }}/canary
         run: |
-          # GITHUB_BASE_REF belongs to the harness checkout, not this scaffold
-          # repo — unset it so the diff-based gates diff against the scaffold's
-          # own HEAD instead of a ref that does not exist here.
-          env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
-          env -u GITHUB_BASE_REF node tools/check-native-deps.mjs
-          env -u GITHUB_BASE_REF node tools/check-migrations.mjs
-          env -u GITHUB_BASE_REF node tools/check-sources.mjs
-          env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-gate-integrity.mjs
-          env -u GITHUB_BASE_REF node tools/check-prompts-lock.mjs
-          env -u GITHUB_BASE_REF node tools/check-styleguide-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-route-manifest.mjs
-          env -u GITHUB_BASE_REF node tools/check-mobile-perf.mjs --closure
-          env -u GITHUB_BASE_REF node tools/check-docs-sync.mjs
-          env -u GITHUB_BASE_REF node tools/check-duplication.mjs
-          env -u GITHUB_BASE_REF node tools/check-test-quality.mjs
-          env -u GITHUB_BASE_REF node tools/check-i18n.mjs
-          env -u GITHUB_BASE_REF node tools/check-e2e.mjs
-          env -u GITHUB_BASE_REF node tools/build-check.mjs
+          # DERIVED, not hand-typed (0.7.0). The sixteen gate invocations that used to sit
+          # here were a hand-copy of the chain they claimed to prove, and a hand-copy can
+          # drift — a step added to the union never joined this baseline, a renamed one
+          # rotted in it. The runner asks the scaffold's own `validate --stop-chain --list`
+          # for the floor∪config union (the SAME lib the Stop hook imports) and executes
+          # every member not declared in scripts/ci/stop-chain-exclusions.json — each
+          # exclusion PRINTED with its reason and the selftest step that DOES run it, and a
+          # stale entry reds the run before anything executes. The `validate` member runs
+          # the full 33-gate chain, which subsumes every gate the old list named. The
+          # runner itself scrubs GITHUB_BASE_REF (this scaffold is a different git repo)
+          # and exports a synthetic turn identity, so reviewer-verdicts EXECUTES with
+          # owed=[] instead of skipping.
+          node "$GITHUB_WORKSPACE/scripts/ci/run-stop-chain.mjs" .
       - name: 'Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
@@ -798,27 +792,9 @@ jobs:
       # WHICH step moved, and it reds on a chain step nobody budgeted.
       - name: Chain budget (per-step ceilings, from scripts/chain-budget.json)
         run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log
-      # RECORDING the measurement, which until 0.6.0 nothing could do. chain-budget.json's
-      # header prescribes "measure, commit the measurement, then publish — in that order",
-      # and step one had no implementation: the check above judged the numbers against
-      # ceilings and discarded them, so measuredMs has been null since the file was added
-      # and README.md carries no wall-clock figure because of it.
-      #
-      # DISPATCH-ONLY, and deliberately not on every push. A recorded measurement is
-      # REVIEWED DATA — its whole value is that a human looked at the number and the runner
-      # it came from before it licensed a published claim. Writing it automatically on every
-      # green run would turn it into a number nobody chose, which is the state it is meant
-      # to replace. Run the workflow by hand, download the artifact, commit it.
-      - name: Record the measurement (workflow_dispatch only — reviewed data, not a side effect)
-        if: github.event_name == 'workflow_dispatch'
-        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log --record
-      - name: Upload the recorded chain budget for review
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: chain-budget-measured
-          path: scripts/chain-budget.json
-          if-no-files-found: error
+      # (0.7.0: the dispatch-only measurement recording moved BELOW the Stop-chain budget
+      # step — the stop-chain log exists only once the Supabase stack is live, and one
+      # upload must carry BOTH stamps in the same reviewed artifact.)
       - name: Warm-lane positive control — the e2e stamp engaged (skipped the jest re-run)
         working-directory: .selftest/boot
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
@@ -859,6 +835,117 @@ jobs:
           # so this grep cannot false-green a run that never reached the database.
           grep -q '\[rls\] OK' rls.log \
             || { echo '::error::RLS suite did not complete green against the live stack (a self-skip or truncated run)'; exit 1; }
+      # The 0.7.0 release headline: through 0.6.0, NOTHING executed STOP_HOOK_STEPS as a
+      # chain except a live agent turn — every member had a proof, the chain the whole
+      # promise rests on had none. This is the first end-to-end execution of the real
+      # mechanism: a synthetic Stop payload piped into the SCAFFOLD's own hook, on the
+      # live stack, with exit 0 required and vacuity ruled out afterwards.
+      - name: 'THE STOP CHAIN — as a chain, via the real hook'
+        working-directory: .selftest/boot
+        run: |
+          # The union assembles from tools/stop.floor.json ∪ STOP_HOOK_STEPS inside the
+          # hook (via tools/lib/stop-chain.mjs), rls-isolation runs against the running
+          # database (HARNESS_STOP_GATE=1 makes a skip a failure), unit/mobile-unit run
+          # with coverage, diff-coverage reads the merged maps, and reviewer-verdicts
+          # EXECUTES — the session/prompt ids flow down from the payload; clean scaffold →
+          # owed=[] — a real code path, not a skip. CI=true so nothing rides a stamp;
+          # env -u GITHUB_BASE_REF for the same reason THE GATE above uses it. The log
+          # lands in RUNNER_TEMP so the hook's own validate never judges a tree this step
+          # dirtied. Coverage maps and the turn ledger are cleared first so the
+          # non-vacuity assertions below can only be satisfied by THIS run.
+          rm -rf coverage apps/mobile/coverage .harness/turn-outcomes.jsonl
+          if ! printf '%s' '{"session_id":"selftest","prompt_id":"selftest-stop","stop_hook_active":false}' \
+            | env -u GITHUB_BASE_REF CI=true node .claude/hooks/stop-validate-gate.mjs \
+            > "$RUNNER_TEMP/stop-chain-hook.log" 2>&1; then
+            tail -n 150 "$RUNNER_TEMP/stop-chain-hook.log"
+            echo '::error::the REAL Stop hook exited non-zero on a clean scaffold with the stack live — the chain the whole promise rests on is red'
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/stop-chain-hook.log"
+          # NOT VACUOUS, proven from the hook's own side effects: the turn ledger recorded
+          # a green outcome under the synthetic prompt id (the payload identity really
+          # flowed down — the same pass-down that reached reviewer-verdicts), and both
+          # coverage-instrumented unit suites freshly wrote their maps.
+          grep -q '"kind":"green"' .harness/turn-outcomes.jsonl \
+            || { echo '::error::the hook exited 0 but its turn ledger recorded no green outcome — the run was vacuous'; exit 1; }
+          grep -q '"prompt_id":"selftest-stop"' .harness/turn-outcomes.jsonl \
+            || { echo '::error::the ledger entry does not carry the synthetic prompt id — the payload identity never flowed down'; exit 1; }
+          test -f coverage/coverage-final.json \
+            || { echo '::error::vitest wrote no coverage map — the unit step did not actually run'; exit 1; }
+          test -f apps/mobile/coverage/coverage-final.json \
+            || { echo '::error::jest-expo wrote no coverage map — the mobile-unit step did not actually run'; exit 1; }
+          echo 'stop chain OK: the union ran end-to-end via the real hook (rls live, both coverage maps written, reviewer-verdicts executed, ledger green)'
+      # W7: the Stop chain's COST, captured where the chain can actually run — the stack
+      # is live (rls-isolation), stamps are warm (the cold --min-floor run recorded them;
+      # CI=false keeps them engaged), so this measures the turn-end latency an agent
+      # actually waits through, not the fail-closed CI shape the hook e2e above just
+      # proved. `validate --stop-chain` resolves the SAME floor∪config union the hook
+      # runs (one lib, two callers) and shares the VALIDATE_TIMINGS emitter — which is
+      # the whole reason this is a dedicated run rather than a tee of the hook e2e: the
+      # hook does not emit timings, so its log can prove the chain green but can never
+      # name the step that got slower. Synthetic turn identity so reviewer-verdicts
+      # EXECUTES with owed=[] (a skip's timing budgets nothing). pipefail is
+      # LOAD-BEARING: --report-all runs every member even when one reds, so notRun stays
+      # 0 and the exit code is the only red signal — tee must not launder it.
+      - name: Stop-chain timings (validate --stop-chain --report-all, stamped, stack live)
+        working-directory: .selftest/boot
+        env:
+          CI: 'false'
+          HARNESS_REQUIRE_TOOLCHAINS: ''
+          HARNESS_SESSION_ID: selftest-stop-budget
+          HARNESS_PROMPT_ID: selftest-stop-budget
+        run: |
+          set -o pipefail
+          # env -u GITHUB_BASE_REF: the scaffold is a different repo — see THE GATE above.
+          env -u GITHUB_BASE_REF node tools/validate.mjs --stop-chain --report-all 2>&1 | tee stop-chain.log
+          {
+            echo '### Stop chain (stamped) — per-step ms'
+            echo '```'
+            grep -E '^  ' stop-chain.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The Stop half of the budget (stopSteps/stopWall in scripts/chain-budget.json).
+      # `validate` is deliberately rowless there — its cost IS the `wall` row, judged
+      # above on the warm-validate log — and the row closure covers the floor∪config
+      # union, so a future injected Stop step forces a budget row exactly like a validate
+      # step does today.
+      - name: Stop-chain budget (stopSteps ceilings, from scripts/chain-budget.json)
+        run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --stop-chain
+      # RECORDING the measurement, which until 0.6.0 nothing could do. chain-budget.json's
+      # header prescribes "measure, commit the measurement, then publish — in that order",
+      # and step one had no implementation: the check above judged the numbers against
+      # ceilings and discarded them, so measuredMs has been null since the file was added
+      # and README.md carries no wall-clock figure because of it.
+      #
+      # DISPATCH-ONLY, and deliberately not on every push. A recorded measurement is
+      # REVIEWED DATA — its whole value is that a human looked at the number and the runner
+      # it came from before it licensed a published claim. Writing it automatically on every
+      # green run would turn it into a number nobody chose, which is the state it is meant
+      # to replace. Run the workflow by hand, download the artifact, commit it.
+      #
+      # AND ONE MATRIX LEG ONLY (node 22, like every other single-leg step in this job).
+      # A dispatch runs BOTH node legs through this job, artifact names are immutable, and
+      # the second leg's upload of `chain-budget-measured` collides and fails — so the trio
+      # below (both record steps and the upload) is gated to one leg. That is also what
+      # "reviewed data" requires: two runners' numbers in one artifact would make the human
+      # pick between them, which is the exact ambiguity the dispatch-only rule removes.
+      - name: Record the measurement (workflow_dispatch only — reviewed data, not a side effect)
+        if: github.event_name == 'workflow_dispatch' && matrix.node == 22
+        run: node scripts/check-chain-budget.mjs .selftest/boot/warm-validate.log --record
+      # The Stop half rides the SAME reviewed-dispatch path: both writers stamp the same
+      # scripts/chain-budget.json (each preserves the other's surface — the stop writer
+      # never touches wall/steps/measurement and vice versa), so the one artifact below
+      # carries both stamps for one human review.
+      - name: Record the Stop-chain measurement (workflow_dispatch only — same reviewed-dispatch path)
+        if: github.event_name == 'workflow_dispatch' && matrix.node == 22
+        run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --record --stop-chain
+      - name: Upload the recorded chain budget for review
+        if: github.event_name == 'workflow_dispatch' && matrix.node == 22
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chain-budget-measured
+          path: scripts/chain-budget.json
+          if-no-files-found: error
       # W6 armed (the registry-level PORT NOTE retired with it): the source
       # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
       # looking at the DAL's real SQL, not a statement nobody runs.
@@ -866,17 +953,19 @@ jobs:
         if: matrix.node == 22
         working-directory: .selftest/boot
         run: |
-          # notes.org_id is the tenant key every policy qual filters on, and TWO indexes
+          # notes.org_id is the tenant key every policy qual filters on, and THREE indexes
           # lead with it since the org re-scope: notes_org_id_created_at_id_idx (which
-          # also carries the keyset ORDER BY tail) and notes_pkey, which became
-          # (org_id, id) so the table is partition-ready. The pgTAP structure suite
-          # asserts every owner column leads SOME index, so BOTH have to go for the
-          # invariant to be exercised — dropping only the secondary one leaves the PK
-          # satisfying it and the canary silently stops biting, which is the exact shape
-          # of rot this job exists to catch. Applied directly (not via a migration edit)
-          # and restored below.
+          # also carries the keyset ORDER BY tail), notes_pkey — (org_id, id), partition-
+          # ready — and, since 0.7.0, notes_org_id_owner_id_created_at_id_idx (the DSR
+          # export's covering index). The pgTAP structure suite asserts every owner column
+          # leads SOME index, so ALL THREE have to go for the invariant to be exercised —
+          # leaving any one satisfies it and the canary silently stops biting, which is
+          # the exact shape of rot this job exists to catch (0.7.0 proved it: the export
+          # index landed and this canary fired on its own vacuity within one PR round).
+          # Applied directly (not via a migration edit) and restored below.
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_owner_id_created_at_id_idx'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes DROP CONSTRAINT notes_pkey'
           if supabase test db > plan-canary.log 2>&1; then
             tail -n 60 plan-canary.log
@@ -891,9 +980,10 @@ jobs:
             exit 1
           fi
           grep -Ei 'Failed test|LEADING column of some index|org_id' plan-canary.log | tail -n 6 || true
-          # Restore both so the job's remaining steps see the intended schema.
+          # Restore all three so the job's remaining steps see the intended schema.
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes ADD CONSTRAINT notes_pkey PRIMARY KEY (org_id, id)'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_owner_id_created_at_id_idx ON public.notes (org_id, owner_id, created_at DESC, id DESC)'
           echo 'canary OK: the RLS structure test went red on the dropped keyset index'
       - name: 'Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)'
         if: matrix.node == 22
@@ -1199,6 +1289,17 @@ jobs:
   # that pressure is usually to drop a leg. `fail-fast: false` because this is a release
   # gate: which OTHER baselines also break is the information you need, and cancelling the
   # survivors to report the first failure faster is the wrong trade here.
+  #
+  # 0.7.0 — SIX LEGS. The seven 0.6.0-era sites expire for every vintage 0.1.3–0.5.0 at
+  # once: the widest affects list in the lineage, and the first that reds the release's
+  # own recent predecessors — which is what leg F exists to watch. Three of the expiring
+  # gates live where this lane structurally cannot execute them (diff-coverage and
+  # reviewer-verdicts are Stop-chain steps; web-e2e belongs to the consumer's CI lane,
+  # outside BOTH chains): upgrade-lane.sh §7 narrow() drops those from a leg's executed
+  # expectation, and §7e refuses any dropped DEADLINE that does not name its compensating
+  # proof in scripts/ci/stop-side-expiries.json — the reviewed answer to an expiry no
+  # lane can see. Every number below is COMPUTED per leg by ramp-expectations.mjs; the
+  # counts in these comments are commentary over that, never the assertion itself.
   upgrade-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -1211,51 +1312,63 @@ jobs:
           # deadline. Adding older legs must never replace it — it is the only leg on which a
           # RED chain is unambiguously a regression rather than an expiry.
           #
-          # IT NO LONGER REACHES `graduate`'s SUCCESS BRANCH, AND AT 0.6.0 NOTHING DOES.
-          # That claim stood here through 0.5.0 and was true by coincidence: 0.5.0 opened no
-          # ramp at its own minVersion, so leg A's install saw no NOTE and graduated cleanly.
-          # 0.6.0 opens three (auth-posture, the web route registry, the re-opened docs-sync
-          # gate list), every leg's baseline is below 0.6.0, and `graduate` correctly refuses
-          # while a NOTE stands — so all four legs take the refusal branch. That is the
-          # mechanism working: a 0.5.0 install really does have three adoption seams to sweep
-          # before graduating. What it costs is the proof that the door OPENS — which is why
-          # LEG E below exists: it SWEEPS (refresh-seeded for the withheld seams, derivable
-          # from this version's `seedOnInitOnly`, plus the gate-name paste the docs-sync NOTE
-          # prints) and then REQUIRES graduate to succeed. On this leg and the two below it,
-          # §8 asserts the refusals are CORRECT rather than asserting one of them is a
-          # success; leg E is the one that asserts the success.
+          # AT 0.7.0 ITS BASELINE IS THE ONE RELEASED VINTAGE THIS RELEASE DOES NOT RED —
+          # the seven 0.6.0-era sites expire for 0.1.3 through 0.5.0, and a v0.6.0 install
+          # is past every one of those minVersions, so this leg computes EXPIRED='' with
+          # INERT at 26. It STILL does not reach `graduate`'s SUCCESS branch: 0.7.0 opens
+          # four ramps of its own, dated 0.8.0 (version-sync's iOS build-toolchain floor
+          # over eas.json, data-flow's export.surface.target deadline, docs-sync's deferral
+          # ledger, reviewer-verdicts' path_state binding), and the first two produce
+          # findings on an un-swept install, so their NOTEs stand and graduate correctly
+          # refuses. The other two note only when they have findings to withhold — §7b
+          # reads their clean run as the honest answer, not a check shipped disabled. So
+          # every un-swept leg takes the refusal branch, and the SUCCESS branch remains
+          # leg E's alone: it sweeps first, then REQUIRES the door to open. On this leg
+          # and the expiry legs below, §8 asserts the refusals are CORRECT rather than
+          # asserting one of them is a success.
           - leg: A
             baseline: ''
             dir: upgrade
             why: previous release — the only leg where a red chain is unambiguously a regression
           # LEG B — the oldest tag in this lineage (0.1.0–0.1.2 belong to the ancestor
-          # project). Every ramp with a deadline in the PAST expires here — 19 of the 22
-          # sites, over 12 gates, with `INERT` at zero — so it is the maximum-blast leg and
-          # the one that first executed a RAMP EXPIRED branch at all. The other three sites
-          # are 0.6.0's own, dated 0.7.0, and they NOTE on every leg (see leg A).
+          # project). Every ramp with a deadline in the PAST expires here — 26 of the 30
+          # shipped sites, over 17 gates, with `INERT` at zero: every site in the fleet is
+          # live on this leg — so it is the maximum-blast leg and the one that first
+          # executed a RAMP EXPIRED branch at all. The other four sites are 0.7.0's own,
+          # dated 0.8.0, and they NOTE on every leg (see leg A). Counts verified against
+          # `ramp-expectations.mjs 0.1.3 0.7.0`, which is also what the lane asserts.
           - leg: B
             baseline: v0.1.3
             dir: upgrade-oldest
             why: oldest release — every past deadline lands at once
-          # LEG C — the vintage 0.5.0's escapes were opened against. It meets SEVEN of the
-          # eight and none of 0.4.0's twelve, which is the isolation neither neighbour has:
-          # leg B drowns them in nineteen, and leg D sees only two. Seven rather than eight
-          # because 0.6.0 re-opened the AGENTS.md gate-list escape to 0.7.0 — the lineage's
-          # first `rampExtensions` record — so on this leg it is a NOTE, not an expiry.
+          # LEG C — the 0.2.x vintage: everything leg D meets PLUS gate-integrity, whose
+          # min-0.3.0 site fell due at 0.5.0 — ten gates in all — and NONE of the seven
+          # gates whose 0.2.x-opened ramps only leg B's baseline still owes (db-limits,
+          # migrations, prompts, query-shapes, rate-limits, security-headers, tenancy).
+          # That is the isolation neither neighbour has: leg B drowns the mid-lineage debt
+          # in the ancient set, and leg D's baseline is already past gate-integrity's
+          # minVersion and cannot execute it at all.
           - leg: C
             baseline: v0.2.1
             dir: upgrade-0-2-1
-            why: 0.5.0's expiries in isolation, without 0.4.0's twelve
-          # LEG D — the MINIMAL expiry leg, and the sharpest of the four. At HEAD 0.6.0 a
-          # 0.3.0 install still meets exactly two deadlines, and `narrow()` drops Stop-chain
-          # gates from the lane's expectation set, so `diff-coverage` falls away and the
-          # executed set is exactly `wiring`. A single-element expectation is the only one
-          # that can be neutralised to prove the lane itself still dies — with a larger set,
-          # one silenced expiry hides behind its siblings.
+            why: the mid-lineage vintage — leg D's set plus gate-integrity, without leg B's 0.2.x debt
+          # LEG D — the multi-release ACCUMULATION leg. Through 0.6.0 this was the minimal
+          # leg ("narrows to exactly one executed gate"), which is no longer true and no
+          # longer needed: the single-element neutralised-expiry property it justified has
+          # been unit-owned by tests/gates/ramp-verdict.test.mjs since 0.5.0. At 0.7.0 a
+          # 0.3.0 install meets two releases' debt at once — the 0.5.0-due leftovers
+          # (wiring's min-0.4.0 site, diff-coverage's surface ramp) stacked under the seven
+          # 0.7.0-due 0.6.0-era sites — nine gates in all, the shape of an install that
+          # skipped releases. It is also the §7e showcase: all three lane-invisible
+          # expiries (diff-coverage, reviewer-verdicts, web-e2e) drop from its executed
+          # set, and §7e holds each to the registered unit proof in
+          # scripts/ci/stop-side-expiries.json that drives the REAL gate to its RAMP
+          # EXPIRED exit on a fixture. And it shares its baseline with leg E on purpose —
+          # same tree, same expiry set, so the sweep is the only difference between them.
           - leg: D
             baseline: v0.3.0
             dir: upgrade-0-3-0
-            why: the minimal expiry set — narrows to exactly one executed gate
+            why: the accumulation leg — two releases' deadlines land at once, three drop to §7e proofs
           # LEG E — the SWEEP leg, and the only one that opens graduate's door. Every leg
           # above ends with graduate REFUSING, because an upgraded install always has ramped
           # findings outstanding — that is what a ramp is for. The SUCCESS branch is the one
@@ -1266,12 +1379,32 @@ jobs:
           # that the door opens, and that the runbook is SUFFICIENT. A runbook whose steps do
           # not clear the findings is worse than no runbook, and nothing else here would
           # notice. It shares leg D's baseline deliberately: same tree, same expiry set, so
-          # the only difference between the two results is the sweep itself.
+          # the only difference between the two results is the sweep itself. 0.7.0: the
+          # sweep is multi-version — upgrade-sweep.mjs derives per crossed version through
+          # a reviewed SWEEPS table (pinned by tests/gates/upgrade-sweep.test.mjs) — and it
+          # must also clear the four 0.8.0-dated NOTEs 0.7.0 opens, or graduate's required
+          # SUCCESS here reds the release.
           - leg: E
             baseline: v0.3.0
             dir: upgrade-sweep
             sweep: '--sweep'
             why: the swept leg — the only one that executes graduate's SUCCESS branch
+          # LEG F — the HEADLINE POPULATION (new at 0.7.0). This is the first release that
+          # reds its own recent predecessors, and a claim that wide should be WATCHED going
+          # red in a lane, not inferred from a classifier test: a v0.5.0 install meets
+          # exactly the seven 0.6.0-era deadlines (auth-posture, data-flow, docs-sync,
+          # reviewer-verdicts, route-manifest, schema-rls, web-e2e) and nothing older —
+          # the cleanest expiry population in the lineage, and the one the runbook's
+          # 0.5.0-baseline paragraph rests on. reviewer-verdicts and web-e2e drop to their
+          # §7e-registered proofs; the rest must red the chain, each on a predicted RAMP
+          # EXPIRED line. (A v0.4.0 baseline computes the same set — v0.5.0 is the newest
+          # vintage this release reds, which is what makes the predecessor claim literal.)
+          # Same lane script, generic `--from` baseline resolution, expectations computed
+          # by ramp-expectations.mjs like every leg; no sweep.
+          - leg: F
+            baseline: v0.5.0
+            dir: upgrade-0-5-0
+            why: the newest vintage this release reds — the headline population in isolation
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

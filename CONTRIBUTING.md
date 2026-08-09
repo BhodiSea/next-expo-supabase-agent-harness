@@ -72,15 +72,19 @@ pnpm exec tsc --noEmit                  # checkJs over installer/, scripts/, tes
 pnpm exec knip                          # dead exports/files/deps in the machinery
 node scripts/check-complexity-ratchet.mjs  # re-lints with --no-inline-config: a disable cannot hide growth
 node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot be deleted or narrowed
-# The other four machinery-lint blockers. They were missing from this list through 0.5.0,
-# so a maintainer who ran the list literally went red in CI on four checks they never ran —
-# which is precisely the "a subset is how four of these came to be red at once" failure the
-# paragraph above this block warns about. The last two need full git history (fetch-depth: 0)
-# and SKIP LOUDLY without a previous release tag rather than passing.
+# The other five lint.yml blockers. The four machinery-lint ones were missing from this
+# list through 0.5.0, so a maintainer who ran the list literally went red in CI on four
+# checks they never ran — precisely the "a subset is how four of these came to be red at
+# once" failure the paragraph above this block warns about — and check-seeded-migrations
+# was missing through 0.6.0. check-claims now derives lint.yml's blocking check list and
+# refuses this section omitting any of it, so the closure is mechanical rather than
+# remembered. The last three need full git history (fetch-depth: 0) and SKIP LOUDLY
+# without a previous release tag rather than passing.
 node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED reconcile
 node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
+node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
 
 # The one that matters most — the scaffold must be green with ZERO edits:
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
@@ -89,7 +93,7 @@ cd /tmp/scratch && pnpm install && git init -q && git add -A \
   && node tools/validate.mjs --report-all
 ```
 
-`--report-all` runs all **31** steps and shows every red at once. The two added in
+`--report-all` runs all **33** steps and shows every red at once. The two added in
 0.3.0 run before anything expensive and are the ones most likely to catch a
 machinery mistake: `wiring` (step 3 — are the enforcement layers actually
 connected) and `secrets` (step 4 — a hermetic credential scan, in rule-id lockstep
@@ -103,9 +107,9 @@ github:…` never installs them.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **six**
+   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **seven**
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
-   (`pretool-mcp-guard.mjs` joined them in 0.3.0 — the gate iterates the
+   (`subagent-verdict.mjs` joined them in 0.6.0 — the gate iterates the
    directory, so the count follows the tree rather than this sentence).
 3. Run `node scripts/check-release-lockstep.mjs` — the same check runs on every
    PR in the selftest matrix and again at tag time.

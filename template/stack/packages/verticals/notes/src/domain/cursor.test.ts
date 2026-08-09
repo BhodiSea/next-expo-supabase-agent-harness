@@ -1,6 +1,18 @@
-import { NOTES_CURSOR_MAX, NotesListQuery } from '@app/contracts'
+import {
+  EXPORT_CURSOR_MAX,
+  ExportMyDataSchema,
+  NOTES_CURSOR_MAX,
+  NotesListQuery,
+} from '@app/contracts'
 import { describe, expect, it } from 'vitest'
-import { decodeNotesCursor, encodeNotesCursor, type NoteCursor } from './cursor.js'
+import {
+  decodeNotesCursor,
+  decodeNotesExportCursor,
+  encodeNotesCursor,
+  encodeNotesExportCursor,
+  type NoteCursor,
+  type NotesExportCursor,
+} from './cursor.js'
 
 const KEY: NoteCursor = {
   createdAt: '2026-01-01T00:00:00.123456+00:00',
@@ -196,5 +208,80 @@ describe('length + codec guards each reject on their own, not by luck downstream
     expect(() =>
       encodeNotesCursor({ ...KEY, createdAt: '2026-01-01T00:00:00Z2026-01-01T00:00:00Z' }),
     ).toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The EXPORT cursor — the compound token, held to the same strictness.
+// ---------------------------------------------------------------------------
+
+describe('the export cursor codec', () => {
+  const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+  const START: NotesExportCursor = { note: null, orgId: ORG_ID }
+  const MID: NotesExportCursor = { note: encodeNotesCursor(KEY), orgId: ORG_ID }
+
+  it('round-trips both positions: the start of an org and a keyset within one', () => {
+    expect(decodeNotesExportCursor(encodeNotesExportCursor(START))).toEqual(START)
+    expect(decodeNotesExportCursor(encodeNotesExportCursor(MID))).toEqual(MID)
+  })
+
+  it('the inner token is a REAL notes cursor — one codec validates it, not two', () => {
+    const decoded = decodeNotesExportCursor(encodeNotesExportCursor(MID))
+    expect(decoded).not.toBeNull()
+    if (decoded?.note == null) return
+    expect(decodeNotesCursor(decoded.note)).toEqual(KEY)
+  })
+
+  it('emits a token the wire contract accepts, within its own bound', () => {
+    const token = encodeNotesExportCursor(MID)
+    expect(token.length).toBeLessThanOrEqual(EXPORT_CURSOR_MAX)
+    expect(() => ExportMyDataSchema.parse({ cursor: token })).not.toThrow()
+  })
+
+  it('rejects what it did not mint: bad org, smuggled fields, oversize, garbage', () => {
+    expect(() => encodeNotesExportCursor({ note: null, orgId: 'not-a-uuid' })).toThrow()
+    expect(() => encodeNotesExportCursor({ note: 'not base64url!', orgId: ORG_ID })).toThrow()
+    expect(decodeNotesExportCursor('%%%')).toBeNull()
+    expect(decodeNotesExportCursor('A'.repeat(EXPORT_CURSOR_MAX + 1))).toBeNull()
+    // A decoded object with a passenger key is not our token.
+    const smuggled = encodeNotesCursor(KEY) // a NOTES token is not an EXPORT token
+    expect(decodeNotesExportCursor(smuggled)).toBeNull()
+  })
+})
+
+describe('the export-cursor guards each reject on their own, not by luck downstream (mutation kills)', () => {
+  const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
+  const inner = `"note":null,"orgId":"${ORG_ID}"`
+  const decoded = { note: null, orgId: ORG_ID }
+
+  it('accepts a token whose length is EXACTLY the contract bound (the bound is inclusive)', () => {
+    // 384-byte whitespace-padded valid-cursor JSON -> exactly EXPORT_CURSOR_MAX chars.
+    // The `>` vs `>=` boundary: exactly-at-the-bound must PASS while past-the-bound
+    // (the test below) must reject — the pair pins the operator, not just the guard.
+    const token = encodeAsciiForTest(`{${' '.repeat(384 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(EXPORT_CURSOR_MAX)
+    expect(decodeNotesExportCursor(token)).toEqual(decoded)
+  })
+
+  it('rejects a token PAST the bound purely on length — even one that would otherwise decode', () => {
+    // 387-byte payload -> 516 chars: 4n length, valid alphabet, valid strict JSON.
+    // Every later guard would wave it through, so only the length bound can say no —
+    // which is exactly what makes this the discriminating case for the bound itself.
+    const token = encodeAsciiForTest(`{${' '.repeat(387 - inner.length - 2)}${inner}}`)
+    expect(token.length).toBe(EXPORT_CURSOR_MAX + 4)
+    expect(decodeNotesExportCursor(token)).toBeNull()
+  })
+
+  it('rejects an inner token that merely ENDS in base64url — the alphabet check is anchored', () => {
+    // Without the ^ anchor the regex would match the valid tail of '!AAAA' and let a
+    // non-base64url inner token reach toBase64Url, which silently mangles it.
+    expect(() => encodeNotesExportCursor({ note: '!AAAA', orgId: ORG_ID })).toThrow()
+  })
+
+  it('rejects a hand-built token whose inner note starts outside the alphabet', () => {
+    // The decode-side twin of the anchor test: the schema is shared, so a token this
+    // codec never minted must fail the strict parse on the way back in.
+    const hostile = encodeAsciiForTest(`{"note":"!AAAA","orgId":"${ORG_ID}"}`)
+    expect(decodeNotesExportCursor(hostile)).toBeNull()
   })
 })

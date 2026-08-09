@@ -392,6 +392,9 @@ function runGate(dir, { ci = false } = {}) {
   delete env.CI
   delete env.HARNESS_REQUIRE_TOOLCHAINS
   delete env.GITHUB_BASE_REF
+  // The fixture plays a CONSUMER, and a consumer does not have the maintainer's escape
+  // hatch set (upgrade-lane.sh unsets it script-wide with the full argument).
+  delete env.HARNESS_ALLOW_SELF_EDIT
   if (ci) env.CI = 'true'
   const res = spawnSync('node', ['tools/check-diff-coverage.mjs'], {
     cwd: dir,
@@ -494,6 +497,47 @@ test('FAIL CLOSED: a jest.config.js without floors (or without collectCoverageFr
   const r2 = runGate(noSurface)
   assert.equal(r2.code, 1, r2.out)
   assert.ok(r2.out.includes('no parseable collectCoverageFrom'), r2.out)
+})
+
+// ---- the 0.4.0 surface ramp's EXPIRY, executed rather than inferred ---------------
+// This gate runs only in the Stop chain, which no upgrade-lane leg executes, so its
+// RAMP EXPIRED branch fires in no lane at all — scripts/ci/stop-side-expiries.json
+// registers THIS file as the compensating proof (upgrade-lane.sh §7e refuses to drop a
+// met deadline that has no registered proof). rampNote reads .harness/manifest.json
+// from the gate's cwd: baseVersion against the ramp, harnessVersion against the deadline.
+
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion, harnessVersion }, null, 2),
+  )
+}
+
+test('CANARY — the 0.4.0 surface ramp EXPIRES: banner + hard red on a pre-0.4.0 vintage', () => {
+  // apps/web/lib is the surface 0.4.0 added — exactly the population the ramp withheld.
+  // baseVersion below the ramp, harnessVersion past the 0.5.0 deadline: the finding must
+  // be REPORTED (not withheld as a NOTE), with the banner naming the expiry.
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'apps/web/lib/quota.ts')
+  withManifest(dir, '0.3.0', '0.7.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('diff-coverage: RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('deadline of 0.5.0'), r.out)
+  assert.ok(r.out.includes('apps/web/lib/quota.ts'), r.out)
+})
+
+test('CANARY — a 0.4.0-vintage install reds on the same file WITHOUT the banner (inert)', () => {
+  // baseVersion at the ramp's minVersion: the check is plainly live, and an expiry banner
+  // here would announce a deadline this install never had.
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'apps/web/lib/quota.ts')
+  withManifest(dir, '0.4.0', '0.7.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('apps/web/lib/quota.ts'), r.out)
 })
 
 test('outside a git repo: loud SKIP locally, FAIL in CI (never a silent pass)', () => {

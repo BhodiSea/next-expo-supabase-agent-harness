@@ -1,4 +1,4 @@
-import { NOTES_CURSOR_MAX } from '@app/contracts'
+import { EXPORT_CURSOR_MAX, NOTES_CURSOR_MAX } from '@app/contracts'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -160,6 +160,64 @@ export function decodeNotesCursor(token: string): NoteCursor | null {
     // lint rules exist to enforce.
     const decoded: unknown = JSON.parse(json)
     return CursorKey.parse(decoded)
+  } catch {
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The EXPORT cursor — the compound token `system.exportMyData` pages with.
+//
+// The export walks the subject's authored notes ONE ORG AT A TIME (the serving
+// index leads with org_id, so a cross-org seek has no index to ride), which
+// makes its position two-dimensional: WHICH org the walk is in, and WHERE in
+// that org's keyset it stopped. `note` is a plain notes-cursor token (the codec
+// above), or null at the start of an org — so the inner half is validated by
+// exactly the same decoder the notes list trusts, not by a second one.
+//
+// `orgId` here is a SELECTOR in a token, not an authorization input: the export
+// assembly resolves it against the caller's real seats before it reaches any
+// query, and an org the caller no longer holds resolves to "resume at the next
+// held org" — never to a read. Same law as the x-org-id header.
+// SOURCE: opaque page tokens per Google AIP-158 https://google.aip.dev/158
+// ---------------------------------------------------------------------------
+
+/**
+ * `strictObject` for the same reason as CursorKey, and the inner token is
+ * bounded AND alphabet-checked here even though decodeNotesCursor re-validates
+ * it: both fields must be ASCII before toBase64Url sees them, and the schema
+ * is where that precondition is made true.
+ */
+const ExportCursorKey = z.strictObject({
+  note: z
+    .string()
+    .min(1)
+    .max(NOTES_CURSOR_MAX)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .nullable(),
+  orgId: z.uuid(),
+})
+
+/** The decoded export position: the org being walked, and the keyset within it. */
+export type NotesExportCursor = z.infer<typeof ExportCursorKey>
+
+/** Validate THEN encode — see encodeNotesCursor for why the parse is load-bearing. */
+export function encodeNotesExportCursor(key: NotesExportCursor): string {
+  const safe = ExportCursorKey.parse(key)
+  return toBase64Url(JSON.stringify({ note: safe.note, orgId: safe.orgId }))
+}
+
+/**
+ * Strict decode, null for anything this codec did not mint. The caller answers
+ * null with a rejected-input envelope, exactly as the notes list does.
+ */
+export function decodeNotesExportCursor(token: string): NotesExportCursor | null {
+  if (token.length === 0 || token.length > EXPORT_CURSOR_MAX) return null
+  const json = fromBase64Url(token)
+  if (json === null) return null
+  try {
+    const decoded: unknown = JSON.parse(json)
+    return ExportCursorKey.parse(decoded)
   } catch {
     return null
   }

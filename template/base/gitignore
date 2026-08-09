@@ -31,6 +31,12 @@ artifacts/
 .env
 .env.*
 !.env.example
+# The local stack's own runtime state: `supabase start` (pnpm db:up) writes
+# minted service-role keys and credentialed DSNs under supabase/.temp — never
+# history material, and one `git add -A` from a disclosed credential without
+# this line. Found by the Stop-chain e2e's first run: the secrets gate redded
+# on docker.env the stack itself had just written.
+supabase/.temp/
 # local auth material a developer may stage by hand while working against the
 # Supabase local stack (service-role keys from `supabase status`, minted JWTs).
 # Nothing generates this directory; it is ignored + guarded (guard rule

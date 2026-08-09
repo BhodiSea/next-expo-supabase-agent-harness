@@ -7,6 +7,15 @@ on:
   pull_request:
   push:
     branches: [main]
+    # Tag-time parity (0.7.0): these gates also execute AT THE TAG REF, and release.yml
+    # blocks publish on a green run of this workflow for the tag SHA (via
+    # scripts/ci/wait-for-workflows.mjs). The v0.6.0 failure class was a control
+    # answering differently on the tag ref than on main — the same SHA green on a branch
+    # runs under the WRONG ref context, and previousTag-class questions (machinery-lint's
+    # dependency-channel diff, the ramp-ledger's previous-tag read) are exactly
+    # ref-contextual. The concurrency group below keys on github.ref, so a tag run and a
+    # branch run land in different groups and can never cancel each other.
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:

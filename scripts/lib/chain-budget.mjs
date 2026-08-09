@@ -81,25 +81,121 @@ export function judgeBudget({ budget, timings, chainSteps }) {
   }
 
   // 4. The wall, one-sided, with the warn band kept as a warning rather than promoted.
-  if (typeof timings.totalMs === 'number') {
-    if (timings.totalMs > budget.wall.ceilingMs) {
-      problems.push(
-        `warm validate wall time ${String(timings.totalMs)}ms is over the ${String(budget.wall.ceilingMs)}ms ceiling`,
-      )
-    } else if (timings.totalMs > budget.wall.warnMs) {
-      warnings.push(
-        `warm validate wall time ${String(timings.totalMs)}ms is over the ${String(budget.wall.warnMs)}ms target (ceiling ${String(budget.wall.ceilingMs)}ms)`,
-      )
-    }
-  }
+  judgeWall({
+    wall: budget.wall,
+    totalMs: timings.totalMs,
+    label: 'warm validate wall time',
+    problems,
+    warnings,
+  })
 
   // 5. A run that stopped early measured a PREFIX of the chain. Judging a partial run as
   //    if it were the whole thing is how a budget certifies a chain it never saw.
+  pushPrefixProblem(timings, problems)
+
+  return { problems, warnings }
+}
+
+// The wall verdict both modes share: over the ceiling is a problem, inside the warn band
+// is a warning kept as a warning rather than promoted. One implementation so the two
+// walls cannot drift in shape, only in the (deliberately different) numbers.
+/**
+ * @param {{ wall: any, totalMs: unknown, label: string, problems: string[], warnings: string[] }} input
+ */
+function judgeWall({ wall, totalMs, label, problems, warnings }) {
+  if (typeof totalMs !== 'number' || typeof wall?.ceilingMs !== 'number') return
+  if (totalMs > wall.ceilingMs) {
+    problems.push(`${label} ${String(totalMs)}ms is over the ${String(wall.ceilingMs)}ms ceiling`)
+  } else if (typeof wall.warnMs === 'number' && totalMs > wall.warnMs) {
+    warnings.push(
+      `${label} ${String(totalMs)}ms is over the ${String(wall.warnMs)}ms target (ceiling ${String(wall.ceilingMs)}ms)`,
+    )
+  }
+}
+
+/** A run that stopped early measured a PREFIX of the chain — shared by both judges. */
+function pushPrefixProblem(timings, problems) {
   if (timings.notRun > 0) {
     problems.push(
       `${String(timings.notRun)} step(s) did not run — the chain stopped early, so these timings describe a prefix. A prefix inside budget is not the chain inside budget.`,
     )
   }
+}
+
+/**
+ * The STOP half (0.7.0, W7). Judge a `validate --stop-chain --report-all` run — which
+ * shares the VALIDATE_TIMINGS emitter — against the stopSteps/stopWall section.
+ *
+ * `unionSteps` is the floor∪config Stop union, resolved by tools/lib/stop-chain.mjs (the
+ * SAME lib the Stop hook imports), so the row-closure red covers the union: a future
+ * injected Stop step forces a budget row exactly like a validate step does today.
+ *
+ * `validate` is EXEMPT by doctrine — its cost IS the `wall` row above, judged where the
+ * warm-validate log is judged — and the exemption is enforced in BOTH directions: no row
+ * may name it, and its timing in the log is never judged per-step here (the stopWall
+ * still contains it, deliberately: the wall is the turn-end latency an agent waits
+ * through, and the nested validate is part of that wait).
+ *
+ * Stop rows carry an EXPLICIT ceilingMs each, no class defaults: nine members whose
+ * natures differ too much for two classes to be honest (see the file's stopComment).
+ * @param {{ budget: any, timings: any, unionSteps: string[] }} input
+ * @returns {{ problems: string[], warnings: string[] }}
+ */
+export function judgeStopBudget({ budget, timings, unionSteps }) {
+  const problems = []
+  const warnings = []
+
+  if (timings === null) {
+    problems.push(
+      'no VALIDATE_TIMINGS line in the stop-chain output — `validate --stop-chain` shares the emitter tools/validate.mjs prints unconditionally as its last line, so its absence means the run died before the summary or the runner predates the mode. A missing measurement is not a passing measurement.',
+    )
+    return { problems, warnings }
+  }
+
+  const rows = budget.stopSteps ?? {}
+  if ('validate' in rows) {
+    problems.push(
+      'scripts/chain-budget.json carries a stopSteps row for `validate` — its cost IS the `wall` row (the stop rows deliberately exclude it, so the same number is never judged twice). Remove the row.',
+    )
+  }
+
+  // 1. Every budgeted stop step that RAN is inside its explicit ceiling.
+  for (const [name, row] of Object.entries(rows)) {
+    const ms = timings.steps?.[name]
+    if (typeof ms === 'number' && ms > row.ceilingMs) {
+      problems.push(
+        `Stop step \`${name}\` took ${String(ms)}ms, over its ${String(row.ceilingMs)}ms ceiling. Either the step regressed, or the ceiling is wrong and moving it is a reviewed commit.`,
+      )
+    }
+  }
+
+  // 2. THE ROW CLOSURE over the union: a Stop step nobody budgeted.
+  for (const name of unionSteps) {
+    if (name !== 'validate' && !(name in rows)) {
+      problems.push(
+        `Stop-chain step \`${name}\` has no stopSteps row in scripts/chain-budget.json — an unbudgeted step is a step nobody holds. Add a row with an explicit ceilingMs (stop rows carry no class defaults; every ceiling is chosen).`,
+      )
+    }
+  }
+
+  // 3. And the inverse: a row the union no longer has.
+  const unionSet = new Set(unionSteps)
+  for (const name of Object.keys(rows)) {
+    if (!unionSet.has(name)) {
+      problems.push(
+        `scripts/chain-budget.json stopSteps budgets \`${name}\`, which is not in the floor∪config Stop union — a stale row. Remove it.`,
+      )
+    }
+  }
+
+  judgeWall({
+    wall: budget.stopWall,
+    totalMs: timings.totalMs,
+    label: 'Stop-chain wall time',
+    problems,
+    warnings,
+  })
+  pushPrefixProblem(timings, problems)
 
   return { problems, warnings }
 }
@@ -141,21 +237,11 @@ export function hasCommittedMeasurement(budget, chainSteps) {
  * @param {{ budget: any, timings: any, chainSteps: string[], runner: string, recordedOn: string }} input
  */
 export function recordMeasurement({ budget, timings, chainSteps, runner, recordedOn }) {
-  if (timings === null) throw new TypeError('recordMeasurement: no timings to record')
-  if (typeof runner !== 'string' || runner.trim() === '') {
-    throw new TypeError('recordMeasurement: `runner` is required — an unattributed measurement')
-  }
-  const steps = {}
-  for (const [name, row] of Object.entries(budget.steps ?? {})) {
-    const ms = timings.steps?.[name]
-    // A step the run did not reach keeps its previous value rather than being zeroed: a
-    // partial run must not overwrite a whole one with silence.
-    steps[name] = { ...row, measuredMs: typeof ms === 'number' ? ms : (row.measuredMs ?? null) }
-  }
+  assertRecordable('recordMeasurement', timings, runner)
   return {
     ...budget,
     wall: { ...budget.wall, measuredMs: timings.totalMs },
-    steps,
+    steps: stampRows(budget.steps, timings),
     measurement: {
       recordedOn,
       runner,
@@ -163,4 +249,53 @@ export function recordMeasurement({ budget, timings, chainSteps, runner, recorde
       stepsMeasured: Object.keys(timings.steps ?? {}).length,
     },
   }
+}
+
+/**
+ * The STOP writer (0.7.0, W7): a new budget object with this stop-chain run's
+ * measurements stamped into stopSteps/stopWall plus a `stopMeasurement` provenance block.
+ * PURE — returns, never writes — and it leaves the validate-chain surface (wall, steps,
+ * measurement) byte-untouched, so the two recordings compose in either order on the same
+ * file. Same provenance doctrine as recordMeasurement: an unattributed number is worse
+ * than null.
+ * @param {{ budget: any, timings: any, unionSteps: string[], runner: string, recordedOn: string }} input
+ */
+export function recordStopMeasurement({ budget, timings, unionSteps, runner, recordedOn }) {
+  assertRecordable('recordStopMeasurement', timings, runner)
+  return {
+    ...budget,
+    stopWall: { ...budget.stopWall, measuredMs: timings.totalMs },
+    stopSteps: stampRows(budget.stopSteps, timings),
+    stopMeasurement: {
+      recordedOn,
+      runner,
+      chainSteps: unionSteps.length,
+      stepsMeasured: Object.keys(timings.steps ?? {}).length,
+    },
+  }
+}
+
+/** The shared provenance refusal — enforced at the seam so a second caller inherits it. */
+function assertRecordable(fnName, timings, runner) {
+  if (timings === null) throw new TypeError(`${fnName}: no timings to record`)
+  if (typeof runner !== 'string' || runner.trim() === '') {
+    throw new TypeError(`${fnName}: \`runner\` is required — an unattributed measurement`)
+  }
+}
+
+/**
+ * Stamp measuredMs onto a row table from a timings object. A step the run did not reach
+ * keeps its previous value rather than being zeroed: a partial run must not overwrite a
+ * whole one with silence.
+ * @param {Record<string, any> | undefined} rows
+ * @param {{ steps?: Record<string, number> }} timings
+ */
+function stampRows(rows, timings) {
+  /** @type {Record<string, any>} */
+  const out = {}
+  for (const [name, row] of Object.entries(rows ?? {})) {
+    const ms = timings.steps?.[name]
+    out[name] = { ...row, measuredMs: typeof ms === 'number' ? ms : (row.measuredMs ?? null) }
+  }
+  return out
 }

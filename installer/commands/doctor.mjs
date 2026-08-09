@@ -12,6 +12,8 @@ import { installerVersion, readManifest, sha256 } from '../lib/manifest.mjs'
 import {
   readTemplateMigrations,
   requiredConfigSteps,
+  treeFileReader,
+  unappliedSeededSourceFixes,
   unmetDependencyObligations,
 } from '../lib/migrations.mjs'
 
@@ -77,9 +79,10 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   // silently stop reaching a project.
   const pendingRoot = join(targetDir, '.harness', 'pending')
   for (const rel of walkFiles(pendingRoot)) {
-    // dependencies.json is not a parked FILE awaiting a merge into a same-named path — it
-    // is an obligation, and it is an ERROR rather than a warning.
-    if (rel === 'dependencies.json') continue
+    // dependencies.json and source-fixes.json are not parked FILES awaiting a merge into a
+    // same-named path — they are obligations, classified below (an ERROR and a warning
+    // respectively, and the asymmetry is deliberate).
+    if (rel === 'dependencies.json' || rel === 'source-fixes.json') continue
     warnings.push(
       `parked upgrade awaiting merge: .harness/pending/${rel} — reconcile it into ${rel}, then delete the parked copy`,
     )
@@ -91,7 +94,8 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   // before it lints a file is exactly what this channel exists to stop. Recomputed from
   // the tree rather than trusted from the parked file, so applying the pins and re-running
   // `doctor` clears it without another `update`.
-  const obligations = unmetDependencyObligations(readTemplateMigrations(), installerVersion(), {
+  const migrations = readTemplateMigrations()
+  const obligations = unmetDependencyObligations(migrations, installerVersion(), {
     workspaceYaml: readIfPresent(join(targetDir, 'pnpm-workspace.yaml')),
     packageJson: readIfPresent(join(targetDir, 'package.json')),
   })
@@ -103,6 +107,25 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   if (obligations.length === 0 && existsSync(join(pendingRoot, 'dependencies.json'))) {
     infos.push('every dependency obligation is met — removing the stale .harness/pending/dependencies.json')
     rmSync(join(pendingRoot, 'dependencies.json'), { force: true })
+  }
+
+  // Unapplied seeded source fixes (0.7.0). A WARNING, never an error, and the severity is
+  // load-bearing twice over: (a) doctor's stated asymmetry — an ERROR means an installed
+  // gate cannot RUN, while this is a finding the named gate itself reports per file, and
+  // two reds for one act is double-billing; (b) mechanically, the upgrade lane runs
+  // `doctor` BEFORE its sweep and permits only exit 0/2, so an error here would kill every
+  // pre-0.6.0 baseline leg at that step. Recomputed from the TREE like the obligations
+  // above — never trusted from the parked file — so applying the fix by hand and
+  // re-running `doctor` clears it without another `update`.
+  const fixes = unappliedSeededSourceFixes(migrations, installerVersion(), treeFileReader(targetDir))
+  for (const f of fixes) {
+    warnings.push(
+      `unapplied seeded source fix (since ${f.since}, gate ${f.gate}): ${(f.paths ?? []).length} seeded file(s) still match the broken shape ${f.since} corrected. WHY: ${f.why} Apply the set per docs/runbooks/harness-upgrade.md (the ${f.since} section) — \`update\` cannot write seeded files, and \`${f.gate}\` reports the finding per file.`,
+    )
+  }
+  if (fixes.length === 0 && existsSync(join(pendingRoot, 'source-fixes.json'))) {
+    infos.push('every seeded source fix is applied — removing the stale .harness/pending/source-fixes.json')
+    rmSync(join(pendingRoot, 'source-fixes.json'), { force: true })
   }
 }
 

@@ -396,3 +396,117 @@ export function applyDependencyObligations({ targetDir, report, migrations, vers
   }
   return unmet
 }
+
+// ── seededSourceFixes runtime channel (0.7.0) ─────────────────────────────────────
+// THE HOLE THIS CLOSES, in template/migrations.json's own 0.6.0 words: seededSourceFixes
+// "IS AN INSTRUCTION TO A HUMAN, NOT AN ACTION: nothing copies these files into a real
+// install." Through 0.6.0 that was the whole story at runtime, too — the record was read
+// by the runbook and by the lane's sweep, and `update`, the one command every upgrading
+// consumer actually runs, never mentioned it. An install carrying the sign-in loop 0.6.0
+// corrected learned about it only from a ramped auth-posture NOTE, and those NOTEs expire.
+//
+// Same delivery decision as dependencyObligations above, for the same reasons: the files
+// are SEEDED (the never-touched boundary is what makes `update` safe on a tuned tree), so
+// the channel EMITS an obligation instead of writing source, parked where `doctor` already
+// looks — and the logic lives here because update.mjs's complexity-ratchet row only moves
+// DOWN.
+//
+// WHAT IS NEW IS THE PROBES. A dependency obligation is decidable from two manifests;
+// "did the consumer apply a source fix" is not decidable in general — they may have applied
+// it under different names. So each fix set records the HARNESS-AUTHORED broken shape
+// (`probes: [{ path, brokenWhen: { contains } | { lacks } }]`) and is judged UNAPPLIED only
+// while a probe file EXISTS and still matches it. An absent file is NOT broken — the
+// consumer moved the surface, and the named gate stays the authority on the actual posture.
+// The record's own '//' states the honesty limit; scripts/check-seeded-migrations.mjs makes
+// a probe-less or fixed-shape-matching record unauthorable.
+export const SOURCE_FIX_OBLIGATIONS_PATH = '.harness/pending/source-fixes.json'
+
+// One probe's predicate over one file's text. Exported because check-seeded-migrations
+// must evaluate the SAME predicate against the template copy (a probe that matches the
+// FIXED template can never self-clear) — a second implementation is how the two drift.
+// A malformed predicate reads as NOT broken: the checker rejects it at authoring time, and
+// a runtime guess in the broken direction would park an obligation nobody can clear.
+/** @param {string} text @param {{ contains?: string, lacks?: string } | undefined} brokenWhen */
+export function probeMatchesBroken(text, brokenWhen) {
+  if (typeof brokenWhen?.contains === 'string' && brokenWhen.contains !== '') {
+    return text.includes(brokenWhen.contains)
+  }
+  if (typeof brokenWhen?.lacks === 'string' && brokenWhen.lacks !== '') {
+    return !text.includes(brokenWhen.lacks)
+  }
+  return false
+}
+
+// The reader apply/doctor share for probe evaluation. Distinct from a read-or-'' helper on
+// purpose: absent must stay distinguishable from empty — an EMPTY file exists and lacks
+// every symbol (broken-shaped), while a MISSING one means the consumer moved the surface
+// and is not broken. '' is the wrong answer for a missing file here.
+/** @param {string} targetDir */
+export const treeFileReader = (targetDir) => (/** @type {string} */ rel) => {
+  try {
+    return readFileSync(join(targetDir, rel), 'utf8')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fix sets introduced at or before `version` whose recorded BROKEN shape still matches the
+ * tree. PURE over `readFile` so it is testable without a scaffold.
+ *
+ * @param {object} migrations  parsed template/migrations.json
+ * @param {string} version     the harness version being installed
+ * @param {(rel: string) => string | null} readFile  file text, or null when absent
+ */
+export function unappliedSeededSourceFixes(migrations, version, readFile) {
+  const all = Object.entries(migrations)
+    .filter(([v]) => VERSION_KEY.test(v) && cmpVersions(v, version) <= 0)
+    .flatMap(([v, entry]) => (entry.seededSourceFixes ?? []).map((f) => ({ ...f, since: v })))
+
+  return all.filter((fix) =>
+    (fix.probes ?? []).some((probe) => {
+      const text = readFile(probe.path)
+      return text !== null && probeMatchesBroken(text, probe.brokenWhen)
+    }),
+  )
+}
+
+/**
+ * Write (or clear) the parked source-fix file. Returns the unapplied list. Mirrors
+ * applyDependencyObligations: EMITS, never writes a seeded file, and self-clears — a fix
+ * applied by hand must stop being reported, or the channel becomes a warning nobody reads.
+ * The parked artifact carries (since, gate, why, paths) and deliberately NOT the probes:
+ * the TREE is re-probed on every run, and nothing may treat this file as the verdict.
+ */
+export function applySeededSourceFixObligations({ targetDir, report, migrations, version, dryRun }) {
+  const unapplied = unappliedSeededSourceFixes(migrations, version, treeFileReader(targetDir))
+
+  const parked = join(targetDir, SOURCE_FIX_OBLIGATIONS_PATH)
+  if (unapplied.length === 0) {
+    if (!dryRun && existsSync(parked)) rmSync(parked, { force: true })
+    return unapplied
+  }
+
+  if (!dryRun) {
+    mkdirSync(dirname(parked), { recursive: true })
+    writeFileSync(
+      parked,
+      `${JSON.stringify(
+        {
+          '//': 'Written by `installer update`. A release CORRECTED harness-authored content inside these SEEDED files, and `update` cannot deliver the correction — the consumer owns them. This is an instruction to a human, not an action: apply each set per its release section in docs/runbooks/harness-upgrade.md, then re-run `doctor` — the file clears itself once the tree no longer matches the recorded broken shape. The named gate is the authority on the finding; this file only keeps pointing at the runbook.',
+          harnessVersion: version,
+          fixes: unapplied.map(({ since, gate, why, paths }) => ({ since, gate, why, paths })),
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  }
+
+  for (const f of unapplied) {
+    report.notes.push(
+      `SEEDED SOURCE FIX (${f.since} · gate ${f.gate}): ${(f.paths ?? []).length} seeded file(s) still carry the harness-authored defect ${f.since} corrected. WHY: ${f.why} \`update\` cannot write them (they are YOURS) — apply the set per docs/runbooks/harness-upgrade.md (the ${f.since} section); \`${f.gate}\` reports the finding per file. Parked at ${SOURCE_FIX_OBLIGATIONS_PATH}; it self-clears once your tree no longer matches the recorded broken shape.`,
+    )
+  }
+  return unapplied
+}

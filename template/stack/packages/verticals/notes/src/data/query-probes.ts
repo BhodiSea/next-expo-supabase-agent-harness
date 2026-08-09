@@ -92,6 +92,30 @@ export const QUERY_PROBES: readonly QueryProbe[] = [
     run: async (db) => await dal.listNotes(db, scope, { includeArchived: true, limit: 20 }),
   },
   {
+    fn: 'listAuthoredNotes',
+    id: 'listAuthoredNotes#page',
+    run: async (db) =>
+      await dal.listAuthoredNotes(
+        db,
+        { actorId: PROBE_ACTOR, orgId: PROBE_ORG },
+        { cursor: null, limit: 20 },
+      ),
+  },
+  {
+    // The seek branch separately, same reason as listNotes#seek: the export's
+    // whole index story is the (org_id, owner_id, created_at, id) prefix, and a
+    // manifest that only ever saw page one would certify an index the resumed
+    // walk does not use.
+    fn: 'listAuthoredNotes',
+    id: 'listAuthoredNotes#seek',
+    run: async (db) =>
+      await dal.listAuthoredNotes(
+        db,
+        { actorId: PROBE_ACTOR, orgId: PROBE_ORG },
+        { cursor: seekCursor, limit: 20 },
+      ),
+  },
+  {
     fn: 'getNote',
     id: 'getNote#byId',
     run: async (db) => await dal.getNote(db, scope, { id: PROBE_NOTE }),

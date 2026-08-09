@@ -7,7 +7,13 @@
 // tests/hooks/hook-contract.test.mjs (per-rule falsifiability closure — an
 // unreferenced rule id reds the PR). A NEW gate/rule cannot merge without a
 // canary; a DELETED gate cannot leave a stale registry entry.
+// 0.7.0 closes the same loop over the FACTORY: every gate script in scripts/
+// (check-*.mjs, hygiene.mjs, generate-floor.mjs) unioned with every step name in
+// .claude/hooks/stop-factory-gate.mjs needs a registry entry in #factoryGates, and
+// every job in the factory's own .github/workflows needs one in #factoryLanes —
+// keyed '<file>#<job>', never bare ids.
 //   usage: node scripts/check-canary-coverage.mjs [registry-path] [hook-contract-path]
+//            [factory-scripts-dir] [factory-hook-path] [factory-workflows-dir]
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -20,6 +26,10 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 const REGISTRY = resolve(positional[0] ?? join(ROOT, 'tests/canary/injections.json'))
 const HOOK_CONTRACT = resolve(positional[1] ?? join(ROOT, 'tests/hooks/hook-contract.test.mjs'))
+// The factory-closure overrides (0.7.0), same convention: tests present synthetic trees.
+const FACTORY_SCRIPTS_DIR = resolve(positional[2] ?? join(ROOT, 'scripts'))
+const FACTORY_HOOK = resolve(positional[3] ?? join(ROOT, '.claude/hooks/stop-factory-gate.mjs'))
+const FACTORY_WORKFLOW_DIR = resolve(positional[4] ?? join(ROOT, '.github/workflows'))
 const errs = []
 
 const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
@@ -115,6 +125,35 @@ const ranAsEmpty = (tap, ref) => {
 }
 const ran = new Set()
 let spawned = 0
+/**
+ * Execute one proof file under `node --test` and apply the two G28 verdicts (green with
+ * real tests). One spawn per distinct file across ALL registries: several runner-kind
+ * steps point at validate-runner.test.mjs, and factoryGates entries share files with
+ * steps entries.
+ * @param {string} label e.g. `step 'format'` or `factory gate 'hygiene.mjs'`
+ * @param {string} ref repo-relative proof path
+ */
+const runProof = (label, ref) => {
+  if (!SPAWN || ran.has(ref)) return
+  ran.add(ref)
+  const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ref], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    timeout: 300_000,
+    env: CHILD_ENV,
+  })
+  spawned += 1
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
+  if (r.status !== 0) {
+    errs.push(
+      `${label}: red-proof ${ref} FAILS when run — the proof itself is broken (likely by a refactor of the gate it covers), so the gate has no working proof:\n${out.slice(-800)}`,
+    )
+  } else if (ranAsEmpty(out, ref)) {
+    errs.push(
+      `${label}: red-proof ${ref} runs but declares ZERO tests — an empty or gutted proof is not a proof. Restore its test bodies.`,
+    )
+  }
+}
 
 for (const [name, proofs] of Object.entries(registry.steps ?? {})) {
   for (const proof of proofs ?? []) {
@@ -123,26 +162,7 @@ for (const [name, proofs] of Object.entries(registry.steps ?? {})) {
         errs.push(`step '${name}': ${proof.kind} proof ${proof.ref} does not exist`)
         continue
       }
-      // One spawn per distinct file: several runner-kind steps all point at validate-runner.test.mjs.
-      if (!SPAWN || ran.has(proof.ref)) continue
-      ran.add(proof.ref)
-      const r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', proof.ref], {
-        cwd: ROOT,
-        encoding: 'utf8',
-        timeout: 300_000,
-        env: CHILD_ENV,
-      })
-      spawned += 1
-      const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
-      if (r.status !== 0) {
-        errs.push(
-          `step '${name}': red-proof ${proof.ref} FAILS when run — the proof itself is broken (likely by a refactor of the gate it covers), so the gate has no working proof:\n${out.slice(-800)}`,
-        )
-      } else if (ranAsEmpty(out, proof.ref)) {
-        errs.push(
-          `step '${name}': red-proof ${proof.ref} runs but declares ZERO tests — an empty or gutted proof is not a proof. Restore its test bodies.`,
-        )
-      }
+      runProof(`step '${name}'`, proof.ref)
     } else if (proof.kind === 'selftest') {
       // A selftest proof names a job in a REAL scaffold on CI (an installed
       // node_modules, a real expo config resolution, a Windows runner). It
@@ -227,6 +247,145 @@ for (const [id, proofs] of Object.entries(lanes)) {
       }
     } else {
       errs.push(`lane '${id}': unknown proof kind ${JSON.stringify(proof.kind)}`)
+    }
+  }
+}
+
+// 2c. FACTORY-LANE closure (0.7.0). The factory's own workflows are enforcement in
+//     exactly the way the shipped ones are — hygiene, lint, release, scorecard and the
+//     selftest matrix are what stand between a maintainer's turn and the fleet — and
+//     until this release not one of their jobs had to carry a proof or even a reason.
+//     Keyed '<file>#<job>', never bare ids: the consumer lanes registry above already
+//     claims 'actionlint' and 'zizmor', so a bare-id factory entry would silently share
+//     one proof between two different workflows — the exact collision the jobHome check
+//     guards inside ONE directory, recreated across the two registries.
+const factoryJobs = new Set()
+for (const file of readdirSync(FACTORY_WORKFLOW_DIR)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort()) {
+  const text = readFileSync(join(FACTORY_WORKFLOW_DIR, file), 'utf8')
+  const at = text.indexOf('\njobs:')
+  if (at === -1) {
+    errs.push(`${file} exposes no \`jobs:\` block — the factory-lane closure cannot fail open`)
+    continue
+  }
+  const ids = [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+  if (ids.length === 0) {
+    errs.push(`${file} exposes no parseable jobs — the factory-lane closure cannot fail open`)
+  }
+  for (const id of ids) factoryJobs.add(`${file}#${id}`)
+}
+if (factoryJobs.size === 0) {
+  errs.push('no factory workflow jobs found at all — the factory-lane closure cannot fail open')
+}
+const factoryLanes = registry.factoryLanes ?? {}
+for (const key of factoryJobs) {
+  const proofs = factoryLanes[key]
+  if (!Array.isArray(proofs) || proofs.length === 0) {
+    errs.push(
+      `factory workflow job '${key}' has NO entry in tests/canary/injections.json#factoryLanes — the factory's own lanes count as enforcement exactly like the shipped ones. Point at the lane logic's own test file, or declare {"kind":"steps"} with a note naming what already proves the job's work.`,
+    )
+  }
+}
+for (const key of Object.keys(factoryLanes)) {
+  if (!key.includes('#')) {
+    errs.push(
+      `factoryLanes key '${key}' is a bare job id — this registry is keyed '<workflow-file>#<job>' because the consumer lanes registry already claims bare ids (actionlint, zizmor), and one proof must never silently stand in for two workflows. Rekey it.`,
+    )
+    continue
+  }
+  if (!factoryJobs.has(key)) {
+    errs.push(`factoryLanes registry covers '${key}' but no factory workflow has such a job — stale entry`)
+  }
+}
+for (const [key, proofs] of Object.entries(factoryLanes)) {
+  for (const proof of proofs ?? []) {
+    if (proof.kind === 'steps') {
+      if (typeof proof.note !== 'string' || proof.note.trim() === '') {
+        errs.push(
+          `factory lane '${key}': a {"kind":"steps"} declaration must carry a non-empty note naming what already proves the job's work — a bare declaration is a silent skip wearing a registry entry`,
+        )
+      }
+    } else if (proof.kind === 'fixture') {
+      if (!existsSync(join(ROOT, proof.ref))) {
+        errs.push(`factory lane '${key}': fixture proof ${proof.ref} does not exist`)
+      }
+    } else {
+      errs.push(`factory lane '${key}': unknown proof kind ${JSON.stringify(proof.kind)}`)
+    }
+  }
+}
+
+// 2d. FACTORY-GATE closure (0.7.0). The gates that guard the guards: every gate script
+//     in scripts/ (check-*.mjs plus hygiene.mjs and generate-floor.mjs), UNIONED with
+//     every step name in the factory Stop hook's two tables. A hook step that invokes a
+//     scripts/*.mjs identifies with that script member (one gate, one entry); a
+//     toolchain step with no script (eslint, types, dead-code, format, tests) stands
+//     alone under its own name. The hook is PARSED, not imported: it EXECUTES on import
+//     (top-level readHookInput() plus the gate spawns), so a text parse of the two
+//     `const STEPS`/`const TOOLCHAIN_STEPS` tables is the honest mechanism — and a
+//     missing table fails loud, because a closure that cannot see its universe fails open.
+const factoryGateHome = new Map()
+for (const f of readdirSync(FACTORY_SCRIPTS_DIR).sort()) {
+  if (/^check-[a-z0-9-]+\.mjs$/.test(f) || f === 'hygiene.mjs' || f === 'generate-floor.mjs') {
+    factoryGateHome.set(f, `scripts/${f}`)
+  }
+}
+const factoryHookSrc = readFileSync(FACTORY_HOOK, 'utf8')
+for (const table of ['STEPS', 'TOOLCHAIN_STEPS']) {
+  const open = factoryHookSrc.indexOf(`const ${table} = [`)
+  const close = factoryHookSrc.indexOf('\n]', open)
+  if (open === -1 || close === -1) {
+    errs.push(
+      `.claude/hooks/stop-factory-gate.mjs exposes no parseable ${table} table — the factory-gate closure cannot fail open`,
+    )
+    continue
+  }
+  for (const m of factoryHookSrc
+    .slice(open, close)
+    .matchAll(/\[\s*'([a-z][a-z0-9-]+)',\s*\[([^\]]*)\]/g)) {
+    const script = /scripts\/([A-Za-z0-9._-]+\.mjs)/.exec(m[2])
+    const member = script === null ? m[1] : script[1]
+    if (!factoryGateHome.has(member)) {
+      factoryGateHome.set(member, `factory Stop-hook step '${m[1]}'`)
+    }
+  }
+}
+if (factoryGateHome.size === 0) {
+  errs.push('no factory gates found at all — the factory-gate closure cannot fail open')
+}
+const factoryGates = registry.factoryGates ?? {}
+for (const [member, home] of factoryGateHome) {
+  const proofs = factoryGates[member]
+  if (!Array.isArray(proofs) || proofs.length === 0) {
+    errs.push(
+      `factory gate '${member}' (${home}) has NO red-proof in tests/canary/injections.json#factoryGates — the gates that guard the guards are decoration too when they cannot go red. Add a fixture test, or a {"kind":"lane"} declaration naming the '<file>#<job>' that executes it.`,
+    )
+  }
+}
+for (const member of Object.keys(factoryGates)) {
+  if (!factoryGateHome.has(member)) {
+    errs.push(
+      `factoryGates registry covers '${member}' but no such gate script or factory Stop-hook step exists — stale entry`,
+    )
+  }
+}
+for (const [member, proofs] of Object.entries(factoryGates)) {
+  for (const proof of proofs ?? []) {
+    if (proof.kind === 'fixture') {
+      if (!existsSync(join(ROOT, proof.ref))) {
+        errs.push(`factory gate '${member}': fixture proof ${proof.ref} does not exist`)
+        continue
+      }
+      runProof(`factory gate '${member}'`, proof.ref)
+    } else if (proof.kind === 'lane') {
+      if (!factoryJobs.has(proof.ref)) {
+        errs.push(
+          `factory gate '${member}': lane declaration ${JSON.stringify(proof.ref)} names no factory workflow job — it must be a '<file>#<job>' present in the factory's .github/workflows`,
+        )
+      }
+    } else {
+      errs.push(`factory gate '${member}': unknown proof kind ${JSON.stringify(proof.kind)}`)
     }
   }
 }
@@ -363,6 +522,8 @@ if (errs.length > 0) {
   process.exit(1)
 }
 console.log(
-  `CANARY COVERAGE: CLEAN (${stepNames.size} steps each carry a red-proof; ${ruleIds.length} guard rule ids all canaried; ` +
+  `CANARY COVERAGE: CLEAN (${stepNames.size} steps each carry a red-proof; ` +
+    `${factoryGateHome.size} factory gates and ${factoryJobs.size} factory lanes closed; ` +
+    `${ruleIds.length} guard rule ids all canaried; ` +
     `${String(spawned)} proof file(s) ${SPAWN ? 'EXECUTED green with real tests (not proof of redness — see G28 note)' : 'existence-checked only (--no-spawn)'})`,
 )

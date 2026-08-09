@@ -513,6 +513,7 @@ const RULE_CANARIES = {
   // actually asked the database for, and `query-shapes` judges index service
   // against it. `pnpm gen` is the only author.
   'query-shapes-manifest': [pathDeny('tools/generated/query-shapes.json')],
+  'action-inventory-manifest': [pathDeny('tools/generated/action-inventory.json')],
   // The agent surface: the prose the coding agent runs under. Layer 3 (prevention) did
   // not exist for any of these before 0.2.0 — an agent could rewrite its own reviewers,
   // rules, commands and skills, and only the hash lock would notice.

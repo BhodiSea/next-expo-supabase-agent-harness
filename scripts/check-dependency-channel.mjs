@@ -20,16 +20,25 @@
 // clone depth is a verdict that passes for the wrong reason. Without the tag this SKIPS and
 // says so; in CI (CI=true) the same condition FAILS. The lint job sets fetch-depth: 0.
 // SOURCE: template/migrations.json (the 0.4.0 record states the hole in its own words)
+//   usage: node scripts/check-dependency-channel.mjs [repo-root]
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { highestReleaseBelow } from './lib/ramp-sites.mjs'
 
-const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8')
+// With a repo-root argument it judges THAT tree — files AND git history, so the red-proof
+// (tests/gates/check-dependency-channel.test.mjs) can present a tagged fixture repo.
+const ROOT = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('..', import.meta.url))
+const read = (p) => readFileSync(join(ROOT, p), 'utf8')
+const git = (args) =>
+  execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 const inCI = () => process.env.CI === 'true' || process.env.HARNESS_REQUIRE_TOOLCHAINS === '1'
 
-const migrations = JSON.parse(read('../template/migrations.json'))
-const workspaceYaml = read('../template/base/pnpm-workspace.yaml')
+const version = JSON.parse(read('package.json')).version
+const migrations = JSON.parse(read('template/migrations.json'))
+const workspaceYaml = read('template/base/pnpm-workspace.yaml')
 
 // Harness-OWNED config that carries external dependencies. Owned means `update` refreshes
 // it, which is exactly what makes its imports dangerous: the file lands on an upgraded
@@ -41,25 +50,21 @@ const OWNED_CONFIG = ['eslint.config.mjs', 'vitest.config.ts', 'stryker.config.m
 const catalogKeys = (yaml) =>
   new Set([...yaml.matchAll(/^ {2}'?([@a-z0-9][@a-z0-9/.-]*)'?\s*:/gm)].map((m) => m[1]))
 
-// PREVIOUS RELEASE TAG, highest by semver. Not `git describe`: on a release commit that
-// resolves to the tag being cut.
-function previousTag() {
+// PREVIOUS RELEASE TAG: the highest v*.*.* tag STRICTLY BELOW this tree's own version —
+// `highestReleaseBelow`'s docblock owns the reason. The `.at(-1)` shape this replaces was
+// the v0.6.0 hotfix class surviving here: on a release commit the highest tag IS the tag
+// being cut, so the gate diffed the release against its own tree and the catalog delta was
+// empty by construction. Same rule, one home (mirrors check-ramp-ledger.mjs).
+function previousTag(current) {
   try {
-    const tags = execFileSync('git', ['tag', '--list', 'v*.*.*'], { encoding: 'utf8' })
-      .split('\n')
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .map((t) => ({ t, parts: t.slice(1).split('.').map(Number) }))
-      .filter((x) => x.parts.every((n) => Number.isInteger(n)))
-      .sort((a, b) => a.parts[0] - b.parts[0] || a.parts[1] - b.parts[1] || a.parts[2] - b.parts[2])
-    return tags.at(-1)?.t ?? null
+    return highestReleaseBelow(git(['tag', '--list', 'v*.*.*']).split('\n'), current)
   } catch {
     return null
   }
 }
 
 const problems = []
-const tag = previousTag()
+const tag = previousTag(version)
 
 if (tag === null) {
   const msg =
@@ -74,9 +79,7 @@ if (tag === null) {
 
 let previousYaml
 try {
-  previousYaml = execFileSync('git', ['show', `${tag}:template/base/pnpm-workspace.yaml`], {
-    encoding: 'utf8',
-  })
+  previousYaml = git(['show', `${tag}:template/base/pnpm-workspace.yaml`])
 } catch {
   const msg = `\`git show ${tag}:template/base/pnpm-workspace.yaml\` failed — shallow clone or missing tag object.`
   if (inCI()) {
@@ -107,7 +110,7 @@ let scanned = 0
 for (const file of OWNED_CONFIG) {
   let src
   try {
-    src = read(`../template/base/${file}`)
+    src = read(`template/base/${file}`)
   } catch {
     continue
   }

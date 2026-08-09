@@ -10,7 +10,9 @@
       "WITHHELD — generated artifacts and the code that generates them. tools/generated/query-shapes.json and packages/verticals/notes/src/data/query-probes.ts travel together or not at all: the manifest is a recording of what THIS DAL executed, so planting it beside a different DAL yields a regen-diff that can never converge, because regenerating from zero probes cannot reproduce it. gen-query-shapes.mjs treats 'no probes and no manifest' as nothing to record — which is exactly the tree this pair leaves behind. packages/platform/supabase/src/database.types.ts is the same shape of mistake with a wider blast radius: it is generated from the running database by `pnpm db:types`, and planting a types file describing orgs, memberships, audit and quota makes tsc describe a schema the consumer's database does not have.",
       "WITHHELD — the 0.2.0 web surface and the rate-limit package. Exemplar app code in the ordinary sense: a consumer's apps/web has its own routes, and an unreferenced page reds route-manifest and dead-code on their next validate. apps/web/lib/security-headers.ts and apps/web/lib/rate-limit.ts are here deliberately — both gates ramp on the module's absence, so withholding them is what keeps the gate quiet until the consumer adopts the seam. packages/platform/ratelimit/ is a new workspace package plus an Upstash dependency, and the ADR's whole point is that this is a deliberate choice, not a default."
     ],
-    "removed": ["apps/mobile/__tests__/a11y-deep.test.tsx"],
+    "removed": [
+      "apps/mobile/__tests__/a11y-deep.test.tsx"
+    ],
     "removedWhy": "Not a deletion — a REPLACEMENT, using the one mechanism that can reach a stale seeded file. This test ships with the gate-a11y-deep module and was authored by the harness, and the version 0.1.3 shipped imports `MockRouteHandler` from apps/mobile/src/testing/mock-server.ts, which does not export it and never did. It is `seeded` (it lives under apps/), so `update` skips it forever and the consumer keeps a test that cannot compile. `removed` deletes it BEFORE the plan loop runs, and the loop then plants the corrected template copy because the path is absent and not seedOnInitOnly. The deletion is sha-guarded: a consumer who edited the file keeps it and gets a note naming the conflict, which is the right outcome — a hand-tuned a11y test is theirs, and silently overwriting it would be the failure this whole ownership model exists to prevent.",
     "configSteps": [
       {
@@ -131,7 +133,9 @@
     ],
     "rampExpiry": {
       "//": "Recorded RETROACTIVELY in 0.5.0, when scripts/check-ramp-ledger.mjs gained the assertion that a release's stated population must equal its computed one. The prose above said 'only 0.1.3' from the day 0.4.0 shipped and it was correct — but nothing compared the sentence to the call sites, so it was a claim rather than a control. This is the same sentence as data.",
-      "affects": ["0.1.3"],
+      "affects": [
+        "0.1.3"
+      ],
       "why": "Every escape expiring in 0.4.0 opens at minVersion 0.2.0, and rampNote is inert once baseVersion >= minVersion, so only installs whose baseVersion predates 0.2.0 meet a deadline. Sweep the RAMP EXPIRED findings (`pnpm validate 2>&1 | grep 'RAMP EXPIRED'` is the only honest count for a given tree), then `graduate`. docs/runbooks/harness-upgrade.md carries a section per expiring gate."
     }
   },
@@ -147,7 +151,12 @@
     ],
     "rampExpiry": {
       "//": "THE SECOND ALARM, and a wider one than 0.4.0's. 0.4.0's expiring escapes all opened at minVersion 0.2.0, so only baseVersion 0.1.3 met a deadline. The eight expiring here open at 0.3.0 (four in docs-sync, one each in gate-integrity and wiring) and at 0.4.0 (diff-coverage, and the wiring a11y seam), so the population reaches every vintage BELOW 0.4.0. A 0.4.0 install meets nothing: it is the only released vintage this release does not red, which is also why scripts/ci/upgrade-lane.sh keeps its default leg — leg A is the only one that reaches `graduate`'s success branch, and replacing it with older baselines would introduce a break and delete its proof in one act.",
-      "affects": ["0.1.3", "0.2.0", "0.2.1", "0.3.0"],
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0"
+      ],
       "why": "Eight escapes close. Four are docs lockstep (AGENTS.md's gate list after an injected step, the approved-tools registry/doc pair, the doctrine token map, and the enforcement-tiers shape); the other four are gate-integrity's hash coverage of the enforcement CONFIGS, check-wiring's whole CODEOWNERS finding set, check-wiring's web a11y plugin seam, and check-diff-coverage's per-file floors over apps/web/lib plus the layered packages. The a11y one is the only expiry whose remedy the harness itself has to deliver: this release's dependencyObligations record is that remedy, and `doctor` reds until it is met. Sweep, then `graduate`. docs/runbooks/harness-upgrade.md carries a section per expiring gate."
     },
     "rampExtensions": []
@@ -203,8 +212,25 @@
     ],
     "seededSourceFixes": [
       {
-        "//": "THE FIRST ENTRY OF THIS KIND, and leg E of the upgrade lane is what forced it. `seedOnInitOnly` is for files a release WITHHOLDS; `configSteps` and `configCommandUpdates` are for the chain; `dependencyObligations` is for the catalog. None of them covers the case this release actually hit: a SEEDED SOURCE FILE whose harness-authored content was CORRECTED, where the correction fixes a functional break and a gate now enforces it. `update` cannot write these — the whole point of seeded is that the consumer owns them — so a 0.6.0 upgrade left every existing install with the sign-in loop this release fixed, and the only thing that said so was a ramped auth-posture NOTE with no runbook step behind it. graduate could therefore never succeed on an upgraded install, which is exactly what leg E is built to detect. THIS IS AN INSTRUCTION TO A HUMAN, NOT AN ACTION: nothing copies these files into a real install. The gate names the defect per file, the runbook names the set, and scripts/ci/upgrade-sweep.mjs models the edit on the lane's pristine scaffold so that the instruction is proven sufficient rather than merely plausible. THE UNIT IS THE SUBSYSTEM, NOT THE LINE: the browser client cannot take a cookie-backed storage that the platform package does not export, so the nine files move together or not at all.",
+        "//": [
+          "THE FIRST ENTRY OF THIS KIND, and leg E of the upgrade lane is what forced it. `seedOnInitOnly` is for files a release WITHHOLDS; `configSteps` and `configCommandUpdates` are for the chain; `dependencyObligations` is for the catalog. None of them covers the case this release actually hit: a SEEDED SOURCE FILE whose harness-authored content was CORRECTED, where the correction fixes a functional break and a gate now enforces it. `update` cannot write these — the whole point of seeded is that the consumer owns them — so a 0.6.0 upgrade left every existing install with the sign-in loop this release fixed, and the only thing that said so was a ramped auth-posture NOTE with no runbook step behind it. graduate could therefore never succeed on an upgraded install, which is exactly what leg E is built to detect. THIS IS AN INSTRUCTION TO A HUMAN, NOT AN ACTION: nothing copies these files into a real install. The gate names the defect per file, the runbook names the set, and scripts/ci/upgrade-sweep.mjs models the edit on the lane's pristine scaffold so that the instruction is proven sufficient rather than merely plausible. THE UNIT IS THE SUBSYSTEM, NOT THE LINE: the browser client cannot take a cookie-backed storage that the platform package does not export, so the nine files move together or not at all.",
+          "PROBES, RECORDED RETROACTIVELY BY 0.7.0 (the precedent is this file's own 0.4.0 rampExpiry, recorded by 0.5.0: the same sentence, now as data). They are what turns the instruction above into a runtime channel — `update` parks .harness/pending/source-fixes.json and `doctor` warns while ANY probe file EXISTS and still matches the recorded BROKEN shape. Both probes are lacks-shaped on the adapter symbol the fix introduced: a pre-0.6.0 tree builds its browser client without `cookieSessionStorage` and its Metro-safe barrel does not export it, which is precisely the localStorage/cookie-jar split the `why` below describes. THE HONESTY LIMIT, stated plainly: a consumer who applied the fix under DIFFERENT names keeps matching the broken shape, so the parked artifact and the doctor warning persist for them — which is why the channel is WARNING-level, self-clearing the moment their file shape diverges from the recorded one, and never the authority: `auth-posture` judges the actual posture; the probes only decide whether to keep pointing at the runbook. An ABSENT probe file is NOT broken — the consumer moved the surface. scripts/check-seeded-migrations.mjs asserts every probe resolves in the template, samples this record's own `paths`, carries exactly one predicate, and does NOT match the FIXED template copy (a probe that matches the fix itself could never self-clear)."
+        ],
         "why": "0.6.0 fixed a functional break in the seeded web session handoff: the browser client persisted its session to localStorage while every server render read the cookie jar, so a correct sign-in was followed by a redirect back to /sign-in — a sign-in LOOP, on the shipped scaffold. The same wave removed four comments claiming `httpOnly` on cookies a browser-side sign-in cannot set it on. An install that predates 0.6.0 still carries both, and `auth-posture` withholds the six findings under the 0.6.0 ramp until 0.7.0.",
+        "probes": [
+          {
+            "path": "apps/web/lib/supabase/client.ts",
+            "brokenWhen": {
+              "lacks": "cookieSessionStorage"
+            }
+          },
+          {
+            "path": "packages/platform/supabase/src/client.ts",
+            "brokenWhen": {
+              "lacks": "cookieSessionStorage"
+            }
+          }
+        ],
         "paths": [
           "apps/web/lib/supabase/client.ts",
           "apps/web/lib/supabase/server.ts",
@@ -221,7 +247,12 @@
     ],
     "rampExpiry": {
       "//": "CARRIED FORWARD, NOT NEWLY OPENED. The four vintages below are the same four 0.5.0 named, and for the same reason: the escapes that close for them opened at minVersion 0.3.0 and 0.4.0, so every install whose baseVersion predates 0.4.0 meets them on any upgrade that crosses the deadline — including this one, if they skipped 0.5.0. A 0.4.0 or 0.5.0 install meets nothing here. The honest count for a given tree is still `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list: nine of the sites are adoption seams that fire only when the surface is genuinely absent.",
-      "affects": ["0.1.3", "0.2.0", "0.2.1", "0.3.0"],
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0"
+      ],
       "why": "Nothing newly EXPIRES in this release — the three ramps it opens or re-opens all fall due at 0.7.0 — so this record carries 0.5.0's population forward rather than declaring a new one: an install that skipped 0.5.0 meets its escapes on the way through 0.6.0. Seven of the eight 0.5.0 escapes are unchanged; the eighth was re-opened and is recorded under `rampExtensions`, which means a pre-0.4.0 install that has NOT yet swept its AGENTS.md gate list now has until 0.7.0 rather than being red on arrival. The remediation is unchanged and is per-gate in docs/runbooks/harness-upgrade.md — sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time: each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
     },
     "rampExtensions": [
@@ -234,5 +265,94 @@
         "why": "The escape must outlive the injection that reopens the drift. `auth-posture` reaches existing installs through configSteps, which grows their chain to 32 steps; their AGENTS.md is seeded and still documents 31, and only they can edit it. Closing the ramp at 0.5.0 while injecting a step in 0.6.0 would red every install in the lineage for a file the harness handed them and then refused to update. The deadline moves once, to 0.7.0, and the NOTE tells them exactly which names to paste."
       }
     ]
+  },
+  "0.7.0": {
+    "//": [
+      "0.7.0 the graduation release. Authored once per concern rather than once per commit: the seeded entries below landed with the wave that created the files they name — the three seeded files the DSR export ships (the procedure, its colocated proof, and the notes-export covering index; an install that predates them gets the export surface by choosing it, per the seedOnInitOnly contract) plus the two seeded corrections 0.7.0 makes to files earlier releases authored — and the rampExpiry below landed with the release-records wave, proven by tests/gates/ramp-ledger.test.mjs the moment it was written and re-proven by check-ramp-ledger.mjs at the bump. rampExtensions is deliberately ABSENT rather than empty: the deadline ratchet compares this tree against v0.6.0 and finds zero moves, so there is nothing to excuse and no entry to go stale.",
+      "WHAT THIS RELEASE OPENS, recorded beside what it closes: four new ramps, all minVersion 0.7.0 until 0.8.0 — version-sync (the iOS build-toolchain floor over eas.json), data-flow (the export.surface.target deadline), docs-sync (the deferral ledger over the owned prose surfaces), and reviewer-verdicts (the path_state binding). The ramps this release opens fall due at 0.8.0: a 0.6.0-vintage install upgrading here meets NO expiry — the property the upgrade lane's leg A graduates on — but carries all four as advisory NOTEs, and the 0.8.0 record will owe their expiry the way the rampExpiry below pays for 0.6.0's."
+    ],
+    "seedOnInitOnly": [
+      "packages/api/src/export.ts",
+      "packages/api/src/routers/system.export.test.ts",
+      "supabase/migrations/20260808000000_notes_export_index.sql"
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "THE TOOLCHAIN PIN. 0.6.0 declared the iOS build-toolchain floor a GAP in the version-sync tier row (Apple requires uploads built against Xcode 26 / iOS 26 SDK since 2026-04-28); 0.7.0 closes it: the gate now reds an eas.json whose production iOS profile pins no concrete -xcode- image, and the template pins macos-tahoe-26.5-xcode-26.6 (the concrete name behind the sdk-57 alias on 2026-08-08 — concrete precisely so the alias's future movement cannot move a consumer's toolchain silently). eas.json is SEEDED, so the pin reaches no existing install through update; the probe matches every pre-0.7.0 eas.json (no -xcode- anywhere) and self-clears once the consumer pins ANY concrete -xcode- image — the gate, not the probe, stays the authority on the major.",
+        "gate": "version-sync",
+        "why": "Apple's fixed floor (Xcode 26 / iOS 26 SDK, in force since 2026-04-28) is now enforced by version-sync: an unpinned or alias-pinned production ios.image reds under the 0.7.0 ramp (NOTEs until 0.8.0). The seeded eas.json predating 0.7.0 carries no image pin at all, so every upgraded install meets the finding; the remedy is one line — pin a concrete -xcode->=26 image, ours or their own.",
+        "paths": [
+          "apps/mobile/eas.json"
+        ],
+        "probes": [
+          {
+            "path": "apps/mobile/eas.json",
+            "brokenWhen": {
+              "lacks": "-xcode-"
+            }
+          }
+        ]
+      },
+      {
+        "//": "THE SURFACE THE DATE PROMISED — and the 0.6.0 record's own law applied to it the hard way: THE UNIT IS THE SUBSYSTEM, NOT THE LINE. The first sweep shipped one file (the review flip) and leg E went red on `contracts` and `parity`; the second shipped four and leg E went red on `types` — the mount imports the export DTOs from contracts and the authored-notes walk from the notes vertical, so the adoption is the whole subsystem: the review file, the parity row, both regenerated manifests (action inventory and query shapes — each generated from THEIR code, both seeded for exactly that reason), the router mount, the contracts barrel (which carries the row schemas precisely so the adoption adds no dependency — contracts already owns zod, and a sweep cannot run pnpm install), the eight notes-vertical files (the data fn, its probes, the cursor codec, their tests), and the declarative schema source the covering-index migration was diffed from. ONE probe, on the review file only: their data-flow.json still saying target 0.7.0 means they have neither adopted nor re-reviewed; it self-clears on EITHER move, so a consumer who re-reviews their target carries no parked warning for a surface they chose not to ship.",
+        "gate": "data-flow",
+        "why": "The export surface the file's own target promised for 0.7.0 exists in the template, but every file the adoption touches is seeded — data-flow.json (their review), system.ts (their router), PARITY.md (their ledger), action-inventory.json (generated from their router) — so update can deliver none of it. The two legitimate moves are unchanged: adopt (refresh the four files or mount + add the row + run `pnpm gen`, plus the three seedOnInitOnly files) or re-review the target in a reviewed diff; the arrived-deadline finding under the 0.7.0 ramp names both.",
+        "paths": [
+          "tools/data-flow.json",
+          "PARITY.md",
+          "tools/generated/action-inventory.json",
+          "tools/generated/query-shapes.json",
+          "packages/api/src/routers/system.ts",
+          "packages/contracts/src/index.ts",
+          "packages/contracts/src/index.test.ts",
+          "packages/verticals/notes/src/index.ts",
+          "packages/verticals/notes/src/data/errors.ts",
+          "packages/verticals/notes/src/data/notes.ts",
+          "packages/verticals/notes/src/data/notes.test.ts",
+          "packages/verticals/notes/src/data/query-probes.ts",
+          "packages/verticals/notes/src/data/rows.ts",
+          "packages/verticals/notes/src/data/rows.test.ts",
+          "packages/verticals/notes/src/domain/cursor.ts",
+          "packages/verticals/notes/src/domain/cursor.test.ts",
+          "supabase/schemas/20_notes.sql"
+        ],
+        "probes": [
+          {
+            "path": "tools/data-flow.json",
+            "brokenWhen": {
+              "contains": "\"target\": \"0.7.0\""
+            }
+          }
+        ]
+      },
+      {
+        "//": "THE STACK'S OWN SECRETS, UNIGNORED — found by the Stop-chain e2e's first CI run, which was the first time the full chain ever executed AFTER `supabase start` on a pristine scaffold: the stack writes minted service-role keys and credentialed DSNs under supabase/.temp, the seeded .gitignore never mentioned it, and the secrets gate correctly redded on files the stack itself had just written. Every install that runs `pnpm db:up` carries the same exposure — one `git add -A` from a committed credential. The fix is one gitignore line; the probe self-clears the moment the consumer's .gitignore covers the directory, however they spell it into their own file.",
+        "gate": "secrets",
+        "why": "supabase start writes credentialed runtime state (docker.env with the service-role key and a password-carrying DSN) under supabase/.temp, and the seeded .gitignore predating 0.7.0 does not ignore it — the secrets gate reds on the working tree the first time validate runs with the local stack up, and the credential is committable until the line lands. Add `supabase/.temp/` to .gitignore.",
+        "paths": [
+          ".gitignore"
+        ],
+        "probes": [
+          {
+            "path": ".gitignore",
+            "brokenWhen": {
+              "lacks": "supabase/.temp"
+            }
+          }
+        ]
+      }
+    ],
+    "rampExpiry": {
+      "//": "THE THIRD ALARM, AND THE WIDEST — and the first that reds the release's own recent predecessors. 0.4.0's expiry reached one vintage and 0.5.0's reached four; the seven escapes expiring here all opened at minVersion 0.6.0, so the affected population is EVERY released vintage below 0.6.0. For baseVersion 0.4.0 and 0.5.0 — populations every earlier record could still pin as untouched, and did — this is the first deadline they ever meet, and they meet exactly the seven with no older debt: the cleanest sweep in the lineage. 0.3.0 and below also re-meet the 0.5.0-era diff-coverage and wiring debt on the way through (the ledger computes per-vintage; this prose does not).",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0"
+      ],
+      "why": "Seven escapes close at once — the whole 0.6.0 fleet: auth-posture (the seeded sign-in/session cookie fix), data-flow (the planted policy's stale entries against your schema), docs-sync (the re-opened AGENTS.md gate-list lockstep), reviewer-verdicts (the SubagentStop review obligation), route-manifest (the web App Router half), schema-rls (the GRANT posture migration), and web-e2e (the authenticated spec against your routes). Every one opened at minVersion 0.6.0, so every install whose baseVersion predates 0.6.0 meets all seven. Sweep by the '## 0.7.0' section of docs/runbooks/harness-upgrade.md, which routes each gate into the 0.6.0 prose that already explains the work; the auth-posture half is also parked as data at .harness/pending/source-fixes.json by `update`, self-clearing when your tree stops matching the recorded broken shape. The honest count is computed on YOUR install, never quoted: pnpm validate 2>&1 | grep \"RAMP EXPIRED\"."
+    }
   }
 }

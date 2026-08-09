@@ -12,7 +12,10 @@
 //      gate. Version-ramped: NOTE-only on installs whose baseVersion predates
 //      the check (a consumer's custom step must not red the update that shipped
 //      it) — in this lineage it ships in 0.1.0, so it is live from the first
-//      install and on the template tree.
+//      install and on the template tree. Since 0.7.0 the same closure covers
+//      the frozen Stop floor: every tools/stop.floor.json step except
+//      `validate` needs its UNNUMBERED `### <name> — ` section — name-keyed,
+//      floor-scoped (a consumer-APPENDED Stop step is the consumer's business).
 //   5. The agent roster matches the docs' claim: every .claude/agents/*.md
 //      parses under the pinned frontmatter grammar (a parse failure is a RED,
 //      never a skip) and carries name (== filename), description, and model;
@@ -171,8 +174,54 @@ if (!existsSync(CATALOG)) {
       )
     }
   }
+
+  // THE STOP FLOOR IS PART OF THE SAME CLOSURE (0.7.0). The Stop-chain steps are frozen
+  // in tools/stop.floor.json, and for a release the newest of them — reviewer-verdicts,
+  // the only turn-scoped control in the harness — was the one chain member with no
+  // documented way to watch it fail. The universe is the FLOOR, deliberately NOT the
+  // live config's STOP_HOOK_STEPS: on a consumer tree the config may carry
+  // consumer-APPENDED steps, and their documentation is the consumer's business — the
+  // harness documents what the harness ships. The grammar is NAME-keyed (`### <name> — `
+  // with anything after the dash), never command-keyed, because a real heading
+  // paraphrases its command (mobile-unit's names jest-expo, not the pnpm invocation).
+  // Membership is checked one direction only, floor -> catalog, so an unnumbered
+  // heading that is not a floor step (the '### the validate runner —' note, whose
+  // multi-word title never even parses as a step name) can neither satisfy nor break
+  // it. `validate` is the one exclusion: its documentation IS the numbered chain
+  // sections plus that runner note.
+  const FLOOR = 'tools/stop.floor.json'
+  if (!existsSync(FLOOR)) {
+    catalogErrs.push(
+      `${FLOOR} missing — the harness ships it (owned; \`update\` restores it), and without the frozen floor the catalog closure over the Stop chain has no universe`,
+    )
+  } else {
+    let floorSteps = []
+    try {
+      const floor = JSON.parse(readFileSync(FLOOR, 'utf8'))
+      floorSteps = (Array.isArray(floor.steps) ? floor.steps : [])
+        .map((s) => (Array.isArray(s) ? s[0] : null))
+        .filter((n) => typeof n === 'string')
+      if (floorSteps.length === 0) {
+        catalogErrs.push(
+          `${FLOOR} declares no readable steps — an empty floor closes over nothing; restore it from git history`,
+        )
+      }
+    } catch (e) {
+      catalogErrs.push(
+        `${FLOOR} is not valid JSON (${e.message}) — an unreadable universe fails CLOSED here; restore it from git history`,
+      )
+    }
+    const stopSections = new Set([...catalog.matchAll(/^### ([a-z0-9-]+) — /gm)].map((m) => m[1]))
+    for (const name of floorSteps) {
+      if (name !== 'validate' && !stopSections.has(name)) {
+        catalogErrs.push(
+          `Stop-floor step '${name}' has no section in ${CATALOG} — add an unnumbered heading (### ${name} — \`<what it runs>\`) with its anti-vacuity proof. The floor (${FLOOR}) is the documented universe; a turn-fatal check nobody can watch fail is an untrusted check.`,
+        )
+      }
+    }
+  }
 }
-let catalogSummary = 'gates-catalog documents every step'
+let catalogSummary = 'gates-catalog documents every chain step and every Stop-floor step'
 if (catalogErrs.length > 0) {
   // 0.4.0 DELETED THIS RAMP rather than expiring it. Its minVersion sat below v0.1.3,
   // this lineage's oldest release, so gate.mjs returned false at `base >= minVersion` for
@@ -533,13 +582,15 @@ if (existsSync(TIERS)) {
   // column, so the commitment was a sentence next to a date. A date nobody checks is the
   // exact shape of claim this file's own opening line calls illegitimate.
   //
-  // WHAT "DISCHARGED" MEANS, mechanically. The gap a Target promises to close is always
-  // the same gap: the gate hard-codes ONE product surface. So the question is re-derived
+  // WHAT "DISCHARGED" MEANS, mechanically. The gap a Target promises to close is, by
+  // default, one gap: the gate hard-codes ONE product surface. So the question is re-derived
   // from the gate SOURCE — is it still single-surface? — using the identical derivation
   // scripts/check-tier-coverage.mjs uses to demand the row in the first place. Moving the
   // date is the other legitimate answer, and it is a reviewed diff in an owned, sha-pinned
-  // file, which is what makes it deliberate rather than a flag.
+  // file, which is what makes it deliberate rather than a flag. A row whose gap is NOT a
+  // scan root may DECLARE its evidence instead — the `closes:` probe form below (0.7.0).
   const running = installedHarnessVersion(GATE)
+  const configText = existsSync(HARNESS_CONFIG) ? readFileSync(HARNESS_CONFIG, 'utf8') : ''
   let stillSingleSurface = null
   if (running === null) {
     // The template dev tree and the gate fixtures have no .harness/manifest.json, so there
@@ -557,7 +608,7 @@ if (existsSync(TIERS)) {
           // The config maps a script basename to the STEP name a row may key on
           // (`styleguide` runs check-styleguide-manifest.mjs), so without it a row keyed by
           // step would never match and its Target would discharge for the wrong reason.
-          configText: existsSync(HARNESS_CONFIG) ? readFileSync(HARNESS_CONFIG, 'utf8') : '',
+          configText,
         }).flatMap((g) => [g.key, g.file.replace(/\.mjs$/, ''), g.file]),
       )
     } catch (e) {
@@ -565,6 +616,109 @@ if (existsSync(TIERS)) {
         `${TIERS}: the Target check could not read tools/ to re-derive which gates are still single-surface (${String(e.message).slice(0, 120)}). It fails rather than skipping: an unreadable scan root would silently discharge every dated commitment in this table.`,
       )
     }
+  }
+
+  // ── the SECOND discharge form (0.7.0): the declared `closes:` probe ───────────────
+  //
+  // The surface derivation above can only discharge a Target whose gap is "the gate
+  // scans one product surface". The version-sync row's declared gap is a toolchain
+  // FLOOR: shipping the floor changes no scan root, so under the surface form its
+  // arrived Target would stand red forever — a control demanding a change no change
+  // can satisfy, the same defect the 0.6.0 step-fold in lib/live-controls.mjs fixed
+  // for twin-script steps. So a Target cell may declare its own evidence instead:
+  // `0.7.0 — closes: \`tools/store-policy.json#iosToolchain\`` discharges iff the
+  // named file carries a non-empty value at that top-level key AND a script
+  // implementing the row's step references the key on a non-comment line — both
+  // re-derived from the tree on every run, never taken on trust.
+  //
+  // DIVISION OF LABOR, stated so a reviewer cannot mistake the probe for a proof of
+  // enforcement: the reference check is a static read and can be satisfied by a line
+  // that asserts nothing. That is the identical standard the surface form sets (see
+  // lib/live-controls.mjs on what the step fold deliberately does not verify): this
+  // table says which evidence a discharge rests on; the canary registry
+  // (tests/canary/injections.json) is what proves the gate reading the key can
+  // actually fail. Choosing the form — like moving a date — is a reviewed diff in
+  // this owned, sha-pinned file, which is what makes it deliberate rather than a flag.
+
+  // step -> the script basenames implementing it, read from the config's command text:
+  // the IDENTICAL derivation singleSurfaceGates uses to key a row on its step, run in
+  // the opposite direction. A second, different derivation here would let a row's step
+  // resolve under one discharge form and not the other — the exact disagreement
+  // lib/live-controls.mjs exists to prevent.
+  const scriptsForStep = new Map()
+  for (const m of configText.matchAll(/\[\s*'([\w-]+)'\s*,\s*'([^']*)'/g)) {
+    for (const s of m[2].matchAll(/tools\/([\w.-]+\.mjs)/g)) {
+      scriptsForStep.set(m[1], [...(scriptsForStep.get(m[1]) ?? []), s[1]])
+    }
+  }
+
+  /**
+   * The `closes:` annotation, parsed. null = no annotation (the surface form governs);
+   * 'malformed' = an annotation nothing can evaluate, which is a red regardless of the
+   * date — a probe with a typo would otherwise sleep until the deadline and then fail
+   * the discharge for a clerical reason.
+   * @param {string} t
+   * @returns {null | 'malformed' | { file: string, key: string }}
+   */
+  const parseProbe = (t) => {
+    if (!t.includes('closes:')) return null
+    const m = /closes:\s*`([^`#]+)#([^`#\s]+)`/.exec(t)
+    return m === null ? 'malformed' : { file: m[1], key: m[2] }
+  }
+
+  // A non-comment reference — the same `//`-strip the scan-root reader in
+  // lib/live-controls.mjs applies, because a key a gate merely talks about in a comment
+  // is a record nothing enforces.
+  const referencesKey = (src, key) =>
+    src.split('\n').some((line) => {
+      const at = line.indexOf(key)
+      return at !== -1 && !line.slice(0, at).includes('//') && !/^\s*\*/.test(line)
+    })
+
+  /**
+   * An ARRIVED probe-form Target: discharged iff the record landed and the step's own
+   * gate reads it. Every failure names the missing half — a probe that cannot be
+   * evaluated reds rather than discharging, or the annotation is self-certification.
+   * @param {{layer: string, key: string, due: string, probe: {file: string, key: string}}} row
+   */
+  const judgeProbeCell = ({ layer, key, due, probe }) => {
+    const row = `the '${layer}' row (gate \`${key}\`) declares its discharge probe as \`${probe.file}#${probe.key}\` and its Target (${due}) has arrived`
+    if (!existsSync(probe.file)) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} does not exist — a probe over a file the tree does not carry can never discharge. Ship the reviewed record, or move the Target to a release you mean in a reviewed diff.`,
+      ]
+    }
+    let value
+    try {
+      value = JSON.parse(readFileSync(probe.file, 'utf8'))[probe.key]
+    } catch (e) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} is not valid JSON (${e.message}) — an unreadable probe fails CLOSED rather than discharging the row. Restore the file from git history.`,
+      ]
+    }
+    const empty =
+      value === undefined ||
+      value === null ||
+      (typeof value === 'string' && value.trim() === '') ||
+      (typeof value === 'object' && Object.keys(value).length === 0)
+    if (empty) {
+      return [
+        `${TIERS}: ${row}, but ${probe.file} carries no non-empty value at top-level key '${probe.key}' — the reviewed record the probe promises has not landed. Land it, or move the Target to a release you mean in a reviewed diff.`,
+      ]
+    }
+    const scripts =
+      scriptsForStep.get(key) ??
+      [key, `${key}.mjs`].filter((f) => f.endsWith('.mjs') && existsSync(`tools/${f}`))
+    const read = scripts.some(
+      (f) =>
+        existsSync(`tools/${f}`) && referencesKey(readFileSync(`tools/${f}`, 'utf8'), probe.key),
+    )
+    if (!read) {
+      return [
+        `${TIERS}: ${row} and the record exists, but no script implementing the row's step (${scripts.length > 0 ? scripts.map((f) => `tools/${f}`).join(', ') : `none resolve from ${HARNESS_CONFIG}`}) references '${probe.key}' on a non-comment line — a key no gate reads is a record nothing enforces, so the probe cannot discharge the row. Wire the step's gate to the record, or move the Target in a reviewed diff.`,
+      ]
+    }
+    return [] // discharged: the record landed and the step's own gate reads it
   }
 
   /** @param {{layer: string, target: string, gate: string}} row */
@@ -581,8 +735,18 @@ if (existsSync(TIERS)) {
         `${TIERS}: the '${layer}' row's Target is ${JSON.stringify(t)} — it must be a release (x.y.z) or \`—\`. A Target nothing can compare is a deadline with no date.`,
       ]
     }
+    const probe = parseProbe(t)
+    if (probe === 'malformed') {
+      return [
+        `${TIERS}: the '${layer}' row's Target is ${JSON.stringify(t)} — its \`closes:\` annotation does not parse. The declared discharge form is \`x.y.z — closes: \`<file>#<top-level key>\`\` (one backticked path, one \`#\`, one key), judged the moment it is written: a probe nothing can evaluate is a deadline with no date, the same failure as a Target of "soon".`,
+      ]
+    }
     if (cmpDotted(running, due) < 0) return [] // not yet due
     const key = gate.replaceAll('`', '').trim()
+    // The declared form REPLACES the surface question for its row: the probe is the
+    // discharge evidence the reviewed cell names, so the scan-root derivation — which
+    // this row's gap was never about — must not get a vote either way.
+    if (probe !== null) return judgeProbeCell({ layer, key, due, probe })
     if (!stillSingleSurface.has(key) && !stillSingleSurface.has(key.replace(/\.mjs$/, ''))) {
       return [] // the gap closed: the gate no longer hard-codes one surface
     }
@@ -698,8 +862,182 @@ if (existsSync(SANDBOX_DOC) && existsSync(BUILD_GATE)) {
   sandboxSummary = `${SANDBOX_DOC} states the build gate's surfaces in lockstep with ${BUILD_GATE} (web mode ${hasWebMode ? 'present' : 'absent'})`
 }
 
+// ── 9. THE DEFERRAL LEDGER (0.7.0) — every dated sentence gets one machine-read home ──
+//
+// Prose in the OWNED surfaces makes dated promises, and until this release nothing read
+// them. Three sites carried the SAME promise about the auth-posture CLI census into the
+// very release it named — each internally consistent, none machine-read, so the date
+// rolled past while still reading as a plan. A fourth sentence froze a scoping decision
+// at a release four versions gone. The Target column in docs/harness/enforcement-tiers.md
+// got its reader above (0.5.0, plus the `closes:` probe); this is the same control for
+// every OTHER dated deferral sentence in the harness's prose.
+//
+// The universe is a DECLARED list — the catalog, the top-level tools/*.mjs gate scripts,
+// and tools/auth-posture.json — never an open scan (an open scan of prose would drown in
+// historical sentences and be turned off within a release). enforcement-tiers.md is
+// excluded because its Target column has its own reader above; SEEDED files are excluded
+// because a consumer's prose is not the harness's to red (tools/data-flow.json's export
+// target has its own enforcement in check-data-flow.mjs). Two sentence shapes are read,
+// `\s+`-joined because markdown hard-wraps: the four-releases-stale scoping line carried
+// its own date on the NEXT line, which is exactly how a per-line reader would miss it.
+//
+// Closure BOTH ways against tools/deferrals.json, in the house style: a dated sentence
+// with no ledger entry for its file is a plan nothing reads and it reds; a ledger entry
+// whose file no longer carries the sentence is a second stale doctrine and it reds; and
+// an entry whose target this install has REACHED reds until the author ships the check
+// or moves the date. The ledger is harness-owned and git-clean-enforced by
+// check-gate-integrity's tools/ surface, so moving a date is a deliberate act that
+// appears in the PR diff — which is what makes the recorded re-deferral honest.
+const LEDGER = 'tools/deferrals.json'
+let deferralSummary = `${LEDGER} absent (pre-0.7.0 install)`
+{
+  const defErrs = []
+  /** @type {Array<{id: string, files: string[], target: string}>} */
+  const entries = []
+  if (existsSync(LEDGER)) {
+    let raw
+    try {
+      raw = JSON.parse(readFileSync(LEDGER, 'utf8'))
+    } catch (e) {
+      defErrs.push(
+        `${LEDGER} is not valid JSON (${e.message}) — an unreadable ledger fails CLOSED rather than un-dating every deferral; restore it from git history`,
+      )
+    }
+    if (raw !== undefined && !Array.isArray(raw.deferrals)) {
+      defErrs.push(
+        `${LEDGER} has no \`deferrals\` array — a ledger with no readable entries un-dates every deferral; restore it from git history`,
+      )
+    }
+    const seen = new Set()
+    for (const row of Array.isArray(raw?.deferrals) ? raw.deferrals : []) {
+      const id = typeof row?.id === 'string' && row.id.trim() !== '' ? row.id.trim() : null
+      const files =
+        typeof row?.file === 'string' ? [row.file] : Array.isArray(row?.file) ? row.file : []
+      const shapeErrs = []
+      if (id === null) shapeErrs.push("no usable 'id'")
+      else if (seen.has(id)) shapeErrs.push(`duplicate id '${id}'`)
+      if (files.length === 0 || files.some((f) => typeof f !== 'string' || f.trim() === '')) {
+        shapeErrs.push(
+          "'file' must be one path or a non-empty array of paths (an array when one decision is stated at several sites)",
+        )
+      }
+      if (typeof row?.target !== 'string' || !/^\d+\.\d+\.\d+$/.test(row.target)) {
+        shapeErrs.push(
+          "'target' must be a release (x.y.z) — a target nothing can compare is a deadline with no date",
+        )
+      }
+      if (typeof row?.reason !== 'string' || row.reason.trim().length < 40) {
+        shapeErrs.push(
+          "'reason' must carry at least 40 characters — an unreasoned deferral is not a review",
+        )
+      }
+      if (typeof row?.reviewedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.reviewedOn)) {
+        shapeErrs.push(
+          "'reviewedOn' must be a YYYY-MM-DD date — an undated review cannot go stale visibly",
+        )
+      }
+      if (shapeErrs.length > 0) {
+        defErrs.push(
+          `${LEDGER}: entry ${JSON.stringify(id ?? row?.id ?? '?')}: ${shapeErrs.join('; ')}`,
+        )
+        continue
+      }
+      seen.add(id)
+      entries.push({ id, files, target: row.target })
+    }
+  }
+
+  const SENTENCES = [
+    /\b[Dd]eferred\s+(?:to|until)\s+v?(\d+\.\d+\.\d+)/g,
+    /\bout\s+of\s+scope\s+for\s+v?(\d+\.\d+\.\d+)/g,
+  ]
+  const surfaces = [
+    CATALOG,
+    'tools/auth-posture.json',
+    ...(existsSync('tools')
+      ? readdirSync('tools')
+          .filter((f) => f.endsWith('.mjs'))
+          .sort()
+          .map((f) => `tools/${f}`)
+      : []),
+  ].filter((f) => existsSync(f))
+  /** @type {Map<string, Array<{target: string, line: number}>>} dated sentences per file */
+  const found = new Map()
+  for (const file of surfaces) {
+    const text = readFileSync(file, 'utf8')
+    const hits = []
+    for (const re of SENTENCES) {
+      for (const m of text.matchAll(re)) {
+        hits.push({ target: m[1], line: text.slice(0, m.index).split('\n').length })
+      }
+    }
+    if (hits.length > 0) found.set(file, hits)
+  }
+
+  // FORWARD: a dated sentence with no ledger entry for its file at that exact date.
+  for (const [file, hits] of found) {
+    for (const h of hits) {
+      if (!entries.some((e) => e.files.includes(file) && e.target === h.target)) {
+        defErrs.push(
+          `${file}:${String(h.line)} defers something to ${h.target} but ${LEDGER} has no entry for this file at that target — a dated sentence no machine reads is a plan that can roll past its date while still reading as one (three shipped sites did exactly that). Add the reviewed entry { id, file, target, reason, reviewedOn }, or make the sentence dateless if it states a permanent scoping CONDITION rather than a plan.`,
+        )
+      }
+    }
+  }
+
+  // BACKWARD and ARRIVAL, per entry. Arrival is judged against harnessVersion — the same
+  // authority as every other deadline here — and with no manifest it SAYS so rather than
+  // passing silently, because the template dev tree is where stale dates get written.
+  const deferralRunning = installedHarnessVersion(GATE)
+  if (deferralRunning === null && entries.length > 0) {
+    console.log(
+      `${GATE}: NOTE — no .harness/manifest.json, so the deferral targets in ${LEDGER} are not judged for arrival (there is no installed release to compare them against); the sentence↔ledger closure still ran. tests/gates/check-docs-sync.test.mjs holds the arrival case in the harness's own tree.`,
+    )
+  }
+  for (const e of entries) {
+    const existing = e.files.filter((f) => existsSync(f))
+    if (existing.length === 0) {
+      defErrs.push(
+        `${LEDGER}: entry '${e.id}' names only file(s) the tree does not carry (${e.files.join(', ')}) — a ledger row that outlives its prose is a second stale doctrine; delete the entry in the same diff that removed the file(s).`,
+      )
+    }
+    for (const f of existing) {
+      if (!(found.get(f) ?? []).some((h) => h.target === e.target)) {
+        defErrs.push(
+          `${LEDGER}: entry '${e.id}' says ${f} defers to ${e.target}, but the file no longer carries that dated sentence — a ledger row that outlives its prose is a second stale doctrine, the exact failure the doctrine token map ended for symbols. Delete or re-date the entry in the same diff that changed the sentence.`,
+        )
+      }
+    }
+    if (deferralRunning !== null && cmpDotted(deferralRunning, e.target) >= 0) {
+      defErrs.push(
+        `${LEDGER}: entry '${e.id}' committed to ${e.target} and this install runs harness ${deferralRunning} — the deferral has ARRIVED. Ship the deferred check and delete the sentence + entry, or move the date to a release you mean in a reviewed diff — the ledger is harness-owned and git-clean-enforced, so moving it is a deliberate act rather than a flag.`,
+      )
+    }
+  }
+
+  if (existsSync(LEDGER)) {
+    deferralSummary = `${String(entries.length)} dated deferral(s) ledgered over ${String(surfaces.length)} owned prose surface(s), sentence↔ledger closed both ways`
+  }
+  if (defErrs.length > 0) {
+    // Ramped like every new check on an existing gate: the scanned subjects are owned
+    // files shipped in lockstep with this code, so a fresh install cannot red here — but
+    // an install whose own tools/*.mjs carry dated prose gets one release to ledger or
+    // re-word it rather than a red on the update that shipped the scanner.
+    if (
+      rampNote(GATE, '0.7.0', 'the deferral ledger over the owned prose surfaces', {
+        until: '0.8.0',
+      })
+    ) {
+      for (const e of defErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      deferralSummary = `deferral ledger NOTE-only (${String(defErrs.length)} finding(s) withheld by the 0.7.0 ramp)`
+    } else {
+      errs.push(...defErrs)
+    }
+  }
+}
+
 failures(GATE, errs)
 ok(
   GATE,
-  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}; ${sandboxSummary}`,
+  `AGENTS.md gate list in lockstep with the ${String(stepNames.length)}-step chain; CLAUDE.md pure; ${String(advertised.size)} advertised commands all exist; ${catalogSummary}; roster: ${String(rosterFiles.length)} agent(s) parsed, ${String(reviewersChecked)}/${String(REVIEWER_AGENTS.length)} reviewers read-only; ${mcpSummary}; ${doctrineSummary}; ${tiersSummary}; ${sandboxSummary}; ${deferralSummary}`,
 )

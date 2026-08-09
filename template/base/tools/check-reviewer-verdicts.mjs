@@ -18,7 +18,12 @@
 //     would make the whole control decorative);
 //   - a reviewer that was owed and is absent -> BLOCK;
 //   - a reviewer that ran and said BLOCK -> BLOCK, loudly, because that is the case the
-//     reviewer exists for and the one most likely to be argued with.
+//     reviewer exists for and the one most likely to be argued with;
+//   - a PASS whose path_state binding does not match the tree at Stop time — or carries
+//     none at all (a pre-0.7.0 hook wrote it, or the hook could not compute one) -> BLOCK
+//     toward re-review, because "a reviewer ran" and "a reviewer reviewed THIS" are
+//     different claims and the difference is exactly the files that moved after the PASS.
+//     This class alone rides a fresh 0.7.0 ramp (until 0.8.0) — see THE FRESH RAMP below.
 //
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
 // a read-only agent whose tools, model and body are locked in tools/agents.lock.json. This
@@ -31,12 +36,13 @@ import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import { changedFiles } from './lib/git-diff.mjs'
-import { owedBy, readLedger } from './lib/reviewer-verdicts.mjs'
+import { owedBy, pathStateDigest, readLedger } from './lib/reviewer-verdicts.mjs'
 
 const GATE = 'reviewer-verdicts'
 const TRIGGERS = 'tools/reviewer-triggers.json'
 const LEDGER = '.harness/reviewer-ledger.jsonl'
 const RAMP = '0.6.0'
+const BINDING_RAMP = '0.7.0'
 
 if (!existsSync(TRIGGERS)) {
   fail(
@@ -68,6 +74,14 @@ if (owed.length === 0) {
 }
 
 const errs = []
+// THE THIRD FINDING CLASS (0.7.0), kept apart from `errs` because it rides its own ramp: a
+// PASS that exists, belongs to this turn, and still proves nothing — the paths that summoned
+// the reviewer moved after the verdict was recorded, or the entry carries no binding to
+// check. Both fail TOWARD RE-REVIEW: re-running the reviewer is always the remedy, and it
+// appends a fresh, correctly bound entry.
+const stale = []
+/** @param {string} p */
+const readFileOrNull = (p) => (existsSync(p) ? readFileSync(p) : null)
 if (!existsSync(LEDGER)) {
   errs.push(
     `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.`,
@@ -89,6 +103,23 @@ if (!existsSync(LEDGER)) {
         errs.push(
           `${o.agent} returned VERDICT: BLOCK. That is the finding it exists to produce — fix what it named and run it again. A turn does not end on a BLOCK.`,
         )
+      } else {
+        // THE DIFF BINDING. Judge the LATEST entry — the ledger is append-only and
+        // chronological, so re-running the reviewer after a fix appends the entry that
+        // clears the very finding this raises. The digest is recomputed by the same shared
+        // pathStateDigest the hook called at record time; `owed` implies the agent is in the
+        // trigger table, so the recomputation is never null.
+        const latest = mine.at(-1)
+        const recorded = typeof latest.path_state === 'string' ? latest.path_state : null
+        if (recorded === null) {
+          stale.push(
+            `${o.agent} returned PASS with no path_state binding — the entry predates the 0.7.0 hook, or the hook could not compute one, so nothing proves the PASS post-dates the last edit to the paths that summoned it. An unverifiable attestation fails toward re-review: run ${o.agent} again, then end the turn.`,
+          )
+        } else if (recorded !== pathStateDigest(o.agent, cfg, files, readFileOrNull)) {
+          stale.push(
+            `${o.agent} returned PASS for a different tree than the one this turn is shipping — the paths that summoned it (\`${o.because}\` among them) changed after its PASS was recorded. A stale verdict attests to nothing: run ${o.agent} again, then end the turn.`,
+          )
+        }
       }
     }
   }
@@ -97,20 +128,43 @@ if (!existsSync(LEDGER)) {
 // THE RAMP. An install that predates 0.6.0 has no ledger, no wired SubagentStop hook, and a
 // turn already in progress when the step arrives. Every finding above would land at once on an
 // upgrade nobody asked for. Projects grow into gates.
-if (
+const rosterNoted =
   errs.length > 0 &&
   rampNote(GATE, RAMP, `the ${GATE} closure over the reviewer roster`, { until: '0.7.0' })
-) {
+if (rosterNoted) {
   console.log(`${GATE}: NOTE — ${String(errs.length)} finding(s) withheld by the ${RAMP} ramp:`)
   for (const e of errs) console.log(`  - ${e}`)
-  ok(GATE, `NOTE-only on this pre-${RAMP} install (the ramp expires in 0.7.0)`)
+}
+
+// THE FRESH RAMP (0.7.0), covering ONLY the stale-binding class. The 0.6.0 ramp above
+// covered this gate's EXISTENCE; the diff binding changes the verdict of turns that
+// previously PASSED on existing installs — a mid-session upgrade delivers the new hook and
+// gate into a turn already in flight, where every earlier PASS lacks path_state. That is
+// the ambush shape the ramp doctrine exists for, so it gets its own deadline rather than
+// inheriting an expired one.
+const bindingNoted =
+  stale.length > 0 &&
+  rampNote(
+    GATE,
+    BINDING_RAMP,
+    'the verdict-to-diff binding (a PASS must post-date the last edit to the paths that summoned it)',
+    { until: '0.8.0' },
+  )
+if (bindingNoted) {
+  console.log(
+    `${GATE}: NOTE — ${String(stale.length)} stale-binding finding(s) withheld by the ${BINDING_RAMP} ramp:`,
+  )
+  for (const e of stale) console.log(`  - ${e}`)
 }
 
 failures(
   GATE,
-  errs,
+  [...(rosterNoted ? [] : errs), ...(bindingNoted ? [] : stale)],
   `Each finding names a reviewer whose own definition says it MUST BE USED for the paths this turn touched. The trigger patterns are reviewed data in ${TRIGGERS} — if one over-matches, narrow it in a reviewed diff rather than skipping the review.`,
 )
+if (rosterNoted || bindingNoted) {
+  ok(GATE, 'NOTE-only on this pre-ramp install (each ramp names its deadline above)')
+}
 ok(
   GATE,
   `${String(owed.length)} owed reviewer(s) all returned PASS this turn (${owed.map((o) => o.agent).join(', ')})`,

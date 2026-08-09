@@ -1,0 +1,25 @@
+{
+  "//": "REVIEWED exclusions for scripts/ci/run-stop-chain.mjs — the Stop-chain union members the selftest CANARY job cannot or should not run, each with the reason and a `provenBy` string that must still appear in .github/workflows/selftest.yml (the step that DOES run the member for real; the runner reds on a stale entry, and tests/gates/run-stop-chain.test.mjs re-checks this file against the shipped union on every PR). Every exclusion is PRINTED by the runner as `SKIP (declared)` — skip-with-declaration, never silent. `validate` is deliberately NOT excludable in practice: it subsumes the sixteen hand-typed baseline gates this runner replaced, and the shipped-file test reds if it ever appears here. HONEST LIMITS: the bootstrap-linux hook e2e proves the union GREEN on a clean scaffold — reviewer-verdicts' owed-reviewer scenarios (absent reviewer, BLOCK verdict, wrong turn) are proven by its fixture tests (tests/gates/check-reviewer-verdicts.test.mjs), not by any clean-scaffold run, and reviewer-verdicts itself is NOT excluded here because the runner exports a synthetic turn identity, so it executes with owed=[] rather than skipping.",
+  "exclusions": [
+    {
+      "step": "rls-isolation",
+      "reason": "needs the live Supabase stack and the canary job deliberately runs without one (its first step PROVES the runner fails closed with no database); the live green run happens where the stack is up",
+      "provenBy": "THE STOP CHAIN — as a chain, via the real hook"
+    },
+    {
+      "step": "unit",
+      "reason": "lane time — the coverage-instrumented vitest suite already runs on a real scaffold in canary-mutation (its baseline step) and live inside the bootstrap-linux hook e2e",
+      "provenBy": "pnpm exec vitest run --coverage --silent"
+    },
+    {
+      "step": "mobile-unit",
+      "reason": "lane time — the jest-expo coverage suite already runs on a real scaffold in canary-mutation and live inside the bootstrap-linux hook e2e",
+      "provenBy": "pnpm --filter mobile exec jest --coverage --silent"
+    },
+    {
+      "step": "diff-coverage",
+      "reason": "reads the merged maps the two excluded unit steps write, so it travels with them; canary-mutation executes it against real maps (both directions, including the Canary 27 red) and the bootstrap-linux hook e2e runs it in chain position",
+      "provenBy": "node tools/check-diff-coverage.mjs"
+    }
+  ]
+}

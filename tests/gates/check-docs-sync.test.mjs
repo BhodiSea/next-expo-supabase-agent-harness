@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +43,13 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'harness.config.mjs'), join(dir, 'tools/harness.config.mjs'))
   cpSync(join(TOOLS, 'check-docs-sync.mjs'), join(dir, 'tools/check-docs-sync.mjs'))
+  // The frozen Stop floor comes too: it is the universe of the gate's Stop-catalog
+  // closure, and the shipped tree always carries it (owned; `update` restores it).
+  cpSync(join(TOOLS, 'stop.floor.json'), join(dir, 'tools/stop.floor.json'))
+  // The deferral ledger comes for the same reason (0.7.0): the shipped catalog carries a
+  // dated deferral sentence, and without its ledger entry every fixture would red on the
+  // scan rather than on its own subject.
+  cpSync(join(TOOLS, 'deferrals.json'), join(dir, 'tools/deferrals.json'))
   cpSync(ROSTER_TEMPLATE, join(dir, '.claude/agents'), { recursive: true })
   for (const [name, content] of Object.entries(roster ?? {})) {
     if (content === null) rmSync(join(dir, '.claude/agents', name))
@@ -229,6 +236,67 @@ test('a catalog miss reds on ANY vintage — the gates-catalog lockstep is uncon
   )
   assert.equal(live.code, 1, live.out)
   assert.ok(live.out.includes("gate 'perf-budget' has no section"), live.out)
+})
+
+// ── the Stop floor joins the closure (0.7.0): every step frozen in
+// tools/stop.floor.json except `validate` needs its UNNUMBERED `### <name> — `
+// section in the catalog. The universe is the FLOOR, deliberately not the live
+// config's STOP_HOOK_STEPS — a consumer may APPEND steps, and documenting those
+// is the consumer's business; the harness documents what the harness ships. ──
+
+test('RED: a catalog missing the reviewer-verdicts heading reds naming the Stop-floor step', () => {
+  // The motivating case: the newest, most novel control in the chain was the only
+  // member with no documented way to watch it fail. The renamed heading also pins the
+  // ONE-DIRECTIONAL membership: 'reviewer-verdicts-renamed' enters the catalog's
+  // unnumbered set and satisfies nothing, because no floor step carries that name.
+  const gutted = shippedCatalog.replace(
+    /^### reviewer-verdicts — .*$/m,
+    '### reviewer-verdicts-renamed — `node tools/check-reviewer-verdicts.mjs`',
+  )
+  assert.notEqual(gutted, shippedCatalog, 'fixture must actually remove the heading')
+  const r = runGate(fixture({ agents: shippedAgents, catalog: gutted }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("Stop-floor step 'reviewer-verdicts' has no section"), r.out)
+})
+
+test("RED: deleting ANY Stop-floor step's heading reds — name-keyed, never command-keyed", () => {
+  // mobile-unit is the deliberate second subject: its real heading PARAPHRASES its
+  // command (jest-expo, not the pnpm invocation), so a command-keyed grammar would
+  // have redded the accurate shipped catalog. The NAME is the key.
+  for (const name of ['duplication', 'mobile-unit']) {
+    const gutted = shippedCatalog.replace(new RegExp(`^### ${name} — `, 'm'), `### ex-${name} — `)
+    assert.notEqual(gutted, shippedCatalog, `the ${name} heading must be found`)
+    const r = runGate(fixture({ agents: shippedAgents, catalog: gutted }))
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes(`Stop-floor step '${name}' has no section`), r.out)
+  }
+})
+
+test('GREEN: a consumer-APPENDED config-only Stop step needs no harness doc — the closure is floor-scoped', () => {
+  const dir = fixture({ agents: shippedAgents })
+  const cfg = join(dir, 'tools/harness.config.mjs')
+  const appended = readFileSync(cfg, 'utf8').replace(
+    "  ['reviewer-verdicts', 'node tools/check-reviewer-verdicts.mjs'],\n]",
+    "  ['reviewer-verdicts', 'node tools/check-reviewer-verdicts.mjs'],\n  ['consumer-smoke', 'node tools/consumer-smoke.mjs'],\n]",
+  )
+  assert.ok(appended.includes('consumer-smoke'), 'the fixture must actually append a Stop step')
+  writeFileSync(cfg, appended)
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('the validate-runner heading is INERT: not required, and unable to satisfy the closure', () => {
+  // `validate` is excluded from the Stop-floor closure — its documentation IS the
+  // numbered chain sections plus the runner note — so the shipped catalog carries no
+  // unnumbered `### validate — ` heading, and green above proves the exclusion is
+  // real rather than satisfied by an accident of grammar...
+  assert.doesNotMatch(shippedCatalog, /^### validate — /m)
+  // ...and deleting the runner note changes nothing: "the validate runner" is not a
+  // step name, so the heading never enters the closure's set in either direction.
+  const gone = shippedCatalog.replace(/^### the validate runner — .*$/m, '')
+  assert.notEqual(gone, shippedCatalog, 'fixture must actually remove the runner note')
+  const r = runGate(fixture({ agents: shippedAgents, catalog: gone }))
+  assert.equal(r.code, 0, r.out)
 })
 
 // ── agent roster: "read-only by construction" is machine-asserted.
@@ -587,6 +655,97 @@ test('TIERS: with NO manifest the Target check SAYS it is not judging, rather th
   assert.match(r.out, /no \.harness\/manifest\.json, so `Target` dates .* are not judged/)
 })
 
+// ── the SECOND discharge form (0.7.0): the declared `closes:` probe ──────────────────
+//
+// The surface derivation can only discharge a Target whose gap is "the gate scans one
+// product surface". A row whose declared gap is a reviewed-data floor (version-sync's
+// iOS toolchain) would stand red forever after shipping the floor — a control demanding
+// a change no change can satisfy, the same defect the 0.6.0 step-fold fixed for
+// twin-script steps. The declared form lets the row name its own evidence:
+// `0.7.0 — closes: `tools/store-policy.json#iosToolchain`` discharges iff the record
+// carries a non-empty value at the key AND a script implementing the row's step
+// references the key on a non-comment line. `perf-budget` is the deliberate subject
+// throughout: it is GENUINELY single-surface (the arrived-Target red above proves
+// exactly that), so a probe-form green is proof the probe REPLACED the surface
+// derivation rather than riding it.
+
+const PROBE_CELL = '0.6.0 — closes: `tools/probe-policy.json#probeDischargeKey`'
+const PROBE_REF = "\nconst PROBE_POLICY_KEY = 'probeDischargeKey'\nvoid PROBE_POLICY_KEY\n"
+
+/**
+ * Plant a probe-form Target on the perf-budget row, plus (optionally) the JSON record
+ * the probe names and a reference to the key inside the step's own gate script.
+ * @param {{ cell?: string, record?: object, reference?: string }} parts
+ */
+function probeFixture({ cell = PROBE_CELL, record, reference } = {}) {
+  const probed = shippedTiers.replace(/^(\| `perf-budget` \|.*)\| — \|$/m, `$1| ${cell} |`)
+  assert.notEqual(probed, shippedTiers, 'the perf-budget row must be found for the probe fixtures to mean anything')
+  const dir = tiersFixture(probed, { allTools: true, allWorkflows: true, harness: '0.6.0' })
+  if (record !== undefined) writeFileSync(join(dir, 'tools/probe-policy.json'), JSON.stringify(record))
+  if (reference !== undefined) appendFileSync(join(dir, 'tools/check-perf-budget.mjs'), reference)
+  return dir
+}
+
+test('TIERS PROBE: an arrived, SATISFIED probe discharges a still-single-surface gate', () => {
+  const r = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } }, reference: PROBE_REF }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+  // The sharp half: perf-budget still hard-codes one surface, so the surface form would
+  // red this row (the arrived-Target test above proves it). Green means the probe governed.
+  assert.doesNotMatch(r.out, /STILL scans one product surface/, r.out)
+})
+
+test('TIERS PROBE RED: an arrived probe with no record — key absent, or file absent — cannot discharge', () => {
+  const noKey = runGate(probeFixture({ record: {}, reference: PROBE_REF }))
+  assert.equal(noKey.code, 1, noKey.out)
+  assert.match(noKey.out, /carries no non-empty value at top-level key 'probeDischargeKey'/)
+
+  const noFile = runGate(probeFixture({ reference: PROBE_REF }))
+  assert.equal(noFile.code, 1, noFile.out)
+  assert.match(noFile.out, /tools\/probe-policy\.json does not exist/)
+})
+
+test('TIERS PROBE RED: a key NO step script reads cannot discharge — comment mentions do not count', () => {
+  // The record is present and non-empty; nothing under tools/ references the key.
+  const unread = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } } }))
+  assert.equal(unread.code, 1, unread.out)
+  assert.match(unread.out, /no script implementing the row's step .* references 'probeDischargeKey' on a non-comment line/)
+
+  // A comment-only mention is not a reference — a key a gate merely talks about is a
+  // record nothing enforces, which is the self-certification the reference check exists
+  // to refuse.
+  const commentOnly = runGate(
+    probeFixture({
+      record: { probeDischargeKey: { xcodeFloor: 26 } },
+      reference: '\n// a later release will read probeDischargeKey from the policy file\n',
+    }),
+  )
+  assert.equal(commentOnly.code, 1, commentOnly.out)
+  assert.match(commentOnly.out, /on a non-comment line/)
+})
+
+test('TIERS PROBE: before the date arrives the probe is NOT judged — the deadline arms it', () => {
+  // No record, no reference: the probe is UNSATISFIED, and still green — the probe is
+  // the arrived-discharge question, not a standing lint. The date is what arms it, the
+  // same way the surface form leaves an undue row alone.
+  const r = runGate(probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json#probeDischargeKey`' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /every arrived Target discharged/)
+})
+
+test('TIERS PROBE RED: a malformed `closes:` annotation reds even before the date arrives', () => {
+  // No backticked path — nothing can evaluate this, and waiting for the date would let a
+  // typo sleep until the deadline and then fail the discharge for a clerical reason.
+  const bare = runGate(probeFixture({ cell: '0.9.0 — closes: tools/probe-policy.json#probeDischargeKey' }))
+  assert.equal(bare.code, 1, bare.out)
+  assert.match(bare.out, /`closes:` annotation does not parse/)
+
+  // A backticked path with no `#key` names a file but no record to look for.
+  const keyless = runGate(probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json`' }))
+  assert.equal(keyless.code, 1, keyless.out)
+  assert.match(keyless.out, /annotation does not parse/)
+})
+
 test('TIERS RED: an only-conditional compensating control must admit it is path-filtered', () => {
   // The critic's finding, mechanised. `web-e2e` is path-filtered, and summarize-gate.mjs
   // deliberately greens over a skipped lane after naming it — so a row whose ONLY
@@ -651,4 +810,209 @@ test('SANDBOX RED: a --web mode the doc never mentions understates a real contro
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /never names the `web-build` lane/)
+})
+
+// ── the deferral ledger (0.7.0): tools/deferrals.json + the dated-sentence scan ───────
+//
+// Prose in the OWNED surfaces makes dated promises ("Deferred to x.y.z", "out of scope
+// for x.y.z"), and for a release three sites carried the SAME stale one — each internally
+// consistent, none read by any machine, so the date rolled past while still reading as a
+// plan. The scan closes sentence <-> ledger both ways over a DECLARED surface list
+// (the catalog, the top-level tools/*.mjs, tools/auth-posture.json — enforcement-tiers.md
+// excluded because its Target column has its own reader; SEEDED files excluded because a
+// consumer's prose is not the harness's to red), and an ARRIVED target reds until the
+// author ships the check or moves the date in a reviewed diff.
+
+const shippedLedger = JSON.parse(
+  readFileSync(join(TOOLS, 'deferrals.json'), 'utf8'),
+)
+const LONG_REASON =
+  'A test-fixture deferral reason comfortably past the forty-character review floor.'
+
+/**
+ * A minimal fixture plus a planted scan subject: `sentence` becomes a consumer-style
+ * tools/check-custom-lane.mjs (top-level tools/*.mjs ARE the declared surface, so a
+ * consumer's own gate script is scanned — the residual-false-positive answer is rewording
+ * to the ledger form, which is the behavior the control wants). `extraEntries` are
+ * appended to the SHIPPED ledger rather than replacing it: the shipped catalog carries a
+ * real dated sentence, and dropping its entry would red every case on the wrong subject.
+ * @param {{ sentence?: string, extraEntries?: object[], manifest?: any, catalog?: any }} parts
+ */
+function deferralFixture({ sentence, extraEntries = [], manifest, catalog } = {}) {
+  const dir = fixture({
+    agents: shippedAgents,
+    manifest,
+    ...(catalog === undefined ? {} : { catalog }),
+  })
+  if (sentence !== undefined) writeFileSync(join(dir, 'tools/check-custom-lane.mjs'), sentence)
+  if (extraEntries.length > 0) {
+    writeFileSync(
+      join(dir, 'tools/deferrals.json'),
+      JSON.stringify({ deferrals: [...shippedLedger.deferrals, ...extraEntries] }),
+    )
+  }
+  return dir
+}
+
+const LIVE_070 = { harnessVersion: '0.7.0', baseVersion: '0.7.0', files: {} }
+
+test('DEFERRAL RED: an ARRIVED target reds naming the entry, both versions, and the two legitimate moves', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.6.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.6.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /entry 'custom-scale-census' committed to 0\.6\.0 and this install runs harness 0\.7\.0/)
+  assert.match(r.out, /has ARRIVED/)
+  assert.match(r.out, /move the date to a release you mean in a reviewed diff/)
+})
+
+test('DEFERRAL GREEN: the same sentence with a FUTURE target is a ledgered plan, not a finding', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.8.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.8.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /dated deferral\(s\) ledgered over \d+ owned prose surface\(s\)/)
+})
+
+test('DEFERRAL RED: a dated sentence with NO ledger entry is a plan nothing reads', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/check-custom-lane\.mjs:1 defers something to 0\.9\.0/)
+  assert.match(r.out, /has no entry for this file at that target/)
+})
+
+test('DEFERRAL RED: a ledger entry whose file dropped the sentence is a second stale doctrine', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// an ordinary comment with no dated promise in it\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /entry 'custom-scale-census' says tools\/check-custom-lane\.mjs defers to 0\.9\.0/)
+  assert.match(r.out, /no longer carries that dated sentence/)
+})
+
+test('DEFERRAL RED: a reason under 40 characters is not a review', () => {
+  const r = runGate(
+    deferralFixture({
+      sentence: '// The custom scale census is deferred until 0.9.0.\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: 'too short',
+          reviewedOn: '2026-08-08',
+        },
+      ],
+      manifest: LIVE_070,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /'reason' must carry at least 40 characters/)
+})
+
+test('DEFERRAL: with NO manifest the arrival check SAYS it is not judging — the closure still runs', () => {
+  // The template dev tree and every gate fixture: no .harness/manifest.json, so there is
+  // no installed release to measure an arrival against. Defined rather than inherited,
+  // exactly like the tiers Target NOTE — and the sentence<->ledger closure is NOT version
+  // arithmetic, so it stays live: the stale-entry case must red even here.
+  const quiet = runGate(deferralFixture({}))
+  assert.equal(quiet.code, 0, quiet.out)
+  assert.match(quiet.out, /deferral targets in tools\/deferrals\.json are not judged for arrival/)
+
+  const stale = runGate(
+    deferralFixture({
+      sentence: '// an ordinary comment with no dated promise in it\n',
+      extraEntries: [
+        {
+          id: 'custom-scale-census',
+          file: 'tools/check-custom-lane.mjs',
+          target: '0.9.0',
+          reason: LONG_REASON,
+          reviewedOn: '2026-08-08',
+        },
+      ],
+    }),
+  )
+  assert.equal(stale.code, 1, stale.out)
+  assert.match(stale.out, /no longer carries that dated sentence/)
+})
+
+test('DEFERRAL RAMP: findings are dated NOTEs on a pre-0.7.0 install, and the escape expires at 0.8.0', () => {
+  // An install whose own tools/*.mjs carry dated prose gets one release to ledger or
+  // re-word it rather than a red on the update that shipped the scanner.
+  const noted = runGate(
+    deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
+      manifest: { harnessVersion: '0.7.0', baseVersion: '0.6.0', files: {} },
+    }),
+  )
+  assert.equal(noted.code, 0, noted.out)
+  assert.ok(noted.out.includes('expires in 0.8.0'), `the NOTE must carry its deadline:\n${noted.out}`)
+  assert.match(noted.out, /NOTE — \(ramp\).*has no entry for this file at that target/)
+
+  // At harness 0.8.0 the escape is over — and the SHIPPED re-deferral (target 0.8.0) has
+  // arrived with it, which is the whole point: the date cannot roll silently again.
+  const expired = runGate(
+    deferralFixture({
+      manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0', files: {} },
+    }),
+  )
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /RAMP EXPIRED/)
+  assert.match(expired.out, /entry 'auth-posture-cli-census' committed to 0\.8\.0/)
+})
+
+test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
+  // The anti-regression for the 0.7.0 prose sweep: the shipped catalog says the CLI census
+  // is deferred with the LEDGER's target. Rewinding the sentence to the previous release's
+  // date reds forward (a dated sentence at a target no entry carries) AND backward (the
+  // entry's file no longer carries ITS sentence) — the sweep cannot quietly un-happen.
+  const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
+  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.7.0')
+  assert.notEqual(refrozen, shippedCatalog, 'the catalog must carry the ledgered sentence')
+  const r = runGate(deferralFixture({ catalog: refrozen, manifest: LIVE_070 }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.7\.0/)
+  assert.match(r.out, /no longer carries that dated sentence/)
 })

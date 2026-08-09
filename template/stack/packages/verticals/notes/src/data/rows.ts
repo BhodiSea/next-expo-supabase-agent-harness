@@ -1,4 +1,4 @@
-import { NoteRecord } from '@app/contracts'
+import { ExportedNote, NoteRecord } from '@app/contracts'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -79,4 +79,50 @@ export function toNoteRecord(row: unknown): NoteRecord {
  */
 export function asRowArray(data: unknown): readonly unknown[] {
   return Array.isArray(data) ? data : []
+}
+
+// ---------------------------------------------------------------------------
+// The EXPORT projection — what `system.exportMyData` returns per note.
+//
+// A SECOND explicit projection rather than a reuse of NOTE_COLUMNS, because the
+// two answer different reviewed questions. The list projection is "what do the
+// screens render" (owner_id and archived_at, no org_id — the list is already
+// org-scoped). The export projection is tools/data-flow.json export.projection
+// VERBATIM: id, org_id, title, body, created_at, updated_at — org_id because
+// the archive spans every org the subject can read, and NO owner_id because
+// every exported row is the subject's own by construction (the query filters
+// it), so echoing it back would add their identifier to every row for nothing.
+// ---------------------------------------------------------------------------
+
+/** The export projection, mirroring tools/data-flow.json export.projection.notes. */
+export const NOTE_EXPORT_COLUMNS = 'id, org_id, title, body, created_at, updated_at'
+
+/** Borrowed bounds, same law as NoteRow above: stated once, in the contract. */
+const NoteExportRow = z.object({
+  body: ExportedNote.shape.body,
+  created_at: ExportedNote.shape.createdAt,
+  id: ExportedNote.shape.id,
+  org_id: ExportedNote.shape.orgId,
+  title: ExportedNote.shape.title,
+  updated_at: ExportedNote.shape.updatedAt,
+})
+
+/** The export row schema's keys, for the projection-drift test. Derived, never listed twice. */
+export const NOTE_EXPORT_ROW_KEYS = Object.keys(NoteExportRow.shape).sort()
+
+/**
+ * Parse ONCE, then rename — the export twin of `toNoteRecord`, and the only
+ * door out of the driver's world for export rows. Throws `ZodError` on drift;
+ * callers fold that into a `contract_drift` envelope.
+ */
+export function toExportedNote(row: unknown): ExportedNote {
+  const parsed = NoteExportRow.parse(row)
+  return {
+    body: parsed.body,
+    createdAt: parsed.created_at,
+    id: parsed.id,
+    orgId: parsed.org_id,
+    title: parsed.title,
+    updatedAt: parsed.updated_at,
+  }
 }

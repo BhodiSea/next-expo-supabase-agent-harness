@@ -13,11 +13,25 @@
 //     judgement call — that is the `citation-verifier` subagent's job, not a regex's.
 //
 // NETWORK-DEPENDENT, so it is CI-only and scheduled (nightly), never in the agent-time
-// chain: a flaky network must never red an agent's turn or a PR.
+// chain: a flaky network must never red an agent's turn or a PR. The http half is only
+// falsifiable there — but the OFFLINE half (a repo-relative url must name a file that
+// exists) is falsifiable anywhere, which is what the [corpus-path] positional is for.
+//   usage: node scripts/check-corpus-fidelity.mjs [corpus-path]
 import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 
-const CORPUS = new URL('../template/base/tools/mcp/corpus/index.json', import.meta.url)
+const ARG = process.argv[2] ? resolve(process.argv[2]) : null
+const CORPUS = ARG
+  ? pathToFileURL(ARG)
+  : new URL('../template/base/tools/mcp/corpus/index.json', import.meta.url)
+// Where a repo-relative `url` may ground: the shipped template, then the repo root — or,
+// for a fixture corpus, the directory beside the corpus file, so the offline half can be
+// watched failing without network (tests/gates/check-corpus-fidelity.test.mjs).
+const RELATIVE_ROOTS = ARG
+  ? [new URL('./', CORPUS)]
+  : [new URL('../template/base/', import.meta.url), new URL('../', import.meta.url)]
 const corpus = JSON.parse(readFileSync(CORPUS, 'utf8'))
 
 const TIMEOUT_MS = 15_000
@@ -52,8 +66,7 @@ const results = await Promise.allSettled(
       // A repo-relative authority (the harness's own doctrine docs). It must exist in the
       // shipped template, or the citation grounds in nothing.
       pathChecked += 1
-      const inTemplate = new URL(`../template/base/${url}`, import.meta.url)
-      if (!existsSync(inTemplate) && !existsSync(new URL(`../${url}`, import.meta.url))) {
+      if (!RELATIVE_ROOTS.some((base) => existsSync(new URL(url, base)))) {
         problems.push(`corpus entry ${id}: repo-relative url "${url}" names no file that exists`)
       }
       return

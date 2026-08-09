@@ -77,7 +77,7 @@ Re-open if the template ever seeds a Wear, Automotive, TV or XR target.
 
 ---
 
-## 3. Apple: uploads must build against a minimum SDK — **TARGET 0.7.0**
+## 3. Apple: uploads must build against a minimum SDK — **TARGET 0.7.0 — DISCHARGED 2026-08-08**
 
 | | |
 |---|---|
@@ -107,6 +107,27 @@ assertion is specified; only the value is missing.
 **Target: `version-sync`, 0.7.0** (that row already owns `eas.json`). Discharge = a pinned
 `image` on the production iOS profile, a reviewed floor in `tools/store-policy.json` carrying
 this date and source, and a check where unpinned/`auto`/`latest` fails rather than passes.
+
+**DISCHARGED in 0.7.0 — the dated evidence (recorded 2026-08-08).** The EAS published image
+list was fetched on **2026-08-08** from https://docs.expo.dev/build-reference/infrastructure/
+and carries five iOS images at Xcode ≥ 26 (`macos-tahoe-26.5-xcode-26.6` — Xcode 26.6, 17F113,
+latest/default and the `sdk-57` alias; `macos-tahoe-26.4-xcode-26.4`;
+`macos-sequoia-15.6-xcode-26.2`; `macos-sequoia-15.6-xcode-26.1`;
+`macos-sequoia-15.6-xcode-26.0`). The pin landed as **`macos-tahoe-26.5-xcode-26.6`** on the
+production iOS profile in `apps/mobile/eas.json` — the CONCRETE name behind the `sdk-57` alias
+(the template pins Expo SDK 57 per `design/EXPO-FACTS.md`), chosen precisely so the alias's
+future movement cannot silently change the toolchain under a consumer. The reviewed floor is
+`tools/store-policy.json` `iosToolchain` (`xcodeFloor: 26`, `inForceSince: 2026-04-28`,
+source: https://developer.apple.com/news/upcoming-requirements/ — Apple's upcoming-requirements
+notice, the requirement source this section's dates were verified against). The check is the
+static, offline half of `check-version-sync.mjs`: absent / `auto` / `latest` / `sdk-NN` red as
+unverifiable, and a matched `-xcode-` major below the floor reds naming both numbers, the
+in-force date and the source. Ramped `0.7.0 → until 0.8.0` for pre-0.7.0 installs (their
+seeded `eas.json` predates the pin; the 0.7.0 migrations record's `seededSourceFixes`
+instruction carries the pin itself). The tier row's Target now discharges through the
+`closes:` probe `tools/store-policy.json#iosToolchain`. Honest limit, stated in the tier row:
+no lane runs an EAS build, so upstream RETIREMENT of the pinned name is invisible to the
+chain — re-verify the image list on any Expo SDK bump.
 
 ---
 

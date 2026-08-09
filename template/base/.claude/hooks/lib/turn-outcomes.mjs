@@ -123,6 +123,18 @@ export function priorCapHit(records, promptId) {
 }
 
 /**
+ * Whether a prior cap-hit mark may convert into the ONE-TIME BLOCK (0.7.0), shared by both
+ * Stop hooks so the consumer gate and the factory gate can never disagree about eligibility.
+ *
+ * Presence, not equality: any `v` means a 0.7.0-or-later hook wrote the mark, and a future
+ * format bump must not quietly demote its own marks back to notes. A mark WITHOUT `v` was
+ * written by a 0.6.0 hook and stays a NOTE forever — the versioned split that makes the
+ * tightening need no ramp.
+ * @param {object|null} mark
+ */
+export const capHitBlockEligible = (mark) => typeof mark?.v === 'string'
+
+/**
  * The next ledger state after this Stop invocation, and what the hook should SAY about it.
  *
  * One function returns both because the two must agree: a banner claiming "this is the last
@@ -139,6 +151,11 @@ export function nextLedger(records, turn) {
   const entry = turn.blocked
     ? {
         kind: 'block',
+        // The format stamp the one-time reader keys on (0.7.0). Only a mark carrying `v` may
+        // convert the next green turn's NOTE into a block — nothing written before 0.7.0
+        // carries one, which is the versioned split that lets the tightening ship rampless:
+        // no pre-existing ledger state can ever trigger the new behavior.
+        v: '0.7.0',
         at: turn.at,
         session_id: turn.sessionId,
         prompt_id: turn.promptId,

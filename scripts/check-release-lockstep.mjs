@@ -7,12 +7,15 @@
 // Doctor uses the hook stamps to tell "stale hook from an older harness" from
 // "locally modified" — a stamp that skews from the released version breaks
 // that diagnosis for every consumer.
+//   usage: node scripts/check-release-lockstep.mjs [repo-root]
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 
-const root = fileURLToPath(new URL('..', import.meta.url))
+// With a repo-root argument it judges THAT tree instead — the seam its red-proof
+// (tests/gates/check-release-lockstep.test.mjs) uses to present a skewed mini-tree.
+const root = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('..', import.meta.url))
 const problems = []
 
 const pkgVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version

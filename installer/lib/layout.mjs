@@ -4,6 +4,23 @@
 // as pack-ignore manifests; storing .github dotless also prevents template
 // workflows from executing in this repo's own Actions). `.claude/` is the one
 // dotted exception: verified to survive npm pack, and hooks reference it.
+// The template spellings an INSTALL-relative path may live under: itself, and —
+// for the top-level dotless-storage entries below — the RENAMES source name
+// ('.gitignore' ships as 'gitignore'). Factory tooling that resolves a record's
+// install paths back to template sources (check-seeded-migrations, the upgrade
+// sweep's adopt()) must try every candidate, or a dotless-stored path silently
+// reads as "the template does not ship this".
+/** @param {string} installRel @returns {string[]} */
+export function templateCandidates(installRel) {
+  const out = [installRel]
+  for (const [templateName, installName] of RENAMES) {
+    if (installRel === installName) out.push(templateName)
+    else if (installRel.startsWith(`${installName}/`))
+      out.push(`${templateName}${installRel.slice(installName.length)}`)
+  }
+  return out
+}
+
 export const RENAMES = new Map([
   ['gitignore', '.gitignore'],
   ['github', '.github'],
@@ -147,6 +164,14 @@ export const SEEDED_FILES = new Set([
   // with the code that produces it, or not at all. Its integrity is the `contracts`
   // regen-diff plus the write-guard, never a mode.
   'tools/generated/query-shapes.json',
+  // Same defect, one artifact over, found by leg E at 0.7.0: the action inventory is
+  // GENERATED from the consumer's own tRPC router by `pnpm gen`. Shipping it `owned`
+  // meant `update` planted a description of the TEMPLATE's router into a repo whose
+  // router is different — the moment 0.7.0 added system.exportMyData, every upgraded
+  // install's inventory named a procedure its router does not mount, and `contracts`
+  // redded on a tree the consumer never touched. Seeded (plant-when-absent, never
+  // clobber): the regen-diff in `contracts` plus `pnpm gen` keep it honest, never a mode.
+  'tools/generated/action-inventory.json',
   // Reviewed platform-capability data: every entry carries a reason. The
   // expo-policy/native-deps gates read them; a project extends them
   // deliberately — write-guard-protected against agents.

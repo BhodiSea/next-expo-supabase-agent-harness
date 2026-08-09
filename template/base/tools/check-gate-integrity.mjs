@@ -110,7 +110,21 @@ function tsconfigPaths() {
   for (const root of roots) {
     if (!existsSync(root)) continue
     for (const rel of walkFiles(root, {
-      excludeDirs: new Set(['node_modules', 'dist', 'gen', '.next', '.expo', 'android', 'ios']),
+      // `.git` is excluded for robustness, not just speed: a background auto-gc
+      // (which `git commit` detaches) prunes object directories mid-walk, and the
+      // readdir-then-scandir race crashed this gate in CI on a tree nobody touched.
+      // No tsconfig lives under VCS or stack runtime state.
+      excludeDirs: new Set([
+        'node_modules',
+        'dist',
+        'gen',
+        '.next',
+        '.expo',
+        'android',
+        'ios',
+        '.git',
+        '.temp',
+      ]),
     })) {
       if (!/(^|\/)tsconfig[^/]*\.json$/.test(rel)) continue
       found.push(root === '.' ? rel : `${root}/${rel}`)

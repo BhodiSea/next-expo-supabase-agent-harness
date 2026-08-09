@@ -23,6 +23,11 @@
 //      build.base pins the SAME Node major plus the EXACT pnpm from packageManager —
 //      EAS ignores package.json packageManager entirely, so the eas.json fields are
 //      the only pin a cloud build obeys (design record: EXPO-FACTS, eas.json).
+//      0.7.0 adds the iOS BUILD-TOOLCHAIN floor over the same file: the production
+//      profile's ios.image, resolved through the `extends` chain, must be a CONCRETE
+//      name whose -xcode-<major> meets the reviewed tools/store-policy.json floor
+//      (Xcode 26, in force since 2026-04-28); auto/latest/sdk-NN/absent red as
+//      unverifiable, ramped for pre-0.7.0 installs until 0.8.0.
 //   4. expo / expo-router / react-native / babel-preset-expo are
 //      EXACT-pinned in the catalog: since SDK 55 the expo-* majors ride the SDK in
 //      lockstep and `expo install --check` (the native-deps gate) expects the bundled
@@ -48,7 +53,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { judgeCcFloor } from './lib/cc-floor.mjs'
 import { judgeFloor, parseLockVersions, reviewWindowProblems } from './lib/framework-floor.mjs'
-import { failures, inCI, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { failures, inCI, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'version-sync'
@@ -122,6 +127,10 @@ if (nodeMajors.size > 1) {
 
 // eas.json toolchain pins: the ONLY toolchain surface an EAS cloud build reads.
 // build.base is the profile every other profile extends, so pinning there pins all.
+// The iOS toolchain-floor findings collect separately: they ship behind their own
+// 0.7.0 ramp (below) because every pre-0.7.0 install's SEEDED eas.json predates the pin.
+const toolchainErrs = []
+let toolchainSummary = ''
 if (existsSync(EAS_JSON)) {
   const eas = readJson(EAS_JSON)
   const base = eas.build?.base ?? {}
@@ -145,6 +154,73 @@ if (existsSync(EAS_JSON)) {
     errs.push(
       `${EAS_JSON} build.base.pnpm=${base.pnpm ?? 'MISSING'} != packageManager's ${pmVersion} — EAS ignores packageManager, so the eas.json field IS the pin; keep them identical`,
     )
+  }
+
+  // ── the iOS BUILD-TOOLCHAIN floor (0.7.0) — static, offline, clockless ─────────
+  // Apple has required uploads to build against Xcode 26 / iOS 26 SDK or later since
+  // 2026-04-28 — a FIXED floor, not a moving "current SDK" requirement, and macOS is
+  // excluded (design/CONFORMANCE-FACTS.md §3). The floor itself is REVIEWED DATA in
+  // tools/store-policy.json (the enforcement-tiers version-sync row's Target discharges
+  // through that record's key), and only a CONCRETE pinned image name is statically
+  // checkable: `auto`, `latest`, `sdk-NN` and absent are unverifiable and must NOT read
+  // as green — a check that passes an unpinned profile passes every profile.
+  // SOURCE: https://developer.apple.com/news/upcoming-requirements/ (Xcode 26 / iOS 26
+  // SDK upload floor) [corpus: harness/doctrine]
+  const STORE_POLICY = 'tools/store-policy.json'
+  const iosToolchain = existsSync(STORE_POLICY) ? readJson(STORE_POLICY).iosToolchain : undefined
+  if (iosToolchain === undefined) {
+    toolchainErrs.push(
+      `${STORE_POLICY} carries no iosToolchain record while ${EAS_JSON} exists — the Xcode floor is a reviewed decision and the file is harness-owned, so a missing record is a stale or tampered tree, not a choice; restore it via \`npx next-expo-supabase-agent-harness update\``,
+    )
+  }
+  // Resolve the production profile's ios.image through the `extends` chain: the profile
+  // level wins, then each ancestor in turn. Cycle-guarded so a self-extending profile
+  // terminates as "absent" instead of hanging the gate.
+  let image
+  const walked = new Set()
+  let profileName = 'production'
+  while (typeof profileName === 'string' && !walked.has(profileName)) {
+    walked.add(profileName)
+    const profile = eas.build?.[profileName]
+    if (typeof profile !== 'object' || profile === null) break
+    image = profile.ios?.image
+    if (image !== undefined) break
+    profileName = profile.extends
+  }
+  const floorLabel =
+    iosToolchain === undefined
+      ? 'the reviewed Xcode floor (tools/store-policy.json iosToolchain)'
+      : `Xcode ${iosToolchain.xcodeFloor} / iOS ${iosToolchain.xcodeFloor} SDK or later since ${iosToolchain.inForceSince}`
+  const xcodeMajor = /-xcode-(\d+)/.exec(String(image ?? ''))?.[1]
+  if (image === undefined) {
+    toolchainErrs.push(
+      `${EAS_JSON} pins no ios.image on the production profile (nor anywhere up its extends chain) — no pin means nothing can red: Apple has required uploads to build against ${floorLabel}, and a too-old toolchain burns a whole build-and-submit cycle with no gate output. Pin a concrete image name carrying -xcode-<major> from EAS's published list (docs.expo.dev/build-reference/infrastructure)`,
+    )
+  } else if (xcodeMajor === undefined) {
+    toolchainErrs.push(
+      `${EAS_JSON} production ios.image is ${JSON.stringify(image)} — \`auto\`, \`latest\`, \`sdk-NN\` and any name without a literal \`-xcode-<major>\` are UNVERIFIABLE offline and must not read as green: an alias moves under the build, while ${floorLabel} is what the pin has to prove. Pin the concrete image name the alias resolves to today`,
+    )
+  } else if (iosToolchain !== undefined && Number(xcodeMajor) < iosToolchain.xcodeFloor) {
+    toolchainErrs.push(
+      `${EAS_JSON} production ios.image ${JSON.stringify(image)} builds with Xcode ${xcodeMajor}, below the floor of ${iosToolchain.xcodeFloor} — Apple has required uploads to build against Xcode ${iosToolchain.xcodeFloor} / iOS ${iosToolchain.xcodeFloor} SDK or later since ${iosToolchain.inForceSince} (${iosToolchain.source}); pin an image whose -xcode- major is >= ${iosToolchain.xcodeFloor}`,
+    )
+  } else if (toolchainErrs.length === 0) {
+    toolchainSummary = `; production iOS image ${image} holds the xcode>=${iosToolchain.xcodeFloor} toolchain floor`
+  }
+}
+
+// The 0.7.0 ramp over the toolchain floor. A pre-0.7.0 install's SEEDED eas.json cannot
+// be rewritten by `update` (seeded files are the consumer's), so the floor arrives as
+// dated NOTEs — the 0.7.0 migrations record's seededSourceFixes instruction carries the
+// pin itself — and the escape ends at 0.8.0. The comment lives HERE and not inside the
+// condition: scripts/check-ramp-ledger.mjs reads the line preceding `rampNote(` to decide
+// whether the result is consumed, and a comment between `if (` and the call reads to it
+// as a discarded result — a ramp that gates nothing.
+if (toolchainErrs.length > 0) {
+  if (rampNote(GATE, '0.7.0', 'the iOS build-toolchain floor over eas.json', { until: '0.8.0' })) {
+    for (const e of toolchainErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  } else {
+    errs.push(...toolchainErrs)
   }
 }
 
@@ -393,5 +469,5 @@ failures(GATE, errs)
 recordGreen()
 ok(
   GATE,
-  `version ${root.version} in lockstep (buildNumber ${mobileVersion}, versionCode ${expectedCode}, runtimeVersion appVersion); node majors + eas.json toolchains agree; SDK tools exact-pinned; every floored framework at or above its security floor`,
+  `version ${root.version} in lockstep (buildNumber ${mobileVersion}, versionCode ${expectedCode}, runtimeVersion appVersion); node majors + eas.json toolchains agree; SDK tools exact-pinned; every floored framework at or above its security floor${toolchainSummary}`,
 )
