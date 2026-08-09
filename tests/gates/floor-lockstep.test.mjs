@@ -11,7 +11,11 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+// Static, deliberately (0.8.0): the computed file:// dynamic import this replaced
+// was opaque to `knip --strict` and needed a Windows workaround (check-query-shapes
+// precedent).
+import { VALIDATE_STEPS } from '../../template/base/tools/harness.config.mjs'
 
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
 const VALIDATE = join(TEMPLATE, 'tools/validate.mjs')
@@ -50,9 +54,6 @@ function runValidate(dir, args) {
 test('the frozen snapshot equals VALIDATE_STEPS (data-to-data, not a regex parse)', async () => {
   const snapshot = JSON.parse(readFileSync(FLOOR_JSON, 'utf8'))
   assert.equal(typeof snapshot.comment, 'string', 'snapshot must carry a doctrine comment')
-  const { VALIDATE_STEPS } = await import(
-    pathToFileURL(join(TEMPLATE, 'tools/harness.config.mjs')).href
-  )
   assert.deepEqual(
     snapshot.steps,
     VALIDATE_STEPS,

@@ -204,7 +204,9 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.8.0 (deferral ledger: auth-posture-cli-census) — the upstream condition is a
+// deferred to 0.9.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.8.0 against
+// 2.113.0: the config group is still push-only (no --dry-run), the TS-rewrite command tree
+// has no config group, and the ask is open as supabase/cli#5894. The upstream condition is a
 // side-effect-free `config lint`-shaped subcommand, re-checked at every CLI pin bump, and the
 // docs-sync deferral scan reds this sentence the release the date arrives.
 const known = policy.knownSections ?? []

@@ -13,11 +13,14 @@
 // Windows leg of the unit lane runs the identical assertions.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// Static, deliberately (0.8.0): the computed file:// dynamic import this replaced
+// was opaque to `knip --strict` (check-query-shapes precedent).
+import { STOP_HOOK_STEPS } from '../../template/base/tools/harness.config.mjs'
 import { loadStopChain, unionSteps } from '../../template/base/tools/lib/stop-chain.mjs'
 
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
@@ -273,10 +276,6 @@ test('a mark WITHOUT v never blocks — 0.6.0-written state stays a NOTE on a gr
 })
 
 test('the SHIPPED floor equals the shipped STOP_HOOK_STEPS (generate-floor lockstep)', async () => {
-  const { readFileSync } = await import('node:fs')
-  const { STOP_HOOK_STEPS } = await import(
-    new URL('../../template/base/tools/harness.config.mjs', import.meta.url).href
-  )
   const floor = JSON.parse(
     readFileSync(fileURLToPath(new URL('../../template/base/tools/stop.floor.json', import.meta.url)), 'utf8'),
   ).steps

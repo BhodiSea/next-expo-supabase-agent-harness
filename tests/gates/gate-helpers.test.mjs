@@ -6,10 +6,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// Static for the in-process uses (0.8.0 — knip opacity + the Windows workaround,
+// check-query-shapes precedent). GATE_LIB stays: it is interpolated into a GENERATED
+// fixture script below, where a static specifier is impossible and the file:// href is
+// the correct cross-platform form (the ramp-expiry.test.mjs pattern).
+import { hashInputs, rampNote } from '../../template/base/tools/lib/gate.mjs'
 import { STAMP_INPUTS } from '../../template/base/tools/lib/stamp-inputs.mjs'
 
 const GATE_LIB = pathToFileURL(
@@ -55,7 +60,6 @@ test('failures() and CI-mode skipOrFail() emit the FIX line; local skip does not
 })
 
 test('every shipped gate script routes failures through lib/gate.mjs (the FIX contract)', async () => {
-  const { readdirSync, readFileSync } = await import('node:fs')
   const toolsDir = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
   // build-check.mjs is the one gate whose name does not start with check- here.
   const gateScripts = readdirSync(toolsDir).filter((f) => /^(check-.*|build-check)\.mjs$/.test(f))
@@ -102,7 +106,6 @@ test('stampGate: green run stamps; unchanged inputs skip; mutation re-runs; CI i
 // `until` defaults far enough out that these cases exercise the ramp, never the
 // clock — expiry has its own suite (tests/gates/ramp-expiry.test.mjs).
 async function rampInDir(manifest, { min = '0.1.5', until = '0.4.0' } = {}) {
-  const { rampNote } = await import(GATE_LIB)
   const dir = mkdtempSync(join(tmpdir(), 'epah-ramp-'))
   if (manifest !== null) {
     mkdirSync(join(dir, '.harness'), { recursive: true })
@@ -175,7 +178,6 @@ test('rampNote: corrupt or version-less manifest FAILS CLOSED with the FIX line 
 })
 
 test('every declared stamp input class invalidates the digest (no stale-pass class)', async () => {
-  const { hashInputs } = await import(GATE_LIB)
   for (const [gate, inputs] of Object.entries(STAMP_INPUTS)) {
     const dir = mkdtempSync(join(tmpdir(), 'epah-inputs-'))
     const prev = process.cwd()

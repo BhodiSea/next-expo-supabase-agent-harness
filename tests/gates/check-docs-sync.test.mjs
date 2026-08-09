@@ -991,16 +991,41 @@ test('DEFERRAL RAMP: findings are dated NOTEs on a pre-0.7.0 install, and the es
   assert.ok(noted.out.includes('expires in 0.8.0'), `the NOTE must carry its deadline:\n${noted.out}`)
   assert.match(noted.out, /NOTE — \(ramp\).*has no entry for this file at that target/)
 
-  // At harness 0.8.0 the escape is over — and the SHIPPED re-deferral (target 0.8.0) has
-  // arrived with it, which is the whole point: the date cannot roll silently again.
+  // At harness 0.8.0 the escape is over: the same planted finding is a hard failure under
+  // the RAMP EXPIRED banner. Planted, because the SHIPPED ledger no longer carries an
+  // arrived date here — the census moved to 0.9.0 in the reviewed 0.8.0 diff — so the
+  // expiry proof needs its own finding rather than riding the ledger's.
   const expired = runGate(
     deferralFixture({
+      sentence: '// This half is deferred to 0.9.0 pending the upstream fix.\n',
       manifest: { harnessVersion: '0.8.0', baseVersion: '0.6.0', files: {} },
     }),
   )
   assert.equal(expired.code, 1, expired.out)
   assert.match(expired.out, /RAMP EXPIRED/)
-  assert.match(expired.out, /entry 'auth-posture-cli-census' committed to 0\.8\.0/)
+  assert.match(expired.out, /has no entry for this file at that target/)
+
+  // And the SHIPPED tree at 0.8.0, nothing planted, is GREEN — the move bought exactly
+  // one release, which is what a date-move is for.
+  const clean = runGate(
+    deferralFixture({ manifest: { harnessVersion: '0.8.0', baseVersion: '0.8.0', files: {} } }),
+  )
+  assert.equal(clean.code, 0, clean.out)
+})
+
+test('DEFERRAL ARRIVAL: the shipped census target is a live tripwire, derived — never hardcoded', () => {
+  // THE FACTORY-SIDE FORCING FUNCTION: the template dev tree has no manifest, so this test
+  // IS the arrival enforcement for the shipped ledger (check-docs-sync.mjs says so in its
+  // no-manifest NOTE). Deriving the target from the ledger keeps it self-updating at the
+  // next move: whatever release the census commits to, an install running that release
+  // reds until the census ships or the date moves again in a reviewed diff.
+  const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
+  const r = runGate(
+    deferralFixture({ manifest: { harnessVersion: target, baseVersion: target, files: {} } }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, new RegExp(`entry 'auth-posture-cli-census' committed to ${target.replaceAll('.', '\\.')}`))
+  assert.match(r.out, /has ARRIVED/)
 })
 
 test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
@@ -1009,10 +1034,10 @@ test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directio
   // date reds forward (a dated sentence at a target no entry carries) AND backward (the
   // entry's file no longer carries ITS sentence) — the sweep cannot quietly un-happen.
   const target = shippedLedger.deferrals.find((e) => e.id === 'auth-posture-cli-census').target
-  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.7.0')
+  const refrozen = shippedCatalog.replace(`Deferred to ${target}`, 'Deferred to 0.8.0')
   assert.notEqual(refrozen, shippedCatalog, 'the catalog must carry the ledgered sentence')
   const r = runGate(deferralFixture({ catalog: refrozen, manifest: LIVE_070 }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.7\.0/)
+  assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.8\.0/)
   assert.match(r.out, /no longer carries that dated sentence/)
 })
