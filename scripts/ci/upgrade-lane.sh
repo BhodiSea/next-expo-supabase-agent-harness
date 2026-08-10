@@ -107,8 +107,15 @@ say "HEAD is v$HEAD_VERSION"
 if [ -n "$FROM_TAG" ]; then
   git -C "$ROOT" rev-parse -q --verify "refs/tags/$FROM_TAG" >/dev/null ||
     die "--from $FROM_TAG: no such tag. Fetch tags (\`git fetch --tags\`, or fetch-depth: 0 in CI)."
-  printf '%s\n%s\n' "${FROM_TAG#v}" "$HEAD_VERSION" | sort -V -C ||
+  # `sort -V -C` succeeds on an ALREADY-SORTED pair, and an equal pair is sorted — so the
+  # check below alone accepts `--from v$HEAD_VERSION`, the exact self-upgrade no-op the
+  # message refuses. Strictly-below needs the same skip-equal guard the auto-resolve loop
+  # applies to each candidate, and on the tag push (HEAD itself tagged) equality is not a
+  # hypothetical: it is the first tag a completing shell offers.
+  if [ "${FROM_TAG#v}" = "$HEAD_VERSION" ] ||
+    ! printf '%s\n%s\n' "${FROM_TAG#v}" "$HEAD_VERSION" | sort -V -C; then
     die "--from $FROM_TAG is not BELOW v$HEAD_VERSION — upgrading from the version you are is a no-op that would pass this lane while proving nothing."
+  fi
   PREV_TAG="$FROM_TAG"
 else
   PREV_TAG="$(
@@ -586,12 +593,26 @@ fi
 # true — no second copy of graduate's NOTE predicate to drift against, and both failure modes
 # still closed: it must never open on a red chain, and it must never refuse for a reason the
 # lane's own run cannot corroborate.
-# ── 7d. THE SWEEP (--sweep) — the only shape that opens graduate's door ───────────
-# `graduate` has two branches and only one had ever been executed. Every leg above ends with
-# it REFUSING, because an upgraded install always has ramped findings outstanding — that is
-# what a ramp is FOR. The SUCCESS branch is the one that moves baseVersion and arms every
-# ramped check at once, and through 0.5.0 nothing anywhere ran it. A door nobody has opened is
-# not a door you know opens.
+#
+# 0.9.0 IS THE FIRST RELEASE TO EXECUTE THE UN-SWEPT SUCCESS. A release that injects no
+# chain step and opens only quiet-on-a-scaffold ramps hands leg A an EMPTY expectation:
+# EXPIRED='' (ramp-verdict already required the green chain at §7a) and every NOTING site
+# quiet (§7b read each gate's OK as the honest answer). Nothing stands, so graduate opening
+# the door is the CORRECT outcome and the lane passes it; the same corroboration checks
+# below keep both refusal shapes fatal on that leg — a refusal naming outstanding findings
+# dies on the missing NOTE, and one naming a red chain dies on the lane's own exit 0. A
+# door that will not open when nothing blocks it is not an escape with a door.
+# ── 7d. THE SWEEP (--sweep) — the shape that opens graduate's door when findings stand ─
+# `graduate` has two branches and only one had ever been executed. Through 0.8.0 every
+# un-swept leg ended with it REFUSING, because an upgraded install always had ramped
+# findings outstanding — that is what a ramp is FOR. The SUCCESS branch is the one that
+# moves baseVersion and arms every ramped check at once, and through 0.5.0 nothing anywhere
+# ran it. A door nobody has opened is not a door you know opens.
+#
+# 0.9.0 adds the OTHER way through: a leg whose expectation set is EMPTY — no deadline met,
+# no expiry fired, every live ramp quiet — has nothing for a sweep to clear, and graduate
+# opening its door un-swept is the correct verdict (§8 judges that direction too). The
+# sweep remains the only shape that opens the door while anything STANDS.
 #
 # So this leg does what the runbook tells a consumer to do, then requires graduate to succeed.
 # That makes it a proof of two things at once: that the door opens, and that the sweep in
@@ -661,7 +682,15 @@ if [ "$GRAD_CODE" -eq 0 ]; then
   fi
   [ "$BASE_FINAL" = "$HEAD_VERSION" ] ||
     die "graduate exited 0 but baseVersion is $BASE_FINAL, not $HEAD_VERSION — the one thing graduation exists to do did not happen"
-  GRAD_SUMMARY="graduate advancing baseVersion $BASE_AFTER -> $BASE_FINAL"
+  # WHICH SUCCESS THIS WAS is part of the evidence (0.9.0). A swept leg earns the door by
+  # clearing what stood; an un-swept leg reaches it only on an empty expectation — the
+  # checks above are what make either claim true, and the summary records which one this
+  # leg proved.
+  if [ "${SWEEP:-0}" = "1" ]; then
+    GRAD_SUMMARY="graduate advancing baseVersion $BASE_AFTER -> $BASE_FINAL (the swept door)"
+  else
+    GRAD_SUMMARY="graduate advancing baseVersion $BASE_AFTER -> $BASE_FINAL (un-swept: empty expectation — expired '${EXPIRED:-none}', every live ramp quiet)"
+  fi
 else
   # It refused. The refusal must NAME a reason, that reason must be one the lane can see in
   # its own validate output, and it must not have moved anything on the way out.

@@ -112,6 +112,17 @@ const SWEEPS = {
   // step is covered by the sweep's own §3 AGENTS.md rewrite, which derives the gate list
   // from the install's post-injection chain rather than from any adopted file.
   '0.8.0': {},
+  // 0.9.0 — reviewed-EMPTY: the safe-passage release withholds nothing, and its EXPIRIES
+  // (the two 0.8.0-opened ramps falling due) need no sweep rows of their own because the
+  // 0.8.0 entry above already describes what clears both — the docs-sync gate-list paste
+  // is the sweep's own §3 AGENTS.md rewrite (derived from the install's chain, so it is
+  // version-agnostic and already runs on every hop), and observability's gate, lib and
+  // sink register are OWNED/planted, refreshed by `update` itself. The census move
+  // (auth-posture's re-defer to 0.10.0) is harness-side: auth-posture.json is an OWNED,
+  // sha-pinned file that `update` refreshes, so no consumer hand touches it. The 0.9.0
+  // ramp pair (version-sync's lockfile floor, wiring's lefthook floor) opens quiet on any
+  // install that has run `pnpm install` — nothing for a sweep to adopt there either.
+  '0.9.0': {},
 }
 
 /**

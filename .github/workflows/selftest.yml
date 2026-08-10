@@ -1313,37 +1313,41 @@ jobs:
           # deadline. Adding older legs must never replace it — it is the only leg on which a
           # RED chain is unambiguously a regression rather than an expiry.
           #
-          # AT 0.8.0 ITS BASELINE IS THE ONE RELEASED VINTAGE THIS RELEASE DOES NOT RED —
-          # the four 0.7.0-opened sites expire for 0.1.3 through 0.6.0, and a v0.7.0
-          # install is past every one of those minVersions, so this leg computes
-          # EXPIRED='' with INERT at 29. It STILL does not reach `graduate`'s SUCCESS
-          # branch: 0.8.0 injects the 34th step and opens two ramps of its own, dated
-          # 0.9.0 — the RE-OPENED docs-sync gate-list escape (the scaffold's seeded
-          # AGENTS.md documents 33 against the injected 34-step chain, so its NOTE always
-          # fires here) and observability's containment closure (a pristine scaffold is
-          # clean, so §7b reads its quiet run as the honest answer, not a check shipped
-          # disabled). The gate-list NOTE stands and graduate correctly refuses. So every
-          # un-swept leg takes the refusal branch, and the SUCCESS branch remains leg E's
-          # alone: it sweeps first, then REQUIRES the door to open. On this leg and the
-          # expiry legs below, §8 asserts the refusals are CORRECT rather than asserting
-          # one of them is a success.
+          # AT 0.9.0 THIS LEG PROVES TWO THINGS, AND THE SECOND IS NEW. First, the release
+          # does not red its immediate predecessor: a v0.8.0 install computes EXPIRED=''
+          # with INERT at 31 (both 0.8.0-opened ramps EXPIRED at 0.9.0 for the vintages
+          # below it — see the legs that execute them), so a red chain here is a
+          # regression, full stop. Second, `graduate`'s SUCCESS branch opens UN-SWEPT for
+          # the first time, and that un-swept success on an empty expectation set IS the
+          # evidence: 0.9.0 injects no chain step, and its two ramps of its own — dated
+          # 0.10.0, version-sync's committed-lockfile floor and wiring's lefthook
+          # installed-not-dormant floor — open inside existing gates and are QUIET on this
+          # lane's scaffold (its own install generates the lockfile and installs lefthook,
+          # so §7b reads each gate's OK as the honest answer). Nothing stands, the door
+          # must open, and upgrade-lane.sh §8 judges a refusal here fatal on its own
+          # corroboration checks. "The SUCCESS branch remains leg E's alone" stopped being
+          # true at 0.9.0: leg E stays the only leg that opens the door by SWEEPING
+          # findings away; this leg opens it because there were none to sweep.
           - leg: A
             baseline: ''
             dir: upgrade
             why: previous release — the only leg where a red chain is unambiguously a regression
           # LEG B — the oldest tag in this lineage (0.1.0–0.1.2 belong to the ancestor
-          # project). Every ramp with a deadline in the PAST expires here — 29 of the 31
-          # shipped sites, over 18 gates, with `INERT` at zero: every site in the fleet is
-          # live on this leg — so it is the maximum-blast leg and the one that first
-          # executed a RAMP EXPIRED branch at all. The other two sites are 0.8.0's own,
-          # dated 0.9.0, and they NOTE on every leg (see leg A). Counts verified against
-          # `ramp-expectations.mjs 0.1.3 0.8.0`, which is also what the lane asserts.
+          # project). Every ramp with a deadline in the PAST expires here — 19 gates at
+          # 0.9.0, the 0.8.0-era pair (docs-sync's re-opened gate list, observability's
+          # containment closure) now among them, with `INERT` at zero: every site in the
+          # fleet is live on this leg — so it is the maximum-blast leg and the one that
+          # first executed a RAMP EXPIRED branch at all. The only non-expired sites are
+          # 0.9.0's own pair, dated 0.10.0 (version-sync's lockfile floor, wiring's
+          # lefthook floor), quiet on this lane's scaffolds (see leg A). Counts verified
+          # against `ramp-expectations.mjs 0.1.3 0.9.0`, which is also what the lane
+          # asserts.
           - leg: B
             baseline: v0.1.3
             dir: upgrade-oldest
             why: oldest release — every past deadline lands at once
           # LEG C — the 0.2.x vintage: everything leg D meets PLUS gate-integrity, whose
-          # min-0.3.0 site fell due at 0.5.0 — eleven gates in all — and NONE of the seven
+          # min-0.3.0 site fell due at 0.5.0 — twelve gates at 0.9.0 — and NONE of the seven
           # gates whose 0.2.x-opened ramps only leg B's baseline still owes (db-limits,
           # migrations, prompts, query-shapes, rate-limits, security-headers, tenancy).
           # That is the isolation neither neighbour has: leg B drowns the mid-lineage debt
@@ -1359,7 +1363,8 @@ jobs:
           # been unit-owned by tests/gates/ramp-verdict.test.mjs since 0.5.0. At 0.8.0 a
           # 0.3.0 install meets three releases' debt at once — the 0.5.0-due leftovers
           # (wiring's min-0.4.0 site, diff-coverage's surface ramp) stacked under the
-          # 0.6.0-era sites and now the four 0.7.0-opened ones — ten gates in all, the
+          # 0.6.0-era sites and now the four 0.7.0-opened ones — ten gates then, eleven
+          # at 0.9.0 (observability's expired 0.8.0 site joins), the
           # shape of an install that skipped releases. It is also the §7e showcase: all
           # three lane-invisible
           # expiries (diff-coverage, reviewer-verdicts, web-e2e) drop from its executed
@@ -1381,13 +1386,17 @@ jobs:
           # that the door opens, and that the runbook is SUFFICIENT. A runbook whose steps do
           # not clear the findings is worse than no runbook, and nothing else here would
           # notice. It shares leg D's baseline deliberately: same tree, same expiry set, so
-          # the only difference between the two results is the sweep itself. 0.8.0: the
-          # sweep now crosses five versions and clears four EXPIRIES (the 0.7.0-opened
-          # sites, hard reds here) through the same reviewed SWEEPS table (pinned by
-          # tests/gates/upgrade-sweep.test.mjs), and it must ALSO leave no 0.9.0-dated
-          # NOTE standing — the sweep's own AGENTS.md rewrite covers the injected 34-step
-          # gate list, and a pristine swept scaffold is clean under observability — or
-          # graduate's required SUCCESS here reds the release.
+          # the only difference between the two results is the sweep itself. 0.9.0: the
+          # sweep now crosses six versions and must clear every expiry a v0.3.0 install
+          # meets — the 0.8.0-era pair (docs-sync's gate list, observability) EXPIRED at
+          # 0.9.0 and hard-reds here alongside the older debt — through the same reviewed
+          # SWEEPS table (pinned by tests/gates/upgrade-sweep.test.mjs; the '0.9.0' row is
+          # reviewed-EMPTY, because this release withholds nothing and its expiries are
+          # cleared by the sweep's own AGENTS.md rewrite and update's owned-file refresh).
+          # It must ALSO leave no 0.10.0-dated NOTE standing — the 0.9.0-opened pair
+          # (version-sync's committed-lockfile floor, wiring's lefthook floor) stays quiet
+          # on a swept scaffold whose own install generated both — or graduate's required
+          # SUCCESS here reds the release.
           - leg: E
             baseline: v0.3.0
             dir: upgrade-sweep
@@ -1395,7 +1404,8 @@ jobs:
             why: the swept leg — the only one that executes graduate's SUCCESS branch
           # LEG F — 0.7.0's headline population, kept as the mid-accumulation rung: a
           # v0.5.0 install now meets the 0.6.0-era deadlines AND the four 0.7.0-opened
-          # ones — eight gates — the shape of skipping two releases. reviewer-verdicts and
+          # ones — nine gates at 0.9.0, observability's expired 0.8.0 site among them —
+          # the shape of skipping two releases. reviewer-verdicts and
           # web-e2e drop to their §7e-registered proofs; the rest must red the chain, each
           # on a predicted RAMP EXPIRED line. Same lane script, generic `--from` baseline
           # resolution, expectations computed by ramp-expectations.mjs like every leg; no
@@ -1404,24 +1414,39 @@ jobs:
             baseline: v0.5.0
             dir: upgrade-0-5-0
             why: two releases' fleets land at once — the skipped-releases shape, mid-lineage
-          # LEG G — the HEADLINE POPULATION (new at 0.8.0, the leg-F pattern one release
-          # on). Everything 0.7.0 opened falls due here, and a claim that clean should be
-          # WATCHED going red in a lane, not inferred from a classifier test: a v0.6.0
-          # install meets exactly the four 0.7.0-opened deadlines (version-sync's iOS
-          # toolchain floor, data-flow's export-target deadline, docs-sync's deferral
-          # ledger, reviewer-verdicts' path_state binding) and NOTHING older — the
-          # cleanest expiry population in the lineage, the literal "reds its own
-          # immediate predecessor's predecessor", and the population the runbook's
-          # 0.6.0-baseline row rests on. reviewer-verdicts drops to its §7e-registered
-          # proof (the path_state binding fires in no lane — a Stop-chain step); the
-          # docs-sync deferral expiry may report `(silent)` on this pristine scaffold,
-          # because the shipped ledger carries no arrived date after the census moved to
-          # 0.9.0 — ramp-verdict's third outcome, not a miss. The rest must red the
-          # chain on predicted RAMP EXPIRED lines.
+          # LEG G — 0.8.0's headline population, kept as the mid-accumulation rung (the
+          # leg-F pattern one release on): a v0.6.0 install meets the four 0.7.0-opened
+          # deadlines (version-sync's iOS toolchain floor, data-flow's export-target
+          # deadline, docs-sync's deferral ledger, reviewer-verdicts' path_state binding)
+          # AND — since they EXPIRED at 0.9.0 — the 0.8.0-opened pair (docs-sync's
+          # re-opened gate-list escape rides the same gate; observability's containment
+          # closure joins): five gates, no older debt. reviewer-verdicts drops to its
+          # §7e-registered proof (the path_state binding fires in no lane — a Stop-chain
+          # step); the docs-sync deferral expiry may report `(silent)` on this pristine
+          # scaffold, because the shipped ledger carries no arrived date after the census
+          # moved to 0.10.0 (its second on-schedule deferral) — ramp-verdict's third
+          # outcome, not a miss. The rest must red the chain on predicted RAMP EXPIRED
+          # lines.
           - leg: G
             baseline: v0.6.0
             dir: upgrade-0-6-0
-            why: the newest vintage this release reds — the four 0.7.0-opened deadlines in isolation
+            why: a v0.6.0 install meets the 0.7.0- and 0.8.0-opened deadlines together — no older debt
+          # LEG H — the HEADLINE POPULATION (new at 0.9.0, the leg-G pattern one release
+          # on). Everything 0.8.0 opened falls due here, and a claim that clean should be
+          # WATCHED going red in a lane, not inferred from a classifier test: a v0.7.0
+          # install meets exactly the two 0.8.0-opened deadlines (docs-sync's re-opened
+          # gate-list escape, observability's containment closure) and NOTHING older —
+          # the cleanest expiry population in the lineage, the literal "reds its own
+          # immediate predecessor's predecessor". Both expiring gates are validate-chain
+          # steps, so — unlike every other expiry leg — NOTHING drops to a §7e proof:
+          # scripts/ci/stop-side-expiries.json carries no entry for either, and §7e would
+          # refuse one (an entry for a chain-executed expiry excuses a drop that cannot
+          # happen). Both must red the chain on predicted RAMP EXPIRED lines; the
+          # 0.10.0-dated pair stays quiet here like every leg (see leg A).
+          - leg: H
+            baseline: v0.7.0
+            dir: upgrade-0-7-0
+            why: the newest vintage this release reds — the two 0.8.0-opened deadlines in isolation
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -1486,6 +1511,63 @@ jobs:
               echo '</details>'
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # consumer-ci-static — the SHIPPED CI's entry path, executed (0.9.0). Every job
+  # in the shipped quality-gate.yml begins the same way: setup-node with
+  # `cache: pnpm`, then `pnpm install --frozen-lockfile` — and nothing had ever
+  # RUN that entry path on a fresh scaffold. bootstrap-linux installs with
+  # --no-frozen-lockfile before its first validate, and every consumer-lane
+  # claim in tests/canary/injections.json#lanes rests on steps that run AFTER
+  # the install. The 0.6.0 web-e2e lesson (injections.json:560) is that an
+  # executed lane finds what a reading cannot; this lane is the same move one
+  # layer earlier. scripts/ci/consumer-ci-static.sh proves both directions: a
+  # scaffold committed before install must die with the exact frozen-lockfile
+  # refusal (the defect class is DETECTABLE), and a tree that followed init's
+  # next-steps note literally must complete the static job — install green,
+  # `validate --min-floor` green under HARNESS_REQUIRE_TOOLCHAINS.
+  # scripts/check-ci-preconditions.mjs is the per-commit static closure over the
+  # same claims; this lane is their execution.
+  #
+  # Schedule/dispatch only — the maestro-smoke idiom — DELIBERATELY out of the
+  # PR/tag wait population until its first green on a real runner; the promotion
+  # into the per-PR path is a recorded 0.10.0 obligation. A lane joins the
+  # population it has been seen passing in, not the one it was written for.
+  # ---------------------------------------------------------------------------
+  consumer-ci-static:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Cache pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-node22-${{ hashFiles('template/base/pnpm-workspace.yaml', 'template/**/package.json.tmpl') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-node22-
+      - name: Both directions of the shipped entry path (the refusal, then the guided green)
+        run: bash scripts/ci/consumer-ci-static.sh "$GITHUB_WORKSPACE/.selftest/consumer-ci"
+      - name: Lane logs on failure
+        if: failure()
+        run: |
+          for f in install-no-lockfile install install-frozen validate; do
+            log=".selftest/consumer-ci/$f.log"
+            [ -f "$log" ] || continue
+            echo "::group::$f.log"
+            tail -c 20000 "$log"
+            echo
+            echo '::endgroup::'
+          done
 
   # workspace packages ship raw TypeScript with NodeNext `.js` import specifiers;
   # Next 16's default Turbopack bundler does not rewrite `.js`->`.ts`, so the web

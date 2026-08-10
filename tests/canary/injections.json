@@ -466,8 +466,9 @@
     ],
     "static": [
       {
-        "kind": "steps",
-        "note": "runs `node tools/validate.mjs --min-floor` — every step in it is proven in #steps above."
+        "kind": "selftest",
+        "ref": "the failing order — commit without install must die at the frozen-lockfile entry step",
+        "note": "0.9.0: the job's chain steps were always proven in #steps, but its ENTRY PATH (`pnpm install --frozen-lockfile` after setup-node `cache: pnpm`) had never been executed — the steps-kind declaration covered everything except the first thing a consumer's push runs. scripts/ci/consumer-ci-static.sh (the selftest consumer-ci-static job) executes both directions on a real scaffold: a tree committed before install must refuse with the exact ERR_PNPM_NO_LOCKFILE frozen-lockfile failure (the red half — the lane can SEE the defect class), and a tree that followed init's next-steps note literally must complete the whole job, install through `validate --min-floor` green. First local execution 2026-08-10: both halves held."
       }
     ],
     "unit": [
@@ -680,6 +681,13 @@
         "note": "0.7.0: both modes — the validate-chain rows AND --stop-chain's stopSteps rows against the floor∪config Stop union (a union member with no row reds, a stale row reds, over-ceiling names the step, `validate` stays rowless because its cost IS the wall row), with the --record provenance refusal re-pinned at the CLI for the new mode"
       }
     ],
+    "check-ci-preconditions.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/ci-preconditions.test.mjs",
+        "note": "0.9.0: the shipped CI's entry-path closure, proven red as a pure function — a bare `pnpm install` (posture resolved from the CI env var) reds naming file:line, an init next-steps note that stops naming pnpm-lock.yaml reds while `cache: pnpm` demands it (the cross-file half), an unpinned or comment-less `uses:` reds, and an empty workflow universe fails closed. The executed twin is the consumer-ci-static selftest lane, which ran the entry path both ways: the commit-before-install order refused with ERR_PNPM_NO_LOCKFILE, the guided tree completed the static job."
+      }
+    ],
     "check-claims.mjs": [
       {
         "kind": "fixture",
@@ -715,6 +723,13 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-escape-registry.test.mjs"
+      }
+    ],
+    "check-obligations.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/obligations.test.mjs",
+        "note": "0.9.0: the obligations register's death-tests — shape rows fail closed (short reason, unknown kind, dated condition, evidence-less condition, duplicate id), a kind:release row reds CLOCKLESSLY at a simulated arrived version, a kind:calendar row reds ONLY under --clockful (the clockless spawn is pinned green on the same fixture), a kind:condition row never time-reds, the deferrals census and future-until ramp unions red on a missing row, prose anchors red when the sentence moves, and an empty ramp scan reds as vacuous. The --clockful half's execution home is hygiene.yml#obligations-clockful (schedule/dispatch), declared there."
       }
     ],
     "check-plugin-manifest.mjs": [
@@ -840,6 +855,12 @@
         "note": "the network half of check-corpus-fidelity.mjs, schedule/dispatch-only because redness is a property of the internet that day — the offline half is proven by the #factoryGates fixture, and the release lane deliberately does NOT await this one"
       }
     ],
+    "hygiene.yml#obligations-clockful": [
+      {
+        "kind": "steps",
+        "note": "the CALENDAR half of check-obligations.mjs (--clockful), schedule/dispatch-only because a kind:calendar verdict changes with the date and must never red a PR — the clockless half (release rows, census + ramp unions, anchors) blocks every PR in lint.yml#machinery-lint, and both halves' red-proofs are the #factoryGates fixture (tests/gates/obligations.test.mjs pins calendar-red-only-under-clockful on one fixture)"
+      }
+    ],
     "lint.yml#actionlint": [
       {
         "kind": "steps",
@@ -867,7 +888,7 @@
     "lint.yml#machinery-lint": [
       {
         "kind": "steps",
-        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus six machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel — every one proven in #factoryGates"
+        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates"
       }
     ],
     "release.yml#release": [
@@ -931,6 +952,12 @@
         "kind": "fixture",
         "ref": "tests/gates/upgrade-sweep.test.mjs",
         "note": "0.7.0: leg E's multi-version sweep set is computed by scripts/ci/upgrade-sweep.mjs over a reviewed SWEEPS table — a crossed version withholding files with no entry throws, and the (0.3.0, 0.6.0) set is pinned byte-identical to the single-version behavior it replaced"
+      }
+    ],
+    "selftest.yml#consumer-ci-static": [
+      {
+        "kind": "steps",
+        "note": "0.9.0: the job IS an executed red/green pair — scripts/ci/consumer-ci-static.sh must see the exact frozen-lockfile refusal on the commit-before-install order AND complete the shipped static job (install + validate --min-floor) on a tree that followed init's next-steps note literally; registered as the #lanes static selftest proof. Schedule/dispatch only until its first runner green (the per-PR promotion is a recorded 0.10.0 obligation); the per-commit static closure over the same claims is check-ci-preconditions.mjs, proven in #factoryGates."
       }
     ],
     "selftest.yml#integration": [
