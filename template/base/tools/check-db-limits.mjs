@@ -37,7 +37,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
-import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 import {
   parseColumnFacts,
   parseFunctions,
@@ -49,6 +48,7 @@ import {
   splitStatements,
   stripSchema,
 } from './lib/sql-parse.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'db-limits'
 const CONFIG = 'tools/db-limits.json'

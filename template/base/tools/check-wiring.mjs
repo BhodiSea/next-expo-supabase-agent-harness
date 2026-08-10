@@ -241,7 +241,11 @@ if (existsSync('.git') && existsSync('lefthook.yml')) {
   if (!installed) {
     const lefthookErr =
       'lefthook is not installed into .git/hooks — the commit-time layer is DORMANT on this machine even though lefthook.yml is committed. Run `pnpm install` (the prepare script) or `pnpm exec lefthook install`.'
-    if (rampNote(GATE, '0.9.0', 'the commit-time layer installed-not-dormant floor', { until: '0.10.0' })) {
+    if (
+      rampNote(GATE, '0.9.0', 'the commit-time layer installed-not-dormant floor', {
+        until: '0.10.0',
+      })
+    ) {
       notes.push(lefthookErr)
     } else {
       errs.push(lefthookErr)

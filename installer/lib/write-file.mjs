@@ -27,6 +27,11 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
+/**
+ * @param {string} from @param {string} to
+ * @param {{ rename?: (from: string, to: string) => void, platform?: string,
+ *           sleep?: (ms: number) => void }} [opts]
+ */
 export function renameWithRetry(
   from,
   to,

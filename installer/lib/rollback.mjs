@@ -79,7 +79,7 @@ export function writeRollbackSnapshot({ targetDir, manifest, plan, from, to }) {
   return blobPath
 }
 
-/** @returns {{ blobPath: string, snapshot: { from: string, to: string, files: Record<string, { existed: boolean, mode?: number, b64?: string }> } } | null} */
+/** @returns {{ blobPath: string, snapshot: { from: string, to: string, recordedAt?: string, files: Record<string, { existed: boolean, mode?: number, b64?: string }> } } | null} */
 export function readRollbackSnapshot(targetDir) {
   const dir = rollbackDirFor(targetDir)
   if (!existsSync(dir)) return null

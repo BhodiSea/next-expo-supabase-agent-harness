@@ -130,6 +130,30 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   }
 }
 
+// Dependency-resolution pin (0.9.0): the lockfile must be COMMITTED, not merely present —
+// an ignored or absent pnpm-lock.yaml is unpinned resolution and a hard-failed
+// `--frozen-lockfile` on the shipped workflows' first CI run. Hoisted out of `doctor` for
+// the complexity ratchet, the same reason as classifyManifestFile above.
+/** @param {string} targetDir @param {string[]} warnings */
+function checkLockfileCommitted(targetDir, warnings) {
+  if (!existsSync(join(targetDir, '.git'))) return
+  if (!existsSync(join(targetDir, 'pnpm-lock.yaml'))) {
+    warnings.push(
+      "pnpm-lock.yaml is absent — dependency resolution is unpinned and the shipped workflows' `pnpm install --frozen-lockfile` entry step hard-fails without it; run `pnpm install` and commit the lockfile",
+    )
+    return
+  }
+  const tracked = spawnSync('git', ['ls-files', '--error-unmatch', 'pnpm-lock.yaml'], {
+    cwd: targetDir,
+    stdio: 'ignore',
+  })
+  if (tracked.status !== 0) {
+    warnings.push(
+      'pnpm-lock.yaml exists but is not committed — CI resolves a different tree than the one you reviewed; `git add pnpm-lock.yaml` and commit it',
+    )
+  }
+}
+
 // Absent is not an error here: the obligation check treats an unreadable manifest as
 // "cannot prove it is met", which is the safe direction.
 function readIfPresent(path) {
@@ -250,26 +274,7 @@ export async function doctor(opts) {
     }
   }
 
-  // Dependency-resolution pin: the lockfile must be COMMITTED, not merely
-  // present — an ignored or absent pnpm-lock.yaml is unpinned resolution and a
-  // hard-failed `--frozen-lockfile` on the shipped workflows' first CI run.
-  if (existsSync(join(targetDir, '.git'))) {
-    if (!existsSync(join(targetDir, 'pnpm-lock.yaml'))) {
-      warnings.push(
-        'pnpm-lock.yaml is absent — dependency resolution is unpinned and the shipped workflows\' `pnpm install --frozen-lockfile` entry step hard-fails without it; run `pnpm install` and commit the lockfile',
-      )
-    } else {
-      const tracked = spawnSync('git', ['ls-files', '--error-unmatch', 'pnpm-lock.yaml'], {
-        cwd: targetDir,
-        stdio: 'ignore',
-      })
-      if (tracked.status !== 0) {
-        warnings.push(
-          'pnpm-lock.yaml exists but is not committed — CI resolves a different tree than the one you reviewed; `git add pnpm-lock.yaml` and commit it',
-        )
-      }
-    }
-  }
+  checkLockfileCommitted(targetDir, warnings)
 
   // Seeded-surface advisory: which project-owned files diverge from the
   // CURRENT template (info-level; never flips the exit code). A newer template

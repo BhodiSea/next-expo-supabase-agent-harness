@@ -96,7 +96,6 @@ import {
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
-import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 import {
   matchParen,
   parseColumnFacts,
@@ -112,6 +111,7 @@ import {
   splitTopLevelOr,
   stripSchema,
 } from './lib/sql-parse.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'tenancy'
 const CONFIG = 'tools/tenancy.json'

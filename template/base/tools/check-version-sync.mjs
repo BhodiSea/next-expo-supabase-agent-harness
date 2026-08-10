@@ -277,8 +277,15 @@ if (existsSync(FLOOR_PATH)) {
   // them to commit one); the escape ends at 0.10.0. The comment lives HERE, above the
   // condition, for the ramp-ledger's consumed-result rule.
   if (!haveLock) {
-    const lockErr = `pnpm-lock.yaml is absent — dependency resolution is unpinned (a fresh install resolves against the live registry, not the tree you reviewed), the framework floor's RESOLVED half (a transitive resolution below a cited CVE floor) cannot run, and the shipped workflows' \`pnpm install --frozen-lockfile\` entry step hard-fails without it. Run \`pnpm install\` and commit pnpm-lock.yaml.`
-    if (rampNote(GATE, '0.9.0', "the committed-lockfile floor over the scaffold's dependency resolution", { until: '0.10.0' })) {
+    const lockErr = `pnpm-lock.yaml is absent — dependency resolution is unpinned (a fresh install resolves against the live registry, not the tree you reviewed), the framework floor's RESOLVED half judged ${String(judged)} catalog pin(s) only (a transitive resolution below a cited CVE floor needs the lockfile), and the shipped workflows' \`pnpm install --frozen-lockfile\` entry step hard-fails without it. Run \`pnpm install\` and commit pnpm-lock.yaml.`
+    if (
+      rampNote(
+        GATE,
+        '0.9.0',
+        "the committed-lockfile floor over the scaffold's dependency resolution",
+        { until: '0.10.0' },
+      )
+    ) {
       console.log(`${GATE}: NOTE — (ramp) ${lockErr}`)
     } else {
       errs.push(lockErr)

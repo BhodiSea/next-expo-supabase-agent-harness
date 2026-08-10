@@ -227,6 +227,40 @@ Deployment paths, the drop-in directory semantics, the minimal correct policy, a
 hook needs a dispatcher (it fires in *every* project on the machine, including ones with no
 harness installed) are in `template/base/docs/security/managed-settings.md`.
 
+## Fact 12 — a hook file that cannot PARSE fails OPEN (probed 2026-08-10, node v26)
+
+The fail-closed guarantee lives *inside* `hooks/lib/hookio.mjs` — its
+`uncaughtException`/`unhandledRejection` → `exit(2)` handlers — and those install only after
+the module loads. Damage that prevents the load never reaches them. Probed empirically against
+the shipped hooks (`pretool-write-guard.mjs` and `stop-validate-gate.mjs`, realistic stdin):
+
+| damage to `hookio.mjs` | node's failure | exit | Claude Code's reading |
+|---|---|---|---|
+| truncated mid-statement (60%) | in-file `SyntaxError: Unexpected end of input` | 1 | non-blocking — **action proceeds** |
+| truncated to 0 bytes | valid empty module; importer throws `does not provide an export` | 1 | non-blocking — **action proceeds** |
+| deleted | `ERR_MODULE_NOT_FOUND` | 1 | non-blocking — **action proceeds** |
+| intact, malformed stdin | runtime throw → installed handler | 2 | **blocked** (fail-closed, correct) |
+
+One torn file therefore disarms all three PreToolUse guards, both PostToolUse hooks and the
+Stop chain at once — and the Stop hook exiting 1 lets the turn END with no validate, so
+gate-integrity (which would name the sha mismatch) never runs locally; first detection is CI.
+The 0.9.0 mitigations: the installer's write primitive stages to a dot-tmp and renames (a
+destination is old bytes or new bytes, never a truncation), `update --rollback` restores the
+recorded pre-update tree, and the upgrade runbook's RECOVERY section names the torn-hook case
+as the urgent one. A fail-closed *launcher* (a wrapper whose only job is to exit 2 when the
+real hook cannot load) is a recorded obligation, not shipped.
+
+## Fact 13 — a bare tool name in `permissions.allow` retires every scoped rule for that tool
+
+Within a scope the evaluation order is deny → ask → allow, first match wins, and **rule
+specificity does not reorder anything** — so `"WebFetch"` in `allow` sitting beside eight
+`"WebFetch(domain:…)"` entries means the domain scoping is decorative: the bare entry matches
+first, every time. Same for `"Bash"` beside `"Bash(pnpm validate:*)"`. Removing the bare entry
+does not hard-deny the tool — a non-matching call falls through to the PROMPT default — and a
+deny rule (`Write(./.claude/hooks/**)`) holds over any allow, from any scope ("deny rules from
+any scope are evaluated before allow rules"). The shipped scaffold settings carried bare
+`Bash`/`WebFetch`/`WebSearch` allows at 0.8.0; 0.9.0 drops them.
+
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
 Searched `.github/workflows/` and `template/base/github/workflows/` for `claude -p`,

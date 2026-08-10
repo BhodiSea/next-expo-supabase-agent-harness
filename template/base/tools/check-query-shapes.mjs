@@ -39,9 +39,9 @@
 // SOURCE: docs/harness/gates-catalog.md (query-shapes) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
-import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 import { parseShapes, probeModules, resolveIndex } from './lib/query-shapes.mjs'
 import { parseIndexes, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'query-shapes'
 const MANIFEST = 'tools/generated/query-shapes.json'
