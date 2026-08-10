@@ -44,7 +44,7 @@
 //   7. FRAMEWORK SECURITY FLOOR (0.5.0). Every version tools/framework-floor.json floors
 //      — read from the RESOLVED pnpm-lock.yaml, not the catalog string, so a transitive
 //      resolution below the floor reds too — is at or above the patched release for its
-//      major line. Nothing else in the 31-step chain reds on a pinned dependency with a
+//      major line. Nothing else in the validate chain reds on a pinned dependency with a
 //      published advisory, and the osv-scan lanes structurally cannot: the PR lane is
 //      diff-aware (an already-shipped vulnerable pin is never "newly introduced") and the
 //      full-tree lane is schedule-and-network bound. This half is clockless and offline;

@@ -8,7 +8,7 @@
 // every hash, and still have: a hook unwired, `pnpm validate` redefined to something that
 // is not the gate, a CLAUDE.md that silently replaced the project memory, an
 // enforcement-surface path no CODEOWNERS rule covers, and `defaultMode:
-// "bypassPermissions"` — with the whole 31-step chain green, because no step was looking.
+// "bypassPermissions"` — with the whole validate chain green, because no step was looking.
 //
 // Placed at step 3, directly after `gate-integrity`: integrity proves the enforcement
 // FILES are the ones the harness wrote; this proves they are WIRED. Both must be true

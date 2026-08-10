@@ -1,6 +1,6 @@
 // tools/lib/framework-floor.mjs — the SECURITY FLOOR for framework pins, as pure logic.
 //
-// WHAT PROBLEM THIS SOLVES. Nothing in the 31-step chain reds on a pinned dependency with
+// WHAT PROBLEM THIS SOLVES. Nothing in the validate chain reds on a pinned dependency with
 // a published advisory, and the harness proved it the hard way: it shipped `next: 16.2.7`
 // for two releases after the 2026-07-20 security release put nine advisories — four High —
 // on that exact range. The osv-scan lanes did not catch it and could not: the PR lane is

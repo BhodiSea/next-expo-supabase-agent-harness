@@ -141,8 +141,8 @@ jobs:
   # MUTATION — the assertion-QUALITY gate, and the only check here that asks the
   # question coverage cannot: change the code, does a test go red?
   #
-  # Blocking, and CI-only: a run is minutes, and the Stop chain's warm-validate budget
-  # is ~6s. Scoped to the CRITICAL files THIS PR touched (tools/mutation-scope.mjs) —
+  # Blocking, and CI-only: a run is minutes, and the warm validate chain measures
+  # ~24s wall. Scoped to the CRITICAL files THIS PR touched (tools/mutation-scope.mjs) —
   # auth, the DAL, the error envelope, the route wiring, and the mobile client's
   # auth/transport seam — so the cost is proportional to the change and a docs-only PR
   # pays nothing. The nightly full run over the whole critical surface lives in
@@ -1102,7 +1102,7 @@ jobs:
   # reviewer opens was the one that overstated.
   #
   # A JOB RATHER THAN A CHAIN STEP, for the reason the tier row itself gave: a `next build`
-  # is minutes, not seconds, and the 31-step chain is held to a wall-clock budget
+  # is minutes, not seconds, and the validate chain is held to a wall-clock budget
   # (scripts/chain-budget.json). Path-filtered on `web` so it does not run on a mobile-only
   # PR — and the tier row now SAYS "(path-filtered)", because a control that skips is not
   # a control that ran.

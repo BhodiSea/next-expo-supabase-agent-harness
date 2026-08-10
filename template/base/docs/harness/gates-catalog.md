@@ -235,9 +235,11 @@ import specifiers. It cannot prove a vendor call's ARGUMENT flowed through
 `redactFields` (no call graph — the sink file referencing the symbol is the bar), see a
 vendor SDK reached through a transitive dependency, or notice telemetry sent by raw
 `fetch()` to an ingest URL; test files are excluded. The redaction pass's BEHAVIOR is
-the `unit` lane's (`packages/platform/observability/src/index.test.ts`). Ramped for
-pre-0.8.0 installs (their tree may carry a hand-wired transport predating the gate)
-with dated NOTEs until 0.9.0.
+the `unit` lane's (`packages/platform/observability/src/index.test.ts`). The pre-0.8.0
+adoption ramp (a tree may have hand-wired a vendor transport before the gate existed)
+expired on schedule at 0.9.0: the containment findings are hard reds on every vintage
+now, and the '0.9.0 — the fifth alarm' section of `docs/runbooks/harness-upgrade.md`
+carries the sweep.
 **Anti-vacuity:** import `@sentry/react-native` in an unregistered file → FAIL naming
 the file and both moves; register a sink whose file never references its redaction
 symbol → FAIL quoting the ordering; narrow `vendorSpecifiers` below the shipped floor →
@@ -1377,9 +1379,13 @@ one. `enforcement-tiers.md` is deliberately excluded (its Target column has its 
 reader — the surface derivation and the `closes:` probe), as is every SEEDED file
 (a consumer's prose is not the harness's to red; `tools/data-flow.json`'s export
 target has its own enforcement in `check-data-flow.mjs`). Honest limit: the scan
-reads the template's OWNED surfaces only — a factory-side dated sentence (e.g. inside
-`scripts/check-*.mjs` in the harness repo) needs a factory-side reader and is flagged
-to the factory-coverage workstream rather than half-covered here. Version-ramped
+reads the template's OWNED surfaces only. The factory-side reader that limit used to
+owe now ships: the harness repo's own dated and conditioned debts live in its
+`scripts/obligations.json` register, read by `scripts/check-obligations.mjs` — release
+targets judged clocklessly against package.json in its per-PR machinery lane, calendar
+targets only in its scheduled lane, conditions held to shape + evidence rather than
+time, with the deferral census and the future-until ramp fleet closed as unions
+against this ledger and the shipped call sites. Version-ramped
 (0.7.0, expires 0.8.0): an install whose own `tools/*.mjs` carry dated prose gets one
 release of dated NOTEs to ledger or re-word it.
 
