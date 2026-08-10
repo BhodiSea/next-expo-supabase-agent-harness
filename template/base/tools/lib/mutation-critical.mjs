@@ -29,23 +29,31 @@
 //     net is Playwright/axe, the mobile net is jest-expo/RNTL + Maestro; JSX mutants are
 //     mostly equivalent or uncoverable and would drown the signal.
 //   - packages/contracts/src — zod DTO DECLARATIONS. Mutants there are killed by `tsc` and
-//     the contract-drift gate, not by tests; including them inflates the score. (Widening the
-//     scope is a supported consumer decision — add a root here.)
+//     the contract-drift gate, not by tests; including them inflates the score. (This file
+//     is harness-owned, write-guard-denied and sha-pinned by check-gate-integrity.mjs on an
+//     install — a local edit reds as tampering and `update` parks the incoming version — so
+//     widening the scope is a harness-release act today; the consumer-tunable split is the
+//     recorded `mutation-scope-seeded-split` obligation.)
 //   - packages/design-tokens|design-system* — presentation, covered by the tokens/styleguide
 //     gates and the render/variants suites, not on the auth/data path.
 // SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
 
 // Module-local, not exported: these two feed MUTATE_GLOBS and isCritical below and nothing
-// imports them. A consumer widening the mutated surface EDITS this array in place (that is the
-// "supported consumer decision" the header note means) — editing does not need an export, and
-// exporting an unimported constant is exactly the dead API `knip --strict` reds a consumer for.
+// imports them — exporting an unimported constant is exactly the dead API `knip --strict`
+// reds a consumer for. NOT an invitation to edit in place: this file is hash-pinned (see the
+// NOT-in-scope note above), and the honest channel for a wider surface is a harness release
+// until the `mutation-scope-seeded-split` obligation lands the consumer-tunable half.
 
-/** Directory roots (trailing slash) whose .ts files are mutated. */
+/** Directory roots (trailing slash) whose .ts files are mutated. The verticals entry is
+ * `*`-shaped because the surface is each vertical's src/ tree, not the package dir: a
+ * vertical's scripts/ or docs/ .ts file is not on the auth/data path, and until 0.9.0 the
+ * GLOB said `packages/verticals/**` while isCritical said `.../src/**` — the drift the
+ * tests/gates MUTATE_GLOBS==isCritical pin now reds. */
 const CRITICAL_ROOTS = [
   'packages/api/src/',
   'packages/platform/supabase/src/',
   'packages/platform/errors/src/',
-  'packages/verticals/',
+  'packages/verticals/*/src/',
 ]
 
 /**

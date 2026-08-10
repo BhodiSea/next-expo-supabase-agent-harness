@@ -329,7 +329,9 @@ implement. The spec is necessary but not sufficient; the gate holds the line eit
 
 Reviewer subagents are **read-only by construction** — file reads/searches only, so a
 prompt-injected reviewer cannot become a writer. `citation-verifier` additionally holds
-`WebFetch` (allow-listed documentation domains) + `corpus_search`, and the security
+`corpus_search` (no WebFetch since 0.9.0: repo read + external fetch + an egressing
+report is all three trifecta legs in one agent — unresolvable external URLs are
+reported for the human to open), and the security
 reviewers the read-only `rls_verify` probe — never a write or shell tool. The claim is
 machine-asserted: the `docs-sync` gate parses every `.claude/agents/*.md` frontmatter
 (pinned grammar in `tools/lib/agent-roster.mjs`; unparseable frontmatter fails closed)
@@ -375,8 +377,10 @@ untrusted content, and (3) the ability to communicate externally. Break at least
 leg for any agent that touches real data (see
 `docs/security/sandbox-and-supply-chain.md`):
 
-- **No standing exfiltration** — Bash network commands denied; `WebFetch` allow-listed
-  to a small set of documentation domains.
+- **No standing exfiltration** — Bash network commands denied; `WebFetch(domain:...)`
+  rules cover a small set of documentation domains and any other domain prompts
+  (binding since 0.9.0, when the bare `WebFetch`/`Bash`/`WebSearch` allow entries that
+  made the scoped rules decorative were removed — the `wiring` gate reds their return).
 - **No privileged-role exposure** — the `service_role` key (RLS-bypassing) lives only
   in ADR-governed Edge Functions and is kept out of the client bundle (build-check) and
   the mobile graph (depcruise); store/signing credentials exist only in CI secrets. RLS is the

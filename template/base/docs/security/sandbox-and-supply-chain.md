@@ -17,8 +17,12 @@ If an agent has all three, an attacker can trick it into exfiltrating private da
 ## How this repo breaks the trifecta
 
 - **No standing exfiltration.** `.claude/settings.json` denies `curl`/`wget`,
-  force-push, hard reset, `.env*` and `.dev-auth/` reads, and ssh keys; `WebFetch` is
-  allow-listed to a few documentation domains.
+  force-push, hard reset, `.env*` and `.dev-auth/` reads, and ssh keys; the
+  `WebFetch(domain:...)` allow rules cover a few documentation domains, and any other
+  domain PROMPTS. That second half became true at 0.9.0: until then a bare `WebFetch`
+  allow entry sat above the scoped rules, and permission evaluation is first-match with
+  no specificity reordering, so every domain-scoped rule was decorative. The bare
+  `Bash`/`WebFetch`/`WebSearch` entries are gone and the `wiring` gate reds their return.
 - **No privileged-role exposure.** The `service_role` key (the RLS-bypassing role)
   lives only in ADR-governed Edge Functions and is kept out of the client bundle and
   the mobile graph; the authenticated caller runs under RLS (`auth.uid()`), asserted by
@@ -29,8 +33,10 @@ If an agent has all three, an attacker can trick it into exfiltrating private da
 - **Read-only reviewers.** `torvalds-reviewer`, `security-reviewer`,
   `mobile-security-reviewer`, `accessibility-reviewer`, `citation-verifier` hold file
   reads/searches only — they cannot write or run shell (citation-verifier adds
-  allow-listed WebFetch + `corpus_search`; the security reviewers the read-only
-  `rls_verify` probe — still no write/shell).
+  `corpus_search`; the security reviewers the read-only `rls_verify` probe — still no
+  write/shell). As of 0.9.0 citation-verifier holds NO WebFetch: with repo read +
+  external fetch + egress it carried all three trifecta legs in one agent, so external
+  URLs it cannot ground in the corpus are reported for a HUMAN to open instead.
 - **Least privilege per subagent.** Authors get write/Bash; reviewers do not. The local
   MCP servers (`corpus_search`, `rls_verify`) are network-free and read-only by design.
 

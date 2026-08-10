@@ -25,8 +25,8 @@ import { STAMP_INPUTS } from '../../template/base/tools/lib/stamp-inputs.mjs'
 
 const GATE = fileURLToPath(new URL('../../template/base/tools/check-e2e.mjs', import.meta.url))
 
-/** @param {{ surface?: boolean, jestExpo?: boolean }} [opts] */
-function fixture({ surface = true, jestExpo = false } = {}) {
+/** @param {{ surface?: boolean, jestExpo?: boolean, a11y?: boolean }} [opts] */
+function fixture({ surface = true, jestExpo = false, a11y = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-e2egate-'))
   // Resolution boundary: a package.json without the dep, so createRequire can never
   // accidentally resolve a jest-expo from a parent directory.
@@ -35,6 +35,15 @@ function fixture({ surface = true, jestExpo = false } = {}) {
   writeFileSync(join(dir, 'apps/mobile/package.json'), '{"name":"mobile","private":true}\n')
   if (surface) {
     writeFileSync(join(dir, 'apps/mobile/jest.config.js'), "module.exports = { preset: 'jest-expo' }\n")
+  }
+  if (surface && a11y) {
+    // The structural a11y net the gate asserts PRESENT (0.9.0) — the mobile mirror of
+    // check-web-e2e's axe-scan requirement.
+    mkdirSync(join(dir, 'apps/mobile/__tests__'), { recursive: true })
+    writeFileSync(
+      join(dir, 'apps/mobile/__tests__/primitives-a11y.test.tsx'),
+      "test('a11y', () => {})\n",
+    )
   }
   if (jestExpo) {
     const pkg = join(dir, 'apps/mobile/node_modules/jest-expo')
@@ -181,6 +190,28 @@ test('RED anti-vacuity: suites can pass while every test is skipped — `Tests: 
   const r = runGate(dir, { bin })
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('vacuous pass'), r.out)
+})
+
+test('RED (0.9.0) anti-vacuity, structural half: a deleted primitives-a11y suite reds a GREEN runner', () => {
+  // The `Tests: N passed` floor proves the runner ran SOMETHING; it cannot see WHICH
+  // suites. Deleting the a11y sweep used to leave a green lane with no accessibility net
+  // at all — the mobile twin of the web lane's axe-scan-PRESENT assertion.
+  const dir = fixture({ jestExpo: true, a11y: false })
+  const bin = fakePnpm(dir, { summary: GREEN_SUMMARY })
+  const r = runGate(dir, { bin })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('primitives-a11y.test.tsx'), r.out)
+  assert.ok(r.out.includes('a11y net'), r.out)
+  assert.ok(!existsSync(join(dir, '.harness/e2e.ok')), 'the structural red must never stamp')
+})
+
+test('RED (0.9.0): the a11y-suite assertion runs BEFORE the warm stamp — a warm green cannot hide the deletion', () => {
+  const dir = fixture({ a11y: false })
+  seedStamp(dir)
+  const r = runGate(dir, { ci: false })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('primitives-a11y.test.tsx'), r.out)
+  assert.ok(!r.out.includes('inputs unchanged'), r.out)
 })
 
 // ── content-addressed stamp: the warm-path win ────────────────────────────────

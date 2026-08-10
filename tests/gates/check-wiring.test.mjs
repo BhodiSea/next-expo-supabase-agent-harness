@@ -132,6 +132,60 @@ test('RED (0.6.0): a `Write(path)` deny whose `Edit(path)` twin was removed prot
   assert.match(r.out, /never consulted/)
 })
 
+// ── §1d (0.9.0): the two regressions this release closes ──────────────────────
+// (a) A bare command-tool allow entry ("Bash", "WebFetch", "WebSearch") makes every scoped
+//     entry for that tool DECORATIVE: permission evaluation is deny→ask→allow first-match
+//     and specificity never reorders, so the bare entry answers before any scoped one is
+//     consulted (design/CONTROL-PLANE-FACTS.md, Fact 11). The shipped settings carried
+//     exactly that for three tools, and every WebFetch(domain:...) line below them was
+//     prose.
+// (b) `disableAllHooks` in a USER-level settings file is invisible to the repo — only
+//     managed settings survive it (Fact 12). The honest repo-side control is asserting the
+//     PROJECT settings surface carries no hook-disabling key at all.
+
+test('RED (0.9.0): a bare command-tool allow entry makes every scoped rule decorative', () => {
+  const r = editSettings((s) => {
+    s.permissions.allow.push('WebFetch')
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /bare command-tool entr/i)
+  assert.match(r.out, /WebFetch/)
+  assert.match(r.out, /first-match/)
+})
+
+test('RED (0.9.0): a `disableAllHooks` key in the shipped settings disarms every hook', () => {
+  const r = editSettings((s) => {
+    s.disableAllHooks = true
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /disableAllHooks/)
+})
+
+test('RED (0.9.0): settings.local.json carrying either regression reds; its ABSENCE is a NOTE, never a red', () => {
+  const localPath = join(scaffold, '.claude/settings.local.json')
+  try {
+    writeFileSync(localPath, `${JSON.stringify({ disableAllHooks: true }, null, 2)}\n`)
+    const present = runGate()
+    assert.equal(present.code, 1, present.out)
+    assert.match(present.out, /settings\.local\.json/)
+    assert.match(present.out, /disableAllHooks/)
+  } finally {
+    rmSync(localPath, { force: true })
+  }
+  // Absence: the ordinary state of a committed scaffold — noted, not judged.
+  const absent = runGate()
+  assert.equal(absent.code, 0, absent.out)
+})
+
+test('GREEN (0.9.0): scoped command-tool allows are not bare entries', () => {
+  // The scoped spellings must never trip the bare-entry check, or the fix teaches
+  // people to delete the scoped rules too.
+  const r = editSettings((s) => {
+    s.permissions.allow.push('WebFetch(domain:example.com)', 'Bash(make test)')
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
 test('RED: the permission posture — bypassPermissions reachable, or the default mode', () => {
   const removed = editSettings((s) => {
     delete s.permissions.disableBypassPermissionsMode

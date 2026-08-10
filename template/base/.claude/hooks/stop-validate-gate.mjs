@@ -194,6 +194,16 @@ if (turn.error !== null) {
     `stop-validate-gate: ${turn.error}. The gate result below stands — bookkeeping never decides a turn — but a turn that ends at the block cap will leave no record until this is fixed.`,
   )
 }
+// The advisory turn lock (0.9.0): two live sessions in one working tree is a state worth
+// naming out loud — their diffs interleave and their gate verdicts judge each other's
+// half-finished edits — and never a reason to block a turn. The ledger itself is
+// session-scoped, so cap arithmetic stays correct either way; `installer update` is the
+// one consumer that refuses to run while the lock is fresh.
+if (turn.concurrentSession !== null) {
+  notes.push(
+    `stop-validate-gate: ${turn.concurrentSession} — another live session appears to share this working tree. Advisory only: finish one session before the other, or expect the two to judge each other's half-finished edits.`,
+  )
+}
 
 if (notes.length > 0) process.stderr.write(`${notes.join('\n')}\n`)
 

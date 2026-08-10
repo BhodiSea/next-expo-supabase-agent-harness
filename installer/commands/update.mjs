@@ -13,6 +13,7 @@
 // deliberate channel to pull them in.
 import { existsSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
 import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import {
@@ -121,6 +122,50 @@ function recordRollbackPoint({ targetDir, manifest, plan, report, dryRun }) {
   )
 }
 
+// The advisory turn lock's ONE blocking consumer (0.9.0). The install's Stop hook writes
+// .harness/turn.lock {session_id, pid, at} on every recorded outcome; an update sweeping
+// the enforcement surface out from under a MID-TURN session is the interleaving the
+// session-scoped turn ledger cannot repair (the session's next Stop judges files this
+// sweep rewrote), so the sweep is the side that waits. Semantics are the twin of
+// liveForeignLock in template/base/.claude/hooks/lib/turn-outcomes.mjs — fresh means
+// <10 minutes, alive means signal-0 lands or is refused with EPERM — duplicated here with
+// this pointer rather than imported, per the installer's standing rule (see lib/fs-walk.mjs):
+// installer code never imports template modules. A STALE lock or a DEAD pid is ignored
+// with a note, because a crashed session must not hold the tree hostage; an unreadable
+// lock advises nothing. Hoisted out of `update` for the complexity ratchet.
+const TURN_LOCK_FRESH_MS = 10 * 60 * 1000
+/** @param {string} targetDir @param {{ notes: string[] }} report */
+function refuseWhileTurnRuns(targetDir, report) {
+  const lockPath = join(targetDir, '.harness', 'turn.lock')
+  if (!existsSync(lockPath)) return
+  let lock
+  try {
+    lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+  } catch {
+    return // an unreadable advisory lock advises nothing
+  }
+  if (lock === null || typeof lock !== 'object') return
+  const ageMs = Date.now() - Date.parse(lock.at ?? '')
+  const fresh = Number.isFinite(ageMs) && ageMs < TURN_LOCK_FRESH_MS
+  const alive = (() => {
+    if (!Number.isInteger(lock.pid) || lock.pid <= 0) return false
+    try {
+      process.kill(lock.pid, 0)
+      return true
+    } catch (e) {
+      return e?.code === 'EPERM'
+    }
+  })()
+  if (fresh && alive) {
+    throw new Error(
+      `.harness/turn.lock: a LIVE Claude Code session (${String(lock.session_id ?? 'unknown session')}, pid ${String(lock.pid)}) claimed this tree ${String(Math.round(ageMs / 1000))}s ago — refusing to sweep the enforcement surface out from under a mid-turn session. Finish or end that session and re-run; a stale lock (>10 min) or a dead pid is ignored automatically.`,
+    )
+  }
+  report.notes.push(
+    `.harness/turn.lock ignored (${fresh ? 'its pid is dead — the session that wrote it is gone' : 'stale — older than 10 minutes'}); proceeding.`,
+  )
+}
+
 // Stamp hygiene (0.9.0): a gate stamp (.harness/<gate>.ok) proves "these INPUTS were
 // green under the check as it existed THEN" — and the sweep may have just rewritten the
 // check. Deleting every stamp means the first validate after an update re-proves every
@@ -192,6 +237,9 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
     title: `harness update ${manifest.harnessVersion} → ${installerVersion()}`,
     written: [],
   }
+  // Before ANY disk mutation (the rollback snapshot below is already one): a live
+  // mid-turn session's advisory lock refuses the sweep — see refuseWhileTurnRuns.
+  refuseWhileTurnRuns(targetDir, report)
   const files = { ...manifest.files }
   const modules = new Set(manifest.modules ?? [])
 

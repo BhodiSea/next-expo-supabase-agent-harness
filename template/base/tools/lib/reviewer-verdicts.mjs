@@ -136,29 +136,60 @@ export function pathStateDigest(agentType, triggers, files, readFileLike) {
  * from an earlier prompt is exactly what a naive reader would accept — and accepting it would
  * report coverage from work somebody did an hour ago, silently, which is the one failure mode
  * here that no later check would catch.
+ *
+ * MALFORMED LINES ARE BOUNDED TO THE LINE (0.9.0). This used to fail closed on ANY bad
+ * line, forever — and the failure text prescribed deleting the ledger, a remedy the
+ * write-guard denies (`.harness/` is a protected surface). Two sessions share one file, so
+ * a torn write from a session that got killed mid-append bricked every later turn in the
+ * directory with no exit the consumer could take. The posture now:
+ *   - a line that does not parse, or parses to a non-object → SKIPPED, reported in
+ *     `skipped` with its line number and content class (it cannot even be attributed to a
+ *     turn, so it can authorize nothing and can be owed nothing);
+ *   - a parsed entry MISSING agent_type/verdict that claims THIS turn's session+prompt →
+ *     `error` (fail closed: the current turn's own verdict lines must be readable, or a
+ *     torn PASS would read as "no reviewer was owed");
+ *   - the same mis-shape from ANOTHER turn → SKIPPED with its class named.
  * ONE shape rather than a discriminated union: `error` is null on success. A union reads
  * better in the abstract and forces every call site through a narrowing dance that adds no
  * safety here — there are two consumers and both check `error` first.
  * @param {string} raw @param {string} sessionId @param {string} promptId @param {string} label
- * @returns {{ entries: object[], error: string|null }}
+ * @returns {{ entries: object[], error: string|null, skipped: string[] }}
  */
 export function readLedger(raw, sessionId, promptId, label = '.harness/reviewer-ledger.jsonl') {
   const entries = []
+  const skipped = []
   for (const [i, line] of raw.split('\n').entries()) {
     if (line.trim() === '') continue
     let parsed
     try {
       parsed = JSON.parse(line)
     } catch {
-      return { entries: [], error: `line ${String(i + 1)} of ${label} is not JSON` }
+      skipped.push(
+        `line ${String(i + 1)} of ${label} is not JSON — skipped (unattributable, so it can authorize nothing)`,
+      )
+      continue
     }
-    if (typeof parsed?.agent_type !== 'string' || typeof parsed?.verdict !== 'string') {
-      return {
-        entries: [],
-        error: `line ${String(i + 1)} of ${label} is missing agent_type or verdict`,
+    if (parsed === null || typeof parsed !== 'object') {
+      skipped.push(
+        `line ${String(i + 1)} of ${label} is not an object — skipped (unattributable, so it can authorize nothing)`,
+      )
+      continue
+    }
+    const mine = parsed.session_id === sessionId && parsed.prompt_id === promptId
+    if (typeof parsed.agent_type !== 'string' || typeof parsed.verdict !== 'string') {
+      if (mine) {
+        return {
+          entries: [],
+          error: `line ${String(i + 1)} of ${label} belongs to THIS turn and is missing agent_type or verdict`,
+          skipped,
+        }
       }
+      skipped.push(
+        `line ${String(i + 1)} of ${label} is missing agent_type or verdict (another session/turn's entry) — skipped`,
+      )
+      continue
     }
-    if (parsed.session_id === sessionId && parsed.prompt_id === promptId) entries.push(parsed)
+    if (mine) entries.push(parsed)
   }
-  return { entries, error: null }
+  return { entries, error: null, skipped }
 }

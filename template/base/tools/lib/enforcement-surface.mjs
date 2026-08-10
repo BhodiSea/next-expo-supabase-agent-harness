@@ -85,6 +85,12 @@ export const CONFIG_COMMIT = [
   'knip.json', // an `ignore` entry is how dead code stops being dead
   '.dependency-cruiser.cjs', // the architecture gate's rules ARE this file
   '.gitignore', // one line here makes a file invisible to every git-diff-based gate
+  // 0.9.0: the unguarded mutation-narrowing path. Its `mutate` surface comes from
+  // tools/lib/mutation-critical.mjs (hash-pinned), but the config itself can override,
+  // ignore or re-scope everything the lane judges — and it is not hash-pinned, because
+  // widening the mutated surface is a legitimate consumer act. Commit-not-dirty is the
+  // invariant that survives legitimate use while refusing the mid-turn narrowing.
+  'stryker.config.mjs',
 ]
 
 // The path PREFIXES that constitute the enforcement surface itself: the gate scripts, the

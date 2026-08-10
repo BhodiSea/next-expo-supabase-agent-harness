@@ -33,7 +33,7 @@
 // executed below, the same way the 0.6.0 ramp's are above.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -494,16 +494,56 @@ test('the 0.7.0 binding ramp EXPIRES at harness 0.8.0 — the branch EXECUTED, l
   assert.match(r.out, /no path_state binding/)
 })
 
-test('CANARY — an unparseable ledger FAILS CLOSED', () => {
+// ── MALFORMED LINES ARE BOUNDED TO THE LINE (0.9.0) ─────────────────────────────────
+// The old readLedger failed closed FOREVER on ANY malformed line, and its remedy was one
+// the write-guard denies (deleting the ledger — `.harness/` is a protected surface). One
+// crashed session's torn write then bricked every later turn in the directory with no exit
+// the consumer could take. The failure is now bounded to the LINE: skipped with a named
+// NOTE (line number + content class), while a mis-shaped line that claims THIS turn's
+// session+prompt still fails closed — the current turn's own verdicts must be readable.
+
+test('CANARY (0.9.0) — a fully-corrupt ledger reds for the reviewer it cannot show, naming each skipped line', () => {
   const r = runStep(fixture({ ledger: '{"agent_type":"security-reviewer"\nnot json\n' }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /fails CLOSED/)
+  assert.match(r.out, /line 1 .* not JSON/)
+  assert.match(r.out, /line 2 .* not JSON/)
+  assert.match(r.out, /did not run this turn/)
 })
 
-test('CANARY — a ledger line missing its verdict is not a pass', () => {
+test('CANARY (0.9.0) — another turn\'s mis-shaped line is skipped with a NOTE, not a permanent fail-closed', () => {
   const r = runStep(fixture({ ledger: '{"session_id":"x","prompt_id":"y","agent_type":"z"}\n' }))
   assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /NOTE/)
+  assert.match(r.out, /line 1/)
   assert.match(r.out, /missing agent_type or verdict/)
+  // The red is the OWED reviewer's absence, not the stranger's torn line.
+  assert.match(r.out, /did not run this turn/)
+})
+
+test('GREEN (0.9.0) — a torn line from a crashed session does not unbind this turn\'s own PASS', () => {
+  const dir = fixture()
+  writeLedger(dir, [
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  // Append the torn line a killed process leaves — half a JSON object, no newline discipline.
+  appendFileSync(join(dir, '.harness/reviewer-ledger.jsonl'), '{"session_id":"cra\n')
+  const r = runStep(dir)
+  assert.equal(r.code, 0, `a stranger's torn line must not consume this turn's PASS: ${r.out}`)
+  assert.match(r.out, /NOTE/)
+  assert.match(r.out, /line 2/)
+})
+
+test('CANARY (0.9.0) — THIS turn\'s own mis-shaped verdict line still FAILS CLOSED, with a performable remedy', () => {
+  const dir = fixture({
+    ledger: `${JSON.stringify({ session_id: SESSION, prompt_id: PROMPT, agent_type: 'security-reviewer' })}\n`,
+  })
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /missing agent_type or verdict/)
+  // The remedy must be one the consumer can actually perform: the ledger is write-guard
+  // protected, so "delete it" is not — re-running the reviewer (a fresh appended entry) is.
+  assert.match(r.out, /run (the|each named) reviewer again/i)
+  assert.doesNotMatch(r.out, /delete it and re-run/)
 })
 
 test('RED: a missing trigger table is a BROKEN control, not an empty policy', () => {

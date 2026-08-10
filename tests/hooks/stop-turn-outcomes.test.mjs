@@ -59,13 +59,13 @@ function fixture({ red = false, ledger } = {}) {
   return dir
 }
 
-/** @param {string} dir @param {{ promptId?: string, cap?: string }} opts */
-function runStopHook(dir, { promptId = 'p1', cap } = {}) {
+/** @param {string} dir @param {{ promptId?: string, sessionId?: string, cap?: string }} opts */
+function runStopHook(dir, { promptId = 'p1', sessionId = 's1', cap } = {}) {
   const res = spawnSync('node', [join(dir, '.claude/hooks/stop-validate-gate.mjs')], {
     cwd: dir,
     input: JSON.stringify({
       stop_hook_active: false,
-      session_id: 's1',
+      session_id: sessionId,
       prompt_id: promptId,
     }),
     encoding: 'utf8',
@@ -170,10 +170,12 @@ test('with the cap DISABLED, no block is ever the last one', () => {
 })
 
 test('a green outcome records how many blocks it took to recover', () => {
+  // Session-scoped since 0.9.0: the recovery count reads THIS session's blocks, so the
+  // fixture records and the turn must agree about whose session it is ('s1', blockRec's).
   const r = nextLedger([blockRec(1, 8, false), blockRec(2, 8, false)], {
     blocked: false,
     cap: 8,
-    sessionId: 's',
+    sessionId: 's1',
     promptId: 'p',
     gates: [],
     at: 'T',
@@ -359,6 +361,103 @@ test('recordTurnOutcome reads the cap from the ENV it is handed, not from a glob
   assert.equal(r.cap, 1)
   assert.equal(r.capSource, 'env')
   assert.equal(r.capReached, true, 'with a cap of 1, the first block is already the last')
+})
+
+// ── SESSION SCOPING (0.9.0): two sessions in one directory ─────────────────────────
+//
+// THE DEFECT. readLedger/nextLedger treated the file TAIL as this session's history, so
+// two concurrent sessions sharing a working tree (a) reset each other's consecutive-block
+// count — session B's green at the tail zeroed session A's run mid-loop — and (b)
+// CROSS-BLOCKED: B's first green Stop converted A's cap-hit mark into B's one-time block,
+// forcing B to acknowledge gates it never abandoned, and consuming A's mark so A itself
+// never saw it. Cap arithmetic is now computed over THIS session's records only, while the
+// rewrite preserves every session's entries inside the one bounded global tail (KEEP).
+
+test('SESSION SCOPING: another session\'s green does not reset this session\'s block run', () => {
+  const a1 = nextLedger([], { blocked: true, cap: 3, sessionId: 'A', promptId: 'p', gates: ['validate'], at: 'T' })
+  const a2 = nextLedger(a1.records, { blocked: true, cap: 3, sessionId: 'A', promptId: 'p', gates: ['validate'], at: 'T' })
+  const b = nextLedger(a2.records, { blocked: false, cap: 3, sessionId: 'B', promptId: 'q', gates: [], at: 'T' })
+  // Session B's green sits at the global tail — A's third block must still be its third.
+  const a3 = nextLedger(b.records, { blocked: true, cap: 3, sessionId: 'A', promptId: 'p', gates: ['validate'], at: 'T' })
+  assert.equal(a3.blocks, 3, "A's consecutive count survives B's interleaved green")
+  assert.equal(a3.capReached, true, 'block 3 of 3 is the cap, whatever B did in between')
+  // …and the rewrite preserved BOTH sessions' records.
+  assert.equal(a3.records.filter((r) => r.session_id === 'B').length, 1)
+  assert.equal(a3.records.filter((r) => r.session_id === 'A').length, 3)
+})
+
+test('SESSION SCOPING: a cap-hit mark blocks ITS OWN session\'s next green turn, not a stranger\'s', () => {
+  const dir = fixture({
+    red: false,
+    ledger: serialize([{ ...blockRec(8, 8, true, 'p0'), v: '0.7.0', session_id: 'sA', gates: ['validate'] }]),
+  })
+  // Session B (green) must neither be blocked by nor consume A's evidence.
+  const b = runStopHook(dir, { sessionId: 'sB', promptId: 'q1' })
+  assert.equal(b.code, 0, `session B must not be cross-blocked by A's mark: ${b.out}`)
+  assert.ok(!b.out.includes('THE PREVIOUS TURN ENDED RED'), b.out)
+  // Session A comes back green: ITS mark is still there and converts into the one-time block.
+  const a = runStopHook(dir, { sessionId: 'sA', promptId: 'p1' })
+  assert.equal(a.code, 2, `A's own cap-hit evidence must have survived B's append: ${a.out}`)
+  assert.match(a.out, /THE PREVIOUS TURN ENDED RED/)
+  // Exactly once: A's own append moved A's tail.
+  const again = runStopHook(dir, { sessionId: 'sA', promptId: 'p2' })
+  assert.equal(again.code, 0, again.out)
+})
+
+// ── THE ADVISORY TURN LOCK (0.9.0) ──────────────────────────────────────────────────
+// recordTurnOutcome writes .harness/turn.lock {session_id, pid, at} on every outcome and
+// NOTEs — never blocks — when another LIVE session's FRESH lock is already there. The
+// blocking half lives in `installer update` (tests/installer/update-turn-lock.test.mjs).
+
+test('TURN LOCK: a fresh lock from another LIVE session is reported; the turn is never blocked', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-turnlock-'))
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/turn.lock'),
+    `${JSON.stringify({ session_id: 'other', pid: process.pid, at: new Date().toISOString() })}\n`,
+  )
+  const r = recordTurnOutcome({
+    blocked: false,
+    input: { session_id: 'mine', prompt_id: 'p' },
+    ledgerPath: join(dir, '.harness/turn-outcomes.jsonl'),
+  })
+  assert.equal(r.error, null)
+  assert.match(String(r.concurrentSession), /other/)
+  // …and the lock now records THIS session — last writer wins, it is advisory.
+  const lock = JSON.parse(readFileSync(join(dir, '.harness/turn.lock'), 'utf8'))
+  assert.equal(lock.session_id, 'mine')
+  assert.equal(lock.pid, process.pid)
+})
+
+test('TURN LOCK: same session, a stale lock, and a dead pid are all silent', () => {
+  const cases = [
+    { session_id: 'mine', pid: process.pid, at: new Date().toISOString() }, // own lock
+    { session_id: 'other', pid: process.pid, at: new Date(Date.now() - 11 * 60 * 1000).toISOString() }, // stale
+    { session_id: 'other', pid: 2 ** 30, at: new Date().toISOString() }, // dead pid
+  ]
+  for (const lock of cases) {
+    const dir = mkdtempSync(join(tmpdir(), 'epah-turnlock-quiet-'))
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/turn.lock'), `${JSON.stringify(lock)}\n`)
+    const r = recordTurnOutcome({
+      blocked: false,
+      input: { session_id: 'mine', prompt_id: 'p' },
+      ledgerPath: join(dir, '.harness/turn-outcomes.jsonl'),
+    })
+    assert.equal(r.concurrentSession, null, JSON.stringify(lock))
+  }
+})
+
+test('TURN LOCK: the Stop hook surfaces the concurrent session as a NOTE on a green turn', () => {
+  const dir = fixture({ red: false })
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/turn.lock'),
+    `${JSON.stringify({ session_id: 'elsewhere', pid: process.pid, at: new Date().toISOString() })}\n`,
+  )
+  const r = runStopHook(dir)
+  assert.equal(r.code, 0, `advisory means ADVISORY — the turn must not be blocked: ${r.out}`)
+  assert.match(r.out, /another live session/i)
 })
 
 test('THE MARK SURVIVES: a turn that ended at the cap is reported by the next GREEN turn', () => {

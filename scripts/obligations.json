@@ -170,14 +170,6 @@
       "reviewedOn": "2026-08-10"
     },
     {
-      "id": "turn-ledger-concurrency",
-      "kind": "condition",
-      "target": null,
-      "reason": "Two concurrent Claude Code sessions in one tree share the turn ledger, and each session's trimming deletes the other's cap-hit evidence — the record the reviewer-verdicts step reads is last-writer-wins. W6 of this release may discharge it (per-session ledger files or append-only merge); this row is written so that discharging it IS deleting it in that same diff.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "template/base/.claude/hooks/lib/turn-outcomes.mjs"
-    },
-    {
       "id": "conformance-supabase-grants-arrival",
       "kind": "calendar",
       "target": "2026-10-30",

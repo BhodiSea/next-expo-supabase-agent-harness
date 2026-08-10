@@ -34,6 +34,12 @@ declare const process: {
   readonly env: Readonly<Record<string, string | undefined>>
 }
 
+// The transport reason behind the most recent degraded decision. Written by onUnavailable
+// (which fires exactly once per degraded decision, inside withFailOpen's catch) and read
+// by the ONE degraded-decision log line in spendRateLimit below — module scope for the
+// same reason the limiter is: it carries no identity, only the last outage's message.
+let lastOutageReason = 'unknown'
+
 const limiter = createRateLimiter({
   onMemoryFallback: () => {
     // ERROR, not warn. On a platform that runs more than one instance the in-process
@@ -46,12 +52,13 @@ const limiter = createRateLimiter({
     })
   },
   onUnavailable: (error) => {
-    log.error('rate limiter unavailable — failing OPEN', {
-      // The message only. An error object from a fetch can carry the request URL, and
-      // that URL has the Upstash token in neither the path nor the query today — but
-      // "today" is the wrong thing to bet a credential on.
-      reason: error instanceof Error ? error.message : 'unknown',
-    })
+    // Capture only; the log line lives in spendRateLimit, where the DECISION is known —
+    // exactly ONE structured ERROR per degraded decision, with the bucket named, instead
+    // of a context-free transport line here and a second line there.
+    // The message only. An error object from a fetch can carry the request URL, and
+    // that URL has the Upstash token in neither the path nor the query today — but
+    // "today" is the wrong thing to bet a credential on.
+    lastOutageReason = error instanceof Error ? error.message : 'unknown'
   },
   upstashToken: process.env['UPSTASH_REDIS_REST_TOKEN'],
   upstashUrl: process.env['UPSTASH_REDIS_REST_URL'],
@@ -98,7 +105,22 @@ export async function spendRateLimit(
 ): Promise<RateLimitDecision | null> {
   if (bucket === null) return null
   // SOURCE: docs/adr/20260204-rate-limiting.md
-  return await limiter.limit(rateLimitKey({ bucket: bucket.name, ...identity }), bucket)
+  const decision = await limiter.limit(rateLimitKey({ bucket: bucket.name, ...identity }), bucket)
+  // THE DEGRADED FLAG IS LOAD-BEARING (0.9.0). `degraded: true` means "allowed because
+  // nothing was counting" — indistinguishable from a healthy allow to both consumers
+  // downstream (the tRPC route port and the Server Action seam read `allowed` only), so
+  // it is read HERE, the one seam both decisions flow through: exactly ONE structured
+  // ERROR per degraded decision, with the bucket named and the transport reason folded
+  // in. Redaction discipline unchanged — the bucket name is reviewed data and the reason
+  // is an Error message, never the raw error object.
+  if (decision.degraded) {
+    log.error('rate limit decision DEGRADED — request allowed because nothing was counting', {
+      bucket: bucket.name,
+      limit: bucket.limit,
+      reason: lastOutageReason,
+    })
+  }
+  return decision
 }
 
 /**

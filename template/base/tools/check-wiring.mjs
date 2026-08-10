@@ -145,6 +145,51 @@ if (orphanWrites.length > 0) {
   )
 }
 
+// ── 1d. THE PROJECT SETTINGS SURFACE CARRIES NEITHER 0.9.0 REGRESSION ────────────
+// (a) NO BARE COMMAND-TOOL ALLOW ENTRY. Permission evaluation is deny→ask→allow
+//     FIRST-MATCH, and specificity never reorders it — so a bare "Bash"/"WebFetch"/
+//     "WebSearch" allow entry answers before any scoped entry for that tool is consulted,
+//     and every `WebFetch(domain:...)` line beneath it is decorative. The shipped settings
+//     carried exactly that for three tools until 0.9.0; removing a bare entry means
+//     non-matching calls PROMPT (not hard-deny), which is the intended posture.
+//     SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 11: first-match, specificity never reorders)
+// (b) NO HOOK-DISABLING KEY. `disableAllHooks` in a USER-level settings file is invisible
+//     to the repo — only managed settings survive it — so the honest repo-side control is
+//     asserting the PROJECT settings files carry no such key, plus the managed-settings
+//     doctrine (docs/security/managed-settings.md).
+//     SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 12: disableAllHooks visibility)
+// Both are judged over settings.json AND settings.local.json when present; the local
+// file's ABSENCE is a NOTE, never a red — a committed scaffold ships none.
+const BARE_COMMAND_TOOLS = ['Bash', 'Monitor', 'PowerShell', 'WebFetch', 'WebSearch']
+const LOCAL_SETTINGS = '.claude/settings.local.json'
+const settingsSurface = [[SETTINGS, settings]]
+if (existsSync(LOCAL_SETTINGS)) {
+  try {
+    settingsSurface.push([LOCAL_SETTINGS, JSON.parse(readFileSync(LOCAL_SETTINGS, 'utf8'))])
+  } catch (e) {
+    errs.push(
+      `${LOCAL_SETTINGS} is not valid JSON (${e.message}) — an unreadable settings file cannot be asserted hook-honest, and it is write-guard-protected, so treat this as tampering.`,
+    )
+  }
+} else {
+  notes.push(
+    `${LOCAL_SETTINGS} not present — nothing to assert over it (the ordinary state; Claude Code writes it per developer).`,
+  )
+}
+for (const [file, parsed] of settingsSurface) {
+  if (parsed.disableAllHooks !== undefined) {
+    errs.push(
+      `${file} carries a "disableAllHooks" key — every hook in this harness is off while it is set. A USER-level disableAllHooks is invisible to this gate (only managed settings survive it — see docs/security/managed-settings.md); the PROJECT surface carrying one is the half this gate can refuse, and it does.`,
+    )
+  }
+  const bare = (parsed.permissions?.allow ?? []).filter((r) => BARE_COMMAND_TOOLS.includes(r))
+  if (bare.length > 0) {
+    errs.push(
+      `${file} permissions.allow carries ${String(bare.length)} bare command-tool entr${bare.length === 1 ? 'y' : 'ies'} (${bare.join(', ')}) — permission evaluation is first-match and specificity never reorders it, so a bare entry answers before ANY scoped entry for that tool and makes every one of them decorative. Delete the bare entr${bare.length === 1 ? 'y' : 'ies'}; non-matching calls then PROMPT, which is the intended posture.`,
+    )
+  }
+}
+
 // ── 2. PERMISSION POSTURE — a hard red, and the sharpest check in this gate ──────
 // `bypassPermissions` turns off the permission model wholesale: every deny rule in the
 // settings file stops applying, which includes the ones protecting .claude/hooks/**, the

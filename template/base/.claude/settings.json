@@ -84,9 +84,6 @@
   },
   "permissions": {
     "allow": [
-      "Bash",
-      "WebFetch",
-      "WebSearch",
       "Bash(pnpm validate)",
       "Bash(pnpm typecheck)",
       "Bash(pnpm lint)",
@@ -177,6 +174,8 @@
       "Read(./**/GoogleService-Info.plist)",
       "Read(./**/credentials.json)",
       "Read(~/.ssh/**)",
+      "Edit(~/.claude/**)",
+      "Write(~/.claude/**)",
       "Edit(./.claude/hooks/**)",
       "Write(./.claude/hooks/**)",
       "Edit(./.claude/settings.json)",

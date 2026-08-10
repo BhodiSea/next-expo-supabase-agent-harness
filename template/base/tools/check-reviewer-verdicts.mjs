@@ -88,9 +88,12 @@ if (!existsSync(LEDGER)) {
   )
 } else {
   const read = readLedger(readFileSync(LEDGER, 'utf8'), sessionId, promptId, LEDGER)
+  // Malformed lines are bounded to the LINE (0.9.0): a torn write from a crashed session
+  // is named and stepped over, never allowed to brick every later turn in the directory.
+  for (const s of read.skipped ?? []) console.log(`${GATE}: NOTE — ${s}`)
   if (read.error !== null) {
     errs.push(
-      `${read.error} — an unreadable ledger fails CLOSED. It is append-only machine output; if it has been hand-edited, delete it and re-run the reviewers.`,
+      `${read.error} — this turn's own verdict lines must be readable, so it fails CLOSED. Run the reviewer again: the ledger is append-only and the LATEST entry is the one judged, so a fresh well-formed PASS supersedes the torn line. (The file is write-guard-protected — clearing it wholesale is a human act under HARNESS_ALLOW_SELF_EDIT=1, and re-running the reviewer makes that unnecessary.)`,
     )
   } else {
     for (const o of owed) {
