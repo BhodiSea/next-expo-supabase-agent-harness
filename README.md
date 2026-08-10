@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.8.x).** This repo was forked from
+> **Status: pre-release (0.9.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));

@@ -33,7 +33,7 @@
 // SOURCE: docs/harness/README.md (pretool-bash-guard)
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.8.0'
+export const HARNESS_HOOK_VERSION = '0.9.0'
 
 // Dynamic import AFTER hookio installed its fail-closed handlers: a missing, broken, or
 // mis-shaped rules module must BLOCK (exit 2), not exit 1 as a non-blocking load error — a

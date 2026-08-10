@@ -11,10 +11,64 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [0.9.0] — 2026-08-10
+
+**The safe-passage release.** Both ramps 0.8.0 opened fall due here — the
+vendor-telemetry containment closure and the re-opened AGENTS.md gate-list
+escape — which makes 0.9.0 the release that forces every older install through
+`update`. Its center of gravity is making that forced passage safe and true: no
+chain step is injected (the chain stays 34 on every install, the gate-list
+escape expires on schedule, and the committed 34/34 + 10/10 measurement stays
+count-matched — which is what licenses the first wall-clock figures the README
+has ever published), and everything the passage touches got hardened first.
 
 ### Added
 
+- **Atomic installer writes + `update --rollback`.** The one install-write
+  primitive stages to a dot-tmp beside the destination and renames — probed
+  empirically first: a hooks/lib file truncated mid-write is a load-time
+  SyntaxError, node exits 1, and Claude Code treats that as a NON-blocking hook
+  error, so a torn write disarmed all three PreToolUse guards and the Stop chain
+  at once (CONTROL-PLANE-FACTS Fact 12 carries the table). Six bare
+  writeFileSync bypass sites route through the primitive and a closure test pins
+  the whole installer tree. Every real `update` records a pre-update snapshot
+  (`.harness/rollback/`, N=1, deleted by `graduate` so a pre-graduation tree can
+  never be silently restored), `update --rollback` restores it byte-for-byte
+  with a DI fault-injection proof, stamps invalidate on update, and the upgrade
+  runbook gains the RECOVERY section the passage earns.
+- **The factory obligations register.** `scripts/obligations.json` — kind
+  release/calendar/condition — unions the release's debts across
+  migrations.json ramps, the deferral ledger, and prose that previously nothing
+  read; clockless rows judged in lint's machinery block, calendar rows only on
+  hygiene's schedule. The factory-deferral-reader debt recorded at 0.8.0 is
+  discharged by this register, and one of its own rows (the turn-ledger
+  concurrency defect) was already discharged inside this release.
+- **The first execution of the shipped consumer CI's entry path.**
+  `consumer-ci-static` inits a scaffold, commits, and replays quality-gate.yml's
+  static job verbatim: the failing order (commit before install) dies at the
+  exact `--frozen-lockfile` step, the guided order completes all 34 gates. The
+  new `check-ci-preconditions` factory gate closes the shipped workflows'
+  install-flag consistency, the init lockfile-guidance cross-file closure, and
+  action SHA-pinning.
+- **Leg H** (base v0.7.0: expiries `docs-sync` + `observability`, both in-chain)
+  and **leg A's new role**: the release that stops redding its predecessor —
+  graduate's first un-swept SUCCESS on an empty expectation set, rehearsed green
+  end-to-end before the doctrine was rewritten. The `--from` guard now refuses
+  an equal version.
+- **Guard rules 125 → 127.** `.git/hooks/**` and `.git/config` join the
+  write-protected surface (a direct overwrite of the pre-commit hook disarmed
+  layer 2 with a green chain while `core.hooksPath` repoints were blocked), with
+  seventeen new behavioral canaries across the hook and bash spellings. Wiring's
+  new §1d hard-reds a project settings surface carrying `disableAllHooks` or a
+  bare command-tool allow entry; the shipped settings drop the bare
+  `Bash`/`WebFetch`/`WebSearch` allows, making the eight domain-scoped WebFetch
+  rules bind for the first time, and `citation-verifier` loses WebFetch — it
+  held repo read, external fetch, and egress at once.
+- **Two ramps open, both until 0.10.0, both inside existing gates**:
+  version-sync's committed-lockfile floor (the NOTE it replaces claimed "CI
+  always has one" — false against the shipped `--frozen-lockfile` workflows, and
+  two fresh resolutions a day apart measured 230 lock-lines apart) and wiring's
+  lefthook installed-not-dormant floor.
 - **The 34-step chain measurement.** `scripts/chain-budget.json` carries fresh `measuredMs`
   values for all 34 validate steps (the new `observability` gate measured at 90ms), the ten
   Stop-side members, and both walls — recorded from the reviewed post-release selftest
@@ -24,6 +78,58 @@ This lineage's own history starts at 0.1.3.
   prose); this recording restores the count-matched invariant, and the test pin flips back
   with it. Both halves of the artifact survived the review that d378b15's first artifact
   failed — the parser fixes held on their second live exercise.
+
+### Fixed
+
+- **The observability module patches now pass the gate they arm.** The
+  sanctioned crash-reporting/observability patches instructed a redaction
+  register their own planted code could never satisfy — wrong or
+  never-referenced symbols across three patch files plus three unlicensable
+  vendor importers. Each surface now has one licensed importer, the register
+  instructions carry the real symbols, `metro.config.js` registers as the new
+  `buildConfig` sink kind, `referencesSymbol` is identifier-boundary, and
+  `redactionSymbols` gained a shape check and an extend-only floor. A
+  patch-execution test parses the instructions out of the patch docs and runs
+  the real gate — it failed 3/3 with 8 findings against the pre-fix patches.
+- **The prose forced back into agreement with the tree.** The README's
+  two-release-stale "DSR export/erase is not shipped" corrected (export shipped
+  0.7.0; erase ships as `session.deleteAccount` + the delete-account Edge
+  Function; the honest remainder — a web erase surface — is a register row);
+  the first published wall-clock figures under the count-matched licence
+  (~24.3s warm validate serial-reference capture, ~50.5s Stop turn-end,
+  2026-08-09, Linux/X64, cold unmeasured); the platform qualifier on the proof
+  claims; and two new check-claims classes — chain-length across the doc
+  surface and chain-cost against the committed measurement — that redded all
+  four stale "~6s" sites and seven "31-step" stragglers before the fixes
+  landed.
+- **The turn ledger is session-scoped.** Two sessions in one directory no
+  longer delete each other's cap-hit evidence or cross-block each other's
+  turns; the reviewer ledger bounds a malformed line to the line with a remedy
+  the consumer can actually perform; `update` refuses to sweep mid-turn via the
+  advisory `.harness/turn.lock`.
+- **Scaffold honesty.** The rate limiter's `degraded` flag is load-bearing
+  (one structured ERROR per degraded decision through the observability seam —
+  a Redis outage is observable instead of dead data); `check-e2e` asserts the
+  mobile a11y suite exists before the warm stamp; `accessibility-reviewer`
+  claims the tag set axe actually runs; `stryker.config.mjs` joins the
+  commit-not-dirty surface (it was the unguarded mutation-narrowing path); and
+  the new MUTATE_GLOBS==isCritical drift pin caught real glob/predicate
+  divergence on its first run.
+
+### Changed
+
+- **The census fired on schedule, again.** `auth-posture-cli-census` moved to
+  0.10.0 across its four OWNED lockstep sites with fresh evidence (CLI still
+  2.113.0, supabase/cli#5894 still open, the v2.114.0 betas' only
+  config-adjacent change a docker image bump); the 0.8.0 move's "once" clause is
+  rewritten as the standing per-arrival rule, and the remedy texts stop
+  inviting the consumer edit gate-integrity would call tampering.
+- **The ledger.** `"0.9.0"` rampExpiry: affects = the eight vintages below
+  0.8.0; no configSteps, no rampExtensions — the first record since 0.7.0 that
+  closes more than it opens. VINTAGES gains '0.8.0'. The executed docs-sync
+  expiry proof lands beside the observability twin. SWEEPS '0.9.0' is
+  reviewed-empty. The release-mechanics procedure five releases converged on is
+  codified in CONTRIBUTING.
 
 ## [0.8.0] — 2026-08-10
 
