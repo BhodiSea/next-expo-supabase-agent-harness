@@ -128,3 +128,29 @@ github:…` never installs them.
 5. Tag `vx.y.z` and push — `release.yml` re-runs the gates, waits for a green
    selftest matrix on the tagged SHA, verifies the changelog section, packs,
    attests provenance, and publishes the GitHub Release.
+
+The mechanics the five releases through 0.9.0 actually used, written down so
+the next one inherits a procedure rather than an archaeology (this list is what
+step 5 compresses):
+
+- **One long-lived branch per release**, named `release/vx.y.z-<theme>`, squashed
+  as a single PR whose subject is the release's conventional-commit headline
+  (`feat!: vx.y.z — the <theme> release`). The version bump (steps 1–3) is the
+  LAST commit before merge, because `check-ramp-ledger` judges the `"x.y.z"`
+  migrations record only at the version it names — pre-bump red on the branch
+  is expected and clears at the bump commit.
+- **Tag the merge SHA**, not the branch head: the squash rewrites history, and
+  the tag build is its own test stage — the same commit can be green on `main`
+  and red on its tag (0.6.0 shipped exactly that), because a tag-push checkout
+  at default depth sees a truncated tag list.
+- **`release.yml` blocks on green `selftest.yml` AND `lint.yml` runs at the tag
+  SHA** via `scripts/ci/wait-for-workflows.mjs` (90-minute budget). Watch it BY
+  RUN ID, not by branch. `hygiene.yml` is deliberately not awaited — it is
+  schedule-gated and clockful.
+- **No `npm publish`**: the packed tarball is a provenance-attested GitHub
+  Release asset; the install channel is `npx --yes github:…`.
+- **Post-tag follow-ups are part of the release**, not optional: dispatch the
+  schedule-gated lanes once (`consumer-ci-static`, `obligations-clockful`) so
+  their first runs happen while the release context is warm, and re-record the
+  chain-budget measurement only through the reviewed `workflow_dispatch` path
+  (the 0.7.0/0.8.0 pattern — measure, commit, then publish, in that order).
