@@ -6,12 +6,37 @@ automatically; copy the snippets deliberately, after your self-hosted Sentry (or
 GlitchTip) instance exists. The mobile app and the web server are separate crash surfaces
 with separate SDKs; the POLICY is the same on both.
 
-> **SAME DIFF as its `tools/observability.json` `sinks[]` row (0.8.0).** The
-> `observability` chain gate reds any `@sentry/*` import outside the reviewed sink
-> register. Register the one file that imports the SDK — `{ "file": "<path>",
-> "vendors": ["@sentry/"], "redaction": "redactFields", "reason": "<40+ chars>" }` —
-> and have that file reference the redaction symbol in code. Land the row, the
-> import, and the wiring in ONE reviewed diff.
+> **SAME DIFF as its `tools/observability.json` register additions (0.8.0; rows
+> corrected 0.9.0).** The `observability` chain gate reds any `@sentry/*` import
+> outside the reviewed sink register. TWO files this patch lands import the SDK
+> (`sentry.server.config.ts` and `instrumentation.ts` — the tRPC route captures
+> through a named export instead, §5), and each needs its own row referencing a
+> redaction symbol it actually calls. The register is APPEND-ONLY consumer data:
+> EXTEND the seeded `redactionSymbols` and `sinks[]` lists, never replace them —
+> `redactFields` and the seeded `vendorSpecifiers` are floor entries the gate
+> reds you for removing. The exact additions:
+
+```json
+{
+  "redactionSymbols": ["redactCrashEvent", "redactText"],
+  "sinks": [
+    {
+      "file": "apps/web/sentry.server.config.ts",
+      "vendors": ["@sentry/"],
+      "redaction": "redactCrashEvent",
+      "reason": "crash-reporting module: the server Sentry init — beforeSend routes every outbound event through the copied redaction policy in apps/web/lib/crash/redact.ts before transport."
+    },
+    {
+      "file": "apps/web/instrumentation.ts",
+      "vendors": ["@sentry/"],
+      "redaction": "redactText",
+      "reason": "crash-reporting module: onRequestError hands Next's RSC/route errors to the client whose beforeSend redacts, and scrubs the request path through redactText at the mouth."
+    }
+  ]
+}
+```
+
+Land the rows, the imports, and the wiring in ONE reviewed diff.
 
 ## 1. Install (web workspace)
 
@@ -110,6 +135,13 @@ if (dsn !== undefined && dsn !== '') {
     },
   })
 }
+
+// The tRPC route funnel (§5) captures through this named export, so the route
+// file never imports the vendor SDK itself and the sink register stays at the
+// two rows this patch declares (one vendor import per licensed surface).
+export function captureServerException(error: unknown): void {
+  Sentry.captureException(error)
+}
 ```
 
 `apps/web/instrumentation.ts` — Next runs `register()` once, before app code (add the
@@ -117,6 +149,7 @@ Sentry import alongside anything the observability module already registers):
 
 ```ts
 import * as Sentry from '@sentry/nextjs'
+import { redactText } from './lib/crash/redact'
 
 export async function register(): Promise<void> {
   if (process.env['NEXT_RUNTIME'] === 'nodejs') {
@@ -127,19 +160,35 @@ export async function register(): Promise<void> {
 }
 
 // Next passes nested React Server Component / route errors to this hook; @sentry/nextjs
-// captures them (they never surface in a try/catch you control).
-export const onRequestError = Sentry.captureRequestError
+// captures them (they never surface in a try/catch you control). The EVENT is redacted
+// by the client's beforeSend (sentry.server.config.ts); the request PATH is scrubbed
+// here at the mouth — a URL is a value surface too (tokens and e-mails ride in paths),
+// and this file's sink row declares exactly this pass.
+export const onRequestError: typeof Sentry.captureRequestError = (error, request, context) =>
+  Sentry.captureRequestError(error, { ...request, path: redactText(request.path) }, context)
 ```
 
 ## 5. Route-level capture (the tRPC error funnel)
 
 The scaffold already funnels every procedure error through ONE place: the `onError`
 callback of the fetch handler in `apps/web/app/api/trpc/[trpc]/route.ts` (beside the tRPC
-`errorFormatter` that shapes the sanitized envelope). Capture there —
-`Sentry.captureException(error)` inside that `onError` — never inside individual
-procedures (double-reporting, missed middleware errors). The `onRequestError` export in
-§4 covers the non-tRPC surface (RSC render, route handlers); together they see every
-server error.
+`errorFormatter` that shapes the sanitized envelope). Capture there, through the
+`captureServerException` export §4 added — never `Sentry.captureException` inline: a
+vendor import in the route file would be a third egress surface for a file that never
+touches the redaction policy, and the register deliberately licenses two. And never
+inside individual procedures (double-reporting, missed middleware errors):
+
+```ts
+import { captureServerException } from '../../../../sentry.server.config'
+
+// …inside the fetchRequestHandler options, beside the errorFormatter:
+onError({ error }) {
+  captureServerException(error)
+},
+```
+
+The `onRequestError` export in §4 covers the non-tRPC surface (RSC render, route
+handlers); together they see every server error.
 
 ## 6. Prove the redaction path (anti-vacuity)
 

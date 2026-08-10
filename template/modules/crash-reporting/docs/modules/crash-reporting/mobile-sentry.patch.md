@@ -12,14 +12,44 @@ Verified against `@sentry/react-native` 8.19.0 and the Sentry Expo setup guide
 (<https://docs.sentry.io/platforms/react-native/manual-setup/expo/>),
 2026-07-18.
 
-> **SAME DIFF as its `tools/observability.json` `sinks[]` row (0.8.0).** The
-> `observability` chain gate reds any `@sentry/*` import outside the reviewed sink
-> register: `<file> imports "@sentry/react-native" … and is not a declared sink`.
-> Register the one file that imports the SDK — `{ "file": "<path>", "vendors":
-> ["@sentry/"], "redaction": "redactFields", "reason": "<40+ chars>" }` — and have
-> that file reference the redaction symbol in code (the attach-behind-the-pass
-> ordering the seam header mandates). Land the row, the import, and the wiring in
-> ONE reviewed diff, exactly like the `tools/expo-plugins.json` row below.
+> **SAME DIFF as its `tools/observability.json` register additions (0.8.0; rows
+> corrected 0.9.0).** The `observability` chain gate reds any `@sentry/*` import
+> outside the reviewed sink register: `<file> imports "@sentry/react-native" … and
+> is not a declared sink`. TWO files this patch lands import the SDK, and each
+> needs its own row. The register is APPEND-ONLY consumer data: EXTEND the seeded
+> `redactionSymbols` and `sinks[]` lists, never replace them — `redactFields` and
+> the seeded `vendorSpecifiers` are floor entries the gate reds you for removing.
+> The exact additions:
+
+```json
+{
+  "redactionSymbols": ["redactCrashEvent"],
+  "sinks": [
+    {
+      "file": "apps/mobile/src/crash/report.ts",
+      "vendors": ["@sentry/"],
+      "redaction": "redactCrashEvent",
+      "reason": "crash-reporting module: the one runtime @sentry/react-native import; every outbound event passes the tested redaction boundary in src/crash/redact.ts (beforeSend, beforeBreadcrumb, and the log-seam sink)."
+    },
+    {
+      "file": "apps/mobile/metro.config.js",
+      "vendors": ["@sentry/"],
+      "kind": "buildConfig",
+      "reason": "crash-reporting module: getSentryExpoConfig is a bundler-config wrapper — a build-time source-map serializer registration that transports no event, licensed as a buildConfig sink."
+    }
+  ]
+}
+```
+
+`src/crash/report.ts` is a runtime sink, so it must reference its declared
+redaction symbol in code — it calls `redactCrashEvent` (and `redactText`), the
+attach-behind-the-pass ordering the seam header mandates; `redactCrashEvent`
+joins `redactionSymbols` because the seeded list names only the seam's own
+`redactFields`. `metro.config.js` is a BUILD-CONFIG file: it can never honestly
+reference a redaction symbol, so its row carries `kind: "buildConfig"` instead —
+the gate accepts that kind only for `metro.config.js` / `next.config.*` /
+`babel.config.*`. Land the rows, the imports, and the wiring in ONE reviewed
+diff, exactly like the `tools/expo-plugins.json` row below.
 
 ## 1. Install (mobile workspace)
 
@@ -39,20 +69,27 @@ development-build flow this template already assumes (CNG prebuild).
 
 ## 2. Metro config
 
-`apps/mobile/metro.config.js` ships as the unmodified `expo/metro-config`
-default and its header says to EXTEND, never replace. `getSentryExpoConfig`
-IS the extension point — it wraps the same default config and adds the
-source-map serialization Sentry needs:
+`apps/mobile/metro.config.js` ships as the `expo/metro-config` default plus the
+`.js`→`.ts` resolver shim, and its header says to EXTEND, never replace.
+`getSentryExpoConfig` IS the extension point — swap it in as the BASE (it wraps
+the same default config and adds the source-map serialization Sentry needs) and
+keep everything below it, the shim included:
 
 ```js
-// metro.config.js — expo/metro-config default, extended by the crash-reporting
-// module: getSentryExpoConfig wraps getDefaultConfig (monorepo support
-// preserved) and adds Sentry's source-map serializer.
+// metro.config.js — the shipped config with getSentryExpoConfig as its base
+// (crash-reporting module): it wraps the same expo/metro-config default —
+// monorepo support preserved — and adds Sentry's source-map serializer. The
+// shipped resolver shim below this line stays exactly as it is.
 // SOURCE: https://docs.sentry.io/platforms/react-native/manual-setup/expo/
 const { getSentryExpoConfig } = require('@sentry/react-native/metro')
 
-module.exports = getSentryExpoConfig(__dirname)
+const config = getSentryExpoConfig(__dirname)
 ```
+
+(the rest of the shipped file — the resolver shim and `module.exports = config`
+— is unchanged). This is the one file in the app where a vendor require is a
+build-time plugin registration rather than an event transport, which is exactly
+what its `kind: "buildConfig"` register row above says.
 
 ## 3. Config plugin — SAME DIFF as its `tools/expo-plugins.json` row
 
@@ -98,9 +135,10 @@ doctrine — one source, no drift).
 
 ```ts
 // Sentry transport for the shipped redaction policy (crash-reporting module,
-// docs/modules/crash-reporting/mobile-sentry.patch.md). The ONLY file that
-// imports @sentry/react-native besides app/_layout.tsx's wrap call — keep it
-// that way, so the transport stays as removable as it was addable.
+// docs/modules/crash-reporting/mobile-sentry.patch.md). The ONLY runtime file
+// that imports @sentry/react-native — app/_layout.tsx takes wrapRoot from here,
+// so the sink register licenses exactly one runtime surface. Keep it that way:
+// the transport stays as removable as it was addable.
 import * as Sentry from '@sentry/react-native'
 import pkg from '../../package.json'
 import { setLogSink } from '../lib/log'
@@ -175,6 +213,12 @@ export function initCrashReporting(): void {
     })
   }
 }
+
+// The SDK's root wrapper (touch-event + profiling instrumentation), re-exported
+// so app/_layout.tsx never imports the vendor SDK itself — one sink row, one
+// licensed runtime surface (the observability register's one-import-per-surface
+// rule; see the sinks[] additions at the top of this patch).
+export const wrapRoot = Sentry.wrap
 ```
 
 Then in `app/_layout.tsx` — three edits, order-aware (the polyfill import stays
@@ -182,8 +226,7 @@ line one; init joins the module-scope boot block so the transport exists before
 the first render can throw):
 
 ```ts
-import * as Sentry from '@sentry/react-native'
-import { initCrashReporting } from '../src/crash/report'
+import { initCrashReporting, wrapRoot } from '../src/crash/report'
 
 // …in the module-scope boot block, after installSessionProvider(…):
 initCrashReporting()
@@ -192,14 +235,16 @@ initCrashReporting()
 function RootLayout() {
   // (body unchanged)
 }
-export default Sentry.wrap(RootLayout)
+export default wrapRoot(RootLayout)
 ```
 
-`Sentry.wrap` is the SDK's root wrapper (touch-event + profiling
-instrumentation); unhandled JS errors and promise rejections are captured
-globally by `Sentry.init` itself, so no extra funnel is wired — API-layer
-errors keep flowing through `src/lib/api-client.ts`'s envelope decoding and
-reach the transport only if a feature lets them escape as exceptions.
+`wrapRoot` re-exports `Sentry.wrap`, the SDK's root wrapper (touch-event +
+profiling instrumentation) — imported from the one registered sink file, so the
+layout never carries a vendor import of its own and needs no sinks[] row.
+Unhandled JS errors and promise rejections are captured globally by
+`Sentry.init` itself, so no extra funnel is wired — API-layer errors keep
+flowing through `src/lib/api-client.ts`'s envelope decoding and reach the
+transport only if a feature lets them escape as exceptions.
 
 ## 6. Unit-prove the wiring seam
 

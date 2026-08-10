@@ -242,6 +242,115 @@ test('RED: a sink declaring a redaction symbol the register does not name', () =
   assert.match(r.out, /declares redaction "scrubEverything", which is not one of redactionSymbols/)
 })
 
+test('RED: an identifier that merely CONTAINS the symbol satisfies nothing (0.9.0 boundary match)', () => {
+  // The pre-0.9.0 substring test would have licensed this sink: `redactFieldsXYZ`
+  // contains `redactFields` but is a different identifier — a pass it never calls.
+  const r = runGate(
+    fixture({
+      files: {
+        [SINK_ROW.file]:
+          "import * as Sentry from '@sentry/react-native'\nimport { redactFieldsXYZ } from './scrub'\nexport const attach = (r) => Sentry.captureMessage(String(redactFieldsXYZ(r)))\n",
+      },
+      edit: (p) => {
+        p.sinks = [SINK_ROW]
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /never references its declared redaction symbol `redactFields` in code/)
+})
+
+// ── the redaction floor: extend-only, and shape-checked ───────────────────────────────
+
+test('RED: removing the shipped redaction floor entry — extend-only, like the detector', () => {
+  const r = runGate(
+    fixture({
+      edit: (p) => {
+        p.redactionSymbols = ['scrubEverything']
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /redactionSymbols is missing the shipped floor entry "redactFields"/)
+  assert.match(r.out, /REQUIRED_REDACTION_FLOOR/)
+})
+
+test('RED: a malformed redactionSymbols list fails the shape check, in every degenerate form', () => {
+  for (const bad of [[], [''], ['redactFields', '  '], 'redactFields']) {
+    const r = runGate(
+      fixture({
+        edit: (p) => {
+          p.redactionSymbols = bad
+        },
+      }),
+    )
+    assert.equal(r.code, 1, `${JSON.stringify(bad)}:\n${r.out}`)
+    assert.match(r.out, /redactionSymbols must be a non-empty array of non-empty strings/)
+  }
+})
+
+// ── kind: "buildConfig" — the bundler-plugin exemption, narrowly ──────────────────────
+
+const BUILD_CONFIG_ROW = {
+  file: 'apps/mobile/metro.config.js',
+  vendors: ['@sentry/'],
+  kind: 'buildConfig',
+  reason:
+    'getSentryExpoConfig is a bundler-config wrapper: a build-time serializer registration that transports no event.',
+}
+const METRO_SOURCE =
+  "const { getSentryExpoConfig } = require('@sentry/react-native/metro')\n\nmodule.exports = getSentryExpoConfig(__dirname)\n"
+
+test('GREEN: a buildConfig sink licenses a vendor require in metro.config.js without a redaction symbol', () => {
+  const r = runGate(
+    fixture({
+      files: { [BUILD_CONFIG_ROW.file]: METRO_SOURCE },
+      edit: (p) => {
+        p.sinks = [BUILD_CONFIG_ROW]
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /1 vendor import\(s\) all inside 1 declared sink\(s\)/)
+})
+
+test('RED: kind "buildConfig" on a runtime module is a hard red naming the eligibility rule', () => {
+  const r = runGate(
+    fixture({
+      files: {
+        'apps/mobile/src/crash/init.ts': "import * as Sentry from '@sentry/react-native'\n",
+      },
+      edit: (p) => {
+        p.sinks = [{ ...BUILD_CONFIG_ROW, file: 'apps/mobile/src/crash/init.ts' }]
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /declares kind "buildConfig", but only a build-config file \(metro\.config\.js, next\.config\.\*, babel\.config\.\*\) may carry that kind/,
+  )
+})
+
+test('RED: an unknown sink kind licenses nothing', () => {
+  const r = runGate(
+    fixture({
+      files: { [BUILD_CONFIG_ROW.file]: METRO_SOURCE },
+      edit: (p) => {
+        p.sinks = [{ ...BUILD_CONFIG_ROW, kind: 'trustMe' }]
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /has kind "trustMe", which the register schema does not define/)
+})
+
+test('RED: an undeclared vendor require in a build-config file names the buildConfig move', () => {
+  const r = runGate(fixture({ files: { [BUILD_CONFIG_ROW.file]: METRO_SOURCE } }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /register the file in tools\/observability\.json sinks\[\] with kind "buildConfig"/)
+})
+
 // ── the detector floor: extend-only ───────────────────────────────────────────────────
 
 test('RED: narrowing vendorSpecifiers below the shipped floor', () => {
