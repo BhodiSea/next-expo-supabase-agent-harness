@@ -2,6 +2,7 @@
 // CI-friendly exit codes (0 clean, 1 broken, 2 drift/attention). Seeded-surface
 // divergence is reported as info only — project-owned files are EXPECTED to
 // evolve; the advisory exists so template improvements are discoverable.
+import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -53,7 +54,7 @@ function classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings 
     return
   }
   if (!ip.startsWith('.claude/hooks/')) {
-    warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it)`)
+    warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it — or an update did not complete: re-run \`update\`, or \`update --rollback\` to restore the pre-update tree)`)
     return
   }
   // Distinguish "stale hook from an older harness" from "locally modified": hooks carry a
@@ -246,6 +247,27 @@ export async function doctor(opts) {
       warnings.push(
         'lefthook hooks are not installed into .git/hooks — commit-time gates are dormant; run `pnpm install` (prepare) or `pnpm exec lefthook install`',
       )
+    }
+  }
+
+  // Dependency-resolution pin: the lockfile must be COMMITTED, not merely
+  // present — an ignored or absent pnpm-lock.yaml is unpinned resolution and a
+  // hard-failed `--frozen-lockfile` on the shipped workflows' first CI run.
+  if (existsSync(join(targetDir, '.git'))) {
+    if (!existsSync(join(targetDir, 'pnpm-lock.yaml'))) {
+      warnings.push(
+        'pnpm-lock.yaml is absent — dependency resolution is unpinned and the shipped workflows\' `pnpm install --frozen-lockfile` entry step hard-fails without it; run `pnpm install` and commit the lockfile',
+      )
+    } else {
+      const tracked = spawnSync('git', ['ls-files', '--error-unmatch', 'pnpm-lock.yaml'], {
+        cwd: targetDir,
+        stdio: 'ignore',
+      })
+      if (tracked.status !== 0) {
+        warnings.push(
+          'pnpm-lock.yaml exists but is not committed — CI resolves a different tree than the one you reviewed; `git add pnpm-lock.yaml` and commit it',
+        )
+      }
     }
   }
 

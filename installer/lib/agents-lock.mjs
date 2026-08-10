@@ -20,8 +20,9 @@
 // SOURCE: docs/harness/README.md (prompt/agent lock discipline) [corpus: harness/doctrine]
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { writeInstallFile } from './write-file.mjs'
 
 const AGENTS_LOCK = 'tools/agents.lock.json'
 const GENERATOR = 'tools/gen-agents-lock.mjs'
@@ -110,7 +111,7 @@ export function refreshAgentsLockEntries(targetDir, written, report, { dryRun = 
   }
   if (count === 0) return 0
 
-  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
+  writeInstallFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
   report.notes.push(
     `${AGENTS_LOCK}: re-recorded ${String(count)} entr${count === 1 ? 'y' : 'ies'} for agent-surface file(s) THIS update rewrote. Locally-modified agent files were parked, not re-recorded — their lock mismatch is the edit the lock exists to show you.`,
   )

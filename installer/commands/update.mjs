@@ -11,7 +11,7 @@
 // consumer's routes/App don't reference them, so silently planting them would
 // red route-manifest + dead-code. The sweep notes them; --refresh-seeded is the
 // deliberate channel to pull them in.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
@@ -39,6 +39,7 @@ import { classifyDrift } from '../lib/reconcile.mjs'
 import { printReport } from '../lib/report.mjs'
 import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
 import { refreshAgentsLockEntries, writeAgentsLock } from '../lib/agents-lock.mjs'
+import { writeRollbackSnapshot } from '../lib/rollback.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
 
@@ -93,7 +94,7 @@ function notePackageJsonDrift({ targetDir, incoming, report }) {
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function update(opts, { migrations = readTemplateMigrations() } = {}) {
+export async function update(opts, { migrations = readTemplateMigrations(), writeFile = writeInstallFile } = {}) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) {
@@ -155,6 +156,28 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     throw new Error('template plan is empty — refusing to record an update over a packaging regression')
   }
   const plan = entries.map((e) => ({ ...e, content: renderEntry(e, answers) }))
+
+  // The rollback point (0.9.0): recorded AFTER the plan is rendered — so the
+  // candidate set is the real one — and BEFORE the first disk mutation below
+  // (applyFileMigrations deletes first). An interrupted or failed sweep is
+  // recoverable with `update --rollback`; `graduate` deletes the blob so a
+  // pre-graduation tree can never be silently restored.
+  if (!opts.dryRun) {
+    writeRollbackSnapshot({
+      targetDir,
+      manifest,
+      plan,
+      from: manifest.harnessVersion,
+      to: installerVersion(),
+    })
+  }
+  // Phrased as the sweep's CONTRACT rather than a past-tense act, and pushed in both
+  // modes on purpose: the dry-run parity test holds the two reports byte-for-byte equal,
+  // and this sentence is true in both — the real run just performed it, the dry run
+  // describes what the real run will do.
+  report.notes.push(
+    `a pre-update snapshot (.harness/rollback/) precedes this sweep's first write — \`update --rollback\` restores the ${manifest.harnessVersion} state if it is interrupted`,
+  )
   // Same closure as init: an enabled module's workspace package must be in the root
   // solution file. `tsconfig.json` is an OWNED file, so update rewrites it from the
   // template on every run — without this the reference would be planted at init and
@@ -278,7 +301,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
         report.written.push(ip)
         continue
       }
-      writeInstallFile(dest, entry.content)
+      writeFile(dest, entry.content)
       files[ip] = { mode, sha256: incomingSha, ...(entry.module ? { module: entry.module } : {}) }
       report.written.push(ip)
       continue
@@ -292,7 +315,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
         report.written.push(ip)
         continue
       }
-      writeInstallFile(dest, entry.content)
+      writeFile(dest, entry.content)
       files[ip] = { ...(files[ip] ?? { mode }), mode, sha256: incomingSha }
       report.written.push(ip)
       continue
@@ -306,7 +329,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     // unless --force deliberately overwrites.
     if (kind === 'force-overwrite') {
       if (!opts.dryRun) {
-        writeInstallFile(dest, entry.content)
+        writeFile(dest, entry.content)
         files[ip] = { ...(files[ip] ?? { mode }), mode, sha256: incomingSha }
       }
       report.written.push(ip)
@@ -314,7 +337,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
       continue
     }
     const pending = join('.harness', 'pending', ip)
-    if (!opts.dryRun) writeInstallFile(join(targetDir, pending), entry.content)
+    if (!opts.dryRun) writeFile(join(targetDir, pending), entry.content)
     report.drift.push({ path: ip, pending })
   }
 
@@ -343,6 +366,20 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
       // to a newer baseVersion is a human edit (docs/runbooks/harness-upgrade.md).
       baseVersion: manifest.baseVersion ?? manifest.harnessVersion,
     })
+    // Stamp hygiene (0.9.0): a gate stamp (.harness/<gate>.ok) proves "these INPUTS
+    // were green under the check as it existed THEN" — and this sweep may have just
+    // rewritten the check. Deleting every stamp here means the first validate after
+    // an update re-proves every gate instead of riding a warm green recorded by the
+    // previous version. Only *.ok files directly under .harness/ are stamps;
+    // manifest.json, pending/ and rollback/ are update's own state and stay.
+    const stamps = readdirSync(join(targetDir, '.harness'), { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.ok'))
+      .map((e) => e.name)
+      .sort()
+    for (const name of stamps) unlinkSync(join(targetDir, '.harness', name))
+    if (stamps.length > 0) {
+      report.notes.push('stamps invalidated — first validate after an update re-proves every gate')
+    }
   }
   return printReport(report, { json: opts.report === 'json' })
 }

@@ -25,6 +25,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'rate-limits'
 const BUDGET = 'tools/rate-limit-budget.json'
@@ -139,7 +140,7 @@ for (const e of budget.exemptProcedures) {
   }
 }
 
-const recordGreen = stampGate(GATE, [BUDGET, MODULE, INVENTORY, ROUTE, ACTIONS_DIR])
+const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 const errs = []
 const declared = new Map(budget.buckets.map((b) => [b.name, b]))

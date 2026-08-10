@@ -1,13 +1,27 @@
 // Regression armor for the one install-write primitive (installer/lib/write-file.mjs):
 // the executable-bit rule (shebang STRINGS get 0o755, everything else 0o644,
-// Buffers are never executable) and parent-directory creation. init/update/
-// enable all route through this function, so these pins hold for every command.
+// Buffers are never executable), parent-directory creation, and — since 0.9.0 —
+// REPLACEMENT ATOMICITY: the destination either holds its old bytes or the new
+// ones, never a truncation, because a torn file under .claude/hooks/ fails OPEN
+// (a load-time SyntaxError exits 1, which Claude Code treats as non-blocking).
+// init/update/enable all route through this function, so these pins hold for
+// every command.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, statSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  statSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { writeInstallFile } from '../../installer/lib/write-file.mjs'
+import { basename, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { renameWithRetry, writeInstallFile } from '../../installer/lib/write-file.mjs'
 
 // POSIX file modes do not exist on Windows — content assertions run there,
 // mode assertions are guarded. Pin the umask so exact-mode assertions are
@@ -77,6 +91,143 @@ test('parent directories are created recursively', () => {
   // Writing next to it reuses the now-existing tree without throwing.
   writeInstallFile(join(dir, 'apps', 'server', 'src', 'routes', 'auth.ts'), 'export {}\n')
   assert.ok(existsSync(join(dir, 'apps', 'server', 'src', 'routes', 'auth.ts')))
+})
+
+// ── replacement atomicity (0.9.0) ────────────────────────────────────────────
+// The probe record: a hooks/lib file truncated mid-write is a load-time
+// SyntaxError → node exit 1 → Claude Code treats the hook as a NON-blocking
+// error and the guarded action proceeds. The primitive therefore may never
+// truncate in place: it stages to a dot-tmp in the same directory and renames.
+
+const NONROOT = POSIX && typeof process.getuid === 'function' && process.getuid() !== 0
+
+test('a failed staging write leaves the old bytes and mode untouched', { skip: !NONROOT }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-wf-'))
+  const dest = join(dir, 'hookio.mjs')
+  const old = '#!/usr/bin/env node\nexport const ok = true\n'
+  writeInstallFile(dest, old)
+
+  // A read-only parent refuses the tmp-file creation — the failure lands in
+  // the staging step, BEFORE the destination is ever opened.
+  chmodSync(dir, 0o555)
+  try {
+    assert.throws(() => writeInstallFile(dest, 'export const torn = true\n'))
+  } finally {
+    chmodSync(dir, 0o755)
+  }
+  assert.equal(readFileSync(dest, 'utf8'), old, 'old bytes must survive a failed replacement')
+  assert.equal(mode(dest), 0o755, 'old mode must survive a failed replacement')
+  assert.deepEqual(
+    readdirSync(dir).filter((f) => f !== basename(dest)),
+    [],
+    'no tmp residue after a failed replacement',
+  )
+})
+
+test('a failed rename leaves no tmp residue and throws', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-wf-'))
+  // The destination is a DIRECTORY: staging succeeds, the rename itself fails.
+  const dest = join(dir, 'taken')
+  mkdirSync(dest)
+  assert.throws(() => writeInstallFile(dest, 'never lands\n'))
+  assert.ok(statSync(dest).isDirectory(), 'the colliding directory survives')
+  assert.deepEqual(
+    readdirSync(dir).filter((f) => f !== 'taken'),
+    [],
+    'no tmp residue after a failed rename',
+  )
+})
+
+test('success leaves no tmp residue beside the destination', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-wf-'))
+  writeInstallFile(join(dir, 'a.json'), '{"a":1}\n')
+  writeInstallFile(join(dir, 'a.json'), '{"a":2}\n')
+  writeInstallFile(join(dir, 'b.bin'), Buffer.from([0x00, 0x01]))
+  assert.deepEqual(readdirSync(dir).sort(), ['a.json', 'b.bin'])
+  assert.equal(readFileSync(join(dir, 'a.json'), 'utf8'), '{"a":2}\n')
+})
+
+// ── the win32 sharing-violation retry policy (0.9.0, decided on paper in W0) ──
+// Windows renameSync over a file another process holds open throws
+// EPERM/EBUSY/EACCES transiently (antivirus, editors). Policy: retry with
+// bounded backoff ON WIN32 ONLY, then throw — the destination still holds the
+// OLD bytes when rename never succeeds, which IS the atomicity property. On
+// POSIX those errno values are real permission problems and retrying would
+// only mask them.
+
+test('renameWithRetry retries transient win32 errors then succeeds', () => {
+  const calls = []
+  const slept = []
+  let failures = 2
+  renameWithRetry('/tmp/from', '/tmp/to', {
+    platform: 'win32',
+    sleep: (ms) => slept.push(ms),
+    rename: (from, to) => {
+      calls.push([from, to])
+      if (failures > 0) {
+        failures -= 1
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }
+    },
+  })
+  assert.equal(calls.length, 3, 'two failures then the success')
+  assert.equal(slept.length, 2, 'one sleep per retry, none after success')
+})
+
+test('renameWithRetry exhaustion rethrows the last error', () => {
+  let attempts = 0
+  assert.throws(
+    () =>
+      renameWithRetry('/tmp/from', '/tmp/to', {
+        platform: 'win32',
+        sleep: () => {},
+        rename: () => {
+          attempts += 1
+          throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' })
+        },
+      }),
+    /EBUSY/,
+  )
+  assert.ok(attempts >= 3, 'exhaustion means the retry budget was actually spent')
+})
+
+test('renameWithRetry never retries on POSIX or on non-transient codes', () => {
+  for (const [platform, code] of [
+    ['linux', 'EPERM'],
+    ['darwin', 'EBUSY'],
+    ['win32', 'ENOENT'],
+  ]) {
+    let attempts = 0
+    assert.throws(() =>
+      renameWithRetry('/tmp/from', '/tmp/to', {
+        platform,
+        sleep: () => {},
+        rename: () => {
+          attempts += 1
+          throw Object.assign(new Error(`${code}: nope`), { code })
+        },
+      }),
+    )
+    assert.equal(attempts, 1, `${platform}/${code} must not retry`)
+  }
+})
+
+// ── the closure: one primitive means ONE writeFileSync (0.9.0) ────────────────
+// Six bare writeFileSync sites bypassed the primitive at 0.8.0 (manifest.mjs,
+// migrations.mjs ×4, agents-lock.mjs) — every one a truncating write to a file
+// the enforcement layer depends on. This pins the whole installer/ tree so a
+// seventh can never land silently.
+
+test('writeFileSync appears nowhere in installer/ outside the primitive', () => {
+  const root = fileURLToPath(new URL('../../installer', import.meta.url))
+  const offenders = []
+  for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.mjs')) continue
+    const path = join(entry.parentPath, entry.name)
+    if (basename(path) === 'write-file.mjs') continue
+    if (/\bwriteFileSync\b/.test(readFileSync(path, 'utf8'))) offenders.push(path)
+  }
+  assert.deepEqual(offenders, [], 'route installer writes through writeInstallFile')
 })
 
 test('overwrite re-asserts the mode — shebang-ness flips the executable bit in place', () => {

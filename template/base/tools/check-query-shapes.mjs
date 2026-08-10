@@ -39,6 +39,7 @@
 // SOURCE: docs/harness/gates-catalog.md (query-shapes) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 import { parseShapes, probeModules, resolveIndex } from './lib/query-shapes.mjs'
 import { parseIndexes, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
 
@@ -50,7 +51,7 @@ const MIGRATIONS_DIR = 'supabase/migrations'
 const VERTICALS_ROOT = 'packages/verticals'
 const RAMP = '0.2.0'
 
-const recordGreen = stampGate(GATE, [MANIFEST, TENANCY, LIMITS, MIGRATIONS_DIR, VERTICALS_ROOT])
+const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 // No DAL surface at all: nothing to judge. Distinguished from "a DAL exists and the
 // manifest is empty", which is the tampering case and fails closed below.

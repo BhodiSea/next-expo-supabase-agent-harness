@@ -96,6 +96,7 @@ import {
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 import {
   matchParen,
   parseColumnFacts,
@@ -388,17 +389,7 @@ if (!formsText.includes(rankName)) {
   )
 }
 
-// The stamp must cover EVERY input the verdict depends on. The two capture lists are
-// judgment data, not decoration: editing pii-columns.json alone changes what this gate
-// permits, so a stamp blind to them would serve a stale green after exactly the edit
-// most worth re-checking.
-const recordGreen = stampGate(GATE, [
-  MIGRATIONS_DIR,
-  CONFIG,
-  CONFIG_TOML,
-  AUDIT_COLUMNS,
-  PII_COLUMNS,
-])
+const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 // ---------------------------------------------------------------------------
 // Parse the applied history. Migrations only — like schema-rls, tenancy is only
