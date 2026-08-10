@@ -706,7 +706,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.9.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 0.10.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -721,10 +721,15 @@ every CLI pin bump — and the date is no longer decoration: this sentence, the 
 `tools/auth-posture.json` and `tools/check-auth-posture.mjs`, and the `tools/deferrals.json`
 entry are closed both ways by the `docs-sync` deferral scan, which reds the release the target
 arrives. The first deferral of this check rolled past its own date with nothing reading it;
-this one cannot — and at 0.8.0 the mechanism FIRED, once, as designed: the arrival forced the
-re-check (CLI 2.113.0, config group still push-only, the ask open as supabase/cli#5894) and
-the move to 0.9.0 landed as a reviewed diff across all four sites, which is the evidence the
-previous sentence used to claim on faith.
+this one cannot — and the mechanism has now fired TWICE as designed: at 0.8.0 the arrival
+forced the re-check (CLI 2.113.0, config group still push-only, the ask open as
+supabase/cli#5894) and a reviewed four-site move to 0.9.0; at 0.9.0 it fired again against an
+unchanged upstream (latest still 2.113.0, the v2.114.0 betas' only config-adjacent change a
+docker image bump, #5894 still open with no milestone and no linked PR) and moved to 0.10.0.
+The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
+is now standing: each arrival with the upstream condition unmet forces the re-check and a
+one-minor move in a reviewed diff — the discharge happens only when the side-effect-free
+subcommand actually ships.
 
 Static, <100ms, no Docker, no install: a hand-written TOML reader
 (`tools/lib/toml.mjs`) over the committed file, for the same reason every other gate hand-parses
@@ -1746,8 +1751,10 @@ in the design record; the enduring ones repeat here):
   instead of a shorter green. A rejection record kept after the thing was
   adopted is worse than no record — it tells the next reader not to look.
 - **ts-prune / lockfile-lint / type-coverage / markdownlint** — superseded by
-  `knip --strict`, pnpm strict lockfiles + frozen CI installs, the type-aware
-  ESLint bans, and Biome respectively.
+  `knip --strict`, the version-sync committed-lockfile floor + frozen CI
+  installs over it (a frozen install only pins what a committed lockfile
+  records, which is why the gate reds an absent one), the type-aware ESLint
+  bans, and Biome respectively.
 - **`pnpm audit` in the validate chain** — non-deterministic in TIME: a new
   upstream advisory in the Expo dependency tree would red an unchanged tree —
   and brick every fresh scaffold — and an allowlist only converts each advisory

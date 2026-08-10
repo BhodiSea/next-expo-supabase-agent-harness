@@ -229,13 +229,23 @@ if (parked.length > 0) {
 }
 
 // ── 7. the commit-time layer is INSTALLED, not merely committed ─────────────────
+// Promoted NOTE → ERROR at 0.9.0: a committed lefthook.yml with nothing in .git/hooks is
+// layer 2 fully DISARMED while every document that describes the harness counts it armed —
+// and the state costs one `pnpm install` to leave, so a red here is cheap to clear and
+// expensive to ignore. Ramped for pre-0.9.0 installs (the NOTE was the only voice this
+// check ever had there); the escape ends at 0.10.0. The comment lives HERE, above the
+// condition, for the ramp-ledger's consumed-result rule.
 if (existsSync('.git') && existsSync('lefthook.yml')) {
   const preCommit = '.git/hooks/pre-commit'
   const installed = existsSync(preCommit) && readFileSync(preCommit, 'utf8').includes('lefthook')
   if (!installed) {
-    notes.push(
-      'lefthook is not installed into .git/hooks — the commit-time layer is DORMANT on this machine even though lefthook.yml is committed. Run `pnpm install` (the prepare script) or `pnpm exec lefthook install`.',
-    )
+    const lefthookErr =
+      'lefthook is not installed into .git/hooks — the commit-time layer is DORMANT on this machine even though lefthook.yml is committed. Run `pnpm install` (the prepare script) or `pnpm exec lefthook install`.'
+    if (rampNote(GATE, '0.9.0', 'the commit-time layer installed-not-dormant floor', { until: '0.10.0' })) {
+      notes.push(lefthookErr)
+    } else {
+      errs.push(lefthookErr)
+    }
   }
 }
 
