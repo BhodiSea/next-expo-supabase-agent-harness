@@ -301,7 +301,7 @@ export async function init(opts) {
   }
 
   report.notes.push(
-    'next: pnpm install, then git init (if new) and COMMIT — the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile) — then `pnpm validate` must be green before any agent turn ends',
+    'next: git init (if new), then pnpm install, then COMMIT — git first because the prepare script (`lefthook install`) needs a repository, and the first commit must include pnpm-lock.yaml (the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without it, and the version-sync gate reds an absent lockfile) — then `pnpm validate` must be green before any agent turn ends',
   )
   if (det.mode === 'retrofit') {
     report.notes.push('review .harness sibling configs and merge them into your existing configs')
