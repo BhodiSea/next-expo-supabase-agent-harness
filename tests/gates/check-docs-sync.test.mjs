@@ -125,6 +125,27 @@ test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 instal
   assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
 })
 
+test('the re-opened gate-list ramp EXPIRES at harness 0.9.0 — the branch EXECUTED', () => {
+  // The registered proof for the release the deadline arrives, written beside the ramp it
+  // proves (the check-observability.test.mjs twin at its own 0.9.0 expiry): the same
+  // additive drift that NOTEs above hard-fails once the harness reads 0.9.0, because the
+  // 0.8.0→0.9.0 extension was the deadline's LAST move — the injected step's escape must
+  // die on schedule or the lockstep check it escapes never returns.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents
+        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
+        .replace(/the (\d+)-step chain/, 'the 29-step chain')
+        .replace(' `wiring`,\n  `secrets`,', '')
+        .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
+      manifest: { harnessVersion: '0.9.0', baseVersion: '0.7.0', files: {} },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /docs-sync: RAMP EXPIRED/)
+  assert.match(r.out, /deadline of 0\.9\.0/)
+})
+
 test('RED: the same additive drift is LIVE on a fresh install — no legacy, no ramp', () => {
   const r = runGate(
     fixture({

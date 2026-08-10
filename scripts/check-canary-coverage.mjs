@@ -471,6 +471,9 @@ const GROUNDED_ELSEWHERE = {
   // base, so the gate refuses an entry for one written today.
   'tools/migrations-allow.json':
     'written by a HUMAN to acknowledge that an APPLIED migration cannot be swept — both remedies live inside the migration and the append-only rule reds any edit to a committed one. check-migrations.mjs reads it absent-as-empty and reds a STALE entry, so the file exists only on installs carrying history they have deliberately exempted, one (file, rule) pair at a time.',
+  // 0.9.0. The third producer class: GIT itself.
+  '.git/config':
+    'written by GIT, never by a template: `git init`/`clone` creates it and the `git config` CLI maintains it. The rule exists because a DIRECT overwrite of the file is `core.hooksPath` (and more) rewritten with no `git config` token for the bash guard\'s git-hookspath-repoint rule to see — layer 2 was disarmable by one Write while the whole chain stayed green.',
 }
 
 const shippedPaths = new Set(

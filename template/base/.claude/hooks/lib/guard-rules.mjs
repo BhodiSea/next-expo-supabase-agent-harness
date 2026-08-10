@@ -17,12 +17,17 @@
 // (continuous native generation — prebuild output is a build artifact, not a source tree).
 // [\\/] everywhere a separator appears: on Windows shells the same write is spelled
 // `tools\validate.mjs`, and a `/`-only pattern would fail OPEN there.
-const PROT_DIRS = String.raw`(?:\.[\\/])?(?:tools|\.claude|\.harness|\.github[\\/]workflows|supabase[\\/]migrations|tests[\\/]rls|tests[\\/]migrations|apps[\\/]mobile[\\/](?:android|ios))[\\/][^\s"'|;&]*`
+// .git/hooks rides along (0.9.0): the harness blocks REPOINTING core.hooksPath but a
+// direct overwrite of .git/hooks/pre-commit was caught by nothing — layer 2 (lefthook)
+// was disarmable with every gate green, because the commit-time layer's installed form
+// lives outside every pattern here. Same for .git/config below in PROT_FILES: rewriting
+// the file IS `git config` with no `git config` token for the hookspath rule to see.
+const PROT_DIRS = String.raw`(?:\.[\\/])?(?:tools|\.claude|\.harness|\.git[\\/]hooks|\.github[\\/]workflows|supabase[\\/]migrations|tests[\\/]rls|tests[\\/]migrations|apps[\\/]mobile[\\/](?:android|ios))[\\/][^\s"'|;&]*`
 // tsconfig(.base).json belongs here as much as it belongs in WRITE_PROTECTED: it carries
 // the max-strict compiler surface every other type gate rests on, and while the Edit/Write
 // path was guarded, `sed -i 's/"strict": true/"strict": false/' tsconfig.base.json` was
 // caught by NOTHING — not this guard, not gate-integrity, not `tsc -b`, not CI.
-const PROT_FILES = String.raw`(?:\.[\\/])?(?:pnpm-lock\.yaml|lefthook\.yml|biome\.jsonc|knip\.json|eslint\.config\.mjs|vitest\.config\.ts|apps[\\/]mobile[\\/]jest\.config\.js|stryker\.config\.mjs|commitlint\.config\.mjs|\.dependency-cruiser\.cjs|pnpm-workspace\.yaml|tsconfig(?:\.base)?\.json|\.gitleaks\.toml|\.mcp\.json)\b`
+const PROT_FILES = String.raw`(?:\.[\\/])?(?:pnpm-lock\.yaml|lefthook\.yml|biome\.jsonc|knip\.json|eslint\.config\.mjs|vitest\.config\.ts|apps[\\/]mobile[\\/]jest\.config\.js|stryker\.config\.mjs|commitlint\.config\.mjs|\.dependency-cruiser\.cjs|pnpm-workspace\.yaml|tsconfig(?:\.base)?\.json|\.gitleaks\.toml|\.mcp\.json|\.git[\\/]config)\b`
 const PROT = `(?:${PROT_DIRS}|${PROT_FILES})`
 
 const SHELL_WRITE_MSG =
@@ -517,6 +522,18 @@ export const WRITE_PROTECTED = [
   // eliminate: coverage counted it, the canary registry counted it, and it guarded nothing.
   // Migrations are covered by tools/check-migrations.mjs and replayed by `supabase db reset`.
   { id: 'lefthook', re: /^lefthook\.yml$/ },
+  // THE INSTALLED FORM of the commit-time layer (0.9.0). lefthook.yml above is the
+  // committed CONFIG; what actually runs at `git commit` is .git/hooks/pre-commit, and
+  // until 0.9.0 a direct overwrite of it was caught by NOTHING — the bash guard denies
+  // repointing core.hooksPath, but writing an empty pre-commit disarms layer 2 with every
+  // gate green and no `git config` token anywhere. The wiring gate's installed-not-dormant
+  // check notices the state AFTER the fact; this denies the act.
+  { id: 'git-hooks-dir', re: /^\.git\/hooks\// },
+  // Its sibling: .git/config is where core.hooksPath actually LIVES, so rewriting the file
+  // is the hookspath repoint spelled as a Write. Only WRITES by path are denied — reading
+  // it, and `git config user.email` through the git CLI (which never names the path), stay
+  // ordinary work.
+  { id: 'git-config', re: /^\.git\/config$/ },
   { id: 'github-workflows', re: /^\.github\/workflows\// },
   // THE COMPENSATING CONTROL ~TEN GATES CITE IN THEIR OWN FAILURE TEXT. Escape-list
   // widenings, seeded-data edits and every "reviewed human act" in this repo end with

@@ -44,7 +44,7 @@
 //   7. FRAMEWORK SECURITY FLOOR (0.5.0). Every version tools/framework-floor.json floors
 //      — read from the RESOLVED pnpm-lock.yaml, not the catalog string, so a transitive
 //      resolution below the floor reds too — is at or above the patched release for its
-//      major line. Nothing else in the 31-step chain reds on a pinned dependency with a
+//      major line. Nothing else in the validate chain reds on a pinned dependency with a
 //      published advisory, and the osv-scan lanes structurally cannot: the PR lane is
 //      diff-aware (an already-shipped vulnerable pin is never "newly introduced") and the
 //      full-tree lane is schedule-and-network bound. This half is clockless and offline;
@@ -267,13 +267,29 @@ if (existsSync(FLOOR_PATH)) {
   // Without it, one edit to `reviewedUntil` retires the freshness control, and the only
   // check that would have objected is the one that edit just disarmed.
   errs.push(...reviewWindowProblems({ floor: floorJson }))
+  // The committed-lockfile floor (0.9.0). The absent-lockfile NOTE this replaces claimed
+  // "CI always has one" — false both ways: the shipped workflows run `pnpm install
+  // --frozen-lockfile`, which HARD-FAILS with no committed lockfile (and 12 of the 14
+  // quality-gate jobs die even earlier, at setup-node's `cache: pnpm` step), and two
+  // fresh resolutions a day apart were measured 230 lock-lines and 8 package versions
+  // apart — so an uncommitted lockfile is unpinned resolution AND a broken CI entry
+  // step, not a narrowing of scope. Ramped for pre-0.9.0 installs (nothing ever told
+  // them to commit one); the escape ends at 0.10.0. The comment lives HERE, above the
+  // condition, for the ramp-ledger's consumed-result rule.
   if (!haveLock) {
-    // Not skipOrFail: the catalog half above DID run, so this is a narrowing of scope
-    // rather than a gate that could not run. CI installs before validating, so the
-    // resolved half is always live there.
-    console.log(
-      `${GATE}: NOTE — pnpm-lock.yaml absent, so the framework floor judged ${String(judged)} catalog pin(s) only; the RESOLVED half (a transitive resolution below the floor) needs a lockfile. CI always has one.`,
-    )
+    const lockErr = `pnpm-lock.yaml is absent — dependency resolution is unpinned (a fresh install resolves against the live registry, not the tree you reviewed), the framework floor's RESOLVED half judged ${String(judged)} catalog pin(s) only (a transitive resolution below a cited CVE floor needs the lockfile), and the shipped workflows' \`pnpm install --frozen-lockfile\` entry step hard-fails without it. Run \`pnpm install\` and commit pnpm-lock.yaml.`
+    if (
+      rampNote(
+        GATE,
+        '0.9.0',
+        "the committed-lockfile floor over the scaffold's dependency resolution",
+        { until: '0.10.0' },
+      )
+    ) {
+      console.log(`${GATE}: NOTE — (ramp) ${lockErr}`)
+    } else {
+      errs.push(lockErr)
+    }
   }
 }
 

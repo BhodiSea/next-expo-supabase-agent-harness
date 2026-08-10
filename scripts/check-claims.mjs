@@ -274,6 +274,64 @@ for (const [, n] of catalogText.matchAll(/(\d+)-step `VALIDATE_STEPS` chain/g)) 
   }
 }
 
+// ── 1c. DERIVABLE (0.9.0): the chain length, across EVERY live prose surface ─────
+// The two-file loop above covered the doctrine README and the runner header, and round-2
+// of the 0.9.0 research found five live sites still claiming a "31-step" chain against 34
+// — every one in a file a reader trusts, none on the claim surface. So the surface is now
+// the WALK: every .md under template/base/docs/** and design/**, the shipped AGENTS.md,
+// and CONTRIBUTING.md (the root README already has its broader digit-scan above), judged
+// wherever they claim "the N gates" / "N-step chain" / "N gates, in order". CHANGELOG.md
+// and template/migrations.json are EXCLUDED as history: "the 21-step chain" inside an old
+// entry is a true statement about an old release, and rewriting history to satisfy a
+// present-tense claim is the opposite of what this file is for.
+const walkMd = (rel) => {
+  const dirUrl = new URL(rel, import.meta.url)
+  if (!existsSync(dirUrl)) return []
+  /** @type {Array<[string, string]>} display path + raw text */
+  const out = []
+  const visit = (abs, disp) => {
+    const entries = readdirSync(abs, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )
+    for (const entry of entries) {
+      if (entry.isDirectory()) visit(`${abs}/${entry.name}`, `${disp}/${entry.name}`)
+      else if (entry.name.endsWith('.md')) {
+        out.push([`${disp}/${entry.name}`, readFileSync(`${abs}/${entry.name}`, 'utf8')])
+      }
+    }
+  }
+  visit(fileURLToPath(dirUrl), rel.replace(/^\.\.\//, '').replace(/\/$/, ''))
+  return out
+}
+const agentsMdUrl = new URL('../template/base/AGENTS.md', import.meta.url)
+/** @type {Array<[string, string]>} the widened live-prose surface, raw text */
+const proseSurfaces = [
+  ...walkMd('../template/base/docs/'),
+  ...(existsSync(agentsMdUrl)
+    ? [
+        /** @type {[string, string]} */ ([
+          'template/base/AGENTS.md',
+          readFileSync(agentsMdUrl, 'utf8'),
+        ]),
+      ]
+    : []),
+  ...walkMd('../design/'),
+  ...(contributingText === ''
+    ? []
+    : [/** @type {[string, string]} */ (['CONTRIBUTING.md', contributingText])]),
+]
+const CHAIN_PHRASE = /\b(?:the (\d+) gates|(\d+)[- ]step chain|(\d+) gates, in order)\b/gi
+for (const [file, text] of proseSurfaces) {
+  for (const m of unwrap(text).matchAll(CHAIN_PHRASE)) {
+    const n = Number(m[1] ?? m[2] ?? m[3])
+    if (n !== truth.chainSteps) {
+      problems.push(
+        `${file} claims "${m[0]}" but VALIDATE_STEPS has ${String(truth.chainSteps)} — the chain is the source of truth (tools/harness.config.mjs). Live prose is judged; CHANGELOG.md and template/migrations.json stay history.`,
+      )
+    }
+  }
+}
+
 // ── 1. DERIVABLE: every "<n> gates" / "<n> steps" claim about the chain ──────────
 // Matches "21 gates", "21-step", "21 steps". PLURAL "gates" only, deliberately: the
 // README also counts gate FILES ("gate scripts"), and a singular "gate" must not be
@@ -367,6 +425,84 @@ if (
     )
   }
 }
+
+// ── 2b. CONSISTENT (0.9.0): every "~Ns" / "N-second" CHAIN-COST phrase ───────────
+// The ≈-classes above only ever read README/CHANGELOG, and the cost claims that actually
+// went stale lived in CONFIG COMMENTS: four shipped sites justified "CI-only" with "the
+// warm validate budget is ~6s" against a committed measurement of 24337 ms — a 4x-stale
+// number nobody re-read, because a comment is where numbers go to be believed. Any ~Ns or
+// N-second figure near chain vocabulary, across the live doc surfaces AND the four config
+// sites that carried the defect, must now be consistent with a committed measuredMs
+// (wall or stopWall, ±25% or ±1s — hardware wobble is real, a 4x claim is not), and with
+// no committed measurement no such figure may be published at all: the same
+// measure-commit-publish order the README licence enforces, applied to the whole surface.
+const stripLineMarkers = (s) => s.replace(/\n[ \t]*(?:>|\/\/|#|\*)?[ \t]*/g, ' ')
+const costConfigSurfaces = [
+  '../template/base/tools/harness.config.mjs',
+  '../template/base/stryker.config.mjs',
+  '../template/base/tools/check-mutation-ratchet.mjs',
+  '../template/base/github/workflows/quality-gate.yml',
+].flatMap((rel) => {
+  const url = new URL(rel, import.meta.url)
+  return existsSync(url)
+    ? [
+        /** @type {[string, string]} */ ([
+          rel.replace(/^\.\.\//, ''),
+          readFileSync(url, 'utf8'),
+        ]),
+      ]
+    : []
+})
+const costSurfaces = [
+  /** @type {[string, string]} */ (['README.md', readme]),
+  ...proseSurfaces,
+  ...costConfigSurfaces,
+]
+const wallSec =
+  typeof chainBudget?.wall?.measuredMs === 'number' ? chainBudget.wall.measuredMs / 1000 : null
+const stopSec =
+  typeof chainBudget?.stopWall?.measuredMs === 'number'
+    ? chainBudget.stopWall.measuredMs / 1000
+    : null
+const fitsMeasured = (n) =>
+  [wallSec, stopSec].some((s) => s !== null && Math.abs(n - s) <= Math.max(1, s / 4))
+const measuredBits = [
+  ...(wallSec === null ? [] : [`~${wallSec.toFixed(1)}s (the validate wall)`]),
+  ...(stopSec === null ? [] : [`~${stopSec.toFixed(1)}s (the Stop turn-end)`]),
+].join(' / ')
+const chainCostLicensed = hasCommittedMeasurement(
+  chainBudget,
+  VALIDATE_STEPS.map(([name]) => name),
+)
+// The tilde form is a cost estimate by construction, so plain chain vocabulary nearby is
+// enough context; the bare "N-second" form is everywhere in database prose ("a 5-second
+// RPC"), so it needs the chain-cost COMPOUND vocabulary before it reads as a claim.
+const COST_PHRASES = [
+  [/~\s*(\d+(?:\.\d+)?)\s*s\b/g, /(chain|validate|turn[- ]end|stop hook)/i],
+  [
+    /\b(\d+(?:\.\d+)?)[- ]seconds?\b/g,
+    /(warm validate|validate chain|validate budget|validate wall|chain budget|chain cost|chain wall|stop chain|turn[- ]end)/i,
+  ],
+]
+/** @param {string} file @param {string} text */
+const judgeCostClaims = (file, text) => {
+  for (const [re, contextRe] of COST_PHRASES) {
+    for (const m of text.matchAll(re)) {
+      const at = m.index ?? 0
+      if (!contextRe.test(text.slice(Math.max(0, at - 160), at + m[0].length + 40))) continue
+      if (!chainCostLicensed) {
+        problems.push(
+          `${file} publishes a chain-cost figure ~${m[1]}s but scripts/chain-budget.json carries no committed measurement matching the live chain — the figure rests on nothing a reader can check. The order is measure, commit, then publish (\`node scripts/check-chain-budget.mjs <log> --record\`).`,
+        )
+      } else if (!fitsMeasured(Number(m[1]))) {
+        problems.push(
+          `${file} claims a chain cost of ~${m[1]}s but the committed measurement is ${measuredBits} — scripts/chain-budget.json is the source of truth; fix the phrase or record a new measurement.`,
+        )
+      }
+    }
+  }
+}
+for (const [file, text] of costSurfaces) judgeCostClaims(file, stripLineMarkers(text))
 
 void root
 

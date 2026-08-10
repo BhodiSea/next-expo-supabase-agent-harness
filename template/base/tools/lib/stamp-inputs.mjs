@@ -2,8 +2,20 @@
 // REVIEWED DATA: an input class missing from a gate's list means edits to it could
 // ride a stale green stamp locally (CI always re-runs, so nothing ships wrong, but
 // the Stop hook would under-check). The selftest mutates a representative of each
-// class and asserts the stamp invalidates; extend BOTH together.
+// class and asserts invalidation; extend BOTH together.
 // SOURCE: docs/harness/README.md (stamped gates) [corpus: harness/doctrine]
+
+// Every entry also carries, via withMachinery below:
+//   - '.harness/manifest.json' — baseVersion/harnessVersion feed every rampNote
+//     verdict, so an `update` or a deliberate graduation changes what a gate would
+//     CONCLUDE about unchanged inputs; the manifest is therefore an input to every
+//     stamp, and a warm green must never outlive it.
+//   - the gate's own script, plus the stamp machinery itself (lib/gate.mjs and this
+//     register) — a rewritten check must re-prove the tree, never skip on the stamp
+//     its previous version recorded.
+const MACHINERY = ['.harness/manifest.json', 'tools/lib/gate.mjs', 'tools/lib/stamp-inputs.mjs']
+const withMachinery = (script, inputs) => [...inputs, script, ...MACHINERY]
+
 export const STAMP_INPUTS = {
   // expo export + bundle purity + byte budgets + the gzip ratchet baseline
   // (tools/perf-baseline.json is declared even where absent: the missing-path
@@ -11,7 +23,7 @@ export const STAMP_INPUTS = {
   // invalidates a warm stamp, so the ratchet arms on the very next validate).
   // app.config.ts and the bundler configs are inputs because each can change
   // what the export emits without touching a source file.
-  build: [
+  build: withMachinery('tools/build-check.mjs', [
     'apps/mobile/src',
     'apps/mobile/app',
     // assets ship into the export verbatim (content-addressed under dist/assets),
@@ -25,14 +37,14 @@ export const STAMP_INPUTS = {
     'tools/bundle-budget.json',
     'tools/perf-baseline.json',
     'pnpm-lock.yaml',
-  ],
+  ]),
   // contract inventory regen-diff (action + event inventories) + tsconfig project-
   // references sync + the G18 bounded-wire-string sweep (its reviewed allow list is an
   // input: narrowing an entry must re-arm the gate on the very next validate, never ride
   // a warm stamp). `apps`/`packages` cover the tsconfig topology + the router/catalog/DTO
   // sources; the generators + their shared serializer + the committed inventories are named
   // so a generator edit or a hand-edit to an inventory also re-arms the stamp.
-  contracts: [
+  contracts: withMachinery('tools/check-contract-drift.mjs', [
     'apps',
     'packages',
     'pnpm-workspace.yaml',
@@ -47,7 +59,21 @@ export const STAMP_INPUTS = {
     'tools/generated/action-inventory.json',
     'tools/generated/event-catalog.json',
     'tools/generated/query-shapes.json',
-  ],
+  ]),
+  // per-role ceilings + per-org quota machinery. The source roots are stamp inputs
+  // too, not only the SQL surface: the gate's session-hygiene sweep walks them, so a
+  // stamp blind to them would serve a warm green after exactly the edit that adds a
+  // session-scoped lock to a file the previous run judged clean.
+  'db-limits': withMachinery('tools/check-db-limits.mjs', [
+    'supabase/migrations',
+    'tools/db-limits.json',
+    'supabase/config.toml',
+    'apps',
+    'packages',
+    'supabase/functions',
+    'tools',
+    'tests',
+  ]),
   // the whole jest-expo/RNTL fast lane (screens + states + a11y sweeps).
   // Deliberate exclusions: the tRPC/API server graph is mocked at the seam (the
   // suites stub the client via src/testing/mock-server.ts, never a live API); the
@@ -57,7 +83,7 @@ export const STAMP_INPUTS = {
   // so nothing under-tested ever ships. packages/contracts is IN the list: its
   // zod DTOs are the wire shape the mobile suites parse, so a contract change
   // must invalidate a warm e2e stamp.
-  e2e: [
+  e2e: withMachinery('tools/check-e2e.mjs', [
     'apps/mobile/src',
     'apps/mobile/app',
     'apps/mobile/__tests__',
@@ -67,7 +93,7 @@ export const STAMP_INPUTS = {
     'packages/contracts/src',
     'packages/contracts/package.json',
     'pnpm-lock.yaml',
-  ],
+  ]),
   // identity lock + ATS/cleartext + permissions/plugins allowlists + CNG purity +
   // secret-shaped `extra` ban + eas.json sanity. @app/design-tokens' committed native
   // adapter is an input because the gate asserts the splash background color equals its
@@ -78,7 +104,7 @@ export const STAMP_INPUTS = {
   // closure's two reads — the actions registry (the surface) and the backing
   // delete-account Edge Function + config.toml declaration (the endpoint). A
   // change to any of them must invalidate a warm expo-policy stamp.
-  'expo-policy': [
+  'expo-policy': withMachinery('tools/check-expo-policy.mjs', [
     'apps/mobile/app.config.ts',
     'apps/mobile/package.json',
     'tools/identity.lock.json',
@@ -92,27 +118,64 @@ export const STAMP_INPUTS = {
     'supabase/functions/delete-account/index.ts',
     'supabase/config.toml',
     'pnpm-lock.yaml',
-  ],
+  ]),
   // `expo install --check` version alignment + the config-plugin allowlist +
   // the local config-plugins dir (declared even where absent: the missing-path
   // token means the dir APPEARING — a first local plugin — invalidates a warm
   // stamp, so the plugin tests-and-allowlist closure arms immediately).
-  'native-deps': [
+  'native-deps': withMachinery('tools/check-native-deps.mjs', [
     'apps/mobile/package.json',
     'tools/expo-plugins.json',
     'plugins',
     'pnpm-lock.yaml',
-  ],
+  ]),
   // pnpm license metadata + the exception list
   // + the citeability surface (G25): LICENSE and CITATION.cff are gate inputs now, so a
   // drifted citation version can never ride a warm stamp.
-  licenses: [
+  licenses: withMachinery('tools/check-licenses.mjs', [
     'pnpm-lock.yaml',
     'package.json',
     'tools/license-exceptions.json',
     'LICENSE',
     'CITATION.cff',
-  ],
+  ]),
+  // every DAL read serves its declared shape from a real index: the generated
+  // manifest, both reviewed configs it cross-reads, the applied history, and the
+  // DAL sources themselves.
+  'query-shapes': withMachinery('tools/check-query-shapes.mjs', [
+    'tools/generated/query-shapes.json',
+    'tools/tenancy.json',
+    'tools/db-limits.json',
+    'supabase/migrations',
+    'packages/verticals',
+  ]),
+  // reviewed budgets closed over the GENERATED mutation inventory, the by-value
+  // module diff, and both wiring reads (the tRPC host + the Server Actions dir).
+  'rate-limits': withMachinery('tools/check-rate-limits.mjs', [
+    'tools/rate-limit-budget.json',
+    'apps/web/lib/rate-limit.ts',
+    'tools/generated/action-inventory.json',
+    'apps/web/app/api/trpc/[trpc]/route.ts',
+    'apps/web/app/actions',
+  ]),
+  // by-value evaluation of the headers module against the reviewed policy — the
+  // gate's whole verdict is a function of exactly these two files.
+  'security-headers': withMachinery('tools/check-security-headers.mjs', [
+    'apps/web/lib/security-headers.ts',
+    'tools/security-headers.json',
+  ]),
+  // org-isolation predicate forms over the applied history. The stamp must cover
+  // EVERY input the verdict depends on. The two capture lists are judgment data,
+  // not decoration: editing pii-columns.json alone changes what this gate permits,
+  // so a stamp blind to them would serve a stale green after exactly the edit most
+  // worth re-checking.
+  tenancy: withMachinery('tools/check-tenancy.mjs', [
+    'supabase/migrations',
+    'tools/tenancy.json',
+    'supabase/config.toml',
+    'tools/audit-columns.json',
+    'tools/pii-columns.json',
+  ]),
   // root+mobile lockstep + web/api major agreement + node-major agreement + rc-pin +
   // single-zod-instance + single-react-per-surface. Every version the gate reads
   // (root/mobile package.json for the lockstep; apps/web + packages/api package.json for
@@ -133,7 +196,7 @@ export const STAMP_INPUTS = {
   // reviewed floor whose edit is MEANT to re-judge a tree whose code did not change,
   // and both were read by this gate while missing from this list — so a warm local
   // stamp rode over exactly the edits the records exist to make visible.
-  'version-sync': [
+  'version-sync': withMachinery('tools/check-version-sync.mjs', [
     'package.json',
     'tools/framework-floor.json',
     'tools/cc-floor.json',
@@ -147,5 +210,5 @@ export const STAMP_INPUTS = {
     '.node-version',
     'pnpm-workspace.yaml',
     'pnpm-lock.yaml',
-  ],
+  ]),
 }

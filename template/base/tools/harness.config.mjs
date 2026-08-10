@@ -166,7 +166,7 @@ export const STOP_HOOK_STEPS = [
   // no `expect`, or that a committed `.only` has silently disabled every other test in the
   // suite. ~50ms, so it belongs here. What it CANNOT do is prove a test would notice the
   // code breaking — that is the mutation lane (tools/check-mutation-ratchet.mjs), which runs
-  // in CI because it takes minutes and this chain has a ~6s budget.
+  // in CI because it takes minutes against a warm validate chain measured at ~24s wall.
   ['test-quality', 'node tools/check-test-quality.mjs'],
   // CLOSURE half of the mobile perf floor: every route in src/routes.ts must have a
   // Maestro flow file AND a committed row in tools/startup-budget.json (and stale

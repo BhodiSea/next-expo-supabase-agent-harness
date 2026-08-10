@@ -117,7 +117,7 @@ const FORBIDDEN_WEB_ONLY = [
 // WHY THIS IS A SEPARATE MODE AND NOT PART OF THE CHAIN STEP. docs/harness/
 // enforcement-tiers.md carried `build … Target 0.5.0` with the reason written into the row:
 // a web equivalent needs a `next build`, which is minutes, not seconds. Putting it in the
-// 31-step chain would either slow every validate by a full Next build or — worse — make the
+// validate chain would either slow every validate by a full Next build or — worse — make the
 // chain gate fail closed in CI jobs that never run one. So the chain keeps the mobile
 // export, and this mode runs in the path-filtered `web-build` job that DOES have a build.
 //

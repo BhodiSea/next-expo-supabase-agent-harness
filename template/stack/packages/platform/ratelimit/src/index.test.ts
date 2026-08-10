@@ -143,6 +143,38 @@ describe('fail-open', () => {
     const limiter = withFailOpen(createMemoryRateLimiter({ now: fakeClock().now }), vi.fn())
     expect(await limiter.limit('k', BUCKET)).toMatchObject({ allowed: true, degraded: false })
   })
+
+  it('the degraded flag is the ONLY field separating a degraded allow from a healthy one (0.9.0)', async () => {
+    // The consumers read this flag to emit their one-per-decision degraded ERROR log
+    // (apps/web/lib/rate-limit-runtime.ts#spendRateLimit). If a refactor made the two
+    // decisions differ in some OTHER field, a consumer could key on that instead and the
+    // flag would quietly stop being load-bearing; if it made them identical INCLUDING the
+    // flag, a Redis outage would be invisible. Pin both directions.
+    const healthy = await withFailOpen(
+      createMemoryRateLimiter({ now: fakeClock().now }),
+      vi.fn(),
+    ).limit('k', BUCKET)
+    const degraded = await withFailOpen(
+      { limit: () => Promise.reject(new Error('ECONNREFUSED')) },
+      vi.fn(),
+    ).limit('k', BUCKET)
+    expect(degraded).toEqual({ ...healthy, degraded: true })
+    expect(healthy.degraded).toBe(false)
+  })
+
+  it('onUnavailable fires exactly once PER degraded decision — the consumer log is per-decision too', async () => {
+    // spendRateLimit folds the captured reason into one ERROR per degraded decision, which
+    // only stays truthful while this callback is 1:1 with degraded decisions.
+    const onUnavailable = vi.fn()
+    const limiter = withFailOpen(
+      { limit: () => Promise.reject(new Error('ECONNREFUSED')) },
+      onUnavailable,
+    )
+    await limiter.limit('k', BUCKET)
+    await limiter.limit('k', BUCKET)
+    await limiter.limit('k2', BUCKET)
+    expect(onUnavailable).toHaveBeenCalledTimes(3)
+  })
 })
 
 /** A fetch stub shaped like the Upstash pipeline reply. */

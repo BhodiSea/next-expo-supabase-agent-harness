@@ -90,7 +90,7 @@ test('a missing declared input contributes missing:<path>; appearing invalidates
 test('STAMP_EXCLUDES dirs never affect the digest, at any depth', () => {
   withFixture(VECTOR_FILES, (dir) => {
     const base = hashInputs(VECTOR_INPUTS)
-    for (const excluded of ['node_modules', 'target', 'dist', 'gen', 'test-results']) {
+    for (const excluded of ['node_modules', 'target', 'dist', 'gen', 'test-results', '.next', '.expo', '.turbo', 'coverage', '.git']) {
       mkdirSync(join(dir, 'vec', excluded, 'deep'), { recursive: true })
       writeFileSync(join(dir, 'vec', excluded, 'deep', 'junk.txt'), 'churn\n')
     }

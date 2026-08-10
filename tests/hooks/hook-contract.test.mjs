@@ -263,6 +263,15 @@ const RULE_CANARIES = {
     // gate-integrity, not `tsc -b`, not CI.
     bashDeny('sed -i \'s/"strict": true/"strict": false/\' tsconfig.base.json'),
     bashDeny('echo {} > tsconfig.json'),
+    // The installed commit-time layer (0.9.0): every one of these disarmed lefthook with
+    // a green chain before .git/hooks and .git/config joined the shell-write surface.
+    bashDeny('echo "exit 0" > .git/hooks/pre-commit'),
+    bashDeny('cp /tmp/empty-hook .git/hooks/pre-commit'),
+    bashDeny('echo x | tee .git/hooks/pre-push'),
+    bashDeny('sed -i "s/hooksPath.*//" .git/config'),
+    bashDeny('echo "[core]" > .git/config'),
+    bashDeny('Set-Content -Path .git/config -Value "[core]"'),
+    bashDeny('echo x > .git\\hooks\\pre-commit'),
     // Honors the HARNESS_ALLOW_SELF_EDIT=1 human escape hatch (canary CI uses it).
     bashAllow('echo x > tools/canary-probe.mjs', SELF_EDIT),
   ],
@@ -275,6 +284,8 @@ const RULE_CANARIES = {
     bashDeny(`python3 -c "open('tools/check-sources.mjs','w').write('')"`),
     bashDeny(`ruby -e "File.write('.claude/hooks/stop-validate-gate.mjs','')"`),
     bashDeny(`deno eval "Deno.writeTextFileSync('tools/validate.floor.json','[]')"`),
+    // The interpreter spelling of the .git disarm (0.9.0) — no redirect, same bytes.
+    bashDeny(`node -e "require('fs').writeFileSync('.git/hooks/pre-commit','')"`),
     bashDeny('dd if=/dev/zero of=.harness/build.ok'),
     bashDeny('base64 -d payload.b64 > tools/harness.config.mjs'),
     // Interpreters are the agent's normal working tools — only a write to the PROTECTED
@@ -316,6 +327,8 @@ const RULE_CANARIES = {
     bashDeny('rm .harness/manifest.json'),
     bashDeny('rm .github/workflows/quality-gate.yml'),
     bashDeny('rm -f tools/rls-exempt.json'),
+    // Deleting the installed pre-commit hook is the quietest disarm of layer 2 (0.9.0).
+    bashDeny('rm .git/hooks/pre-commit'),
     // Ordinary cleanup is untouched (and `rm -rf` has its own, earlier rule).
     bashAllow('rm stale.log'),
     bashAllow('rm -f build/out.js'),
@@ -554,6 +567,23 @@ const RULE_CANARIES = {
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],
   lefthook: [pathDeny('lefthook.yml')],
+  // 0.9.0: the INSTALLED commit-time layer. Overwriting .git/hooks/pre-commit disarmed
+  // layer 2 with a green chain — the hookspath rule only ever saw the REPOINT spelling.
+  'git-hooks-dir': [
+    pathDeny('.git/hooks/pre-commit'),
+    pathDeny('.git/hooks/pre-push'),
+    // A similarly-named path that is NOT the live hooks dir stays ordinary work.
+    pathAllow('.githooks/pre-commit'),
+    pathAllow('.git/hooks/pre-commit', SELF_EDIT),
+  ],
+  // 0.9.0: where core.hooksPath actually lives. Only WRITES by path are denied — reading
+  // the file, and `git config` through the git CLI (no path token), stay legal.
+  'git-config': [
+    pathDeny('.git/config'),
+    bashAllow('cat .git/config'),
+    bashAllow('git config user.email dev@example.com'),
+    pathAllow('.git/config', SELF_EDIT),
+  ],
   'github-workflows': [pathDeny('.github/workflows/quality-gate.yml')],
   'eslint-config': [pathDeny('eslint.config.mjs')],
   'biome-config': [pathDeny('biome.jsonc')],

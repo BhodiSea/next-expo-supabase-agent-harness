@@ -203,7 +203,22 @@ export function runCmd(cmd, opts = {}) {
 // hashInputs: one sha256 over the declared input paths (files or directories,
 // recursive, name+bytes, sorted walk so the digest is order-stable). A missing
 // path contributes its name — appearing/disappearing invalidates the stamp.
-const STAMP_EXCLUDES = new Set(['node_modules', 'target', 'dist', 'gen', 'test-results'])
+// Excluded dirs are the tree's own churn, never review-worthy input: build output
+// ('.next'/'.expo'/'.turbo'), the Stop chain's own coverage maps ('coverage' — without
+// it the `contracts` stamp's bare apps/packages roots self-invalidate every turn),
+// and '.git'.
+const STAMP_EXCLUDES = new Set([
+  'node_modules',
+  'target',
+  'dist',
+  'gen',
+  'test-results',
+  '.next',
+  '.expo',
+  '.turbo',
+  'coverage',
+  '.git',
+])
 
 /** @public exported for the harness repo's gate suite (tests/gates/hash-inputs.test.mjs) */
 export function hashInputs(paths) {

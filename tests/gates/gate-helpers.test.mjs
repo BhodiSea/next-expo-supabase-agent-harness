@@ -177,33 +177,71 @@ test('rampNote: corrupt or version-less manifest FAILS CLOSED with the FIX line 
   assert.ok(r2.out.includes('no usable baseVersion'), r2.out)
 })
 
-test('every declared stamp input class invalidates the digest (no stale-pass class)', async () => {
+// ── the stamp register: MEMBERSHIP proofs, not a re-proof of hashInputs ─────────
+// The predecessor of these tests materialized every declared input and mutated each
+// in turn — which only re-proved that hashInputs hashes what it is given (any listed
+// file invalidates when edited, tautologically) and could never fail on an input
+// class MISSING from a list. Stale-pass prevention lives in membership: the paths
+// whose edits must re-arm a stamp are IN the register, and the churn the Stop chain
+// itself writes (coverage maps, build output) is NOT hashed.
+
+const STAMP_MACHINERY = ['.harness/manifest.json', 'tools/lib/gate.mjs', 'tools/lib/stamp-inputs.mjs']
+
+test('every stamped gate declares the manifest, its own script, and the stamp machinery', () => {
   for (const [gate, inputs] of Object.entries(STAMP_INPUTS)) {
-    const dir = mkdtempSync(join(tmpdir(), 'epah-inputs-'))
-    const prev = process.cwd()
-    process.chdir(dir)
-    try {
-      // materialize a representative file for each declared input path
-      for (const p of inputs) {
-        if (/\.[a-z0-9]+$/i.test(p)) {
-          mkdirSync(join(dir, p, '..'), { recursive: true })
-          writeFileSync(join(dir, p), 'seed\n')
-        } else {
-          mkdirSync(join(dir, p), { recursive: true })
-          writeFileSync(join(dir, p, 'file.txt'), 'seed\n')
-        }
-      }
-      const base = hashInputs(inputs)
-      for (const p of inputs) {
-        const target = /\.[a-z0-9]+$/i.test(p) ? join(dir, p) : join(dir, p, 'file.txt')
-        writeFileSync(target, 'mutated\n')
-        const now = hashInputs(inputs)
-        assert.notEqual(now, base, `${gate}: mutating ${p} must invalidate the stamp digest`)
-        writeFileSync(target, 'seed\n')
-        assert.equal(hashInputs(inputs), base, `${gate}: restoring ${p} must restore the digest`)
-      }
-    } finally {
-      process.chdir(prev)
+    for (const p of STAMP_MACHINERY) {
+      assert.ok(inputs.includes(p), `${gate}: ${p} must be a declared input — an update or graduation (manifest), or a rewritten check (script/machinery), must re-arm the stamp`)
     }
+    assert.ok(
+      inputs.some((p) => /^tools\/(check-[\w-]+|build-check)\.mjs$/.test(p)),
+      `${gate}: the gate's own script must be a declared input`,
+    )
+  }
+})
+
+test('contracts stamp: declared inputs and the manifest invalidate; excluded churn dirs do not', () => {
+  const inputs = STAMP_INPUTS.contracts
+  const dir = mkdtempSync(join(tmpdir(), 'epah-stampreg-'))
+  const prev = process.cwd()
+  process.chdir(dir)
+  try {
+    // materialize a representative file for each declared input path
+    for (const p of inputs) {
+      if (/\.[a-z0-9]+$/i.test(p)) {
+        mkdirSync(join(dir, p, '..'), { recursive: true })
+        writeFileSync(join(dir, p), 'seed\n')
+      } else {
+        mkdirSync(join(dir, p), { recursive: true })
+        writeFileSync(join(dir, p, 'file.txt'), 'seed\n')
+      }
+    }
+    const base = hashInputs(inputs)
+
+    // (i) a declared input file: mutation invalidates, restoration restores.
+    writeFileSync(join(dir, 'tsconfig.json'), 'mutated\n')
+    assert.notEqual(hashInputs(inputs), base, 'editing a declared input must flip the digest')
+    writeFileSync(join(dir, 'tsconfig.json'), 'seed\n')
+    assert.equal(hashInputs(inputs), base, 'restoring it must restore the digest')
+
+    // (ii) the manifest IS a member, so an `update` or a graduation — which changes
+    // rampNote verdicts over unchanged sources — re-arms the stamp.
+    writeFileSync(join(dir, '.harness', 'manifest.json'), '{"baseVersion":"9.9.9"}\n')
+    assert.notEqual(hashInputs(inputs), base, 'a manifest edit must flip the digest')
+    writeFileSync(join(dir, '.harness', 'manifest.json'), 'seed\n')
+    assert.equal(hashInputs(inputs), base)
+
+    // (iii) churn under STAMP_EXCLUDES dirs — the Stop chain's own coverage output,
+    // a web/mobile build — must NOT self-invalidate the bare apps/packages roots.
+    for (const excluded of ['coverage', '.next', '.expo', '.turbo']) {
+      mkdirSync(join(dir, 'apps', 'web', excluded, 'deep'), { recursive: true })
+      writeFileSync(join(dir, 'apps', 'web', excluded, 'deep', 'churn.txt'), 'churn\n')
+    }
+    assert.equal(hashInputs(inputs), base, 'excluded churn dirs must never flip the digest')
+
+    // control: real source churn under the same root still invalidates.
+    writeFileSync(join(dir, 'apps', 'web', 'new-file.ts'), 'export {}\n')
+    assert.notEqual(hashInputs(inputs), base, 'non-excluded churn under apps/ must still invalidate')
+  } finally {
+    process.chdir(prev)
   }
 })

@@ -4,7 +4,7 @@
 // Regression armor: these pin CURRENT behavior after the v0.1.3 refactor.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -247,4 +247,19 @@ test('writeManifest: baseVersion persists right after harnessVersion when presen
 
 test('installerVersion reports the package.json version', () => {
   assert.equal(installerVersion(), JSON.parse(readFileSync(PKG, 'utf8')).version)
+})
+
+test('writeManifest never leaves a partial manifest — a failed replacement throws and leaves no residue (0.9.0)', () => {
+  // The manifest is written LAST by update, so a truncated manifest.json is the
+  // state every interrupted upgrade would have shipped: manifest ⊥ disk with a
+  // JSON.parse throw on the next read. The primitive stages to a dot-tmp and
+  // renames, so the failure mode is a THROW with the old state intact, never a
+  // half-written file. Forced here by pre-creating manifest.json as a DIRECTORY
+  // (staging succeeds, the rename cannot land).
+  const dir = mkdtempSync(join(tmpdir(), 'tpah-man-'))
+  mkdirSync(manifestPath(dir), { recursive: true })
+  assert.throws(() => writeManifest(dir, sampleManifest()))
+  const harnessDir = join(dir, '.harness')
+  const entries = readdirSync(harnessDir)
+  assert.deepEqual(entries, ['manifest.json'], 'no tmp residue beside the manifest path')
 })

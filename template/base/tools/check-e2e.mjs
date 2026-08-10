@@ -42,6 +42,21 @@ if (!existsSync('apps/mobile/jest.config.js')) {
   skipOrFail(GATE, 'no mobile e2e surface (apps/mobile/jest.config.js not found)')
 }
 
+// Anti-vacuity, the STRUCTURAL half (0.9.0) — the mirror of check-web-e2e.mjs's
+// axe-scan-PRESENT assertion. The `Tests: N passed` floor below proves the runner ran
+// SOMETHING; it says nothing about WHICH suites, so deleting the primitives a11y sweep
+// left a green lane with no accessibility net at all — exactly the silent-subtraction
+// shape the web lane closed in 0.6.0. Asserted BEFORE the warm stamp, so a deleted suite
+// reds even when every stamp input still matches, and in every environment (it is a file
+// check, not a toolchain).
+const A11Y_SUITE = 'apps/mobile/__tests__/primitives-a11y.test.tsx'
+if (!existsSync(A11Y_SUITE)) {
+  fail(
+    GATE,
+    `${A11Y_SUITE} is missing — the primitives accessibility sweep is the mobile lane's a11y net (the web lane's axe-scan twin), and a jest run without it passes green while checking no accessibility contract at all. Restore it from git history, or pull the template copy with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${A11Y_SUITE}\`.`,
+  )
+}
+
 // Content-addressed local skip BEFORE the (minutes-long) jest run — and even
 // before resolving the preset, so a warm unchanged run skips in ms. The stamp
 // records that a full real run (the whole RN suite + the anti-vacuity check

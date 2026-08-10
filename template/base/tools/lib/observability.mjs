@@ -56,6 +56,29 @@ export const REQUIRED_VENDOR_FLOOR = [
   'posthog-react-native',
 ]
 
+// The redaction-symbol floor, same doctrine as the vendor floor above: the seeded
+// register names `redactFields` (the seam's own pass), and a consumer EXTENDS the
+// list with the symbols their module patches plant (redactCrashEvent, redactText),
+// never removes the shipped entry — a register that forgets the seam's pass has
+// un-declared the design it exists to encode.
+export const REQUIRED_REDACTION_FLOOR = ['redactFields']
+
+// The only filenames a `kind: "buildConfig"` sink row may license: bundler/compiler
+// configuration whose vendor require is a plugin registration — a build-time
+// transform that transports no event, so the redaction-symbol requirement does not
+// apply to it. A fixed set, not policy data: widening eligibility is a reviewed
+// gate edit here (factory), never a register entry a beneficiary can write.
+const BUILD_CONFIG_NAME = /^(?:metro\.config\.js|next\.config\.[cm]?[jt]s|babel\.config\.[cm]?js)$/
+
+/**
+ * Whether a POSIX path names a build-config file eligible for `kind: "buildConfig"`.
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function isBuildConfigFile(path) {
+  return BUILD_CONFIG_NAME.test(path.slice(path.lastIndexOf('/') + 1))
+}
+
 // Build outputs and prebuild-generated native dirs — never source this gate judges.
 // `android`/`ios` are CNG output (generated, uncommitted) at any depth.
 const EXCLUDE_DIRS = new Set([
@@ -186,10 +209,14 @@ export function collectVendorImports(files, detector) {
  * Whether the file's code (comments blanked) references the named symbol — the
  * "behind the redaction pass" half, held to the same standard as docs-sync's
  * `closes:` probe: a symbol a sink merely mentions in prose satisfies nothing.
+ * Identifier-boundary matching, not a substring test: `redactFieldsXYZ` is a
+ * DIFFERENT identifier, and a substring hit on it would license a sink behind a
+ * pass it never calls (0.9.0 hardening).
  * @param {string} src
  * @param {string} symbol
  * @returns {boolean}
  */
 export function referencesSymbol(src, symbol) {
-  return blankComments(src).includes(symbol)
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<![A-Za-z0-9_$])${escaped}(?![A-Za-z0-9_$])`).test(blankComments(src))
 }

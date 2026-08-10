@@ -1,0 +1,243 @@
+{
+  "comment": [
+    "The factory obligations register (0.9.0) — every forward-looking debt this release carries, in ONE machine-read home, read by scripts/check-obligations.mjs (clockless in lint.yml's machinery block; --clockful ONLY in hygiene.yml's scheduled job). The release's obligations previously lived in three unjoined sources — the ramp fleet (rampNote sites + template/migrations.json records), template/base/tools/deferrals.json, and prose — and gates-catalog.md's docs-sync section recorded the factory-side reader debt this register discharges.",
+    "Row schema: { id, kind: release|calendar|condition, target (x.y.z for release; YYYY-MM-DD for calendar; null for condition), sites?: [{file, mustContain?}] (prose anchors, ONE-WAY — the register is the index, the sites are anchors; the both-ways closure is the consumer scan's grammar and was the vacuous-port trap factory-side), reason (>= 40 chars), reviewedOn (YYYY-MM-DD), evidence (URL or repo file ref — REQUIRED for kind:condition) }.",
+    "Kinds: release reds CLOCKLESSLY when package.json reaches the target (check-ramp-ledger.mjs's version authority); calendar is judged ONLY under --clockful in the scheduled lane (a verdict that changes with the date must never red a PR); condition NEVER reds on time — shape + evidence is its bar, and discharging one is DELETING it in a reviewed diff.",
+    "Unions the reader closes: every template/base/tools/deferrals.json entry id has a condition-or-release row here under the same id (the census); every shipped rampNote site whose `until` is still in the future has a kind:release row targeting its expiry version (the debt the next migrations record will owe, written down before it is due).",
+    "DELIBERATELY NOT LEDGERED: .harness/pending/source-fixes.json — it is CONSUMER-side, parked by `update` on the install and self-clearing via the probes in template/migrations.json seededSourceFixes (owned there, checked by scripts/check-seeded-migrations.mjs); a factory row would be a second, staler copy of a record that already has an owner."
+  ],
+  "obligations": [
+    {
+      "id": "auth-posture-cli-census",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/tools/deferrals.json", "mustContain": "auth-posture-cli-census" }
+      ],
+      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand at the 2.113.0 pin parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "https://github.com/supabase/cli/issues/5894"
+    },
+    {
+      "id": "version-sync-lockfile-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-version-sync.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The committed-lockfile floor 0.9.0 opened inside version-sync (the absent-lockfile NOTE it replaces claimed 'CI always has one', which was false: the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without a committed lockfile, and a fresh resolution drifts against the live registry) falls due at 0.10.0. The 0.10.0 migrations record owes this expiry the way every record has paid its predecessor's.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "wiring-lefthook-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-wiring.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The commit-time installed-not-dormant floor 0.9.0 opened inside wiring (a committed lefthook.yml with nothing in .git/hooks is layer 2 disarmed while every description of the harness counts it armed) falls due at 0.10.0. The 0.10.0 migrations record owes this expiry alongside the version-sync lockfile floor's.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "suppressions-chain-step",
+      "kind": "release",
+      "target": "0.10.0",
+      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the full injection inventory, in order: a configSteps record anchored on a 0.1.x-vintage step every consumer chain carries, the chain-budget row FIRST (a step with no row reds the budget closure), the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape re-opened at minVersion 0.10.0 (the injected step grows every existing chain while the seeded AGENTS.md still documents 34), the check-docs-sync test fixture move, the upgrade lane's leg-A doctrine flip, and the chain-budget re-record at 36/36 before ANY published figure — a 34-step measurement stops licensing prose the moment the chain reaches 36.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "resilience-chain-step",
+      "kind": "release",
+      "target": "0.10.0",
+      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) ships as the second NEW chain step of 0.10.0 and pays the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, and the chain-budget re-record at 36/36 happens once, after both land, before any published figure.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "consumer-ci-static-promotion",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "README.md", "mustContain": "schedule-gated measurement lanes" }
+      ],
+      "reason": "The cross-platform validate legs (macOS/Windows) run schedule-gated as measurement lanes, so off-Linux validate is proven nightly rather than per-commit — the README's platform-honesty qualifier states exactly that. After their first green scheduled runs, 0.10.0 owes the promotion of the schedule-gated static lane into the per-PR/tag population, at which point the qualifier is deleted rather than carried.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "hook-fail-closed-launcher",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/docs/runbooks/harness-upgrade.md", "mustContain": "## RECOVERY" }
+      ],
+      "reason": "A torn or half-written .claude/hooks file fails OPEN by Claude Code's exit-code contract — probed empirically 2026-08-10 during the installer atomic-write work: a hook that cannot parse exits non-blocking, so the guard it carried simply is not there. 0.9.0 contains the write side (tmp+rename, snapshots, --rollback); the residual is a LAUNCHER that fails closed when the file it wraps is torn. Condition, not a date: the discharge shape depends on the hook-invocation contract, re-probed at every Claude Code pin bump.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "template/base/docs/runbooks/harness-upgrade.md"
+    },
+    {
+      "id": "controls-crosswalk-and-threat-model",
+      "kind": "condition",
+      "target": null,
+      "reason": "The enterprise-facing controls crosswalk + threat model is GENERATABLE — harness.config.mjs (the chain), the guard-rules tables (the hooks), and tests/canary/injections.json (the proofs) are the three machine-read inputs — but it is gated on the licensing/wholeness decision design/CONFORMANCE-FACTS.md records for the conformance map: built whole against Annex I directly, or not at all, because a claimed level with an unmapped requirement is worse than no claim.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "design/CONFORMANCE-FACTS.md"
+    },
+    {
+      "id": "vuln-sla-and-factory-sca",
+      "kind": "condition",
+      "target": null,
+      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA, and the factory repo itself has no blocking SCA lane over its own (deliberately zero-runtime-dependency) toolchain — the consumer tree gets osv-scan and the framework floor; the factory gets renovate and review. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf, and the SCA lane's shape depends on whether the dev-toolchain surface stays pnpm-catalog-pinned.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "SECURITY.md"
+    },
+    {
+      "id": "sbom-consumption",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "SBOM consumption is deferred, undated" }
+      ],
+      "reason": "The differentiating control was never PRODUCING an SBOM (pnpm 11 does that natively) — it is CONSUMING one: diffing against the previous release tag and redding on an added component that is not allowlisted. design/CONFORMANCE-FACTS.md §8 records it deliberately undated; it becomes ACTIONABLE when the version-sync committed-lockfile ramp expires at 0.10.0, because a lockfile every install must commit is the input the diff needs.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "design/CONFORMANCE-FACTS.md"
+    },
+    {
+      "id": "dsr-web-erase-surface",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "README.md", "mustContain": "dsr-web-erase-surface" },
+        { "file": "template/base/tools/data-flow.json" }
+      ],
+      "reason": "DSR erase EXISTS — session.deleteAccount plus the delete-account Edge Function, and the expo-policy gate requires the account-deletion surface on any auth-bearing app (Apple 5.1.1(v)) — but only the mobile surface reaches it, and tools/data-flow.json declares no erase.surface record, so the gate that holds export to its target has nothing to hold erase to. 0.10.0 owes the WEB erase surface and the data-flow record; the README's honest-losses sentence names this row.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "axe-tag-widening",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/.claude/agents/accessibility-reviewer.md", "mustContain": "WCAG 2.2 AA" },
+        { "file": "template/stack/apps/web/e2e/home.spec.ts", "mustContain": "['wcag2a', 'wcag2aa']" }
+      ],
+      "reason": "The accessibility-reviewer claims a WCAG 2.2 AA audit while the axe e2e sweeps run withTags(['wcag2a', 'wcag2aa']) — the 2.0/2.1-era tag set, which never selects the 2.2-only rules — so the machine half of the claim checks less than the prose asserts. 0.10.0 owes the tag widening (wcag21aa/wcag22aa) or the honest narrowing of the reviewer's claim, whichever review decides.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "env-register-gate",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/stack/apps/web/lib/rate-limit-runtime.ts", "mustContain": "UPSTASH_REDIS_REST_TOKEN" }
+      ],
+      "reason": "@app/env validates env per surface, but the Upstash secret is read straight off process.env in the web rate-limit runtime — a server secret that bypasses the one seam whose job is to see it, invisible to the boundaries gate because process.env is not an import. Condition: the discharge is a register gate closing env reads over the seam, and its shape (allowlist vs codemod vs lint rule) is an open design decision, not a date.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "template/stack/apps/web/lib/rate-limit-runtime.ts"
+    },
+    {
+      "id": "off-linux-stop-chain",
+      "kind": "condition",
+      "target": null,
+      "reason": "The full Stop chain executes off-Linux nowhere: the blocker is the DATABASE, not the shell — rls-isolation needs the live Supabase stack (Docker), which the Windows/macOS runners do not carry, while the gate/hook LOGIC is already proven cross-platform by the Windows unit matrix. Condition: discharge needs a supported off-Linux local-stack story upstream, re-checked at every Supabase CLI pin bump, not a date this repo can set.",
+      "reviewedOn": "2026-08-10",
+      "evidence": ".github/workflows/selftest.yml"
+    },
+    {
+      "id": "auth-posture-consumer-tunable-split",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/auth-posture.json" }
+      ],
+      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. 0.10.0 owes the split: floor rows owned and pinned, tunable rows seeded with declared bounds.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "mutation-scope-seeded-split",
+      "kind": "condition",
+      "target": null,
+      "reason": "The mutation critical-surface definition (tools/lib/mutation-critical.mjs, shared by the PR diff-scoper and the nightly) is harness-OWNED while every file it names is SEEDED — a consumer whose tree diverges from the exemplar paths silently mutates less than the lane claims. Condition: the discharge shape (derive the surface from the consumer's own inventories vs seed the definition) is an open design decision the ratchet's set semantics depend on.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "template/base/tools/mutation-scope.mjs"
+    },
+    {
+      "id": "withfailopen-memory-fallback",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/stack/packages/platform/ratelimit/src/index.ts", "mustContain": "createMemoryRateLimiter" }
+      ],
+      "reason": "At the OUTAGE rung fail-open is a pure window: withFailOpen lets every request through while the backend is down, and the README records that loss. The memory limiter already exists in the package but is wired only at the CONFIGURATION rung (no Upstash credentials at boot) — 0.10.0 owes wiring it as the outage fallback too, so a backend outage degrades to per-instance limiting instead of none.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "conformance-supabase-grants-arrival",
+      "kind": "calendar",
+      "target": "2026-10-30",
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "2026-10-30" }
+      ],
+      "reason": "Supabase Data API grants stop being automatic for projects created on or after this date (three roles including service_role, SEQUENCES revoked too, failure is SQLSTATE 42501 not a silent 404, and the auto_expose_new_tables restore flag is removed the SAME day). The closure SHIPPED in 0.6.0 inside schema-rls; this row is the dated re-verification that the shipped closure and its prose still describe the regime as it actually lands.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "conformance-play-target-api-window",
+      "kind": "calendar",
+      "target": "2026-08-31",
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "2026-08-31" }
+      ],
+      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "conformance-cra-art14-application",
+      "kind": "calendar",
+      "target": "2026-09-11",
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "2026-09-11" }
+      ],
+      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "conformance-ai-act-transitional",
+      "kind": "calendar",
+      "target": "2026-12-02",
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "2026-12-02" }
+      ],
+      "reason": "EU AI Act Article 50 transparency: in force since 2026-08-02 with a 2026-12-02 transitional. The recorded disposition is a CONFIRMED NEGATIVE on the role split (Art. 50(2) binds the provider of the generative system, not the author of software written with one); this row is the dated re-verification of that negative when the transitional window closes, since the robust rationale must survive whatever guidance accretes by then.",
+      "reviewedOn": "2026-08-10"
+    },
+    {
+      "id": "security-txt-rfc9116",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "scripts/check-seeded-migrations.mjs", "mustContain": "RFC 9116" }
+      ],
+      "reason": "security.txt is a deliberate non-ship: RFC 9116 makes `Expires` MANDATORY, which is a reviewer-supplied date in a seeded file — exactly the off-switch shape 0.6.0 removed from framework-floor.json — so it ships only when it ships with a bound. Its only record today is the SECURITY.md plant-entry comment in scripts/check-seeded-migrations.mjs, which this row anchors so the disposition is finally machine-read.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "scripts/check-seeded-migrations.mjs"
+    },
+    {
+      "id": "conformance-map-whole-or-not-at-all",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "design/CONFORMANCE-FACTS.md", "mustContain": "carries **no date** here, deliberately" }
+      ],
+      "reason": "tools/conformance-map.json (gates mapped to ASVS/MASVS requirement ids with a claimed level) is the artifact an enterprise buyer asks for by name and the one thing that must not ship partially: a claimed level with an unmapped requirement is worse than no claim, and with no harmonised standard cited in the OJ there is no presumption of conformity to anchor it to. Deliberately undated; built whole against Annex I directly, or not at all.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "design/CONFORMANCE-FACTS.md"
+    },
+    {
+      "id": "cold-path-measurement-publication",
+      "kind": "condition",
+      "target": null,
+      "reason": "The COLD path (fresh clone, cold caches, first validate) is unmeasured — the committed measurements cover the warm chain and the Stop turn-end only — so no cold figure may be published, and the README says so. Condition, not a date: the discharge is a reviewed cold-run recording through the same `check-chain-budget --record` channel, which exists only when a runner and a reviewed dispatch produce one.",
+      "reviewedOn": "2026-08-10",
+      "evidence": "scripts/chain-budget.json"
+    }
+  ]
+}

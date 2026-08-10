@@ -19,5 +19,5 @@ authors:
   - name: Cogvera Labs
 repository-code: 'https://github.com/BhodiSea/next-expo-supabase-agent-harness'
 license: Apache-2.0
-version: 0.8.0
+version: 0.9.0
 date-released: '2026-08-10'

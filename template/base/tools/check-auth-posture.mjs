@@ -204,11 +204,14 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.9.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.8.0 against
-// 2.113.0: the config group is still push-only (no --dry-run), the TS-rewrite command tree
-// has no config group, and the ask is open as supabase/cli#5894. The upstream condition is a
-// side-effect-free `config lint`-shaped subcommand, re-checked at every CLI pin bump, and the
-// docs-sync deferral scan reds this sentence the release the date arrives.
+// deferred to 0.10.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.9.0
+// (2026-08-10): npm latest is still 2.113.0, the v2.114.0 betas' only config-adjacent change
+// is a docker image bump, the config group still registers `push` alone (no --dry-run), and
+// the ask is open as supabase/cli#5894 with no milestone and no linked PR. The upstream
+// condition is a side-effect-free `config lint`-shaped subcommand, re-checked at every CLI
+// pin bump, and the docs-sync deferral scan reds this sentence the release the date arrives —
+// the standing rule (written at 0.9.0, the second scheduled firing) is that each such arrival
+// moves the date one minor in a reviewed diff until the upstream subcommand actually ships.
 const known = policy.knownSections ?? []
 for (const name of sections) {
   if (!known.includes(name)) {
@@ -274,7 +277,7 @@ if (
 failures(
   GATE,
   errs,
-  `Change ${CONFIG} back, or record the new posture in ${POLICY} in the same reviewed diff — the policy file is git-clean-enforced, so a widening lands in the PR where someone can see it.`,
+  `Change ${CONFIG} back — the reviewed posture is ${POLICY}, and the diff between them is the finding. (${POLICY} is harness-owned and sha-pinned by check-gate-integrity.mjs on an install: a local edit reds as tampering and \`update\` parks the incoming version, so recording a genuinely new posture is a harness-release act today; the consumer-tunable split is a recorded harness obligation.)`,
 )
 ok(
   GATE,

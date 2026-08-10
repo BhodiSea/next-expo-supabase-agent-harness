@@ -10,7 +10,7 @@
 // The steps below are the factory's equivalent of the consumer chain, and they are chosen
 // on the same rule: everything here is pure node, read-only, and fast, because a Stop gate
 // that takes a minute is a Stop gate people disable. The expensive proofs — rendering a
-// scaffold, installing it, running its 31 gates, the live-Supabase canaries — stay in the
+// scaffold, installing it, running its full gate chain, the live-Supabase canaries — stay in the
 // selftest matrix where they belong.
 //
 // WHAT IS DELIBERATELY ABSENT (0.7.0 — the honest residual, each with its reason):

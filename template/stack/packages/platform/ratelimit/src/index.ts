@@ -111,13 +111,21 @@ export function rateLimitKey(parts: {
   return `rl:${parts.bucket}:${identity}:${org}`
 }
 
-/** A decision that lets the request through because nothing was counting. */
+/**
+ * A decision that lets the request through because nothing was counting.
+ *
+ * `remaining` counts this request as spent, exactly as a healthy first hit would. A
+ * healthy decision always counts the hit it is deciding, so `remaining === limit` is a
+ * value only a degraded allow could carry — a second fingerprint of degradation that
+ * would let a consumer key on it instead of the flag. The `degraded` flag must stay the
+ * ONLY field separating the two shapes.
+ */
 function degradedAllow(bucket: RateLimitBucket): RateLimitDecision {
   return {
     allowed: true,
     degraded: true,
     limit: bucket.limit,
-    remaining: bucket.limit,
+    remaining: Math.max(0, bucket.limit - 1),
     retryAfterSeconds: 0,
   }
 }

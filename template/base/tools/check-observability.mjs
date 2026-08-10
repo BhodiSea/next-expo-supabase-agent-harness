@@ -31,6 +31,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import {
   collectVendorImports,
+  isBuildConfigFile,
+  REQUIRED_REDACTION_FLOOR,
   REQUIRED_VENDOR_FLOOR,
   referencesSymbol,
   scanFiles,
@@ -79,6 +81,28 @@ if (policy !== null) {
       `${POLICY} sinks must be an array (empty is the shipped state: no vendor transport wired).`,
     )
   }
+  // The redaction list is floored and shape-checked the same way (0.9.0): it is
+  // SEEDED and consumer-extendable — module patches append their own symbols —
+  // but a list that loses the seam's own pass, or degenerates into empty strings,
+  // is a register every sink row can satisfy while sitting in front of nothing.
+  const declaredSymbols = policy.redactionSymbols
+  if (
+    !Array.isArray(declaredSymbols) ||
+    declaredSymbols.length === 0 ||
+    declaredSymbols.some((s) => typeof s !== 'string' || s.trim() === '')
+  ) {
+    errs.push(
+      `${POLICY} redactionSymbols must be a non-empty array of non-empty strings — it is the closed list of passes a sink may declare, and a malformed list lets a sink row point at nothing.`,
+    )
+  } else {
+    for (const entry of REQUIRED_REDACTION_FLOOR) {
+      if (!declaredSymbols.includes(entry)) {
+        errs.push(
+          `${POLICY} redactionSymbols is missing the shipped floor entry ${JSON.stringify(entry)} — the list may be extended (module patches append their own symbols), never narrowed: the seam's own pass is the design the register encodes. Restore the entry (the floor is REQUIRED_REDACTION_FLOOR in tools/lib/observability.mjs).`,
+        )
+      }
+    }
+  }
 }
 
 // ── 2. THE SCAN ──────────────────────────────────────────────────────────────────────
@@ -96,8 +120,11 @@ const sinks = Array.isArray(policy?.sinks) ? policy.sinks : []
 const sinkByFile = new Map(sinks.map((s) => [String(s.file ?? ''), s]))
 for (const hit of found) {
   if (sinkByFile.has(hit.file)) continue
+  const registerMove = isBuildConfigFile(hit.file)
+    ? `register the file in ${POLICY} sinks[] with kind "buildConfig" and a reason (a build-config vendor require is a bundler plugin registration — it transports no event, so that kind carries no redaction symbol)`
+    : `register the file in ${POLICY} sinks[] with its redaction symbol and a reason`
   errs.push(
-    `${hit.file}:${String(hit.line)} imports ${JSON.stringify(hit.specifier)} (vendor telemetry: ${hit.entry}) and is not a declared sink. A transport outside the seam sees values the redaction pass never touched. Either remove the import — the sanctioned wiring is the crash-reporting/observability module patches, which attach at the seam's LogSink — or register the file in ${POLICY} sinks[] with its redaction symbol and a reason.`,
+    `${hit.file}:${String(hit.line)} imports ${JSON.stringify(hit.specifier)} (vendor telemetry: ${hit.entry}) and is not a declared sink. A transport outside the seam sees values the redaction pass never touched. Either remove the import — the sanctioned wiring is the crash-reporting/observability module patches, which attach at the seam's LogSink — or ${registerMove}.`,
   )
 }
 
@@ -124,15 +151,32 @@ for (const sink of sinks) {
       )
     }
   }
-  const symbol = String(sink.redaction ?? '')
-  if (!redactionSymbols.includes(symbol)) {
+  // `kind: "buildConfig"` (0.9.0): a bundler plugin registration in a build-config
+  // file transports no event, so the redaction-symbol requirement does not apply —
+  // but ONLY to the small fixed set of build-config filenames, and only to that
+  // declared kind. Any other kind value licenses nothing.
+  const kind = sink.kind
+  if (kind !== undefined && kind !== 'buildConfig') {
     errs.push(
-      `${POLICY} sinks[] entry for ${file} declares redaction ${JSON.stringify(sink.redaction ?? null)}, which is not one of redactionSymbols — the pass a sink sits behind must be one the register names.`,
+      `${POLICY} sinks[] entry for ${file} has kind ${JSON.stringify(kind)}, which the register schema does not define — the only declared kind is "buildConfig" (a build-config file whose vendor require is a bundler plugin registration); an unknown kind licenses nothing.`,
     )
-  } else if (!referencesSymbol(readFileSync(file, 'utf8'), symbol)) {
-    errs.push(
-      `${file} never references its declared redaction symbol \`${symbol}\` in code (comments blanked) — a sink ahead of the redaction pass sees raw values, and the ordering is the whole design (packages/platform/observability/src/index.ts, "NO VENDOR SDK, on purpose").`,
-    )
+  } else if (kind === 'buildConfig') {
+    if (!isBuildConfigFile(file)) {
+      errs.push(
+        `${POLICY} sinks[] entry for ${file} declares kind "buildConfig", but only a build-config file (metro.config.js, next.config.*, babel.config.*) may carry that kind — a runtime module transports events, so it sits behind a declared redaction symbol like every other sink.`,
+      )
+    }
+  } else {
+    const symbol = String(sink.redaction ?? '')
+    if (!redactionSymbols.includes(symbol)) {
+      errs.push(
+        `${POLICY} sinks[] entry for ${file} declares redaction ${JSON.stringify(sink.redaction ?? null)}, which is not one of redactionSymbols — the pass a sink sits behind must be one the register names.`,
+      )
+    } else if (!referencesSymbol(readFileSync(file, 'utf8'), symbol)) {
+      errs.push(
+        `${file} never references its declared redaction symbol \`${symbol}\` in code (comments blanked) — a sink ahead of the redaction pass sees raw values, and the ordering is the whole design (packages/platform/observability/src/index.ts, "NO VENDOR SDK, on purpose").`,
+      )
+    }
   }
   if (String(sink.reason ?? '').trim().length < 40) {
     errs.push(
@@ -146,7 +190,9 @@ for (const sink of sinks) {
 // patch docs predate this gate), and its packages tree is the consumer's own — hard-
 // redding it on the update that delivered the scanner is the ambush shape the ramp
 // doctrine exists for. One release of dated NOTEs to register or remove each import;
-// the escape ends at 0.9.0. The comment lives HERE and not inside the condition:
+// the escape ends at the `until` deadline the rampNote call below carries (gate.mjs
+// prints the derived date — no hand-typed copy of it here to go stale). The comment
+// lives HERE and not inside the condition:
 // scripts/check-ramp-ledger.mjs reads the line preceding `rampNote(` to decide whether
 // the result is consumed, and a comment between `if (` and the call reads to it as a
 // discarded result — a ramp that gates nothing.
@@ -158,7 +204,7 @@ if (
 ) {
   console.log(`${GATE}: NOTE — ${String(errs.length)} finding(s) withheld by the 0.8.0 ramp:`)
   for (const e of errs) console.log(`  - ${e}`)
-  ok(GATE, 'NOTE-only on this pre-0.8.0 install (the ramp expires in 0.9.0)')
+  ok(GATE, 'NOTE-only on this pre-0.8.0 install — the NOTE above carries the derived deadline')
 }
 
 if (policy === null) {
@@ -175,5 +221,5 @@ failures(
 )
 ok(
   GATE,
-  `${String(files.length)} file(s) scanned, ${String(found.length)} vendor import(s) all inside ${String(sinks.length)} declared sink(s), each behind the redaction pass; detector covers ${String(detector.length)} specifier entr${detector.length === 1 ? 'y' : 'ies'}`,
+  `${String(files.length)} file(s) scanned, ${String(found.length)} vendor import(s) all inside ${String(sinks.length)} declared sink(s), each runtime sink behind the redaction pass (buildConfig rows carry none — a bundler plugin registration transports no event); detector covers ${String(detector.length)} specifier entr${detector.length === 1 ? 'y' : 'ies'}`,
 )

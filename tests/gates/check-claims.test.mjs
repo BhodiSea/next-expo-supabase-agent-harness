@@ -48,7 +48,7 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, contributing?: string | null, lintYml?: string | null, config?: string, hooks?: string[] }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, config?: string, hooks?: string[] }} parts
  */
 function runFixture({
   readme,
@@ -58,6 +58,11 @@ function runFixture({
   // file was introduced — so every fixture below judges prose against a budget that
   // carries no measurement, exactly like the live tree.
   measuredWallMs = null,
+  stopWallMs = null,
+  // Extra prose surfaces (template/base/docs/**, design/**, template/base/AGENTS.md) for
+  // the 0.9.0 chain-length/chain-cost classes — absent by default, so every pre-0.9.0
+  // fixture above stays byte-identical in intent.
+  docs = {},
   // CONTRIBUTING.md and lint.yml are absent by default — the 0.7.0 checks are guarded
   // on their existence, so every pre-0.7.0 fixture above stays byte-identical in intent.
   contributing = null,
@@ -75,6 +80,9 @@ function runFixture({
       wall: { ceilingMs: 120000, warnMs: 90000, measuredMs: measuredWallMs },
       defaults: { staticCeilingMs: 5000, toolchainCeilingMs: 60000 },
       steps: {},
+      ...(stopWallMs === null
+        ? {}
+        : { stopWall: { ceilingMs: 600000, warnMs: 450000, measuredMs: stopWallMs } }),
       // A measured budget carries its provenance, and `chainSteps` must equal the fixture
       // chain's length (3, from FIXTURE_CONFIG) or the staleness half correctly refuses it:
       // a figure measured against a different chain is wrong, not merely old.
@@ -93,6 +101,7 @@ function runFixture({
     'template/base/.claude/hooks/lib/guard-rules.mjs': FIXTURE_GUARDS,
     'README.md': readme,
     'CHANGELOG.md': changelog,
+    ...docs,
   }
   // TWO hooks by default — and `lib/guard-rules.mjs` above is the point of the pair: it sits
   // under the same tree and must NOT count, because nothing wires a module.
@@ -384,6 +393,120 @@ test('RED (0.7.0): a blocking lint.yml check script absent from the Local-develo
     !r.out.includes('check-syntax.mjs'),
     `a script present in the list must not be reported:\n${r.out}`,
   )
+})
+
+// ── the CHAIN-LENGTH surface widening (0.9.0) ─────────────────────────────────────────
+// The two-file claim surface (the shipped doctrine README + validate.mjs's header) missed
+// five live '31-step' sites that round-2 of the 0.9.0 research found still claiming a
+// 31-step chain against 34 — every one in a file a reader trusts. ANY file under
+// template/base/docs/**, template/base/AGENTS.md, design/**, plus README/CONTRIBUTING,
+// claiming "the N gates" / "N-step chain" / "N gates, in order" is now judged against the
+// derived count. CHANGELOG.md and template/migrations.json are EXCLUDED: an old entry's
+// count is a true statement about an old release, and rewriting history to satisfy a
+// present-tense claim is the opposite of what this gate is for.
+
+test('RED (0.9.0): a shipped docs file claiming "the N gates" reds against the derived count, naming the file', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: {
+      'template/base/docs/harness/enforcement-tiers.md': 'the 31 gates hold the line.\n',
+    },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /enforcement-tiers\.md claims "the 31 gates".*VALIDATE_STEPS has 3/s)
+})
+
+test('RED (0.9.0): a design doc claiming an "N-step chain" reds — soft-wrapped, like real prose', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: { 'design/PORT-SPEC.md': 'the runner executes the 31-step\nchain before anything else.\n' },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /design\/PORT-SPEC\.md claims "31-step chain"/)
+})
+
+test('RED (0.9.0): the shipped AGENTS.md claiming "The N gates, in order" reds factory-side too', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: { 'template/base/AGENTS.md': 'The 31 gates, in order: `a`, `b`, `c`.\n' },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /AGENTS\.md claims "the 31 gates"/i)
+})
+
+test('GREEN (0.9.0): true chain-length claims across the widened surface are clean', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: {
+      'template/base/docs/harness/enforcement-tiers.md': 'the 3 gates hold the line.\n',
+      'design/PORT-SPEC.md': 'the 3-step chain runs first.\n',
+    },
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (0.9.0): CHANGELOG stays history — a stale count in an old entry is not a live claim', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    changelog: '## [0.1.0]\nthat release ran the 21-step chain, and the 21 gates held.\n',
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+// ── the CHAIN-COST class (0.9.0) ─────────────────────────────────────────────────────
+// Four shipped config comments claimed the warm validate budget was "~6s" against a
+// committed measurement of 24337 ms — a number nobody re-read because it lived in a
+// comment. Any "~Ns" chain-cost phrase in the live doc/config surfaces must now be
+// consistent with scripts/chain-budget.json's committed measuredMs (wall or stopWall),
+// and with NO committed measurement no such figure may be published at all — the same
+// measure-commit-publish order the README licence enforces, applied to the whole surface.
+
+test('RED (0.9.0): a "~6s" chain-cost comment against a 24337 ms measurement reds, naming the file', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    config: `${FIXTURE_CONFIG}// the mutation lane runs in CI because this chain has a ~6s budget\n`,
+    measuredWallMs: 24337,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /harness\.config\.mjs claims a chain cost of ~6s.*24\.3/s)
+})
+
+test('GREEN (0.9.0): a chain-cost figure consistent with the committed wall measurement is clean', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    config: `${FIXTURE_CONFIG}// the whole warm validate chain measures ~24s\n`,
+    measuredWallMs: 24337,
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (0.9.0): a Stop-chain figure consistent with the committed stopWall measurement is clean', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: { 'design/NOTES.md': 'the Stop chain turn-end is ~50s wall on the selftest runner.\n' },
+    measuredWallMs: 24337,
+    stopWallMs: 50531,
+  })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.9.0): a "~Ns" chain-cost figure with NO committed measurement is unlicensed, wherever it lives', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: { 'design/NOTES.md': 'warm validate is ~24s on a good day.\n' },
+    measuredWallMs: null,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /design\/NOTES\.md.*~24s.*no committed measurement/s)
+})
+
+test('GREEN (0.9.0): a "~Ns" figure with no chain context nearby is not a chain-cost claim', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    docs: { 'design/NOTES.md': 'the splash animation lasts ~2s before the content lands.\n' },
+    measuredWallMs: 24337,
+  })
+  assert.equal(r.code, 0, r.out)
 })
 
 test('GREEN (0.7.0): a CONTRIBUTING whose counts are true and whose list covers every blocking check is CLEAN', () => {

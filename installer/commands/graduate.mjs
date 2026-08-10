@@ -9,9 +9,10 @@
 // checks become turn-fatal exactly when the project has actually swept the findings, never
 // before. Refuses (and lists the outstanding NOTEs) while any remain. Idempotent.
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { installerVersion, readManifest, writeManifest } from '../lib/manifest.mjs'
+import { rollbackDirFor } from '../lib/rollback.mjs'
 
 /** @param {string} a @param {string} b */
 function cmpDotted(a, b) {
@@ -59,8 +60,8 @@ export async function graduate(opts) {
     console.error(
       'graduate: validate is RED — fix the failures first, then graduate. (Graduation only tightens ramped checks; it never masks a real red.)',
     )
-    // SAY WHICH GATE. Without this the refusal is undiagnosable: the reader is told a
-    // chain of 31 steps is red and not which one, so their only route to the answer is
+    // SAY WHICH GATE. Without this the refusal is undiagnosable: the reader is told the
+    // whole chain is red and not which step, so their only route to the answer is
     // to re-run validate by hand and hope it reproduces. The upgrade lane hit exactly
     // that dead end — a red visible only in CI, reported as one unattributed sentence.
     // A gate reds as `<gate>: FAIL …`, optionally followed by `  - <detail>` bullets; the
@@ -89,6 +90,10 @@ export async function graduate(opts) {
   }
 
   writeManifest(targetDir, { ...manifest, baseVersion: target })
+  // The rollback blob predates this graduation: restoring it would silently
+  // regress baseVersion — worse than having no snapshot. Delete it here, the
+  // one place the tree's vintage deliberately advances.
+  rmSync(rollbackDirFor(targetDir), { recursive: true, force: true })
   console.log(
     `graduate: clean — baseVersion advanced ${typeof base === 'string' ? base : '(none)'} → ${target}. The ramped checks up to v${target} are now turn-fatal on this install.`,
   )

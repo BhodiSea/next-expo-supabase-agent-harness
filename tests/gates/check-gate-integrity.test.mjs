@@ -282,6 +282,22 @@ test('RED: an uncommitted PER_FILE_FLOORS edit reds; committing the same edit is
   git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'raise a floor')
   const committed = run()
   assert.equal(committed.code, 0, committed.out)
+
+  // stryker.config.mjs (0.9.0): the UNGUARDED mutation-narrowing path. The write-guard
+  // denies the Edit/Write and shell spellings, but a config that arrived dirty by any
+  // other road (a merge, a tool, HARNESS_ALLOW_SELF_EDIT left exported) narrowed what the
+  // mutation lane even mutates — and no hash pins it, because widening the scope is a
+  // legitimate consumer act. Commit-not-dirty is the invariant that survives both.
+  const stryker = join(repo, 'stryker.config.mjs')
+  const strykerBefore = readFileSync(stryker, 'utf8')
+  writeFileSync(stryker, `${strykerBefore}\n// agent narrowed the mutated surface mid-turn\n`)
+  const strykerDirty = run()
+  assert.equal(strykerDirty.code, 1, strykerDirty.out)
+  assert.ok(strykerDirty.out.includes('stryker.config.mjs'), strykerDirty.out)
+  assert.ok(strykerDirty.out.includes('NOT COMMITTED'), strykerDirty.out)
+  git('add', 'stryker.config.mjs')
+  git('-c', 'user.email=t@localhost', '-c', 'user.name=t', 'commit', '-qm', 'widen the scope')
+  assert.equal(run().code, 0)
 })
 
 // THE ESCAPE LIST THE HARNESS ITSELF PLANTED (0.3.0).

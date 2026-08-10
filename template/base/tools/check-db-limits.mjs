@@ -48,6 +48,7 @@ import {
   splitStatements,
   stripSchema,
 } from './lib/sql-parse.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'db-limits'
 const CONFIG = 'tools/db-limits.json'
@@ -181,19 +182,7 @@ for (const [role, knobs] of Object.entries(cfg.roles)) {
   }
 }
 
-// The source roots are stamp inputs too, not only the SQL surface: section 5 walks
-// them, so a stamp blind to them would serve a warm green after exactly the edit that
-// adds a session-scoped lock to a file the previous run judged clean.
-const recordGreen = stampGate(GATE, [
-  MIGRATIONS_DIR,
-  CONFIG,
-  CONFIG_TOML,
-  'apps',
-  'packages',
-  'supabase/functions',
-  'tools',
-  'tests',
-])
+const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 if (!existsSync(MIGRATIONS_DIR))
   skipOrFail(GATE, `${MIGRATIONS_DIR} not found (no migration surface yet)`)

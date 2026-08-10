@@ -23,6 +23,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { fail, failures, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'security-headers'
 const MODULE = 'apps/web/lib/security-headers.ts'
@@ -95,7 +96,7 @@ for (const key of ['hstsPreload', 'coep']) {
   }
 }
 
-const recordGreen = stampGate(GATE, [MODULE, POLICY])
+const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 // ---- evaluate the module -------------------------------------------------------
 // ONE PHYSICAL LINE. runCmd goes through a shell, and a `-e` payload containing real

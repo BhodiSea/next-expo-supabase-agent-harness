@@ -506,25 +506,35 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   )
 })
 
-test('the GROWN list (0.8.0): v0.7.0 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (0.9.0): v0.8.0 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
-  // checkVintages skips tags >= the version being cut — so at package 0.7.0 the entry
-  // '0.7.0' is never demanded and its absence would stay green right up to the bump commit,
-  // where the same test reds with no code having changed. This is that wire, pulled early:
-  // the real released-tag set, judged as the 0.8.0 release will judge it, against the
-  // SHIPPED VINTAGES (the default argument — a local literal here would be the drift the
-  // one-definition test above exists to prevent).
-  const tags = ['v0.1.3', 'v0.2.0', 'v0.2.1', 'v0.3.0', 'v0.4.0', 'v0.5.0', 'v0.6.0', 'v0.7.0']
-  assert.deepEqual(checkVintages(tags, '0.8.0'), [])
+  // checkVintages skips tags >= the version being cut — so at package 0.8.0 the entry
+  // '0.8.0' is never demanded and its absence would stay green right up to the bump commit,
+  // where the same test reds with no code having changed. This is that wire, pulled early
+  // (the 0.8.0 release pulled the same wire for v0.7.0): the real released-tag set, judged
+  // as the 0.9.0 release will judge it, against the SHIPPED VINTAGES (the default argument —
+  // a local literal here would be the drift the one-definition test above exists to prevent).
+  const tags = [
+    'v0.1.3',
+    'v0.2.0',
+    'v0.2.1',
+    'v0.3.0',
+    'v0.4.0',
+    'v0.5.0',
+    'v0.6.0',
+    'v0.7.0',
+    'v0.8.0',
+  ]
+  assert.deepEqual(checkVintages(tags, '0.9.0'), [])
 
-  // And the defect shape it guards: the list stopped at 0.6.0 — exactly the forgotten-entry
+  // And the defect shape it guards: the list stopped at 0.7.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface.
-  const stopped = ['0.1.3', '0.2.0', '0.2.1', '0.3.0', '0.4.0', '0.5.0', '0.6.0']
-  const problems = checkVintages(tags, '0.8.0', stopped)
+  const stopped = ['0.1.3', '0.2.0', '0.2.1', '0.3.0', '0.4.0', '0.5.0', '0.6.0', '0.7.0']
+  const problems = checkVintages(tags, '0.9.0', stopped)
   assert.equal(problems.length, 1, problems.join('\n'))
   assert.match(
     problems[0],
-    /v0\.7\.0 is a released vintage below 0\.8\.0 and is absent from VINTAGES/,
+    /v0\.8\.0 is a released vintage below 0\.9\.0 and is absent from VINTAGES/,
   )
 })
 
@@ -651,16 +661,19 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
 
   // The previous release's vintage meets nothing — leg A of the 0.7.0 lane upgraded a
   // v0.6.0 scaffold and reached graduate's SUCCESS branch on the strength of this line. Its
-  // NOTING was four at 0.7.0's release; under the current fleet it is SIX — the four ramps
-  // 0.7.0 opened plus the two 0.8.0 opens (observability, and the re-opened gate-list site)
-  // that are already advisory for a 0.6.0-vintage install running harness 0.7.0.
+  // NOTING was four at 0.7.0's release; under the current fleet it is EIGHT — the four
+  // ramps 0.7.0 opened, the two 0.8.0 opens (observability, and the re-opened gate-list
+  // site), and the two 0.9.0 opens (the version-sync lockfile floor and the wiring
+  // lefthook floor), all advisory for a 0.6.0-vintage install running harness 0.7.0.
+  // These pins read the CURRENT fleet at a historical version and move with each reviewed
+  // ramp addition, in the same diff — the discipline the header states.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 6)
+  assert.equal(fresh.noting.length, 8)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['data-flow', 'docs-sync', 'observability', 'reviewer-verdicts', 'version-sync'],
-    'what 0.7.0 opened plus what 0.8.0 opens, both advisory for this vintage at harness 0.7.0',
+    ['data-flow', 'docs-sync', 'observability', 'reviewer-verdicts', 'version-sync', 'wiring'],
+    'what 0.7.0 opened plus what 0.8.0 and 0.9.0 open, all advisory for this vintage at harness 0.7.0',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -708,14 +721,17 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
   assert.equal(classifyForInstall('0.6.0', '0.8.0', sites).expired.length, 4)
 
   // The previous release's vintage meets nothing — leg A upgrades a v0.7.0 scaffold and
-  // reaches graduate's refusal branch on NOTEs alone. Its NOTING is the two ramps this
-  // release opens: observability, and the re-opened docs-sync gate-list escape.
+  // reaches graduate's refusal branch on NOTEs alone. Its NOTING at 0.8.0's release was the
+  // two ramps that release opened (observability, and the re-opened docs-sync gate-list
+  // escape); under the current fleet the two 0.9.0 opens (version-sync lockfile, wiring
+  // lefthook) are already advisory for this vintage too — moved in the same diff that
+  // opened them, per the header's discipline.
   const fresh = classifyForInstall('0.7.0', '0.8.0', sites)
   assert.equal(fresh.expired.length, 0)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['docs-sync', 'observability'],
-    'what 0.8.0 OPENS, pinned beside what it closes — the 0.9.0 record will owe these two',
+    ['docs-sync', 'observability', 'version-sync', 'wiring'],
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0 opens (the 0.10.0 record will owe these)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -736,6 +752,72 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
   // honest-count rule.
   assert.match(record.why, /0\.8\.0 — the fourth alarm/)
   assert.match(record.why, /RAMP EXPIRED/)
+})
+
+test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites compute', () => {
+  // Same reasoning as every predecessor above: check-ramp-ledger.mjs reads only the CURRENT
+  // package version's record, so this record is latent until the bump commit. Proving it
+  // here means the bump is a pure lockstep edit whose expiry accounting was already
+  // established the moment the record was written.
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const record = migrations['0.9.0']?.rampExpiry
+  assert.ok(record, 'the release that reds eight vintages at once must say which, in data')
+
+  const sites = shippedRampSites()
+  const computed = VINTAGES.filter((v) => cmpDotted(v, '0.9.0') < 0).filter(
+    (base) => classifyForInstall(base, '0.9.0', sites).expired.length > 0,
+  )
+  assert.deepEqual(record.affects, computed)
+
+  // The population's mechanism: the two sites dated 0.9.0 are everything 0.8.0 opened —
+  // each at minVersion 0.8.0 — so the affected set is every released vintage below 0.8.0,
+  // exactly what the 0.8.0 record promised would fall due ('the 0.9.0 record will owe
+  // their expiry').
+  const expiring = sites.filter((s) => s.until === '0.9.0')
+  assert.equal(
+    expiring.length,
+    2,
+    `the two 0.8.0-opened sites: ${JSON.stringify(expiring.map((s) => `${s.file}:${String(s.line)}`))}`,
+  )
+  assert.deepEqual(
+    [...new Set(expiring.map((s) => s.gate))].sort(),
+    ['docs-sync', 'observability'],
+    'the two gates the record names — the containment closure and the re-opened gate-list escape',
+  )
+
+  // A 0.7.0-vintage install meets exactly the two, with no older debt — the property the
+  // new leg H isolates (base v0.7.0: EXPIRED docs-sync + observability, both in-chain).
+  assert.equal(classifyForInstall('0.7.0', '0.9.0', sites).expired.length, 2)
+
+  // The previous release's vintage meets NOTHING expired — the first release in the
+  // lineage whose leg A can reach graduate's SUCCESS branch un-swept. Its NOTING is the
+  // two ramps 0.9.0 itself opens (the version-sync lockfile floor and the wiring lefthook
+  // floor) — both QUIET on a lane scaffold (the lane installs, so the lockfile exists and
+  // lefthook is installed), which is why the un-swept graduate still succeeds: a quiet
+  // ramp is the honest answer, per the lane's §7b doctrine.
+  const fresh = classifyForInstall('0.8.0', '0.9.0', sites)
+  assert.equal(fresh.expired.length, 0)
+  assert.deepEqual(
+    [...new Set(fresh.noting.map((s) => s.gate))].sort(),
+    ['version-sync', 'wiring'],
+    'what 0.9.0 OPENS, pinned beside what it closes — the 0.10.0 record will owe these two',
+  )
+
+  // ZERO INJECTION, as data: no configSteps and no rampExtensions under "0.9.0" — the
+  // chain is byte-identical for every install, the gate-list escape expires rather than
+  // re-opens, and the deadline ratchet needs no excuse list (the 0.7.0 record set the
+  // absent-not-empty precedent this record follows).
+  assert.ok(!('configSteps' in migrations['0.9.0']), '0.9.0 injects no chain step')
+  assert.ok(!('rampExtensions' in migrations['0.9.0']), '0.9.0 moves no deadline')
+
+  // The why is a pointer a consumer follows: the runbook section that is the sweep — which
+  // this release extends with the RECOVERY section, because the expiry is what forces every
+  // older install through `update` — and the honest-count rule.
+  assert.match(record.why, /0\.9\.0 — the fifth alarm/)
+  assert.match(record.why, /RAMP EXPIRED/)
+  assert.match(record.why, /update --rollback/)
 })
 
 // ── highestReleaseBelow (0.6.1) ──────────────────────────────────────────────────

@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.8.x).** This repo was forked from
+> **Status: pre-release (0.9.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -21,7 +21,11 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
 > fresh scaffold with zero edits — all 34 gates — and the selftest matrix proves
 > it on every push, including the live-Supabase RLS suite and the 29 can-fail
-> canaries (counted from the matrix itself, not hand-authored). Nothing is claimed here that that matrix does not run.
+> canaries (counted from the matrix itself, not hand-authored). The execution
+> proofs — the chain, the hooks, the upgrade ladder — run on **Linux**, plus a
+> Windows unit matrix over the gate/hook logic; the macOS/Windows validate legs
+> are schedule-gated measurement lanes, not per-commit proof. Nothing is claimed
+> here that that matrix does not run.
 >
 > **Honest losses.** Rate limiting binds the two application seams (the tRPC router
 > and the Next Server Action layer) and does **not** bind a client calling PostgREST
@@ -30,18 +34,29 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > per-role statement timeouts. The limiter **fails open** when its backend is
 > unavailable — a recorded decision, which means a Redis outage is a window with no
 > rate limiting at all. Statement timeouts bound duration, not concurrency. SELECT
-> auditing is out of scope (the trail covers mutations). DSR export/erase is not
-> shipped, though the schema invariants that make it cheap later are.
+> auditing is out of scope (the trail covers mutations). DSR export shipped in
+> 0.7.0 (`system.exportMyData`); erase ships as `session.deleteAccount` plus the
+> `delete-account` Edge Function (the expo-policy gate refuses an auth surface
+> without an account-deletion command — Apple 5.1.1(v)). The honest remainder is
+> the missing WEB erase surface and an `erase.surface` record in
+> `tools/data-flow.json` — a dated 0.10.0 row in the obligations register
+> (`scripts/obligations.json`, `dsr-web-erase-surface`).
 >
-> **Honest limits.** No wall-clock timings appear in this README: none have been
-> measured on this port, and unmeasured numbers do not ship. As of 0.6.0 that is
-> enforced rather than remembered — `check-claims` reds on a published figure with
-> no committed measurement behind it, and `check-chain-budget --record` is the
-> thing that can produce one (dispatch the selftest lane, review the artifact,
-> commit it). The order is measure, commit, then publish. The device lanes
-> (Android emulator + Maestro) are schedule- and dispatch-gated, so a PR does not
-> pay for them — which also means they are proven nightly, not per-commit. The
-> gate chain contains no on-device proof at agent time.
+> **Honest limits.** The wall-clock figures are measured, committed, and
+> qualified: warm validate is ~24.3 s wall (24337 ms — the serial reference
+> capture; no agent turn runs serial mode) and the Stop chain's turn-end is
+> ~50.5 s wall (50531 ms, including the nested validate member), recorded
+> 2026-08-09 on Linux/X64 (selftest) and count-matched to the 34/10
+> chain-and-Stop measurement in `scripts/chain-budget.json`. They are that
+> runner's numbers, not a promise about yours. The cold path is unmeasured and
+> carries no figure: unmeasured numbers do not ship — `check-claims` reds on a
+> published figure with no committed measurement behind it, and
+> `check-chain-budget --record` is the thing that can produce one (dispatch the
+> selftest lane, review the artifact, commit it). The order is measure, commit,
+> then publish. The device lanes (Android emulator + Maestro) are schedule- and
+> dispatch-gated, so a PR does not pay for them — which also means they are
+> proven nightly, not per-commit. The gate chain contains no on-device proof at
+> agent time.
 
 ## What it is
 
@@ -49,7 +64,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (125 guard-rule ids: shell-command denials, write-protected harness paths,
+   (127 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -164,8 +179,13 @@ README (chain length, guard-rule ids) and asserts README/CHANGELOG timing
 figures cannot contradict each other. `check-release-lockstep.mjs` asserts one
 version everywhere (package.json, plugin manifest, hook stamps, CITATION.cff,
 CHANGELOG). `generate-floor.mjs` keeps the CI floor snapshot equal to the
-canonical chain. Wall-clock timings are deliberately absent here: none have
-been measured on this port yet, and unmeasured numbers do not ship.
+canonical chain. `check-obligations.mjs` reads `scripts/obligations.json` — the
+register of the release's forward obligations, one row per debt with a kind
+discriminator (`release` reds clocklessly when package.json reaches the target;
+`calendar` is judged only in the scheduled lane; `condition` is held to shape
+and evidence, never to time). The wall-clock figures above are one runner's
+committed measurements (`scripts/chain-budget.json`) — a figure with no
+committed measurement behind it is a `check-claims` red, not a claim.
 
 ## Install
 

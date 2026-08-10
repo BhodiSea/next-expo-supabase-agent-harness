@@ -175,6 +175,21 @@ jobs:
       # pin no upgraded tree had, and eslint died before linting a file.
       - name: machinery-dependency-channel (every owned-config dependency has a channel)
         run: node scripts/check-dependency-channel.mjs
+      # The release's forward obligations in ONE machine-read register (0.9.0):
+      # kind:release rows red clocklessly when package.json reaches their target, the
+      # deferrals census and the future-until ramp fleet close as unions, and prose
+      # anchors must resolve. The kind:calendar half runs ONLY in hygiene.yml's
+      # scheduled job (--clockful) — a verdict that changes with the date must never
+      # red a PR, the same split floor-review makes for the framework floor.
+      - name: machinery-obligations (the obligations register; the clockless half)
+        run: node scripts/check-obligations.mjs
+      # The shipped CI's entry path stays satisfiable (0.9.0): every `pnpm install` in a
+      # shipped workflow spells its lockfile posture, setup-node's `cache: pnpm` demand is
+      # backed by init's committed-lockfile next-steps note (the cross-file half), and every
+      # action reference is SHA-pinned with a version comment. The executed proof is the
+      # consumer-ci-static selftest lane; this is its per-commit static closure.
+      - name: machinery-ci-preconditions (the shipped CI's entry path is satisfiable; actions pinned)
+        run: node scripts/check-ci-preconditions.mjs
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)

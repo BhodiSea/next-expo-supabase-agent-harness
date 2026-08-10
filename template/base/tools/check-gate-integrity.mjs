@@ -193,7 +193,9 @@ for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
   // RAW bytes — the installer hashes the exact content it writes.
   const current = createHash('sha256').update(readFileSync(ip)).digest('hex')
   if (current !== meta.sha256) {
-    into.push(`${ip}: sha256 mismatch against ${MANIFEST} (tampered or hand-edited)`)
+    into.push(
+      `${ip}: sha256 mismatch against ${MANIFEST} (tampered or hand-edited — or an update did not complete: re-run \`update\`, or \`update --rollback\` to restore the pre-update tree)`,
+    )
   }
 }
 for (const f of rampedFindings) {

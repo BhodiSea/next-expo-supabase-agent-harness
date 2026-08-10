@@ -391,5 +391,25 @@
       ],
       "why": "Four escapes close at once — everything 0.7.0 ramped: version-sync (the iOS build-toolchain floor over eas.json; the sweep is the one-line concrete -xcode->=26 image pin), data-flow (the export.surface.target deadline; adopt the shipped export or re-review your own target), docs-sync (the deferral ledger over the owned prose surfaces; ledger or de-date your own tools/*.mjs sentences), and reviewer-verdicts (the path_state verdict-to-diff binding; a Stop-side expiry no lane executes, proven by its registered stop-side proof). Per-gate remediation is docs/runbooks/harness-upgrade.md '0.8.0 — the fourth alarm'; the honest count on a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'` (minus the Stop-side caveat), never this list. Sweep, then graduate, one minor at a time if the pile is large."
     }
+  },
+  "0.9.0": {
+    "//": [
+      "0.9.0 the safe-passage release. The record CLOSES more than it opens, a first since 0.7.0: both ramps 0.8.0 opened fall due (the rampExpiry below), NO chain step is injected (the chain stays 34 on every install, so the gate-list escape expires on schedule rather than re-opening, and the committed 34/34 + 10/10 chain-budget measurement stays count-matched), and there is deliberately no rampExtensions key — no deadline moved (the 0.7.0 record set the absent-not-empty precedent). The census deferral this release also met needed no entry here, same as 0.8.0's record states: tools/deferrals.json targets are not rampNote sites, so the reviewed multi-site diff IS the control — it fired for the second time on schedule (CLI still 2.113.0, supabase/cli#5894 still open) and the date moved to 0.10.0 with the 'once' clause rewritten as the standing per-arrival rule. What the release actually ships around this record: the installer's write primitive is atomic (tmp+rename; a torn .claude/hooks file fails OPEN by Claude Code's exit-code contract, probed empirically), every update records a pre-update snapshot with `update --rollback` as the recovery path, stamps invalidate on update, and the observability module patches were repaired so the gate's own sanctioned wiring passes the gate — the expiry below would otherwise hard-red every pre-0.8.0 crash-reporting consumer against instructions the harness itself shipped wrong (the metro.config.js site is licensed by the new buildConfig sink kind, a register field addition that needs no configSteps).",
+      "WHAT THIS RELEASE OPENS, recorded beside what it closes: two ramps INSIDE existing gates, both minVersion 0.9.0 and both until 0.10.0 — version-sync's committed-lockfile floor (the absent-lockfile NOTE it replaces claimed 'CI always has one', which was false: the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without a committed lockfile, and a fresh resolution drifts against the live registry) and wiring's commit-time installed-not-dormant floor (a committed lefthook.yml with nothing in .git/hooks is layer 2 disarmed while every description of the harness counts it armed). Neither perturbs this release's rampExpiry arithmetic (their until is 0.10.0), and the 0.10.0 record will owe their expiry the way the rampExpiry below pays for 0.8.0's."
+    ],
+    "rampExpiry": {
+      "//": "THE FIFTH ALARM: everything 0.8.0 opened falls due, exactly as its record promised ('the 0.9.0 record will owe their expiry'). The two escapes expiring here both opened at minVersion 0.8.0, so the affected population is EVERY released vintage below 0.8.0 — and 0.8.0 itself is the one vintage this release does not red, which is the property leg A now graduates on with an EMPTY expectation set (the first un-swept graduate SUCCESS in the lineage, on the immediate predecessor). The honest count for a given tree is still `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list: for older vintages the two land on top of the earlier debt the ledger computes per-vintage.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0"
+      ],
+      "why": "Two escapes close at once — everything 0.8.0 ramped: docs-sync (the RE-OPENED AGENTS.md gate-list lockstep after the injected observability step; the sweep is pasting the 34 names the gate's own message lists, or adopting the seeded AGENTS.md) and observability (the vendor-telemetry containment closure over declared sinks; a tree with no vendor imports is silently green, a hand-wired vendor transport must register its sinks[] row — the module patches now carry the correct redaction symbols and the metro.config.js site registers as kind buildConfig). Per-gate remediation is docs/runbooks/harness-upgrade.md '0.9.0 — the fifth alarm', which also carries the new RECOVERY section (`update --rollback`) because this expiry is what forces every older install through `update`. The honest count on a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list. Sweep, then graduate, one minor at a time if the pile is large."
+    }
   }
 }

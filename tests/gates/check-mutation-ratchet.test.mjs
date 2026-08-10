@@ -273,3 +273,77 @@ test('an ABSENT baseline self-disables locally (adoption) and FAILS CLOSED in CI
   })
   assert.equal(r.status, 1, `a skip must never look like a pass in CI\n${r.stdout}${r.stderr}`)
 })
+
+// ── MUTATE_GLOBS == isCritical (0.9.0): the mutated-surface definition lives twice ──────
+//
+// tools/lib/mutation-critical.mjs feeds the SAME critical surface to two consumers through
+// two different encodings: MUTATE_GLOBS (glob strings, handed to Stryker's `mutate`) and
+// isCritical (a predicate, handed to the PR diff-scoper). They derive from shared arrays,
+// but the exclusion logic is spelled twice — literal `!` globs on one side, code paths on
+// the other — so a scope-narrowing edit to ONE side ships a lane that mutates files the
+// scoper never selects (dead nightly coverage) or scopes files the config refuses to
+// mutate (a PR lane that silently skips). This pins the two encodings extensionally equal
+// over a corpus that exercises every rule and carve-out class in the module.
+import { isCritical, MUTATE_GLOBS } from '../../template/base/tools/lib/mutation-critical.mjs'
+
+/** Minimal glob→RegExp for the dialect MUTATE_GLOBS uses: `**` crosses segments (zero or
+ *  more), `*` does not. Mirrors minimatch's globstar semantics for these patterns. */
+function globRe(glob) {
+  let re = ''
+  for (let i = 0; i < glob.length; i += 1) {
+    const c = glob[i]
+    if (c === '*' && glob[i + 1] === '*') {
+      const slash = glob[i + 2] === '/'
+      re += slash ? '(?:.*/)?' : '.*'
+      i += slash ? 2 : 1
+    } else if (c === '*') re += '[^/]*'
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  }
+  return new RegExp(`^${re}$`)
+}
+
+const mutatedByGlobs = (path) => {
+  const positives = MUTATE_GLOBS.filter((g) => !g.startsWith('!'))
+  const negatives = MUTATE_GLOBS.filter((g) => g.startsWith('!')).map((g) => g.slice(1))
+  return positives.some((g) => globRe(g).test(path)) && !negatives.some((g) => globRe(g).test(path))
+}
+
+test('MUTATE_GLOBS and isCritical agree on every rule and carve-out class (drift pin)', () => {
+  const corpus = [
+    // in-scope roots, including files that do not exist yet (the closure property)
+    'packages/api/src/trpc.ts',
+    'packages/api/src/context.ts',
+    'packages/platform/supabase/src/errors.ts',
+    'packages/platform/errors/src/index.ts',
+    'packages/verticals/notes/src/data/notes.ts',
+    'packages/verticals/comments/src/domain/rank.ts',
+    // test/type exclusions
+    'packages/api/src/trpc.test.ts',
+    'packages/platform/errors/src/index.d.ts',
+    // the named carve-outs, one per class
+    'packages/api/src/index.ts',
+    'packages/platform/supabase/src/index.ts',
+    'packages/platform/supabase/src/client.ts',
+    'packages/platform/supabase/src/service-role.ts',
+    'packages/platform/supabase/src/public-env.ts',
+    'packages/verticals/notes/src/index.ts',
+    'packages/verticals/notes/src/client.ts',
+    'packages/verticals/notes/src/data/query-probes.ts',
+    'packages/verticals/comments/src/data/query-probes.ts',
+    // out-of-scope surfaces
+    'apps/web/lib/rate-limit-runtime.ts',
+    'apps/mobile/src/App.tsx',
+    'packages/contracts/src/note.ts',
+    'packages/design-tokens/src/color.ts',
+    'packages/verticals/notes/README.md',
+    // vertical files OUTSIDE src/ (isCritical's verticals branch is path-shaped)
+    'packages/verticals/notes/scripts/gen.ts',
+  ]
+  for (const path of corpus) {
+    assert.equal(
+      isCritical(path),
+      mutatedByGlobs(path),
+      `${path}: isCritical=${String(isCritical(path))} but MUTATE_GLOBS say ${String(mutatedByGlobs(path))} — the two encodings of the critical surface have drifted (tools/lib/mutation-critical.mjs)`,
+    )
+  }
+})

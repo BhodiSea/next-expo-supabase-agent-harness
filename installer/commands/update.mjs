@@ -11,8 +11,9 @@
 // consumer's routes/App don't reference them, so silently planting them would
 // red route-manifest + dead-code. The sweep notes them; --refresh-seeded is the
 // deliberate channel to pull them in.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
 import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import {
@@ -39,6 +40,7 @@ import { classifyDrift } from '../lib/reconcile.mjs'
 import { printReport } from '../lib/report.mjs'
 import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
 import { refreshAgentsLockEntries, writeAgentsLock } from '../lib/agents-lock.mjs'
+import { writeRollbackSnapshot } from '../lib/rollback.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
 
@@ -92,8 +94,98 @@ function notePackageJsonDrift({ targetDir, incoming, report }) {
   }
 }
 
+// The rollback point (0.9.0): recorded AFTER the plan is rendered — so the candidate set
+// is the real one — and BEFORE the first disk mutation (applyFileMigrations deletes
+// first). An interrupted or failed sweep is recoverable with `update --rollback`;
+// `graduate` deletes the blob so a pre-graduation tree can never be silently restored.
+// The note is phrased as the sweep's CONTRACT rather than a past-tense act, and pushed
+// in both modes on purpose: the dry-run parity test holds the two reports byte-for-byte
+// equal, and the sentence is true in both — the real run just performed it, the dry run
+// describes what the real run will do. Hoisted out of `update` for the complexity
+// ratchet, the same reason as resolveConflict above.
+/**
+ * @param {{ targetDir: string, manifest: { harnessVersion: string, files?: Record<string, unknown> },
+ *           plan: Array<{ installPath: string }>, report: { notes: string[] }, dryRun: boolean }} args
+ */
+function recordRollbackPoint({ targetDir, manifest, plan, report, dryRun }) {
+  if (!dryRun) {
+    writeRollbackSnapshot({
+      targetDir,
+      manifest,
+      plan,
+      from: manifest.harnessVersion,
+      to: installerVersion(),
+    })
+  }
+  report.notes.push(
+    `a pre-update snapshot (.harness/rollback/) precedes this sweep's first write — \`update --rollback\` restores the ${manifest.harnessVersion} state if it is interrupted`,
+  )
+}
+
+// The advisory turn lock's ONE blocking consumer (0.9.0). The install's Stop hook writes
+// .harness/turn.lock {session_id, pid, at} on every recorded outcome; an update sweeping
+// the enforcement surface out from under a MID-TURN session is the interleaving the
+// session-scoped turn ledger cannot repair (the session's next Stop judges files this
+// sweep rewrote), so the sweep is the side that waits. Semantics are the twin of
+// liveForeignLock in template/base/.claude/hooks/lib/turn-outcomes.mjs — fresh means
+// <10 minutes, alive means signal-0 lands or is refused with EPERM — duplicated here with
+// this pointer rather than imported, per the installer's standing rule (see lib/fs-walk.mjs):
+// installer code never imports template modules. A STALE lock or a DEAD pid is ignored
+// with a note, because a crashed session must not hold the tree hostage; an unreadable
+// lock advises nothing. Hoisted out of `update` for the complexity ratchet.
+const TURN_LOCK_FRESH_MS = 10 * 60 * 1000
+/** @param {string} targetDir @param {{ notes: string[] }} report */
+function refuseWhileTurnRuns(targetDir, report) {
+  const lockPath = join(targetDir, '.harness', 'turn.lock')
+  if (!existsSync(lockPath)) return
+  let lock
+  try {
+    lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+  } catch {
+    return // an unreadable advisory lock advises nothing
+  }
+  if (lock === null || typeof lock !== 'object') return
+  const ageMs = Date.now() - Date.parse(lock.at ?? '')
+  const fresh = Number.isFinite(ageMs) && ageMs < TURN_LOCK_FRESH_MS
+  const alive = (() => {
+    if (!Number.isInteger(lock.pid) || lock.pid <= 0) return false
+    try {
+      process.kill(lock.pid, 0)
+      return true
+    } catch (e) {
+      return e?.code === 'EPERM'
+    }
+  })()
+  if (fresh && alive) {
+    throw new Error(
+      `.harness/turn.lock: a LIVE Claude Code session (${String(lock.session_id ?? 'unknown session')}, pid ${String(lock.pid)}) claimed this tree ${String(Math.round(ageMs / 1000))}s ago — refusing to sweep the enforcement surface out from under a mid-turn session. Finish or end that session and re-run; a stale lock (>10 min) or a dead pid is ignored automatically.`,
+    )
+  }
+  report.notes.push(
+    `.harness/turn.lock ignored (${fresh ? 'its pid is dead — the session that wrote it is gone' : 'stale — older than 10 minutes'}); proceeding.`,
+  )
+}
+
+// Stamp hygiene (0.9.0): a gate stamp (.harness/<gate>.ok) proves "these INPUTS were
+// green under the check as it existed THEN" — and the sweep may have just rewritten the
+// check. Deleting every stamp means the first validate after an update re-proves every
+// gate instead of riding a warm green recorded by the previous version. Only *.ok files
+// directly under .harness/ are stamps; manifest.json, pending/ and rollback/ are
+// update's own state and stay. Hoisted out of `update` for the complexity ratchet.
+/** @param {string} targetDir @param {{ notes: string[] }} report */
+function invalidateStamps(targetDir, report) {
+  const stamps = readdirSync(join(targetDir, '.harness'), { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith('.ok'))
+    .map((e) => e.name)
+    .sort()
+  for (const name of stamps) unlinkSync(join(targetDir, '.harness', name))
+  if (stamps.length > 0) {
+    report.notes.push('stamps invalidated — first validate after an update re-proves every gate')
+  }
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function update(opts, { migrations = readTemplateMigrations() } = {}) {
+export async function update(opts, { migrations = readTemplateMigrations(), writeFile = writeInstallFile } = {}) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) {
@@ -145,6 +237,9 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     title: `harness update ${manifest.harnessVersion} → ${installerVersion()}`,
     written: [],
   }
+  // Before ANY disk mutation (the rollback snapshot below is already one): a live
+  // mid-turn session's advisory lock refuses the sweep — see refuseWhileTurnRuns.
+  refuseWhileTurnRuns(targetDir, report)
   const files = { ...manifest.files }
   const modules = new Set(manifest.modules ?? [])
 
@@ -155,6 +250,8 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     throw new Error('template plan is empty — refusing to record an update over a packaging regression')
   }
   const plan = entries.map((e) => ({ ...e, content: renderEntry(e, answers) }))
+
+  recordRollbackPoint({ targetDir, manifest, plan, report, dryRun: opts.dryRun })
   // Same closure as init: an enabled module's workspace package must be in the root
   // solution file. `tsconfig.json` is an OWNED file, so update rewrites it from the
   // template on every run — without this the reference would be planted at init and
@@ -278,7 +375,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
         report.written.push(ip)
         continue
       }
-      writeInstallFile(dest, entry.content)
+      writeFile(dest, entry.content)
       files[ip] = { mode, sha256: incomingSha, ...(entry.module ? { module: entry.module } : {}) }
       report.written.push(ip)
       continue
@@ -292,7 +389,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
         report.written.push(ip)
         continue
       }
-      writeInstallFile(dest, entry.content)
+      writeFile(dest, entry.content)
       files[ip] = { ...(files[ip] ?? { mode }), mode, sha256: incomingSha }
       report.written.push(ip)
       continue
@@ -306,7 +403,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
     // unless --force deliberately overwrites.
     if (kind === 'force-overwrite') {
       if (!opts.dryRun) {
-        writeInstallFile(dest, entry.content)
+        writeFile(dest, entry.content)
         files[ip] = { ...(files[ip] ?? { mode }), mode, sha256: incomingSha }
       }
       report.written.push(ip)
@@ -314,7 +411,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
       continue
     }
     const pending = join('.harness', 'pending', ip)
-    if (!opts.dryRun) writeInstallFile(join(targetDir, pending), entry.content)
+    if (!opts.dryRun) writeFile(join(targetDir, pending), entry.content)
     report.drift.push({ path: ip, pending })
   }
 
@@ -343,6 +440,7 @@ export async function update(opts, { migrations = readTemplateMigrations() } = {
       // to a newer baseVersion is a human edit (docs/runbooks/harness-upgrade.md).
       baseVersion: manifest.baseVersion ?? manifest.harnessVersion,
     })
+    invalidateStamps(targetDir, report)
   }
   return printReport(report, { json: opts.report === 'json' })
 }

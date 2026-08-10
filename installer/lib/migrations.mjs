@@ -19,10 +19,11 @@
 // into an existing install — the consumer's routes/app never reference them, so
 // planting would red route-manifest + knip. They stay pullable on demand via
 // `update --refresh-seeded <path>` (the documented opt-in channel).
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { templateRoot, toPosix } from './copy.mjs'
 import { sha256 } from './manifest.mjs'
+import { writeInstallFile } from './write-file.mjs'
 
 export function readTemplateMigrations() {
   try {
@@ -221,7 +222,7 @@ export function applyConfigSteps({ targetDir, files, report, entries, dryRun }) 
     content = next
   }
   if (added.length > 0 && !dryRun) {
-    writeFileSync(cfgPath, content)
+    writeInstallFile(cfgPath, content)
     if (files[cfgRel]) files[cfgRel] = { ...files[cfgRel], sha256: sha256(content) }
     report.notes.push(`gate step(s) added to ${cfgRel}: ${added.join(', ')}`)
   } else if (added.length > 0) {
@@ -270,7 +271,7 @@ export function applyConfigCommandUpdates({ targetDir, files, report, entries, d
   }
   if (changed.length === 0) return
   if (!dryRun) {
-    writeFileSync(cfgPath, content)
+    writeInstallFile(cfgPath, content)
     if (files[cfgRel]) files[cfgRel] = { ...files[cfgRel], sha256: sha256(content) }
   }
   report.notes.push(
@@ -374,8 +375,7 @@ export function applyDependencyObligations({ targetDir, report, migrations, vers
   }
 
   if (!dryRun) {
-    mkdirSync(dirname(parked), { recursive: true })
-    writeFileSync(
+    writeInstallFile(
       parked,
       `${JSON.stringify(
         {
@@ -488,8 +488,7 @@ export function applySeededSourceFixObligations({ targetDir, report, migrations,
   }
 
   if (!dryRun) {
-    mkdirSync(dirname(parked), { recursive: true })
-    writeFileSync(
+    writeInstallFile(
       parked,
       `${JSON.stringify(
         {

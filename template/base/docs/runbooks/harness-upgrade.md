@@ -635,6 +635,106 @@ at or below it. This section is executed, not reviewed: the upgrade lane's leg E
 runs exactly this page against a v0.3.0 install and reds the release if
 `graduate` cannot reach its success branch.
 
+## 0.9.0 — THE FIFTH ALARM: everything 0.8.0 opened falls due
+
+Nothing in this section invents a sweep. **The two ramps 0.8.0 opened both fall
+due here** — `docs-sync` (the re-opened AGENTS.md gate-list NOTE after the
+injected `observability` step) and `observability` (the vendor-telemetry
+containment closure) — and the remedy for each is the one the 0.8.0 section
+above already wrote down in "The new ramps". What is deliberately NOT here: no
+step is injected (your chain stays 34, byte-identical), no deadline moves, and
+the census deferral fired on schedule a second time (`tools/deferrals.json`
+moved `auth-posture-cli-census` to 0.10.0 against a still-unchanged upstream).
+
+**If you applied the crash-reporting or observability module before 0.9.0**,
+read this first: the pre-0.9.0 patch docs instructed a `"redaction":
+"redactFields"` register row while the code they plant references
+`redactCrashEvent`/`redactText` — instructions the gate itself reds. The 0.9.0
+patch docs carry the corrected rows (append the real symbols to
+`redactionSymbols`, one sink row per vendor-importing file, and the
+`metro.config.js` require registers as `"kind": "buildConfig"`, which needs no
+redaction symbol because a bundler plugin registration transports no event).
+Re-apply the register rows from the corrected docs; the code the patches planted
+is unchanged.
+
+| Your `baseVersion` | What 0.9.0 does to you |
+|---|---|
+| **0.8.0** | **Neither expiry touches you** — both have been live on your install since you graduated. You meet only this release's NOTEs, and only when their findings exist: `version-sync` reds an ABSENT `pnpm-lock.yaml` (run `pnpm install`, commit the lockfile) and `wiring` reds a committed-but-not-installed lefthook (run `pnpm install`). A tree with a committed lockfile and installed hooks sees nothing. Both expire in 0.10.0. |
+| **0.7.0** | **The two close at once** — your first deadline ever, met with no older debt (the property the upgrade lane's leg H isolates). The sweep: paste the 34 gate names the `docs-sync` finding prints into your AGENTS.md, and clear any `observability` containment findings (register the sink with the CORRECTED symbol rows above, or remove the hand-wired import). |
+| **0.6.0** | The two, plus the 0.8.0 pile you have not met yet — follow the 0.8.0 section first, then this one. |
+| **0.5.0 and below** | Follow each section in order — 0.4.0's, 0.5.0's, 0.6.0's, 0.7.0's, 0.8.0's, then this one — one `graduate` per hop; each hop shrinks the next. |
+| fresh `init` at 0.9.0 | Nothing ever ramped. |
+
+The honest count is still the command, never this table:
+
+```sh
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'
+```
+
+And the population is not prose either: `template/migrations.json`'s
+`0.9.0.rampExpiry` record states it as data, and `scripts/check-ramp-ledger.mjs`
+reds if it disagrees with what the shipped call sites actually compute.
+
+### The new ramps — the debt this release opens, expiring in 0.10.0
+
+**`version-sync`: the committed-lockfile floor.** The absent-lockfile NOTE this
+replaces claimed "CI always has one" — false: the shipped workflows run
+`pnpm install --frozen-lockfile`, which hard-fails with no committed lockfile,
+and a fresh resolution drifts against the live registry (two installs a day
+apart were measured 230 lock-lines apart). The move is one command:
+`pnpm install`, then commit `pnpm-lock.yaml`. `doctor` names the
+committed-but-untracked case too.
+
+**`wiring`: the commit-time layer installed, not dormant.** A committed
+`lefthook.yml` with nothing in `.git/hooks` is layer 2 fully disarmed while
+every description of the harness counts it armed. The move is one command:
+`pnpm install` (the prepare script), or `pnpm exec lefthook install`.
+
+### Then graduate
+
+Sweep the reds (the 0.8.0 rows), paste the gate list, clear any containment
+NOTEs with the corrected register rows, then
+`npx next-expo-supabase-agent-harness graduate`. A `baseVersion` 0.8.0 install
+with a committed lockfile and installed hooks sweeps NOTHING — graduate reaches
+its success branch untouched, the first un-swept graduation in the lineage, and
+the upgrade lane's leg A holds the release to exactly that.
+
+## RECOVERY — when an `update` is interrupted or fails
+
+Every real `update` (0.9.0+) records the pre-update state of every path it
+could touch as one blob under `.harness/rollback/` BEFORE its first disk write,
+and its writes are atomic (staged to a dot-tmp beside the destination, then
+renamed) — a file is either its old bytes or its new bytes, never a truncation.
+The ordering is: snapshot → deletions → file writes → manifest LAST. What to do,
+by symptom:
+
+1. **Commit before you update.** The snapshot is the harness's recovery point;
+   your commit is yours. Both existing is the posture every step below assumes.
+2. **The update stopped partway (crash, ^C, ENOSPC).** Re-run `update` — the
+   sweep is idempotent: files already rewritten re-record, files not yet reached
+   are written, and the second run's report says `written: 0` when there was
+   nothing left. This is the default remedy.
+3. **You want the pre-update tree back** (the update revealed a red you are not
+   ready to sweep, or you suspect damage):
+   `npx next-expo-supabase-agent-harness update --rollback` — restores every
+   recorded path byte-for-byte (files first, manifest last), deletes files the
+   update created, and keeps the blob so a repeated rollback is a no-op. The
+   next `update` replaces the snapshot; `graduate` deletes it (restoring a
+   pre-graduation tree would silently regress `baseVersion`).
+4. **`check-gate-integrity` reports a sha mismatch right after an update, or
+   `doctor` reports drift on a harness-owned file you never edited.** Before
+   reading it as tampering: an update that did not complete leaves exactly this
+   shape. Re-run `update` (heals the partial state), or `update --rollback`
+   (restores the recorded tree) — the gate and doctor messages name both.
+5. **A DRIFT report parks a file you never edited** (`.harness/pending/<path>`
+   after an interrupted update on an older harness whose writes were not yet
+   atomic): the parked copy is the harness's CORRECT version and the in-tree
+   file may be torn. Compare them; if the in-tree file is truncated, take the
+   parked copy (`mv .harness/pending/<path> <path>`), then re-run `update`.
+   A torn file under `.claude/hooks/` is the urgent case — a hook that cannot
+   parse FAILS OPEN (Claude Code treats its exit 1 as non-blocking), so the
+   agent-time layer is silently disarmed until the file is whole again.
+
 ## How to graduate
 
 1. **Sweep.** Run `pnpm validate` and fix everything the ramped check reports in

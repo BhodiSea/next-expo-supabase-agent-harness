@@ -2,9 +2,10 @@
 // Hashes are computed over post-render content, so per-project placeholder
 // values do not read as drift. SOURCE: docs/harness/README.md (tamper evidence)
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { CONFIG_FILES, SEEDED_FILES, SEEDED_PREFIXES } from './layout.mjs'
+import { writeInstallFile } from './write-file.mjs'
 
 export function sha256(text) {
   return createHash('sha256').update(text).digest('hex')
@@ -64,7 +65,6 @@ export function readManifest(targetDir) {
 
 export function writeManifest(targetDir, manifest) {
   const path = manifestPath(targetDir)
-  mkdirSync(dirname(path), { recursive: true })
   const ordered = {
     harnessVersion: manifest.harnessVersion,
     // baseVersion: the release vintage whose SEEDED starting content this tree
@@ -82,7 +82,10 @@ export function writeManifest(targetDir, manifest) {
     answers: manifest.answers,
     files: Object.fromEntries(Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b))),
   }
-  writeFileSync(path, `${JSON.stringify(ordered, null, 2)}\n`)
+  // The manifest is the update transaction's LAST write and the file every
+  // drift/tamper verdict reads — the staging primitive keeps an interrupted
+  // update from ever leaving it half-written.
+  writeInstallFile(path, `${JSON.stringify(ordered, null, 2)}\n`)
 }
 
 export function installerVersion() {

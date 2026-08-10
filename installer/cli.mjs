@@ -15,6 +15,7 @@ const { values, positionals } = parseArgs({
     'dry-run': { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     'refresh-seeded': { type: 'string', multiple: true },
+    rollback: { type: 'boolean', default: false },
     consume: { type: 'boolean', default: false },
     set: { type: 'string', multiple: true },
     report: { type: 'string' },
@@ -31,6 +32,7 @@ const opts = {
   dryRun: values['dry-run'],
   force: values.force,
   refreshSeeded: values['refresh-seeded'],
+  rollback: values.rollback,
   consume: values.consume,
   set: values.set,
   report: values.report,
@@ -45,6 +47,8 @@ Usage:
            [--refresh-seeded <path> ...]  (pull the template version of a
            seeded, project-owned file or whole subtree — e.g. a trailing '/'
            dir: overwrite when untouched, park on drift)
+           [--rollback]  (restore the tree recorded before the last update —
+           the recovery path for an interrupted or failed sweep)
   doctor   [--dir .]
   graduate [--dir .]  (advance baseVersion once ramped checks are clean —
            runs validate, refuses while any ramp NOTE remains)
@@ -65,6 +69,12 @@ try {
   } else if (command === 'init') {
     const { init } = await import('./commands/init.mjs')
     code = await init(opts)
+  } else if (command === 'update' && opts.rollback) {
+    if (opts.refreshSeeded?.length || opts.force || opts.dryRun) {
+      throw new Error('--rollback restores the recorded pre-update state and combines with no other update flag')
+    }
+    const { rollbackUpdate } = await import('./lib/rollback.mjs')
+    code = rollbackUpdate(opts)
   } else if (command === 'update') {
     const { update } = await import('./commands/update.mjs')
     code = await update(opts)

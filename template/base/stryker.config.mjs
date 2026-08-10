@@ -3,7 +3,7 @@
 // your tests RAN the code; mutation says they would NOTICE it breaking.
 //
 // CI-ONLY. Never `pnpm validate`, never the Stop hook: a full run is minutes and the warm
-// validate budget is ~6s. Two lanes, both blocking, both ending in the SET-BASED ratchet
+// validate chain measures ~24s wall. Two lanes, both blocking, both ending in the SET-BASED ratchet
 // (tools/check-mutation-ratchet.mjs) rather than a score threshold:
 //   - per-PR   : diff-scoped — mutates only the CRITICAL files the PR touched
 //                (tools/mutation-scope.mjs computes the list for `--mutate`)

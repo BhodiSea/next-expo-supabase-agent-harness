@@ -2,6 +2,7 @@
 // CI-friendly exit codes (0 clean, 1 broken, 2 drift/attention). Seeded-surface
 // divergence is reported as info only — project-owned files are EXPECTED to
 // evolve; the advisory exists so template improvements are discoverable.
+import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -53,7 +54,7 @@ function classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings 
     return
   }
   if (!ip.startsWith('.claude/hooks/')) {
-    warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it)`)
+    warnings.push(`drift on harness-owned file: ${ip} (run \`update\` to reconcile, or restore it — or an update did not complete: re-run \`update\`, or \`update --rollback\` to restore the pre-update tree)`)
     return
   }
   // Distinguish "stale hook from an older harness" from "locally modified": hooks carry a
@@ -126,6 +127,30 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
   if (fixes.length === 0 && existsSync(join(pendingRoot, 'source-fixes.json'))) {
     infos.push('every seeded source fix is applied — removing the stale .harness/pending/source-fixes.json')
     rmSync(join(pendingRoot, 'source-fixes.json'), { force: true })
+  }
+}
+
+// Dependency-resolution pin (0.9.0): the lockfile must be COMMITTED, not merely present —
+// an ignored or absent pnpm-lock.yaml is unpinned resolution and a hard-failed
+// `--frozen-lockfile` on the shipped workflows' first CI run. Hoisted out of `doctor` for
+// the complexity ratchet, the same reason as classifyManifestFile above.
+/** @param {string} targetDir @param {string[]} warnings */
+function checkLockfileCommitted(targetDir, warnings) {
+  if (!existsSync(join(targetDir, '.git'))) return
+  if (!existsSync(join(targetDir, 'pnpm-lock.yaml'))) {
+    warnings.push(
+      "pnpm-lock.yaml is absent — dependency resolution is unpinned and the shipped workflows' `pnpm install --frozen-lockfile` entry step hard-fails without it; run `pnpm install` and commit the lockfile",
+    )
+    return
+  }
+  const tracked = spawnSync('git', ['ls-files', '--error-unmatch', 'pnpm-lock.yaml'], {
+    cwd: targetDir,
+    stdio: 'ignore',
+  })
+  if (tracked.status !== 0) {
+    warnings.push(
+      'pnpm-lock.yaml exists but is not committed — CI resolves a different tree than the one you reviewed; `git add pnpm-lock.yaml` and commit it',
+    )
   }
 }
 
@@ -248,6 +273,8 @@ export async function doctor(opts) {
       )
     }
   }
+
+  checkLockfileCommitted(targetDir, warnings)
 
   // Seeded-surface advisory: which project-owned files diverge from the
   // CURRENT template (info-level; never flips the exit code). A newer template

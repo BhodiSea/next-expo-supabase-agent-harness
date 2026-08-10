@@ -16,8 +16,8 @@
 //   - a baseline entry with an empty reason      -> FAIL (accepting a survivor is a
 //                                                  reviewed act, not a rubber stamp)
 //
-// CI-ONLY. Never in the Stop chain: a full run is minutes, and the warm-validate budget is
-// ~6s. The PR lane mutates only the CRITICAL files the PR touched (tools/mutation-scope.mjs);
+// CI-ONLY. Never in the Stop chain: a full run is minutes, and the warm validate chain
+// measures ~24s wall. The PR lane mutates only the CRITICAL files the PR touched (tools/mutation-scope.mjs);
 // the nightly mutates the whole critical set.
 //
 // SURVIVOR IDENTITY IS POSITION-INDEPENDENT. Keying a survivor by file:line:column (the
