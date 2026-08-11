@@ -413,49 +413,52 @@
     }
   },
   "0.9.5": {
-      "//": [
-        "0.9.5 the bedrock release. The record OPENS three ramps and closes none, and it injects NO chain step: VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10 on every install, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and the AGENTS.md gate-list escape is NOT re-triggered (the 0.6.0/0.8.0 pattern does not repeat here). The two floors 0.9.0 opened (version-sync's committed lockfile, wiring's installed-not-dormant lefthook) remain advisory and still fall due at 0.10.0 — the 0.10.0 record owes both, plus the three this release opens.",
-        "THE THREE RAMPS, each with its obligations-register row (the ramp union is mechanically closed, so a ramp without its row reds the tree): boundaries' vertical-anatomy laws at minVersion 0.9.5 until 0.10.0 (boundaries-vertical-anatomy-ramp-expiry) — the worked packages/verticals/notes anatomy becomes law, and a consumer whose second vertical predates the laws sees NOTEs rather than a red on the update that shipped them; docs-sync's agent-surface truth until 0.10.0 (docs-sync-agent-surface-ramp-expiry) — the AGENTS.md line-budget claims-check plus the body command closure over .claude/{rules,commands,skills,agents}, ramped because AGENTS.md is SEEDED, so every existing install keeps the pre-0.9.5 sentence `update` cannot rewrite; and docs-sync's ADR content shape until 0.11.0 (docs-sync-adr-shape-ramp-expiry) — two releases rather than one, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile.",
-        "NO rampExtensions key: no deadline moved (the 0.7.0 absent-not-empty precedent, held for the third release running). A seededSourceFixes record, and the FIRST DRAFT OF THIS RECORD SAID THE OPPOSITE — it argued no record was needed because neither correction fixes a functional break. Upgrade-lane leg I disproved it: the env-through-register rule is harness-OWNED, so `update` arms it on every install at once, while the two files it reds are SEEDED, so an upgrading consumer met a hard-red `lint` step on files they never touched. The correction is real work a human must do, which is exactly what this key is for; the rule's own `ignores` carry the two paths until 0.10.0 so the instruction arrives without an ambush. The new module `e2ee` carries NO seedOnInitOnly entry, and that is the correction of a first draft that added one: `update` walks `modules/<name>` only for modules listed in the install's manifest, so a disabled module's package can never be auto-planted and needs no withholding — while an install that DID enable e2ee must receive the package, which a seedOnInitOnly pattern would have withheld from it. Its files are reviewed DELIBERATE_PLANT entries in scripts/check-seeded-migrations.mjs instead, the same call eval-live's package files carry."
-      ],
-      "seededSourceFixes": [
+    "//": [
+      "0.9.5 the bedrock release. The record OPENS three ramps and closes none, and it injects NO chain step: VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10 on every install, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and the AGENTS.md gate-list escape is NOT re-triggered (the 0.6.0/0.8.0 pattern does not repeat here). The two floors 0.9.0 opened (version-sync's committed lockfile, wiring's installed-not-dormant lefthook) remain advisory and still fall due at 0.10.0 — the 0.10.0 record owes both, plus the three this release opens.",
+      "THE THREE RAMPS, each with its obligations-register row (the ramp union is mechanically closed, so a ramp without its row reds the tree): boundaries' vertical-anatomy laws at minVersion 0.9.5 until 0.10.0 (boundaries-vertical-anatomy-ramp-expiry) — the worked packages/verticals/notes anatomy becomes law, and a consumer whose second vertical predates the laws sees NOTEs rather than a red on the update that shipped them; docs-sync's agent-surface truth until 0.10.0 (docs-sync-agent-surface-ramp-expiry) — the AGENTS.md line-budget claims-check plus the body command closure over .claude/{rules,commands,skills,agents}, ramped because AGENTS.md is SEEDED, so every existing install keeps the pre-0.9.5 sentence `update` cannot rewrite; and docs-sync's ADR content shape until 0.11.0 (docs-sync-adr-shape-ramp-expiry) — two releases rather than one, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile.",
+      "NO rampExtensions key: no deadline moved (the 0.7.0 absent-not-empty precedent, held for the third release running). A seededSourceFixes record, and the FIRST DRAFT OF THIS RECORD SAID THE OPPOSITE — it argued no record was needed because neither correction fixes a functional break. Upgrade-lane leg I disproved it: the env-through-register rule is harness-OWNED, so `update` arms it on every install at once, while the two files it reds are SEEDED, so an upgrading consumer met a hard-red `lint` step on files they never touched. The correction is real work a human must do, which is exactly what this key is for; the rule's own `ignores` carry the two paths until 0.10.0 so the instruction arrives without an ambush. The new module `e2ee` carries NO seedOnInitOnly entry, and that is the correction of a first draft that added one: `update` walks `modules/<name>` only for modules listed in the install's manifest, so a disabled module's package can never be auto-planted and needs no withholding — while an install that DID enable e2ee must receive the package, which a seedOnInitOnly pattern would have withheld from it. Its files are reviewed DELIBERATE_PLANT entries in scripts/check-seeded-migrations.mjs instead, the same call eval-live's package files carry."
+    ],
+    "seededSourceFixes": [
       {
-      "//": "Found by leg I of the upgrade lane, which is the only thing in this repository that would have noticed: the rule ships owned and the files ship seeded, so the ambush is invisible to every fresh-scaffold proof. The probe is lacks-shaped on the import the fix introduces, so an install that has applied it (under any names) stops matching and the parked artifact self-clears.",
-      "why": "0.9.5 moved the web app's optional server configuration behind the register: apps/web/lib/rate-limit-runtime.ts and the tRPC route handler read the Upstash pair and the skew-guard deploy metadata through @app/env/optional instead of straight off process.env. The new env-through-register lint rule enforces it, and both files are seeded \u2014 `update` plants @app/env/optional for you, but it cannot rewrite the two call sites. Apply the fix, or the rule's dated exemption carries you to 0.10.0.",
-      "probes": [
-      {
-      "path": "apps/web/lib/rate-limit-runtime.ts",
-      "brokenWhen": {
-      "lacks": "@app/env/optional"
-      }
-      },
-      {
-      "path": "apps/web/app/api/trpc/[trpc]/route.ts",
-      "brokenWhen": {
-      "lacks": "@app/env/optional"
-      }
-      }
-      ],
-      "paths": [
-      "apps/web/lib/rate-limit-runtime.ts",
-      "apps/web/app/api/trpc/[trpc]/route.ts"
-      ],
-      "gate": "lint"
-      }
-      ],
-      "rampExpiry": {
-        "//": "CARRIED FORWARD, NOT NEWLY OPENED — computed from HEAD's own 36 shipped ramp sites at harness 0.9.5, not copied from a plan. NOTHING NEW EXPIRES AT 0.9.5: all three ramps this release opens fall due at 0.10.0 or 0.11.0, and the two 0.9.0 opened are still advisory. The vintages below are red on arrival for deadlines they already met at or before 0.9.0, exactly as they were on an upgrade to 0.9.0 — an install at baseVersion 0.8.0 or 0.9.0 meets NOTHING here (0 expired; it sees 5 and 3 advisory NOTEs respectively). The honest count for a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list.",
-        "affects": [
-          "0.1.3",
-          "0.2.0",
-          "0.2.1",
-          "0.3.0",
-          "0.4.0",
-          "0.5.0",
-          "0.6.0",
-          "0.7.0"
+        "//": "Found by leg I of the upgrade lane, which is the only thing in this repository that would have noticed: the rule ships owned and the files ship seeded, so the ambush is invisible to every fresh-scaffold proof. The probe is lacks-shaped on the import the fix introduces, so an install that has applied it (under any names) stops matching and the parked artifact self-clears.",
+        "why": "0.9.5 moved the web app's optional server configuration behind the register: apps/web/lib/rate-limit-runtime.ts and the tRPC route handler read the Upstash pair and the skew-guard deploy metadata through @app/env/optional instead of straight off process.env. The new env-through-register lint rule enforces it, and both files are seeded — `update` plants @app/env/optional for you, but it cannot rewrite the two call sites. THE UNIT IS THE SUBSYSTEM, NOT THE LINE — the 0.6.0 record's words, and upgrade-lane leg E proved them again here: the two call sites cannot import a subpath the env package does not EXPORT, and packages/platform/env/package.json is seeded too, so the exports map, the new module and its test move with them or the tree reds on an unresolvable import. Apply the set, or the rule's dated exemption carries you to 0.10.0.",
+        "probes": [
+          {
+            "path": "apps/web/lib/rate-limit-runtime.ts",
+            "brokenWhen": {
+              "lacks": "@app/env/optional"
+            }
+          },
+          {
+            "path": "apps/web/app/api/trpc/[trpc]/route.ts",
+            "brokenWhen": {
+              "lacks": "@app/env/optional"
+            }
+          }
         ],
-        "why": "No NEW deadline arrives at 0.9.5 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.5 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
+        "paths": [
+          "packages/platform/env/package.json",
+          "packages/platform/env/src/optional.ts",
+          "packages/platform/env/src/optional.test.ts",
+          "apps/web/lib/rate-limit-runtime.ts",
+          "apps/web/app/api/trpc/[trpc]/route.ts"
+        ],
+        "gate": "lint"
       }
+    ],
+    "rampExpiry": {
+      "//": "CARRIED FORWARD, NOT NEWLY OPENED — computed from HEAD's own 36 shipped ramp sites at harness 0.9.5, not copied from a plan. NOTHING NEW EXPIRES AT 0.9.5: all three ramps this release opens fall due at 0.10.0 or 0.11.0, and the two 0.9.0 opened are still advisory. The vintages below are red on arrival for deadlines they already met at or before 0.9.0, exactly as they were on an upgrade to 0.9.0 — an install at baseVersion 0.8.0 or 0.9.0 meets NOTHING here (0 expired; it sees 5 and 3 advisory NOTEs respectively). The honest count for a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0"
+      ],
+      "why": "No NEW deadline arrives at 0.9.5 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.5 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
     }
+  }
 }

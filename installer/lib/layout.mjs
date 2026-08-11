@@ -13,10 +13,22 @@
 /** @param {string} installRel @returns {string[]} */
 export function templateCandidates(installRel) {
   const out = [installRel]
+  // The `.tmpl` spelling, because storageToInstall STRIPS it: a manifest stored
+  // as package.json.tmpl installs as package.json, and a caller resolving that
+  // install path back to a template source found nothing. Both callers treat a
+  // missing source as "the template does not ship this" — the sweep skips it in
+  // SILENCE (check-seeded-migrations says so in its own failure text), so a
+  // seededSourceFixes entry naming a rendered manifest would quietly stop being
+  // applied while the runbook kept telling consumers to apply it. Found when the
+  // 0.9.5 env source-fix needed the env package's exports map, which is exactly
+  // such a file.
+  out.push(`${installRel}.tmpl`)
   for (const [templateName, installName] of RENAMES) {
-    if (installRel === installName) out.push(templateName)
-    else if (installRel.startsWith(`${installName}/`))
-      out.push(`${templateName}${installRel.slice(installName.length)}`)
+    if (installRel === installName) out.push(templateName, `${templateName}.tmpl`)
+    else if (installRel.startsWith(`${installName}/`)) {
+      const renamed = `${templateName}${installRel.slice(installName.length)}`
+      out.push(renamed, `${renamed}.tmpl`)
+    }
   }
   return out
 }
