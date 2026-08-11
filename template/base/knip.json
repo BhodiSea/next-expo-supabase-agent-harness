@@ -115,6 +115,10 @@
       "entry": ["src/index.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     },
+    "packages/platform/crypto": {
+      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts!"]
+    },
     "packages/platform/supabase": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"],

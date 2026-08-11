@@ -411,5 +411,29 @@
       ],
       "why": "Two escapes close at once — everything 0.8.0 ramped: docs-sync (the RE-OPENED AGENTS.md gate-list lockstep after the injected observability step; the sweep is pasting the 34 names the gate's own message lists, or adopting the seeded AGENTS.md) and observability (the vendor-telemetry containment closure over declared sinks; a tree with no vendor imports is silently green, a hand-wired vendor transport must register its sinks[] row — the module patches now carry the correct redaction symbols and the metro.config.js site registers as kind buildConfig). Per-gate remediation is docs/runbooks/harness-upgrade.md '0.9.0 — the fifth alarm', which also carries the new RECOVERY section (`update --rollback`) because this expiry is what forces every older install through `update`. The honest count on a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list. Sweep, then graduate, one minor at a time if the pile is large."
     }
-  }
+  },
+  "0.9.5": {
+      "//": [
+        "0.9.5 the bedrock release. The record OPENS three ramps and closes none, and it injects NO chain step: VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10 on every install, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and the AGENTS.md gate-list escape is NOT re-triggered (the 0.6.0/0.8.0 pattern does not repeat here). The two floors 0.9.0 opened (version-sync's committed lockfile, wiring's installed-not-dormant lefthook) remain advisory and still fall due at 0.10.0 — the 0.10.0 record owes both, plus the three this release opens.",
+        "THE THREE RAMPS, each with its obligations-register row (the ramp union is mechanically closed, so a ramp without its row reds the tree): boundaries' vertical-anatomy laws at minVersion 0.9.5 until 0.10.0 (boundaries-vertical-anatomy-ramp-expiry) — the worked packages/verticals/notes anatomy becomes law, and a consumer whose second vertical predates the laws sees NOTEs rather than a red on the update that shipped them; docs-sync's agent-surface truth until 0.10.0 (docs-sync-agent-surface-ramp-expiry) — the AGENTS.md line-budget claims-check plus the body command closure over .claude/{rules,commands,skills,agents}, ramped because AGENTS.md is SEEDED, so every existing install keeps the pre-0.9.5 sentence `update` cannot rewrite; and docs-sync's ADR content shape until 0.11.0 (docs-sync-adr-shape-ramp-expiry) — two releases rather than one, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile.",
+        "NO rampExtensions key: no deadline moved (the 0.7.0 absent-not-empty precedent, held for the third release running). No seededSourceFixes either, and that is a deliberate call rather than an oversight — the 0.9.5 env-register discharge CORRECTED two seeded files (apps/web/lib/rate-limit-runtime.ts and the tRPC route now read the Upstash pair and the skew-guard metadata through @app/env/optional), but neither correction fixes a functional BREAK: an install that never applies it keeps a working limiter and a working skew guard, and merely keeps two server values outside the register. The new module `e2ee` is registered seedOnInitOnly below because its package arrives through `enable e2ee`, never through `update` — a crypto package auto-planted into a project that did not ask for one would be the ambush this key exists to prevent."
+      ],
+      "seedOnInitOnly": [
+        "packages/platform/crypto/"
+      ],
+      "rampExpiry": {
+        "//": "CARRIED FORWARD, NOT NEWLY OPENED — computed from HEAD's own 36 shipped ramp sites at harness 0.9.5, not copied from a plan. NOTHING NEW EXPIRES AT 0.9.5: all three ramps this release opens fall due at 0.10.0 or 0.11.0, and the two 0.9.0 opened are still advisory. The vintages below are red on arrival for deadlines they already met at or before 0.9.0, exactly as they were on an upgrade to 0.9.0 — an install at baseVersion 0.8.0 or 0.9.0 meets NOTHING here (0 expired; it sees 5 and 3 advisory NOTEs respectively). The honest count for a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list.",
+        "affects": [
+          "0.1.3",
+          "0.2.0",
+          "0.2.1",
+          "0.3.0",
+          "0.4.0",
+          "0.5.0",
+          "0.6.0",
+          "0.7.0"
+        ],
+        "why": "No NEW deadline arrives at 0.9.5 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.5 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
+      }
+    }
 }

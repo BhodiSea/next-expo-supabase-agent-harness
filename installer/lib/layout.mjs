@@ -47,6 +47,7 @@ export const MODULES = [
   'push-notifications',
   'eval-live',
   'observability',
+  'e2ee',
 ]
 
 // Modules folded into the default harness by a release (template/migrations.json

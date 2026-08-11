@@ -302,6 +302,117 @@ const rules = {
     },
   },
 
+  // Cryptographic primitives have ONE door: the CryptoProvider port (0.9.5).
+  //
+  // The e2ee rails are built so that no application file ever touches a cipher
+  // directly — primitives are INJECTED (@app/crypto's CryptoProvider), which is
+  // what makes the envelope, the AAD binding and the key hierarchy unbypassable
+  // rather than merely recommended. This rule is that arrangement's static half:
+  // a `crypto.subtle` reach or a node-crypto CIPHER import outside the sanctioned
+  // homes (the provider package, the mobile host seam) is a second door.
+  //
+  // DELIBERATELY NARROW, twice over. `crypto.randomUUID()` and
+  // `crypto.getRandomValues()` are NOT flagged: the shipped tree uses both for
+  // non-secret values (the CSP nonce in proxy.ts, request ids, optimistic temp
+  // ids), and a rule that reds them would be turned off within a release. Node's
+  // `createHash` is likewise fine — a digest is not a key operation (the
+  // invitation-token digest is the codebase's own precedent). What reds is the
+  // AEAD/KDF/cipher surface, where a second implementation means a second
+  // envelope format nobody reviewed.
+  // SOURCE: .claude/rules/encryption.md (the server never holds a key; primitives
+  // arrive through the port)
+  'crypto-primitives-one-door': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Reach cryptographic primitives through the CryptoProvider port, not directly.' },
+      schema: [],
+      messages: {
+        subtleReach:
+          'Reach WebCrypto through the injected CryptoProvider (@app/crypto), not `crypto.subtle` directly — a second primitive door means a second envelope format, and the AAD binding that makes a moved ciphertext fail is only unbypassable while there is one door. The sanctioned homes are the provider package and the mobile host seam.',
+        cipherImport:
+          "Import '{{name}}' only inside the provider package or the mobile host seam — application code takes primitives from the injected CryptoProvider (@app/crypto). A digest (createHash) is not a key operation and is not flagged.",
+      },
+    },
+    create(context) {
+      const CIPHER_API =
+        /\b(createCipher|createCipheriv|createDecipher|createDecipheriv|createSecretKey|createDiffieHellman|generateKey|generateKeyPair|scrypt|pbkdf2|hkdf|createSign|createVerify|privateDecrypt|publicEncrypt)/
+      const NODE_CRYPTO = new Set(['crypto', 'node:crypto'])
+      const reportModule = (node, source, name) => {
+        if (!NODE_CRYPTO.has(source)) return
+        // Only the cipher/KDF surface — a bare `node:crypto` import for hashing
+        // is legitimate everywhere (see the header).
+        if (!CIPHER_API.test(context.sourceCode.getText(node))) return
+        context.report({ node, messageId: 'cipherImport', data: { name } })
+      }
+      return {
+        MemberExpression(node) {
+          if (node.computed || node.property.type !== 'Identifier' || node.property.name !== 'subtle') {
+            return
+          }
+          const obj = node.object
+          const isCryptoRef =
+            (obj.type === 'Identifier' && obj.name === 'crypto') ||
+            (obj.type === 'MemberExpression' &&
+              !obj.computed &&
+              obj.property.type === 'Identifier' &&
+              obj.property.name === 'crypto')
+          if (isCryptoRef) context.report({ node, messageId: 'subtleReach' })
+        },
+        ImportDeclaration(node) {
+          reportModule(node, node.source.value, node.source.value)
+        },
+        CallExpression(node) {
+          if (
+            node.callee.type === 'Identifier' &&
+            node.callee.name === 'require' &&
+            node.arguments[0]?.type === 'Literal' &&
+            typeof node.arguments[0].value === 'string'
+          ) {
+            reportModule(node.parent ?? node, node.arguments[0].value, node.arguments[0].value)
+          }
+        },
+      }
+    },
+  },
+
+  // A key derived from Math.random is not a key (0.9.5).
+  //
+  // Word for word the finding LargeSecureStore records in its own header, made
+  // mechanical and scoped by the config to the surfaces where key material is
+  // BORN: the provider package and the mobile host seam. Math.random is seeded
+  // from a source an attacker can often infer and is not a CSPRNG on any engine;
+  // in a crypto scope its presence is the defect, whatever it is nominally
+  // computing. The write-guard twin (math-random-key-material) covers the same
+  // act on surfaces lint does not reach and on Edit fragments.
+  // SOURCE: apps/mobile/src/host/large-secure-store.ts (expo-crypto, NOT a
+  // polyfilled global — "a key derived from Math.random is not a key")
+  'no-insecure-random-in-crypto-scope': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Never use Math.random where key material is created.' },
+      schema: [],
+      messages: {
+        insecureRandom:
+          'Math.random is not a CSPRNG — a key, IV, nonce or salt derived from it is not one either. Use the injected CryptoProvider.randomBytes (or the platform CSPRNG in a host adapter). This file is in a crypto scope, where the presence of Math.random is the defect regardless of what it computes.',
+      },
+    },
+    create(context) {
+      return {
+        MemberExpression(node) {
+          if (
+            node.object.type === 'Identifier' &&
+            node.object.name === 'Math' &&
+            !node.computed &&
+            node.property.type === 'Identifier' &&
+            node.property.name === 'random'
+          ) {
+            context.report({ node, messageId: 'insecureRandom' })
+          }
+        },
+      }
+    },
+  },
+
   // The complexity ceiling is unsuppressable in product code (0.9.5).
   //
   // sonarjs/cognitive-complexity ≤ 15 at error IS the consumer's complexity contract —

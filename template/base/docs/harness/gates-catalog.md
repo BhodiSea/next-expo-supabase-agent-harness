@@ -1412,7 +1412,7 @@ be consumer-authored.
 this holds the mechanical slice of content: `## Context` / `## Decision` /
 `## Consequences`-or-`## Honest losses` / `## Sources`, prefix-matched (multi-part
 `## Decision 1 — …` headings are legitimate authorship), each with ≥ 40 characters
-of substance; a `**Status:**` in the closed vocabulary; every `[corpus: id]`
+of substance; a `**Status:**` in the closed vocabulary; every `[corpus: <id>]`
 resolving against `tools/mcp/corpus/index.json`; every bare source URL's host on
 the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
 advisory on purpose — a shape gate that reds an honest "no alternative existed"

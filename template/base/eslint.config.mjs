@@ -232,6 +232,23 @@ export default tseslint.config(
               message:
                 'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
             },
+            {
+              // 0.9.5: cryptographic primitives are the fourth seam with one
+              // door — the host implements @app/crypto's CryptoProvider and a
+              // screen takes primitives from the injected port. A cipher
+              // library imported into a feature is a second envelope format
+              // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
+              group: [
+                'aes-js',
+                '@noble/*',
+                'libsodium*',
+                'react-native-libsodium*',
+                'react-native-quick-crypto',
+                'tweetnacl*',
+              ],
+              message:
+                'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
+            },
           ],
         },
       ],
@@ -275,6 +292,23 @@ export default tseslint.config(
               group: ['react-native-svg', 'react-native-svg/*'],
               message:
                 'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
+            },
+            {
+              // 0.9.5: cryptographic primitives are the fourth seam with one
+              // door — the host implements @app/crypto's CryptoProvider and a
+              // screen takes primitives from the injected port. A cipher
+              // library imported into a feature is a second envelope format
+              // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
+              group: [
+                'aes-js',
+                '@noble/*',
+                'libsodium*',
+                'react-native-libsodium*',
+                'react-native-quick-crypto',
+                'tweetnacl*',
+              ],
+              message:
+                'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
             },
           ],
         },
@@ -447,5 +481,38 @@ export default tseslint.config(
     files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
     plugins: { local: localRules },
     rules: { 'local/no-suppressed-complexity': 'error' },
+  },
+  {
+    // crypto-primitives-one-door — primitives arrive through @app/crypto's
+    // injected CryptoProvider, never a direct engine reach. The two ignore groups
+    // are the SANCTIONED HOMES, here rather than inside the rule so there is one
+    // place to widen and it shows up in a config diff:
+    //   - packages/platform/crypto/src/**  — the provider package itself (the
+    //     rule must not forbid the definition of the thing it governs);
+    //   - apps/*/src/host/**  — the platform-native seam, where a mobile provider
+    //     and the keystore adapter are implemented (the same one-door that owns
+    //     expo-secure-store).
+    // Tests are excluded: a vector test names cipher APIs by construction.
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'supabase/**/*.ts'],
+    ignores: [
+      'packages/platform/crypto/src/**',
+      'apps/*/src/host/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/crypto-primitives-one-door': 'error' },
+  },
+  {
+    // no-insecure-random-in-crypto-scope — scoped to where key material is BORN.
+    // The inverse of the block above: the provider package and the host seam are
+    // the ONLY files here, because everywhere else Math.random is an ordinary
+    // (if rarely wise) choice, and a tree-wide ban would be noise that gets the
+    // rule disabled. Tests included deliberately — a fixture key from
+    // Math.random is how a weak key reaches a snapshot and then a copy-paste.
+    files: ['packages/platform/crypto/**/*.ts', 'apps/*/src/host/**/*.ts'],
+    plugins: { local: localRules },
+    rules: { 'local/no-insecure-random-in-crypto-scope': 'error' },
   },
 )

@@ -77,6 +77,7 @@ const COMPLIANT_BARRELS = (rel) => [
 function fixture({ census = CENSUS, packages = PACKAGES, mobile = MOBILE, web = WEB, files = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-bounds-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
+  mkdirSync(join(dir, '.harness'), { recursive: true })
   writeFileSync(join(dir, 'tools/exports-walls.json'), JSON.stringify(census, null, 2))
   for (const [rel, manifest] of packages) {
     const p = join(dir, 'packages', rel, 'package.json')
@@ -155,6 +156,56 @@ test('RED: a sanction with an empty reason fails LOUD (the census cannot fail op
   const r = run(EXPORTS_WALLS, fixture({ census }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('non-empty'), r.out)
+})
+
+// ── module-provided packages (0.9.5) ────────────────────────────────────────────
+// A census entry may name a package that only exists when its opt-in module is
+// enabled. Without this, censusing a module package would red `boundaries` on
+// every install that skipped the module — a gate punishing a consumer for a
+// choice the harness offered them. The manifest is the module-state authority.
+
+const MODULE_CENSUS = {
+  comment: 'x',
+  sanctioned: [
+    ...CENSUS.sanctioned,
+    { package: '@app/crypto', module: 'e2ee', reason: R('provided by the opt-in e2ee module') },
+  ],
+}
+
+test('GREEN: a module-provided sanction is DORMANT while its module is disabled', () => {
+  const dir = fixture({ census: MODULE_CENSUS })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.9.5', harnessVersion: '0.9.5', modules: [] }),
+  )
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: the same sanction is STALE once its module is ENABLED but the package is absent', () => {
+  const dir = fixture({ census: MODULE_CENSUS })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.9.5', harnessVersion: '0.9.5', modules: ['e2ee'] }),
+  )
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/crypto') && r.out.includes("'e2ee' module"), r.out)
+})
+
+test('RED: a sanction with a blank module value cannot silently disable the stale arm', () => {
+  const census = {
+    comment: 'x',
+    sanctioned: [...CENSUS.sanctioned, { package: '@app/ghost', module: '  ', reason: R() }],
+  }
+  const r = run(EXPORTS_WALLS, fixture({ census }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('not a non-empty string'), r.out)
+})
+
+test('GREEN: a plain (module-less) sanction whose package EXISTS is unaffected by module state', () => {
+  const r = run(EXPORTS_WALLS, fixture())
+  assert.equal(r.code, 0, r.out)
 })
 
 test('GREEN: a sanctioned package that ships only "." is fine (MAY, not MUST)', () => {

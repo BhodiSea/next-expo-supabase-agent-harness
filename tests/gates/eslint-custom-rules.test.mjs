@@ -221,6 +221,53 @@ if (RuleTester === null) {
     })
   })
 
+  test('crypto-primitives-one-door: reaching a primitive engine outside the sanctioned homes reds', () => {
+    rt.run('crypto-primitives-one-door', rules['crypto-primitives-one-door'], {
+      valid: [
+        // The sanctioned shape: primitives arrive through the injected port.
+        'export async function seal(provider, k) { return provider.aeadSeal({ key: k }) }',
+        // A CSPRNG for a NONCE-shaped non-secret (a CSP nonce, a request id) is not
+        // a primitive engine reach — this rule is about cipher/KDF surfaces.
+        'const id = crypto.randomUUID()',
+        'const n = crypto.getRandomValues(new Uint8Array(16))',
+        // An unrelated `subtle` member on some other object.
+        'const s = theme.subtle',
+        "import { createHash } from 'node:crypto'",
+      ],
+      invalid: [
+        { code: 'const k = await crypto.subtle.importKey("raw", b, a, false, [])', errors: [{ messageId: 'subtleReach' }] },
+        { code: 'const k = await globalThis.crypto.subtle.encrypt(a, k2, d)', errors: [{ messageId: 'subtleReach' }] },
+        { code: 'const k = window.crypto.subtle', errors: [{ messageId: 'subtleReach' }] },
+        {
+          code: "import { createCipheriv } from 'node:crypto'",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        {
+          code: "const { createDecipheriv } = require('crypto')",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+      ],
+    })
+  })
+
+  test('no-insecure-random-in-crypto-scope: Math.random near key material reds', () => {
+    rt.run('no-insecure-random-in-crypto-scope', rules['no-insecure-random-in-crypto-scope'], {
+      valid: [
+        'const k = provider.randomBytes(32)',
+        'const jitter = backoffJitter()',
+        // A different random entirely.
+        'const r = rng.random()',
+      ],
+      invalid: [
+        { code: 'const k = Math.random()', errors: [{ messageId: 'insecureRandom' }] },
+        {
+          code: 'function makeIv() { return Math.random().toString(36) }',
+          errors: [{ messageId: 'insecureRandom' }],
+        },
+      ],
+    })
+  })
+
   test('no-suppressed-complexity: disabling the complexity ceiling is itself a lint error', () => {
     rt.run('no-suppressed-complexity', rules['no-suppressed-complexity'], {
       valid: [

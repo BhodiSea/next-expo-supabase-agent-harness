@@ -732,6 +732,46 @@ const RULE_CANARIES = {
     // The transport origin legitimately rides the prefix — secret-SHAPED names only.
     contentAllow('apps/mobile/src/config.ts', 'const url = process.env.EXPO_PUBLIC_API_URL\n'),
   ],
+  'weak-crypto-algorithm': [
+    contentDeny(
+      'apps/web/lib/legacy.ts',
+      "const c = createCipher('aes-256-cbc', pass)\n",
+    ),
+    contentDeny('packages/platform/crypto/src/bad.ts', "const alg = 'aes-256-ecb'\n"),
+    contentDeny('apps/web/lib/hash.ts', "const h = createHash('md5')\n"),
+    // Algorithm-ARGUMENT position only: prose, an identifier, and a column named
+    // for a digest it stores are all legitimate.
+    contentAllow('docs/adr/20260810-x.md', 'We rejected md5 and sha1 for this.\n'),
+    contentAllow('apps/web/lib/util.ts', 'const md5sum = readChecksum()\n'),
+    contentAllow('packages/platform/crypto/src/ok.ts', "const alg = 'aes-256-gcm'\n"),
+  ],
+  'hardcoded-key-material': [
+    contentDeny(
+      'packages/platform/crypto/src/dev.ts',
+      "const rootKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'\n",
+    ),
+    contentDeny(
+      'apps/web/lib/config.ts',
+      "const secretKey: string = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210'\n",
+    ),
+    // A 64-hex digest that is NOT key-shaped by name is a hash, which the tree
+    // is full of (sha256 manifests, lock files, fingerprints).
+    contentAllow(
+      'tools/manifest.ts',
+      "const sha256 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'\n",
+    ),
+    // A key NAME with a short value is a lookup key, not key material.
+    contentAllow('apps/web/lib/cache.ts', "const cacheKey = 'notes:list'\n"),
+  ],
+  'math-random-key-material': [
+    contentDeny('apps/mobile/src/host/bad.ts', 'const key = Math.random().toString(36)\n'),
+    contentDeny('packages/platform/crypto/src/bad.ts', 'const iv = [Math.random(), 2]\n'),
+    contentDeny('apps/web/lib/token.ts', 'const token = `t-${Math.random()}`\n'),
+    // Ordinary randomness is untouched — the rule keys on the key-shaped
+    // ASSIGNMENT, not on Math.random itself.
+    contentAllow('apps/web/lib/retry.ts', 'const jitterMs = Math.random() * 100\n'),
+    contentAllow('apps/mobile/src/features/x.ts', 'const pick = items[Math.floor(Math.random() * n)]\n'),
+  ],
   'next-public-secret-name': [
     // NEXT_PUBLIC_ vars are inlined into the shipped WEB bundle at build time.
     contentDeny(

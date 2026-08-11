@@ -1,0 +1,21 @@
+{
+  // @app/crypto — a kernel-adjacent leaf like @app/ratelimit, and for the same
+  // reason it imports NOTHING, not even @app/errors: the package answers
+  // "sealed bytes / opened bytes / a named refusal", and turning a refusal into
+  // an AppError is the CALLER's decision because the seams make it differently
+  // (a screen renders an error state; an export labels the row). The primitives
+  // are INJECTED through the CryptoProvider port, so no platform SDK and no
+  // Web Crypto global is reachable from the core — the webcrypto provider on
+  // the `.` barrel declares its one global locally, exactly as the Upstash
+  // adapter declares fetch.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": []
+  },
+  "include": ["src"]
+}

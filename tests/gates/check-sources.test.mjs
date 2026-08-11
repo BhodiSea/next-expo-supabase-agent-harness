@@ -94,8 +94,10 @@ test('GREEN: a rendered scaffold passes — every cited corpus id resolves, hash
   const r = runGate(scaffold)
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('corpus verified'), r.out)
-  // 6 built-in groups + the seeded mobile-security G27 extension.
-  assert.ok(r.out.includes('7/7 decision groups covered'), r.out)
+  // 7 built-in groups (0.9.5 added `cryptography` with the e2ee rails) + the
+  // seeded mobile-security G27 extension. The count is the LOCKSTEP that matters:
+  // a new decision class ships only with a corpus authority that can ground it.
+  assert.ok(r.out.includes('8/8 decision groups covered'), r.out)
 })
 
 // ── decision-site presence (hook parity) ──────────────────────────────────────

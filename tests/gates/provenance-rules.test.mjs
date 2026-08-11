@@ -36,10 +36,20 @@ import {
 // NOTE: the harness repo root has no tools/decision-groups.json, so only the six
 // BUILT-IN groups load here; the seeded `mobile-security` consumer group is
 // covered end-to-end by check-sources.test.mjs against a rendered scaffold.
-test('DECISION_GROUPS carries the six built-in stack decision classes in order', () => {
+test('DECISION_GROUPS carries the built-in stack decision classes in order', () => {
   assert.deepEqual(
     DECISION_GROUPS.map((g) => g.key),
-    ['rls-policy', 'guc-identity', 'token-verification', 'vector-index', 'llm-sampling', 'tuning-constants'],
+    [
+      'rls-policy',
+      'guc-identity',
+      'token-verification',
+      'vector-index',
+      'llm-sampling',
+      'tuning-constants',
+      // 0.9.5, with the e2ee rails: before it a cryptographic decision site had
+      // no citation CLASS to resolve against.
+      'cryptography',
+    ],
   )
   for (const g of DECISION_GROUPS) {
     assert.ok(Array.isArray(g.patterns) && g.patterns.length > 0, `${g.key} has patterns`)
