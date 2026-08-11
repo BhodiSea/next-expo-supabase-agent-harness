@@ -511,6 +511,7 @@ export const WRITE_PROTECTED = [
   { id: 'web-route-allowlist', re: /^tools\/web-route-allowlist\.json$/ }, // exempting a web PAGE from the registry is the same decision on the other surface
   { id: 'dto-bounds-allow', re: /^tools\/dto-bounds-allow\.json$/ }, // exempting a wire string from the .max() bound is a human decision
   { id: 'duplication-allow', re: /^tools\/duplication-allow\.json$/ }, // accepting a code clone is a human decision
+  { id: 'vertical-anatomy-allow', re: /^tools\/vertical-anatomy-allow\.json$/ }, // a deviation from the worked vertical anatomy is a human decision
   { id: 'i18n-allow', re: /^tools\/i18n-allow\.json$/ }, // letting a string bypass the catalog is a human decision
   { id: 'test-quality-allow', re: /^tools\/test-quality-allow\.json$/ }, // letting a disabled or assertion-free test stand is a human decision
   { id: 'rls-runner', re: /^tests\/rls\/run-rls\.mjs$/ }, // the RLS runner the Stop hook invokes directly

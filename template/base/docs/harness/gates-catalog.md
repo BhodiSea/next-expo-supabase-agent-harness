@@ -206,9 +206,29 @@ universally-importable (the error/event kernel, the wire contracts, the RN-only 
 system); `@app/api` must be an import-type-only devDependency; verticals never depend on
 each other; shared never depends on a vertical; apps/web never carries the RN-only design
 system.
+**Vertical anatomy + intra-vertical layering (0.9.5, part 3 of the same step —
+`tools/lib/vertical-anatomy.mjs`).** The worked `packages/verticals/notes` pattern as
+law, scoped to what is mechanically checkable: every vertical ships BOTH barrels (`.` +
+`./client`, declared and present) and the barrels are PURE (export statements only — a
+barrel with logic breaks the Metro-safe claim); `src/domain/**` imports only sibling
+domain files, `@app/contracts` and `zod` (no I/O, no clock, no error kernel — domain
+returns values, data returns outcomes); `src/data/**` never VALUE-imports
+`@app/supabase`/`@supabase/*` (the database arrives through the structural
+`src/data/port.ts`, whose presence is itself a law; `import type` of the port shapes is
+sanctioned); `src/events.ts` speaks only `@app/events` + `@app/contracts`; and
+`select('*')` is banned across vertical src (the explicit projection is the wire
+contract). Deliberately NOT law: the presence of `domain/` or `events.ts` at all — a
+thin read-only vertical legitimately has neither, and a directory-shaped mandate would
+be the max-lines mistake in another form. Escape: reviewed
+`tools/vertical-anatomy-allow.json` (seeded, `{package, law, path?, reason ≥ 40,
+reviewedOn}`), closed BOTH ways — a stale entry reds. Ramped for pre-0.9.5 installs
+until 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`); the allow-file shape problems
+and the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
-vertical depend on another → FAIL "verticals never import each other".
+vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
+import in a domain file → FAIL naming file and law; hollow out every vertical's src →
+FAIL "scanned ZERO files".
 
 ### 9. observability — `node tools/check-observability.mjs`
 

@@ -21,7 +21,8 @@
 // SOURCE: docs/harness/README.md (boundaries gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { applyAnatomyAllow, scanVerticalAnatomy } from './lib/vertical-anatomy.mjs'
 
 const GATE = 'boundaries'
 const CENSUS = 'tools/exports-walls.json'
@@ -154,6 +155,55 @@ for (const [name, { tier, deps }] of pkgs) {
   }
 }
 
+// 5. (0.9.5) Vertical anatomy + intra-vertical layering — the worked pattern as law.
+// The laws and their rationale live in lib/vertical-anatomy.mjs; the escape is the
+// reviewed tools/vertical-anatomy-allow.json (seeded, closed both ways — a stale entry
+// reds). Ramped for pre-0.9.5 installs until 0.10.0 (register row
+// boundaries-vertical-anatomy-ramp-expiry); the allow-file shape/staleness problems and
+// the anti-vacuity floor are NEVER ramped — a broken reviewed file or an empty scan is
+// not a debt an old install grows out of.
+const ANATOMY_ALLOW = 'tools/vertical-anatomy-allow.json'
+const anatomy = scanVerticalAnatomy()
+if (anatomy.verticals === 0) {
+  console.log(
+    `${GATE}: NOTE — no packages/verticals/* yet; the anatomy laws arm with the first vertical`,
+  )
+} else if (anatomy.filesScanned === 0) {
+  fail(
+    GATE,
+    `vertical anatomy scanned ZERO files across ${anatomy.verticals} vertical(s) — a scan that sees nothing proves nothing (anti-vacuity); every vertical needs at least its two barrels`,
+  )
+}
+let allowDoc = null
+if (existsSync(ANATOMY_ALLOW)) {
+  try {
+    allowDoc = JSON.parse(readFileSync(ANATOMY_ALLOW, 'utf8'))
+  } catch (e) {
+    fail(GATE, `${ANATOMY_ALLOW} is not valid JSON (${e.message}) — the escape must be reviewable data`)
+  }
+}
+const anatomyVerdict = applyAnatomyAllow(anatomy.findings, allowDoc)
+errs.push(...anatomyVerdict.problems)
+for (const e of anatomyVerdict.stale) {
+  errs.push(
+    `${ANATOMY_ALLOW} entry (${e.package} ${e.law}${e.path ? ` ${e.path}` : ''}) matches NO live finding — a stale escape is a standing hole nobody reviews; delete the entry`,
+  )
+}
+if (anatomyVerdict.remaining.length > 0) {
+  const msgs = anatomyVerdict.remaining.map(
+    (f) => `anatomy: ${f.package} [${f.law}] ${f.path} — ${f.detail}`,
+  )
+  if (
+    rampNote(GATE, '0.9.5', `${String(msgs.length)} vertical-anatomy finding(s)`, {
+      until: '0.10.0',
+    })
+  ) {
+    for (const m of msgs) console.log(`${GATE}: NOTE — ${m}`)
+  } else {
+    errs.push(...msgs)
+  }
+}
+
 failures(
   GATE,
   errs,
@@ -161,5 +211,5 @@ failures(
 )
 ok(
   GATE,
-  `workspace deps: ${pkgs.size} package(s) tiered clean${mobile ? `; apps/mobile carries ${mobile.deps.length} sanctioned @app dep(s)` : ''}`,
+  `workspace deps: ${pkgs.size} package(s) tiered clean${mobile ? `; apps/mobile carries ${mobile.deps.length} sanctioned @app dep(s)` : ''}${anatomy.verticals > 0 ? `; ${anatomy.verticals} vertical(s) anatomy-clean (${anatomy.filesScanned} file(s))` : ''}`,
 )

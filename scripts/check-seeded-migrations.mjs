@@ -84,6 +84,21 @@ const DELIBERATE_PLANT = [
       "readAllowlist() treats an ABSENT allowlist as an EMPTY one, and an empty allowlist reds every chrome page — so check-web-routes.mjs fails closed without it, and the seeded-migrations rule says plant. Identical reasoning to approved-tools.json above, and the same seeded-not-owned choice for the same reason: the gate's failure message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering. The registry it guards (apps/web/lib/routes.generated.ts, the page.meta.ts files, app/not-found.tsx) is WITHHELD in the same release, so on an un-adopted install this file is data the gate reads and finds nothing to exempt — which is the correct empty state, not a bypass.",
   },
   {
+    file: 'template/base/tools/vertical-anatomy-allow.json',
+    reason:
+      'The vertical-anatomy escape (boundaries part 3, 0.9.5). check-workspace-deps treats an ABSENT allow-file as an EMPTY allowlist — a deliberate absence tolerance, because pre-0.9.5 installs meet the laws as ramped NOTEs and must not red on a missing file the release never delivered. Planted anyway, per the escape-file convention (approved-tools.json, web-route-allowlist.json): the gate’s failure text asks the consumer to add a reviewed {package, law, reason} entry, and a consumer should edit a planted skeleton with its schema in the comment rather than reconstruct one from a failure message. Seeded not owned for the standard reason: sha-pinning a file you are told to edit calls the edit tampering.',
+  },
+  {
+    file: 'template/stack/packages/platform/env/src/optional.ts',
+    reason:
+      'The optional server section of the env register (0.9.5, the env-register-gate discharge). PLANT, because the 0.9.5 seededSourceFixes entry instructs existing installs to route the seeded rate-limit runtime and the tRPC route through @app/env/optional — an instruction that is only applicable if the module it imports exists. The file is a contract (four optional schema lines + the both-or-neither pair invariant), names nothing project-specific, and `update` plants seeded files only when ABSENT, so a consumer who already built their own optional section keeps it untouched.',
+  },
+  {
+    file: 'template/stack/packages/platform/env/src/optional.test.ts',
+    reason:
+      'The red-proofs for optional.ts above — the pair moves together or the planted module lands unproven (imports only ./optional.js + vitest, so it runs green on any install regardless of whether the package.json export line from the same source-fix has been applied yet).',
+  },
+  {
     file: 'template/base/SECURITY.md',
     reason:
       "PLANT, and the reasoning is the inverse of every entry above it: no gate reads this file, so there is no fail-closed argument — the argument is that an existing install has nothing to lose and something to gain. `update` plants a seeded file only when it is ABSENT, so a project that already wrote its own coordinated-disclosure policy keeps it untouched, and a project with none gets one with its placeholders already rendered from the manifest. Withholding it instead would leave the CRA Art. 14 enablement (from 2026-09-11, and the obligation is the CONSUMER'S — this repo is out of scope as unmonetised FOSS; see design/CONFORMANCE-FACTS.md §4) reaching only new scaffolds, which is the population least likely to be shipping commercially yet. It carries no dated field of its own on purpose: security.txt's mandatory RFC 9116 `Expires` is a reviewer-supplied date in a seeded file, which is exactly the off-switch shape 0.6.0 removed from framework-floor.json, and it is deferred until it ships with a bound.",

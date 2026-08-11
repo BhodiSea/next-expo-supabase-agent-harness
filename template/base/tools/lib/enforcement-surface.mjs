@@ -44,6 +44,7 @@ export const ESCAPE_LISTS = [
   // gate's floor check; the row itself is the widening a reviewer must see.
   'tools/observability.json',
   'tools/duplication-allow.json', // accepting a code clone
+  'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
   'tools/expo-permissions.json', // granting the app a new platform permission
   'tools/expo-plugins.json', // admitting a config plugin to the native build

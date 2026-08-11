@@ -132,6 +132,10 @@ export const SEEDED_FILES = new Set([
   'tools/web-route-allowlist.json',
   'tools/dto-bounds-allow.json',
   'tools/duplication-allow.json',
+  // 0.9.5: the vertical-anatomy escape. Same seeded-because-the-gate-says-edit-it
+  // logic as duplication-allow — the boundaries gate's own failure text points the
+  // consumer at a reviewed entry here.
+  'tools/vertical-anatomy-allow.json',
   'tools/decision-groups.json',
   'tools/i18n-allow.json',
   // The 0.2.0 reviewed-data files, ALL of them. SEEDED, not owned, because every

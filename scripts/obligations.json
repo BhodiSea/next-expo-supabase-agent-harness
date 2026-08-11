@@ -39,6 +39,16 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "boundaries-vertical-anatomy-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-workspace-deps.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The vertical-anatomy + intra-vertical layering laws 0.9.5 opened inside boundaries (dual barrels, pure barrels, domain purity, DAL-through-the-port, events purity, the select('*') ban — the worked notes anatomy as law, lib/vertical-anatomy.mjs) fall due at 0.10.0. The 0.10.0 migrations record owes this expiry; pre-0.9.5 installs see NOTEs until then.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
       "id": "suppressions-chain-step",
       "kind": "release",
       "target": "0.10.0",

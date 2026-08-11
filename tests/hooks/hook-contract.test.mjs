@@ -563,6 +563,7 @@ const RULE_CANARIES = {
   'web-route-allowlist': [pathDeny('tools/web-route-allowlist.json')],
   'dto-bounds-allow': [pathDeny('tools/dto-bounds-allow.json')],
   'duplication-allow': [pathDeny('tools/duplication-allow.json')],
+  'vertical-anatomy-allow': [pathDeny('tools/vertical-anatomy-allow.json')],
   'i18n-allow': [pathDeny('tools/i18n-allow.json')],
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],
