@@ -861,6 +861,12 @@
         "note": "the CALENDAR half of check-obligations.mjs (--clockful), schedule/dispatch-only because a kind:calendar verdict changes with the date and must never red a PR — the clockless half (release rows, census + ramp unions, anchors) blocks every PR in lint.yml#machinery-lint, and both halves' red-proofs are the #factoryGates fixture (tests/gates/obligations.test.mjs pins calendar-red-only-under-clockful on one fixture)"
       }
     ],
+    "hygiene.yml#factory-sca": [
+      {
+        "kind": "steps",
+        "note": "0.9.5 (the SCA half of the retired vuln-sla-and-factory-sca row): Google's osv-scanner reusable workflow over the factory's own pnpm-lock.yaml — a vendor scanner whose non-zero exit is the red, the same pinned workflow the template ships to consumers in osv-scan.yml, where tests/gates/workflow-lanes.test.mjs proves the neutered-lane failure shapes for the template copy. Schedule/dispatch-only because an OSV verdict resolves against a live vulnerability feed (clockful, like corpus-fidelity's network half); release.yml deliberately does not await this workflow."
+      }
+    ],
     "lint.yml#actionlint": [
       {
         "kind": "steps",

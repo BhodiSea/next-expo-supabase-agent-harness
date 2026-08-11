@@ -82,11 +82,11 @@
       "evidence": "design/CONFORMANCE-FACTS.md"
     },
     {
-      "id": "vuln-sla-and-factory-sca",
+      "id": "vuln-response-sla",
       "kind": "condition",
       "target": null,
-      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA, and the factory repo itself has no blocking SCA lane over its own (deliberately zero-runtime-dependency) toolchain — the consumer tree gets osv-scan and the framework floor; the factory gets renovate and review. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf, and the SCA lane's shape depends on whether the dev-toolchain surface stays pnpm-catalog-pinned.",
-      "reviewedOn": "2026-08-10",
+      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf — it discharges when the maintainer writes the sentence, by deleting this row with that sentence as evidence. (The row's former SCA half was paid at 0.9.5: hygiene.yml#factory-sca, the scheduled OSV lane over the factory's own lockfile.)",
+      "reviewedOn": "2026-08-11",
       "evidence": "SECURITY.md"
     },
     {
