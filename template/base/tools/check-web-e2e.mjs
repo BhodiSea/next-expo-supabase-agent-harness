@@ -18,7 +18,7 @@
 // SOURCE: docs/harness/gates-catalog.md (web-e2e lane)
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
+import { commandFailureOutput, failures, ok, rampNote, runCmd, skipOrFail } from './lib/gate.mjs'
 import { blankComments } from './lib/source-text.mjs'
 
 const GATE = 'web-e2e'
@@ -150,8 +150,8 @@ try {
   runCmd('pnpm --filter web exec playwright test', { stdio: ['ignore', 'inherit', 'inherit'] })
 } catch (e) {
   failures(GATE, [
-    `\`playwright test\` failed in ${APP} — a browser assertion or an axe violation reds the lane: ${(
-      e.stderr?.toString() ?? e.message
+    `\`playwright test\` failed in ${APP} — a browser assertion or an axe violation reds the lane: ${commandFailureOutput(
+      e,
     ).slice(0, 300)}`,
   ])
 }

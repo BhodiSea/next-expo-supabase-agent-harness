@@ -1,7 +1,7 @@
 # AGENTS.md — {{PROJECT_NAME}} web + mobile platform
 
 Canonical project memory (CLAUDE.md points here). Advisory context — the Stop
-hook + CI are the real enforcement. Keep under ~200 lines.
+hook + CI are the real enforcement. Keep under ~350 lines.
 SOURCE: docs/harness/README.md.
 
 ## Stack (pnpm monorepo, versions live ONLY in the pnpm-workspace.yaml catalog)

@@ -26,7 +26,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fail, failures, inCI, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import { commandFailureOutput, fail, failures, inCI, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import { splitStatements } from './lib/sql-parse.mjs'
 
 const GATE = 'migrations'
@@ -99,7 +99,7 @@ function changedAgainst(ref) {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (e) {
-    const reason = (e.stderr?.toString() ?? e.message).trim().split('\n')[0]
+    const reason = commandFailureOutput(e).split('\n')[0]
     if (inCI()) {
       fail(
         GATE,

@@ -53,7 +53,16 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { judgeCcFloor } from './lib/cc-floor.mjs'
 import { judgeFloor, parseLockVersions, reviewWindowProblems } from './lib/framework-floor.mjs'
-import { failures, inCI, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  failures,
+  inCI,
+  ok,
+  rampNote,
+  runCmd,
+  skipOrFail,
+  stampGate,
+} from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'version-sync'
@@ -358,7 +367,7 @@ try {
   if (start === -1) throw new Error(`no JSON object in output:\n${out.slice(0, 300)}`)
   resolved = JSON.parse(out.slice(start))
 } catch (e) {
-  const detail = (e.stderr?.toString() ?? e.message).slice(0, 300)
+  const detail = commandFailureOutput(e).slice(0, 300)
   failures(GATE, [
     `\`expo config --json --type public\` failed in apps/mobile — the resolved-config half of this gate cannot run: ${detail}`,
   ])
@@ -416,7 +425,7 @@ try {
   // CI (full install) must never swallow it.
   if (inCI()) {
     errs.push(
-      `pnpm list failed — cannot verify the single-zod-instance invariant: ${(e.stderr?.toString() ?? e.message).slice(0, 300)}`,
+      `pnpm list failed — cannot verify the single-zod-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )
   } else {
     console.log(
@@ -472,7 +481,7 @@ try {
   // CI (full install) must never swallow the single-instance assertion.
   if (inCI()) {
     errs.push(
-      `pnpm list failed — cannot verify the single-React-instance invariant: ${(e.stderr?.toString() ?? e.message).slice(0, 300)}`,
+      `pnpm list failed — cannot verify the single-React-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )
   } else {
     console.log(

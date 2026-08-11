@@ -30,7 +30,7 @@ import {
   ratchetFindings,
 } from './lib/bundle-measure.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { commandFailureOutput, fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'build'
@@ -185,7 +185,7 @@ const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 try {
   runCmd(`pnpm --filter mobile exec expo export --platform android --output-dir dist`)
 } catch (e) {
-  fail(GATE, `expo export failed:\n${(e.stderr?.toString() ?? e.message).slice(-2000)}`)
+  fail(GATE, `expo export failed:\n${commandFailureOutput(e).slice(-2000)}`)
 }
 
 const dist = `${APP}/dist`

@@ -23,7 +23,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { commandFailureOutput, fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
 import { parseJsonc } from './lib/jsonc.mjs'
 import { blankComments, lineOf, skipBalanced } from './lib/source-text.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
@@ -118,7 +118,7 @@ if (INVENTORIES.some(([gen]) => existsSync(gen))) {
       runCmd(`pnpm --silent exec tsx ${gen} --check`)
     } catch (e) {
       errs.push(
-        `${committed} is stale — regenerate it: \`pnpm gen\`, then commit the diff (consumers depend on it). ${(e.stderr?.toString() ?? e.message).slice(0, 300).trim()}`,
+        `${committed} is stale — regenerate it: \`pnpm gen\`, then commit the diff (consumers depend on it). ${commandFailureOutput(e).slice(0, 300).trim()}`,
       )
     }
   }

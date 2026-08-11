@@ -22,7 +22,16 @@
 // SOURCE: docs/harness/gates-catalog.md (security-headers) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { fail, failures, ok, rampNote, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  fail,
+  failures,
+  ok,
+  rampNote,
+  runCmd,
+  skipOrFail,
+  stampGate,
+} from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'security-headers'
@@ -117,7 +126,7 @@ try {
     runCmd(`node --experimental-strip-types --no-warnings -e ${JSON.stringify(probe)}`),
   )
 } catch (e) {
-  const reason = (e.stderr?.toString() ?? e.message).trim().split('\n').slice(0, 3).join(' / ')
+  const reason = commandFailureOutput(e).split('\n').slice(0, 3).join(' / ')
   skipOrFail(GATE, `could not evaluate ${MODULE} (${reason}) — needs node >= 22.6 type stripping`)
 }
 

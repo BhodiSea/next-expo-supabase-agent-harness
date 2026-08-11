@@ -12,7 +12,7 @@ import reactNative from 'eslint-plugin-react-native'
 import reactNativeA11y from 'eslint-plugin-react-native-a11y'
 import sonarjs from 'eslint-plugin-sonarjs'
 import tseslint from 'typescript-eslint'
-// The harness's six custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
+// The harness's custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
 // JS/TS-shared syntax nodes, scoped by the blocks at the bottom of this config.
 import localRules from './tools/eslint-rules/index.mjs'
 

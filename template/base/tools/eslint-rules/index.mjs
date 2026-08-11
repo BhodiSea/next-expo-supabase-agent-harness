@@ -1,4 +1,4 @@
-// The harness's six custom ESLint rules — plain ESLint rules (no @typescript-eslint/utils
+// The harness's custom ESLint rules — plain ESLint rules (no @typescript-eslint/utils
 // RuleCreator), keyed on syntax nodes that exist identically in JS and TS (ThrowStatement,
 // CallExpression, Literal), so they lint the TS surface AND are testable with a bare
 // `eslint` RuleTester on plain-JS cases. Wired, and SCOPED to their file globs, in
