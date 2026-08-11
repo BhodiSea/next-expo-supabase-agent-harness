@@ -23,7 +23,9 @@ import { join } from 'node:path'
 import { walkFiles } from './fs-walk.mjs'
 import { blankComments, lineOf } from './source-text.mjs'
 
-export const ANATOMY_LAWS = new Set([
+// Not exported: the law ids are consumed only by the allow-file validator
+// below, and knip --strict reds an export nothing imports.
+const ANATOMY_LAWS = new Set([
   'dual-barrel',
   'pure-barrel',
   'domain-purity',

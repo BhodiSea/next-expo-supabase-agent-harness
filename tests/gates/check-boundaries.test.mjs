@@ -26,6 +26,7 @@ const CENSUS = {
   ],
 }
 // [relPathUnderPackages, manifest]
+/** @type {[string, any][]} */
 const PACKAGES = [
   ['platform/errors', { name: '@app/errors', exports: { '.': './src/index.ts' } }],
   [
@@ -62,6 +63,7 @@ const WEB = {
 // The minimal anatomy-law-compliant barrels every fixture vertical gets by default —
 // the anatomy section (0.9.5) reds a vertical with no barrels, and these tests are
 // about OTHER walls unless they opt into anatomy fixtures via `files`.
+/** @returns {[string, string][]} */
 const COMPLIANT_BARRELS = (rel) => [
   [`packages/${rel}/src/index.ts`, "export * from './client.js'\n"],
   [`packages/${rel}/src/client.ts`, "export { thing } from './things.js'\n"],
@@ -72,7 +74,7 @@ const COMPLIANT_BARRELS = (rel) => [
  * make one wall red — so they are typed loosely on purpose. `files` are extra
  * [repoRelPath, content] pairs written verbatim AFTER the default vertical barrels,
  * so a test can overwrite a barrel with a violating body.
- * @param {{ census?: any, packages?: any[][], mobile?: any, web?: any, files?: [string, string][] }} [opts]
+ * @param {{ census?: any, packages?: [string, any][], mobile?: any, web?: any, files?: [string, string][] }} [opts]
  */
 function fixture({ census = CENSUS, packages = PACKAGES, mobile = MOBILE, web = WEB, files = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-bounds-'))
@@ -123,13 +125,13 @@ test('GREEN: every ./client barrel is sanctioned; no stale sanction', () => {
 })
 
 test('RED: a package ships ./client without a census entry', () => {
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     [
       'platform/rogue',
       { name: '@app/rogue', exports: { '.': './src/index.ts', './client': './src/client.ts' } },
     ],
-  ]
+  ])
   const r = run(EXPORTS_WALLS, fixture({ packages }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('@app/rogue') && r.out.includes('NOT sanctioned'), r.out)
@@ -214,10 +216,10 @@ test('GREEN: a sanctioned package that ships only "." is fine (MAY, not MUST)', 
     comment: 'x',
     sanctioned: [...CENSUS.sanctioned, { package: '@app/observability', reason: R() }],
   }
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     ['platform/observability', { name: '@app/observability', exports: { '.': './src/index.ts' } }],
-  ]
+  ])
   const r = run(EXPORTS_WALLS, fixture({ census, packages }))
   assert.equal(r.code, 0, r.out)
 })
@@ -252,10 +254,10 @@ test('RED: apps/mobile depends on a package that is neither sanctioned nor unive
 })
 
 test('RED: apps/mobile depends on the web-only design system', () => {
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     ['design-system', { name: '@app/design-system', exports: { '.': './src/index.ts' } }],
-  ]
+  ])
   const mobile = {
     name: 'mobile',
     dependencies: { '@app/errors': 'workspace:*', '@app/design-system': 'workspace:*' },
@@ -266,13 +268,13 @@ test('RED: apps/mobile depends on the web-only design system', () => {
 })
 
 test('RED: apps/web depends on the mobile-only design system', () => {
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     [
       'design-system-native',
       { name: '@app/design-system-native', exports: { '.': './src/index.ts' } },
     ],
-  ]
+  ])
   const web = {
     name: 'web',
     dependencies: { '@app/errors': 'workspace:*', '@app/design-system-native': 'workspace:*' },
@@ -283,10 +285,10 @@ test('RED: apps/web depends on the mobile-only design system', () => {
 })
 
 test('RED: a vertical depends on another vertical', () => {
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     ['verticals/orders', { name: '@app/orders', exports: { '.': './src/index.ts' } }],
-  ]
+  ])
   // make notes depend on orders
   packages[2] = [
     'verticals/notes',
@@ -302,7 +304,7 @@ test('RED: a vertical depends on another vertical', () => {
 })
 
 test('RED: a shared package depends on a vertical', () => {
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES,
     [
       'shared/pricing',
@@ -312,7 +314,7 @@ test('RED: a shared package depends on a vertical', () => {
         dependencies: { '@app/notes': 'workspace:*' },
       },
     ],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ packages }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('shared') && r.out.includes('never the reverse'), r.out)
@@ -331,18 +333,18 @@ test('GREEN: the default compliant vertical passes anatomy (the witness shape)',
 })
 
 test('RED anatomy: a domain file importing node:fs (domain purity)', () => {
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/domain/note.ts`, "import { readFileSync } from 'node:fs'\nexport const x = 1\n"],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('domain-purity') && r.out.includes('node:fs'), r.out)
 })
 
 test('RED anatomy: a domain file importing the error kernel (domain returns values)', () => {
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/domain/note.ts`, "import { appError } from '@app/errors'\nexport const x = 1\n"],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('domain-purity') && r.out.includes('@app/errors'), r.out)
@@ -370,13 +372,14 @@ test('RED anatomy: a DAL file value-importing @app/supabase; import type stays c
 })
 
 test('RED anatomy: src/data without a port (port presence)', () => {
-  const files = [[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']]
+  const files = /** @type {[string, string][]} */ ([[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('port-presence'), r.out)
 })
 
 test('RED anatomy: a vertical missing the ./client export key (dual barrel)', () => {
+  /** @type {[string, any][]} */
   const packages = PACKAGES.map((p) =>
     p[0] === N ? [N, { ...p[1], exports: { '.': './src/index.ts' } }] : p,
   )
@@ -386,18 +389,18 @@ test('RED anatomy: a vertical missing the ./client export key (dual barrel)', ()
 })
 
 test('RED anatomy: logic in a barrel (pure barrel)', () => {
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/client.ts`, "export { thing } from './things.js'\nconst leaked = 1\n"],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('pure-barrel'), r.out)
 })
 
 test('RED anatomy: events.ts importing from the vertical (events purity)', () => {
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/events.ts`, "import { defineEventCatalog } from '@app/events'\nimport { toNoteView } from './domain/note.js'\nexport const e = 1\n"],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('events-purity'), r.out)
@@ -441,10 +444,10 @@ test('GREEN anatomy: a reviewed allow entry suppresses exactly its finding', () 
       },
     ],
   }
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/domain/note.ts`, "import { readFileSync } from 'node:fs'\nexport const x = 1\n"],
     ['tools/vertical-anatomy-allow.json', JSON.stringify(allow, null, 2)],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 0, r.out)
 })
@@ -483,10 +486,10 @@ test('RED anatomy: verticals present but zero files scanned is vacuous (anti-vac
   // A vertical whose package.json exists with NO src files at all: fixture() writes
   // compliant barrels for every vertical by default, so strip them back off — if every
   // vertical is hollow the scan sees 0 files and must hard-fail, ramp or no ramp.
-  const packages = [
+  const packages = /** @type {[string, any][]} */ ([
     ...PACKAGES.filter((p) => !p[0].startsWith('verticals/')),
     ['verticals/hollow', { name: '@app/hollow', exports: { '.': './src/index.ts', './client': './src/client.ts' } }],
-  ]
+  ])
   const dir = fixture({ packages })
   rmSync(join(dir, 'packages/verticals/hollow/src'), { recursive: true, force: true })
   const r = run(WORKSPACE_DEPS, dir)
@@ -495,10 +498,10 @@ test('RED anatomy: verticals present but zero files scanned is vacuous (anti-vac
 })
 
 test('NOTE: a pre-0.9.5 install sees anatomy findings as advisory NOTEs (the ramp)', () => {
-  const files = [
+  const files = /** @type {[string, string][]} */ ([
     [`packages/${N}/src/domain/note.ts`, "import { readFileSync } from 'node:fs'\nexport const x = 1\n"],
     ['.harness/manifest.json', JSON.stringify({ baseVersion: '0.9.0', harnessVersion: '0.9.0' })],
-  ]
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('NOTE') && r.out.includes('domain-purity'), r.out)
