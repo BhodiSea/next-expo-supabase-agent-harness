@@ -167,10 +167,24 @@ error, sonarjs cognitive-complexity ≤ 15, plus the boundary bans: global `fetc
 outside `src/lib/api-client.ts`, `expo-secure-store` outside `src/host/**` +
 `src/auth/**`, chart libraries in the dense features, raw text outside AppText,
 bare `console` outside `src/lib/log.ts`.
+**0.9.5 adds two custom rules.** `env-through-register` (the env-register-gate
+discharge): the environment is read through `@app/env` — a raw `process.env` read
+in `apps/**`/`packages/**` reds, computed reads and bare `process.env` red as
+smuggle shapes, while literal `NEXT_PUBLIC_*`/`EXPO_PUBLIC_*`/`NODE_ENV` reads
+stay exempt (build-time inlining requires the member text) and the register's own
+reader files, tests, e2e specs and the playwright config are outside the globs —
+zero standing allowlist. `no-suppressed-complexity`: the ≤ 15 ceiling's one hole
+was the suppression comment — the directive itself is now the lint error, a
+directive naming this rule reds too (line-level stacking never terminates), and
+the rule's header states the honest file-level residual plus the controls that
+cover it (the factory's pinned config text, the torvalds rubric).
 **Anti-vacuity:** `import * as SecureStore from 'expo-secure-store'` in a random
 feature → FAIL no-restricted-imports; call `fetch()` in a screen → FAIL
 no-restricted-globals (depcruise walls the same seams at the module-graph level —
-defense in depth).
+defense in depth); read `process.env['UPSTASH_REDIS_REST_TOKEN']` in a web lib →
+FAIL env-through-register; add `// eslint-disable-next-line
+sonarjs/cognitive-complexity` above a fat function → FAIL no-suppressed-complexity
+(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs).
 **Papercut:** `--cache` keys on file content + eslint config, NOT on tsconfig —
 after a tsconfig change fixes a typed-lint error, the stale `.eslintcache` can
 keep reporting it (observed live: a `jest.setup.ts` include fix stayed red until
@@ -1382,6 +1396,32 @@ a skip) and the reviewers (`security-reviewer`, `web-security-reviewer`,
 `REVIEWER_AGENTS` in `tools/lib/agent-roster.mjs`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
 "read-only by construction" claim, machine-asserted.
+
+**Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
+sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
+cap: no sentence, no check (a fork may unbudget its memory file); present-and-false
+reds. And the advertised-command closure extends from AGENTS.md into the BODIES of
+`.claude/{rules,commands,skills,agents}`: every backticked `pnpm <script>` names a
+real script, every backticked `node tools|tests|.claude/<path>.mjs` names a real
+file — the two grammars that cannot false-positive on prose, which is what clears
+the open-scanner objection the doctrine-symbols map records. Ramped because
+AGENTS.md is seeded (every pre-0.9.5 install keeps its old sentence) and skills may
+be consumer-authored.
+
+**ADR content shape (0.9.5, ramped until 0.11.0).** adr-guard holds ADR presence;
+this holds the mechanical slice of content: `## Context` / `## Decision` /
+`## Consequences`-or-`## Honest losses` / `## Sources`, prefix-matched (multi-part
+`## Decision 1 — …` headings are legitimate authorship), each with ≥ 40 characters
+of substance; a `**Status:**` in the closed vocabulary; every `[corpus: id]`
+resolving against `tools/mcp/corpus/index.json`; every bare source URL's host on
+the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
+advisory on purpose — a shape gate that reds an honest "no alternative existed"
+teaches authors to fabricate alternatives. NO escape file: the remedy is always
+editing the ADR; an allowlist here would be a place to park unshaped ADRs forever.
+**Anti-vacuity:** falsify the budget sentence → FAIL naming both numbers; advertise
+`pnpm ghost` in a rule body → FAIL naming the file; strip `## Sources` from an ADR →
+FAIL naming the section; cite an unknown corpus id or an off-allowlist host → FAIL
+naming it (fixtures: tests/gates/check-docs-sync.test.mjs).
 
 **The deferral ledger (0.7.0).** The harness's prose makes dated promises —
 "Deferred to x.y.z", "out of scope for x.y.z" — and until this release nothing read

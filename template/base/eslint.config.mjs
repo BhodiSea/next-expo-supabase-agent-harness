@@ -435,4 +435,17 @@ export default tseslint.config(
     plugins: { local: localRules },
     rules: { 'local/env-through-register': 'error' },
   },
+  {
+    // no-suppressed-complexity — the ≤ 15 cognitive-complexity error is the consumer's
+    // complexity CONTRACT (a fresh tree has no grandfathered functions, so there is
+    // nothing for a ratchet to manage), and this rule closes its one hole: the
+    // suppression comment. The directive itself is the lint error, tests included — a
+    // test suppressing the ceiling is the same hollowing one directory over.
+    // Harness-owned tools/** is outside this config's reach on purpose; its ceiling is
+    // the factory ratchet (G16). The rule's own header states the honest file-level
+    // residual and the controls that cover it.
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
+    plugins: { local: localRules },
+    rules: { 'local/no-suppressed-complexity': 'error' },
+  },
 )

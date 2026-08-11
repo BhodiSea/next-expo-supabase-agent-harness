@@ -221,6 +221,45 @@ if (RuleTester === null) {
     })
   })
 
+  test('no-suppressed-complexity: disabling the complexity ceiling is itself a lint error', () => {
+    rt.run('no-suppressed-complexity', rules['no-suppressed-complexity'], {
+      valid: [
+        // Ordinary code and ordinary comments are untouched.
+        'function f() { return 1 }',
+        '// the cognitive-complexity ceiling is 15',
+        // Disabling an UNRELATED rule is not this rule’s business.
+        '// eslint-disable-next-line no-console\nconsole.log(1)',
+      ],
+      invalid: [
+        // RuleTester runs with only the rule under test registered, so ESLint itself
+        // also reports the directive's target as an unknown rule — two errors per case,
+        // and OURS is the one with the messageId.
+        {
+          code: '// eslint-disable-next-line sonarjs/cognitive-complexity\nfunction f() { return 1 }',
+          errors: [
+            { message: "Definition for rule 'sonarjs/cognitive-complexity' was not found." },
+            { messageId: 'suppressed' },
+          ],
+        },
+        {
+          code: '/* eslint-disable sonarjs/cognitive-complexity */\nfunction f() { return 1 }',
+          errors: [
+            { message: "Definition for rule 'sonarjs/cognitive-complexity' was not found." },
+            { messageId: 'suppressed' },
+          ],
+        },
+        // Naming THIS rule in a directive is the stacking evasion — reported too.
+        {
+          code: '// eslint-disable-next-line local/no-suppressed-complexity\nconst x = 1',
+          errors: [
+            { message: "Definition for rule 'local/no-suppressed-complexity' was not found." },
+            { messageId: 'stacked' },
+          ],
+        },
+      ],
+    })
+  })
+
   test('env-through-register: a raw server env read reds; public inlined reads stay literal', () => {
     rt.run('env-through-register', rules['env-through-register'], {
       valid: [

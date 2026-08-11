@@ -5,7 +5,17 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,8 +46,8 @@ const SHIPPED_SCRIPTS = JSON.parse(
 // for the version-ramp cases. The shipped .claude/agents roster is copied in by
 // default (the GREEN case proves the real shipped agents against the real gate);
 // `roster` overlays it — filename -> content plants/overwrites a file, null deletes.
-/** @param {{ agents?: any, claude?: any, scripts?: any, catalog?: any, manifest?: any, roster?: any }} parts */
-function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, catalog = shippedCatalog, manifest, roster }) {
+/** @param {{ agents?: any, claude?: any, scripts?: any, catalog?: any, manifest?: any, roster?: any, files?: Record<string, string> }} parts */
+function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, catalog = shippedCatalog, manifest, roster, files }) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-docs-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
@@ -66,7 +76,38 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
     mkdirSync(join(dir, '.harness'), { recursive: true })
     writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
   }
+  for (const [rel, content] of Object.entries(files ?? {})) {
+    mkdirSync(join(dir, rel, '..'), { recursive: true })
+    writeFileSync(join(dir, rel), content)
+  }
+  // The 0.9.5 body-command closure demands every `node <path>.mjs` a .claude body
+  // names actually exist. Resolve each such reference against the SHIPPED template
+  // and copy the real file in — so the GREEN fixtures keep proving the shipped
+  // bodies reference only real paths, while a ghost reference (absent from the
+  // template too) stays red exactly as it would on a real tree.
+  const TEMPLATE_BASE = join(TOOLS, '..')
+  for (const rel of ['rules', 'commands', 'skills', 'agents']) {
+    const surfaceDir = join(dir, '.claude', rel)
+    if (!existsSync(surfaceDir)) continue
+    for (const body of walkBodies(surfaceDir)) {
+      for (const m of body.matchAll(/`node ((?:tools|tests|\.claude)\/[^\s`]+\.mjs)/g)) {
+        const shipped = join(TEMPLATE_BASE, m[1])
+        if (existsSync(shipped) && !existsSync(join(dir, m[1]))) {
+          mkdirSync(join(dir, m[1], '..'), { recursive: true })
+          cpSync(shipped, join(dir, m[1]))
+        }
+      }
+    }
+  }
   return dir
+}
+
+function* walkBodies(root) {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const p = join(root, entry.name)
+    if (entry.isDirectory()) yield* walkBodies(p)
+    else if (entry.name.endsWith('.md')) yield readFileSync(p, 'utf8')
+  }
 }
 
 const shippedCatalog = readFileSync(CATALOG_TEMPLATE, 'utf8')
@@ -1094,4 +1135,175 @@ test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directio
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /docs\/harness\/gates-catalog\.md:\d+ defers something to 0\.8\.0/)
   assert.match(r.out, /no longer carries that dated sentence/)
+})
+
+// ── 0.9.5: agent-surface truth (3b budget honesty + 3c body closure, one ramp) ──────
+
+test('RED: AGENTS.md whose own budget sentence is false reds LIVE on a fresh tree', () => {
+  const lying = shippedAgents.replace('Keep under ~350 lines', 'Keep under ~10 lines')
+  assert.notEqual(lying, shippedAgents, 'the shipped budget sentence must exist to falsify')
+  const r = runGate(fixture({ agents: lying }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /claims "Keep under ~10 lines" but is \d+ lines/)
+})
+
+test('GREEN: deleting the budget sentence deletes the check — a fork may unbudget', () => {
+  const unbudgeted = shippedAgents.replace(/Keep under ~\d+ lines\.?/, '')
+  const r = runGate(fixture({ agents: unbudgeted }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: an agent body advertising a ghost pnpm script reds LIVE; NOTE under the 0.9.5 ramp', () => {
+  const files = {
+    '.claude/rules/extra.md': 'Run `pnpm ghost-script` before every turn.\n',
+  }
+  const live = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(live.code, 1, live.out)
+  assert.ok(live.out.includes('`pnpm ghost-script`'), live.out)
+
+  const ramped = runGate(
+    fixture({
+      agents: shippedAgents,
+      files,
+      manifest: { baseVersion: '0.9.0', harnessVersion: '0.9.5' },
+    }),
+  )
+  assert.equal(ramped.code, 0, ramped.out)
+  assert.ok(ramped.out.includes('NOTE') && ramped.out.includes('ghost-script'), ramped.out)
+})
+
+test('RED: a body pointing `node tools/absent.mjs` at nothing reds', () => {
+  const files = {
+    '.claude/skills/deploying/SKILL.md': 'Then run `node tools/absent.mjs --check`.\n',
+  }
+  const r = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('node tools/absent.mjs') && r.out.includes('no such file'), r.out)
+})
+
+// ── 0.9.5: ADR content shape (3d, ramped until 0.11.0) ─────────────────────────────
+
+const ADR_OK = `# 9999 — Fixture decision
+
+- **Status:** Accepted
+- **Date:** 2026-08-11
+
+## Context
+
+A fixture context long enough to clear the forty-character substance floor easily.
+
+## Decision
+
+A fixture decision long enough to clear the forty-character substance floor easily.
+
+## Consequences
+
+Fixture consequences long enough to clear the forty-character substance floor.
+
+## Sources
+
+- <https://www.postgresql.org/docs/current/ddl-rowsecurity.html> — backs the fixture.
+`
+
+test('GREEN: a well-shaped ADR passes; template and README stay exempt', () => {
+  const files = {
+    'docs/adr/29990101-fixture.md': ADR_OK,
+    'docs/adr/0000-adr-template.md': '# template with no real sections\n',
+    'docs/adr/README.md': '# index\n',
+  }
+  const r = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: a sectionless ADR reds LIVE, naming every missing section', () => {
+  const files = { 'docs/adr/29990101-hollow.md': '# hollow\n\n- **Status:** Accepted\n' }
+  const r = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('lacks a `## Context`'), r.out)
+  assert.ok(r.out.includes('lacks a `## Sources`'), r.out)
+})
+
+test('RED: a heading with no substance reds — the empty file with extra steps', () => {
+  const files = {
+    'docs/adr/29990101-thin.md': ADR_OK.replace(
+      /## Decision\n\nA fixture decision long enough to clear the forty-character substance floor easily\./,
+      '## Decision\n\nTBD.',
+    ),
+  }
+  const r = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('`## Decision` body is under 40 characters'), r.out)
+})
+
+test('RED: no Status in the closed vocabulary; lowercase seeded form stays green', () => {
+  const noStatus = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: { 'docs/adr/29990101-x.md': ADR_OK.replace('- **Status:** Accepted\n', '') },
+    }),
+  )
+  assert.equal(noStatus.code, 1, noStatus.out)
+  assert.ok(noStatus.out.includes('no `**Status:**` line'), noStatus.out)
+
+  const seededForm = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'docs/adr/29990101-x.md': ADR_OK.replace(
+          '- **Status:** Accepted',
+          '**Status:** accepted · **Date:** 2026-08-11',
+        ),
+      },
+    }),
+  )
+  assert.equal(seededForm.code, 0, seededForm.out)
+})
+
+test('RED: an unresolvable corpus id and an off-allowlist host both red', () => {
+  const corpus = JSON.stringify([{ id: 'real/id' }])
+  const badCorpus = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': corpus,
+        'docs/adr/29990101-x.md': ADR_OK.replace(
+          '- <https://www.postgresql.org/docs/current/ddl-rowsecurity.html> — backs the fixture.',
+          '- `[corpus: ghost/id]` — backs nothing.',
+        ),
+      },
+    }),
+  )
+  assert.equal(badCorpus.code, 1, badCorpus.out)
+  assert.ok(badCorpus.out.includes('[corpus: ghost/id]'), badCorpus.out)
+
+  const badHost = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'docs/adr/29990101-x.md': ADR_OK.replace(
+          'https://www.postgresql.org/docs/current/ddl-rowsecurity.html',
+          'https://some-random-blog.example/post',
+        ),
+      },
+    }),
+  )
+  assert.equal(badHost.code, 1, badHost.out)
+  assert.ok(badHost.out.includes('some-random-blog.example'), badHost.out)
+})
+
+test('NOTE: ADR shape findings are advisory on a pre-0.9.5 install until 0.11.0', () => {
+  const files = { 'docs/adr/29990101-hollow.md': '# hollow\n\n- **Status:** Accepted\n' }
+  // harnessVersion stays below 0.10.0: at 0.10.0 the fixture would instead red on the
+  // deferral ledger's ARRIVAL check (auth-posture-cli-census targets 0.10.0) — a
+  // different gate concern this test must not entangle. Past 0.10.0 the agent-surface
+  // ramp expires too; the ADR ramp alone runs to 0.11.0.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files,
+      manifest: { baseVersion: '0.9.0', harnessVersion: '0.9.9' },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE') && r.out.includes('ADR shape'), r.out)
 })

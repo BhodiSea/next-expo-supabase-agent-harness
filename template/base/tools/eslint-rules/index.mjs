@@ -302,6 +302,51 @@ const rules = {
     },
   },
 
+  // The complexity ceiling is unsuppressable in product code (0.9.5).
+  //
+  // sonarjs/cognitive-complexity ≤ 15 at error IS the consumer's complexity contract —
+  // a fresh tree has zero grandfathered functions, so there is nothing for a ratchet to
+  // manage (the factory's G16 ratchet exists only for its own legacy tools). The one
+  // hole was the suppression comment: `// eslint-disable-next-line
+  // sonarjs/cognitive-complexity` kept the lint step green while hollowing the
+  // guarantee — precisely the decay the factory ratchet was built to end. This rule
+  // reds the DIRECTIVE itself, and reds a directive naming this rule too (each stacked
+  // escape generates a new finding one line up, so line-level stacking never
+  // terminates). HONEST LIMIT, stated rather than hidden: a file-level
+  // `/* eslint-disable */` block naming both rules still silences everything at lint
+  // level — the residual controls are the pinned config text (a config edit reds the
+  // factory's rule-integrity record until reviewed) and the torvalds rubric's
+  // "restructured, not suppressed" line. Scope: apps/** + packages/** (the config
+  // blocks below); harness-owned tools/** stays with the factory ratchet.
+  'no-suppressed-complexity': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'The cognitive-complexity ceiling may not be suppressed — restructure the function.' },
+      schema: [],
+      messages: {
+        suppressed:
+          'This directive suppresses sonarjs/cognitive-complexity — the ceiling is the contract, and a function over it gets RESTRUCTURED (extract the branch, flatten the special case), never suppressed.',
+        stacked:
+          'This directive names no-suppressed-complexity itself — stacking escapes is the same act one layer up. Restructure the function instead.',
+      },
+    },
+    create(context) {
+      const DIRECTIVE = /^\s*eslint-disable(?:-next-line|-line)?\b/
+      return {
+        Program() {
+          for (const comment of context.sourceCode.getAllComments()) {
+            if (!DIRECTIVE.test(comment.value)) continue
+            if (comment.value.includes('no-suppressed-complexity')) {
+              context.report({ loc: comment.loc, messageId: 'stacked' })
+            } else if (comment.value.includes('sonarjs/cognitive-complexity')) {
+              context.report({ loc: comment.loc, messageId: 'suppressed' })
+            }
+          }
+        },
+      }
+    },
+  },
+
   // The environment is read through @app/env — the register — never off process.env.
   //
   // A server variable read directly off process.env is invisible to the one module whose

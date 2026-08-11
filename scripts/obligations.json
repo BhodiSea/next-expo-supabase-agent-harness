@@ -39,6 +39,26 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "docs-sync-agent-surface-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-docs-sync.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The agent-surface truth checks 0.9.5 opened inside docs-sync (the AGENTS.md line-budget claims-check and the body command closure over .claude/{rules,commands,skills,agents}) fall due at 0.10.0. Ramped because AGENTS.md is seeded — every pre-0.9.5 install keeps the old ~200 sentence update cannot rewrite — and skills may be consumer-authored. The 0.10.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
+      "id": "docs-sync-adr-shape-ramp-expiry",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        { "file": "template/base/tools/check-docs-sync.mjs", "mustContain": "until: '0.11.0'" }
+      ],
+      "reason": "The ADR content-shape check 0.9.5 opened inside docs-sync (load-bearing sections with real bodies, closed-vocabulary Status, resolvable corpus refs, allowlisted source hosts) falls due at 0.11.0 — two releases, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile. The 0.11.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
       "id": "boundaries-vertical-anatomy-ramp-expiry",
       "kind": "release",
       "target": "0.10.0",
