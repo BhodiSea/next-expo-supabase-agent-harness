@@ -6,6 +6,7 @@ import {
   hasAmbientSessionCookie,
   isCrossSiteRequest,
 } from '@app/api'
+import { optionalServerEnv } from '@app/env/optional'
 import type { NotesDatabase } from '@app/notes'
 import type { SupabaseServerClient } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
@@ -55,17 +56,17 @@ function bearerToken(request: Request): string | null {
 // There is NO hardcoded literal: a magic '0.1.0' here would silently diverge from the package
 // the moment it bumped, leaving the skew gate either inert (never rejecting) or over-eager
 // (rejecting current clients) — the precise failure the version-skew doctrine exists to
-// prevent (@app/api parses this ONCE and rejects an unparseable value loudly). Bracket access,
-// not dot: noPropertyAccessFromIndexSignature forbids dot access on process.env's index
-// signature, and this server-only read needs no build-time inlining.
-const SERVER_VERSION: string = process.env['APP_VERSION'] ?? pkg.version
+// prevent (@app/api parses this ONCE and rejects an unparseable value loudly). Read through
+// @app/env/optional — the register's optional server section — so the deploy override is a
+// reviewed schema line, not an ambient read the env seam never sees.
+const SERVER_VERSION: string = optionalServerEnv.APP_VERSION ?? pkg.version
 
 // The minimum-supported-client floor, or null when unset. OPTIONAL policy the deploy sets
 // only to force out a specific old build within the current major (a shipped client bug, a
 // security fix) — the major-skew check needs no floor at all. Off by default: an unset or
 // unparseable value leaves the floor inert (see @app/api's isBelowMinimum), never rejecting.
-// Bracket access for the same index-signature reason as APP_VERSION above.
-const MIN_SUPPORTED_CLIENT: string | null = process.env['MIN_SUPPORTED_CLIENT'] ?? null
+// Same register read as APP_VERSION above.
+const MIN_SUPPORTED_CLIENT: string | null = optionalServerEnv.MIN_SUPPORTED_CLIENT ?? null
 
 // WHERE THE SESSION IS BUILT, and why it is not here any more. This file used to hold a
 // `sessionForVerifiedUser` that minted `{ role: 'owner', workspaceId: user.userId }` — a

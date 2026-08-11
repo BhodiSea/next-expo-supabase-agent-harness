@@ -123,17 +123,6 @@
       "reviewedOn": "2026-08-10"
     },
     {
-      "id": "env-register-gate",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        { "file": "template/stack/apps/web/lib/rate-limit-runtime.ts", "mustContain": "UPSTASH_REDIS_REST_TOKEN" }
-      ],
-      "reason": "@app/env validates env per surface, but the Upstash secret is read straight off process.env in the web rate-limit runtime — a server secret that bypasses the one seam whose job is to see it, invisible to the boundaries gate because process.env is not an import. Condition: the discharge is a register gate closing env reads over the seam, and its shape (allowlist vs codemod vs lint rule) is an open design decision, not a date.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "template/stack/apps/web/lib/rate-limit-runtime.ts"
-    },
-    {
       "id": "off-linux-stop-chain",
       "kind": "condition",
       "target": null,

@@ -104,7 +104,7 @@
       "project": ["src/**/*.ts!"]
     },
     "packages/platform/env": {
-      "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts"],
+      "entry": ["src/index.ts!", "src/client.ts!", "src/optional.ts!", "src/**/*.test.ts"],
       "project": ["src/**/*.ts!"]
     },
     "packages/platform/observability": {

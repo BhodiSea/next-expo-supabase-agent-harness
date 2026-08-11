@@ -302,6 +302,63 @@ const rules = {
     },
   },
 
+  // The environment is read through @app/env — the register — never off process.env.
+  //
+  // A server variable read directly off process.env is invisible to the one module whose
+  // job is to see the whole environment: the register's narrow ambient type is what makes
+  // "a new variable is a reviewed schema line" true, and a bypassing read is exactly how
+  // the Upstash credential pair escaped it (the 0.9.5 discharge of the env-register-gate
+  // obligations row). Three arms: a NAMED read of a non-public variable reds; a COMPUTED
+  // read reds (the name is chosen at runtime, so no reviewer can see it); BARE process.env
+  // (spread, Object.keys, passed as an argument) reds (it smuggles every unnamed variable
+  // at once). Exempt by name: NEXT_PUBLIC_* / EXPO_PUBLIC_* (build-time inlining REQUIRES
+  // the literal member text — the register cannot perform another module's inlined read)
+  // and NODE_ENV (inlined by every bundler, read by every runtime). The env package
+  // itself, tests, and tool configs are outside the config globs.
+  'env-through-register': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Read the environment through @app/env, never off process.env.' },
+      schema: [],
+      messages: {
+        rawRead:
+          "Read '{{name}}' through @app/env (server: '@app/env' / '@app/env/optional') instead of process.env — a variable outside the register is invisible to the one seam whose job is to see the whole environment. Public NEXT_PUBLIC_*/EXPO_PUBLIC_* names and NODE_ENV stay literal (build-time inlining).",
+        dynamicRead:
+          'A computed process.env read hides the variable name from review — read a NAMED value through @app/env instead.',
+        bareEnv:
+          'Bare process.env (spread, keys, passed along) smuggles every unnamed variable at once — read named values through @app/env.',
+      },
+    },
+    create(context) {
+      const PUBLIC_PREFIX = /^(?:NEXT_PUBLIC_|EXPO_PUBLIC_)/
+      const EXEMPT = new Set(['NODE_ENV'])
+      const propName = (node) => {
+        if (!node.computed && node.property.type === 'Identifier') return node.property.name
+        if (node.computed && node.property.type === 'Literal' && typeof node.property.value === 'string')
+          return node.property.value
+        return null
+      }
+      const isProcessEnv = (node) =>
+        node.type === 'MemberExpression' &&
+        node.object.type === 'Identifier' &&
+        node.object.name === 'process' &&
+        propName(node) === 'env'
+      return {
+        MemberExpression(node) {
+          if (!isProcessEnv(node)) return
+          const parent = node.parent
+          if (parent.type === 'MemberExpression' && parent.object === node) {
+            const key = propName(parent)
+            if (key === null) return context.report({ node: parent, messageId: 'dynamicRead' })
+            if (EXEMPT.has(key) || PUBLIC_PREFIX.test(key)) return
+            return context.report({ node: parent, messageId: 'rawRead', data: { name: key } })
+          }
+          context.report({ node, messageId: 'bareEnv' })
+        },
+      }
+    },
+  },
+
   // THE SINGLE MOST CONSEQUENTIAL LINE IN THE CODEBASE, held with AST precision.
   //
   // `getSession()` decodes whatever JWT it finds in the stored session and returns it

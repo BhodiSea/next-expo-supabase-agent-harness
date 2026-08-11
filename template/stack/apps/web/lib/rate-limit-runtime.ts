@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { optionalServerEnv } from '@app/env/optional'
 import { type ActionOutcome, appError, outcomeErr } from '@app/errors'
 import { createLogger } from '@app/observability'
 import {
@@ -24,15 +25,13 @@ import { bucketForAction } from './rate-limit'
 
 const log = createLogger({ base: { component: 'ratelimit' } })
 
-// Bracket access, not dot: noPropertyAccessFromIndexSignature forbids dot access on
-// process.env's index signature. These are read here rather than in @app/env because
-// both are OPTIONAL — a deployment with no Redis is a supported configuration (it falls
-// back to the in-process limiter, loudly), and putting an optional pair in the fail-fast
-// server schema would make @app/env's "every entry here is a value whose disclosure is an
-// incident" list untrue.
-declare const process: {
-  readonly env: Readonly<Record<string, string | undefined>>
-}
+// The Upstash pair arrives through @app/env/optional — the register's optional server
+// section (0.9.5). OPTIONAL ≠ UN-SEEN: a deployment with no Redis is still a supported
+// configuration (the in-process fallback below, loudly), but a PRESENT value is now
+// validated at boot, and a half-set pair is a boot failure instead of a production
+// limiter silently degraded to per-process. The old shape — a raw process.env read with
+// a local ambient declare — was the exact bypass the env-through-register lint rule and
+// the retired env-register-gate obligations row existed to end.
 
 // The transport reason behind the most recent degraded decision. Written by onUnavailable
 // (which fires exactly once per degraded decision, inside withFailOpen's catch) and read
@@ -60,8 +59,8 @@ const limiter = createRateLimiter({
     // "today" is the wrong thing to bet a credential on.
     lastOutageReason = error instanceof Error ? error.message : 'unknown'
   },
-  upstashToken: process.env['UPSTASH_REDIS_REST_TOKEN'],
-  upstashUrl: process.env['UPSTASH_REDIS_REST_URL'],
+  upstashToken: optionalServerEnv.UPSTASH_REDIS_REST_TOKEN,
+  upstashUrl: optionalServerEnv.UPSTASH_REDIS_REST_URL,
 })
 
 /**

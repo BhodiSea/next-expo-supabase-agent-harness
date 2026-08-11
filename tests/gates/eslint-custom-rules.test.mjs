@@ -220,4 +220,36 @@ if (RuleTester === null) {
       ],
     })
   })
+
+  test('env-through-register: a raw server env read reds; public inlined reads stay literal', () => {
+    rt.run('env-through-register', rules['env-through-register'], {
+      valid: [
+        // The two public channels are inlined at BUILD time — the literal member text IS the
+        // mechanism, so routing them through a register would break the inlining they exist for.
+        'const url = process.env.NEXT_PUBLIC_SUPABASE_URL',
+        'const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE ?? ""',
+        'if (process.env.NODE_ENV === "test") setup()',
+        // Reads through the register are the sanctioned shape.
+        'const t = optionalServerEnv.UPSTASH_REDIS_REST_TOKEN',
+        // Another object's env property is not the process environment.
+        'const e = config.env.MODE',
+      ],
+      invalid: [
+        // The exact defect the obligations row recorded: a server secret read off
+        // process.env, invisible to the one seam whose job is to see it.
+        {
+          code: 'const t = process.env["UPSTASH_REDIS_REST_TOKEN"]',
+          errors: [{ messageId: 'rawRead' }],
+        },
+        { code: 'const v = process.env.APP_VERSION ?? pkg.version', errors: [{ messageId: 'rawRead' }] },
+        // A computed read cannot be reviewed — the name is chosen at runtime.
+        { code: 'const n = process.env[name]', errors: [{ messageId: 'dynamicRead' }] },
+        // Bare process.env smuggles every unnamed variable at once.
+        { code: 'const all = { ...process.env }', errors: [{ messageId: 'bareEnv' }] },
+        { code: 'const keys = Object.keys(process.env)', errors: [{ messageId: 'bareEnv' }] },
+        // The bracket spelling of `env` itself is the same read, not an escape.
+        { code: 'const t = process["env"].APP_VERSION', errors: [{ messageId: 'rawRead' }] },
+      ],
+    })
+  })
 }

@@ -414,4 +414,25 @@ export default tseslint.config(
     plugins: { local: localRules },
     rules: { 'local/service-role-edge-functions-only': 'error' },
   },
+  {
+    // env-through-register — the environment is read through @app/env, never off
+    // process.env (0.9.5, the env-register-gate discharge). The register's narrow ambient
+    // type is what makes "a new variable is a reviewed schema line" true; a bypassing read
+    // is exactly how the Upstash pair escaped it. The rule itself exempts literal
+    // NEXT_PUBLIC_*/EXPO_PUBLIC_* reads (build-time inlining REQUIRES the member text) and
+    // NODE_ENV; these globs exempt the register's own reader files, tests (they arrange
+    // the environment by design), e2e specs, and the playwright config (tool configs read
+    // the ambient CI environment before any register exists).
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
+    ignores: [
+      'packages/platform/env/src/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+      'apps/*/e2e/**',
+      'apps/*/playwright.config.ts',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/env-through-register': 'error' },
+  },
 )
