@@ -1376,9 +1376,10 @@ numbered section (`### <n>. <name> — `) in THIS catalog — the anti-vacuity r
 is part of the gate, so an undocumented step cannot ship. The agent roster is part
 of the same surface: every `.claude/agents/*.md` must parse under the pinned
 frontmatter grammar (`tools/lib/agent-roster.mjs`; a parse failure is a RED, never
-a skip) and the seven reviewers (`security-reviewer`, `web-security-reviewer`,
+a skip) and the reviewers (`security-reviewer`, `web-security-reviewer`,
 `mobile-security-reviewer`, `accessibility-reviewer`, `design-reviewer`,
-`torvalds-reviewer`, `citation-verifier`) may hold ONLY
+`architecture-reviewer`, `torvalds-reviewer`, `citation-verifier` — the roster is
+`REVIEWER_AGENTS` in `tools/lib/agent-roster.mjs`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
 "read-only by construction" claim, machine-asserted.
 

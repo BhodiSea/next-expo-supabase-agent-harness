@@ -14,9 +14,10 @@
 // SOURCE: docs/harness/README.md (adversarial review: reviewers are read-only
 // by construction) [corpus: harness/doctrine]
 
-// The seven reviewer agents the README claims are "read-only by construction".
+// The reviewer agents the README claims are "read-only by construction".
 export const REVIEWER_AGENTS = [
   'accessibility-reviewer',
+  'architecture-reviewer',
   'citation-verifier',
   'design-reviewer',
   'mobile-security-reviewer',

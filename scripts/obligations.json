@@ -133,6 +133,17 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "architecture-reviewer-apps-widening",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/tools/reviewer-triggers.json", "mustContain": "architecture-reviewer-apps-widening" }
+      ],
+      "reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/reviewer-triggers.json"
+    },
+    {
       "id": "off-linux-stop-chain",
       "kind": "condition",
       "target": null,

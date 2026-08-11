@@ -10,6 +10,7 @@
   },
   "agents": [
     "./template/base/.claude/agents/accessibility-reviewer.md",
+    "./template/base/.claude/agents/architecture-reviewer.md",
     "./template/base/.claude/agents/citation-verifier.md",
     "./template/base/.claude/agents/dal-author.md",
     "./template/base/.claude/agents/design-reviewer.md",

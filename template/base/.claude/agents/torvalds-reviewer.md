@@ -66,8 +66,16 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
     - **Delete code.** The best patch removes more than it adds. Flag needless
       abstraction layers, speculative generality, dead exports `knip --strict` will
       catch anyway, and wrappers that wrap one call site.
+    - **Abstraction accounting.** An interface with exactly one implementation and
+      no test double is speculative generality — name the second consumer or delete
+      it (the structural `data/port.ts` pattern, whose second implementation IS the
+      test fake, is the blessed exception; cite it, don't cargo-cult it).
+    - **Naming coherence.** One concept, one name, across the wire: SQL column ↔
+      contract field ↔ procedure input ↔ screen prop, modulo the documented
+      snake→camel seam in `data/rows.ts`. Two names for one concept is a finding.
     - Complexity is the enemy: anything pushing sonarjs cognitive-complexity toward
-      its ≤ 15 error threshold gets restructured, not suppressed.
+      its ≤ 15 error threshold gets restructured, not suppressed (and the
+      suppression comment itself is lint-banned in product code).
 (e) Provenance — every non-trivial decision (RLS predicate, auth verification, the
     envelope/transport policy, retries/timeouts, index choices) has a resolvable
     `// SOURCE:` (`--` in SQL), ideally `[corpus: <id>]`. Flag any that do not.

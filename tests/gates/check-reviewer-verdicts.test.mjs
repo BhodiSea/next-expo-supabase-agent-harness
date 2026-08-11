@@ -264,6 +264,29 @@ test('an `except` pattern narrows the trigger — a test beside a policy is not 
   )
 })
 
+test('a structural packages/** path owes the architecture-reviewer; tests and apps do not (0.9.5)', () => {
+  const reviewers = TRIGGERS.reviewers.filter((r) => r.agent === 'architecture-reviewer')
+  assert.equal(reviewers.length, 1, 'the architecture-reviewer trigger row must exist')
+  // Both package depths: packages/<name>/src and packages/<group>/<name>/src.
+  assert.deepEqual(
+    owedBy(['packages/contracts/src/notes.ts'], reviewers).map((o) => o.agent),
+    ['architecture-reviewer'],
+  )
+  assert.deepEqual(
+    owedBy(['packages/verticals/notes/src/domain/note.ts'], reviewers).map((o) => o.agent),
+    ['architecture-reviewer'],
+  )
+  // The two structural registers summon it too.
+  assert.deepEqual(
+    owedBy(['tools/vertical-anatomy-allow.json'], reviewers).map((o) => o.agent),
+    ['architecture-reviewer'],
+  )
+  // Tests are excepted; apps/** is deliberately outside the trigger (narrowness first —
+  // the widening decision is the architecture-reviewer-apps-widening register row).
+  assert.deepEqual(owedBy(['packages/verticals/notes/src/data/notes.test.ts'], reviewers), [])
+  assert.deepEqual(owedBy(['apps/web/lib/rate-limit.ts'], reviewers), [])
+})
+
 test('the finding names the PATH that summoned the reviewer, not just the reviewer', () => {
   const owed = owedBy(['supabase/migrations/29990101_x.sql'], TRIGGERS.reviewers)
   assert.ok(owed.some((o) => o.agent === 'security-reviewer' && o.because.endsWith('_x.sql')))
