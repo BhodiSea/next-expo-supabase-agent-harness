@@ -48,6 +48,11 @@ export const ESCAPE_LISTS = [
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog
   'tools/expo-permissions.json', // granting the app a new platform permission
   'tools/expo-plugins.json', // admitting a config plugin to the native build
+  // 0.9.5: setting iosEncryption.nonExemptAllowed WIDENS what check-expo-policy
+  // permits (non-exempt cryptography, with the export-compliance consequences
+  // that follow), which is the escape shape — and its seeded classification was
+  // corrected in the same release, see installer/lib/layout.mjs.
+  'tools/store-policy.json',
   'tools/perf-budget.json',
   'tools/interaction-budget.json',
   'tools/startup-budget.json', // raising a cold-start / per-screen nav ceiling

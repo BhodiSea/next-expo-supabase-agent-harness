@@ -9,6 +9,11 @@ coverage/
 # makes a maintainer turn that ended at CLAUDE_CODE_STOP_HOOK_BLOCK_CAP distinguishable from
 # one that ended green, which through 0.5.0 it was not.
 .harness/turn-outcomes.jsonl
+# The advisory concurrent-session lock (0.9.0): {session_id, pid, at}, written by
+# the Stop gate and read by `installer update`. Pure runtime state about THIS
+# machine's session — committing it would carry one developer's pid into every
+# other checkout, which is how it reached the index in the first place.
+.harness/turn.lock
 # Scratch fixtures created by local selftest runs
 .fixtures/
 # The upgrade lane's workdir (scripts/ci/upgrade-lane.sh) — a whole rendered scaffold

@@ -42,6 +42,22 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > `tools/data-flow.json` — a dated 0.10.0 row in the obligations register
 > (`scripts/obligations.json`, `dsr-web-erase-surface`).
 >
+> **E2EE ships as RAILS, not as an encrypted app** (0.9.5, the opt-in `e2ee`
+> module). What works: a versioned AEAD envelope with mandatory associated data
+> binding each ciphertext to its row identity, a local key hierarchy
+> (keystore root key → HKDF-derived KEK → a fresh per-item DEK, wrapped), a
+> vector-conformant WebCrypto provider, and the doctrine, lint rules, write-guard
+> rules and citation corpus that keep primitives behind one door. **No shipped
+> feature is encrypted** — the notes vertical stores plaintext, and converting one
+> is the consumer's act through the `authoring-e2ee-feature` skill. The mobile
+> AEAD provider is a documented consumer decision, not a default (a native crypto
+> dependency is a choice the harness refuses to make for you). Sharing, recovery
+> and multi-device are DECLARED ports with no implementations: a second device
+> sees ciphertext, and **a lost device is lost data**. Encryption hides content,
+> not shape — row counts, sizes and timestamps stay server-visible — and an
+> encrypted column cannot be searched, sorted or filtered by the database.
+> `docs/modules/e2ee/README.md` states each of these losses in full.
+>
 > **Honest limits.** The wall-clock figures are measured, committed, and
 > qualified: warm validate is ~24.3 s wall (24337 ms — the serial reference
 > capture; no agent turn runs serial mode) and the Stop chain's turn-end is

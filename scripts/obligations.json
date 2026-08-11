@@ -153,6 +153,18 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "e2ee-declared-ports-unimplemented",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/modules/e2ee/packages/platform/crypto/src/ports-declared.ts", "mustContain": "RecipientWrapPort" },
+        { "file": "template/modules/e2ee/docs/modules/e2ee/README.md", "mustContain": "What this deliberately does NOT solve" }
+      ],
+      "reason": "The 0.9.5 e2ee rails DECLARE three ports with no implementations — RecipientWrapPort (org sharing: an org-mate's RLS-visible row is ciphertext they cannot open), RecoveryPort (a lost device is lost data; WebCrypto ships no Argon2 and PBKDF2-as-the-KDF would be a dishonest default), and DeviceSyncPort (a second device has no path to the root key). Condition, not a dated row: each needs a design decision the harness should not date on a consumer's behalf, and the honest state is a declaration plus a stated loss rather than a promise. This row anchors the declarations to the README section that states their cost, so an implementation cannot quietly turn a declared port into a claim without the register moving too. Also open by construction: the web KeystoreAdapter returns raw bytes, which forecloses a non-extractable CryptoKey handle, and the keyring exports no rewrap primitive so key rotation is a full client-side re-encryption pass.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
+    },
+    {
       "id": "architecture-reviewer-apps-widening",
       "kind": "condition",
       "target": null,

@@ -53,9 +53,19 @@ export interface CryptoProvider {
  * (a half-restored backup reads as no-key, never a boot crash), and `setRootKey`
  * fails LOUD — a key that cannot persist must not pretend to.
  *
- * Hosts implement this (web: a deliberate, documented weaker story — a browser
- * has no hardware keychain; mobile: expo-secure-store through the src/host/**
- * one-door). The package never sees a platform API.
+ * Hosts implement this (mobile: expo-secure-store through the src/host/**
+ * one-door — the platform Keychain/Keystore). The package never sees a platform
+ * API.
+ *
+ * THE WEB COST, stated precisely rather than as "a browser has no hardware
+ * keychain": this port returns RAW BYTES, and that shape forecloses the
+ * strongest browser option. A browser's best available store is a
+ * NON-EXTRACTABLE CryptoKey handle in IndexedDB, whose bytes JavaScript cannot
+ * read at all — which cannot satisfy a `Uint8Array` contract. So a web root key
+ * under this port is extractable-by-JS by construction, and one XSS is a total
+ * loss of every ciphertext that key protects. The mobile side does not have this
+ * problem. Documented in docs/modules/e2ee/README.md; changing it means a
+ * handle-shaped port, which is a breaking change nothing has yet paid for.
  */
 export interface KeystoreAdapter {
   getRootKey(userId: string): Promise<Uint8Array | null>

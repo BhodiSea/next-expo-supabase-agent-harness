@@ -71,6 +71,17 @@ describe('failure paths stay typed, never thrown', () => {
     expect(r).toMatchObject({ ok: false, reason: 'aead_auth_failed' })
   })
 
+  it('a zero-length wrapped DEK is key_missing — a shred is not a corruption', async () => {
+    // The crypto-shred tombstone: `*_wrapped_dek bytea NOT NULL` cannot be
+    // nulled, so erasing a row's key is an overwrite with zero bytes. That must
+    // read as deliberately-unreadable, not as damage — a screen says different
+    // things about the two.
+    const kek = await deriveKek(provider, rootKey, 'item-wrap')
+    const sealed = await sealItem(provider, kek, text('secret'), ctx)
+    const r = await openItem(provider, kek, { ...sealed, wrappedDek: new Uint8Array(0) }, ctx)
+    expect(r).toMatchObject({ ok: false, reason: 'key_missing' })
+  })
+
   it('a corrupted envelope is envelope_malformed, before any key touches it', async () => {
     const kek = await deriveKek(provider, rootKey, 'item-wrap')
     const sealed = await sealItem(provider, kek, text('secret'), ctx)

@@ -40,7 +40,7 @@ answer it, don't gesture at it:
     name the second consumer or delete it. (The blessed exception shape is
     `src/data/port.ts` — a structural port whose second implementation IS the
     test fake; cite it when the pattern genuinely recurs, flag it when it is
-    cargo-culted.)
+    copied by reflex.)
 (c) **Special-casing.** Boolean parameters that fork behaviour, near-identical
     branches, an edge case handled beside the general case instead of vanishing
     into the data structure — each is a data-model finding, not a style nit.

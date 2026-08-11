@@ -69,7 +69,7 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
     - **Abstraction accounting.** An interface with exactly one implementation and
       no test double is speculative generality — name the second consumer or delete
       it (the structural `data/port.ts` pattern, whose second implementation IS the
-      test fake, is the blessed exception; cite it, don't cargo-cult it).
+      test fake, is the blessed exception; cite it, don't copy it by reflex).
     - **Naming coherence.** One concept, one name, across the wire: SQL column ↔
       contract field ↔ procedure input ↔ screen prop, modulo the documented
       snake→camel seam in `data/rows.ts`. Two names for one concept is a finding.

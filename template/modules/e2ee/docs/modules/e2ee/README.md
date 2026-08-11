@@ -359,11 +359,13 @@ are falsifiable:
   safe while ids are `gen_random_uuid()` and unsafe the moment a consumer uses a
   composite or natural key. If your row identity needs more than one column,
   encode the whole identity into `itemId` yourself.
-- **The package's `// SOURCE:` citations name corpus ids that this repo's
-  `tools/mcp/corpus/index.json` does not yet contain** (the AEAD interface, the
-  GCM IV recommendation, HKDF, WebCrypto). The module ships no corpus extension.
-  Extend the corpus in the PR that first cites them — the provenance rule's own
-  instruction — and see the `authoring-e2ee-feature` skill, step 8.
+- **The `cryptography` provenance group keys on the construction CHOICE, not on
+  the vocabulary.** `aeadSeal`/`aeadOpen`, an AEAD or KDF naming, and the
+  wrapping structure owe a citation; `getRandomValues`, `randomUUID` and
+  `createHash` deliberately do not, because reading the platform CSPRNG is the
+  correct act at a dozen sites that are not cryptographic trade-offs. A
+  hand-rolled construction that avoids all four patterns owes nothing to the
+  gate and everything to the reviewer.
 - **`deriveKek` accepts exactly one purpose** (`'item-wrap'`). Adding a second
   is a one-line union widening, but every purpose is a new domain-separated key
   and therefore a new thing to rotate.

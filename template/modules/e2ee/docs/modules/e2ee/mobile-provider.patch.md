@@ -127,6 +127,19 @@ file is write-guard-protected.
 
 ## 3. The `CryptoProvider` (`apps/mobile/src/host/crypto-provider.ts`)
 
+**The path is not incidental.** `apps/*/src/host/**` is one of the two
+sanctioned homes for `crypto-primitives-one-door` — the ESLint rule that keeps
+application code away from `crypto.subtle` and from `node:crypto`'s cipher/KDF
+surface, so primitives arrive only through the injected port. The other home is
+`packages/platform/crypto/src/**`. Put this file anywhere else and lint reds,
+which is the rule working: a second primitive door is a second envelope format
+nobody reviewed.
+
+The same directory is the ONLY scope (with the crypto package) where
+`no-insecure-random-in-crypto-scope` applies — `Math.random` is an error here
+whatever it is nominally computing, **tests included**, because a fixture key
+from `Math.random` is how a weak key reaches a snapshot and then a copy-paste.
+
 Against the port signatures exactly: `randomBytes`, `aeadSeal`, `aeadOpen`,
 `hkdfSha256`. Note the two non-obvious lines.
 
@@ -293,9 +306,14 @@ const kek = await deriveKek(nativeCryptoProvider, rootKey, 'item-wrap')
 ```
 
 Mint it **once**, from the platform CSPRNG, and never from a passphrase, a user
-id, a timestamp, or `Math.random()`. A second mint for a user who already has
-rows is not a reset — it is silent, permanent data loss for every row sealed
-under the first key.
+id, a timestamp, or `Math.random` — which is lint-refused in this directory and
+write-guard-refused as an assignment into a key-shaped name
+(`math-random-key-material`), on top of not being a CSPRNG on any engine. Never
+from a literal either: a 64-hex string assigned into a key-shaped name is denied
+by `hardcoded-key-material`, because a fixture key is one copy-paste from a
+production constant. A second mint for a user who already has rows is not a
+reset — it is silent, permanent data loss for every row sealed under the first
+key.
 
 ## 5. Import the Metro-safe barrel, always
 

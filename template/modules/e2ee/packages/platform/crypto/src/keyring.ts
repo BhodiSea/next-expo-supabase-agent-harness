@@ -99,6 +99,18 @@ export async function openItem(
   sealed: { envelope: Uint8Array; wrappedDek: Uint8Array },
   ctx: KeyContext,
 ): Promise<CryptoResult<Uint8Array>> {
+  // The crypto-shred tombstone, read BEFORE the decoder so it gets its own
+  // answer. A `*_wrapped_dek bytea NOT NULL` column cannot be nulled, so erasing
+  // a row's key means overwriting it with zero bytes — and the decoder would
+  // report that as `envelope_malformed`, which is indistinguishable from
+  // corruption. A shredded row is not damaged; it is deliberately unreadable,
+  // and a screen should be able to say so.
+  if (sealed.wrappedDek.length === 0) {
+    return cryptoErr(
+      'key_missing',
+      'the wrapped DEK is a zero-length tombstone — this row was crypto-shredded and no key can open it again',
+    )
+  }
   const wrapped = decodeEnvelope(sealed.wrappedDek)
   if (!wrapped.ok) return wrapped
   const dek = await provider.aeadOpen({
