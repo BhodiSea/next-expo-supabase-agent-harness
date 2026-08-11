@@ -69,16 +69,36 @@ describe('decode refusals, each with its own reason', () => {
 })
 
 describe('buildAad', () => {
-  const ctx = { userId: 'u1', table: 'notes', itemId: 'n1' }
+  const ctx = { userId: 'u1', table: 'notes', itemId: 'n1', field: 'body' }
 
   it('binds role: an item AAD and a DEK AAD for the same row differ', () => {
     expect([...buildAad(AAD_ROLE_ITEM, ctx)]).not.toEqual([...buildAad(AAD_ROLE_DEK, ctx)])
   })
 
-  it('is injective across field boundaries — NUL separation, not a printable join', () => {
-    // With a printable separator these two identities would encode identically.
-    const a = buildAad(AAD_ROLE_ITEM, { userId: 'u1', table: 'no', itemId: 'tes' })
-    const b = buildAad(AAD_ROLE_ITEM, { userId: 'u1', table: 'not', itemId: 'es' })
-    expect([...a]).not.toEqual([...b])
+  it('separates fields by LENGTH, so no content can be mistaken for a boundary', () => {
+    const aad = (userId: string, table: string, itemId: string, field = 'body') =>
+      [...buildAad(AAD_ROLE_ITEM, { userId, table, itemId, field })].join(',')
+
+    // A boundary shift — the case a no-separator scheme misses entirely.
+    expect(aad('u1', 'no', 'tes')).not.toBe(aad('u1', 'not', 'es'))
+    // An embedded NUL — the case a NUL-SEPARATED scheme misses, and this
+    // package's previous encoding did.
+    expect(aad('u1', 'notes', 'a\u0000b')).not.toBe(aad('u1', 'notes\u0000a', 'b'))
+    // The field, which separates two encrypted columns of one row.
+    expect(aad('u1', 'notes', 'n1', 'title')).not.toBe(aad('u1', 'notes', 'n1', 'body'))
+  })
+
+  it('does NOT distinguish a lone surrogate from U+FFFD — the stated residual', () => {
+    // Asserted so the limit is a fact under test rather than a footnote that
+    // rots. UTF-8 has no encoding for an unpaired surrogate, so TextEncoder
+    // emits the replacement character for it; that collision is in the ENCODING,
+    // and no framing can undo it. Harmless for UUID primary keys; it is the
+    // reason the docs tell consumers to build `itemId` from real column values
+    // rather than from anything user-supplied.
+    const aad = (itemId: string) =>
+      [...buildAad(AAD_ROLE_ITEM, { userId: 'u1', table: 'notes', itemId, field: 'body' })].join(
+        ',',
+      )
+    expect(aad('\uD800')).toBe(aad('\uFFFD'))
   })
 })

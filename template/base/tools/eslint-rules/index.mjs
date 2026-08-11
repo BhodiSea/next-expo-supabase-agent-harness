@@ -456,10 +456,19 @@ const rules = {
       return {
         Program() {
           for (const comment of context.sourceCode.getAllComments()) {
-            if (!DIRECTIVE.test(comment.value)) continue
-            if (comment.value.includes('no-suppressed-complexity')) {
+            const directive = DIRECTIVE.exec(comment.value)
+            if (directive === null) continue
+            // A rule-LESS `eslint-disable` is deliberately NOT reported here, and
+            // the attempt is worth recording: ESLint applies a rule-less directive
+            // to every rule id, INCLUDING this one, so the report is filtered
+            // before it surfaces (proven against the real Linter — the case
+            // produced zero errors). A check cannot police the directive that
+            // switches the checker off; that needs a scanner outside ESLint, which
+            // is the suppressions census the register schedules for 0.10.0.
+            const named = comment.value.slice(directive[0].length).trim()
+            if (named.includes('no-suppressed-complexity')) {
               context.report({ loc: comment.loc, messageId: 'stacked' })
-            } else if (comment.value.includes('sonarjs/cognitive-complexity')) {
+            } else if (named.includes('sonarjs/cognitive-complexity')) {
               context.report({ loc: comment.loc, messageId: 'suppressed' })
             }
           }
@@ -508,11 +517,16 @@ const rules = {
           return node.property.value
         return null
       }
+      // `process` OR `globalThis.process` — the second spelling reads identically
+      // at runtime and slipped past the first draft entirely.
+      const isProcessRef = (node) =>
+        (node.type === 'Identifier' && node.name === 'process') ||
+        (node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          node.object.name === 'globalThis' &&
+          propName(node) === 'process')
       const isProcessEnv = (node) =>
-        node.type === 'MemberExpression' &&
-        node.object.type === 'Identifier' &&
-        node.object.name === 'process' &&
-        propName(node) === 'env'
+        node.type === 'MemberExpression' && isProcessRef(node.object) && propName(node) === 'env'
       return {
         MemberExpression(node) {
           if (!isProcessEnv(node)) return

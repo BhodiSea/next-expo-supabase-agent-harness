@@ -34,6 +34,27 @@ export const ANATOMY_LAWS = new Set([
 ])
 
 const SCAN_EXCLUDES = new Set(['node_modules', 'dist', 'coverage', '.turbo'])
+/**
+ * True when `spec`, resolved against the domain file at `rel`, stays inside the
+ * domain directory. POSIX-only join/normalise — the specifiers here are module
+ * paths, never OS paths, so node:path would add a platform dependency for
+ * nothing (and would resolve '\\' on win32, which a module specifier never means).
+ */
+function isContained(rel, spec) {
+  const parts = `${rel.split('/').slice(0, -1).join('/')}/${spec}`.split('/')
+  const out = []
+  for (const part of parts) {
+    if (part === '' || part === '.') continue
+    if (part === '..') {
+      if (out.length === 0) return false // climbed above src/domain/
+      out.pop()
+      continue
+    }
+    out.push(part)
+  }
+  return true
+}
+
 const isTest = (rel) => /\.test\.tsx?$/.test(rel) || /(^|\/)__tests__\//.test(rel)
 
 // Every import specifier a file names, in any form: static import/export-from,
@@ -89,8 +110,9 @@ function readBlanked(path) {
 
 function scanBarrels(dir, name, findings, counted) {
   let pkg = null
+  const manifestName = ['package.json', 'package.json.tmpl'].find((n) => existsSync(join(dir, n)))
   try {
-    pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+    pkg = JSON.parse(readFileSync(join(dir, manifestName ?? 'package.json'), 'utf8'))
   } catch {
     findings.push({
       package: name,
@@ -144,10 +166,20 @@ function scanDomain(dir, name, findings, counted) {
     counted.n += 1
     const blanked = readBlanked(join(domainDir, rel))
     for (const { spec, index } of importSpecifiers(blanked)) {
+      // `!spec.startsWith('../')` was the whole containment test, and './../x'
+      // walks straight past it — one character, and the law evaporates. Normalise
+      // the path instead: any specifier that climbs OUT of src/domain/ is not a
+      // sibling, however it is spelled. zod subpaths ('zod/v4') and contracts
+      // subpaths are legitimate; exact-match was noise.
+      const relative = spec.startsWith('.')
+      const escapes = relative && !isContained(rel, spec)
       const ok =
-        spec === 'zod' ||
-        spec === '@app/contracts' ||
-        (spec.startsWith('./') && !spec.startsWith('../'))
+        (!relative &&
+          (spec === 'zod' ||
+            spec.startsWith('zod/') ||
+            spec === '@app/contracts' ||
+            spec.startsWith('@app/contracts/'))) ||
+        (relative && !escapes)
       if (!ok) {
         findings.push({
           package: name,
@@ -210,7 +242,11 @@ function scanSelectStar(dir, name, findings) {
   for (const rel of walkFiles(srcDir, { excludeDirs: SCAN_EXCLUDES })) {
     if (!/\.tsx?$/.test(rel) || isTest(rel)) continue
     const blanked = readBlanked(join(srcDir, rel))
-    const m = blanked.match(/\.select\(\s*(['"`])\*\1\s*\)/)
+    // `'*'` AND `'*, author(*)'`: PostgREST's embed form is the common spelling
+    // and is still a star projection of the base table. Anchored on the opening
+    // quote followed by `*`, so `select('id, *')`-style column lists that merely
+    // CONTAIN a star elsewhere are not the subject.
+    const m = blanked.match(/\.select\(\s*(['"`])\s*\*/)
     if (m) {
       findings.push({
         package: name,
@@ -234,11 +270,18 @@ export function scanVerticalAnatomy({ packagesDir = 'packages' } = {}) {
   if (!existsSync(root)) return { verticals, filesScanned: 0, findings }
   for (const entry of readdirSync(root).sort()) {
     const dir = join(root, entry)
-    if (!statSync(dir).isDirectory() || !existsSync(join(dir, 'package.json'))) continue
+    // `package.json.tmpl` too: the harness's OWN template stores manifests with
+    // that suffix, so scanning only `package.json` meant the laws never ran
+    // against the very vertical they were derived from — the scan reported zero
+    // verticals on the template tree and the anti-vacuity floor cannot fire when
+    // the count is zero. A rendered scaffold was the only place this ever ran.
+    if (!statSync(dir).isDirectory()) continue
+    const manifest = ['package.json', 'package.json.tmpl'].find((n) => existsSync(join(dir, n)))
+    if (manifest === undefined) continue
     verticals += 1
     let name = entry
     try {
-      name = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name ?? entry
+      name = JSON.parse(readFileSync(join(dir, manifest), 'utf8')).name ?? entry
     } catch {
       /* scanBarrels reports the unreadable manifest */
     }

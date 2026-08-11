@@ -303,6 +303,10 @@ if (RuleTester === null) {
             { messageId: 'stacked' },
           ],
         },
+        // NOTE: a rule-LESS `/* eslint-disable */` is deliberately absent from
+        // this list. ESLint applies it to every rule id including this one, so
+        // the report never surfaces — verified against the real Linter. The rule
+        // header says so, and the backstop is the 0.10.0 suppressions census.
       ],
     })
   })
@@ -319,6 +323,7 @@ if (RuleTester === null) {
         'const t = optionalServerEnv.UPSTASH_REDIS_REST_TOKEN',
         // Another object's env property is not the process environment.
         'const e = config.env.MODE',
+        'const url = globalThis.process.env.NEXT_PUBLIC_SUPABASE_URL',
       ],
       invalid: [
         // The exact defect the obligations row recorded: a server secret read off
@@ -335,6 +340,9 @@ if (RuleTester === null) {
         { code: 'const keys = Object.keys(process.env)', errors: [{ messageId: 'bareEnv' }] },
         // The bracket spelling of `env` itself is the same read, not an escape.
         { code: 'const t = process["env"].APP_VERSION', errors: [{ messageId: 'rawRead' }] },
+        // …and neither is reaching it through globalThis.
+        { code: 'const t = globalThis.process.env.APP_VERSION', errors: [{ messageId: 'rawRead' }] },
+        { code: 'const all = { ...globalThis.process.env }', errors: [{ messageId: 'bareEnv' }] },
       ],
     })
   })

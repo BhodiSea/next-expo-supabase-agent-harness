@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { CryptoProvider } from './ports.js'
 import { createWebCryptoProvider } from './webcrypto-provider.js'
 
 // AES-256-GCM known-answer vectors — test cases 13, 14, 15 and 16 of the GCM specification's validation set (the same set NIST CAVP exercises). ct/tag are held SEPARATELY and the tests assert seal output equals ct||tag byte-exactly: a provider that computes the wrong tag, truncates it, or reorders the concatenation fails the vector, not just a roundtrip. tc15 and tc16 share a key and IV and differ only in the last 4 plaintext bytes and the presence of AAD, which makes them the pair that catches an AAD silently dropped — and, during authoring, caught tc15's answer pasted under tc16's inputs. SOURCE: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf [corpus: nist/sp800-38d-gcm]
@@ -77,8 +78,12 @@ const hex = (s: string): Uint8Array => {
 }
 const toHex = (b: Uint8Array): string => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
 
-const provider = createWebCryptoProvider()
-if (provider === null) throw new Error('vitest runs on Node >= 22 — WebCrypto must exist here')
+// Bound through a second const so the null-check NARROWS for the helper
+// functions below too: TypeScript does not carry a module-scope narrowing into a
+// hoisted function body, since it cannot prove call order.
+const maybeProvider = createWebCryptoProvider()
+if (maybeProvider === null) throw new Error('vitest runs on Node >= 22 — WebCrypto must exist here')
+const provider: CryptoProvider = maybeProvider
 
 // Flip one bit of a COPY. `bytes[i] ^= 1` cannot be written under
 // noUncheckedIndexedAccess (the READ is `number | undefined`), and reaching for `!`
@@ -119,6 +124,9 @@ describe('aeadSeal / aeadOpen against the published AES-256-GCM vectors', () => 
         plaintext: hex(v.plaintext),
         aad: hex(v.aad),
       })
+      // aeadSeal refuses (null) rather than throwing on a key the engine rejects;
+      // a vector must never take that path, so a null here is a real failure.
+      if (sealed === null) throw new Error(`${v.name}: aeadSeal refused a published vector`)
       expect(toHex(sealed)).toBe(v.ciphertext + v.tag)
     })
 
@@ -184,6 +192,7 @@ describe('hkdfSha256 against RFC 5869 appendix A', () => {
         info: hex(v.info),
         length: v.length,
       })
+      if (okm === null) throw new Error(`${v.name}: hkdfSha256 refused a published vector`)
       expect(toHex(okm)).toBe(v.okm)
     })
   }

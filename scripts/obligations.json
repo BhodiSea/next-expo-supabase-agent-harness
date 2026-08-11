@@ -175,6 +175,48 @@
       "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
     },
     {
+      "id": "vertical-anatomy-folder-name-coupling",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/lib/vertical-anatomy.mjs",
+          "mustContain": "src/data"
+        }
+      ],
+      "reason": "The DAL laws (port-presence, dal-client-value-import) and events-purity are keyed on DIRECTORY NAMES — src/data/, src/events.ts — so a vertical that names its data layer src/repo/ satisfies them by construction: an adversarial review put a module-scope createClient with a service-role key in packages/verticals/sneaky/src/repo/ and the scan reported zero findings. The laws that read a WHOLE tree (domain purity is scoped the same way; select-star and the barrels are not) are the ones with teeth. Condition rather than dated: closing it means either mandating the anatomy by name (the directory-shaped proxy metric this gate's own header rejects) or deriving the data layer from the port's import graph, which is a design decision. The architecture-reviewer's trigger covers packages/*/src/** whatever the folder is called, which is the compensating control today.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/lib/vertical-anatomy.mjs"
+    },
+    {
+      "id": "crypto-one-door-namespace-imports",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/eslint-rules/index.mjs",
+          "mustContain": "crypto-primitives-one-door"
+        }
+      ],
+      "reason": "crypto-primitives-one-door matches a `crypto.subtle` member chain and NAMED cipher imports, and an adversarial review showed it misses the namespace routes: `import { webcrypto } from 'node:crypto'` then webcrypto.subtle.*, a default or `* as` import used as nodeCrypto.createCipheriv(...), and `const c = require('node:crypto')` followed by c.createCipheriv(...). Each needs binding-level tracking (which local names alias the module) rather than the single-node test the rule does now, and a half-tracked version would red honest code. The compensating controls are the mobile cipher-library one-door, the weak-crypto-algorithm write-guard, and the security reviewers on the crypto trigger paths.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/eslint-rules/index.mjs"
+    },
+    {
+      "id": "exports-walls-module-name-validation",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/check-exports-walls.mjs",
+          "mustContain": "providedBy"
+        }
+      ],
+      "reason": "A census entry's `module` value is validated as a non-empty string and never against the real module set, so a typo'd module name parks the stale arm PERMANENTLY dormant while the entry still pre-authorises a ./client barrel and a mobile runtime dependency — the silent widening the stale arm exists to prevent. The module list is canonical and readable (installer/lib/layout.mjs MODULES, template/modules/*), but the gate ships to consumers where neither path is guaranteed present, so the check needs a shipped list rather than a factory import. Condition until that list has a home.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/check-exports-walls.mjs"
+    },
+    {
       "id": "architecture-reviewer-apps-widening",
       "kind": "condition",
       "target": null,

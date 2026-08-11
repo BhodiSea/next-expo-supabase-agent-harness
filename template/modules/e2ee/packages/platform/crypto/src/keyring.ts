@@ -50,13 +50,20 @@ export async function deriveKek(
   provider: CryptoProvider,
   rootKey: Uint8Array,
   purpose: KekPurpose,
-): Promise<Uint8Array> {
-  return provider.hkdfSha256({
+): Promise<CryptoResult<Uint8Array>> {
+  const kek = await provider.hkdfSha256({
     ikm: rootKey,
     salt: HKDF_ZERO_SALT,
     info: new TextEncoder().encode(`app-e2ee/v${String(ENVELOPE_VERSION)}/${purpose}`),
     length: KEY_BYTES,
   })
+  // A refusing engine is a NAMED refusal, not a rejected promise: these two
+  // entry points returned bare values until an adversarial review pointed out
+  // that neither could express failure, so any provider error escaped the
+  // package as a throw — through the exact seam result.ts exists to close.
+  return kek === null
+    ? cryptoErr('keystore_unavailable', 'the crypto engine refused to derive a key')
+    : cryptoOk(kek)
 }
 
 export interface SealedItem {
@@ -71,7 +78,7 @@ export async function sealItem(
   kek: Uint8Array,
   plaintext: Uint8Array,
   ctx: KeyContext,
-): Promise<SealedItem> {
+): Promise<CryptoResult<SealedItem>> {
   const dek = provider.randomBytes(KEY_BYTES)
   const itemIv = provider.randomBytes(GCM_IV_BYTES)
   const itemCt = await provider.aeadSeal({
@@ -80,6 +87,9 @@ export async function sealItem(
     plaintext,
     aad: buildAad(AAD_ROLE_ITEM, ctx),
   })
+  if (itemCt === null) {
+    return cryptoErr('keystore_unavailable', 'the crypto engine refused to seal the item')
+  }
   const wrapIv = provider.randomBytes(GCM_IV_BYTES)
   const wrappedCt = await provider.aeadSeal({
     key: kek,
@@ -87,7 +97,16 @@ export async function sealItem(
     plaintext: dek,
     aad: buildAad(AAD_ROLE_DEK, ctx),
   })
-  return {
+  if (wrappedCt === null) {
+    // The KEK is the caller's; a refusal here is almost always a wrong-length
+    // key, which the provider checks precisely so this is a reason and not a
+    // silently AES-128 envelope claiming to be AES-256.
+    return cryptoErr(
+      'key_missing',
+      'the crypto engine refused to wrap the item key (is the KEK 32 bytes?)',
+    )
+  }
+  return cryptoOk({
     envelope: encodeEnvelope({ v: ENVELOPE_VERSION, alg: ALG_AES_256_GCM, iv: itemIv, ct: itemCt }),
     wrappedDek: encodeEnvelope({
       v: ENVELOPE_VERSION,
@@ -95,7 +114,7 @@ export async function sealItem(
       iv: wrapIv,
       ct: wrappedCt,
     }),
-  }
+  })
 }
 
 export async function openItem(

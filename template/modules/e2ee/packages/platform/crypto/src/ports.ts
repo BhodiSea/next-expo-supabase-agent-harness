@@ -24,13 +24,19 @@
 export interface CryptoProvider {
   /** Cryptographically secure random bytes — a platform CSPRNG, never Math.random. */
   randomBytes(length: number): Uint8Array
-  /** AES-256-GCM seal: returns ciphertext ‖ 16-byte tag. iv MUST be 12 bytes and NEVER reused per key. */
+  /**
+   * AES-256-GCM seal: ciphertext ‖ 16-byte tag, or NULL when the engine refuses
+   * (a key that is not 32 bytes, an engine without AES-GCM). Never throws — an
+   * adversarial review found a wrong-length key rejecting out of the package
+   * through a `sealItem` that had no way to express failure.
+   * The iv MUST be 12 bytes and MUST NEVER repeat under one key.
+   */
   aeadSeal(args: {
     key: Uint8Array
     iv: Uint8Array
     plaintext: Uint8Array
     aad: Uint8Array
-  }): Promise<Uint8Array>
+  }): Promise<Uint8Array | null>
   /** AES-256-GCM open: null on ANY authentication failure — never throws. */
   aeadOpen(args: {
     key: Uint8Array
@@ -38,13 +44,17 @@ export interface CryptoProvider {
     ciphertext: Uint8Array
     aad: Uint8Array
   }): Promise<Uint8Array | null>
-  /** HKDF-SHA-256 (extract + expand). SOURCE: https://www.rfc-editor.org/rfc/rfc5869 [corpus: ietf/rfc5869-hkdf] */
+  /**
+   * HKDF-SHA-256 (extract + expand), or NULL when the engine refuses. Never
+   * throws, for the same reason as aeadSeal above.
+   * SOURCE: https://www.rfc-editor.org/rfc/rfc5869 [corpus: ietf/rfc5869-hkdf]
+   */
   hkdfSha256(args: {
     ikm: Uint8Array
     salt: Uint8Array
     info: Uint8Array
     length: number
-  }): Promise<Uint8Array>
+  }): Promise<Uint8Array | null>
 }
 
 /**

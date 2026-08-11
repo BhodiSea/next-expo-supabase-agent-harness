@@ -93,9 +93,8 @@ export function decodeEnvelope(bytes: Uint8Array): CryptoResult<Envelope> {
 // wrong place — confidentiality alone does not stop a copy-paste attack
 // inside the same key's reach. The AAD binds: version byte, alg byte, a ROLE
 // byte (an item ciphertext and a wrapped DEK must never authenticate in each
-// other's slot), and the row identity as NUL-separated UTF-8 — NUL because a
-// join character that can appear inside a field ('/' can appear in an id)
-// would make two different identities encode identically.
+// other's slot), and the FULL identity — user, table, item and FIELD — each
+// length-prefixed, so no field's own content can be mistaken for a boundary.
 // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 §2.1 (associated data binds
 // context) [corpus: ietf/rfc5116-aead]
 
@@ -103,6 +102,16 @@ export interface KeyContext {
   readonly userId: string
   readonly table: string
   readonly itemId: string
+  /**
+   * The COLUMN this ciphertext belongs to. Load-bearing, and added after an
+   * adversarial review demonstrated the gap: a row with two encrypted columns
+   * sealed both under the same {userId, table, itemId}, so their AADs were
+   * byte-identical and a database operator could copy `title` into `body` and
+   * have the client render it as authentic. This field is what makes "a moved
+   * ciphertext fails authentication" true for a move WITHIN a row, not only
+   * across rows.
+   */
+  readonly field: string
 }
 
 export const AAD_ROLE_ITEM = 0x00
@@ -120,11 +129,33 @@ export function buildAad(
   role: typeof AAD_ROLE_ITEM | typeof AAD_ROLE_DEK,
   ctx: KeyContext,
 ): Uint8Array {
-  const identity = new TextEncoder().encode(`${ctx.userId}\u0000${ctx.table}\u0000${ctx.itemId}`)
-  const out = new Uint8Array(3 + identity.length)
+  // LENGTH-PREFIXED, not separator-joined. A NUL separator is injective only
+  // while no field can CONTAIN a NUL — and an adversarial review demonstrated
+  // both halves of that failing: an embedded NUL re-split the identity (u1 /
+  // 'notes' / 'a<NUL>b' collided with u1 / 'notes<NUL>a' / 'b'), and TextEncoder maps
+  // every unpaired surrogate to the same U+FFFD, so distinct itemIds collided
+  // too. A 4-byte big-endian length before each field removes every collision
+  // the FRAMING can cause, which is what this section already claimed. It does
+  // not remove the one the ENCODING causes: UTF-8 has no representation for an
+  // unpaired surrogate, so TextEncoder emits U+FFFD and a lone surrogate is
+  // indistinguishable from a literal replacement character. That residual is
+  // asserted in envelope.test.ts rather than left as a footnote, and it is why
+  // itemId should be built from real column values (a UUID primary key is
+  // unaffected) rather than from anything user-supplied.
+  const enc = new TextEncoder()
+  const parts = [ctx.userId, ctx.table, ctx.itemId, ctx.field].map((f) => enc.encode(f))
+  const out = new Uint8Array(3 + parts.reduce((n, part) => n + 4 + part.length, 0))
   out[0] = ENVELOPE_VERSION
   out[1] = ALG_AES_256_GCM
   out[2] = role
-  out.set(identity, 3)
+  let at = 3
+  for (const part of parts) {
+    out[at] = (part.length >>> 24) & 0xff
+    out[at + 1] = (part.length >>> 16) & 0xff
+    out[at + 2] = (part.length >>> 8) & 0xff
+    out[at + 3] = part.length & 0xff
+    out.set(part, at + 4)
+    at += 4 + part.length
+  }
   return out
 }

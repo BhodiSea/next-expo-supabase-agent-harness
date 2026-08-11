@@ -101,12 +101,22 @@ its dated row.
   `e.stderr?.toString() ?? e.message` had two holes: `''` is not nullish, so a
   tool that wrote nothing to stderr produced an EMPTY failure detail, and stdout
   — where expo, pnpm and playwright diagnose — was dropped entirely.
-- **`tools/store-policy.json` was classified `owned`** while
-  `check-expo-policy`'s own failure text tells the consumer to edit it: the
-  harness demanded an edit, hash-pinned the file, and reverted it on the next
-  `update`. Wrong since 0.1.2 and made acute by the rails, since an app shipping
-  real cryptography must set `iosEncryption` with a reason. Now seeded and
-  escape-listed, like every comparable reviewed-data file.
+- **The first `git commit` of a fresh scaffold**, for anyone following the
+  documented order (`git init` → `pnpm install` → commit — the order that arms
+  lefthook). gitleaks refused it, naming six findings in the harness's own
+  `tools/secret-patterns.json`: the synthetic `positive` fixtures whose entire
+  job is to prove each pattern still matches something. The two policies were
+  already in rule-id lockstep; their allowlists never were. CI never saw it
+  because CI commits before installing. Probing the fix also corrected two false
+  claims in that config — a `paths` entry exempts a whole FILE (the AVD block's
+  "scoped to the one shape" was never true), and the keyword is `matchCondition`,
+  not `condition`, which parses silently and does nothing. Both now stated
+  honestly, with the compensating control named: `check-secrets` scans both files
+  with no path exemption.
+- **Shipped template bytes now survive their own `format` step.** Ten
+  harness-owned `tools/` files were not biome-formatted, so a fresh scaffold's
+  first `validate` rewrote them and the SECOND run red `gate-integrity` with ten
+  sha mismatches on a tree nobody had touched.
 - **A crypto-shredded row reads as shredded**, not corrupt: a zero-length
   wrapped DEK (the `NOT NULL` column cannot be nulled) answers `key_missing`
   rather than `envelope_malformed`.
@@ -132,6 +142,14 @@ its dated row.
 - **Narrowed:** `vuln-sla-and-factory-sca` → `vuln-response-sla`. The SCA half
   shipped; the SLA half is a maintainer-capacity commitment nobody should date
   on someone else's behalf.
+- **Recorded rather than half-fixed:** `store-policy-consumer-tunable-split`.
+  `tools/store-policy.json` holds a harness FLOOR the harness must keep shipping
+  (`iosToolchain`) and a consumer TUNABLE (`iosEncryption`, which the gate's own
+  failure text tells the consumer to set) in one file, so `owned` calls the
+  demanded edit tampering and `seeded` stops delivering the floor. This release
+  tried the seeded flip; upgrade-lane leg E caught the other half within one run
+  (a v0.3.0 install redding both `version-sync` and `docs-sync`) and it was
+  reverted. Same shape and same remedy as `auth-posture-consumer-tunable-split`.
 - **Opened:** three ramp-expiry rows (`boundaries-vertical-anatomy`,
   `docs-sync-agent-surface` at 0.10.0; `docs-sync-adr-shape` at 0.11.0) and two
   condition rows (`architecture-reviewer-apps-widening`,
