@@ -84,6 +84,21 @@ const DELIBERATE_PLANT = [
       "readAllowlist() treats an ABSENT allowlist as an EMPTY one, and an empty allowlist reds every chrome page — so check-web-routes.mjs fails closed without it, and the seeded-migrations rule says plant. Identical reasoning to approved-tools.json above, and the same seeded-not-owned choice for the same reason: the gate's failure message asks the consumer to add a row, and sha-pinning a file you are told to edit calls that edit tampering. The registry it guards (apps/web/lib/routes.generated.ts, the page.meta.ts files, app/not-found.tsx) is WITHHELD in the same release, so on an un-adopted install this file is data the gate reads and finds nothing to exempt — which is the correct empty state, not a bypass.",
   },
   {
+    file: 'template/base/tools/vertical-anatomy-allow.json',
+    reason:
+      'The vertical-anatomy escape (boundaries part 3, 0.9.5). check-workspace-deps treats an ABSENT allow-file as an EMPTY allowlist — a deliberate absence tolerance, because pre-0.9.5 installs meet the laws as ramped NOTEs and must not red on a missing file the release never delivered. Planted anyway, per the escape-file convention (approved-tools.json, web-route-allowlist.json): the gate’s failure text asks the consumer to add a reviewed {package, law, reason} entry, and a consumer should edit a planted skeleton with its schema in the comment rather than reconstruct one from a failure message. Seeded not owned for the standard reason: sha-pinning a file you are told to edit calls the edit tampering.',
+  },
+  {
+    file: 'template/stack/packages/platform/env/src/optional.ts',
+    reason:
+      'The optional server section of the env register (0.9.5, the env-register-gate discharge). PLANT, because the 0.9.5 seededSourceFixes entry instructs existing installs to route the seeded rate-limit runtime and the tRPC route through @app/env/optional — an instruction that is only applicable if the module it imports exists. The file is a contract (four optional schema lines + the both-or-neither pair invariant), names nothing project-specific, and `update` plants seeded files only when ABSENT, so a consumer who already built their own optional section keeps it untouched.',
+  },
+  {
+    file: 'template/stack/packages/platform/env/src/optional.test.ts',
+    reason:
+      'The red-proofs for optional.ts above — the pair moves together or the planted module lands unproven (imports only ./optional.js + vitest, so it runs green on any install regardless of whether the package.json export line from the same source-fix has been applied yet).',
+  },
+  {
     file: 'template/base/SECURITY.md',
     reason:
       "PLANT, and the reasoning is the inverse of every entry above it: no gate reads this file, so there is no fail-closed argument — the argument is that an existing install has nothing to lose and something to gain. `update` plants a seeded file only when it is ABSENT, so a project that already wrote its own coordinated-disclosure policy keeps it untouched, and a project with none gets one with its placeholders already rendered from the manifest. Withholding it instead would leave the CRA Art. 14 enablement (from 2026-09-11, and the obligation is the CONSUMER'S — this repo is out of scope as unmonetised FOSS; see design/CONFORMANCE-FACTS.md §4) reaching only new scaffolds, which is the population least likely to be shipping commercially yet. It carries no dated field of its own on purpose: security.txt's mandatory RFC 9116 `Expires` is a reviewer-supplied date in a seeded file, which is exactly the off-switch shape 0.6.0 removed from framework-floor.json, and it is deferred until it ships with a bound.",
@@ -103,8 +118,12 @@ const DELIBERATE_PLANT = [
     reason:
       'adapters/live.ts imports `../providers.js` and that module did not exist: the module did not compile. This is a repair to a shipped package, so every install with eval-live enabled needs it — withholding it would leave the import dangling exactly as it is today.',
   },
+  {
+    file: 'template/modules/e2ee/packages/platform/crypto/',
+    reason:
+      "The e2ee module's whole payload (@app/crypto: the envelope, keyring, ports, the WebCrypto provider, and their vectors and tests). PLANT, on the eval-live precedent above and for the same reason: `update` walks modules/<name> ONLY for modules the install's manifest lists, so a project that never enabled e2ee can never receive these — while a project that DID enable it must, and a seedOnInitOnly pattern would have withheld a later release's crypto fix from exactly the installs shipping cryptography. A directory entry rather than a file list because the package moves as a unit: the barrels, the keyring and the vectors are one contract, and half of it is not a smaller version of it.",
+  },
 ]
-
 // Every seedOnInitOnly pattern must name something the template ACTUALLY SHIPS.
 //
 // The field is a pure list read by a prefix/exact matcher, and both ways it can be
@@ -168,6 +187,33 @@ export function plantAllowlistProblems(allowlist) {
         `DELIBERATE_PLANT entry ${entry.file} carries no usable \`reason\` (the key is \`reason\`, not \`why\`, and it must say what the gate does when the file is ABSENT — that is the whole decision). Planting a file into every existing install is the act this list exists to make reviewable.`,
       )
     }
+    problems.push(...subtreeEntryProblems(entry.file))
+  }
+  return problems
+}
+
+/**
+ * A trailing-slash DELIBERATE_PLANT entry (0.9.5) approves a whole subtree, so it
+ * carries two extra bars: it must name a real directory (a typo'd subtree approves
+ * nothing while READING as approval), and it must not be a top-level tree, which
+ * would pre-approve every future addition beneath it — the review this list exists
+ * to force. Split out of plantAllowlistProblems for the harness's own ≤15
+ * cognitive-complexity ratchet: the release that makes that ceiling unsuppressable
+ * for consumers does not get to record an exemption for itself.
+ * @param {string} file
+ */
+function subtreeEntryProblems(file) {
+  if (!file.endsWith('/')) return []
+  const problems = []
+  if (!existsSync(join(ROOT, file))) {
+    problems.push(
+      `DELIBERATE_PLANT subtree entry ${file} names no directory in the template — a subtree that does not exist can never match, and a typo'd one silently approves nothing while reading as approval.`,
+    )
+  }
+  if (file.replace(/\/$/, '').split('/').length < 3) {
+    problems.push(
+      `DELIBERATE_PLANT subtree entry ${file} is too broad — a top-level tree would pre-approve every future addition beneath it. Name the package or module subtree the decision actually covers.`,
+    )
   }
   return problems
 }
@@ -312,7 +358,12 @@ export function findUnregisteredSeededAdditions({
     const mode = fileMode(installPath)
     if (mode === 'owned') continue // owned files are update's job to plant — that is the product
     if (matchSeedOnInitOnly(installPath, patterns)) continue // registered: update withholds it
-    if (allowed.has(raw)) continue // reviewed deliberate plant
+    // Reviewed deliberate plant: an exact path, or a trailing-slash SUBTREE entry
+    // (0.9.5). The subtree form exists for a module whose package moves as a unit —
+    // listing its files one by one means the next file added to that package
+    // silently misses the review this list exists to force.
+    if (allowed.has(raw)) continue
+    if ([...allowed].some((a) => a.endsWith('/') && raw.startsWith(a))) continue
     violations.push({ templatePath: raw, installPath, mode })
   }
   return violations

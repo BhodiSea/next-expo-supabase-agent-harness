@@ -1447,6 +1447,21 @@ jobs:
             baseline: v0.7.0
             dir: upgrade-0-7-0
             why: the newest vintage this release reds — the two 0.8.0-opened deadlines in isolation
+          # LEG I — the QUIET population (new at 0.9.5), and it is the leg-A property of the
+          # PREVIOUS release, watched one release later rather than retired. As leg A moves to
+          # v0.9.0, v0.8.0 stops being covered by any leg — and a v0.8.0 install is the one that
+          # meets ZERO expiries here (0 expired, 5 advisory NOTEs: the 0.9.0-opened lockfile and
+          # lefthook floors plus the three 0.9.5 opens), so `graduate` must REFUSE on NOTEs alone
+          # and say so. That is the half of the contract leg A cannot show once its own baseline
+          # is clean, and it is worth a lane rather than a classifier test because the refusal
+          # text is what a consumer actually reads.
+          # It also pre-stages 0.10.0: both 0.9.0-opened ramps carry minVersion 0.9.0, so they
+          # expire exactly for base < 0.9.0 — making v0.8.0 that release's HEADLINE population
+          # and this leg the one 0.10.0 inherits, already wired.
+          - leg: I
+            baseline: v0.8.0
+            dir: upgrade-0-8-0
+            why: the quiet vintage — zero expiries, five advisory NOTEs, graduate refuses on NOTEs alone
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

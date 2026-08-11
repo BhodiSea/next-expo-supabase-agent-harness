@@ -19,11 +19,22 @@
 //   5. The agent roster matches the docs' claim: every .claude/agents/*.md
 //      parses under the pinned frontmatter grammar (a parse failure is a RED,
 //      never a skip) and carries name (== filename), description, and model;
-//      the seven reviewer agents hold ONLY read-only tools and disallow
-//      Write + Edit — "read-only by construction" (README "The agent roster"),
-//      machine-asserted. Deliberately NOT version-ramped: the agent files are
-//      harness-OWNED, so the update that delivers this check refreshes the
-//      roster with it — only a hand-widened reviewer reds, and that is the point.
+//      the reviewer agents (REVIEWER_AGENTS) hold ONLY read-only tools and
+//      disallow Write + Edit — "read-only by construction" (README "The agent
+//      roster"), machine-asserted. Deliberately NOT version-ramped: the agent
+//      files are harness-OWNED, so the update that delivers this check
+//      refreshes the roster with it — only a hand-widened reviewer reds, and
+//      that is the point.
+//   3b/3c/3d (0.9.5). AGENTS.md's own line-budget sentence is checked for
+//      truth (a claims-check, not a size cap — no sentence, no check); the
+//      advertised-command closure extends from AGENTS.md into the bodies of
+//      .claude/{rules,commands,skills,agents} (ramped until 0.10.0 — skills
+//      may be consumer-authored); and every real ADR carries the template's
+//      load-bearing shape — Context / Decision / Consequences-or-Honest-losses
+//      / Sources each with a body, a Status in the closed vocabulary, corpus
+//      refs that resolve, and source hosts on the citation allowlist (ramped
+//      until 0.11.0 — a documentation debt cannot rot the tree meanwhile).
+//      No escape file for either: the remedy is always editing the doc.
 // This makes the release-time "update the docs" sweep MECHANICAL: change the
 // chain and this gate names exactly the lines to fix.
 // SOURCE: docs/harness/README.md (docs-sync gate) [corpus: harness/doctrine]
@@ -35,6 +46,7 @@ import {
   REVIEWER_READONLY_TOOLS,
   splitList,
 } from './lib/agent-roster.mjs'
+import { isAllowedCitationHost } from './lib/citation-domains.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import {
   cmpDotted,
@@ -155,6 +167,175 @@ const advertised = new Set(
 for (const cmd of advertised) {
   if (!(cmd in scripts) && !(`harness:${cmd}` in scripts)) {
     errs.push(`AGENTS.md advertises \`pnpm ${cmd}\` but package.json has no such script`)
+  }
+}
+
+// 3b + 3c. (0.9.5, ONE ramp until 0.10.0) Agent-surface truth.
+//     3b — AGENTS.md budget honesty: the file's header states its own line
+//     budget ("Keep under ~N lines"), and until 0.9.5 nothing read the claim —
+//     it sat at ~200 while the file was 328, a live false statement at the top
+//     of the most-read instruction file. A CLAIMS check, not a size cap: no
+//     sentence, no check (a fork may deliberately unbudget its memory file).
+//     3c — body command closure: check 3 held AGENTS.md's advertised commands
+//     to the tree; the bodies of .claude/{rules,commands,skills,agents} teach
+//     commands too, and the doctrine-symbols map (check 7) deliberately closed
+//     only a REVIEWED token set. These two grammars — backticked
+//     `pnpm <script>` and `node <path>.mjs` — cannot false-positive on prose,
+//     which is what clears the open-scanner objection recorded in
+//     tools/doctrine-symbols.json.
+//     ONE ramp for both, because both surfaces are SEEDED or consumer-authored:
+//     AGENTS.md keeps its pre-0.9.5 sentence on every existing install (update
+//     never rewrites seeded content — the gate-list escape's own recurring
+//     lesson), and .claude/skills may carry consumer bodies. A fresh scaffold
+//     is live from day one.
+{
+  const bodyFindings = []
+  const budgetClaim = agents.match(/Keep under ~(\d+) lines/)
+  if (budgetClaim !== null) {
+    const budget = Number(budgetClaim[1])
+    const lineCount = agents.trimEnd().split('\n').length
+    if (lineCount > budget) {
+      bodyFindings.push(
+        `AGENTS.md claims "Keep under ~${String(budget)} lines" but is ${String(lineCount)} lines — trim it, or restate the budget honestly; an instruction file whose first claim is false teaches agents that claims here are decorative`,
+      )
+    }
+  }
+  for (const surfaceDir of [
+    '.claude/rules',
+    '.claude/commands',
+    '.claude/agents',
+    '.claude/skills',
+  ]) {
+    if (!existsSync(surfaceDir)) continue
+    for (const rel of walkFiles(surfaceDir, { filter: (p) => p.endsWith('.md') })) {
+      const body = readFileSync(`${surfaceDir}/${rel}`, 'utf8')
+      for (const m of body.matchAll(/`pnpm ([a-z0-9:_-]+)`?/g)) {
+        if (PNPM_NATIVE.has(m[1])) continue
+        if (!(m[1] in scripts) && !(`harness:${m[1]}` in scripts)) {
+          bodyFindings.push(
+            `${surfaceDir}/${rel} advertises \`pnpm ${m[1]}\` but package.json has no such script`,
+          )
+        }
+      }
+      for (const m of body.matchAll(/`node ((?:tools|tests|\.claude)\/[^\s`]+\.mjs)/g)) {
+        if (!existsSync(m[1])) {
+          bodyFindings.push(
+            `${surfaceDir}/${rel} points at \`node ${m[1]}\` but no such file exists`,
+          )
+        }
+      }
+    }
+  }
+  if (bodyFindings.length > 0) {
+    if (
+      rampNote(GATE, '0.9.5', `${String(bodyFindings.length)} agent-surface command finding(s)`, {
+        until: '0.10.0',
+      })
+    ) {
+      for (const f of bodyFindings) console.log(`${GATE}: NOTE — ${f}`)
+    } else {
+      errs.push(...bodyFindings)
+    }
+  }
+}
+
+// 3d. (0.9.5, ramped until 0.11.0) ADR content shape. adr-guard holds ADR
+//     PRESENCE; nothing held content, so an empty file satisfied the control.
+//     The mechanical (non-judgment) slice: the load-bearing sections each with
+//     a real body, a Status in the closed vocabulary, corpus refs that
+//     resolve, bare source hosts on the citation allowlist. `## Honest losses`
+//     satisfies the consequences slot — it is this lineage's own evolution of
+//     that section, and three seeded ADRs carry it. `## Alternatives
+//     Considered` stays advisory on purpose: a shape gate that reds an honest
+//     "no alternative existed" teaches authors to fabricate alternatives. NO
+//     escape file — the remedy is always editing the ADR; an allowlist here
+//     would be a place to park unshaped ADRs forever.
+{
+  const ADR_DIR = 'docs/adr'
+  const adrFindings = []
+  if (existsSync(ADR_DIR)) {
+    let corpusIds = null
+    try {
+      const corpus = JSON.parse(readFileSync('tools/mcp/corpus/index.json', 'utf8'))
+      if (Array.isArray(corpus)) corpusIds = new Set(corpus.map((e) => e?.id).filter(Boolean))
+    } catch {
+      corpusIds = null // corpus integrity is the provenance gate's subject, not this one's
+    }
+    // Prefix match, deliberately: `## Decision 1 — the quota is a trigger` is
+    // legitimate multi-decision authorship (the seeded resource-limits ADR),
+    // and `## Context and constraints` is a title, not an evasion. The body
+    // floor below is what an empty heading cannot clear either way.
+    const sectionBody = (text, names) => {
+      for (const name of names) {
+        const m = text.match(new RegExp(`^## ${name}\\b[^\\n]*$`, 'm'))
+        if (m === null) continue
+        const start = (m.index ?? 0) + m[0].length
+        const next = text.slice(start).search(/^## /m)
+        return { name, body: next === -1 ? text.slice(start) : text.slice(start, start + next) }
+      }
+      return null
+    }
+    for (const rel of readdirSync(ADR_DIR).sort()) {
+      if (!rel.endsWith('.md') || rel === 'README.md' || rel.startsWith('0000')) continue
+      const text = readFileSync(`${ADR_DIR}/${rel}`, 'utf8')
+      const at = `${ADR_DIR}/${rel}`
+      if (!/\*\*Status:\*\*\s*(proposed|accepted|superseded)/i.test(text)) {
+        adrFindings.push(
+          `${at} has no \`**Status:**\` line in the closed vocabulary (Proposed | Accepted | Superseded …) — a record with no status cannot be superseded honestly`,
+        )
+      }
+      for (const names of [
+        ['Context'],
+        ['Decision'],
+        ['Consequences', 'Honest losses'],
+        ['Sources'],
+      ]) {
+        const section = sectionBody(text, names)
+        if (section === null) {
+          adrFindings.push(
+            `${at} lacks a \`## ${names[0]}\` section${names.length > 1 ? ` (or \`## ${names[1]}\`)` : ''}`,
+          )
+        } else if (section.body.replace(/\s/g, '').length < 40) {
+          adrFindings.push(
+            `${at} \`## ${section.name}\` body is under 40 characters — a heading with no substance is the empty file this check exists to end`,
+          )
+        }
+      }
+      const sources = sectionBody(text, ['Sources'])
+      if (sources !== null) {
+        for (const m of sources.body.matchAll(/\[corpus:\s*([^\]\s]+)\s*\]/g)) {
+          if (corpusIds !== null && !corpusIds.has(m[1])) {
+            adrFindings.push(
+              `${at} Sources cites \`[corpus: ${m[1]}]\` but tools/mcp/corpus/index.json has no such id`,
+            )
+          }
+        }
+        for (const m of sources.body.matchAll(/https?:\/\/[^\s)>`]+/g)) {
+          let host = null
+          try {
+            host = new URL(m[0]).host
+          } catch {
+            adrFindings.push(`${at} Sources carries an unparseable URL: ${m[0]}`)
+          }
+          if (host !== null && !isAllowedCitationHost(host)) {
+            adrFindings.push(
+              `${at} Sources cites host '${host}', which is not on the tools/lib/citation-domains.mjs allowlist — pin the authority in the corpus instead`,
+            )
+          }
+        }
+      }
+    }
+  }
+  if (adrFindings.length > 0) {
+    if (
+      rampNote(GATE, '0.9.5', `${String(adrFindings.length)} ADR shape finding(s)`, {
+        until: '0.11.0',
+      })
+    ) {
+      for (const f of adrFindings) console.log(`${GATE}: NOTE — ${f}`)
+    } else {
+      errs.push(...adrFindings)
+    }
   }
 }
 

@@ -51,6 +51,37 @@ const BUILTIN_DECISION_GROUPS = [
     description: 'Tuning constants — retry, timeout, rate-limit, backoff values',
     patterns: [/maxRetries/, /timeoutMs/, /rateLimit/, /backoff/],
   },
+  {
+    // 0.9.5, with the e2ee rails. Before it, a cryptographic decision site had no
+    // citation CLASS to resolve against: an AEAD choice, an IV length or a KDF
+    // parameter would either go uncited or be grounded against a group that does
+    // not cover it. Built-in rather than a tools/decision-groups.json entry
+    // because that file is SEEDED — an edit there never reaches an existing
+    // install, and the doctrine has to bind every consumer, module enabled or not.
+    //
+    // Keyed on the CONSTRUCTION CHOICE, not on the vocabulary: `aeadSeal`/
+    // `aeadOpen` are the port calls whose parameters are the choice,
+    // `deriveBits`/`hkdf`/`Argon2` are KDF selections, and `AES-GCM`/`XChaCha20`
+    // name a construction.
+    //
+    // Deliberately NOT `getRandomValues`, `randomUUID` or `createHash` — the
+    // same call the `rls-policy` group makes about `auth.uid()`, for the same
+    // reason. Reading the platform CSPRNG is the CORRECT act at a dozen sites
+    // that are not cryptographic trade-offs at all: the CSP nonce in
+    // apps/web/proxy.ts, a request id, an optimistic temp id. Keying on it would
+    // demand a citation per CSPRNG CALL rather than per cryptographic decision,
+    // and red a correct file — which is how a provenance rule earns its way into
+    // tools/provenance-overrides.json instead of being obeyed.
+    key: 'cryptography',
+    description:
+      'Cryptographic construction choices — AEAD selection and parameters, KDF selection, key-wrapping structure',
+    patterns: [
+      /aeadSeal|aeadOpen/,
+      /AES-\d{3}-GCM|AES-GCM|XChaCha20|ChaCha20-Poly1305/,
+      /hkdf|HKDF|deriveBits|Argon2|scrypt|PBKDF2/,
+      /wrapDek|unwrapDek|deriveKek/,
+    ],
+  },
 ]
 
 // G27 — the CONSUMER's own decision classes. The six built-in groups cover THIS stack's

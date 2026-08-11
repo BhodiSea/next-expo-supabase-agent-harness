@@ -79,3 +79,21 @@ jobs:
           node-version: 22
       - name: Calendar obligations judged against today (schedule/dispatch only)
         run: node scripts/check-obligations.mjs --clockful
+
+  # The factory's OWN SCA lane (0.9.5, the SCA half of the retired
+  # vuln-sla-and-factory-sca row): an OSV scan over THIS repo's pnpm-lock.yaml — the
+  # toolchain that builds the harness, not the consumer surface (consumers get the
+  # shipped osv-scan.yml plus the framework floor). Schedule/dispatch ONLY, and the home
+  # is doctrine rather than convenience: an OSV scan resolves against a live
+  # vulnerability feed — the definition of clockful — and a control that reds an
+  # untouched commit overnight is a control someone removes. release.yml deliberately
+  # does not await this workflow. Same Google reusable workflow, same full-SHA pin, as
+  # the shipped consumer lane; Renovate keeps the pin current.
+  factory-sca:
+    name: factory sca (osv, full tree)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9bb69575e74019c2ad085a1860787043adf47ccb # v2.2.4
+    permissions:
+      actions: read
+      contents: read
+      security-events: write

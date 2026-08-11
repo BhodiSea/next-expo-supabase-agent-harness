@@ -13,10 +13,22 @@
 /** @param {string} installRel @returns {string[]} */
 export function templateCandidates(installRel) {
   const out = [installRel]
+  // The `.tmpl` spelling, because storageToInstall STRIPS it: a manifest stored
+  // as package.json.tmpl installs as package.json, and a caller resolving that
+  // install path back to a template source found nothing. Both callers treat a
+  // missing source as "the template does not ship this" — the sweep skips it in
+  // SILENCE (check-seeded-migrations says so in its own failure text), so a
+  // seededSourceFixes entry naming a rendered manifest would quietly stop being
+  // applied while the runbook kept telling consumers to apply it. Found when the
+  // 0.9.5 env source-fix needed the env package's exports map, which is exactly
+  // such a file.
+  out.push(`${installRel}.tmpl`)
   for (const [templateName, installName] of RENAMES) {
-    if (installRel === installName) out.push(templateName)
-    else if (installRel.startsWith(`${installName}/`))
-      out.push(`${templateName}${installRel.slice(installName.length)}`)
+    if (installRel === installName) out.push(templateName, `${templateName}.tmpl`)
+    else if (installRel.startsWith(`${installName}/`)) {
+      const renamed = `${templateName}${installRel.slice(installName.length)}`
+      out.push(renamed, `${renamed}.tmpl`)
+    }
   }
   return out
 }
@@ -47,6 +59,7 @@ export const MODULES = [
   'push-notifications',
   'eval-live',
   'observability',
+  'e2ee',
 ]
 
 // Modules folded into the default harness by a release (template/migrations.json
@@ -132,6 +145,10 @@ export const SEEDED_FILES = new Set([
   'tools/web-route-allowlist.json',
   'tools/dto-bounds-allow.json',
   'tools/duplication-allow.json',
+  // 0.9.5: the vertical-anatomy escape. Same seeded-because-the-gate-says-edit-it
+  // logic as duplication-allow — the boundaries gate's own failure text points the
+  // consumer at a reviewed entry here.
+  'tools/vertical-anatomy-allow.json',
   'tools/decision-groups.json',
   'tools/i18n-allow.json',
   // The 0.2.0 reviewed-data files, ALL of them. SEEDED, not owned, because every

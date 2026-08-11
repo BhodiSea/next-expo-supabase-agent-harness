@@ -11,6 +11,151 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [0.9.5] — 2026-08-11
+
+**The bedrock release.** No deadline arrives and no chain step is injected — the
+chain stays 34/10 on every install, so the committed 34/34 + 10/10 measurement
+stays count-matched and the README's published wall-clock figures keep their
+licence. The weight is elsewhere: three deterministic architecture guarantees
+that were prose until now, the E2EE rails, and an error-path honesty batch. Two
+condition rows leave the obligations register paid; three ramps open, each with
+its dated row.
+
+### Added
+
+- **The worked vertical anatomy becomes law** (`boundaries`, part 3 —
+  `tools/lib/vertical-anatomy.mjs`). Seven mechanically-checkable properties of
+  `packages/verticals/notes`, each observed in the witness before being written:
+  both barrels declared AND present, barrels that only re-export, domain purity
+  (sibling domain + `@app/contracts` + `zod` — no I/O, no clock, no error
+  kernel), a DAL that never value-imports the client (the database arrives
+  through `src/data/port.ts`, whose presence is itself law), events that speak
+  only the kernel, and the `select('*')` ban. Deliberately NOT law: mandating
+  that `domain/` or `events.ts` exist at all — a thin read-only vertical is
+  legitimate, and a directory-shaped mandate is the max-lines mistake in another
+  form. Escape: seeded `tools/vertical-anatomy-allow.json`, closed both ways.
+  Ramped to 0.10.0.
+- **An `architecture-reviewer`** holding what no scanner can — layering and
+  altitude, abstraction accounting (an interface with one implementation and no
+  test double names its second consumer or is a finding), special-casing as a
+  data-model finding, naming coherence across the wire, cohesion versus coupling
+  wearing a modularity costume, and deletion bias. Its OCCURRENCE is enforced by
+  machinery that already existed: a `tools/reviewer-triggers.json` row, the
+  SubagentStop verdict hook, path-state binding, and the `reviewer-verdicts`
+  Stop step. Scoped to `packages/**` deliberately, not `apps/**` — narrowness
+  first, with the widening decision tracked as a register row.
+- **The complexity ceiling is unsuppressable** (`no-suppressed-complexity`). A
+  fresh tree has no grandfathered functions, so `sonarjs/cognitive-complexity`
+  at error IS the contract; its one hole was the suppression comment. The
+  directive is now the lint error, and a directive naming this rule reds too —
+  line-level stacking never terminates. The honest file-level residual is stated
+  in the rule header with the controls that cover it.
+- **The agent surface cannot lie about itself** (`docs-sync`). AGENTS.md's own
+  "Keep under ~N lines" sentence is checked for TRUTH — a claims-check, not a
+  size cap: delete the sentence and the check goes with it. The
+  advertised-command closure extends into the bodies of
+  `.claude/{rules,commands,skills,agents}` over the two grammars that cannot
+  false-positive on prose. Ramped to 0.10.0 (AGENTS.md is seeded).
+- **ADR content shape** (`docs-sync`): the load-bearing sections with real
+  bodies, a closed-vocabulary Status, resolvable corpus refs, allowlisted source
+  hosts. `## Alternatives Considered` stays advisory on purpose — a gate that
+  reds an honest "no alternative existed" teaches authors to fabricate
+  alternatives. No escape file: the remedy is always editing the ADR. Ramped to
+  0.11.0.
+- **E2EE rails — the opt-in `e2ee` module** (`@app/crypto`, zero dependencies).
+  A versioned AEAD envelope (magic|v|alg|ivLen|iv|ct, tag inside ct) so a format
+  change is a decode branch rather than a fleet migration; MANDATORY associated
+  data binding version, algorithm, a role byte and the NUL-separated row
+  identity, so a ciphertext moved to another row, another user, or the
+  wrapped-DEK slot fails authentication instead of decrypting where it does not
+  belong; and a local key hierarchy — keystore root key, HKDF-derived KEK, a
+  FRESH per-item DEK wrapped by it. Fresh-DEK-per-seal is what makes the 96-bit
+  random IV safe; wrapping rather than deriving is what makes crypto-shredding
+  real. Ports are declared and implemented nowhere in the package; the WebCrypto
+  provider ships on the `.` barrel alone, because Hermes has no Web Crypto — and
+  that is the census reason for the dual barrel. 34 tests, conformant against
+  published AES-256-GCM and RFC 5869 vectors.
+- **The E2EE enforcement surface**, so the rails bind even a consumer who
+  hand-rolls crypto: `crypto-primitives-one-door` and
+  `no-insecure-random-in-crypto-scope` (lint), a mobile cipher-library one-door,
+  three write-guard ids (`weak-crypto-algorithm`, `hardcoded-key-material`,
+  `math-random-key-material` — 131 total), `.claude/rules/encryption.md` with
+  every bullet naming its machine twin, an `authoring-e2ee-feature` skill, and a
+  `cryptography` provenance group with eight corpus authorities. The group
+  deliberately omits `getRandomValues`: it flagged the CSP nonce in `proxy.ts`,
+  the false-positive class `rls-policy` documents dropping `auth.uid()` to avoid.
+- **A factory SCA lane** (`hygiene.yml#factory-sca`) — an OSV scan over the
+  harness's own lockfile, schedule/dispatch-only because an OSV verdict resolves
+  against a live feed, and a control that reds an untouched commit overnight is
+  a control someone removes.
+- **`@app/env/optional`** — the register's optional server section. Optional
+  does not mean un-seen: the Upstash pair and the skew-guard deploy metadata are
+  reviewed schema lines now, validated at boot, with a both-or-neither pair
+  invariant that turns a half-set Redis config into a boot failure instead of a
+  limiter silently degraded to per-process.
+
+### Fixed
+
+- **A failing gate reports the stream that failed it.** One capture idiom
+  (`commandFailureOutput`), ten sites. The retired
+  `e.stderr?.toString() ?? e.message` had two holes: `''` is not nullish, so a
+  tool that wrote nothing to stderr produced an EMPTY failure detail, and stdout
+  — where expo, pnpm and playwright diagnose — was dropped entirely.
+- **The first `git commit` of a fresh scaffold**, for anyone following the
+  documented order (`git init` → `pnpm install` → commit — the order that arms
+  lefthook). gitleaks refused it, naming six findings in the harness's own
+  `tools/secret-patterns.json`: the synthetic `positive` fixtures whose entire
+  job is to prove each pattern still matches something. The two policies were
+  already in rule-id lockstep; their allowlists never were. CI never saw it
+  because CI commits before installing. Probing the fix also corrected two false
+  claims in that config — a `paths` entry exempts a whole FILE (the AVD block's
+  "scoped to the one shape" was never true), and the keyword is `matchCondition`,
+  not `condition`, which parses silently and does nothing. Both now stated
+  honestly, with the compensating control named: `check-secrets` scans both files
+  with no path exemption.
+- **Shipped template bytes now survive their own `format` step.** Ten
+  harness-owned `tools/` files were not biome-formatted, so a fresh scaffold's
+  first `validate` rewrote them and the SECOND run red `gate-integrity` with ten
+  sha mismatches on a tree nobody had touched.
+- **A crypto-shredded row reads as shredded**, not corrupt: a zero-length
+  wrapped DEK (the `NOT NULL` column cannot be nulled) answers `key_missing`
+  rather than `envelope_malformed`.
+- Stale hand-counts: the "six custom rules" comment described eight, in two
+  files. Replaced with count-free phrasing rather than a new number.
+
+### Changed
+
+- `upgrade-linux` gains **leg I** (baseline v0.8.0) — the quiet population: zero
+  expiries, five advisory NOTEs, `graduate` refusing on NOTEs alone. It is leg
+  A's property of the previous release, watched one release later rather than
+  retired, and it pre-stages 0.10.0, where v0.8.0 becomes the headline
+  population.
+- The sweep's §3 AGENTS.md rewrite now also restates the self-budget sentence,
+  deriving the number from the file exactly as it derives the gate list from the
+  install's own chain.
+
+### Obligations
+
+- **Discharged by deletion:** `env-register-gate` — the register grew an
+  optional server section, both bypassing surfaces were codemodded, and
+  `env-through-register` keeps it closed with zero standing allowlist.
+- **Narrowed:** `vuln-sla-and-factory-sca` → `vuln-response-sla`. The SCA half
+  shipped; the SLA half is a maintainer-capacity commitment nobody should date
+  on someone else's behalf.
+- **Recorded rather than half-fixed:** `store-policy-consumer-tunable-split`.
+  `tools/store-policy.json` holds a harness FLOOR the harness must keep shipping
+  (`iosToolchain`) and a consumer TUNABLE (`iosEncryption`, which the gate's own
+  failure text tells the consumer to set) in one file, so `owned` calls the
+  demanded edit tampering and `seeded` stops delivering the floor. This release
+  tried the seeded flip; upgrade-lane leg E caught the other half within one run
+  (a v0.3.0 install redding both `version-sync` and `docs-sync`) and it was
+  reverted. Same shape and same remedy as `auth-posture-consumer-tunable-split`.
+- **Opened:** three ramp-expiry rows (`boundaries-vertical-anatomy`,
+  `docs-sync-agent-surface` at 0.10.0; `docs-sync-adr-shape` at 0.11.0) and two
+  condition rows (`architecture-reviewer-apps-widening`,
+  `e2ee-declared-ports-unimplemented` — the three declared-and-unimplemented
+  crypto ports anchored to the README section stating their cost).
+
 ## [0.9.0] — 2026-08-10
 
 **The safe-passage release.** Both ramps 0.8.0 opened fall due here — the

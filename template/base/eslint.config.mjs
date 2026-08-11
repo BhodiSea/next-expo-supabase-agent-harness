@@ -12,7 +12,7 @@ import reactNative from 'eslint-plugin-react-native'
 import reactNativeA11y from 'eslint-plugin-react-native-a11y'
 import sonarjs from 'eslint-plugin-sonarjs'
 import tseslint from 'typescript-eslint'
-// The harness's six custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
+// The harness's custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
 // JS/TS-shared syntax nodes, scoped by the blocks at the bottom of this config.
 import localRules from './tools/eslint-rules/index.mjs'
 
@@ -232,6 +232,23 @@ export default tseslint.config(
               message:
                 'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
             },
+            {
+              // 0.9.5: cryptographic primitives are the fourth seam with one
+              // door — the host implements @app/crypto's CryptoProvider and a
+              // screen takes primitives from the injected port. A cipher
+              // library imported into a feature is a second envelope format
+              // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
+              group: [
+                'aes-js',
+                '@noble/*',
+                'libsodium*',
+                'react-native-libsodium*',
+                'react-native-quick-crypto',
+                'tweetnacl*',
+              ],
+              message:
+                'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
+            },
           ],
         },
       ],
@@ -275,6 +292,23 @@ export default tseslint.config(
               group: ['react-native-svg', 'react-native-svg/*'],
               message:
                 'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
+            },
+            {
+              // 0.9.5: cryptographic primitives are the fourth seam with one
+              // door — the host implements @app/crypto's CryptoProvider and a
+              // screen takes primitives from the injected port. A cipher
+              // library imported into a feature is a second envelope format
+              // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
+              group: [
+                'aes-js',
+                '@noble/*',
+                'libsodium*',
+                'react-native-libsodium*',
+                'react-native-quick-crypto',
+                'tweetnacl*',
+              ],
+              message:
+                'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
             },
           ],
         },
@@ -413,5 +447,90 @@ export default tseslint.config(
     ],
     plugins: { local: localRules },
     rules: { 'local/service-role-edge-functions-only': 'error' },
+  },
+  {
+    // env-through-register — the environment is read through @app/env, never off
+    // process.env (0.9.5, the env-register-gate discharge). The register's narrow ambient
+    // type is what makes "a new variable is a reviewed schema line" true; a bypassing read
+    // is exactly how the Upstash pair escaped it. The rule itself exempts literal
+    // NEXT_PUBLIC_*/EXPO_PUBLIC_* reads (build-time inlining REQUIRES the member text) and
+    // NODE_ENV; these globs exempt the register's own reader files, tests (they arrange
+    // the environment by design), e2e specs, and the playwright config (tool configs read
+    // the ambient CI environment before any register exists).
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
+    ignores: [
+      'packages/platform/env/src/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+      'apps/*/e2e/**',
+      'apps/*/playwright.config.ts',
+      // THE TWO SEEDED SITES THIS RULE WAS WRITTEN FOR, exempted until 0.10.0 — and
+      // the exemption is what keeps the rule from being an ambush rather than a gate.
+      // The rule is harness-OWNED so `update` arms it on every install at once; the
+      // files it reds are SEEDED, so `update` cannot rewrite them, and an upgrading
+      // consumer would get a hard-red `lint` step on two files they never touched.
+      // A lint rule cannot carry a rampNote, so this list is its ramp: the correction
+      // reaches them as a 0.9.5 seededSourceFixes instruction (`doctor` warns while
+      // the old shape is still there), and the 0.10.0 record removes these two lines.
+      // The template's own copies are already corrected, so on a fresh scaffold both
+      // entries are inert — which is exactly the property that makes the exemption
+      // safe to carry: it can never hide a NEW violation, only the two it names.
+      // Register row: env-through-register-seeded-exemption.
+      'apps/web/lib/rate-limit-runtime.ts',
+      // `**` rather than the literal `[trpc]`: square brackets are a glob CHARACTER
+      // CLASS, so `.../trpc/[trpc]/route.ts` matches a directory named `t`, `r`, `p`
+      // or `c` — never the Next dynamic segment it is spelled after. The exemption
+      // silently did nothing until upgrade-lane leg I reported the route still red.
+      'apps/web/app/api/trpc/**/route.ts',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/env-through-register': 'error' },
+  },
+  {
+    // no-suppressed-complexity — the ≤ 15 cognitive-complexity error is the consumer's
+    // complexity CONTRACT (a fresh tree has no grandfathered functions, so there is
+    // nothing for a ratchet to manage), and this rule closes its one hole: the
+    // suppression comment. The directive itself is the lint error, tests included — a
+    // test suppressing the ceiling is the same hollowing one directory over.
+    // Harness-owned tools/** is outside this config's reach on purpose; its ceiling is
+    // the factory ratchet (G16). The rule's own header states the honest file-level
+    // residual and the controls that cover it.
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'packages/**/*.tsx'],
+    plugins: { local: localRules },
+    rules: { 'local/no-suppressed-complexity': 'error' },
+  },
+  {
+    // crypto-primitives-one-door — primitives arrive through @app/crypto's
+    // injected CryptoProvider, never a direct engine reach. The two ignore groups
+    // are the SANCTIONED HOMES, here rather than inside the rule so there is one
+    // place to widen and it shows up in a config diff:
+    //   - packages/platform/crypto/src/**  — the provider package itself (the
+    //     rule must not forbid the definition of the thing it governs);
+    //   - apps/*/src/host/**  — the platform-native seam, where a mobile provider
+    //     and the keystore adapter are implemented (the same one-door that owns
+    //     expo-secure-store).
+    // Tests are excluded: a vector test names cipher APIs by construction.
+    files: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'supabase/**/*.ts'],
+    ignores: [
+      'packages/platform/crypto/src/**',
+      'apps/*/src/host/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+    ],
+    plugins: { local: localRules },
+    rules: { 'local/crypto-primitives-one-door': 'error' },
+  },
+  {
+    // no-insecure-random-in-crypto-scope — scoped to where key material is BORN.
+    // The inverse of the block above: the provider package and the host seam are
+    // the ONLY files here, because everywhere else Math.random is an ordinary
+    // (if rarely wise) choice, and a tree-wide ban would be noise that gets the
+    // rule disabled. Tests included deliberately — a fixture key from
+    // Math.random is how a weak key reaches a snapshot and then a copy-paste.
+    files: ['packages/platform/crypto/**/*.ts', 'apps/*/src/host/**/*.ts'],
+    plugins: { local: localRules },
+    rules: { 'local/no-insecure-random-in-crypto-scope': 'error' },
   },
 )

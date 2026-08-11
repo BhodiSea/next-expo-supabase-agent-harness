@@ -167,10 +167,24 @@ error, sonarjs cognitive-complexity ≤ 15, plus the boundary bans: global `fetc
 outside `src/lib/api-client.ts`, `expo-secure-store` outside `src/host/**` +
 `src/auth/**`, chart libraries in the dense features, raw text outside AppText,
 bare `console` outside `src/lib/log.ts`.
+**0.9.5 adds two custom rules.** `env-through-register` (the env-register-gate
+discharge): the environment is read through `@app/env` — a raw `process.env` read
+in `apps/**`/`packages/**` reds, computed reads and bare `process.env` red as
+smuggle shapes, while literal `NEXT_PUBLIC_*`/`EXPO_PUBLIC_*`/`NODE_ENV` reads
+stay exempt (build-time inlining requires the member text) and the register's own
+reader files, tests, e2e specs and the playwright config are outside the globs —
+zero standing allowlist. `no-suppressed-complexity`: the ≤ 15 ceiling's one hole
+was the suppression comment — the directive itself is now the lint error, a
+directive naming this rule reds too (line-level stacking never terminates), and
+the rule's header states the honest file-level residual plus the controls that
+cover it (the factory's pinned config text, the torvalds rubric).
 **Anti-vacuity:** `import * as SecureStore from 'expo-secure-store'` in a random
 feature → FAIL no-restricted-imports; call `fetch()` in a screen → FAIL
 no-restricted-globals (depcruise walls the same seams at the module-graph level —
-defense in depth).
+defense in depth); read `process.env['UPSTASH_REDIS_REST_TOKEN']` in a web lib →
+FAIL env-through-register; add `// eslint-disable-next-line
+sonarjs/cognitive-complexity` above a fat function → FAIL no-suppressed-complexity
+(RuleTester red-proofs: tests/gates/eslint-custom-rules.test.mjs).
 **Papercut:** `--cache` keys on file content + eslint config, NOT on tsconfig —
 after a tsconfig change fixes a typed-lint error, the stale `.eslintcache` can
 keep reporting it (observed live: a `jest.setup.ts` include fix stayed red until
@@ -206,9 +220,29 @@ universally-importable (the error/event kernel, the wire contracts, the RN-only 
 system); `@app/api` must be an import-type-only devDependency; verticals never depend on
 each other; shared never depends on a vertical; apps/web never carries the RN-only design
 system.
+**Vertical anatomy + intra-vertical layering (0.9.5, part 3 of the same step —
+`tools/lib/vertical-anatomy.mjs`).** The worked `packages/verticals/notes` pattern as
+law, scoped to what is mechanically checkable: every vertical ships BOTH barrels (`.` +
+`./client`, declared and present) and the barrels are PURE (export statements only — a
+barrel with logic breaks the Metro-safe claim); `src/domain/**` imports only sibling
+domain files, `@app/contracts` and `zod` (no I/O, no clock, no error kernel — domain
+returns values, data returns outcomes); `src/data/**` never VALUE-imports
+`@app/supabase`/`@supabase/*` (the database arrives through the structural
+`src/data/port.ts`, whose presence is itself a law; `import type` of the port shapes is
+sanctioned); `src/events.ts` speaks only `@app/events` + `@app/contracts`; and
+`select('*')` is banned across vertical src (the explicit projection is the wire
+contract). Deliberately NOT law: the presence of `domain/` or `events.ts` at all — a
+thin read-only vertical legitimately has neither, and a directory-shaped mandate would
+be the max-lines mistake in another form. Escape: reviewed
+`tools/vertical-anatomy-allow.json` (seeded, `{package, law, path?, reason ≥ 40,
+reviewedOn}`), closed BOTH ways — a stale entry reds. Ramped for pre-0.9.5 installs
+until 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`); the allow-file shape problems
+and the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
-vertical depend on another → FAIL "verticals never import each other".
+vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
+import in a domain file → FAIL naming file and law; hollow out every vertical's src →
+FAIL "scanned ZERO files".
 
 ### 9. observability — `node tools/check-observability.mjs`
 
@@ -1356,11 +1390,38 @@ numbered section (`### <n>. <name> — `) in THIS catalog — the anti-vacuity r
 is part of the gate, so an undocumented step cannot ship. The agent roster is part
 of the same surface: every `.claude/agents/*.md` must parse under the pinned
 frontmatter grammar (`tools/lib/agent-roster.mjs`; a parse failure is a RED, never
-a skip) and the seven reviewers (`security-reviewer`, `web-security-reviewer`,
+a skip) and the reviewers (`security-reviewer`, `web-security-reviewer`,
 `mobile-security-reviewer`, `accessibility-reviewer`, `design-reviewer`,
-`torvalds-reviewer`, `citation-verifier`) may hold ONLY
+`architecture-reviewer`, `torvalds-reviewer`, `citation-verifier` — the roster is
+`REVIEWER_AGENTS` in `tools/lib/agent-roster.mjs`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
 "read-only by construction" claim, machine-asserted.
+
+**Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
+sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
+cap: no sentence, no check (a fork may unbudget its memory file); present-and-false
+reds. And the advertised-command closure extends from AGENTS.md into the BODIES of
+`.claude/{rules,commands,skills,agents}`: every backticked `pnpm <script>` names a
+real script, every backticked `node tools|tests|.claude/<path>.mjs` names a real
+file — the two grammars that cannot false-positive on prose, which is what clears
+the open-scanner objection the doctrine-symbols map records. Ramped because
+AGENTS.md is seeded (every pre-0.9.5 install keeps its old sentence) and skills may
+be consumer-authored.
+
+**ADR content shape (0.9.5, ramped until 0.11.0).** adr-guard holds ADR presence;
+this holds the mechanical slice of content: `## Context` / `## Decision` /
+`## Consequences`-or-`## Honest losses` / `## Sources`, prefix-matched (multi-part
+`## Decision 1 — …` headings are legitimate authorship), each with ≥ 40 characters
+of substance; a `**Status:**` in the closed vocabulary; every `[corpus: <id>]`
+resolving against `tools/mcp/corpus/index.json`; every bare source URL's host on
+the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
+advisory on purpose — a shape gate that reds an honest "no alternative existed"
+teaches authors to fabricate alternatives. NO escape file: the remedy is always
+editing the ADR; an allowlist here would be a place to park unshaped ADRs forever.
+**Anti-vacuity:** falsify the budget sentence → FAIL naming both numbers; advertise
+`pnpm ghost` in a rule body → FAIL naming the file; strip `## Sources` from an ADR →
+FAIL naming the section; cite an unknown corpus id or an off-allowlist host → FAIL
+naming it (fixtures: tests/gates/check-docs-sync.test.mjs).
 
 **The deferral ledger (0.7.0).** The harness's prose makes dated promises —
 "Deferred to x.y.z", "out of scope for x.y.z" — and until this release nothing read

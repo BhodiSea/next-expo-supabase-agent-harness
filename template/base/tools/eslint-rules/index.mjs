@@ -1,4 +1,4 @@
-// The harness's six custom ESLint rules — plain ESLint rules (no @typescript-eslint/utils
+// The harness's custom ESLint rules — plain ESLint rules (no @typescript-eslint/utils
 // RuleCreator), keyed on syntax nodes that exist identically in JS and TS (ThrowStatement,
 // CallExpression, Literal), so they lint the TS surface AND are testable with a bare
 // `eslint` RuleTester on plain-JS cases. Wired, and SCOPED to their file globs, in
@@ -297,6 +297,247 @@ const rules = {
           if (!isReaddirCall(node)) return
           if (chainSorts(node)) return
           context.report({ node, messageId: 'unsorted' })
+        },
+      }
+    },
+  },
+
+  // Cryptographic primitives have ONE door: the CryptoProvider port (0.9.5).
+  //
+  // The e2ee rails are built so that no application file ever touches a cipher
+  // directly — primitives are INJECTED (@app/crypto's CryptoProvider), which is
+  // what makes the envelope, the AAD binding and the key hierarchy unbypassable
+  // rather than merely recommended. This rule is that arrangement's static half:
+  // a `crypto.subtle` reach or a node-crypto CIPHER import outside the sanctioned
+  // homes (the provider package, the mobile host seam) is a second door.
+  //
+  // DELIBERATELY NARROW, twice over. `crypto.randomUUID()` and
+  // `crypto.getRandomValues()` are NOT flagged: the shipped tree uses both for
+  // non-secret values (the CSP nonce in proxy.ts, request ids, optimistic temp
+  // ids), and a rule that reds them would be turned off within a release. Node's
+  // `createHash` is likewise fine — a digest is not a key operation (the
+  // invitation-token digest is the codebase's own precedent). What reds is the
+  // AEAD/KDF/cipher surface, where a second implementation means a second
+  // envelope format nobody reviewed.
+  // SOURCE: .claude/rules/encryption.md (the server never holds a key; primitives
+  // arrive through the port)
+  'crypto-primitives-one-door': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description:
+          'Reach cryptographic primitives through the CryptoProvider port, not directly.',
+      },
+      schema: [],
+      messages: {
+        subtleReach:
+          'Reach WebCrypto through the injected CryptoProvider (@app/crypto), not `crypto.subtle` directly — a second primitive door means a second envelope format, and the AAD binding that makes a moved ciphertext fail is only unbypassable while there is one door. The sanctioned homes are the provider package and the mobile host seam.',
+        cipherImport:
+          "Import '{{name}}' only inside the provider package or the mobile host seam — application code takes primitives from the injected CryptoProvider (@app/crypto). A digest (createHash) is not a key operation and is not flagged.",
+      },
+    },
+    create(context) {
+      const CIPHER_API =
+        /\b(createCipher|createCipheriv|createDecipher|createDecipheriv|createSecretKey|createDiffieHellman|generateKey|generateKeyPair|scrypt|pbkdf2|hkdf|createSign|createVerify|privateDecrypt|publicEncrypt)/
+      const NODE_CRYPTO = new Set(['crypto', 'node:crypto'])
+      const reportModule = (node, source, name) => {
+        if (!NODE_CRYPTO.has(source)) return
+        // Only the cipher/KDF surface — a bare `node:crypto` import for hashing
+        // is legitimate everywhere (see the header).
+        if (!CIPHER_API.test(context.sourceCode.getText(node))) return
+        context.report({ node, messageId: 'cipherImport', data: { name } })
+      }
+      return {
+        MemberExpression(node) {
+          if (
+            node.computed ||
+            node.property.type !== 'Identifier' ||
+            node.property.name !== 'subtle'
+          ) {
+            return
+          }
+          const obj = node.object
+          const isCryptoRef =
+            (obj.type === 'Identifier' && obj.name === 'crypto') ||
+            (obj.type === 'MemberExpression' &&
+              !obj.computed &&
+              obj.property.type === 'Identifier' &&
+              obj.property.name === 'crypto')
+          if (isCryptoRef) context.report({ node, messageId: 'subtleReach' })
+        },
+        ImportDeclaration(node) {
+          reportModule(node, node.source.value, node.source.value)
+        },
+        CallExpression(node) {
+          if (
+            node.callee.type === 'Identifier' &&
+            node.callee.name === 'require' &&
+            node.arguments[0]?.type === 'Literal' &&
+            typeof node.arguments[0].value === 'string'
+          ) {
+            reportModule(node.parent ?? node, node.arguments[0].value, node.arguments[0].value)
+          }
+        },
+      }
+    },
+  },
+
+  // A key derived from Math.random is not a key (0.9.5).
+  //
+  // Word for word the finding LargeSecureStore records in its own header, made
+  // mechanical and scoped by the config to the surfaces where key material is
+  // BORN: the provider package and the mobile host seam. Math.random is seeded
+  // from a source an attacker can often infer and is not a CSPRNG on any engine;
+  // in a crypto scope its presence is the defect, whatever it is nominally
+  // computing. The write-guard twin (math-random-key-material) covers the same
+  // act on surfaces lint does not reach and on Edit fragments.
+  // SOURCE: apps/mobile/src/host/large-secure-store.ts (expo-crypto, NOT a
+  // polyfilled global — "a key derived from Math.random is not a key")
+  'no-insecure-random-in-crypto-scope': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Never use Math.random where key material is created.' },
+      schema: [],
+      messages: {
+        insecureRandom:
+          'Math.random is not a CSPRNG — a key, IV, nonce or salt derived from it is not one either. Use the injected CryptoProvider.randomBytes (or the platform CSPRNG in a host adapter). This file is in a crypto scope, where the presence of Math.random is the defect regardless of what it computes.',
+      },
+    },
+    create(context) {
+      return {
+        MemberExpression(node) {
+          if (
+            node.object.type === 'Identifier' &&
+            node.object.name === 'Math' &&
+            !node.computed &&
+            node.property.type === 'Identifier' &&
+            node.property.name === 'random'
+          ) {
+            context.report({ node, messageId: 'insecureRandom' })
+          }
+        },
+      }
+    },
+  },
+
+  // The complexity ceiling is unsuppressable in product code (0.9.5).
+  //
+  // sonarjs/cognitive-complexity ≤ 15 at error IS the consumer's complexity contract —
+  // a fresh tree has zero grandfathered functions, so there is nothing for a ratchet to
+  // manage (the factory's G16 ratchet exists only for its own legacy tools). The one
+  // hole was the suppression comment: `// eslint-disable-next-line
+  // sonarjs/cognitive-complexity` kept the lint step green while hollowing the
+  // guarantee — precisely the decay the factory ratchet was built to end. This rule
+  // reds the DIRECTIVE itself, and reds a directive naming this rule too (each stacked
+  // escape generates a new finding one line up, so line-level stacking never
+  // terminates). HONEST LIMIT, stated rather than hidden: a file-level
+  // `/* eslint-disable */` block naming both rules still silences everything at lint
+  // level — the residual controls are the pinned config text (a config edit reds the
+  // factory's rule-integrity record until reviewed) and the torvalds rubric's
+  // "restructured, not suppressed" line. Scope: apps/** + packages/** (the config
+  // blocks below); harness-owned tools/** stays with the factory ratchet.
+  'no-suppressed-complexity': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description:
+          'The cognitive-complexity ceiling may not be suppressed — restructure the function.',
+      },
+      schema: [],
+      messages: {
+        suppressed:
+          'This directive suppresses sonarjs/cognitive-complexity — the ceiling is the contract, and a function over it gets RESTRUCTURED (extract the branch, flatten the special case), never suppressed.',
+        stacked:
+          'This directive names no-suppressed-complexity itself — stacking escapes is the same act one layer up. Restructure the function instead.',
+      },
+    },
+    create(context) {
+      const DIRECTIVE = /^\s*eslint-disable(?:-next-line|-line)?\b/
+      return {
+        Program() {
+          for (const comment of context.sourceCode.getAllComments()) {
+            const directive = DIRECTIVE.exec(comment.value)
+            if (directive === null) continue
+            // A rule-LESS `eslint-disable` is deliberately NOT reported here, and
+            // the attempt is worth recording: ESLint applies a rule-less directive
+            // to every rule id, INCLUDING this one, so the report is filtered
+            // before it surfaces (proven against the real Linter — the case
+            // produced zero errors). A check cannot police the directive that
+            // switches the checker off; that needs a scanner outside ESLint, which
+            // is the suppressions census the register schedules for 0.10.0.
+            const named = comment.value.slice(directive[0].length).trim()
+            if (named.includes('no-suppressed-complexity')) {
+              context.report({ loc: comment.loc, messageId: 'stacked' })
+            } else if (named.includes('sonarjs/cognitive-complexity')) {
+              context.report({ loc: comment.loc, messageId: 'suppressed' })
+            }
+          }
+        },
+      }
+    },
+  },
+
+  // The environment is read through @app/env — the register — never off process.env.
+  //
+  // A server variable read directly off process.env is invisible to the one module whose
+  // job is to see the whole environment: the register's narrow ambient type is what makes
+  // "a new variable is a reviewed schema line" true, and a bypassing read is exactly how
+  // the Upstash credential pair escaped it (the 0.9.5 discharge of the env-register-gate
+  // obligations row). Three arms: a NAMED read of a non-public variable reds; a COMPUTED
+  // read reds (the name is chosen at runtime, so no reviewer can see it); BARE process.env
+  // (spread, Object.keys, passed as an argument) reds (it smuggles every unnamed variable
+  // at once). Exempt by name: NEXT_PUBLIC_* / EXPO_PUBLIC_* (build-time inlining REQUIRES
+  // the literal member text — the register cannot perform another module's inlined read)
+  // and NODE_ENV (inlined by every bundler, read by every runtime). The env package
+  // itself, tests, and tool configs are outside the config globs.
+  'env-through-register': {
+    meta: {
+      type: 'problem',
+      docs: { description: 'Read the environment through @app/env, never off process.env.' },
+      schema: [],
+      messages: {
+        rawRead:
+          "Read '{{name}}' through @app/env (server: '@app/env' / '@app/env/optional') instead of process.env — a variable outside the register is invisible to the one seam whose job is to see the whole environment. Public NEXT_PUBLIC_*/EXPO_PUBLIC_* names and NODE_ENV stay literal (build-time inlining).",
+        dynamicRead:
+          'A computed process.env read hides the variable name from review — read a NAMED value through @app/env instead.',
+        bareEnv:
+          'Bare process.env (spread, keys, passed along) smuggles every unnamed variable at once — read named values through @app/env.',
+      },
+    },
+    create(context) {
+      const PUBLIC_PREFIX = /^(?:NEXT_PUBLIC_|EXPO_PUBLIC_)/
+      const EXEMPT = new Set(['NODE_ENV'])
+      const propName = (node) => {
+        if (!node.computed && node.property.type === 'Identifier') return node.property.name
+        if (
+          node.computed &&
+          node.property.type === 'Literal' &&
+          typeof node.property.value === 'string'
+        )
+          return node.property.value
+        return null
+      }
+      // `process` OR `globalThis.process` — the second spelling reads identically
+      // at runtime and slipped past the first draft entirely.
+      const isProcessRef = (node) =>
+        (node.type === 'Identifier' && node.name === 'process') ||
+        (node.type === 'MemberExpression' &&
+          node.object.type === 'Identifier' &&
+          node.object.name === 'globalThis' &&
+          propName(node) === 'process')
+      const isProcessEnv = (node) =>
+        node.type === 'MemberExpression' && isProcessRef(node.object) && propName(node) === 'env'
+      return {
+        MemberExpression(node) {
+          if (!isProcessEnv(node)) return
+          const parent = node.parent
+          if (parent.type === 'MemberExpression' && parent.object === node) {
+            const key = propName(parent)
+            if (key === null) return context.report({ node: parent, messageId: 'dynamicRead' })
+            if (EXEMPT.has(key) || PUBLIC_PREFIX.test(key)) return
+            return context.report({ node: parent, messageId: 'rawRead', data: { name: key } })
+          }
+          context.report({ node, messageId: 'bareEnv' })
         },
       }
     },

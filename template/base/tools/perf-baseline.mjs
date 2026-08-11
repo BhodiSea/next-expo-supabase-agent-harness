@@ -18,7 +18,7 @@ import {
   parseBaseline,
   serializeBaseline,
 } from './lib/bundle-measure.mjs'
-import { runCmd } from './lib/gate.mjs'
+import { commandFailureOutput, runCmd } from './lib/gate.mjs'
 
 const TAG = 'perf-baseline'
 const APP = 'apps/mobile'
@@ -36,7 +36,7 @@ console.log(`${TAG}: exporting the mobile bundle (same command as the build gate
 try {
   runCmd('pnpm --filter mobile exec expo export --platform android --output-dir dist')
 } catch (e) {
-  die(`expo export failed:\n${(e.stderr?.toString() ?? e.message).slice(-2000)}`)
+  die(`expo export failed:\n${commandFailureOutput(e).slice(-2000)}`)
 }
 if (!existsSync(DIST)) die(`expo export produced no ${DIST}/`)
 

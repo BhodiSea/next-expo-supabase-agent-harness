@@ -1,7 +1,7 @@
 # AGENTS.md — {{PROJECT_NAME}} web + mobile platform
 
 Canonical project memory (CLAUDE.md points here). Advisory context — the Stop
-hook + CI are the real enforcement. Keep under ~200 lines.
+hook + CI are the real enforcement. Keep under ~350 lines.
 SOURCE: docs/harness/README.md.
 
 ## Stack (pnpm monorepo, versions live ONLY in the pnpm-workspace.yaml catalog)
@@ -319,7 +319,9 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Supabase seam, `proxy.ts`, the tRPC route handler, or `NEXT_PUBLIC_` env),
   `mobile-security-reviewer` (keychain/app.config/eas.json/permission changes),
   `accessibility-reviewer` and `design-reviewer` on UI changes,
-  `torvalds-reviewer` before finishing, `citation-verifier` via
+  `architecture-reviewer` on structural changes under `packages/**` (layering,
+  abstraction accounting, cohesion, naming — the judgment half of the anatomy
+  laws), `torvalds-reviewer` before finishing, `citation-verifier` via
   `/verify-citations`.
 - PRs paste real `pnpm validate` + `pnpm test:rls` output; CODEOWNERS
   ({{SECURITY_OWNERS}}) sign off on auth/data/harness surfaces. New MCP servers

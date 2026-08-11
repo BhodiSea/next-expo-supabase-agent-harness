@@ -12,11 +12,12 @@
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
+import { commandFailureOutput } from './gate.mjs'
 
 const git = (args) =>
   execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
-export const firstLine = (e) => (e.stderr?.toString() ?? e.message).trim().split('\n')[0]
+export const firstLine = (e) => commandFailureOutput(e).split('\n')[0]
 
 /**
  * @returns {string[]} repo-relative paths, deletions excluded.

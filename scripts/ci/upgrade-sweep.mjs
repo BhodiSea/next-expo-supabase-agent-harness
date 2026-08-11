@@ -123,6 +123,21 @@ const SWEEPS = {
   // ramp pair (version-sync's lockfile floor, wiring's lefthook floor) opens quiet on any
   // install that has run `pnpm install` — nothing for a sweep to adopt there either.
   '0.9.0': {},
+  // 0.9.5: reviewed-EMPTY of FILE ADOPTIONS, but not because the release asks nothing
+  // of an upgraded install. It withholds only the e2ee module's package, which arrives
+  // through `enable e2ee` — a deliberate consumer act, never an upgrade step — and the
+  // env-register discharge corrected two seeded files that the migrations "//" narrative
+  // records as explicitly NOT a seededSourceFixes case (an install that never applies it
+  // keeps a working limiter and skew guard).
+  //
+  // The one thing a swept install MUST adopt is a prose edit, not a file: AGENTS.md is
+  // seeded, docs-sync now holds its "Keep under ~N lines" sentence to the truth, and
+  // every pre-0.9.5 install carries a number that its own grown file already exceeds.
+  // That is covered by the sweep's own §3 AGENTS.md rewrite — derived from the install's
+  // file, like the gate list beside it — which is why this entry needs no extraAdopt and
+  // why it is NOT vacuous: leg E's graduate SUCCESS depends on that rewrite clearing the
+  // NOTE, so the §3 code is this version's sweep.
+  '0.9.5': {},
 }
 
 /**
@@ -246,16 +261,36 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const names = VALIDATE_STEPS.map(([n]) => n)
   if (existsSync(agentsPath)) {
     const before = readFileSync(agentsPath, 'utf8')
-    const after = before
+    const withChain = before
       .replace(/The \d+ gates, in order:[\s\S]*?\n {2}\(docs\/harness\/gates-catalog\.md/, () => {
         const wrapped = names.map((n) => `\`${n}\``).join(', ')
         return `The ${String(names.length)} gates, in order: ${wrapped}\n${'  '}(docs/harness/gates-catalog.md`
       })
       .replace(/the \d+-step chain/g, `the ${String(names.length)}-step chain`)
       .replace(/The \d+ gates,/, `The ${String(names.length)} gates,`)
+
+    // 0.9.5: the SELF-BUDGET sentence, restated honestly. docs-sync now checks that
+    // AGENTS.md's own "Keep under ~N lines" claim is TRUE, and AGENTS.md is seeded —
+    // so every upgraded install carries whatever number the harness shipped when it
+    // was scaffolded (0.1.x said ~200) against a file that has grown past it, and the
+    // finding is the HARNESS's stale prose, not the consumer's writing. The gate's
+    // failure text offers two remedies, "trim it, or restate the budget honestly";
+    // a sweep cannot decide which 100 lines of someone's project memory to delete, so
+    // it takes the second, and DERIVES the number from the file rather than pasting
+    // the template's — the same discipline as the gate list above. Rounded up to the
+    // next 50 so an ordinary edit does not immediately re-red it.
+    const lineCount = withChain.trimEnd().split('\n').length
+    const after = withChain.replace(/Keep under ~(\d+) lines/, (whole, claimed) =>
+      lineCount > Number(claimed)
+        ? `Keep under ~${String(Math.ceil(lineCount / 50) * 50)} lines`
+        : whole,
+    )
     if (after !== before) {
       writeFileSync(agentsPath, after)
-      done.push(`AGENTS.md (gate list + counts → ${String(names.length)})`)
+      const budgetMoved = after !== withChain
+      done.push(
+        `AGENTS.md (gate list + counts → ${String(names.length)}${budgetMoved ? '; self-budget restated' : ''})`,
+      )
     }
   }
 

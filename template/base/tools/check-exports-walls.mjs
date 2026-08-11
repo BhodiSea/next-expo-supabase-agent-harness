@@ -49,7 +49,20 @@ for (const entry of census.sanctioned) {
       `${CENSUS}: every sanction must be {"package": string, "reason": non-empty string} — got ${JSON.stringify(entry)}`,
     )
   }
-  sanctioned.set(entry.package, entry.reason)
+  // Optional `module` (0.9.5): names the opt-in module that provides the package.
+  // Validated when present — an empty or non-string value would silently make the
+  // stale arm dormant forever, which is the failure mode this whole file exists
+  // to refuse.
+  if (
+    entry.module !== undefined &&
+    (typeof entry.module !== 'string' || entry.module.trim() === '')
+  ) {
+    fail(
+      GATE,
+      `${CENSUS}: sanction for ${entry.package} carries a "module" that is not a non-empty string — it names the opt-in module providing the package, and a blank value would disable the stale check silently`,
+    )
+  }
+  sanctioned.set(entry.package, entry)
 }
 
 // Every package manifest under packages/, its name and whether it ships a `./client` key.
@@ -81,12 +94,37 @@ for (const [name, { hasClient }] of declared) {
 
 // 2. Two-way: a sanction naming a package that does not exist is stale — it silently
 //    widens the wall for a future package of that name.
-for (const name of sanctioned.keys()) {
-  if (!declared.has(name)) {
-    errs.push(
-      `${name} is sanctioned in ${CENSUS} but no package under ${PACKAGES_DIR}/ declares that name — remove the stale sanction or add the package`,
-    )
-  }
+//
+//    MODULE-PROVIDED PACKAGES (0.9.5). An entry may declare `"module": "<name>"`,
+//    meaning the package it names ships with an OPT-IN module. The stale arm then
+//    applies only when that module is ENABLED (read from .harness/manifest.json):
+//    with the module off, its package is legitimately absent and the entry is
+//    dormant, not stale. Without the declaration a module package could not be
+//    censused at all — the entry would red every install that skipped the module,
+//    which is a gate punishing a consumer for a choice the harness offered them.
+//    Unknown module state (no manifest — the template dev tree, gate fixtures)
+//    reads as DORMANT, and that is a deliberate, bounded fail-open: this arm is
+//    hygiene, and the security-critical direction is arm 1 above (a `./client`
+//    barrel with no sanction), which is unaffected by module state.
+const enabledModules = new Set(
+  (() => {
+    try {
+      const m = JSON.parse(readFileSync('.harness/manifest.json', 'utf8'))
+      return Array.isArray(m.modules) ? m.modules : []
+    } catch {
+      return []
+    }
+  })(),
+)
+for (const [name, entry] of sanctioned) {
+  if (declared.has(name)) continue
+  const providedBy = typeof entry.module === 'string' ? entry.module : null
+  if (providedBy !== null && !enabledModules.has(providedBy)) continue
+  errs.push(
+    providedBy === null
+      ? `${name} is sanctioned in ${CENSUS} but no package under ${PACKAGES_DIR}/ declares that name — remove the stale sanction or add the package`
+      : `${name} is sanctioned in ${CENSUS} as provided by the '${providedBy}' module, that module is ENABLED, and yet no package under ${PACKAGES_DIR}/ declares the name — the module's package is missing; re-enable the module or remove the sanction`,
+  )
 }
 
 failures(

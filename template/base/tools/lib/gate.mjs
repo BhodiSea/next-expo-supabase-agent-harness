@@ -199,6 +199,20 @@ export function runCmd(cmd, opts = {}) {
   })
 }
 
+// commandFailureOutput: the one idiom for reporting a captured subprocess
+// failure. Both streams, stdout first (expo/pnpm/playwright write diagnostics
+// there), each coerced (Buffer-safe) and trimmed; e.message only when the
+// combined output is empty. The retired per-site idiom
+// `e.stderr?.toString() ?? e.message` had two holes this closes: '' is not
+// nullish (a tool that wrote nothing to stderr produced an EMPTY failure
+// detail), and stdout was dropped entirely. Callers keep their own shaping
+// (head/tail slice, first-N-lines) over the return value.
+export function commandFailureOutput(e) {
+  const parts = [e.stdout, e.stderr].map((s) => (s == null ? '' : String(s).trim())).filter(Boolean)
+  if (parts.length > 0) return parts.join('\n')
+  return String(e.message ?? e)
+}
+
 // ---- content-addressed stamps (generalized from the source harness's toolchain stamp) ----
 // hashInputs: one sha256 over the declared input paths (files or directories,
 // recursive, name+bytes, sorted walk so the digest is order-stable). A missing

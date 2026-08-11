@@ -39,6 +39,46 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "env-through-register-seeded-exemption",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/eslint.config.mjs", "mustContain": "apps/web/lib/rate-limit-runtime.ts" }
+      ],
+      "reason": "The env-through-register rule (0.9.5) is harness-OWNED, so `update` arms it on every install at once, while the two sites it was written for are SEEDED — an upgrading consumer would meet a hard-red lint step on files `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so the two paths sit in the rule's `ignores` as its ramp, paired with a 0.9.5 seededSourceFixes instruction that `doctor` surfaces. 0.10.0 owes the removal of those two ignore lines, once the source fix has had a release to land. Found by upgrade-lane leg I, not by review.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
+      "id": "docs-sync-agent-surface-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-docs-sync.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The agent-surface truth checks 0.9.5 opened inside docs-sync (the AGENTS.md line-budget claims-check and the body command closure over .claude/{rules,commands,skills,agents}) fall due at 0.10.0. Ramped because AGENTS.md is seeded — every pre-0.9.5 install keeps the old ~200 sentence update cannot rewrite — and skills may be consumer-authored. The 0.10.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
+      "id": "docs-sync-adr-shape-ramp-expiry",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        { "file": "template/base/tools/check-docs-sync.mjs", "mustContain": "until: '0.11.0'" }
+      ],
+      "reason": "The ADR content-shape check 0.9.5 opened inside docs-sync (load-bearing sections with real bodies, closed-vocabulary Status, resolvable corpus refs, allowlisted source hosts) falls due at 0.11.0 — two releases, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile. The 0.11.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
+      "id": "boundaries-vertical-anatomy-ramp-expiry",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/tools/check-workspace-deps.mjs", "mustContain": "until: '0.10.0'" }
+      ],
+      "reason": "The vertical-anatomy + intra-vertical layering laws 0.9.5 opened inside boundaries (dual barrels, pure barrels, domain purity, DAL-through-the-port, events purity, the select('*') ban — the worked notes anatomy as law, lib/vertical-anatomy.mjs) fall due at 0.10.0. The 0.10.0 migrations record owes this expiry; pre-0.9.5 installs see NOTEs until then.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
       "id": "suppressions-chain-step",
       "kind": "release",
       "target": "0.10.0",
@@ -82,11 +122,11 @@
       "evidence": "design/CONFORMANCE-FACTS.md"
     },
     {
-      "id": "vuln-sla-and-factory-sca",
+      "id": "vuln-response-sla",
       "kind": "condition",
       "target": null,
-      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA, and the factory repo itself has no blocking SCA lane over its own (deliberately zero-runtime-dependency) toolchain — the consumer tree gets osv-scan and the framework floor; the factory gets renovate and review. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf, and the SCA lane's shape depends on whether the dev-toolchain surface stays pnpm-catalog-pinned.",
-      "reviewedOn": "2026-08-10",
+      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf — it discharges when the maintainer writes the sentence, by deleting this row with that sentence as evidence. (The row's former SCA half was paid at 0.9.5: hygiene.yml#factory-sca, the scheduled OSV lane over the factory's own lockfile.)",
+      "reviewedOn": "2026-08-11",
       "evidence": "SECURITY.md"
     },
     {
@@ -123,15 +163,69 @@
       "reviewedOn": "2026-08-10"
     },
     {
-      "id": "env-register-gate",
+      "id": "e2ee-declared-ports-unimplemented",
       "kind": "condition",
       "target": null,
       "sites": [
-        { "file": "template/stack/apps/web/lib/rate-limit-runtime.ts", "mustContain": "UPSTASH_REDIS_REST_TOKEN" }
+        { "file": "template/modules/e2ee/packages/platform/crypto/src/ports-declared.ts", "mustContain": "RecipientWrapPort" },
+        { "file": "template/modules/e2ee/docs/modules/e2ee/README.md", "mustContain": "What this deliberately does NOT solve" }
       ],
-      "reason": "@app/env validates env per surface, but the Upstash secret is read straight off process.env in the web rate-limit runtime — a server secret that bypasses the one seam whose job is to see it, invisible to the boundaries gate because process.env is not an import. Condition: the discharge is a register gate closing env reads over the seam, and its shape (allowlist vs codemod vs lint rule) is an open design decision, not a date.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "template/stack/apps/web/lib/rate-limit-runtime.ts"
+      "reason": "The 0.9.5 e2ee rails DECLARE three ports with no implementations — RecipientWrapPort (org sharing: an org-mate's RLS-visible row is ciphertext they cannot open), RecoveryPort (a lost device is lost data; WebCrypto ships no Argon2 and PBKDF2-as-the-KDF would be a dishonest default), and DeviceSyncPort (a second device has no path to the root key). Condition, not a dated row: each needs a design decision the harness should not date on a consumer's behalf, and the honest state is a declaration plus a stated loss rather than a promise. This row anchors the declarations to the README section that states their cost, so an implementation cannot quietly turn a declared port into a claim without the register moving too. Also open by construction: the web KeystoreAdapter returns raw bytes, which forecloses a non-extractable CryptoKey handle, and the keyring exports no rewrap primitive so key rotation is a full client-side re-encryption pass.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
+    },
+    {
+      "id": "vertical-anatomy-folder-name-coupling",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/lib/vertical-anatomy.mjs",
+          "mustContain": "src/data"
+        }
+      ],
+      "reason": "The DAL laws (port-presence, dal-client-value-import) and events-purity are keyed on DIRECTORY NAMES — src/data/, src/events.ts — so a vertical that names its data layer src/repo/ satisfies them by construction: an adversarial review put a module-scope createClient with a service-role key in packages/verticals/sneaky/src/repo/ and the scan reported zero findings. The laws that read a WHOLE tree (domain purity is scoped the same way; select-star and the barrels are not) are the ones with teeth. Condition rather than dated: closing it means either mandating the anatomy by name (the directory-shaped proxy metric this gate's own header rejects) or deriving the data layer from the port's import graph, which is a design decision. The architecture-reviewer's trigger covers packages/*/src/** whatever the folder is called, which is the compensating control today.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/lib/vertical-anatomy.mjs"
+    },
+    {
+      "id": "crypto-one-door-namespace-imports",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/eslint-rules/index.mjs",
+          "mustContain": "crypto-primitives-one-door"
+        }
+      ],
+      "reason": "crypto-primitives-one-door matches a `crypto.subtle` member chain and NAMED cipher imports, and an adversarial review showed it misses the namespace routes: `import { webcrypto } from 'node:crypto'` then webcrypto.subtle.*, a default or `* as` import used as nodeCrypto.createCipheriv(...), and `const c = require('node:crypto')` followed by c.createCipheriv(...). Each needs binding-level tracking (which local names alias the module) rather than the single-node test the rule does now, and a half-tracked version would red honest code. The compensating controls are the mobile cipher-library one-door, the weak-crypto-algorithm write-guard, and the security reviewers on the crypto trigger paths.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/eslint-rules/index.mjs"
+    },
+    {
+      "id": "exports-walls-module-name-validation",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/check-exports-walls.mjs",
+          "mustContain": "providedBy"
+        }
+      ],
+      "reason": "A census entry's `module` value is validated as a non-empty string and never against the real module set, so a typo'd module name parks the stale arm PERMANENTLY dormant while the entry still pre-authorises a ./client barrel and a mobile runtime dependency — the silent widening the stale arm exists to prevent. The module list is canonical and readable (installer/lib/layout.mjs MODULES, template/modules/*), but the gate ships to consumers where neither path is guaranteed present, so the check needs a shipped list rather than a factory import. Condition until that list has a home.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/check-exports-walls.mjs"
+    },
+    {
+      "id": "architecture-reviewer-apps-widening",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/tools/reviewer-triggers.json", "mustContain": "architecture-reviewer-apps-widening" }
+      ],
+      "reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/reviewer-triggers.json"
     },
     {
       "id": "off-linux-stop-chain",
@@ -140,6 +234,17 @@
       "reason": "The full Stop chain executes off-Linux nowhere: the blocker is the DATABASE, not the shell — rls-isolation needs the live Supabase stack (Docker), which the Windows/macOS runners do not carry, while the gate/hook LOGIC is already proven cross-platform by the Windows unit matrix. Condition: discharge needs a supported off-Linux local-stack story upstream, re-checked at every Supabase CLI pin bump, not a date this repo can set.",
       "reviewedOn": "2026-08-10",
       "evidence": ".github/workflows/selftest.yml"
+    },
+    {
+      "id": "store-policy-consumer-tunable-split",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/tools/store-policy.json", "mustContain": "iosEncryption" }
+      ],
+      "reason": "tools/store-policy.json holds a harness FLOOR the harness must be able to ship (iosToolchain's Xcode floor, androidTargetSdk — check-version-sync reds when iosToolchain is missing and tells the consumer to run `update` to restore it) and a consumer TUNABLE in the same file (iosEncryption.nonExemptAllowed + reason, which check-expo-policy's own failure text tells the consumer to set). Owned, it is hash-pinned, so the demanded edit reads as tampering; seeded, `update` can no longer deliver the floor — 0.9.5 tried the seeded flip and upgrade-lane leg E caught it immediately, a v0.3.0 install keeping its pre-0.7.0 file and redding BOTH version-sync and docs-sync. Neither classification is right because the file is two files. Same shape and same remedy as auth-posture-consumer-tunable-split below: floor rows owned and pinned, tunable rows seeded with declared bounds. Condition, not dated: the split is a design decision, and the wrong half-fix is worse than the honest record.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/store-policy.json"
     },
     {
       "id": "auth-posture-consumer-tunable-split",

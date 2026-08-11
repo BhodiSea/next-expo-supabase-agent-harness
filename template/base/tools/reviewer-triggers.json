@@ -65,6 +65,19 @@
       "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/page.meta.ts"]
     },
     {
+      "agent": "architecture-reviewer",
+      "why": "The anatomy laws (boundaries part 3) hold the mechanical half of the worked pattern; this reviewer holds the judgment half — abstraction accounting, cohesion, naming coherence, special-casing — on the structural surface where those decisions are made. Scoped to packages/** and the two structural registers, deliberately NOT apps/** yet: the file's own doctrine is narrowness first, widening in a reviewed diff (register row architecture-reviewer-apps-widening tracks the widening decision against one release of verdict-ledger evidence).",
+      "paths": [
+        "packages/*/src/**",
+        "packages/*/*/src/**",
+        "packages/verticals/*/package.json",
+        "tools/exports-walls.json",
+        "tools/vertical-anatomy-allow.json"
+      ],
+      "except": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/testing/**"],
+      "exceptWhy": "A test file exercises structure; it does not create it. The reviewer is owed on the structural act, and summoning it for every test edit is the noise that teaches people to route around the reviewer that matters."
+    },
+    {
       "agent": "design-reviewer",
       "why": "AGENTS.md states in its own words that 'UI diffs end with a design-reviewer PASS'. That sentence was advisory for five releases. Same path set as the a11y reviewer because the two look at the same diff for different things.",
       "paths": [

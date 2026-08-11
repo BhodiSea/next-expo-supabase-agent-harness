@@ -57,6 +57,11 @@
         "kind": "selftest",
         "ref": "Canary 29: a click handler on a bare div → jsx-a11y must FAIL the lint step",
         "note": "the WEB half of the a11y floor, closed in 0.4.0 — and the proof exists because of how it had to be delivered. eslint.config.mjs is harness-OWNED and refreshes on `update`, while package.json and pnpm-workspace.yaml are SEEDED and the workspace-catalog merge runs only under `init`, so a NEW plugin dependency has no channel to an existing install: a static import resolved to nothing there and killed the ENTIRE lint step, not one rule. The config resolves the plugin dynamically now and omits the block when absent, which makes 'missing' and 'working' the same green. tools/check-wiring.mjs asserts it RESOLVES; this asserts it ENFORCES, on a scaffold that ships the dependency."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/eslint-custom-rules.test.mjs",
+        "note": "0.9.5: the two new custom rules' RuleTester red-proofs, both LOCAL rules precisely to avoid the plugin-channel hazard the canary above records. env-through-register: a raw process.env read of a non-public name reds, a computed read reds as un-reviewable, bare process.env reds as the whole-environment smuggle, while literal NEXT_PUBLIC_/EXPO_PUBLIC_/NODE_ENV reads and non-process `env` members stay clean. no-suppressed-complexity: the sonarjs/cognitive-complexity disable directive is itself the error in both line and block form, and a directive naming the rule itself reds as the stacking evasion."
       }
     ],
     "provenance": [
@@ -74,7 +79,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-boundaries.test.mjs",
-        "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system"
+        "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system. 0.9.5 adds the anatomy laws (lib/vertical-anatomy.mjs): domain purity, DAL value-import of the client, missing port, missing ./client barrel, impure barrel, events impurity, select('*') — each red in the same file, with the allow-file closed both ways (stale entry reds), the zero-files anti-vacuity floor, and the pre-0.9.5 ramp NOTE mode all pinned"
       }
     ],
     "observability": [
@@ -300,7 +305,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-docs-sync.test.mjs",
-        "note": "0.7.0 adds the DEFERRAL-LEDGER injections beside the existing chain/catalog/roster/tiers/probe proofs: an ARRIVED tools/deferrals.json target (manifest at the target) reds naming the entry, both versions and the two legitimate moves, while the same sentence at a future target greens; a dated sentence in a scanned surface (a planted consumer tools/*.mjs is the subject — top-level gate scripts ARE the declared universe) with no ledger entry reds naming file:line; an entry whose file dropped its sentence reds as a second stale doctrine, and that closure runs even with NO manifest (the arrival half prints the defined not-judged NOTE instead of passing silently); a reason under 40 characters reds as not-a-review; findings are dated NOTEs on a pre-0.7.0 baseVersion and the escape RAMP-EXPIRES at harness 0.8.0 on a planted finding — the shipped ledger carries none there, because the census moved to 0.9.0 in the reviewed 0.8.0 diff, and the shipped tree at 0.8.0 is proven GREEN beside the expiry; the ARRIVAL tripwire is a separate test that DERIVES its manifest from the shipped ledger's target, so it re-arms itself at every future move; re-freezing the catalog's sentence to the newly-old date reds BOTH directions, which is the anti-regression for the census date-move"
+        "note": "0.7.0 adds the DEFERRAL-LEDGER injections beside the existing chain/catalog/roster/tiers/probe proofs: an ARRIVED tools/deferrals.json target (manifest at the target) reds naming the entry, both versions and the two legitimate moves, while the same sentence at a future target greens; a dated sentence in a scanned surface (a planted consumer tools/*.mjs is the subject — top-level gate scripts ARE the declared universe) with no ledger entry reds naming file:line; an entry whose file dropped its sentence reds as a second stale doctrine, and that closure runs even with NO manifest (the arrival half prints the defined not-judged NOTE instead of passing silently); a reason under 40 characters reds as not-a-review; findings are dated NOTEs on a pre-0.7.0 baseVersion and the escape RAMP-EXPIRES at harness 0.8.0 on a planted finding — the shipped ledger carries none there, because the census moved to 0.9.0 in the reviewed 0.8.0 diff, and the shipped tree at 0.8.0 is proven GREEN beside the expiry; the ARRIVAL tripwire is a separate test that DERIVES its manifest from the shipped ledger's target, so it re-arms itself at every future move; re-freezing the catalog's sentence to the newly-old date reds BOTH directions, which is the anti-regression for the census date-move. 0.9.5 adds the AGENT-SURFACE TRUTH and ADR SHAPE injections: a falsified AGENTS.md budget sentence reds live naming both numbers (deleting the sentence deletes the check); a .claude body advertising a ghost pnpm script or a `node tools/absent.mjs` reds live and NOTEs under the 0.9.5 ramp; a sectionless ADR reds naming every missing section, an under-40-character section body reds as the empty-file-with-extra-steps, a missing closed-vocabulary Status reds while the seeded inline lowercase form stays green, an unresolvable corpus id and an off-allowlist source host each red, the template and README stay exempt, and the findings are NOTEs on a pre-0.9.5 install until 0.11.0"
       },
       {
         "kind": "selftest",
@@ -859,6 +864,12 @@
       {
         "kind": "steps",
         "note": "the CALENDAR half of check-obligations.mjs (--clockful), schedule/dispatch-only because a kind:calendar verdict changes with the date and must never red a PR — the clockless half (release rows, census + ramp unions, anchors) blocks every PR in lint.yml#machinery-lint, and both halves' red-proofs are the #factoryGates fixture (tests/gates/obligations.test.mjs pins calendar-red-only-under-clockful on one fixture)"
+      }
+    ],
+    "hygiene.yml#factory-sca": [
+      {
+        "kind": "steps",
+        "note": "0.9.5 (the SCA half of the retired vuln-sla-and-factory-sca row): Google's osv-scanner reusable workflow over the factory's own pnpm-lock.yaml — a vendor scanner whose non-zero exit is the red, the same pinned workflow the template ships to consumers in osv-scan.yml, where tests/gates/workflow-lanes.test.mjs proves the neutered-lane failure shapes for the template copy. Schedule/dispatch-only because an OSV verdict resolves against a live vulnerability feed (clockful, like corpus-fidelity's network half); release.yml deliberately does not await this workflow."
       }
     ],
     "lint.yml#actionlint": [
