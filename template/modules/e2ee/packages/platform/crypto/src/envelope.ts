@@ -48,22 +48,33 @@ export function encodeEnvelope(envelope: Envelope): Uint8Array {
 
 export function decodeEnvelope(bytes: Uint8Array): CryptoResult<Envelope> {
   if (bytes.length < HEADER_BYTES) {
-    return cryptoErr('envelope_malformed', `${String(bytes.length)} bytes is shorter than the header`)
+    return cryptoErr(
+      'envelope_malformed',
+      `${String(bytes.length)} bytes is shorter than the header`,
+    )
   }
-  if (((bytes[0] << 8) | bytes[1]) !== ENVELOPE_MAGIC) {
+  // The header bytes are read through `.at() ?? 0` rather than `bytes[i]`: the length
+  // guard above proves all five exist, but noUncheckedIndexedAccess types every index
+  // read as `number | undefined` and reaching for `!` to silence that is the habit the
+  // torvalds rubric names. The fallback is unreachable, and harmless if it ever were
+  // not — a zero magic, version or alg byte is refused by the very next branch.
+  if ((((bytes.at(0) ?? 0) << 8) | (bytes.at(1) ?? 0)) !== ENVELOPE_MAGIC) {
     return cryptoErr('envelope_malformed', 'bad magic — not an envelope this package produced')
   }
-  const v = bytes[2]
+  const v = bytes.at(2) ?? 0
   if (v !== ENVELOPE_VERSION) {
     return cryptoErr('unsupported_version', `envelope version ${String(v)}`)
   }
-  const alg = bytes[3]
+  const alg = bytes.at(3) ?? 0
   if (alg !== ALG_AES_256_GCM) {
     return cryptoErr('unsupported_algorithm', `alg id 0x${alg.toString(16).padStart(2, '0')}`)
   }
-  const ivLen = bytes[4]
+  const ivLen = bytes.at(4) ?? 0
   if (ivLen !== GCM_IV_BYTES) {
-    return cryptoErr('envelope_malformed', `iv length ${String(ivLen)} (AES-256-GCM envelopes carry a 12-byte iv)`)
+    return cryptoErr(
+      'envelope_malformed',
+      `iv length ${String(ivLen)} (AES-256-GCM envelopes carry a 12-byte iv)`,
+    )
   }
   if (bytes.length < HEADER_BYTES + ivLen) {
     return cryptoErr('envelope_malformed', 'truncated inside the iv')
@@ -97,7 +108,18 @@ export interface KeyContext {
 export const AAD_ROLE_ITEM = 0x00
 export const AAD_ROLE_DEK = 0x01
 
-export function buildAad(role: typeof AAD_ROLE_ITEM | typeof AAD_ROLE_DEK, ctx: KeyContext): Uint8Array {
+// Declared locally and narrowly, the same call webcrypto-provider.ts makes about
+// `crypto` and @app/ratelimit makes about `fetch`: the package sets `types: []` so a
+// shared module cannot reach for a DOM or Node global by accident, which means the
+// handful it DOES use are declared where they are used. TextEncoder is WinterCG — Node
+// 22, every browser, and Hermes — and UTF-8 is the only encoding it produces, which is
+// what makes the AAD bytes identical on every surface that opens a ciphertext.
+declare const TextEncoder: new () => { encode(input: string): Uint8Array }
+
+export function buildAad(
+  role: typeof AAD_ROLE_ITEM | typeof AAD_ROLE_DEK,
+  ctx: KeyContext,
+): Uint8Array {
   const identity = new TextEncoder().encode(`${ctx.userId}\u0000${ctx.table}\u0000${ctx.itemId}`)
   const out = new Uint8Array(3 + identity.length)
   out[0] = ENVELOPE_VERSION

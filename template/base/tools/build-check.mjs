@@ -30,7 +30,15 @@ import {
   ratchetFindings,
 } from './lib/bundle-measure.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { commandFailureOutput, fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  fail,
+  failures,
+  ok,
+  runCmd,
+  skipOrFail,
+  stampGate,
+} from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'build'

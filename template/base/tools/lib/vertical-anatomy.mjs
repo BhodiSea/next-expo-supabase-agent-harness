@@ -18,7 +18,7 @@
 // comments blanked first, over-detection reds with the reviewed allow-file
 // (tools/vertical-anatomy-allow.json) as the escape.
 // SOURCE: docs/harness/gates-catalog.md (boundaries gate; anti-vacuity) [corpus: harness/doctrine]
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { walkFiles } from './fs-walk.mjs'
 import { blankComments, lineOf } from './source-text.mjs'
@@ -73,8 +73,12 @@ function valueImportsOf(src, specPrefixes) {
 // `export type { … } from`, and bare `export { … }` are the whole grammar.
 function barrelResidue(blanked) {
   const stripped = blanked
-    .replace(/export\s*\*\s*(as\s+\w+\s+)?from\s*['"][^'"]+['"]\s*;?/g, (s) => s.replace(/[^\n]/g, ' '))
-    .replace(/export\s+(type\s+)?\{[^}]*\}\s*(from\s*['"][^'"]+['"])?\s*;?/g, (s) => s.replace(/[^\n]/g, ' '))
+    .replace(/export\s*\*\s*(as\s+\w+\s+)?from\s*['"][^'"]+['"]\s*;?/g, (s) =>
+      s.replace(/[^\n]/g, ' '),
+    )
+    .replace(/export\s+(type\s+)?\{[^}]*\}\s*(from\s*['"][^'"]+['"])?\s*;?/g, (s) =>
+      s.replace(/[^\n]/g, ' '),
+    )
   const m = stripped.match(/\S/)
   return m ? { line: lineOf(stripped, m.index ?? 0) } : null
 }
@@ -88,7 +92,13 @@ function scanBarrels(dir, name, findings, counted) {
   try {
     pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
   } catch {
-    findings.push({ package: name, law: 'dual-barrel', path: 'package.json', detail: 'package.json is unreadable or invalid JSON — the dual-barrel contract cannot be verified' })
+    findings.push({
+      package: name,
+      law: 'dual-barrel',
+      path: 'package.json',
+      detail:
+        'package.json is unreadable or invalid JSON — the dual-barrel contract cannot be verified',
+    })
     return
   }
   const exportsMap = pkg.exports !== null && typeof pkg.exports === 'object' ? pkg.exports : {}
@@ -97,16 +107,31 @@ function scanBarrels(dir, name, findings, counted) {
     ['./client', 'src/client.ts'],
   ]) {
     if (exportsMap[key] === undefined) {
-      findings.push({ package: name, law: 'dual-barrel', path: 'package.json', detail: `exports map lacks the "${key}" key — every vertical ships BOTH barrels (the \`.\` server surface and the Metro-safe \`./client\`); a single-barrel vertical either leaks the server graph to Metro or has no server seam at all` })
+      findings.push({
+        package: name,
+        law: 'dual-barrel',
+        path: 'package.json',
+        detail: `exports map lacks the "${key}" key — every vertical ships BOTH barrels (the \`.\` server surface and the Metro-safe \`./client\`); a single-barrel vertical either leaks the server graph to Metro or has no server seam at all`,
+      })
     }
     if (!existsSync(join(dir, file))) {
-      findings.push({ package: name, law: 'dual-barrel', path: file, detail: `${file} is missing — the "${key}" barrel has no module behind it` })
+      findings.push({
+        package: name,
+        law: 'dual-barrel',
+        path: file,
+        detail: `${file} is missing — the "${key}" barrel has no module behind it`,
+      })
       continue
     }
     counted.n += 1
     const residue = barrelResidue(readBlanked(join(dir, file)))
     if (residue !== null) {
-      findings.push({ package: name, law: 'pure-barrel', path: file, detail: `line ${residue.line} is not an export statement — a barrel with logic breaks the "Metro-safe surface" claim; barrels only re-export (move the logic behind the barrel)` })
+      findings.push({
+        package: name,
+        law: 'pure-barrel',
+        path: file,
+        detail: `line ${residue.line} is not an export statement — a barrel with logic breaks the "Metro-safe surface" claim; barrels only re-export (move the logic behind the barrel)`,
+      })
     }
   }
 }
@@ -124,7 +149,12 @@ function scanDomain(dir, name, findings, counted) {
         spec === '@app/contracts' ||
         (spec.startsWith('./') && !spec.startsWith('../'))
       if (!ok) {
-        findings.push({ package: name, law: 'domain-purity', path: `src/domain/${rel}`, detail: `line ${lineOf(blanked, index)} imports '${spec}' — domain modules import only sibling domain files, '@app/contracts' and 'zod'; no I/O, no clock, no error kernel (domain returns values; data returns outcomes)` })
+        findings.push({
+          package: name,
+          law: 'domain-purity',
+          path: `src/domain/${rel}`,
+          detail: `line ${lineOf(blanked, index)} imports '${spec}' — domain modules import only sibling domain files, '@app/contracts' and 'zod'; no I/O, no clock, no error kernel (domain returns values; data returns outcomes)`,
+        })
       }
     }
   }
@@ -134,14 +164,25 @@ function scanData(dir, name, findings, counted) {
   const dataDir = join(dir, 'src/data')
   if (!existsSync(dataDir)) return
   if (!existsSync(join(dataDir, 'port.ts'))) {
-    findings.push({ package: name, law: 'port-presence', path: 'src/data', detail: 'src/data/ exists with no src/data/port.ts — the DAL receives its database through the structural port; a portless DAL has nowhere to receive it but a constructed client' })
+    findings.push({
+      package: name,
+      law: 'port-presence',
+      path: 'src/data',
+      detail:
+        'src/data/ exists with no src/data/port.ts — the DAL receives its database through the structural port; a portless DAL has nowhere to receive it but a constructed client',
+    })
   }
   for (const rel of walkFiles(dataDir, { excludeDirs: SCAN_EXCLUDES })) {
     if (!/\.tsx?$/.test(rel) || isTest(rel)) continue
     counted.n += 1
     const blanked = readBlanked(join(dataDir, rel))
     for (const { spec, index } of valueImportsOf(blanked, ['@app/supabase', '@supabase'])) {
-      findings.push({ package: name, law: 'dal-client-value-import', path: `src/data/${rel}`, detail: `line ${lineOf(blanked, index)} value-imports '${spec}' — the DAL never constructs or reaches a client; the database arrives through src/data/port.ts (\`import type\` of the port shapes is the sanctioned form)` })
+      findings.push({
+        package: name,
+        law: 'dal-client-value-import',
+        path: `src/data/${rel}`,
+        detail: `line ${lineOf(blanked, index)} value-imports '${spec}' — the DAL never constructs or reaches a client; the database arrives through src/data/port.ts (\`import type\` of the port shapes is the sanctioned form)`,
+      })
     }
   }
 }
@@ -153,7 +194,12 @@ function scanEvents(dir, name, findings, counted) {
   const blanked = readBlanked(eventsFile)
   for (const { spec, index } of importSpecifiers(blanked)) {
     if (spec !== '@app/events' && spec !== '@app/contracts') {
-      findings.push({ package: name, law: 'events-purity', path: 'src/events.ts', detail: `line ${lineOf(blanked, index)} imports '${spec}' — events.ts speaks only the kernel ('@app/events') and the wire contracts ('@app/contracts'); payloads are identifiers, never rich objects from elsewhere in the vertical` })
+      findings.push({
+        package: name,
+        law: 'events-purity',
+        path: 'src/events.ts',
+        detail: `line ${lineOf(blanked, index)} imports '${spec}' — events.ts speaks only the kernel ('@app/events') and the wire contracts ('@app/contracts'); payloads are identifiers, never rich objects from elsewhere in the vertical`,
+      })
     }
   }
 }
@@ -166,7 +212,12 @@ function scanSelectStar(dir, name, findings) {
     const blanked = readBlanked(join(srcDir, rel))
     const m = blanked.match(/\.select\(\s*(['"`])\*\1\s*\)/)
     if (m) {
-      findings.push({ package: name, law: 'select-star', path: `src/${rel}`, detail: `line ${lineOf(blanked, m.index ?? 0)} calls select('*') — the explicit projection is the wire contract; '*' welds the DTO to whatever the table grows (see the witness src/data/rows.ts)` })
+      findings.push({
+        package: name,
+        law: 'select-star',
+        path: `src/${rel}`,
+        detail: `line ${lineOf(blanked, m.index ?? 0)} calls select('*') — the explicit projection is the wire contract; '*' welds the DTO to whatever the table grows (see the witness src/data/rows.ts)`,
+      })
     }
   }
 }
@@ -255,7 +306,8 @@ export function applyAnatomyAllow(findings, allowDoc) {
   const matched = new Set()
   const remaining = findings.filter((f) => {
     const hit = entries.find(
-      (e) => e.package === f.package && e.law === f.law && (e.path === undefined || e.path === f.path),
+      (e) =>
+        e.package === f.package && e.law === f.law && (e.path === undefined || e.path === f.path),
     )
     if (hit) matched.add(hit)
     return !hit

@@ -14,7 +14,11 @@ import type { CryptoProvider } from './ports.js'
 // (Node >= 22, every evergreen browser).
 // SOURCE: https://www.w3.org/TR/WebCryptoAPI/ (AES-GCM params, HKDF deriveBits)
 // [corpus: w3c/webcrypto]
-declare const crypto: {
+// `| undefined` is not decoration: Hermes has no Web Crypto, so on the surface this
+// package most needs to be honest about, the global is genuinely absent. Typing it as
+// always-present would make the guard below read as dead code to the linter (it did —
+// `no-unnecessary-condition` fired) while the runtime failure it prevents is real.
+interface WebCryptoGlobal {
   getRandomValues<T extends Uint8Array>(array: T): T
   subtle: {
     importKey(
@@ -41,6 +45,7 @@ declare const crypto: {
     ): Promise<ArrayBuffer>
   }
 }
+declare const crypto: WebCryptoGlobal | undefined
 
 /**
  * Build the WebCrypto-backed provider, or return null when the runtime has no
@@ -48,7 +53,7 @@ declare const crypto: {
  * failure surface, the KeystoreAdapter contract's own style.
  */
 export function createWebCryptoProvider(): CryptoProvider | null {
-  if (typeof crypto === 'undefined' || typeof crypto.subtle === 'undefined') return null
+  if (typeof crypto?.subtle === 'undefined') return null
   return {
     randomBytes(length) {
       // SOURCE: https://www.w3.org/TR/WebCryptoAPI/ (getRandomValues is the

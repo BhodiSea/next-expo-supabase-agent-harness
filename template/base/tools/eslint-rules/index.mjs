@@ -324,7 +324,10 @@ const rules = {
   'crypto-primitives-one-door': {
     meta: {
       type: 'problem',
-      docs: { description: 'Reach cryptographic primitives through the CryptoProvider port, not directly.' },
+      docs: {
+        description:
+          'Reach cryptographic primitives through the CryptoProvider port, not directly.',
+      },
       schema: [],
       messages: {
         subtleReach:
@@ -346,7 +349,11 @@ const rules = {
       }
       return {
         MemberExpression(node) {
-          if (node.computed || node.property.type !== 'Identifier' || node.property.name !== 'subtle') {
+          if (
+            node.computed ||
+            node.property.type !== 'Identifier' ||
+            node.property.name !== 'subtle'
+          ) {
             return
           }
           const obj = node.object
@@ -432,7 +439,10 @@ const rules = {
   'no-suppressed-complexity': {
     meta: {
       type: 'problem',
-      docs: { description: 'The cognitive-complexity ceiling may not be suppressed — restructure the function.' },
+      docs: {
+        description:
+          'The cognitive-complexity ceiling may not be suppressed — restructure the function.',
+      },
       schema: [],
       messages: {
         suppressed:
@@ -490,7 +500,11 @@ const rules = {
       const EXEMPT = new Set(['NODE_ENV'])
       const propName = (node) => {
         if (!node.computed && node.property.type === 'Identifier') return node.property.name
-        if (node.computed && node.property.type === 'Literal' && typeof node.property.value === 'string')
+        if (
+          node.computed &&
+          node.property.type === 'Literal' &&
+          typeof node.property.value === 'string'
+        )
           return node.property.value
         return null
       }

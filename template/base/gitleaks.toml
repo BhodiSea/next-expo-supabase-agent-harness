@@ -11,13 +11,54 @@ useDefault = true
 # The default `generic-api-key` rule keys on the WORD "key", which YAML uses for
 # every cache key. The Android emulator lane names its AVD cache
 # `key: avd-<api>-<target>-<arch>`, and that high-entropy-looking string blocked the
-# very first `git commit` in a fresh scaffold. Scoped to the one file and the one
-# shape on purpose — a blanket `generic-api-key` suppression would also drop real
-# findings, and a bare path exclusion would stop scanning the CI workflow entirely.
-[allowlist]
-description = "CI cache keys are not credentials"
+# very first `git commit` in a fresh scaffold.
+#
+# WHAT THIS ACTUALLY DOES, corrected in 0.9.5 after probing gitleaks 8.30.1 rather
+# than reading the intent off the old comment: a `paths` entry exempts the WHOLE FILE
+# from every rule. The `regexes` line below does not narrow that, and neither does
+# `matchCondition = "AND"` — an injected real `SUPABASE_SERVICE_ROLE_KEY=sb_secret_…`
+# in quality-gate.yml goes unreported either way, and did at 0.9.0 too, so this is a
+# long-standing property of the config and not a 0.9.5 change. (`condition` is not
+# even a recognised key: it parses silently and does nothing.) The regexes stay as the
+# statement of INTENT — what this exemption is for — but they are not the mechanism.
+#
+# THE RESIDUAL IS REAL AND COMPENSATED. gitleaks does not scan this one workflow file;
+# `tools/check-secrets.mjs` (chain step 4) does, over the same rule ids, with no path
+# exemption of any kind — verified by injecting that credential and watching the gate
+# name the file and line. So a secret here is caught at validate time and in CI, just
+# not at `git commit`. Narrowing gitleaks itself would need a per-rule allowlist under
+# `[[rules]]`, which is the honest fix and is not attempted in a release that is not
+# about this.
+#
+# `[[allowlists]]`, not the singular `[allowlist]`: gitleaks 8.30 refuses a config that
+# mixes the two, and the second block below needs the plural form.
+[[allowlists]]
+description = "CI cache keys are not credentials (see the note above: this exempts the file)"
 regexes = ['''key:\s*avd-\d+-[a-z0-9_-]+''']
 paths = ['''\.github/workflows/quality-gate\.yml''']
+
+# THE SAME DEFECT AS THE BLOCK ABOVE, one layer in, and it blocked the very first
+# `git commit` of a fresh scaffold for anyone following the documented order (git
+# init -> pnpm install -> commit — the order that ARMS lefthook, which is why CI,
+# which stages and commits before installing, never saw it). Every rule in
+# tools/secret-patterns.json carries a synthetic `positive`: a fake credential whose
+# ONLY purpose is to prove the pattern still matches something, so a decayed regex
+# reports ITSELF instead of reporting a clean tree. Those fixtures are
+# credential-SHAPED by construction, so gitleaks found six and refused the commit,
+# naming the harness's own anti-vacuity file.
+#
+# The two policies were already kept in RULE-ID lockstep in both directions
+# (check-secrets.mjs asserts exactly that, and its header says so); their ALLOWLISTS
+# were never in lockstep, which is the whole gap — check-secrets exempts its own
+# positives per rule and passed, while gitleaks had no equivalent and failed, on the
+# same bytes. This exempts the one FILE (see the note above: `paths` is file-scoped,
+# whatever else is written beside it), which is defensible here in a way it would not
+# be elsewhere: the file is seeded, write-guard-protected and CODEOWNERS-reviewed, and
+# check-secrets still scans it with no exemption — verified by planting a real
+# credential in it and watching the chain gate name the line.
+[[allowlists]]
+description = "The secret-pattern fixtures are synthetic anti-vacuity positives, not credentials"
+paths = ['''tools/secret-patterns\.json''']
 
 [[rules]]
 id = "expo-token-assignment"

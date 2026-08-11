@@ -26,7 +26,15 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { commandFailureOutput, fail, failures, inCI, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  fail,
+  failures,
+  inCI,
+  ok,
+  rampNote,
+  skipOrFail,
+} from './lib/gate.mjs'
 import { splitStatements } from './lib/sql-parse.mjs'
 
 const GATE = 'migrations'

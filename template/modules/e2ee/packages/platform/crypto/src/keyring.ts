@@ -2,12 +2,12 @@ import {
   AAD_ROLE_DEK,
   AAD_ROLE_ITEM,
   ALG_AES_256_GCM,
-  ENVELOPE_VERSION,
-  GCM_IV_BYTES,
-  type KeyContext,
   buildAad,
   decodeEnvelope,
+  ENVELOPE_VERSION,
   encodeEnvelope,
+  GCM_IV_BYTES,
+  type KeyContext,
 } from './envelope.js'
 import type { CryptoProvider } from './ports.js'
 import { type CryptoResult, cryptoErr, cryptoOk } from './result.js'
@@ -31,6 +31,11 @@ import { type CryptoResult, cryptoErr, cryptoOk } from './result.js'
 // (IV uniqueness per key is GCM's cardinal requirement) [corpus: nist/sp800-38d-gcm] ·
 // https://www.rfc-editor.org/rfc/rfc5869 (HKDF extract-and-expand; info is the
 // domain separator) [corpus: ietf/rfc5869-hkdf]
+
+// Declared locally and narrowly — see the note beside the same declaration in
+// envelope.ts: `types: []` keeps platform globals out of the shared package, so the
+// few WinterCG ones it uses are declared at their use site.
+declare const TextEncoder: new () => { encode(input: string): Uint8Array }
 
 const KEY_BYTES = 32
 // Zero salt, constant on purpose: RFC 5869 §3.1 defines absent salt as a
@@ -120,7 +125,10 @@ export async function openItem(
     aad: buildAad(AAD_ROLE_DEK, ctx),
   })
   if (dek === null) {
-    return cryptoErr('aead_auth_failed', 'the wrapped DEK did not authenticate for this row identity')
+    return cryptoErr(
+      'aead_auth_failed',
+      'the wrapped DEK did not authenticate for this row identity',
+    )
   }
   const item = decodeEnvelope(sealed.envelope)
   if (!item.ok) return item
@@ -131,7 +139,10 @@ export async function openItem(
     aad: buildAad(AAD_ROLE_ITEM, ctx),
   })
   if (plaintext === null) {
-    return cryptoErr('aead_auth_failed', 'the item ciphertext did not authenticate for this row identity')
+    return cryptoErr(
+      'aead_auth_failed',
+      'the item ciphertext did not authenticate for this row identity',
+    )
   }
   return cryptoOk(plaintext)
 }

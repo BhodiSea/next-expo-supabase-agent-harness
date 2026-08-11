@@ -253,7 +253,7 @@ The checklist those reviewers are running, and that you run first:
       a crash report, an analytics event, a test fixture that is also a seed, or module state
       that outlives the session. `detail` strings name row identities and are for developers,
       not for users or logs.
-- [ ] **The vectors are untouched.** `src/testing/vectors.gcm.json` and `vectors.hkdf.json`
+- [ ] **The vectors are untouched.** The known-answer vectors in `src/webcrypto-provider.test.ts`
       are published answers. A diff that edits a vector to make a test pass has inverted the
       test: the vector is the oracle, the implementation is the subject.
 - [ ] **The store policy is flipped**, with a non-empty reason, in this diff.

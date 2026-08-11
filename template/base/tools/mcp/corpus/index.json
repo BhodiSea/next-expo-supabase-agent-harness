@@ -1,8 +1,6 @@
 [
   {
-    "groups": [
-      "tuning-constants"
-    ],
+    "groups": ["tuning-constants"],
     "id": "harness/doctrine",
     "sha256": "4ca86c3ad58dbe4ce369d1a7c3c590a609ad100cc475b0723c5cb9b6f247a552",
     "text": "The Stop hook, `pnpm validate`, and CI all execute the same config-driven gate chain (tools/harness.config.mjs). Done means green gate. The gate surface is write-guard-protected; CI re-runs a hardcoded floor so a weakened local config cannot weaken CI.",
@@ -11,9 +9,7 @@
     "version": "0.1.0"
   },
   {
-    "groups": [
-      "rls-policy"
-    ],
+    "groups": ["rls-policy"],
     "id": "postgres/rls-force",
     "sha256": "80aa4ad1a043c1abe16b10b71a53f64ebe63ae0a4d3ad6471ac5d06afb2ef02d",
     "text": "Row security policies restrict which rows a command can return or modify. FORCE ROW LEVEL SECURITY also applies policies to the table owner. Policies are per-command (SELECT/INSERT/UPDATE/DELETE); USING filters reads, WITH CHECK validates writes.",
@@ -22,10 +18,7 @@
     "version": "16"
   },
   {
-    "groups": [
-      "rls-policy",
-      "guc-identity"
-    ],
+    "groups": ["rls-policy", "guc-identity"],
     "id": "postgres/rls-initplan",
     "sha256": "f1acec30dee4a1a12627c00f2b50985a00eecd3fe04cb856a42774e35a8c84bb",
     "text": "Wrapping a stable function call as (select auth.uid()) lets Postgres evaluate it once per statement as an initPlan instead of once per row — orders of magnitude faster on large tables. auth.uid() reads the request's JWT via current_setting('request.jwt.claims', true), whose two-argument true form returns NULL instead of erroring when the claim is unset, so unauthenticated sessions match no rows rather than failing.",
@@ -34,9 +27,7 @@
     "version": "16"
   },
   {
-    "groups": [
-      "guc-identity"
-    ],
+    "groups": ["guc-identity"],
     "id": "postgres/guc-set-local",
     "sha256": "ebdcf1b004579f965489e5b9fdb7c9e94eb4321338b4afbbc95cb97ff3cf4103",
     "text": "SET LOCAL (or set_config(name, value, true)) scopes a setting to the current transaction. Session-scoped GUCs (set_config(..., false)) leak across pooled connections: the next request on the same connection inherits the previous user's identity. RLS identity GUCs must therefore always be transaction-local, set inside the same transaction as the query.",
@@ -54,9 +45,7 @@
     "version": "16"
   },
   {
-    "groups": [
-      "vector-index"
-    ],
+    "groups": ["vector-index"],
     "id": "pgvector/hnsw",
     "sha256": "a30da959b7791a2a2131278c4d67ab9a8232f7e59afa98aaf0ff0b8883036365",
     "text": "HNSW indexes give better query performance than IVFFlat at the cost of slower builds and more memory, and can be created on an empty table (IVFFlat needs training data). Distance opclass must match the query operator (vector_cosine_ops for <=>). Declare the column with a fixed dimension so inserts are type-checked.",
@@ -65,9 +54,7 @@
     "version": "0.8"
   },
   {
-    "groups": [
-      "token-verification"
-    ],
+    "groups": ["token-verification"],
     "id": "supabase/verify-user",
     "sha256": "4585217ee71babc57425565545f1fdfec11de8e2656c5ca7ece3f7a62fe4f2ad",
     "text": "On the server, getSession() reads the JWT out of the cookie and returns it WITHOUT verifying the signature, so it must never be used to decide identity — the cookie is attacker-controlled input. getUser() authenticates the token against the Auth server; getClaims() verifies it locally against the project's published asymmetric key. Both are verifications; getSession() is not.",
@@ -76,9 +63,7 @@
     "version": "2"
   },
   {
-    "groups": [
-      "token-verification"
-    ],
+    "groups": ["token-verification"],
     "id": "supabase/asymmetric-keys",
     "sha256": "07028bfe7d9c2d07da4b8d085984254e6d7bcab9bf6c12a1677757708ea4ae83",
     "text": "With asymmetric (ECC/RSA) signing keys, a JWT can be verified locally against the project's published public key (JWKS) instead of calling the Auth server on every request. getClaims() performs that local verification and falls back to a network call when the key is not yet cached. Rotate by publishing the new key, letting clients refresh their JWKS cache, then revoking the old one.",
@@ -96,9 +81,7 @@
     "version": "19"
   },
   {
-    "groups": [
-      "llm-sampling"
-    ],
+    "groups": ["llm-sampling"],
     "id": "llamacpp/json-schema",
     "sha256": "e00216a6b3b4854c18e6f325e23c4a3bb9a953804e8b126c2fd0ef0ab45759d5",
     "text": "llama.cpp's OpenAI-compatible server supports constrained decoding via json_schema response_format / GBNF grammars: the sampler masks tokens so output always parses. The schema→grammar converter supports a subset of JSON Schema — validate the schema converts cleanly and still run a deterministic validator on the output; constrained decoding guarantees syntax, not semantics.",
@@ -125,9 +108,7 @@
     "version": "2.2"
   },
   {
-    "groups": [
-      "llm-sampling"
-    ],
+    "groups": ["llm-sampling"],
     "id": "llamacpp/sampling",
     "sha256": "2b9a9b616b92ba4a740448fa5e75b7b5f3eab481d8218ccfabfbfc373a5b9711",
     "text": "The llama.cpp server exposes decoding-time sampling controls per request: temperature, top_p, top_k and related parameters. Higher temperature flattens the token distribution; temperature 0 collapses sampling to greedy decoding, making output run-to-run deterministic for the same model and prompt — which evaluation harnesses require for comparable scores.",
@@ -181,9 +162,7 @@
     "version": "2.2"
   },
   {
-    "groups": [
-      "mobile-security"
-    ],
+    "groups": ["mobile-security"],
     "id": "expo/runtime-versions",
     "sha256": "596f628ab687900e67b767aa93e6b1d584abb941c1ab69b3ba0088d965f2f130",
     "text": "runtimeVersion declares the native runtime an update is compatible with; EAS Update only delivers an update to builds whose runtimeVersion matches exactly. The 'appVersion' policy sets runtimeVersion to the app's version field, so every store release is its own update target — deterministic and PR-reviewable, at the cost of OTA reach across store versions. Policies that hash native state (fingerprint) compute the value at build time instead, which is not diffable in review. A mismatched runtimeVersion is how an update reaches a binary that cannot run it — treat changes as a release decision, not a config tweak.",
@@ -192,9 +171,7 @@
     "version": "SDK 57"
   },
   {
-    "groups": [
-      "mobile-security"
-    ],
+    "groups": ["mobile-security"],
     "id": "expo/app-config",
     "sha256": "77867daf2a1cf29bfa970d525b8071f801f99524a1e9f665a075905d1adc1325",
     "text": "app.json / app.config.* is the source for the generated native projects: updates.url pins the update server the installed app will trust, runtimeVersion gates which updates a binary accepts, ios.infoPlist injects Info.plist keys (including NSAppTransportSecurity exceptions), and android.permissions controls the manifest permission set (listed permissions are added; blockedPermissions removes library-introduced ones). These keys ship inside the binary — changing any of them is a native release decision that continuous native generation re-materializes on every prebuild.",
@@ -203,9 +180,7 @@
     "version": "SDK 57"
   },
   {
-    "groups": [
-      "mobile-security"
-    ],
+    "groups": ["mobile-security"],
     "id": "apple/ats",
     "sha256": "4b61650b06651be64c7aa1043b890f2a041004a0ef9b87303c933425669329a8",
     "text": "App Transport Security blocks cleartext HTTP and weak TLS for URLSession connections by default. NSAppTransportSecurity in Info.plist declares exceptions: NSAllowsArbitraryLoads disables ATS globally (App Review requires justification), NSExceptionDomains scopes exceptions to named hosts with per-domain keys (NSExceptionAllowsInsecureHTTPLoads, NSExceptionMinimumTLSVersion, NSIncludesSubdomains). Scope every exception to the narrowest domain set; a global opt-out to reach one dev host is the anti-pattern.",
@@ -214,9 +189,7 @@
     "version": "iOS 9+"
   },
   {
-    "groups": [
-      "mobile-security"
-    ],
+    "groups": ["mobile-security"],
     "id": "android/cleartext",
     "sha256": "a943edfc05259218bb55c14d1eccb4ed8b7725d1325afe2cf213085c8a7027c5",
     "text": "The network security configuration XML declares an app's transport policy without code changes. Since Android 9 (API 28) cleartext HTTP is blocked by default (cleartextTrafficPermitted=false); android:usesCleartextTraffic and the base-config flag re-open it globally, while a <domain-config> scopes an exception (for example a loopback dev host) to named domains only. Certificate pinning (<pin-set>) and debug-only overrides (<debug-overrides>) live in the same file, keeping production policy and debug convenience separated.",
@@ -243,9 +216,7 @@
     "version": "Living Standard"
   },
   {
-    "groups": [
-      "mobile-security"
-    ],
+    "groups": ["mobile-security"],
     "id": "android/permissions",
     "sha256": "1be98488de7736d40683e177f37f36ad28eb2112de86073754eaebfcf74960bd",
     "text": "Every android.permission.* string in the manifest widens the app's attack and review surface: install-time (normal/signature) permissions are granted at install, dangerous permissions additionally require a runtime request the user can refuse or revoke at any time. Declare the minimum set, audit what libraries merge into the final manifest (remove unneeded entries rather than shipping them), and never request a permission speculatively — store review checks the declared set against actual use.",
@@ -254,9 +225,7 @@
     "version": "2026"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "ietf/rfc5116-aead",
     "title": "An Interface and Algorithms for Authenticated Encryption (AEAD)",
     "url": "https://www.rfc-editor.org/rfc/rfc5116",
@@ -265,9 +234,7 @@
     "sha256": "e42bccf2764200bceb5745376a6e104bd7fffdf29562b682e06e6eb5e3865832"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "nist/sp800-38d-gcm",
     "title": "NIST SP 800-38D: Galois/Counter Mode (GCM) and GMAC",
     "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf",
@@ -276,9 +243,7 @@
     "sha256": "6ea17f3f65a29acdabd9f0ec87c1b4476f8b7fa7c8a48ea53d0ba6b6ebc38c81"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "ietf/rfc5869-hkdf",
     "title": "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)",
     "url": "https://www.rfc-editor.org/rfc/rfc5869",
@@ -287,9 +252,7 @@
     "sha256": "ec1ad0cc447f34df7c7940728c767ee6f0cddda161c44d8f3b06029e913624b6"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "ietf/rfc9106-argon2",
     "title": "Argon2 Memory-Hard Function for Password Hashing and Proof-of-Work",
     "url": "https://www.rfc-editor.org/rfc/rfc9106",
@@ -298,9 +261,7 @@
     "sha256": "d0c919873913d88144d0a247b1b522458963833b45a72173130acfaafca5e76f"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "w3c/webcrypto",
     "title": "Web Cryptography API",
     "url": "https://www.w3.org/TR/WebCryptoAPI/",
@@ -309,9 +270,7 @@
     "sha256": "dabc8534e1ed699f8482135f0b83f128e573d7b6a507f455adea38305ae6986d"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "owasp/key-management",
     "title": "OWASP Key Management Cheat Sheet",
     "url": "https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html",
@@ -320,9 +279,7 @@
     "sha256": "7b606aa3818a28cab6886f7bc3df9c72ec2c5e6e1ae9ab8abfe1c360750b1a85"
   },
   {
-    "groups": [
-      "cryptography"
-    ],
+    "groups": ["cryptography"],
     "id": "libsodium/sealed-boxes",
     "title": "libsodium: Sealed boxes (anonymous public-key encryption)",
     "url": "https://doc.libsodium.org/public-key_cryptography/sealed_boxes",
@@ -331,10 +288,7 @@
     "sha256": "557f1cf7bcb33873082c9446f4a904800d6aee0c679fcce7ee5aff956da9fe56"
   },
   {
-    "groups": [
-      "cryptography",
-      "mobile-security"
-    ],
+    "groups": ["cryptography", "mobile-security"],
     "id": "apple/export-compliance",
     "title": "Complying with Encryption Export Regulations",
     "url": "https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations",

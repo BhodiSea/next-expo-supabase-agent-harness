@@ -207,8 +207,8 @@ Two properties to hold in review:
 
 Copy the assertions from `packages/platform/crypto/src/webcrypto-provider.test.ts`
 into a jest-expo test beside this file and point them at
-`nativeCryptoProvider`, reusing `src/testing/vectors.gcm.json` and
-`vectors.hkdf.json`. Seal must reproduce the published `ct‖tag` **byte-exactly**
+`nativeCryptoProvider`, reusing the known-answer vectors inlined in
+`src/webcrypto-provider.test.ts`. Seal must reproduce the published `ct‖tag` **byte-exactly**
 — a roundtrip test proves only that the library agrees with itself, which is
 exactly what a wrong cipher also does. Then keep the three tamper cases
 (ciphertext byte, AAD byte, tag byte), because they are what prove `aeadOpen`

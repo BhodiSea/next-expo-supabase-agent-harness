@@ -34,7 +34,7 @@ with an intact cipher.
 | `packages/platform/crypto/src/envelope.test.ts` | Roundtrip byte-faithfulness, one distinct reason per decode refusal, and the two AAD properties (role separation; NUL-separation injectivity) |
 | `packages/platform/crypto/src/keyring.test.ts` | The hierarchy over the REAL provider: fresh DEK per seal, wrap/unwrap, and the four refusals — moved row, moved user, role swap, wrong root key |
 | `packages/platform/crypto/src/webcrypto-provider.test.ts` | VECTOR conformance (seal must reproduce the published `ct‖tag` byte-exactly), plus tamper cases on ciphertext, AAD and tag |
-| `packages/platform/crypto/src/testing/vectors.gcm.json` · `vectors.hkdf.json` | The published AES-256-GCM and RFC 5869 appendix-A vectors the provider is held to |
+| `packages/platform/crypto/src/webcrypto-provider.test.ts` | The published AES-256-GCM and RFC 5869 appendix-A vectors the provider is held to, inlined beside the assertions that use them |
 | `docs/modules/e2ee/mobile-provider.patch.md` | The documented patch for a MOBILE `CryptoProvider` + `KeystoreAdapter` — a primitive dependency is a decision made deliberately, not defaulted |
 
 `@app/crypto` is a dual-barrel package and its census entry is already in

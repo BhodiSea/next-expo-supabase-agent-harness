@@ -53,7 +53,10 @@ for (const entry of census.sanctioned) {
   // Validated when present — an empty or non-string value would silently make the
   // stale arm dormant forever, which is the failure mode this whole file exists
   // to refuse.
-  if (entry.module !== undefined && (typeof entry.module !== 'string' || entry.module.trim() === '')) {
+  if (
+    entry.module !== undefined &&
+    (typeof entry.module !== 'string' || entry.module.trim() === '')
+  ) {
     fail(
       GATE,
       `${CENSUS}: sanction for ${entry.package} carries a "module" that is not a non-empty string — it names the opt-in module providing the package, and a blank value would disable the stale check silently`,

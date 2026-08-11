@@ -4,24 +4,19 @@
 // WebCrypto provider lives on the `.` barrel ONLY (Hermes ships no Web
 // Crypto); the census entry in tools/exports-walls.json records exactly that
 // reason.
-export {
-  type CryptoFailureReason,
-  type CryptoResult,
-  cryptoErr,
-  cryptoOk,
-} from './result.js'
+
 export {
   AAD_ROLE_DEK,
   AAD_ROLE_ITEM,
+  type AeadAlgId,
   ALG_AES_256_GCM,
   ALG_RESERVED_XCHACHA20,
-  type AeadAlgId,
   buildAad,
   decodeEnvelope,
-  encodeEnvelope,
-  type Envelope,
   ENVELOPE_MAGIC,
   ENVELOPE_VERSION,
+  type Envelope,
+  encodeEnvelope,
   GCM_IV_BYTES,
   type KeyContext,
 } from './envelope.js'
@@ -34,3 +29,9 @@ export {
 } from './keyring.js'
 export type { CryptoProvider, KeystoreAdapter } from './ports.js'
 export type { DeviceSyncPort, RecipientWrapPort, RecoveryPort } from './ports-declared.js'
+export {
+  type CryptoFailureReason,
+  type CryptoResult,
+  cryptoErr,
+  cryptoOk,
+} from './result.js'

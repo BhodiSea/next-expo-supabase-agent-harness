@@ -23,7 +23,15 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { commandFailureOutput, fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import {
+  commandFailureOutput,
+  fail,
+  failures,
+  ok,
+  runCmd,
+  skipOrFail,
+  stampGate,
+} from './lib/gate.mjs'
 import { parseJsonc } from './lib/jsonc.mjs'
 import { blankComments, lineOf, skipBalanced } from './lib/source-text.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'

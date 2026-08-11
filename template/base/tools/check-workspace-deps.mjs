@@ -179,7 +179,10 @@ if (existsSync(ANATOMY_ALLOW)) {
   try {
     allowDoc = JSON.parse(readFileSync(ANATOMY_ALLOW, 'utf8'))
   } catch (e) {
-    fail(GATE, `${ANATOMY_ALLOW} is not valid JSON (${e.message}) — the escape must be reviewable data`)
+    fail(
+      GATE,
+      `${ANATOMY_ALLOW} is not valid JSON (${e.message}) — the escape must be reviewable data`,
+    )
   }
 }
 const anatomyVerdict = applyAnatomyAllow(anatomy.findings, allowDoc)

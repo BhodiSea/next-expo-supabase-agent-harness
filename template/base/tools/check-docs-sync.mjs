@@ -200,7 +200,12 @@ for (const cmd of advertised) {
       )
     }
   }
-  for (const surfaceDir of ['.claude/rules', '.claude/commands', '.claude/agents', '.claude/skills']) {
+  for (const surfaceDir of [
+    '.claude/rules',
+    '.claude/commands',
+    '.claude/agents',
+    '.claude/skills',
+  ]) {
     if (!existsSync(surfaceDir)) continue
     for (const rel of walkFiles(surfaceDir, { filter: (p) => p.endsWith('.md') })) {
       const body = readFileSync(`${surfaceDir}/${rel}`, 'utf8')
@@ -214,7 +219,9 @@ for (const cmd of advertised) {
       }
       for (const m of body.matchAll(/`node ((?:tools|tests|\.claude)\/[^\s`]+\.mjs)/g)) {
         if (!existsSync(m[1])) {
-          bodyFindings.push(`${surfaceDir}/${rel} points at \`node ${m[1]}\` but no such file exists`)
+          bodyFindings.push(
+            `${surfaceDir}/${rel} points at \`node ${m[1]}\` but no such file exists`,
+          )
         }
       }
     }
@@ -277,10 +284,17 @@ for (const cmd of advertised) {
           `${at} has no \`**Status:**\` line in the closed vocabulary (Proposed | Accepted | Superseded …) — a record with no status cannot be superseded honestly`,
         )
       }
-      for (const names of [['Context'], ['Decision'], ['Consequences', 'Honest losses'], ['Sources']]) {
+      for (const names of [
+        ['Context'],
+        ['Decision'],
+        ['Consequences', 'Honest losses'],
+        ['Sources'],
+      ]) {
         const section = sectionBody(text, names)
         if (section === null) {
-          adrFindings.push(`${at} lacks a \`## ${names[0]}\` section${names.length > 1 ? ` (or \`## ${names[1]}\`)` : ''}`)
+          adrFindings.push(
+            `${at} lacks a \`## ${names[0]}\` section${names.length > 1 ? ` (or \`## ${names[1]}\`)` : ''}`,
+          )
         } else if (section.body.replace(/\s/g, '').length < 40) {
           adrFindings.push(
             `${at} \`## ${section.name}\` body is under 40 characters — a heading with no substance is the empty file this check exists to end`,
@@ -291,7 +305,9 @@ for (const cmd of advertised) {
       if (sources !== null) {
         for (const m of sources.body.matchAll(/\[corpus:\s*([^\]\s]+)\s*\]/g)) {
           if (corpusIds !== null && !corpusIds.has(m[1])) {
-            adrFindings.push(`${at} Sources cites \`[corpus: ${m[1]}]\` but tools/mcp/corpus/index.json has no such id`)
+            adrFindings.push(
+              `${at} Sources cites \`[corpus: ${m[1]}]\` but tools/mcp/corpus/index.json has no such id`,
+            )
           }
         }
         for (const m of sources.body.matchAll(/https?:\/\/[^\s)>`]+/g)) {

@@ -18,10 +18,7 @@
  * SOURCE: https://doc.libsodium.org/public-key_cryptography/sealed_boxes [corpus: libsodium/sealed-boxes]
  */
 export interface RecipientWrapPort {
-  wrapDekFor(args: {
-    dek: Uint8Array
-    recipientPublicKey: Uint8Array
-  }): Promise<Uint8Array>
+  wrapDekFor(args: { dek: Uint8Array; recipientPublicKey: Uint8Array }): Promise<Uint8Array>
   unwrapDekWith(args: {
     wrapped: Uint8Array
     recipientSecretKey: Uint8Array
@@ -52,10 +49,7 @@ export interface RecoveryPort {
  * above, which is why this one is last.
  */
 export interface DeviceSyncPort {
-  exportForDevice(args: {
-    rootKey: Uint8Array
-    channelKey: Uint8Array
-  }): Promise<Uint8Array>
+  exportForDevice(args: { rootKey: Uint8Array; channelKey: Uint8Array }): Promise<Uint8Array>
   importFromDevice(args: {
     payload: Uint8Array
     channelKey: Uint8Array

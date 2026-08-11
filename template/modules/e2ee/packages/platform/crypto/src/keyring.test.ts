@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { deriveKek, openItem, sealItem } from './keyring.js'
 import { createWebCryptoProvider } from './webcrypto-provider.js'
 
+// Declared locally: the package sets `types: []` so platform globals stay out of
+// the shared graph — see the note in envelope.ts.
+declare const TextEncoder: new () => { encode(input: string): Uint8Array }
+declare const TextDecoder: new () => { decode(input: Uint8Array): string }
+
 // The keyring proven over the REAL provider (vitest runs where WebCrypto
 // exists), because a keyring proven over a mock proves the mock. The provider
 // itself is vector-proven next door — these tests own the HIERARCHY: fresh DEK
@@ -65,8 +70,10 @@ describe('failure paths stay typed, never thrown', () => {
   it('a tampered wrapped DEK is aead_auth_failed', async () => {
     const kek = await deriveKek(provider, rootKey, 'item-wrap')
     const sealed = await sealItem(provider, kek, text('secret'), ctx)
+    // Same branched read as the provider suite's flipByte — noUncheckedIndexedAccess
+    // makes `x[i] ^= 1` unwritable, and `!` is the habit the rubric names.
     const wrappedDek = sealed.wrappedDek.slice()
-    wrappedDek[10] ^= 0x01
+    wrappedDek[10] = (wrappedDek.at(10) ?? 0) ^ 0x01
     const r = await openItem(provider, kek, { ...sealed, wrappedDek }, ctx)
     expect(r).toMatchObject({ ok: false, reason: 'aead_auth_failed' })
   })

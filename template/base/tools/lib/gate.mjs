@@ -208,9 +208,7 @@ export function runCmd(cmd, opts = {}) {
 // detail), and stdout was dropped entirely. Callers keep their own shaping
 // (head/tail slice, first-N-lines) over the return value.
 export function commandFailureOutput(e) {
-  const parts = [e.stdout, e.stderr]
-    .map((s) => (s == null ? '' : String(s).trim()))
-    .filter(Boolean)
+  const parts = [e.stdout, e.stderr].map((s) => (s == null ? '' : String(s).trim())).filter(Boolean)
   if (parts.length > 0) return parts.join('\n')
   return String(e.message ?? e)
 }
