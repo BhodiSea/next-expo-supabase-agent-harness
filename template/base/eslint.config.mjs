@@ -465,6 +465,24 @@ export default tseslint.config(
       '**/__tests__/**',
       'apps/*/e2e/**',
       'apps/*/playwright.config.ts',
+      // THE TWO SEEDED SITES THIS RULE WAS WRITTEN FOR, exempted until 0.10.0 — and
+      // the exemption is what keeps the rule from being an ambush rather than a gate.
+      // The rule is harness-OWNED so `update` arms it on every install at once; the
+      // files it reds are SEEDED, so `update` cannot rewrite them, and an upgrading
+      // consumer would get a hard-red `lint` step on two files they never touched.
+      // A lint rule cannot carry a rampNote, so this list is its ramp: the correction
+      // reaches them as a 0.9.5 seededSourceFixes instruction (`doctor` warns while
+      // the old shape is still there), and the 0.10.0 record removes these two lines.
+      // The template's own copies are already corrected, so on a fresh scaffold both
+      // entries are inert — which is exactly the property that makes the exemption
+      // safe to carry: it can never hide a NEW violation, only the two it names.
+      // Register row: env-through-register-seeded-exemption.
+      'apps/web/lib/rate-limit-runtime.ts',
+      // `**` rather than the literal `[trpc]`: square brackets are a glob CHARACTER
+      // CLASS, so `.../trpc/[trpc]/route.ts` matches a directory named `t`, `r`, `p`
+      // or `c` — never the Next dynamic segment it is spelled after. The exemption
+      // silently did nothing until upgrade-lane leg I reported the route still red.
+      'apps/web/app/api/trpc/**/route.ts',
     ],
     plugins: { local: localRules },
     rules: { 'local/env-through-register': 'error' },

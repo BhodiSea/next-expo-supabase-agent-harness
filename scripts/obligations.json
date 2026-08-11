@@ -39,6 +39,16 @@
       "reviewedOn": "2026-08-10"
     },
     {
+      "id": "env-through-register-seeded-exemption",
+      "kind": "release",
+      "target": "0.10.0",
+      "sites": [
+        { "file": "template/base/eslint.config.mjs", "mustContain": "apps/web/lib/rate-limit-runtime.ts" }
+      ],
+      "reason": "The env-through-register rule (0.9.5) is harness-OWNED, so `update` arms it on every install at once, while the two sites it was written for are SEEDED — an upgrading consumer would meet a hard-red lint step on files `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so the two paths sit in the rule's `ignores` as its ramp, paired with a 0.9.5 seededSourceFixes instruction that `doctor` surfaces. 0.10.0 owes the removal of those two ignore lines, once the source fix has had a release to land. Found by upgrade-lane leg I, not by review.",
+      "reviewedOn": "2026-08-11"
+    },
+    {
       "id": "docs-sync-agent-surface-ramp-expiry",
       "kind": "release",
       "target": "0.10.0",
@@ -182,6 +192,17 @@
       "reason": "The full Stop chain executes off-Linux nowhere: the blocker is the DATABASE, not the shell — rls-isolation needs the live Supabase stack (Docker), which the Windows/macOS runners do not carry, while the gate/hook LOGIC is already proven cross-platform by the Windows unit matrix. Condition: discharge needs a supported off-Linux local-stack story upstream, re-checked at every Supabase CLI pin bump, not a date this repo can set.",
       "reviewedOn": "2026-08-10",
       "evidence": ".github/workflows/selftest.yml"
+    },
+    {
+      "id": "store-policy-consumer-tunable-split",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        { "file": "template/base/tools/store-policy.json", "mustContain": "iosEncryption" }
+      ],
+      "reason": "tools/store-policy.json holds a harness FLOOR the harness must be able to ship (iosToolchain's Xcode floor, androidTargetSdk — check-version-sync reds when iosToolchain is missing and tells the consumer to run `update` to restore it) and a consumer TUNABLE in the same file (iosEncryption.nonExemptAllowed + reason, which check-expo-policy's own failure text tells the consumer to set). Owned, it is hash-pinned, so the demanded edit reads as tampering; seeded, `update` can no longer deliver the floor — 0.9.5 tried the seeded flip and upgrade-lane leg E caught it immediately, a v0.3.0 install keeping its pre-0.7.0 file and redding BOTH version-sync and docs-sync. Neither classification is right because the file is two files. Same shape and same remedy as auth-posture-consumer-tunable-split below: floor rows owned and pinned, tunable rows seeded with declared bounds. Condition, not dated: the split is a design decision, and the wrong half-fix is worse than the honest record.",
+      "reviewedOn": "2026-08-11",
+      "evidence": "template/base/tools/store-policy.json"
     },
     {
       "id": "auth-posture-consumer-tunable-split",

@@ -115,7 +115,9 @@ export function readOptionalServerEnv(): EnvSource {
 }
 
 /** Parse (a′). Pure in its argument, so boot behaviour is testable. */
-export function parseOptionalServerEnv(source: EnvSource = readOptionalServerEnv()): OptionalServerEnv {
+export function parseOptionalServerEnv(
+  source: EnvSource = readOptionalServerEnv(),
+): OptionalServerEnv {
   return parseEnvOrThrow(OptionalServerEnvSchema, source, 'server-optional')
 }
 

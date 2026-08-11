@@ -137,19 +137,6 @@ export const SEEDED_FILES = new Set([
   // logic as duplication-allow — the boundaries gate's own failure text points the
   // consumer at a reviewed entry here.
   'tools/vertical-anatomy-allow.json',
-  // 0.9.5, and it is a CORRECTION of a classification that has been wrong since
-  // 0.1.2 rather than a new file. check-expo-policy's own failure text tells the
-  // consumer to edit this one — "set nonExemptAllowed with a reason" — and every
-  // comparable reviewed-data file below (expo-plugins, expo-permissions,
-  // audit-columns, pii-columns, data-flow, reviewer-triggers) is seeded for
-  // exactly that reason, while this one was left `owned`, the default for a
-  // tools/ file. So the harness demanded an edit, hash-pinned the file it
-  // demanded the edit to, and re-planted it on the next `update` — the failure
-  // the web-route-allowlist comment above describes, shipped. The e2ee rails are
-  // what made it acute: an app that ships real cryptography MUST set
-  // iosEncryption.nonExemptAllowed with a reason (Apple export compliance), so
-  // the first consumer to encrypt anything would have hit it.
-  'tools/store-policy.json',
   'tools/decision-groups.json',
   'tools/i18n-allow.json',
   // The 0.2.0 reviewed-data files, ALL of them. SEEDED, not owned, because every

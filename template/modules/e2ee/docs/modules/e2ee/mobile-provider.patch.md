@@ -368,7 +368,13 @@ Two operational facts before you make the edit:
   `check-gate-integrity` hashes it against what the installer wrote, and a
   harness `update` re-plants it. Expect to re-apply the flip after an upgrade
   and to diff the file when `gate-integrity` complains, rather than reverting
-  your own reviewed decision.
+  your own reviewed decision. This is a known defect with a recorded remedy, not
+  a design: the file holds a harness FLOOR the harness must keep shipping
+  (`iosToolchain`'s Xcode floor) and a consumer TUNABLE (`iosEncryption`) in one
+  file, so neither classification is right. 0.9.5 tried flipping it to seeded
+  and the upgrade lane caught the other half of the trap within one run — an old
+  install stops receiving the floor. The fix is the split, tracked as
+  `store-policy-consumer-tunable-split` in `scripts/obligations.json`.
 
 `tools/store-policy.json` is also a `mobile-security-reviewer` trigger path, so
 this diff owes that reviewer a `VERDICT: PASS` before the turn can end.
