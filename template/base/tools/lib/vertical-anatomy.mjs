@@ -201,6 +201,48 @@ export function scanVerticalAnatomy({ packagesDir = 'packages' } = {}) {
 }
 
 /**
+ * Validate the reviewed allow-file's SHAPE, returning the usable entries and every
+ * problem found. Split from applyAnatomyAllow below for the harness's own ≤15
+ * cognitive-complexity ratchet — the release that makes that ceiling unsuppressable
+ * for consumers does not get to record an exemption for itself.
+ * @param {any} allowDoc parsed tools/vertical-anatomy-allow.json, or null when absent
+ * @returns {{entries: any[], problems: string[]}}
+ */
+function readAnatomyAllowEntries(allowDoc) {
+  if (allowDoc === null) return { entries: [], problems: [] }
+  if (!Array.isArray(allowDoc?.allow)) {
+    return {
+      entries: [],
+      problems: [
+        'tools/vertical-anatomy-allow.json must carry an "allow" ARRAY of {package, law, path?, reason, reviewedOn} entries',
+      ],
+    }
+  }
+  const entries = []
+  const problems = []
+  for (const [i, e] of allowDoc.allow.entries()) {
+    const problem = anatomyAllowEntryProblem(e, i)
+    if (problem === null) entries.push(e)
+    else problems.push(problem)
+  }
+  return { entries, problems }
+}
+
+/** The per-entry bars, in order. Returns the first failure, or null when usable. */
+function anatomyAllowEntryProblem(e, i) {
+  if (typeof e?.package !== 'string' || !ANATOMY_LAWS.has(e?.law)) {
+    return `allow[${i}] needs a "package" and a "law" from: ${[...ANATOMY_LAWS].join(', ')}`
+  }
+  if (typeof e.reason !== 'string' || e.reason.trim().length < 40) {
+    return `allow[${i}] (${e.package} ${e.law}) needs a reason of at least 40 characters — a one-word escape is not a review`
+  }
+  if (typeof e.reviewedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.reviewedOn)) {
+    return `allow[${i}] (${e.package} ${e.law}) needs a reviewedOn date (YYYY-MM-DD)`
+  }
+  return null
+}
+
+/**
  * Reconcile findings against the reviewed allow-file, CLOSED BOTH WAYS: a
  * malformed entry is a problem, and an entry matching no live finding is stale
  * (the duplication-allow pattern — an escape that outlives its finding is a
@@ -209,29 +251,7 @@ export function scanVerticalAnatomy({ packagesDir = 'packages' } = {}) {
  * @param {any} allowDoc parsed tools/vertical-anatomy-allow.json, or null when absent
  */
 export function applyAnatomyAllow(findings, allowDoc) {
-  const problems = []
-  const entries = []
-  if (allowDoc !== null) {
-    if (!Array.isArray(allowDoc?.allow)) {
-      problems.push('tools/vertical-anatomy-allow.json must carry an "allow" ARRAY of {package, law, path?, reason, reviewedOn} entries')
-    } else {
-      for (const [i, e] of allowDoc.allow.entries()) {
-        if (typeof e?.package !== 'string' || !ANATOMY_LAWS.has(e?.law)) {
-          problems.push(`allow[${i}] needs a "package" and a "law" from: ${[...ANATOMY_LAWS].join(', ')}`)
-          continue
-        }
-        if (typeof e.reason !== 'string' || e.reason.trim().length < 40) {
-          problems.push(`allow[${i}] (${e.package} ${e.law}) needs a reason of at least 40 characters — a one-word escape is not a review`)
-          continue
-        }
-        if (typeof e.reviewedOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.reviewedOn)) {
-          problems.push(`allow[${i}] (${e.package} ${e.law}) needs a reviewedOn date (YYYY-MM-DD)`)
-          continue
-        }
-        entries.push(e)
-      }
-    }
-  }
+  const { entries, problems } = readAnatomyAllowEntries(allowDoc)
   const matched = new Set()
   const remaining = findings.filter((f) => {
     const hit = entries.find(

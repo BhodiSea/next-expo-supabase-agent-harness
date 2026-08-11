@@ -80,18 +80,27 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
     mkdirSync(join(dir, rel, '..'), { recursive: true })
     writeFileSync(join(dir, rel), content)
   }
-  // The 0.9.5 body-command closure demands every `node <path>.mjs` a .claude body
-  // names actually exist. Resolve each such reference against the SHIPPED template
-  // and copy the real file in — so the GREEN fixtures keep proving the shipped
-  // bodies reference only real paths, while a ghost reference (absent from the
-  // template too) stays red exactly as it would on a real tree.
-  const TEMPLATE_BASE = join(TOOLS, '..')
+  resolveBodyScriptReferences(dir)
+  return dir
+}
+
+/**
+ * The 0.9.5 body-command closure demands every `node <path>.mjs` a `.claude` body
+ * names actually exist. Resolve each such reference against the SHIPPED template and
+ * copy the real file in — so the GREEN fixtures keep proving that the shipped bodies
+ * reference only real paths, while a ghost reference (absent from the template too)
+ * stays red exactly as it would on a real tree.
+ *
+ * Extracted from fixture() for the harness's own ≤15 cognitive-complexity ratchet.
+ */
+function resolveBodyScriptReferences(dir) {
+  const templateBase = join(TOOLS, '..')
   for (const rel of ['rules', 'commands', 'skills', 'agents']) {
     const surfaceDir = join(dir, '.claude', rel)
     if (!existsSync(surfaceDir)) continue
     for (const body of walkBodies(surfaceDir)) {
       for (const m of body.matchAll(/`node ((?:tools|tests|\.claude)\/[^\s`]+\.mjs)/g)) {
-        const shipped = join(TEMPLATE_BASE, m[1])
+        const shipped = join(templateBase, m[1])
         if (existsSync(shipped) && !existsSync(join(dir, m[1]))) {
           mkdirSync(join(dir, m[1], '..'), { recursive: true })
           cpSync(shipped, join(dir, m[1]))
@@ -99,7 +108,6 @@ function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, c
       }
     }
   }
-  return dir
 }
 
 function* walkBodies(root) {
