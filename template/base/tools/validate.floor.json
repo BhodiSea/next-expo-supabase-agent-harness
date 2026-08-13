@@ -34,6 +34,6 @@
     ["route-manifest", "node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs"],
     ["security-headers", "node tools/check-security-headers.mjs"],
     ["e2e", "node tools/check-e2e.mjs"],
-    ["docs-sync", "node tools/check-docs-sync.mjs"]
+    ["docs-sync", "node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs"]
   ]
 }

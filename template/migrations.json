@@ -460,5 +460,50 @@
       ],
       "why": "No NEW deadline arrives at 0.9.5 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.5 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
     }
+  },
+  "0.9.9": {
+    "//": [
+      "0.9.9 the evidence release. The record injects NO chain step — VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10 on every install, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and the AGENTS.md gate-list escape is not re-triggered. The Essential Eight closure rides `docs-sync` as a second script and the MFA rail's closure rides `schema-rls`, the two-script shape `boundaries` and `route-manifest` have shipped since 0.1.x.",
+      "SEEDED, NOT PLANTED: the MFA migration and its pgTAP proof are seedOnInitOnly, the same call every migration since 0.2.0 has made. Auto-planting a migration into an existing install is not a courtesy — supabase/migrations/20260812000000_mfa_aal2.sql creates a RESTRICTIVE policy on public.notes, and an install that renamed or dropped that table would take a `db push` failure from a file it never asked for. tools/essential-eight.json is deliberately NOT withheld: it is a tools/ register, harness-owned like security-headers.json, and an install without it has a `docs-sync` step whose second script fails closed on a missing subject.",
+      "THE UPGRADE AMBUSH THIS RECORD PAYS FOR, and it is the one the seededSourceFixes key exists for. tools/auth-posture.json is harness-OWNED, so `update` arms ten new [auth.mfa] keys across four new sections on every install at once; supabase/config.toml is SEEDED, so `update` cannot write the section those keys describe. Left alone that is fourteen hard failures on a file the consumer never touched. Two mechanisms in the same diff: check-auth-posture.mjs routes [auth.mfa] findings through a ramp scoped to them alone (obligations row auth-posture-mfa-ramp-expiry, due 0.10.0 — a whole-gate ramp was the easy move and the wrong one, since it would withhold the redirect-allowlist and session-cookie findings too), and the seededSourceFixes entry below parks the instruction in .harness/pending/ where `doctor` looks rather than in a NOTE that scrolls past.",
+      "A SECOND NEW SEEDED FILE, and it is DELIBERATELY PLANTED rather than withheld: tools/eol.json, the end-of-life register `version-sync` now judges the resolved lockfile against. Seeded rather than harness-owned because every row is a decision about THIS project's dependency set — a consumer whose tree resolves a deprecated package the scaffold never had must be able to record why under their own CODEOWNERS review, exactly as tools/license-exceptions.json works. PLANTED rather than seedOnInitOnly because withholding it would let the ramp on its absence expire at 0.10.0 into a hard red demanding a file `update` had deliberately refused to supply. The cost of planting is stated rather than deferred: a consumer's lockfile is a superset of the harness's, so the six planted rows will not cover everything their tree deprecates, and every finding the section produces is therefore ramped as ONE escape until 0.10.0 (obligations row eol-register-ramp-expiry, DELIBERATE_PLANT entry in scripts/check-seeded-migrations.mjs). A fresh 0.9.9 scaffold is already at baseVersion 0.9.9 and gets the census live from its first validate.",
+      "A THIRD NEW SEEDED FILE, also DELIBERATELY PLANTED: tools/backup-posture.json, the recovery-point tolerance and restoration-testing record the scheduled backup-evidence lane judges against. Seeded rather than owned because it SHIPS INCOMPLETE ON PURPOSE — maxDailyBackupAgeHours and restorationTesting.lastTestedOn are both null, because those are the operator determinations ASD frames as business criticality, and sha-pinning a file whose own text tells the consumer to fill it in would call that edit tampering. PLANTED because the backup-evidence job arrives on the SAME update that would otherwise withhold its one input, which would ship a lane that can never do anything. It costs an existing install nothing: without SUPABASE_ACCESS_TOKEN the script never reaches the posture shape check, so an unwired tree sees one loud SKIP on a weekly cron and no red anywhere. NOTE THAT THIS LANE OPENS NO RAMP: it is scheduled-only and never blocks a pull request, so there is no per-commit finding to withhold."
+    ],
+    "seedOnInitOnly": [
+      "supabase/migrations/20260812000000_mfa_aal2.sql",
+      "supabase/tests/mfa_aal2.test.sql"
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "The probe is lacks-shaped on the section header itself, so an install that has applied it — under any spelling of the surrounding comments — stops matching and the parked artifact self-clears. An install that deleted supabase/config.toml entirely does not match either, and that is correct: the auth-posture gate is the authority on the actual posture, and an absent file is a different finding.",
+        "gate": "auth-posture",
+        "why": "0.9.9 added the MFA rail: TOTP enrolment on, phone and WebAuthn explicitly off, and a RESTRICTIVE aal2 policy on public.notes that refuses every statement from a user who holds a verified factor and presents a password-only session. `update` plants tools/auth-posture.json (harness-owned) with all ten reviewed [auth.mfa] keys, but supabase/config.toml is seeded and stays yours — so the keys are demanded and the section is not written. Copy the [auth.mfa] block from the template (`update --refresh-seeded supabase/config.toml` prints it) or from docs/adr/20260812-mfa-aal2.md. Until you do, the rail is INERT on this install: no user can raise a session to aal2, so the policy admits everyone and enforces nothing. The 0.9.9 ramp carries you to 0.10.0.",
+        "paths": [
+          "supabase/config.toml"
+        ],
+        "probes": [
+          {
+            "path": "supabase/config.toml",
+            "brokenWhen": {
+              "lacks": "[auth.mfa]"
+            }
+          }
+        ]
+      }
+    ],
+    "rampExpiry": {
+      "//": "NOTHING NEW EXPIRES AT 0.9.9. The TWO ramps this release open (version-sync’s absent end-of-life register, and auth-posture's [auth.mfa] posture) BOTH fall due at 0.10.0, and the three 0.9.5 opened fall due at 0.10.0 and 0.11.0. The vintages below are red on arrival for deadlines they already met at or before 0.9.0, exactly as they were on an upgrade to 0.9.0 and 0.9.5 — an install at baseVersion 0.8.0 or later meets NOTHING here. The honest count for a given tree is `pnpm validate 2>&1 | grep 'RAMP EXPIRED'`, never this list.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0"
+      ],
+      "why": "No NEW deadline arrives at 0.9.9 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.9 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
+    }
   }
 }

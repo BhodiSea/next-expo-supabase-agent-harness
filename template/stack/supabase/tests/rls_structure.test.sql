@@ -65,23 +65,39 @@ SELECT is_empty(
 -- Per-operation coverage. This is also the anti-vacuity guard for the whole
 -- file: if a target name is misspelled, every pg_policies query below matches
 -- nothing and passes for the wrong reason — this one fails instead.
+--
+-- PERMISSIVE only, and that word is load-bearing rather than decorative. A
+-- restrictive policy can only ever SUBTRACT rows, so one covering an operation
+-- grants nothing: counting it here would let a table whose permissive SELECT
+-- policy was deleted stay green on the strength of a policy that denies.
 SELECT is_empty(
   $$ SELECT t.table_name, op
        FROM rls_targets t
        CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) AS op
       WHERE NOT EXISTS (
         SELECT 1 FROM pg_policies p
-         WHERE p.schemaname = 'public' AND p.tablename = t.table_name AND p.cmd = op) $$,
-  'every RLS target carries a separate policy for SELECT, INSERT, UPDATE and DELETE'
+         WHERE p.schemaname = 'public' AND p.tablename = t.table_name AND p.cmd = op
+           AND p.permissive = 'PERMISSIVE') $$,
+  'every RLS target carries a separate PERMISSIVE policy for SELECT, INSERT, UPDATE and DELETE'
 );
 
--- A blanket FOR ALL policy would satisfy the check above by accident while
--- welding read intent and write intent together permanently.
+-- A blanket permissive FOR ALL policy would satisfy the check above by accident
+-- while welding read intent and write intent together permanently.
+--
+-- RESTRICTIVE and FOR ALL are ORTHOGONAL AXES, and reading them as one is how this
+-- assertion first reddened on a correct policy. The ban is on a permissive blanket:
+-- a restrictive policy with no `FOR` clause is the opposite shape — it ANDs onto the
+-- permissive set and can only remove rows, so covering every command is the SAFE
+-- choice and splitting it per operation would be four copies of one predicate with
+-- four chances to omit one. The seeded `notes_mfa_aal2` rail is exactly that, and
+-- Supabase's own documentation writes the same policy `for update`, which gates
+-- writes while leaving SELECT wide open.
 SELECT is_empty(
   $$ SELECT p.tablename, p.policyname
        FROM pg_policies p JOIN rls_targets t ON t.table_name = p.tablename
-      WHERE p.schemaname = 'public' AND p.cmd = 'ALL' $$,
-  'no RLS target carries a blanket FOR ALL policy'
+      WHERE p.schemaname = 'public' AND p.cmd = 'ALL'
+        AND p.permissive = 'PERMISSIVE' $$,
+  'no RLS target carries a blanket PERMISSIVE FOR ALL policy'
 );
 
 -- `USING (true)` is RLS switched off with the paperwork left in place: the

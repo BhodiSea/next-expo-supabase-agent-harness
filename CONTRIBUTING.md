@@ -86,6 +86,7 @@ node scripts/check-tier-coverage.mjs       # every one-surface gate declares its
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
 node scripts/check-obligations.mjs         # the obligations register: release rows clockless; census + ramp unions closed (--clockful is the hygiene schedule's)
+node scripts/check-essential-eight-evidence.mjs  # the E8 register's factory-side closures: simulated-activity claims name a registered can-fail proof; not-implemented rows name a real obligations row
 node scripts/check-ci-preconditions.mjs    # the shipped CI's entry path stays satisfiable; actions SHA-pinned
 node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
 
@@ -150,7 +151,8 @@ step 5 compresses):
 - **No `npm publish`**: the packed tarball is a provenance-attested GitHub
   Release asset; the install channel is `npx --yes github:…`.
 - **Post-tag follow-ups are part of the release**, not optional: dispatch the
-  schedule-gated lanes once (`consumer-ci-static`, `obligations-clockful`) so
+  schedule-gated lanes once (`consumer-ci-static`, `obligations-clockful`,
+  `registers-clockful`) so
   their first runs happen while the release context is warm, and re-record the
   chain-budget measurement only through the reviewed `workflow_dispatch` path
   (the 0.7.0/0.8.0 pattern — measure, commit, then publish, in that order).

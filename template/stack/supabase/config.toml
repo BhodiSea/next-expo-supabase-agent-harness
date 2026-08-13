@@ -118,6 +118,64 @@ enable_signup = true
 enable_confirmations = false
 double_confirm_changes = true
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-factor authentication
+# ─────────────────────────────────────────────────────────────────────────────
+# THE RAILS, NOT A REQUIREMENT. TOTP enrolment and verification are ON, so a user
+# who enrols gets a real `aal2` session — and the database ENFORCES it: the
+# restrictive `notes_mfa_aal2` policy refuses every statement from a user who
+# holds a verified factor and presents an `aal1` token. What the platform cannot
+# express is mandatory enrolment: GoTrue's MFA configuration has no "required"
+# field anywhere, so "every user has MFA" is an application decision the harness
+# hands back rather than a config line it can set.
+#
+# EVERY KEY OF THE [auth.mfa] TREE IS WRITTEN OUT, including the ones for factors
+# that are off, and that is the point rather than verbosity. The CLI parses this
+# file leniently — an unknown key produces no error and no warning — so a section
+# whose keys are mostly implicit is a section where a typo reads as a posture.
+# tools/auth-posture.json reviews all ten by value, in both directions.
+[auth.mfa]
+# The CLI's own default. A ceiling, not a target: it bounds how many factors one
+# account can hold, which is a denial-of-service surface rather than a security
+# one, and lowering it would break a user who legitimately carries a phone and a
+# hardware key.
+max_enrolled_factors = 10
+
+# TOTP: something you HAVE (the enrolled secret, held in an authenticator app)
+# alongside the password, which is something you KNOW. That pairing is the whole
+# of what a second factor has to be here.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# SMS/phone MFA is OFF, and not for cost reasons. A one-time code read off a
+# screen and typed into a page is phishable by construction — the relay attack
+# needs no malware and no interception, only a convincing form — and the phone
+# number itself is a SIM-swap target, which makes it the one factor that can be
+# taken from a user by a customer-service call. The remaining keys are pinned so
+# that turning it on is a visible, reviewed diff rather than one flipped boolean.
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+otp_length = 6
+template = "Your code is {{ .Code }}"
+# Five seconds, which is the CLI's default — the published documentation says
+# 10s and is wrong. Verified against the CLI's own embedded config template.
+max_frequency = "5s"
+
+# WebAuthn is the phishing-resistant factor and it is OFF, deliberately and with
+# regret. It exists, it genuinely produces `aal2`, and it is the only factor here
+# that would satisfy ASD's phishing-resistance requirements — but it is
+# undocumented, absent from the Dashboard, marked experimental in the client
+# library, `challengeAndVerify` is TOTP-only, and it is a billable add-on that
+# the CLI SILENTLY DOWNGRADES to false when the cost is not confirmed. A config
+# line that claims a factor the platform quietly disabled is worse than no line,
+# so the harness records the ceiling instead of claiming the control. See
+# docs/compliance/essential-eight.md ("Known ceilings").
+[auth.mfa.web_authn]
+enroll_enabled = false
+verify_enabled = false
+
 # Realtime and Storage are OFF at seed. Both are authorization surfaces of their
 # own (Realtime replays row changes through its own policy check; Storage has a
 # separate bucket policy model), and shipping them enabled-but-unpoliced would

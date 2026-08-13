@@ -80,7 +80,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (131 guard-rule ids: shell-command denials, write-protected harness paths,
+   (134 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -202,6 +202,46 @@ discriminator (`release` reds clocklessly when package.json reaches the target;
 and evidence, never to time). The wall-clock figures above are one runner's
 committed measurements (`scripts/chain-budget.json`) — a figure with no
 committed measurement behind it is a `check-claims` red, not a claim.
+
+## Conformance: the Essential Eight, mapped whole
+
+Every generated project ships `tools/essential-eight.json` — a reviewed map of all 149
+requirements of ASD's Essential Eight Maturity Model at Maturity Level Three, each
+carrying the requirement text verbatim and a grade against what the application actually
+does. The `docs-sync` gate judges the map on every `pnpm validate`: every claimed control
+must be one something actually runs, every `not-applicable` must carry a written negative
+proof, every unbuilt row must name the obligation that owns it, and no artefact may be
+counted twice.
+
+**No application holds an Essential Eight maturity level, and this one does not either.**
+Maturity attaches to an organisation's system; ASD certifies no products and publishes no
+approved-product list. 46 of the 149 requirements name drivers, firmware, Microsoft
+Office, browser fleets and workstation telemetry, which no repository can move — and
+because assessment is all-or-nothing per strategy, a repo-scoped reading of the model
+lands on Maturity Level Zero rather than Three. `scripts/hygiene.mjs` sweeps the whole
+repository for the sentence that says otherwise, so a launch-week README edit cannot
+introduce it later.
+
+The map is for the useful thing next door: making sure a generated application is never
+the *blocker* to its operator's assessment, and handing an assessor a per-requirement
+statement with evidence attached instead of a sales claim. What the harness produces is
+machine-checkable evidence for the software-supply-chain, application-audit-log,
+authentication and backup portions of an organisation's ML3 assessment — and it hands the
+endpoint, driver, firmware, Office, browser-fleet, workstation-telemetry and
+incident-response portions back to the organisation.
+
+The standing below is recomputed from the register by `check-claims.mjs` and printed
+verbatim by the gate, as the whole partition rather than the flattering half of it:
+**149 ML3 requirements: 5 effective, 4 alternate-control, 30 not-implemented, 61
+not-applicable, 49 organisation-boundary; 8 shared clauses.** Grades are conservative by
+rule — absence of a surface is never a control, where two grades are defensible the lower
+one is taken, and an artefact another row already claims is not claimed again. Rows
+graded `not-implemented` are honestly unbuilt and each names the obligations row that owns
+the gap; the gate deliberately does *not* fail on them, because failing would create
+steady pressure to regrade generously to get a green build. Evidence carries ASD's own
+ranking, so a row backed only by a written statement is labelled `documentation` rather
+than borrowing its neighbours' credibility. The consumer-facing map is
+`docs/compliance/essential-eight.md`.
 
 ## Install
 

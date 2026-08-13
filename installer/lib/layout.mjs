@@ -113,6 +113,18 @@ export const SEEDED_FILES = new Set([
   'tools/rls-exempt.json',
   'tools/provenance-overrides.json', // reviewed cross-group cites — consumer-owned like rls-exempt
   'tools/license-exceptions.json',
+  // 0.9.9. Which dependencies this project knowingly carries after their VENDOR stopped
+  // supporting them. Seeded rather than owned for the same reason license-exceptions.json
+  // is: the rows are decisions about THIS project's dependency set, so a consumer whose
+  // tree resolves a deprecated package the scaffold never had must be able to record why —
+  // and `update` must never clobber those rows to re-plant the harness's own six.
+  'tools/eol.json',
+  // 0.9.9. The backup posture. Seeded rather than owned for the reason approved-tools.json
+  // gives below: the file SHIPS INCOMPLETE ON PURPOSE — `maxDailyBackupAgeHours` is null and
+  // `restorationTesting.lastTestedOn` is null — because those are the operator's
+  // determinations, and sha-pinning a file whose own text tells the consumer to fill it in
+  // would call that edit tampering.
+  'tools/backup-posture.json',
   'tools/identity.lock.json',
   'tools/prompts.lock.json',
   // Human-tuned budget/design data: write-guard-protected against agents, but a

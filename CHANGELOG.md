@@ -11,6 +11,201 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [0.9.9] — 2026-08-13
+
+**The evidence release.** A machine-checked map of every requirement in the
+Australian Signals Directorate's Essential Eight Maturity Model at Maturity
+Level Three — all **149** — against what a generated application actually does,
+with each row labelled by the strength of its evidence using ASD's own ranking.
+No deadline arrives (every live ramp is dated 0.10.0 or 0.11.0, and `cmpDotted`
+is numeric per segment, so `0.9.9 < 0.10.0`), and no chain step is injected —
+the chain stays **34/10** on every install, because the register's closure rides
+`docs-sync` as a second script. Three ramps open, each with its dated row.
+
+**The claim this release does NOT make.** A codebase cannot hold an Essential
+Eight maturity level and neither can a generator. Maturity attaches to an
+organisation's system; ASD operates no approved-product list and certifies
+nobody; assessment is all-or-nothing per strategy AND per package, so
+risk-accepting one whole strategy forces Maturity Level **Zero** overall — a
+repo-scoped claim does not merely overstate, it inverts. `scripts/hygiene.mjs`
+carries a deny pattern so "achieves ML3" cannot appear later. What the map is
+for is the useful thing next door: making sure a generated application is never
+the **blocker** to its operator's assessment.
+
+### Added
+
+- **The Essential Eight register** — `tools/essential-eight.json`, judged by
+  `tools/check-essential-eight.mjs` as the second script of `docs-sync`. All 149
+  ML3 requirements carry ASD's text verbatim and two independent judgements:
+  `reachability` (frozen research — could *any* codebase satisfy this) and
+  `outcome` (this tree, today). Keeping them apart is deliberate; collapsing
+  them is precisely how a compliance register inflates. Standing at ship: **5
+  effective, 4 alternate-control, 30 not-implemented, 61 not-applicable, 49
+  organisation-boundary, 8 shared clauses**, and the published figures are
+  RECOMPUTED from the register by `scripts/check-claims.mjs` rather than typed.
+- **`evidenceTier`, because ASD ranks evidence and the ranking is the design.**
+  Its assessment process guide calls documentation and interviews *Poor* and
+  testing with simulated activity *Excellent* — which is this harness's own
+  doctrine, so the strongest claim a row can make is the hardest one to make. A
+  row may claim `simulated-activity` only while naming a
+  `tests/canary/injections.json` entry that makes its control go red, closed
+  factory-side by `scripts/check-essential-eight-evidence.mjs` because the
+  registry never ships to an install. **112 documentation, 32
+  system-generated-artefact, 5 simulated-activity** — the point of writing the
+  weakest tier on 112 rows is that they are not dressed up as the other two.
+- **Five closures, each with its own red-proof**: the per-strategy census
+  (`13 / 16 / 23 / 29 / 19 / 11 / 27 / 11`); every `effective` row naming a LIVE
+  control, derived through the shared `tools/lib/live-controls.mjs`;
+  shared-clause dedup — eight logging clauses repeat across four strategies,
+  **32 of the 149 rows resting on one artefact set**, so at most one row claims
+  each artefact; the evidence-tier closure above; and anti-vacuity, where an
+  emptied register is a hard FAIL and not a green skip.
+- **The 152-vs-149 trap, recorded rather than silently resolved.** The naive
+  union is 152; exactly three ML1/ML2 requirements are *superseded* at ML3 and
+  ship as `supersededAtML3[]` rows carrying `replacedBy`, never deleted — a cut
+  requirement and a forgotten one look identical six months later. Worth
+  quoting: the common vendor claim that ML3 moves application patching "from one
+  month to two weeks" is **wrong at both ends** (ML1/ML2 was already two weeks;
+  ML3 splits into 48h and two weeks).
+- **MFA rails and `aal2` enforcement.** Ten reviewed `[auth.mfa]` keys across
+  four sections in `tools/auth-posture.json` — every one written out, because
+  the Supabase CLI parses unknown keys *leniently* and `[auth.mfa.webauthn]`
+  (missing underscore) is dropped in silence. `public.mfa_is_required()` as
+  `SECURITY DEFINER SET search_path = ''` behind a **RESTRICTIVE policy with no
+  `FOR` clause**, and `supabase/tests/mfa_aal2.test.sql` proving the fail-open
+  specifically — and that proof was **executed, not asserted**: with the
+  published policy swapped in, the suite fails **6 of 23**, test 12 (*"aal1 +
+  enrolled: ZERO ROWS"*) returning both rows. Supabase's own published aal2
+  policy is broken in three directions: as published it queries
+  `auth.mfa_factors` where `authenticated` holds no grant (`42501` on every
+  request); "fixed" with a naive `GRANT SELECT`, that table has RLS on and no
+  policy, so default-deny makes `count(id) = 0`, the `CASE` falls through, and
+  the policy **silently accepts aal1**; and — found by running the mutation
+  rather than by reading — it denies every session carrying no JWT at all, since
+  `array[NULL] <@ array['aal1','aal2']` is NULL and a RESTRICTIVE policy reads
+  that as a refusal, which failed `supabase db reset` at the seed step. Ramped
+  to 0.10.0 — `config.toml` is seeded, so `update` cannot write the section the
+  posture demands.
+- **The end-of-life census** (`version-sync`) — `tools/eol.json`, judged against
+  the npm registry's own `deprecated` flags **as recorded in `pnpm-lock.yaml` at
+  resolve time**. That is what makes "the vendor says this is unsupported" a
+  committed, offline, third-party-authored artefact rather than a live lookup,
+  which is the only reason it may ride the per-commit chain at all. Each row's
+  production-vs-development scope is **recomputed from the lockfile** rather
+  than believed: on its first run the walk disproved the note about to be
+  written, finding `uuid@7` production-reachable through
+  `expo → @expo/config-plugins → xcode`. Ramped to 0.10.0.
+- **The backup evidence lane** (`backup-evidence`, schedule/dispatch only) —
+  the one control whose subject is not in the tree, so the live query rides a
+  credential-gated job while the judgement is a pure function over recorded API
+  responses, unit-tested on every `pnpm test`. Daily-vs-PITR is an **OR, never
+  an AND** (enabling PITR *stops* daily backups by design), freshness is not
+  asserted under PITR (an idle database makes no WAL backups), a project mid-
+  `RESTORING` is not judged at all, and a project younger than the operator's
+  own tolerance has missed nothing. `tools/backup-posture.json` ships
+  `maxDailyBackupAgeHours: null` and must be set: ASD frames the requirement as
+  "business criticality", and the vendor publishes an RPO for PITR and **none at
+  all** for daily backups.
+- **`registers-clockful`** (`hygiene.yml`, schedule/dispatch only) — the shipped
+  registers' review windows judged against today. A consumer's `floor-review`
+  cron asks this of their own copies, but the `template/base/tools/` originals
+  every future scaffold is rendered from were judged by nothing: a review could
+  lapse in the factory and the first thing to notice would be a brand-new
+  project redding on its first weekly cron for research this repository never
+  re-read.
+- **Upgrade-lane leg J** (baseline v0.9.0) — the vintage leg A vacated. The only
+  baseline for which the 0.9.0-opened pair is INERT while the 0.9.5-opened trio
+  is LIVE, which is the shape of an install that took 0.9.0 and skipped 0.9.5;
+  legs A, J and I are a strict nesting of NOTE populations where each increment
+  is exactly one release's opened fleet.
+
+### Changed
+
+- **`docs-sync` runs two scripts**, the shape `boundaries` and `route-manifest`
+  have shipped since 0.1.x. No `configSteps`, no floor injection, no AGENTS.md
+  gate-list ramp — 0.10.0's `36/36` arithmetic stays true.
+- **The upgrade sweep gains `tomlSectionAppends` and `skipDerivedAdopt`.** 0.9.9
+  ships the first `seededSourceFixes` path that cannot be adopted by copying:
+  every earlier record named harness-authored files whose template copy is right
+  for any install, while `supabase/config.toml` carries per-project rendering,
+  so copying it would replace the install's project id, ports and every rendered
+  value with unrendered placeholders. The path is withdrawn from the derived
+  pass — held to the record's own paths, so an exemption that outlives its fix
+  throws — and the remedy is the narrowest edit instead: append the reviewed
+  `[auth.mfa]` block, guarded on absence, with the literal pinned to
+  `tools/auth-posture.json` in both directions.
+- **Four prose/machine drifts fixed**, each the defect class this release is
+  about. `CHANGELOG.md`, `template/modules/e2ee/docs/modules/e2ee/README.md` and
+  `.claude/rules/encryption.md` described the E2EE AAD as **NUL-separated** over
+  three fields where `envelope.ts` has been **length-prefixed over four** since
+  the adversarial review; and `SECURITY.md` was the fifth file to claim the web
+  session uses **httpOnly cookies**, which `tools/auth-posture.json` records as
+  *unavailable* on this architecture rather than merely unset.
+
+### Ceilings, stated here rather than discovered later
+
+- **MFA is enforced but not required.** `aal2` binds a client talking straight
+  to the API, because the claim is signed and PostgREST verifies it itself. What
+  the platform cannot express is *mandatory enrolment* — there is no `Required`
+  field anywhere in GoTrue's `MFAConfiguration` — so the register grades "MFA is
+  used to authenticate users" as unbuilt and grades only the factor
+  *composition* as effective.
+- **Phishing-resistant MFA (ML3) is not satisfiable on this stack.** TOTP is not
+  phishing-resistant, and the platform's WebAuthn factor — which does produce
+  `aal2` — is undocumented, absent from the Dashboard, `@experimental` in the
+  client, and a billable add-on the CLI **silently downgrades to `false`** when
+  cost is unconfirmed. It ships explicitly disabled in a reviewed config, so
+  turning it on is a visible diff.
+- **No API or role can delete a backup, and that is not a control.** No Delete
+  or Modify verb for a backup appears in the permissions table or across all 115
+  published API paths. Prevention is a control; an unoffered verb is a gap in an
+  interface, and no immutability or object-lock guarantee is published anywhere
+  — so `RB-11` stays ungranted. One route is recorded as explicitly
+  **unverifiable and ungraded in either direction**: whether reducing the PITR
+  retention period destroys data already inside the previous window. The vendor
+  documents the billing consequence and publishes no data-lifecycle statement.
+- **A backup is the database, not the system.** Edge Functions, Auth settings,
+  Realtime config, extensions, read replicas and Storage objects are all outside
+  it. The sharpest exclusion is the Vault root key: a backup carries ciphertext
+  but never the key, so a restore into a new project cannot decrypt what it just
+  restored.
+- **Restoration testing is a written record and cannot honestly be anything
+  else.** An in-place restore takes the project offline, and the non-destructive
+  alternative is a Dashboard-only flow with no API path. Preview branches are
+  not a substitute and not a counter-example either — the branching guide says
+  branches start with no data while the CLI's `--with-data` and the API's own
+  `with_data` say otherwise, and nothing here is graded on a contradiction
+  inside a vendor's own surfaces.
+- **Vendor support windows are a written record, because most vendors publish no
+  date.** Expo publishes **no end-of-life date for any SDK version** in any
+  machine-readable form, and its written policy defines "unsupported" as
+  *removed from the documentation* — so the register records the supported set
+  and the vendor's own words and refuses to compute a date from "approximately
+  one year". React Native is the one layer with a real published policy.
+- **Authentication events are logged, but not the failures.**
+  `auth.audit_log_entries` records successful events; verified on a running
+  stack, three failed sign-ins wrote nothing. ASD asks for successful **and**
+  unsuccessful, so the row is unbuilt rather than partial.
+
+### Obligations
+
+- **Opened:** three ramp-expiry rows (`auth-posture-mfa-ramp-expiry`,
+  `eol-register-ramp-expiry` at 0.10.0), eleven `e8-*` release rows naming the
+  gaps the register records honestly, two condition rows
+  (`e8-phishing-resistant-mfa`, and the backup findings), and — the one with a
+  clock — **`conformance-e8-retirement` (calendar, 2027-06-15)**: ASD opened
+  consultation on **15 June 2026** to replace the Essential Eight with an
+  ISM-grounded *Essentials* series, citing the cloud gap explicitly. The stated
+  reason for the change *is* the product-versus-organisation mismatch this
+  register documents, so everything built here has roughly a two-year shelf
+  life. It joins the four existing `conformance-*` rows in the scheduled lane,
+  where a verdict that changes with the calendar never fails a pull request.
+- **Recorded, not built:** the **ISM, assessed via IRAP**, is the instrument ASD
+  designed to grade a *product*, and this harness already satisfies much of its
+  *Guidelines for software development* — the same guidelines the Essential
+  Eight tags `N/A` throughout. `design/CONFORMANCE-FACTS.md` carries it as a
+  disposition with **no date**, deliberately.
+
 ## [0.9.5] — 2026-08-11
 
 **The bedrock release.** No deadline arrives and no chain step is injected — the
@@ -65,8 +260,11 @@ its dated row.
 - **E2EE rails — the opt-in `e2ee` module** (`@app/crypto`, zero dependencies).
   A versioned AEAD envelope (magic|v|alg|ivLen|iv|ct, tag inside ct) so a format
   change is a decode branch rather than a fleet migration; MANDATORY associated
-  data binding version, algorithm, a role byte and the NUL-separated row
-  identity, so a ciphertext moved to another row, another user, or the
+  data binding version, algorithm, a role byte and the row identity as four
+  length-prefixed fields (`userId`, `table`, `itemId`, `field` — length prefixes
+  rather than a NUL join, because a separator is injective only while no field
+  can contain it, and the adversarial review demonstrated both halves of that
+  failing), so a ciphertext moved to another row, another user, or the
   wrapped-DEK slot fails authentication instead of decrypting where it does not
   belong; and a local key hierarchy — keystore root key, HKDF-derived KEK, a
   FRESH per-item DEK wrapped by it. Fresh-DEK-per-seal is what makes the 96-bit

@@ -45,6 +45,37 @@ import { versionsBetween } from '../../installer/lib/migrations.mjs'
 // EMPTY entry is a DECISION, not an omission — computeSweepSet fails closed on any crossed
 // version that withholds files (seedOnInitOnly or seededSourceFixes) and has no entry here,
 // so a future release cannot silently skip the review that decides its sweep posture.
+/**
+ * The reviewed `[auth.mfa]` block a swept install appends to its own supabase/config.toml.
+ *
+ * A LITERAL HERE, and the two alternatives are both worse. Copying the template's
+ * config.toml wholesale is the act §2 below already refuses by name; parsing the block out
+ * of that file would make the sweep depend on locating a section inside a heavily commented
+ * file of rendered placeholders. These are the ten keys, in the four sections,
+ * tools/auth-posture.json reviews by value — and tests/gates/upgrade-sweep.test.mjs holds
+ * this literal to that register in both directions, so the copy cannot drift into a posture
+ * of its own.
+ */
+export const AUTH_MFA_BLOCK = `
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+otp_length = 6
+template = "Your code is {{ .Code }}"
+max_frequency = "5s"
+
+[auth.mfa.web_authn]
+enroll_enabled = false
+verify_enabled = false
+`
+
 const SWEEPS = {
   // 0.2.0 withholds 32 paths and a swept leg must adopt NONE of them, per the record's own
   // classification: the DDL would sit unapplied in front of the scaffold's applied history
@@ -138,16 +169,52 @@ const SWEEPS = {
   // why it is NOT vacuous: leg E's graduate SUCCESS depends on that rewrite clearing the
   // NOTE, so the §3 code is this version's sweep.
   '0.9.5': {},
+  // 0.9.9 — reviewed NOT to adopt its seedOnInitOnly set, and that is the whole decision.
+  // The evidence release withholds two files, the MFA migration and its pgTAP proof, and
+  // the record states why they are withheld: the migration creates a RESTRICTIVE policy on
+  // `public.notes`, so an install that renamed or dropped that table takes a `db push`
+  // failure from a file it never asked for. That reasoning does not stop applying because
+  // a script is doing the copying instead of a human — the lane's scaffold happens to keep
+  // public.notes, and adopting on that basis would make this leg prove the sweep is safe
+  // for trees it is NOT safe for. The runbook's own instruction is to read the migration
+  // and apply it deliberately, which is not a step a sweep can perform.
+  //
+  // WHAT THE SWEEP MUST STILL CLEAR IS THE OTHER RAMP, and it is the FIRST seededSourceFixes
+  // path in this lineage that cannot be adopted by copying. `update` plants
+  // tools/auth-posture.json (harness-owned) with ten new [auth.mfa] keys while
+  // supabase/config.toml is SEEDED, so the keys are demanded and the section is not written
+  // — the ambush the record's entry exists for. The derived pass would resolve that path
+  // against template/stack/supabase/config.toml and copy it, which would replace the
+  // consumer's project id, ports and every value the installer rendered with the template's
+  // unrendered placeholders. That is a far larger act than the finding calls for, and it is
+  // the same act §2 below already refuses by name for the section rename. So the path is
+  // WITHDRAWN from the copy pass (`skipDerivedAdopt`, held to the record's own paths so a
+  // stale exemption cannot silently retire a real fix) and the narrowest edit is made
+  // instead: append the reviewed block, and only when the file lacks it.
+  '0.9.9': {
+    skipDerivedAdopt: ['supabase/config.toml'],
+    tomlSectionAppends: [['[auth.mfa]', AUTH_MFA_BLOCK]],
+  },
 }
 
 /**
- * The sweep set for one upgrade hop: every install-relative path to adopt and every
- * config.toml section rename, in the order the versions were crossed. Per version:
- * seedOnInitOnly adoption and the extra steps come from the reviewed SWEEPS entry, while
- * seededSourceFixes stay FULLY DERIVED — a correction to harness-authored source is
- * unconditional on every hop that crosses it (the entry is the review record; it cannot
- * veto the fix). PURE over its inputs so tests drive it without a scaffold. Throws
- * (fail-closed) when a crossed version withholds files without a SWEEPS entry.
+ * The sweep set for one upgrade hop: every install-relative path to adopt, every
+ * config.toml section rename, and every reviewed section append, in the order the versions
+ * were crossed. Per version: seedOnInitOnly adoption and the extra steps come from the
+ * reviewed SWEEPS entry, while seededSourceFixes stay DERIVED — a correction to
+ * harness-authored source is unconditional on every hop that crosses it (the entry is the
+ * review record; it cannot veto the fix).
+ *
+ * ONE NARROW EXEMPTION, added at 0.9.9 and deliberately not a general escape.
+ * `skipDerivedAdopt` withdraws a path from the copy pass, for the case a copy is the wrong
+ * remedy rather than the case a maintainer would rather not make one: supabase/config.toml
+ * carries per-project rendering, so adopting the template's copy would overwrite the
+ * install's own configuration. It is held to the record's own seededSourceFixes paths, so
+ * an exemption that outlives its fix throws instead of quietly cancelling a real
+ * correction — the same fail-closed posture as the missing-entry check below.
+ *
+ * PURE over its inputs so tests drive it without a scaffold. Throws (fail-closed) when a
+ * crossed version withholds files without a SWEEPS entry.
  *
  * @param {object} migrations   parsed template/migrations.json
  * @param {string} baseVersion  the scaffold's vintage (manifest baseVersion)
@@ -156,6 +223,8 @@ const SWEEPS = {
 export function computeSweepSet(migrations, baseVersion, headVersion) {
   const adopt = []
   const tomlSectionRenames = []
+  /** @type {[string, string][]} */
+  const tomlSectionAppends = []
   for (const v of versionsBetween(migrations, baseVersion, headVersion)) {
     const record = migrations[v]
     const sweep = SWEEPS[v]
@@ -167,10 +236,20 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     }
     if (sweep?.adoptSeedOnInitOnly === true) adopt.push(...(record.seedOnInitOnly ?? []))
     adopt.push(...(sweep?.extraAdopt ?? []))
-    for (const fix of record.seededSourceFixes ?? []) adopt.push(...(fix.paths ?? []))
+    const fixPaths = (record.seededSourceFixes ?? []).flatMap((/** @type {any} */ f) => f.paths ?? [])
+    for (const skipped of sweep?.skipDerivedAdopt ?? []) {
+      if (!fixPaths.includes(skipped)) {
+        throw new Error(
+          `upgrade-sweep: version ${v}'s SWEEPS entry withdraws '${skipped}' from the derived adoption pass, but that version's seededSourceFixes names no such path — an exemption for a fix that no longer exists cancels nothing and hides the next one. Remove it from skipDerivedAdopt in scripts/ci/upgrade-sweep.mjs.`,
+        )
+      }
+    }
+    const skip = new Set(sweep?.skipDerivedAdopt ?? [])
+    adopt.push(...fixPaths.filter((/** @type {string} */ p) => !skip.has(p)))
     tomlSectionRenames.push(...(sweep?.tomlSectionRenames ?? []))
+    tomlSectionAppends.push(...(sweep?.tomlSectionAppends ?? []))
   }
-  return { adopt, tomlSectionRenames }
+  return { adopt, tomlSectionRenames, tomlSectionAppends }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -246,6 +325,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         writeFileSync(configPath, after)
         done.push(`supabase/config.toml (${from} → ${to})`)
       }
+    }
+    // ── 2b. reviewed section APPENDS (0.9.9) ───────────────────────────────────────
+    // Same file and the same argument one step further: a release can add a section the
+    // consumer's config has never had, and the harness cannot write it for them because
+    // the file is theirs. Appending the reviewed block is the runbook's own instruction
+    // ("copy the [auth.mfa] block from the template"), and appending is safe TOML —
+    // tables are order-independent, so a block at the end parses exactly as one in the
+    // middle. GUARDED ON ABSENCE, in the same lacks-shape as the record's own probe:
+    // appending a header the file already carries is a duplicate-table parse error, so
+    // an install that has already applied the fix by hand must be left alone.
+    for (const [header, block] of sweepSet.tomlSectionAppends) {
+      const before = readFileSync(configPath, 'utf8')
+      if (before.includes(header)) continue
+      writeFileSync(configPath, `${before.trimEnd()}\n${block}`)
+      done.push(`supabase/config.toml (${header} appended)`)
     }
   }
 

@@ -426,6 +426,15 @@ export const WRITE_PROTECTED = [
   // unguarded edit that makes the code side agree with it. Found by
   // scripts/check-escape-registry.mjs on its first run (0.5.0).
   { id: 'security-headers-policy', re: /^tools\/security-headers\.json$/ },
+  // The ASD Essential Eight conformance register the `docs-sync` step's second script
+  // judges. It is the one file in this block whose subject is a CLAIM rather than a
+  // control: every row states how the generated application stands against a Maturity
+  // Level Three requirement, and a compliance register is worth having only while its
+  // grades are trustworthy. An agent that could edit it could regrade `not-implemented`
+  // to `effective` and turn thirty-two honest gaps green without touching a line of
+  // security-relevant code — the cheapest possible way to fake conformance. Regrading is
+  // a CODEOWNERS-reviewed act that lands in a PR diff where somebody can see it.
+  { id: 'essential-eight-register', re: /^tools\/essential-eight\.json$/ },
   // The applied-history acknowledgement (0.4.0), tolerated-absent. CREATING it is the
   // widening — it converts a hard `migrations` red into an exemption for a (file, rule)
   // pair — so it is exactly the class this block exists for, and it shipped without a
@@ -485,6 +494,16 @@ export const WRITE_PROTECTED = [
   { id: 'provenance-overrides', re: /^tools\/provenance-overrides\.json$/ }, // cross-group citation escapes are a human decision
   { id: 'decision-groups', re: /^tools\/decision-groups\.json$/ }, // extending the citation taxonomy is a human decision
   { id: 'license-exceptions', re: /^tools\/license-exceptions\.json$/ }, // license exceptions are a human decision
+  // The end-of-life register (0.9.9). Accepting a dependency the vendor has abandoned is
+  // a human decision for the same reason a licence exception is, and one degree sharper:
+  // the cheapest way past a red here is to append a row, so the file an agent would reach
+  // for is exactly the one it must not be able to write.
+  { id: 'eol-register', re: /^tools\/eol\.json$/ },
+  // The backup posture (0.9.9). Its `maxDailyBackupAgeHours` is a recovery-point tolerance
+  // and `restorationTesting.lastTestedOn` is an attestation that a human performed a drill —
+  // an agent must be able to write neither, because widening the first silences the lane and
+  // writing the second fabricates evidence.
+  { id: 'backup-posture', re: /^tools\/backup-posture\.json$/ },
   // Reviewed platform-capability data: the expo-policy/native-deps gates read them, and
   // widening a permission or config-plugin allowlist is native reach — a human decision.
   { id: 'expo-permissions', re: /^tools\/expo-permissions\.json$/ },

@@ -9,7 +9,17 @@
     "auth.enable_anonymous_sign_ins": false,
     "auth.email.enable_signup": true,
     "auth.email.enable_confirmations": false,
-    "auth.email.double_confirm_changes": true
+    "auth.email.double_confirm_changes": true,
+    "auth.mfa.max_enrolled_factors": 10,
+    "auth.mfa.totp.enroll_enabled": true,
+    "auth.mfa.totp.verify_enabled": true,
+    "auth.mfa.phone.enroll_enabled": false,
+    "auth.mfa.phone.verify_enabled": false,
+    "auth.mfa.phone.otp_length": 6,
+    "auth.mfa.phone.template": "Your code is {{ .Code }}",
+    "auth.mfa.phone.max_frequency": "5s",
+    "auth.mfa.web_authn.enroll_enabled": false,
+    "auth.mfa.web_authn.verify_enabled": false
   },
   "postureNotes": {
     "auth.jwt_expiry": "One hour of access-token life. Pinned by VALUE rather than by a ceiling because both directions matter: a longer token widens the window a stolen one is useful for, and a much shorter one signs mobile users out mid-session, which is the pressure that gets rotation turned off.",
@@ -17,7 +27,16 @@
     "auth.refresh_token_reuse_interval": "Ten seconds, and it is NOT slack for an attacker: it is the allowance for a mobile client that fires two refreshes concurrently (a cold start racing a resumed request), which without it invalidates the whole family and signs the user out at random. Raising it widens the replay window; removing it trades a security property for a support burden that ends with rotation disabled.",
     "auth.enable_anonymous_sign_ins": "An anonymous sign-in mints a real `authenticated` JWT with a real `sub`, so it satisfies EVERY auth.uid() policy in this tree. The RLS wall would still hold — it would be holding open a door for an identity nobody verified. Turning this on is a product decision that belongs in an ADR.",
     "auth.email.enable_confirmations": "FALSE IS LOCAL-ONLY, and this is the one row where the reviewed value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — this file's [remotes] blocks, or the Dashboard, own that, and this gate cannot see either.",
-    "auth.email.double_confirm_changes": "An email change with no confirmation on the OLD address is an account-takeover primitive: whoever holds the session for one minute owns the account forever."
+    "auth.email.double_confirm_changes": "An email change with no confirmation on the OLD address is an account-takeover primitive: whoever holds the session for one minute owns the account forever.",
+    "auth.mfa.totp.enroll_enabled": "ON, and it is the whole MFA rail. TOTP is something the user HAS (the enrolled secret in an authenticator app) beside the password, which is something they KNOW — the pairing ASD's Maturity Level Three asks a second factor to be. Enrolment being available is NOT the same as MFA being used: GoTrue's MFA configuration carries no `required` field anywhere, so mandatory enrolment is an application decision this file cannot express, and the register says so rather than claiming the requirement.",
+    "auth.mfa.totp.verify_enabled": "ON. Enrol-without-verify would mint factors that can never raise a session to `aal2`, which reads as MFA in the dashboard and enforces nothing — and the restrictive `notes_mfa_aal2` policy would then lock every enrolled user out of their own data, since it refuses `aal1` for anyone holding a verified factor. The two keys are one decision.",
+    "auth.mfa.phone.enroll_enabled": "OFF, and not for cost reasons. A one-time code read off a screen and typed into a form is phishable by construction — the relay attack needs no malware and no interception — and the phone number is a SIM-swap target, which makes it the one factor a customer-service call can take from a user.",
+    "auth.mfa.phone.verify_enabled": "OFF, with phone enrolment. See the enrol key: both halves of a factor are one decision.",
+    "auth.mfa.phone.otp_length": "Pinned at the CLI default even though phone MFA is off, because the keys are the SURFACE: a config whose disabled factor carries no explicit configuration is a config where turning the factor on is one line rather than a reviewed diff.",
+    "auth.mfa.phone.template": "The CLI's default SMS body. Pinned by value, and worth knowing that the published documentation OMITS this key entirely — it is real, it is in the CLI's own embedded config template, and a project that never writes it inherits a default nobody reviewed.",
+    "auth.mfa.phone.max_frequency": "Five seconds — the CLI's default, verified against its own embedded config template. THE PUBLISHED DOCUMENTATION SAYS 10s AND IS WRONG. A gate that pinned the documented value would red on every untouched scaffold, which is how a correct control gets deleted for being noisy.",
+    "auth.mfa.web_authn.enroll_enabled": "OFF, deliberately and with regret — this is the phishing-resistant factor and the only one here that would satisfy ASD's phishing-resistance requirements at ML3. It exists and it genuinely produces `aal2`, but it is undocumented, absent from the Dashboard, marked experimental in the client library, `challengeAndVerify` is TOTP-only, and it is a billable add-on the CLI SILENTLY DOWNGRADES to false when cost is not confirmed. A config line claiming a factor the platform quietly disabled is worse than no line at all: it is the exact defect this whole file exists to catch, wearing the badge of a security feature. Recorded as the obligations row `e8-phishing-resistant-mfa` instead of claimed.",
+    "auth.mfa.web_authn.verify_enabled": "OFF, with WebAuthn enrolment. See the enrol key for the full evidence; the CLI's own default config ships this whole section COMMENTED OUT, so writing it explicitly is what makes the posture assertable at all."
   },
   "projectValued": {
     "//": "Keys whose VALUE is the project's, not the harness's — so they are reviewed for PRESENCE and SHAPE instead of equality. Pinning `site_url` to a literal would either red on every scaffold that filled in its own origin, or pin the template placeholder forever; both make the row a lie. The shape rule is the one that matters: this is the origin auth redirects resolve against, so a plaintext or non-URL value is an interception primitive rather than a typo.",
@@ -42,6 +61,10 @@
     "local_smtp",
     "auth",
     "auth.email",
+    "auth.mfa",
+    "auth.mfa.totp",
+    "auth.mfa.phone",
+    "auth.mfa.web_authn",
     "realtime",
     "storage",
     "edge_runtime",

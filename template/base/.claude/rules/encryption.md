@@ -60,9 +60,13 @@ full statement of what the module does NOT solve, each loss with its cost, is
   alg | ivLen | iv | ct`, tag inside `ct` — so algorithm agility lives in one
   place and one decoder can refuse; the version byte lives INSIDE the bytes so
   no schema column can drift away from the format it claims. The AAD binds
-  version, algorithm, a ROLE byte, and `userId\0table\0itemId`, so a ciphertext
-  moved to another row, table, or user FAILS AUTHENTICATION rather than
-  decrypting in the wrong place. *Twins: the `@app/crypto` API SHAPE, which
+  version, algorithm, a ROLE byte, and then `userId`, `table`, `itemId` and
+  `field`, each preceded by its own 4-byte big-endian LENGTH — not joined by a
+  separator, because a separator is injective only while no field can contain
+  it, and an adversarial review broke both halves of that (an embedded NUL
+  re-split the identity; `TextEncoder` folds every unpaired surrogate to one
+  `U+FFFD`). So a ciphertext moved to another row, table, or user FAILS
+  AUTHENTICATION rather than decrypting in the wrong place. *Twins: the `@app/crypto` API SHAPE, which
   offers no unauthenticated path — `CryptoProvider` has `aeadSeal`, `aeadOpen`,
   `hkdfSha256` and `randomBytes` and nothing else, so a provider written against
   it cannot be misused into a raw block operation; and its tests, which ride the

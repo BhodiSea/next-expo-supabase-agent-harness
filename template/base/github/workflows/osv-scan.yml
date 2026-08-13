@@ -82,3 +82,44 @@ jobs:
       # dependency-free is what lets it run weekly at no cost and never flake.
       - name: Every floored package carries an unlapsed review
         run: node tools/check-framework-floor.mjs
+
+  # The BACKUP EVIDENCE lane (0.9.9). It sits here, beside floor-review, because it is the
+  # same KIND of job rather than the same subject: scheduled-only, never a PR blocker, and
+  # asking a question whose answer changes without anyone touching the repository.
+  #
+  # It is the one control in this harness whose subject is NOT in the tree. Backups live in
+  # the platform's control plane, so the state can only be learned by asking over the network
+  # — which is exactly why it may not ride `pnpm validate`, where a third party changing an
+  # answer overnight would red an untouched commit. The JUDGEMENT is proven offline instead,
+  # by tools/lib/backup-posture.mjs's unit tests over recorded API responses, so a lane that
+  # skips for want of a token is still a lane that has been shown capable of going red.
+  #
+  # SKIPS LOUDLY without SUPABASE_ACCESS_TOKEN, and the skip says plainly that no backup
+  # evidence is being produced — deliberately not a hard failure, because this job runs ON a
+  # schedule (so CI is always true) and failing an operator who has not wired a token would
+  # make deleting the job the rational response. An operator who HAS wired it sets
+  # HARNESS_REQUIRE_BACKUP_EVIDENCE=1 to make the absence binding on themselves.
+  backup-evidence:
+    name: backups (recovery mechanism)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      # No install: one HTTPS GET and a pure judgement over the response.
+      - name: The project reports a recovery mechanism
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: node tools/check-backup-posture.mjs

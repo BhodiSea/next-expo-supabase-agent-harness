@@ -643,3 +643,111 @@ test('GREEN (0.6.0): ALL TABLES IN SCHEMA fans out, and a grant to PUBLIC is hel
   )
   assert.equal(toPublic.code, 0, toPublic.out)
 })
+
+// ── THE MFA RAIL (0.9.9) ──────────────────────────────────────────────────────────
+// A closure over the SHAPE of an aal2 rail, never its coverage — which tables warrant a
+// second factor is a product decision. It exists because Supabase's own documented policy
+// is broken in two directions and the second is SILENT: read as the invoker it raises
+// 42501 for everyone, and "fixed" with a GRANT on auth.mfa_factors it reads zero rows for
+// enrolled users too, falls through to array['aal1','aal2'], and admits aal1. Verified
+// against a live stack, not reasoned about: installing the vendor shape reddened
+// supabase/tests/mfa_aal2.test.sql with the two rows an enrolled aal1 session should not
+// have seen. The reds below are the three ways the fixed shape decays back into it.
+const MFA_HELPERS = `CREATE FUNCTION private.mfa_is_required() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $mfa$ SELECT EXISTS (SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = (SELECT private.caller_id()) AND f.status = 'verified') $mfa$;
+CREATE FUNCTION private.mfa_satisfied() RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = '' AS $sat$ SELECT (SELECT private.caller_aal()) = 'aal2' OR NOT (SELECT private.mfa_is_required()) $sat$;
+REVOKE ALL ON FUNCTION private.mfa_is_required() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION private.mfa_satisfied() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION private.mfa_is_required() TO authenticated;
+GRANT EXECUTE ON FUNCTION private.mfa_satisfied() TO authenticated;
+`
+const MFA_ALLOW = JSON.stringify({
+  comment: 'x',
+  allow: [{ function: 'private.mfa_is_required', reason: 'reads auth.mfa_factors, no grant' }],
+})
+const mfaPolicy = (clause = 'AS RESTRICTIVE TO authenticated') =>
+  `CREATE POLICY thing_mfa_aal2 ON public.thing ${clause} USING ((SELECT private.mfa_satisfied())) WITH CHECK ((SELECT private.mfa_satisfied()));\n`
+
+/** A tree carrying the rail, with the runtime proof present unless told otherwise. */
+function mfaFixture({ extra = '', proof = true } = {}) {
+  const dir = fixture({
+    migration: migration({ extra: `${MFA_HELPERS}${extra}` }),
+    definerAllow: MFA_ALLOW,
+  })
+  if (proof) writeFileSync(join(dir, 'supabase/tests/mfa_aal2.test.sql'), '-- the runtime proof\n')
+  return dir
+}
+
+test('GREEN (0.9.9): the correct rail shape — RESTRICTIVE, no FOR clause, both predicates, no grant', () => {
+  const r = runGate(mfaFixture({ extra: mfaPolicy() }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (0.9.9): a GRANT on auth.mfa_factors is THE fail-open, named as such', () => {
+  // The remediation everybody applies when the published policy 403s, and the one that
+  // turns a loud failure into a silent one.
+  const r = runGate(
+    mfaFixture({
+      extra: `${mfaPolicy()}GRANT SELECT ON TABLE auth.mfa_factors TO authenticated;\n`,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /auth\.mfa_factors is GRANTed.*that grant is the fail-open/s)
+})
+
+test('RED (0.9.9): a PERMISSIVE MFA policy reds — it ORs, so a second policy re-opens it', () => {
+  const r = runGate(mfaFixture({ extra: mfaPolicy('AS PERMISSIVE FOR ALL TO authenticated') }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /carries the MFA predicate but is PERMISSIVE/)
+})
+
+test('RED (0.9.9): a per-operation MFA policy leaves every other command unguarded', () => {
+  // Supabase's own second documentation page writes this policy `for update`, which gates
+  // writes and leaves SELECT wide open. Not hypothetical — published.
+  const r = runGate(mfaFixture({ extra: mfaPolicy('AS RESTRICTIVE FOR UPDATE TO authenticated') }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /carries the MFA predicate but is FOR UPDATE/)
+})
+
+test('RED (0.9.9): USING without WITH CHECK lets an aal1 session write rows it cannot see', () => {
+  const r = runGate(
+    mfaFixture({
+      extra:
+        'CREATE POLICY thing_mfa_aal2 ON public.thing AS RESTRICTIVE TO authenticated USING ((SELECT private.mfa_satisfied()));\n',
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /needs BOTH USING and WITH CHECK/)
+})
+
+test('RED (0.9.9): the runtime proof is deleted while the policy stays', () => {
+  const r = runGate(mfaFixture({ extra: mfaPolicy(), proof: false }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /supabase\/tests\/mfa_aal2\.test\.sql is absent/)
+})
+
+test('RED (0.9.9): helpers defined with NO policy using them — a rail nothing references', () => {
+  // The other direction, and the one that reads worst to the next person: the functions
+  // are there, so the tree looks like it enforces MFA, and nothing does.
+  const r = runGate(mfaFixture({ extra: '' }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /are defined but NO policy uses them/)
+})
+
+test('RED (0.9.9): a RESTRICTIVE policy does not satisfy the per-operation requirement', () => {
+  // The hole the rail would have opened. A restrictive policy can only SUBTRACT rows, so
+  // one covering SELECT grants nothing — counting it would let a table whose permissive
+  // SELECT policy was deleted stay green on the strength of a policy that denies. It was
+  // unreachable until this release seeded the tree's first restrictive policy.
+  const r = runGate(
+    fixture({
+      migration: migration({
+        policies: `CREATE POLICY thing_select_own ON public.thing AS RESTRICTIVE FOR SELECT TO authenticated USING (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_insert_own ON public.thing AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_update_own ON public.thing AS PERMISSIVE FOR UPDATE TO authenticated USING (owner_id = (SELECT auth.uid())) WITH CHECK (owner_id = (SELECT auth.uid()));
+CREATE POLICY thing_delete_own ON public.thing AS PERMISSIVE FOR DELETE TO authenticated USING (owner_id = (SELECT auth.uid()));`,
+      }),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /no PERMISSIVE policy FOR SELECT/)
+})

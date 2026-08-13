@@ -80,6 +80,29 @@ jobs:
       - name: Calendar obligations judged against today (schedule/dispatch only)
         run: node scripts/check-obligations.mjs --clockful
 
+  # The SEEDS' review windows, judged against today (0.9.9). The consumer's `floor-review`
+  # job asks this same question of tools/framework-floor.json and tools/eol.json — but only
+  # inside an install. The copies under template/base/tools/ are what every future scaffold
+  # is rendered FROM, and nothing judged those, so a review could lapse here and the first
+  # thing to notice would be a consumer whose brand-new project reds on its first weekly
+  # cron for research this repository never re-read. Schedule/dispatch-only for the reason
+  # obligations-clockful is: the verdict changes with the date and nothing else.
+  registers-clockful:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Shipped review-dated registers have not lapsed (schedule/dispatch only)
+        run: node scripts/check-register-freshness.mjs
+
   # The factory's OWN SCA lane (0.9.5, the SCA half of the retired
   # vuln-sla-and-factory-sca row): an OSV scan over THIS repo's pnpm-lock.yaml — the
   # toolchain that builds the harness, not the consumer surface (consumers get the

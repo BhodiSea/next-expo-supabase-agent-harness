@@ -249,6 +249,170 @@ redding on an *added* component that is not allowlisted. That is a real gate and
 small, and dating it here without intending to build it next would be the kind of commitment
 this file exists to prevent.
 
+## 9. ASD Essential Eight Maturity Model — **SHIPPED whole, and the claim is bounded**
+
+**Verified 2026-08-12** against ASD's published model (dated **27 Nov 2023**), its assessment
+process guide, and the ISM's mapping tables. The brief was "make the harness deterministically
+produce Maturity Level Three code", and the research changed the deliverable rather than the
+effort. Recorded here because the verdict is the sort a future release will be tempted to
+re-litigate under commercial pressure.
+
+### The scope verdict — a product cannot hold a maturity level
+
+Four facts, each checkable against ASD's own material, and together they are not a matter of
+degree:
+
+- **Maturity attaches to an organisation's system.** Every ASD artefact frames the outcome as
+  *the organisation is meeting the control's objective*. There is no approved-product list, no
+  product certification, and no mechanism by which software holds a level.
+- **46 of the 149 requirements are unreachable by any repository** — Windows workstations,
+  drivers, firmware, Microsoft Office, Internet Explorer, PowerShell, jump servers,
+  incident-response plans.
+- **Assessment is all-or-nothing, per strategy and as a package.** One ineffective requirement
+  fails its strategy; one failed strategy fails the level. *Restrict Microsoft Office macros*
+  has **zero** reachable requirements in a web and mobile application, and risk-accepting a
+  whole strategy forces **Maturity Level Zero** overall. A repo-scoped claim therefore does not
+  merely overstate — **it inverts**.
+- **The Essential Eight contains no software-development controls at all.** Every control in
+  the ISM's *Guidelines for software development* is tagged `Essential 8: N/A`. Writing better
+  code cannot earn E8 maturity, by construction.
+
+**Disposition: SHIPPED in 0.9.9** as `tools/essential-eight.json` — all 149 rows, judged by
+`tools/check-essential-eight.mjs` as the second script of the `docs-sync` chain step, with
+`scripts/check-essential-eight-evidence.mjs` as its factory half. The claim the release
+licenses is that a generated application is never the *blocker* to its operator's assessment.
+`scripts/hygiene.mjs` carries a deny pattern so "achieves ML3" cannot appear later.
+
+### The 152-vs-149 trap
+
+The naive union of ML1, ML2 and ML3 requirements is **152**. Exactly **three are superseded at
+ML3** and must not be counted twice:
+
+| Superseded (ML1/ML2) | Replaced by | Why it is a trap |
+|---|---|---|
+| Applications patched within two weeks | `PA-08` + `PA-09` | ML3 SPLITS into 48h (vendor-critical or working exploit) and two weeks. The common vendor claim that ML3 moves this class "from one month to two weeks" is **wrong at both ends**. |
+| Operating systems patched within one month | `POS-09` + `POS-10` | Unqualified one month becomes a 48h/one-month split. |
+| Customer MFA *offers* a phishing-resistant option | `MFA-12` | ML2 requires an option be OFFERED; ML3 requires it **be** phishing-resistant. Letting a customer choose SMS passes ML2 and fails ML3. |
+
+They ship as `supersededAtML3[]` rows carrying `replacedBy`, never deleted — a cut requirement
+and a forgotten requirement look identical six months later, which is this file's own rule.
+The per-strategy census is `13 / 16 / 23 / 29 / 19 / 11 / 27 / 11` and the gate reds on a
+dropped row.
+
+### ASD ranks evidence, and the ranking is the design
+
+The assessment process guide calls **documentation and interviews *Poor*** evidence and
+**testing with simulated activity *Excellent***. That is the harness's own doctrine — a gate
+that cannot go red is decoration — so `evidenceTier` is a first-class field with three values,
+and a row may claim the top tier only while naming a `tests/canary/injections.json` entry that
+makes its control go red. The standing shape at 0.9.9 is **112 documentation, 32
+system-generated-artefact, 5 simulated-activity**; the point of writing the weakest tier on 112
+rows is that they are not dressed up as the other two.
+
+Two anti-inflation closures matter more than they look. **Absence of a surface is not a
+control** — a requirement about an artefact this system does not produce is `not-implemented`,
+never `alternate-control`, or a system that does nothing scores best. And **an artefact another
+row already claims is not claimed again**: eight logging/incident clauses repeat across four
+strategies, **32 of the 149 rows resting on one artefact set**, so `sharedClauses[]` declares
+each artefact once. The research pass itself classified three of those clauses four different
+ways before its own adversarial critic caught it.
+
+### Supabase's published aal2 RLS policy is broken, in three directions
+
+Load-bearing, because copying it is the obvious move. The first two came out of the research
+pass; **the third was found by running the mutation**, and is written the way it was observed:
+
+- **As published** it queries `auth.mfa_factors`, on which `authenticated` holds **no grant** →
+  `42501` on every request. (Upstream issue #36024 open; fixing PR #42659 unmerged since
+  2026-02-10.)
+- **"Fixed" with a naive `GRANT SELECT`**, that table has RLS enabled and **no policy**, so
+  default-deny makes `count(id) = 0`, the `CASE` falls through to `array['aal1','aal2']`, and
+  the policy **silently accepts aal1**. A fail-open that no naive test catches.
+- **It denies every session carrying no JWT at all.** `auth.jwt()->>'aal'` is NULL there, and
+  `array[NULL] <@ array['aal1','aal2']` evaluates to NULL rather than true — which a RESTRICTIVE
+  policy treats as a refusal, so a migration, a seed file or a psql session cannot write the
+  table. Swapping the published policy into the 0.9.9 proof ladder failed `supabase db reset`
+  outright, at `Seeding data from supabase/seed.sql`, SQLSTATE 42501. Worth stating because it
+  is the *loudest* of the three and would be found immediately — while defect 2, the one that
+  matters, is silent.
+
+**The mutation is the evidence, and it was run rather than reasoned about.** With the published
+policy in place, `supabase/tests/mfa_aal2.test.sql` fails **6 of its 23** assertions — test 12,
+*"aal1 + enrolled: ZERO ROWS"*, returns both rows; the aal1 INSERT succeeds where 42501 was
+wanted; the aal1 DELETE removes the enrolled user's notes outright, which is why the later
+unenrolled-user assertions then see an empty table. Restoring the shipped policy returns
+138/138. A suite that only checked the unenrolled case would have passed against all of it.
+
+Shipped instead: `public.mfa_is_required()` as `SECURITY DEFINER SET search_path = ''`, and a
+**RESTRICTIVE policy with no `FOR` clause** — restrictive and `FOR ALL` are orthogonal axes,
+and Supabase's other page writes this same policy `for update`, gating UPDATE while leaving
+SELECT wide open. `supabase/tests/mfa_aal2.test.sql` proves the fail-open specifically, and two
+traps it must avoid are worth recording: set `request.jwt.claims` (the plural blob GUC) not
+`request.jwt.claim.sub`, because `auth.jwt()` reads the blob and the singular form returns
+`NULL` and passes for the wrong reason; and `auth.mfa_factors` carries a *global* unique on
+`last_challenged_at`, so fixtures leave it NULL.
+
+### Two Supabase CLI-docs defects, verified against CLI 2.113.0
+
+Both would have been encoded from the docs page:
+
+- `[auth.mfa.phone].max_frequency` — the docs say `10s`; the **CLI's own embedded template says
+  `5s`**.
+- `[auth.mfa.phone].template` is **omitted from the docs page entirely**.
+
+The `[auth.mfa]` tree is exactly **ten keys**, all present at that pin, and the CLI parses
+unknown keys **leniently** — `[auth.mfa.webauthn]` (missing underscore) is dropped in silence.
+That is why all ten land in `tools/auth-posture.json` and are diffed by value in both
+directions.
+
+### What no vendor publishes — recorded so it is not re-derived
+
+- **Expo publishes no end-of-life date for any SDK version** in any machine-readable form: its
+  versions API carries no date fields, `endoflife.date` has no Expo product, and its written
+  policy defines "unsupported" as *removed from the documentation*. `tools/eol.json` records
+  the supported set and the vendor's own words and **refuses to compute a date from
+  "approximately one year"** — a number this project derived would read as a vendor's
+  commitment. React Native is the one layer with a real published policy ("the latest 3 minor
+  series") and a dated support-tier table.
+- **No RPO is published for Supabase daily backups** (one exists for PITR), and ASD frames the
+  requirement as "in accordance with business criticality" — an operator determination. So
+  `tools/backup-posture.json` ships `maxDailyBackupAgeHours: null` and must be filled in.
+- **No immutability, WORM or object-lock guarantee is published** for the storage holding
+  backups, and no Delete or Modify verb for a backup appears in the permissions table or across
+  all 115 API paths. That is an **absence of surface, not a control** (grading rule 2), so
+  `RB-11` stays ungranted. One route is recorded as explicitly **unverifiable and ungraded in
+  either direction**: whether reducing the PITR retention period, or removing the add-on,
+  destroys backup data already inside the previous window. The vendor documents the billing
+  consequence and publishes no data-lifecycle statement at all.
+- **Whether preview branches carry data is a contradiction inside the vendor's own surfaces** —
+  the branching guide says branches start with no data, while the CLI's `--with-data` and the
+  API's `CreateBranchBody.with_data` say otherwise. Nothing here is graded on it in either
+  direction.
+- **Log forwarding is asymmetric**: Vercel drains are API- and Terraform-addressable; Supabase
+  drains are Dashboard-only (verified against the live Management API OpenAPI spec, where
+  `drain` appears seven times and every occurrence is an enum, never a path). Do not design a
+  symmetric gate. Platform log retention tops out at **90 days** by plan tier.
+
+### Shelf life — **the deadline row this section owes**
+
+ASD opened consultation on **15 June 2026** to replace the Essential Eight with an ISM-grounded
+*Essentials* series, citing the cloud gap explicitly — reported at roughly twelve months to
+deprecation and twenty-four to retirement. The stated reason for the change *is* the
+product-versus-organisation mismatch this section opens with. Carried as the obligations row
+**`conformance-e8-retirement` (calendar, 2027-06-15)**, judged in the scheduled lane so a
+verdict that changes with the calendar never fails a pull request.
+
+### The adjacency — **the ISM, assessed via IRAP — no date, deliberately**
+
+The instrument ASD designed to grade a *product* is the **ISM**, assessed via **IRAP**, and the
+harness already satisfies much of its *Guidelines for software development* and *Guidelines for
+database systems* — the same guidelines the Essential Eight tags `N/A` throughout. That is
+recorded here as a **disposition, not a target**, and it carries **no date** for the same reason
+the conformance map below carries none: dating it without intending to build it next is the
+commitment this file exists to prevent.
+
+---
+
 ---
 
 ## What this file deliberately does not contain
@@ -259,3 +423,9 @@ in W5 that must not be shipped partially: a claimed level with an unmapped requi
 than no claim, and CRA's harmonised standards running late means there is no presumption of
 conformity to anchor it to either. It carries **no date** here, deliberately. When it is built it
 will be built whole, against Annex I directly rather than against a standard that has not landed.
+
+**Section 9 is not that map arriving, and the distinction is worth keeping sharp.** 0.9.9 built
+the Essential Eight register whole, on this paragraph's own terms — all 149 rows, every one
+dispositioned, nothing partial. What it does **not** do is claim a level, because ASD's model
+does not offer one to a product. An ASVS/MASVS map would claim a level, which is exactly why it
+is the harder artifact and why it stays undated.

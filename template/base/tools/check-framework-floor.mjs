@@ -17,6 +17,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { staleCcReview } from './lib/cc-floor.mjs'
+import { staleEolReview } from './lib/eol.mjs'
 import { staleReviews } from './lib/framework-floor.mjs'
 import { fail, failures, ok } from './lib/gate.mjs'
 
@@ -69,14 +70,44 @@ if (existsSync(ccPath)) {
   )
 }
 
+// THE END-OF-LIFE REGISTER RIDES THIS JOB TOO (0.9.9), and it decays by a mechanism the
+// other two do not share. A deprecation flag reaches this tree only when the lockfile is
+// RE-RESOLVED — pnpm copies it from the registry at resolve time — so a project that
+// installs once and never reinstalls holds a census frozen at that moment while vendors go
+// on abandoning packages. The clockless half in `version-sync` cannot see that: the census
+// it judges agrees with the register perfectly, because both are equally old.
+// Absent is a NOTE, not a red: the file ships with 0.9.9 and an install that predates it
+// has no register to have let lapse.
+const eolPath = arg('eol', 'tools/eol.json')
+const eolProblems = []
+if (existsSync(eolPath)) {
+  try {
+    eolProblems.push(
+      ...staleEolReview({
+        register: JSON.parse(readFileSync(eolPath, 'utf8')),
+        path: eolPath,
+        today,
+      }),
+    )
+  } catch (e) {
+    eolProblems.push(`${eolPath} is not valid JSON: ${e.message}`)
+  }
+} else {
+  console.log(
+    `${GATE}: NOTE — ${eolPath} is absent, so no dependency here is being reviewed for VENDOR SUPPORT, only for patch level. It ships with 0.9.9; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+  )
+}
+
 failures(
   GATE,
-  [...staleReviews({ floor, today }), ...ccProblems].map((p) => `as of ${today}: ${p}`),
+  [...staleReviews({ floor, today }), ...ccProblems, ...eolProblems].map(
+    (p) => `as of ${today}: ${p}`,
+  ),
   `\nRe-read each package's upstream security feed, update minPatchByMajor and the advisory rows to match, and move reviewedOn/reviewedUntil in the SAME commit. Bumping the dates alone is the one edit this control cannot distinguish from a real review — which is why the diff is reviewed by a human and ${floorPath} is sha-pinned by \`gate-integrity\`.`,
 )
 
 const names = Object.keys(floor.packages ?? {}).sort()
 ok(
   GATE,
-  `${String(names.length)} floored package(s) (${names.join(', ')})${existsSync(ccPath) ? ' and the Claude Code advisory snapshot' : ''} carry an unlapsed review as of ${today}`,
+  `${String(names.length)} floored package(s) (${names.join(', ')})${existsSync(ccPath) ? ', the Claude Code advisory snapshot' : ''}${existsSync(eolPath) ? ' and the end-of-life register' : ''} carry an unlapsed review as of ${today}`,
 )

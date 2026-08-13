@@ -1,0 +1,65 @@
+{
+  "//": "THE END-OF-LIFE REGISTER: which dependencies this project knowingly carries after their VENDOR has stopped supporting them. WHY IT IS NOT framework-floor.json: that file asks 'is this pin PATCHED' and answers it from advisory feeds; this one asks 'is this pin still SUPPORTED AT ALL', and the two failures are different in kind — a package below a security floor has a fix waiting for you, and a package whose vendor has walked away has none, ever, and never will. Nothing in the chain asked the second question until 0.9.9. WHAT THE GATE READS, and why this can be a chain step: pnpm's lockfile v9 records `deprecated: <message>` on a package entry, copied from the npm registry at RESOLVE time — so 'the vendor says this is no longer supported' is already a committed artefact in this tree, written by a third party rather than claimed by anyone here. That is the only reason this rides `pnpm validate` at all: CONTRIBUTING's hermeticity rule forbids a gate that resolves its expectations from a live endpoint, because an untouched commit must never red overnight when somebody else changes an answer. BOTH DIRECTIONS, BY VALUE: a deprecated resolution with no row here reds (something was abandoned and nobody looked), and a row here that no longer matches any deprecated resolution ALSO reds (the dependency is gone or the vendor un-deprecated it, and an acceptance that outlives its subject makes this file read as reviewed when it is merely old). `scope` IS CHECKED, NOT BELIEVED: the gate computes the production dependency closure from the lockfile and compares — that field is the one a reviewer is most likely to write from memory ('it's only a test dependency') and the one that decides how much the acceptance costs. The first run of that check disproved the note about to be written here: five of these six are development-only and `uuid` is NOT. ITS STATED LIMIT: 'in the production dependency closure' is NOT 'in the shipped bundle' — bundling is decided by what is IMPORTED and a lockfile records what is DEPENDED ON, so a `production` row is a ceiling on exposure and never a measurement of it. OWNERSHIP: this is an ESCAPE LIST (tools/lib/enforcement-surface.mjs), not a harness-owned floor, because every row is a decision about THIS project's dependencies — a consumer who adds a deprecated package must be able to record why, under their own CODEOWNERS review, exactly as tools/license-exceptions.json works. A `production`-scope row additionally carries `removalTarget`, a release at which somebody looks again — PA-13 says unsupported products are REMOVED, so production-closure code is a debt and a debt with no date is a permanent acceptance wearing a plan's clothes. That expiry lives HERE rather than in tools/deferrals.json because the ledger's closure demands a dated sentence in a harness-OWNED prose surface, which a consumer cannot write, and routing consumer acceptances through it would make the honest path the impossible one. Its arrival is judged against the INSTALLED HARNESS VERSION, not the calendar, so it stays clockless like everything else in this gate. The census learns of a new deprecation only when the lockfile is RE-RESOLVED, which is what reviewedOn/reviewedUntil are for: the window is judged for LEGITIMACY in the chain (clockless arithmetic over two committed dates) and for LAPSE in the scheduled `floor-review` job (clockful), the same split framework-floor.json uses. Essential Eight PA-11 / PA-13 / POS-16 — 'products no longer supported by vendors are removed' — are the requirements this register discharges; PA-11 and POS-16 share this one artefact and the conformance register counts it ONCE.",
+  "reviewedOn": "2026-08-12",
+  "reviewedUntil": "2026-09-12",
+  "source": "https://docs.npmjs.com/deprecating-and-undeprecating-packages-or-package-versions",
+  "products": [
+    {
+      "id": "expo-sdk",
+      "package": "expo",
+      "match": "major",
+      "supported": ["57", "56", "55", "54"],
+      "policy": "At any given time, Expo provides support for the latest several SDK versions. You can see the exact supported versions on the API reference. Unsupported versions are removed from the documentation. ... the supported lifetime of an SDK version is approximately one year.",
+      "source": "https://expo.fyi/outdated-sdk-versions",
+      "note": "THE SUPPORTED SET IS READ OFF THE DOCUMENTATION, because that is the vendor's own definition of supported — 'Unsupported versions are removed from the documentation'. The four lines above are exactly the four rows in the SDK/React Native compatibility table at https://docs.expo.dev/versions/latest/ as read on 2026-08-12, and 54 is the oldest version Expo's SDK 57 changelog names as still receiving critical fixes. NO END-OF-LIFE DATE APPEARS HERE ON PURPOSE: Expo publishes none, anywhere. Its versions API enumerates 51 SDKs with zero date fields, endoflife.date has no Expo product at all, and the only duration the vendor states is 'approximately one year' — hedged, tied to Apple/Google annual minimum-requirement churn, and followed by 'We may revisit the details of this policy in the future'. Turning that into 'SDK 57 expires 2027-06-30' would be this file's arithmetic wearing a vendor's commitment, so the register carries the set and the quote and refuses the date. Note also that the support policy is NOT on the page it points at: docs.expo.dev/versions/latest carries no support language whatsoever, and the policy itself is reachable only through a hyperlink in the SDK 57 changelog."
+    },
+    {
+      "id": "react-native",
+      "package": "react-native",
+      "match": "minor",
+      "supported": ["0.87", "0.86", "0.85", "0.84"],
+      "policy": "In order to support users upgrading React Native versions, we're committed to maintain the latest 3 minor series (e.g. 0.78.x, 0.77.x and 0.76.x when 0.78 is the latest release). For these releases we'll be publishing regular updates and bug fixes.",
+      "source": "https://reactnative.dev/docs/releases",
+      "note": "THE STRONGEST ROW IN THIS FILE, and the only layer of this stack with a register-grade policy: a numbered commitment plus a dated table that names a support TIER per minor series. Read 2026-08-12, that table has 0.86.x and 0.85.x as `Active`, 0.84.x as `End of Cycle`, and 0.83.x and below as `Unsupported`. The set above is every line the vendor does NOT call Unsupported. End-of-Cycle is INCLUDED rather than excluded, using the vendor's own wording — 'will receive less patches, unless some important regressions need to be addressed' — because that is still support, and a floor that reds a tree the vendor is still patching is a floor somebody deletes. One caveat worth carrying, because it is the reason this needs a review window rather than a one-time read: THE TABLE LAGS NPM. 0.87.0 was published to npm as `latest` on 2026-08-11 while reactnative.dev still listed 0.87.x as `Future`, so 0.87 is in the set on the strength of the 'latest 3 minor series' commitment rather than the table. The tree pins 0.86.2 — Active, and exactly the version expo@57's own bundledNativeModules requires, so the Expo row above and this one agree."
+    }
+  ],
+  "deprecated": [
+    {
+      "package": "glob",
+      "majors": ["7"],
+      "scope": "development",
+      "reason": "jest 29's own internals (@jest/reporters, jest-config, jest-runtime) and test-exclude resolve it. The jest 29 line is a DELIBERATE pin, not drift: jest-expo 57 is a jest-29 preset and its babel-jest/@jest/* internals are all ^29, so jest 30 would split the runner and the preset across majors and break the mobile unit lane at preset load. Nothing in this repo depends on glob directly, and no version of it can be chosen here — the transitive pin is jest's. The vendor's own message says old glob versions 'contain widely publicized security vulnerabilities'; WHETHER ANY OF THEM APPLIES IS NOT THIS FILE'S QUESTION — the osv-scan lanes own advisory discovery and this register owns support status, and conflating them would give one control two jobs and no clear red. Discharges when jest-expo moves to a jest major whose internals are off glob 7."
+    },
+    {
+      "package": "inflight",
+      "majors": ["1"],
+      "scope": "development",
+      "reason": "Reached only through glob@7 above, so it is the same acceptance one layer down and it discharges with it. The vendor's message is unusually direct — 'This module is not supported, and leaks memory. Do not use it.' — and the leak is bounded here by the fact that the only processes that load it are jest workers, which exit at the end of a test run. That bound is the reason this is acceptable in a test lane and would not be in a server."
+    },
+    {
+      "package": "abab",
+      "majors": ["2"],
+      "scope": "development",
+      "reason": "jsdom 20's base64 shim, reached through jest-environment-jsdom (jest-expo's DOM environment) and vitest. The vendor's message is a migration note rather than a defect — 'Use your platform's native atob() and btoa() methods instead' — which is what a package looks like when the platform absorbed it. jsdom 20 is jest 29's pin, so this discharges with the jest line above rather than independently."
+    },
+    {
+      "package": "domexception",
+      "majors": ["4"],
+      "scope": "development",
+      "reason": "The same jsdom 20 subtree as abab, and the same shape of message — 'Use your platform's native DOMException instead'. Absorbed by the platform, not abandoned mid-defect. Discharges with the jest line."
+    },
+    {
+      "package": "whatwg-encoding",
+      "majors": ["2"],
+      "scope": "development",
+      "reason": "jsdom 20 again, via html-encoding-sniffer. The vendor points at a successor ('Use @exodus/bytes instead'), which this tree cannot choose because it does not select this dependency — jsdom does. Discharges with the jest line."
+    },
+    {
+      "package": "uuid",
+      "majors": ["7"],
+      "scope": "production",
+      "reason": "Re-review at 0.10.0 (removalTarget), because nothing here can move it and a permanent acceptance of abandoned production code should have to be re-affirmed rather than inherited. THE ONE THAT IS NOT A TEST DEPENDENCY, and it was not obvious: it arrives through `xcode` <- `@expo/config-plugins` <- `expo`, and `expo` is a production dependency of apps/mobile. The gate computes that closure from the lockfile rather than taking this sentence's word for it. In practice `xcode` is PREBUILD tooling — it rewrites .pbxproj files during `expo prebuild`, which this repo runs only in the device CI lane, and Metro never bundles it — but the lockfile cannot prove a bundle boundary, so the row is graded at the exposure the artefact can actually demonstrate rather than the lower one that is probably true. The vendor's message is a support-window statement ('uuid@10 and below is no longer supported'), not a vulnerability. Nothing in this repo can move it: the pin belongs to Expo's config-plugins package.",
+      "removalTarget": "0.10.0"
+    }
+  ]
+}

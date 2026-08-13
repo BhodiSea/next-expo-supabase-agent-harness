@@ -49,14 +49,39 @@
 //      diff-aware (an already-shipped vulnerable pin is never "newly introduced") and the
 //      full-tree lane is schedule-and-network bound. This half is clockless and offline;
 //      whether the REVIEW is still fresh is the scheduled `floor-review` job's question.
+//   8. THE CLAUDE CODE FLOOR (0.6.0), clockless half — the arithmetic over cc-floor.json's
+//      own cited advisories. The tool that holds every other floor was held to none.
+//   9. THE END-OF-LIFE CENSUS (0.9.9). Every package the RESOLVED lockfile records as
+//      `deprecated` — the npm registry's own words, copied in at resolve time — is
+//      dispositioned in tools/eol.json, and every row there still matches something the
+//      lockfile deprecates. The floor above asks whether a pin is PATCHED; this asks
+//      whether its vendor supports it at all, which is the failure with no fix waiting.
+//      `scope` is COMPUTED from the production dependency closure rather than believed,
+//      because it is the field a reviewer writes from memory and the one that decides what
+//      the acceptance costs. Clockless and offline for the same reason 7 is.
 // SOURCE: docs/harness/README.md (version-sync gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { judgeCcFloor } from './lib/cc-floor.mjs'
-import { judgeFloor, parseLockVersions, reviewWindowProblems } from './lib/framework-floor.mjs'
 import {
+  arrivedAcceptances,
+  eolReviewWindow,
+  judgeDeprecations,
+  judgeSupported,
+  parseDeprecations,
+  productionClosure,
+} from './lib/eol.mjs'
+import {
+  judgeFloor,
+  MAX_REVIEW_WINDOW_DAYS,
+  parseLockVersions,
+  reviewWindowProblems,
+} from './lib/framework-floor.mjs'
+import {
+  cmpDotted,
   commandFailureOutput,
   failures,
   inCI,
+  installedHarnessVersion,
   ok,
   rampNote,
   runCmd,
@@ -70,6 +95,8 @@ const APP_CONFIG = 'apps/mobile/app.config.ts'
 const EAS_JSON = 'apps/mobile/eas.json'
 const FLOOR_PATH = 'tools/framework-floor.json'
 const CC_FLOOR_PATH = 'tools/cc-floor.json'
+const EOL_PATH = 'tools/eol.json'
+const EOL_RAMP = '0.9.9'
 const errs = []
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'))
@@ -323,6 +350,130 @@ if (existsSync(CC_FLOOR_PATH)) {
     console.log(
       `${GATE}: the Claude Code floor is ${derived ?? 'unset'}, derived from ${String(judged)} cited advisor${judged === 1 ? 'y' : 'ies'}.`,
     )
+  }
+}
+
+// ── 9. THE END-OF-LIFE CENSUS (0.9.9), clockless half ───────────────────────────
+// The floor above asks "is this pin PATCHED". Nothing asked "is this pin still SUPPORTED
+// AT ALL", and the two failures differ in kind: a package below a floor has a fix waiting
+// for it, and a package whose vendor has walked away has none, ever.
+//
+// It can be a chain step for one reason. pnpm's lockfile records `deprecated: <message>`
+// on a package entry, copied from the npm registry at RESOLVE time — so the vendor's own
+// statement is already a committed artefact here, and no live endpoint is consulted. A gate
+// that asked the registry directly would turn an untouched commit red overnight, which
+// CONTRIBUTING's hermeticity rule forbids and this repo has already paid for once.
+//
+// Judged BOTH WAYS by value, and `scope` is COMPUTED rather than believed — see lib/eol.mjs
+// for why that field in particular, and for the false claim it caught on its first run.
+// Essential Eight PA-11 / PA-13 / POS-16 are the requirements this discharges.
+// EVERY finding this section produces lands in `eolErrs` rather than `errs`, because the
+// whole section rides ONE ramp. `tools/eol.json` is SEEDED and DELIBERATELY PLANTED, so an
+// existing install receives the harness's own six rows on its next `update` — and its
+// lockfile is a SUPERSET of the harness's, so it will resolve deprecated packages those rows
+// do not cover, and may not resolve ones they do. Both directions red on a tree whose code
+// did not change. That is the upgrade ambush this release has already paid for once with the
+// [auth.mfa] posture, and the answer is the same shape: ramp the FINDINGS, scoped to this
+// section alone, so the rest of `version-sync` stays hard while an upgrading consumer gets a
+// dated list of exactly what to disposition. A fresh 0.9.9 scaffold never sees the ramp — its
+// baseVersion is already 0.9.9 — so the census is live from the first validate on new trees.
+const eolErrs = []
+
+if (existsSync(EOL_PATH)) {
+  const register = readJson(EOL_PATH)
+  // The window arithmetic needs no lockfile, so it runs first and unconditionally: a
+  // register whose review runway is unbounded is broken whether or not anything installed.
+  eolErrs.push(
+    ...eolReviewWindow({ register, path: EOL_PATH, maxWindowDays: MAX_REVIEW_WINDOW_DAYS }),
+  )
+  // The VENDOR SUPPORT FLOOR: is each pinned product on a line its vendor still supports?
+  // Reviewed data rather than derived, and lib/eol.mjs records why at length — the short
+  // version is that Expo publishes no end-of-life date in any machine-readable form, so
+  // there is nothing to derive, and computing one from "approximately one year" would put
+  // this file's arithmetic behind a vendor's name.
+  const support = judgeSupported({
+    register,
+    path: EOL_PATH,
+    catalogPins,
+    resolved: existsSync('pnpm-lock.yaml')
+      ? parseLockVersions(readFileSync('pnpm-lock.yaml', 'utf8'))
+      : new Map(),
+  })
+  eolErrs.push(...support.problems)
+  if (existsSync('pnpm-lock.yaml')) {
+    const lockText = readFileSync('pnpm-lock.yaml', 'utf8')
+    const { deprecated, scanned } = parseDeprecations(lockText)
+    const { production, dependents } = productionClosure(lockText)
+    const census = judgeDeprecations({
+      register,
+      path: EOL_PATH,
+      deprecated,
+      scanned,
+      production,
+      dependents,
+      haveLock: true,
+    })
+    eolErrs.push(...census.problems)
+    // The ARRIVAL half, judged against the installed release rather than a calendar. With no
+    // manifest there is no release to compare against, and it SAYS so instead of passing
+    // silently — the harness's own dev tree is precisely where a stale date gets written.
+    const running = installedHarnessVersion(GATE)
+    if (running === null) {
+      console.log(
+        `${GATE}: NOTE — no .harness/manifest.json, so ${EOL_PATH}'s production-scope removalTarget dates are not judged for arrival; the census closure above still ran.`,
+      )
+    }
+    eolErrs.push(
+      ...arrivedAcceptances({
+        rows: Array.isArray(register.deprecated) ? register.deprecated : [],
+        path: EOL_PATH,
+        running,
+        cmp: cmpDotted,
+      }),
+    )
+    if (eolErrs.length === 0) {
+      console.log(
+        `${GATE}: the end-of-life census judged ${String(census.judged)} vendor-deprecated package(s) against ${EOL_PATH} — ${String(census.unsupportedInProduction)} of them inside the PRODUCTION dependency closure — over ${String(scanned)} scanned lockfile entries, plus ${String(support.judged)} pinned version(s) against their vendors' supported lines.`,
+      )
+    }
+  } else {
+    // Deliberately not a second red: the absent-lockfile failure is already reported by the
+    // framework floor above, and one missing file should produce one finding, not two.
+    console.log(
+      `${GATE}: NOTE — the end-of-life census needs pnpm-lock.yaml (a deprecation flag is recorded at RESOLVE time, so an unresolved tree has no census to judge); only ${EOL_PATH}'s review window was checked.`,
+    )
+  }
+} else if (installedHarnessVersion(GATE) === null) {
+  // NOT AN INSTALL: the harness's own template tree and every gate fixture reach here, and
+  // neither has a register to have deleted. Saying so beats both alternatives — a silent
+  // pass reads as "checked and fine", and a red would make this gate assert a file that only
+  // an installed tree is ever given. `rampNote` cannot make this distinction for us: it
+  // returns false with no manifest ON PURPOSE, so a fixture gets checks LIVE rather than
+  // ramped, which is the right default everywhere except the existence of a seeded file.
+  console.log(
+    `${GATE}: NOTE — no .harness/manifest.json, so the absence of ${EOL_PATH} is not judged (this is not an installed harness). An installed tree at 0.9.9 or later reds here instead.`,
+  )
+} else {
+  // A seeded file that is absent on an INSTALLED tree has been deleted, and deleting the
+  // register is the cheapest way past every red it can produce — so absence must never read
+  // as "there was nothing to check". Ramped with the rest of the section: an install that has
+  // not run `update` since 0.9.9 has not been given the file yet either.
+  eolErrs.push(
+    `${EOL_PATH} is absent, so no dependency in this tree is being checked for VENDOR SUPPORT — only for patch level. It is a seeded file that ships with 0.9.9: run \`npx next-expo-supabase-agent-harness update\` to get it, or restore it if this tree deleted it.`,
+  )
+}
+
+// ONE ramp call site for the whole section, so the ledger counts one escape with one
+// deadline rather than several that could drift apart.
+if (eolErrs.length > 0) {
+  if (
+    rampNote(GATE, EOL_RAMP, 'the end-of-life census over the resolved lockfile', {
+      until: '0.10.0',
+    })
+  ) {
+    for (const e of eolErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  } else {
+    errs.push(...eolErrs)
   }
 }
 

@@ -49,7 +49,11 @@ fixes.
   can never execute in this repository's own Actions context.
 - The scaffolded stack's authorization boundary is Postgres row-level
   security, enforced identically for both client surfaces. The web session
-  (httpOnly cookies), the mobile SecureStore token cache, and any client-side
+  cookie (`Secure`, `SameSite=Lax`, script-readable — sign-in happens
+  browser-side, and a user agent ignores `HttpOnly` on a `document.cookie`
+  write, so `tools/auth-posture.json` records httpOnly as UNAVAILABLE on this
+  architecture rather than merely unset), the mobile SecureStore token cache,
+  and any client-side
   check are defense-in-depth only; reports demonstrating "the web or mobile
   client can call a procedure it shouldn't render UI for" must show the
   RLS/DAL layer failing, not the client hiding a button.

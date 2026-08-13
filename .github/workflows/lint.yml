@@ -183,6 +183,15 @@ jobs:
       # red a PR, the same split floor-review makes for the framework floor.
       - name: machinery-obligations (the obligations register; the clockless half)
         run: node scripts/check-obligations.mjs
+      # The Essential Eight register's two FACTORY-side closures (0.9.9). They cannot live
+      # in a consumer's chain because both resolve into files no install receives:
+      # tests/canary/injections.json (a simulated-activity claim must name a registered
+      # can-fail proof — ASD ranks that tier highest, so it must be the hardest to claim)
+      # and scripts/obligations.json (a `not-implemented` row must name a debt somebody
+      # actually carries; a dangling id is a gap with the APPEARANCE of an owner, which is
+      # strictly worse than an unowned one). The consumer-side closures ride docs-sync.
+      - name: machinery-essential-eight (the conformance register's evidence closures)
+        run: node scripts/check-essential-eight-evidence.mjs
       # The shipped CI's entry path stays satisfiable (0.9.0): every `pnpm install` in a
       # shipped workflow spells its lockfile posture, setup-node's `cache: pnpm` demand is
       # backed by init's committed-lockfile next-steps note (the cross-file half), and every

@@ -39,6 +39,16 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // reject. Example: { file: 'template/stack/tools/new-budget.json', reason: '…' }
 const DELIBERATE_PLANT = [
   {
+    file: 'template/base/tools/backup-posture.json',
+    reason:
+      "ABSENT, `tools/check-backup-posture.mjs` skips loudly and produces no backup evidence at all — and the scheduled `backup-evidence` job that runs it arrives on the SAME `update` that would withhold this file, so seedOnInitOnly would ship the job and hold back its one input, guaranteeing a lane that can never do anything on an upgraded install. Planting it costs an existing install NOTHING: the file ships deliberately incomplete (maxDailyBackupAgeHours null, restorationTesting.lastTestedOn null) and the script never reaches the shape check without credentials, so an install that has not wired SUPABASE_ACCESS_TOKEN sees exactly one loud SKIP on a weekly cron and no red anywhere. The content is a posture contract plus the vendor ceilings — it names no consumer table, project or number, exactly like tenancy.json above.",
+  },
+  {
+    file: 'template/base/tools/eol.json',
+    reason:
+      'ABSENT, `version-sync`\'s end-of-life section has nothing to judge and says so — and "the register is missing" must never read as "no dependency here is abandoned", which is the vacuity the whole 0.9.9 release is written against. Withholding it (seedOnInitOnly) would be worse than either alternative: the ramp on its absence expires at 0.10.0, so an existing install would trade a dated NOTE for a hard red demanding a file `update` had deliberately refused to give it. So it is PLANTED, and the ambush that creates is paid for in the same diff rather than deferred: a consumer\'s lockfile is a SUPERSET of the harness\'s, so the planted six rows will not cover every deprecated package their tree resolves, and every finding the section produces is therefore ramped as one until 0.10.0 (obligations row eol-register-ramp-expiry). The planted content is the harness\'s own dependency set — jest\'s glob@7 and inflight, jsdom 20\'s abab/domexception/whatwg-encoding, and uuid@7 through expo\'s prebuild toolchain — plus two vendor support-policy quotes; it names no consumer package, exactly like tenancy.json above.',
+  },
+  {
     file: 'template/base/tools/observability.json',
     reason:
       'check-observability.mjs without this file still SCANS (on the built-in REQUIRED_VENDOR_FLOOR detector) but then FAILS asking for the register — there is no sinks[] to judge egress against, and that failure fires after the ramp, so a pre-0.8.0 install would trade its dated NOTE for a hard red the moment the ramp expires. The shipped content is the detector floor plus zero sinks — a contract, not project data — and planting it is what keeps the first post-update validate deterministic on every vintage.',

@@ -80,6 +80,8 @@ const EXEMPT = 'tools/rls-exempt.json'
 const DEFINER_ALLOW = 'tools/security-definer-allow.json'
 const DB_CONTEXT = 'tests/rls/db-context.ts'
 const PGTAP_STRUCTURE = 'supabase/tests/rls_structure.test.sql'
+const PGTAP_DIR = 'supabase/tests'
+const MFA_PROOF = 'supabase/tests/mfa_aal2.test.sql'
 const CONFIG_TOML = 'supabase/config.toml'
 const RAMP = '0.2.0'
 const RAMP_GRANTS = '0.6.0'
@@ -292,9 +294,16 @@ for (const table of [...declaredTables].sort()) {
   }
 
   const byOp = policies.get(table) ?? new Map()
+  // PERMISSIVE only, and the word is load-bearing. A RESTRICTIVE policy is ANDed onto
+  // the permissive set and can only ever SUBTRACT rows, so one covering an operation
+  // grants nothing at all — counting it here would let a table whose permissive SELECT
+  // policy was deleted stay green on the strength of a policy that denies. The hole was
+  // unreachable until 0.9.9 seeded the tree's first restrictive policy (the MFA rail),
+  // and it would have opened the moment anyone copied that pattern.
+  const grants = (op) => (byOp.get(op) ?? []).some((p) => p.permissive !== 'RESTRICTIVE')
   for (const op of OPS) {
-    if (!byOp.has(op) && !byOp.has('ALL')) {
-      errs.push(`${table}: no policy FOR ${op} (per-operation policies required)`)
+    if (!grants(op) && !grants('ALL')) {
+      errs.push(`${table}: no PERMISSIVE policy FOR ${op} (per-operation policies required)`)
     }
   }
   for (const [, list] of byOp) {
@@ -485,6 +494,91 @@ for (const fn of functions) {
       `${fn.qualified}: EXECUTE granted to authenticated on a SECURITY DEFINER function with no entry in ${DEFINER_ALLOW} — a client-callable definer function is a deliberate privilege-escalation surface and must be registered with a reason`,
     )
   }
+}
+
+// ---------------------------------------------------------------------------
+// The MFA rail (0.9.9)
+// ---------------------------------------------------------------------------
+// A closure over the SHAPE of the aal2 rail, not over its coverage. Which tables
+// warrant a second factor is a product decision — a low-sensitivity lookup table
+// blocked at aal1 is a support ticket, not a control — so nothing here demands that
+// any table carry the rail. What it demands is that a tree which HAS one has the
+// version that works.
+//
+// That distinction is worth the gate because the vendor-documented policy is broken in
+// two directions, and the second is silent. As published it reads auth.mfa_factors as
+// the invoker, on which `authenticated` holds no privilege, so every request 403s with
+// 42501 — loud, and therefore harmless. "Fixed" with a `GRANT SELECT ON
+// auth.mfa_factors TO authenticated`, that table still has RLS enabled and NO policy,
+// so it is default-deny: the count is 0 for enrolled users too, the CASE falls through
+// to `array['aal1','aal2']`, and the policy ACCEPTS aal1. It passes every test anybody
+// would write except the one case that matters — an enrolled user who did not use
+// their factor — and that case is exactly what supabase/tests/mfa_aal2.test.sql exists
+// to assert.
+//
+// So the three findings below are the three ways the fixed shape decays back into the
+// broken one: the grant reappears, the predicate stops covering writes, or the runtime
+// proof is deleted while the policy stays.
+const MFA_HELPER = /\bmfa_satisfied\s*\(/i
+const mfaPolicies = []
+for (const [table, byOp] of policies) {
+  for (const [op, list] of byOp) {
+    for (const p of list) {
+      if (MFA_HELPER.test(`${p.using ?? ''} ${p.check ?? ''}`)) mfaPolicies.push({ table, op, p })
+    }
+  }
+}
+if (mfaPolicies.length > 0) {
+  // 1. The grant that turns the loud failure into the silent one. Named as the
+  //    remediation it looks like, because that is how it arrives.
+  for (const stmt of allStatements) {
+    if (/^GRANT\b[\s\S]*\bauth\.mfa_factors\b/i.test(stmt)) {
+      errs.push(
+        `auth.mfa_factors is GRANTed in ${fileOf(stmt)} — that grant is the fail-open. The table has RLS enabled and no policy, so a client-role read returns ZERO rows for an ENROLLED user, and any predicate that treats "no factors found" as "no MFA required" then admits aal1. private.mfa_is_required() is SECURITY DEFINER precisely so no grant is needed; remove it.`,
+      )
+    }
+  }
+
+  // 2. USING without WITH CHECK gates reads and leaves writes open — the shape the
+  //    vendor's second documentation page ships (`for update`, SELECT untouched).
+  for (const { table, op, p } of mfaPolicies) {
+    if (p.permissive !== 'RESTRICTIVE') {
+      errs.push(
+        `${table}: policy ${p.name} carries the MFA predicate but is PERMISSIVE — a permissive policy ORs into the set, so a second permissive policy without the predicate re-opens everything it closed. The rail must be AS RESTRICTIVE, which ANDs and can only subtract.`,
+      )
+    }
+    if (op !== 'ALL') {
+      errs.push(
+        `${table}: policy ${p.name} carries the MFA predicate but is FOR ${op} — every other command is unguarded. Drop the FOR clause so one restrictive policy covers all four; Supabase's own documentation writes this policy \`for update\`, which gates writes and leaves SELECT wide open.`,
+      )
+    }
+    if ((p.using ?? '') === '' || (p.check ?? '') === '') {
+      errs.push(
+        `${table}: policy ${p.name} needs BOTH USING and WITH CHECK. USING alone decides which existing rows are visible, so an aal1 session could still INSERT rows it cannot then see.`,
+      )
+    }
+  }
+
+  // 3. The runtime proof. Static text cannot show that the predicate BINDS — only an
+  //    enrolled user at aal1 getting zero rows can, and that suite is the difference
+  //    between this policy and the published one.
+  if (existsSync(PGTAP_DIR) && !existsSync(MFA_PROOF)) {
+    errs.push(
+      `${mfaPolicies.length} polic(ies) enforce aal2 but ${MFA_PROOF} is absent. Nothing static can prove the predicate binds: the published policy is textually similar and admits aal1 for an ENROLLED user, which is the only case that tells them apart.`,
+    )
+  }
+}
+// The other direction — a rail nothing uses is decoration, and a helper left behind
+// after its policy was dropped reads to the next person as enforcement that exists.
+if (mfaPolicies.length === 0 && functions.some((f) => /^(?:private\.)?mfa_/.test(f.qualified))) {
+  errs.push(
+    `the MFA helpers (${functions
+      .filter((f) => /^(?:private\.)?mfa_/.test(f.qualified))
+      .map((f) => f.qualified)
+      .join(
+        ', ',
+      )}) are defined but NO policy uses them — a rail no policy references enforces nothing while reading, to the next person, as MFA enforcement that is already in place.`,
+  )
 }
 
 // ---------------------------------------------------------------------------

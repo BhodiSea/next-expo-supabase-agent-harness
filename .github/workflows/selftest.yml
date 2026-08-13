@@ -1301,6 +1301,12 @@ jobs:
   # the reviewed answer to an expiry no lane can see. Every number below is COMPUTED per
   # leg by ramp-expectations.mjs; the counts in these comments are commentary over that,
   # never the assertion itself.
+  #
+  # 0.9.9 — TEN LEGS, and the fleet is entirely advisory. Every live deadline is dated
+  # 0.10.0 or 0.11.0 and 0.9.9 is BELOW both, so nothing this release ships falls due:
+  # legs B–H still red on the older debt they were built for, while A, I and J are three
+  # nested NOTE populations (two, five and seven sites) with zero expiries between them.
+  # New leg J takes the vintage leg A vacated, on leg I's argument.
   upgrade-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -1313,21 +1319,29 @@ jobs:
           # deadline. Adding older legs must never replace it — it is the only leg on which a
           # RED chain is unambiguously a regression rather than an expiry.
           #
-          # AT 0.9.0 THIS LEG PROVES TWO THINGS, AND THE SECOND IS NEW. First, the release
-          # does not red its immediate predecessor: a v0.8.0 install computes EXPIRED=''
-          # with INERT at 31 (both 0.8.0-opened ramps EXPIRED at 0.9.0 for the vintages
-          # below it — see the legs that execute them), so a red chain here is a
-          # regression, full stop. Second, `graduate`'s SUCCESS branch opens UN-SWEPT for
-          # the first time, and that un-swept success on an empty expectation set IS the
-          # evidence: 0.9.0 injects no chain step, and its two ramps of its own — dated
-          # 0.10.0, version-sync's committed-lockfile floor and wiring's lefthook
-          # installed-not-dormant floor — open inside existing gates and are QUIET on this
-          # lane's scaffold (its own install generates the lockfile and installs lefthook,
-          # so §7b reads each gate's OK as the honest answer). Nothing stands, the door
-          # must open, and upgrade-lane.sh §8 judges a refusal here fatal on its own
-          # corroboration checks. "The SUCCESS branch remains leg E's alone" stopped being
-          # true at 0.9.0: leg E stays the only leg that opens the door by SWEEPING
-          # findings away; this leg opens it because there were none to sweep.
+          # AT 0.9.9 THIS LEG'S SECOND PROPERTY CHANGES HANDS, and the change is the
+          # release. The first property is unmoved: a v0.9.5 install computes EXPIRED=''
+          # with INERT at 36 — nothing this release opened falls due, because 0.9.9 is
+          # BELOW 0.10.0 and every live deadline is dated there — so a red chain here is a
+          # regression, full stop. What is no longer true is the un-swept `graduate`
+          # SUCCESS that 0.9.0 first executed here. 0.9.9 opens two ramps of its own at
+          # minVersion 0.9.9, which arms them for EVERY install below head including this
+          # one: auth-posture's [auth.mfa] posture (harness-owned register, seeded
+          # config.toml — the ambush the seededSourceFixes channel exists for) and
+          # version-sync's end-of-life census. The auth-posture one cannot be quiet on any
+          # upgraded install by construction — `update` cannot write a section into a
+          # seeded file — so graduate REFUSES here, and §8 judges that direction from the
+          # lane's own validate output rather than from a prediction written here.
+          #
+          # NO LEG EXECUTES THE UN-SWEPT SUCCESS THIS RELEASE, and that is stated rather
+          # than left to be noticed: a release whose ramps open at minVersion == its own
+          # version arms them for every install below head at once, so every un-swept leg
+          # has something standing. Nothing goes uncovered — SUCCESS is one branch, and
+          # leg E executes it — but the specific reading "the door opens with nothing to
+          # sweep", which leg A carried at 0.9.0 and 0.9.5, is not available at 0.9.9 and
+          # returns whenever a release opens no ramp of its own. What this leg still owns
+          # alone is the regression reading: the only baseline whose red chain cannot be
+          # an expiry.
           - leg: A
             baseline: ''
             dir: upgrade
@@ -1448,20 +1462,46 @@ jobs:
             dir: upgrade-0-7-0
             why: the newest vintage this release reds — the two 0.8.0-opened deadlines in isolation
           # LEG I — the QUIET population (new at 0.9.5), and it is the leg-A property of the
-          # PREVIOUS release, watched one release later rather than retired. As leg A moves to
-          # v0.9.0, v0.8.0 stops being covered by any leg — and a v0.8.0 install is the one that
-          # meets ZERO expiries here (0 expired, 5 advisory NOTEs: the 0.9.0-opened lockfile and
-          # lefthook floors plus the three 0.9.5 opens), so `graduate` must REFUSE on NOTEs alone
-          # and say so. That is the half of the contract leg A cannot show once its own baseline
-          # is clean, and it is worth a lane rather than a classifier test because the refusal
-          # text is what a consumer actually reads.
-          # It also pre-stages 0.10.0: both 0.9.0-opened ramps carry minVersion 0.9.0, so they
-          # expire exactly for base < 0.9.0 — making v0.8.0 that release's HEADLINE population
-          # and this leg the one 0.10.0 inherits, already wired.
+          # PREVIOUS release, watched one release later rather than retired. It was added when
+          # leg A moved to v0.9.0 and v0.8.0 stopped being covered by any leg: a v0.8.0 install
+          # meets ZERO expiries and refuses `graduate` on advisory NOTEs alone, which is the
+          # half of the contract leg A cannot show once its own baseline is clean, and it is
+          # worth a lane rather than a classifier test because the refusal text is what a
+          # consumer actually reads.
+          # AT 0.9.9 IT IS THE MAXIMUM-NOTE LEG: still 0 expired, now SEVEN advisory ramp
+          # SITES across five gates (the lane's summary lists gates; these comments count
+          # sites, and docs-sync and version-sync each carry two) —
+          # the 0.9.0-opened lockfile and lefthook floors, the three 0.9.5 opens, and 0.9.9's
+          # own auth-posture and version-sync pair — which is the whole live fleet at once, on
+          # the oldest baseline that meets no deadline at all. Every other leg sees a subset.
+          # It also still pre-stages 0.10.0: both 0.9.0-opened ramps carry minVersion 0.9.0, so
+          # they expire exactly for base < 0.9.0 — making v0.8.0 that release's HEADLINE
+          # population (six expiries) and this leg the one 0.10.0 inherits, already wired.
           - leg: I
             baseline: v0.8.0
             dir: upgrade-0-8-0
-            why: the quiet vintage — zero expiries, five advisory NOTEs, graduate refuses on NOTEs alone
+            why: the maximum-NOTE vintage — zero expiries, the whole live ramp fleet, graduate refuses on NOTEs alone
+          # LEG J — the vacated vintage (new at 0.9.9), by leg I's own argument one release
+          # on: leg A slides to v0.9.5, so v0.9.0 is a released population no lane executes,
+          # and the ledger would report on it through a classifier alone.
+          # WHAT IT ISOLATES, which neither neighbour can. The 0.9.0-opened pair (version-sync's
+          # committed-lockfile floor, wiring's lefthook floor) carries minVersion 0.9.0 and the
+          # 0.9.5-opened trio (docs-sync's agent-surface and ADR-shape sites, boundaries'
+          # vertical anatomy) carries 0.9.5. So a v0.9.0 install is the ONLY baseline for which
+          # the first pair is INERT while the second trio is LIVE — five ramp sites across
+          # four gates, not leg I's seven across five and not leg A's two across two; the
+          # `wiring` name in leg I's summary and not in this one is that difference made
+          # visible — which is the shape of an install that took 0.9.0 and
+          # skipped 0.9.5. Leg A has all five inert; leg I has all five live; the middle exists
+          # only here, and the three legs together are a strict nesting 2 ⊂ 5 ⊂ 7 in which each
+          # increment is exactly one release's opened fleet.
+          # It pre-stages 0.10.0 too, on the other side of leg I: the 0.9.5-opened trio expires
+          # for base < 0.9.5, so v0.9.0 meets four of that release's expiries WITHOUT the
+          # 0.9.0-opened pair leg I stacks on top — the isolation leg to leg I's accumulation.
+          - leg: J
+            baseline: v0.9.0
+            dir: upgrade-0-9-0
+            why: the vacated vintage — the only baseline where 0.9.0's ramps are inert and 0.9.5's are live
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

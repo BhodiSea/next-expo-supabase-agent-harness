@@ -95,10 +95,31 @@ if (tomlErrs.length > 0) {
 const errs = []
 const AUTH_KEY = /^auth(\.|$)/
 
+// ── the [auth.mfa] findings, held apart (0.9.9) ──────────────────────────────────────
+// 0.9.9 added the MFA rail, and with it ten reviewed `[auth.mfa]` keys across four new
+// sections. THIS FILE IS HARNESS-OWNED AND supabase/config.toml IS SEEDED, which is the
+// whole problem in one sentence: `update` arms the new posture on every install at once
+// and cannot write the section it now demands. Left alone, every upgrading consumer meets
+// fourteen hard failures on a file they never touched and that `update` refuses to
+// rewrite — the exact ambush upgrade-lane leg I caught for the 0.9.5 env register.
+//
+// So MFA findings are routed here and downgraded to NOTEs on a pre-0.9.9 install, while
+// every other finding in this gate stays hard. A whole-gate ramp would have been the
+// easy move and the wrong one: it would withhold the redirect-allowlist and session-cookie
+// findings too, which have nothing to do with this release and are the ones worth having.
+// The instruction to apply the section rides the seededSourceFixes channel, so it arrives
+// in `.harness/pending/` rather than only in a NOTE that scrolls past.
+const mfaErrs = []
+const MFA_RAMP = '0.9.9'
+const isMfaName = (name) => /^auth\.mfa(\.|$)/.test(name)
+/** Route a finding by the config name it is about. @param {string} name @param {string} msg */
+const push = (name, msg) => (isMfaName(name) ? mfaErrs : errs).push(msg)
+
 // ── 1. forward: the reviewed posture holds ───────────────────────────────────────────
 for (const [key, want] of Object.entries(policy.posture ?? {})) {
   if (!values.has(key)) {
-    errs.push(
+    push(
+      key,
       `${CONFIG}: \`${key}\` is MISSING — ${POLICY} reviews it as ${JSON.stringify(want)}. The CLI ignores an absent key silently and applies its own default, so a deleted line is a posture change nobody sees.`,
     )
     continue
@@ -106,7 +127,8 @@ for (const [key, want] of Object.entries(policy.posture ?? {})) {
   const got = values.get(key)
   if (got !== want) {
     const note = policy.postureNotes?.[key]
-    errs.push(
+    push(
+      key,
       `${CONFIG}: \`${key}\` is ${JSON.stringify(got)}, reviewed as ${JSON.stringify(want)} in ${POLICY}.${note ? ` ${note}` : ''}`,
     )
   }
@@ -146,7 +168,8 @@ const reviewed = new Set(
 )
 for (const key of [...values.keys()].filter((k) => AUTH_KEY.test(k)).sort()) {
   if (reviewed.has(key)) continue
-  errs.push(
+  push(
+    key,
     `${CONFIG}: \`${key}\` is set but appears nowhere in ${POLICY}. Either it is a deliberate posture change that needs a reviewed row, or it is a key the CLI does not recognise and is silently ignoring — a config line that reads as protection and applies nothing. The gate cannot tell those apart; a human can.`,
   )
 }
@@ -215,14 +238,16 @@ for (const name of policy.requiredSections ?? []) {
 const known = policy.knownSections ?? []
 for (const name of sections) {
   if (!known.includes(name)) {
-    errs.push(
+    push(
+      name,
       `${CONFIG}: section \`[${name}]\` is present but not in ${POLICY} knownSections — a Supabase config section is a SURFACE (realtime replays row changes through its own policy check; storage has a separate bucket policy model), so one appearing without review is a door in the wall that no test in this repo watches.`,
     )
   }
 }
 for (const name of known) {
   if (!sections.includes(name)) {
-    errs.push(
+    push(
+      name,
       `${CONFIG}: section \`[${name}]\` is reviewed in ${POLICY} knownSections but ABSENT from the config — either it was removed without review, or upstream renamed it (the CLI renames sections and warns rather than erroring, which is how the shipped \`[inbucket]\` sat deprecated with nothing reading the warning).`,
     )
   }
@@ -262,6 +287,27 @@ if (transportFiles.length > 0) {
   )
 }
 
+// ── the [auth.mfa] ramp (0.9.9) ──────────────────────────────────────────────────────
+// Scoped to the MFA findings alone, for the reason recorded where mfaErrs is declared:
+// the posture is harness-owned and the config is seeded, so `update` demands a section it
+// cannot write. On a pre-0.9.9 install these are NOTEs and the seededSourceFixes channel
+// parks the instruction; from 0.10.0 the ramp expires and rampNote itself says so.
+// The findings are still PRINTED either way — a withheld finding nobody can read is a
+// check shipped disabled.
+if (
+  mfaErrs.length > 0 &&
+  rampNote(GATE, MFA_RAMP, `the [auth.mfa] posture (the MFA rail, new in ${MFA_RAMP})`, {
+    until: '0.10.0',
+  })
+) {
+  console.log(
+    `${GATE}: NOTE — ${String(mfaErrs.length)} [auth.mfa] finding(s) withheld by the ${MFA_RAMP} ramp. Apply the section from the template (\`npx next-expo-supabase-agent-harness update --refresh-seeded supabase/config.toml\` shows it) or copy it from docs/adr/20260812-mfa-aal2.md; until then the aal2 rail is inert on this install:`,
+  )
+  for (const e of mfaErrs) console.log(`  - ${e}`)
+} else {
+  errs.push(...mfaErrs)
+}
+
 // ── the ramp ─────────────────────────────────────────────────────────────────────────
 // A gate whose subject is a file the HARNESS ships, applied to an install that has its own
 // supabase/config.toml (it is seeded, so `update` never rewrites it). Projects grow into gates.
@@ -279,8 +325,12 @@ failures(
   errs,
   `Change ${CONFIG} back — the reviewed posture is ${POLICY}, and the diff between them is the finding. (${POLICY} is harness-owned and sha-pinned by check-gate-integrity.mjs on an install: a local edit reds as tampering and \`update\` parks the incoming version, so recording a genuinely new posture is a harness-release act today; the consumer-tunable split is a recorded harness obligation.)`,
 )
+// The count is the REVIEWED total minus anything a ramp withheld. An OK line claiming
+// nineteen values hold while ten of them are missing is the same class of untrue summary
+// this gate exists to catch, one layer up.
+const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length
 ok(
   GATE,
-  `${String(Object.keys(policy.posture ?? {}).length)} reviewed value(s) hold, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
+  `${String(Math.max(held, 0))} reviewed value(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
 )
 process.exitCode = 0
