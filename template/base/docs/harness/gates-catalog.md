@@ -426,6 +426,67 @@ installs (their seeded `eas.json` predates the pin; the `seededSourceFixes` chan
 carries it) with dated NOTEs until 0.8.0. Honest limit: no lane runs an EAS build, so an
 image RETIRED upstream is invisible here — the pin's freshness rides the consumer's next
 build and the floor's rides review.
+**The end-of-life census (0.9.9).** The floor above asks whether a pin is PATCHED. Nothing
+asked whether its **vendor still supports it at all**, and the two failures differ in kind:
+a package below a floor has a fix waiting for it, and a package whose vendor has walked away
+has none, ever. This can ride the chain for exactly one reason — pnpm records
+`deprecated: <message>` on a lockfile package entry, copied from the npm registry at RESOLVE
+time, so the vendor's own statement is a committed third-party artefact in the tree and no
+live endpoint is consulted. A gate that asked the registry directly would turn an untouched
+commit red overnight, which the hermeticity rule forbids and this repo has already paid for
+once. `tools/eol.json` is judged against that census **in both directions**: a deprecated
+resolution with no row reds, and a row matching nothing the lockfile deprecates reds too,
+because an acceptance that outlives its subject makes the register read as reviewed when it
+is merely old.
+**`scope` is COMPUTED, not believed**, and that is the part worth copying. It is the field a
+reviewer is most likely to write from memory — *"it's only a test dependency"* — and the one
+that decides what the acceptance costs, so the gate derives the production dependency
+closure from the lockfile and compares. Its first run disproved the note that was about to
+be written here: five of the six deprecated packages a fresh scaffold resolves are
+development-only, and `uuid@7` is **not** — it arrives through `expo` →
+`@expo/config-plugins` → `xcode`. A `production`-scope row therefore carries a
+`removalTarget` release (ASD PA-13's verb is *removed*, so production-closure code is a debt,
+and a debt with no date is a permanent acceptance wearing a plan's clothes); arrival is
+judged against the installed harness version, never a calendar.
+**The trap that nearly shipped, recorded because the fix is not obvious.** pnpm records a
+RESOLVED PEER as an ordinary snapshot edge, with no marker separating *I depend on this* from
+*my consumer must supply this*. `expo-router` peer-depends on `@testing-library/react-native`,
+so a naive walk dragged jest 29 — and the deprecated `glob@7` and `inflight` inside it — into
+the "production" closure of a tree where the testing library is a devDependency. A control
+that reds a correct tree is a control somebody deletes. The correction is narrow on purpose:
+a peer edge is skipped only when the peer is satisfied by a **dev-declared** package, because
+under `autoInstallPeers` a peer can have no declarer at all and dropping every peer edge
+would quietly shrink the closure instead — the same defect pointed the safer-looking way.
+**The vendor support floor is REVIEWED DATA, and the research is why.** `products[]` holds
+the version lines each vendor still supports, and every row must carry the vendor's own
+words plus the URL they were read from — a supported-set list with no quote behind it is this
+repository's opinion about somebody else's product. It is not derived because there is
+nothing to derive: **Expo publishes no per-SDK end-of-life date in any form**, its versions
+API carries zero date fields across all 51 SDK entries, endoflife.date has no Expo product,
+and its written policy defines *unsupported* operationally as **removed from the
+documentation**. Computing "released June 2026 + approximately one year" would put this
+file's arithmetic behind a vendor's commitment, so the register carries the set and the
+quote and refuses the date. React Native is the exception that proves the rule and the
+strongest row in the file: it publishes a numbered commitment — *"we're committed to maintain
+the latest 3 minor series"* — and a dated table naming a support tier per minor series.
+**The upgrade cost, paid in the same diff.** `tools/eol.json` is seeded and **deliberately
+planted**, so an existing install receives the harness's own rows on its next `update` — and a
+consumer's lockfile is a *superset* of the harness's, so those rows will not cover everything
+their tree deprecates and may name something it no longer does. Both directions would red a
+tree whose code did not change. Withholding the file was the obvious move and the wrong one:
+the ramp on its absence expires at 0.10.0, so the install would trade a dated NOTE for a hard
+red demanding a file `update` had refused to give it. So **every finding this section
+produces rides one ramp until 0.10.0**, scoped to this section alone — the rest of
+`version-sync` stays hard, an upgrading consumer gets a dated list of exactly what to
+disposition, and a fresh scaffold never sees the ramp at all because its baseVersion is
+already 0.9.9.
+**Honest limits, three.** The census is only as current as the last RESOLUTION, since the
+flag arrives at resolve time — hence the 31-day review window here and the lapse check in the
+scheduled `floor-review` job. "In the production dependency closure" is **not** "in the
+shipped bundle": bundling follows imports and a lockfile records dependencies, so a
+`production` grade is a ceiling on exposure, not a measurement of it. And the register is an
+ESCAPE LIST — appending a row is the cheap way past a red, which is why it is write-guarded,
+CODEOWNERS-reviewed, and has a review window that forces a re-read.
 **Anti-vacuity:** drift `apps/mobile/package.json` from root → FAIL listing the
 disagreeing versions; set `apps/web`'s major off `@app/api`'s → FAIL the skew-contract
 check; resolve two `react` versions inside one surface → FAIL naming the project;
@@ -438,7 +499,15 @@ push `reviewedUntil` more than 31 days past `reviewedOn` → FAIL naming the win
 maximum, and roughly how many upstream releases that many days hides; drop the
 production `ios.image` (or alias it to `auto`/`latest`/`sdk-NN`, or pin
 `-xcode-25.x`) → FAIL per the toolchain directions above; delete the `iosToolchain`
-record while `eas.json` exists → FAIL naming the missing review.
+record while `eas.json` exists → FAIL naming the missing review; add a vendor-deprecated
+package with no `tools/eol.json` row → FAIL quoting the registry's own message and naming
+what pulls it in; keep a row whose package the lockfile no longer deprecates → FAIL; record
+a production-closure deprecation as `development` (or a dev-only one as `production`) →
+FAIL, because `scope` is recomputed from the lockfile rather than believed; drop a
+production row's `removalTarget`, or reach it → FAIL; empty a row's `reason` → FAIL; pin a
+product onto a line its vendor no longer supports → FAIL quoting the vendor and the URL;
+strip a `products[]` row's policy quote or source → FAIL; and delete `tools/eol.json`
+outright on an installed tree → FAIL, because absence must never read as nothing-to-check.
 
 ### 13. prompts — `node tools/check-prompts-lock.mjs`
 
@@ -558,6 +627,51 @@ SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22); de
 one `GRANT` line from the **shipped** `notes` migration → FAIL naming the policy, the
 date and the exact statement that discharges it (which is what makes the shipped-tree
 green non-vacuous, as opposed to a fixture merely shaped like it).
+
+**The MFA RAIL closure (0.9.9).** A closure over the *shape* of an `aal2` rail, never over
+its coverage — which tables warrant a second factor is a product decision, and a
+low-sensitivity lookup table blocked at `aal1` is a support ticket rather than a control.
+Nothing here demands that any table carry the rail; what it demands is that a tree which
+*has* one has the version that works.
+
+That distinction earns a gate because **the vendor-documented policy is broken in two
+directions and the second is silent.** As published it reads `auth.mfa_factors` as the
+invoker, on which `authenticated` holds no privilege, so every request 403s with `42501` —
+loud, and therefore harmless. "Fixed" with a `GRANT SELECT ON auth.mfa_factors TO
+authenticated`, that table still has RLS enabled and **no policy**, so it is default-deny:
+`count(id)` is `0` for enrolled users too, the `CASE` falls through to
+`array['aal1','aal2']`, and the policy **accepts `aal1`**. Verified against a live stack,
+not reasoned about — installing the vendor shape let an enrolled user at `aal1` read every
+row and INSERT, UPDATE and DELETE freely.
+
+So a policy whose predicate calls the MFA helper must be `AS RESTRICTIVE` (it ANDs and can
+only subtract; a permissive one ORs, so a second permissive policy re-opens everything it
+closed), must carry **no `FOR` clause** (Supabase's own second documentation page writes
+this policy `for update`, gating writes while leaving `SELECT` wide open), and must carry
+**both** `USING` and `WITH CHECK` (`USING` alone governs visibility, so an `aal1` session
+could still INSERT rows it cannot see). No migration may `GRANT` anything on
+`auth.mfa_factors`; `private.mfa_is_required()` is `SECURITY DEFINER` precisely so that no
+grant is needed. And `supabase/tests/mfa_aal2.test.sql` must exist, because nothing static
+can show that the predicate *binds* — the published policy is textually similar and admits
+`aal1` for an **enrolled** user, which is the only case that tells them apart. The closure
+runs the other way too: helpers defined with no policy using them is a rail nothing
+references, which enforces nothing while reading, to the next person, as MFA already in
+place. ADR: `docs/adr/20260812-mfa-aal2.md`.
+
+The same release corrected a hole this rail would otherwise have opened: **a `RESTRICTIVE`
+policy no longer satisfies the per-operation requirement.** A policy that can only subtract
+grants nothing, so counting one would let a table whose permissive `SELECT` policy was
+deleted stay green on the strength of a policy that denies. `supabase/tests/rls_structure.test.sql`
+carries the same correction on the runtime side.
+
+**Anti-vacuity (the rail):** add `GRANT SELECT ON auth.mfa_factors` → FAIL naming it as the
+fail-open; make the MFA policy `AS PERMISSIVE` → FAIL; make it `FOR UPDATE` → FAIL naming
+the operation; drop its `WITH CHECK` → FAIL; delete `supabase/tests/mfa_aal2.test.sql` while
+the policy stands → FAIL; define the helpers with no policy using them → FAIL; make a
+table's only `SELECT` policy `RESTRICTIVE` → FAIL "no PERMISSIVE policy FOR SELECT". The
+**executed** twin is the pgTAP suite itself, run against a live stack both ways: green on
+the shipped rail, red on the vendor policy with the two rows an enrolled `aal1` session
+should never have seen.
 
 ### 16. tenancy — `node tools/check-tenancy.mjs`
 
@@ -701,10 +815,31 @@ guard → FAIL naming the non-cloning; give the tenant key a foreign key, or `ac
 `SECURITY INVOKER`, or have it read the actor from the row → FAIL; set
 `auditReaderRole` equal to `auditWriterRole`, or drop `audit` from `nonPublicSchemas`
 → FAIL closed. The runtime twin is `supabase/tests/audit_immutability.test.sql`, whose
-26 assertions prove what no parser can: that the trigger fires *for a BYPASSRLS role*,
+32 assertions prove what no parser can: that the trigger fires *for a BYPASSRLS role*,
 that `TRUNCATE` on a partition raises, and that the read path admits rank 40 and
 refuses a rank-20 member **of the same org** — the bidirectional pair that separates a
 working floor from one that refuses everybody.
+
+**The elevated role, ATTEMPTED rather than inferred (0.9.9).** Six of those assertions are
+new, and the reason is an evidence-tier one: ASD's assessment process guide ranks
+documentation and interviews as *poor* evidence and testing with simulated activity as
+*excellent*, and `has_table_privilege('service_role', …) = false` is a statement about
+`pg_class`, not about the system. So `service_role` — the role that bypasses RLS, that no
+policy in the repository constrains, and that an Edge Function actually holds — now *tries*
+each of read, forge, modify, delete and truncate, and `authenticated` tries the read. The
+forged INSERT is built before the role switch and stashed in a transaction-local GUC so
+that it carries a real `org_id`: an INSERT that a `NOT NULL` constraint would refuse
+whoever ran it proves nothing about privilege.
+
+**Which layer owns which property was established by experiment, and it corrected the
+assumption this section was first written with.** Granting `service_role` `USAGE` on the
+schema and full DML on the trail — deleting layer 2 outright — reds *exactly* the read and
+the forged insert, and leaves the `UPDATE`, `DELETE` and `TRUNCATE` assertions **passing**,
+because the layer-3 row trigger and the layer-4 statement triggers refuse those with every
+grant in place. The refusal is therefore *not* uniformly over-determined: reading and
+forging are held by the grant alone. "Just grant the Edge Function read access to the audit
+table" is a reasonable-sounding request, it is the single likeliest edit to this design,
+and those two assertions are the only thing in the suite that catches it.
 
 ### 17. auth-posture — `node tools/check-auth-posture.mjs`
 
@@ -775,6 +910,38 @@ its subject — the chain must run on a checkout with cold `node_modules`.
 `enable_anonymous_sign_ins = true` → FAIL; add a wildcard redirect → FAIL; delete a reviewed
 line → FAIL; point `site_url` at an `http://` host → FAIL; rename `[local_smtp]` back to
 `[inbucket]` → FAIL both ways; remove `tools/auth-posture.json` → FAIL closed.
+
+**The `[auth.mfa]` posture and its scoped ramp (0.9.9).** Ten reviewed keys across four
+sections — `max_enrolled_factors`, TOTP's two, phone's five, WebAuthn's two — pinned by
+value in both directions. Every key is written out **including the ones for factors that
+are off**, and that is the point rather than verbosity: the CLI parses leniently, so a
+section whose keys are mostly implicit is a section where a typo reads as a posture. Two
+values worth knowing: `phone.max_frequency` is `5s`, and **the published documentation says
+`10s` and is wrong** (a gate pinned to the documented value would red on every untouched
+scaffold, which is how a correct control gets deleted for being noisy); and `phone.template`
+is real but **absent from the documentation entirely**. Both verified against the CLI's own
+embedded config template. `[auth.mfa.web_authn]` ships explicitly `false` — it is the
+phishing-resistant factor and the only one that would satisfy ASD's phishing-resistance
+requirements, but it is undocumented, absent from the Dashboard, experimental in the client
+library, and a billable add-on the CLI **silently downgrades to `false`** when cost is not
+confirmed, so a config line claiming it would be a control that reads as protection and
+applies nothing.
+
+The **ramp** is the interesting half. This policy file is harness-OWNED and
+`supabase/config.toml` is SEEDED, so `update` arms ten new keys on every install at once and
+cannot write the section it now demands — fourteen hard failures on a file the consumer
+never touched. `[auth.mfa]` findings are therefore routed to NOTEs on a pre-`0.9.9` install
+(deadline `0.10.0`; the instruction rides the `seededSourceFixes` channel into
+`.harness/pending/`), while **every other finding in this gate stays hard**. A whole-gate
+ramp was the easy move and the wrong one: it would have withheld the redirect-allowlist and
+session-cookie findings, which have nothing to do with this release and are the ones worth
+having. The OK line subtracts the withheld count rather than claiming those values hold.
+
+**Anti-vacuity (MFA):** a pre-`0.9.9` install with no `[auth.mfa]` → NOTE ×14, exit 0, every
+finding printed; the SAME install with a widened `jwt_expiry` → FAIL (the assertion that
+makes the ramp scoped rather than a gate switched off); a fresh `0.9.9` install with no
+`[auth.mfa]` → FAIL; `max_frequency = "10s"` → FAIL naming both values; flip
+`web_authn.enroll_enabled` to `true` → FAIL.
 
 **The SESSION TRANSPORT half (0.6.0).** `[auth]` above is the posture of the auth *server*;
 this is the posture of the *wire*. It exists because the seeded web app shipped a **sign-in
@@ -1379,7 +1546,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 34. docs-sync — `node tools/check-docs-sync.mjs`
+### 34. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -1459,6 +1626,56 @@ ledger entry → FAIL naming file, line and target; delete the sentence an entry
 ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
 target → FAIL demanding discharge or a reviewed re-date
 (`tests/gates/check-docs-sync.test.mjs`).
+
+**The Essential Eight conformance register (0.9.9) — `check-essential-eight.mjs`.**
+The step's second script, folded here rather than injected as a chain step of its own
+because it is the same KIND of closure: a claim in a reviewed file must name a control
+something actually runs, and it reuses the identical derivation
+(`tools/lib/live-controls.mjs`). `tools/essential-eight.json` carries all **149**
+cumulative requirements of ASD's Maturity Level Three, each graded against THIS tree.
+
+Read the register's own header before its numbers: **a codebase cannot hold an Essential
+Eight maturity level and neither can a generator.** Maturity attaches to an
+organisation's system, ASD certifies no products, assessment is all-or-nothing per
+strategy AND per package, and 46 of the 149 requirements are unreachable by any
+repository. The register exists so a generated application is never the BLOCKER to its
+operator's assessment; it never claims the application IS ML3.
+
+Five closures. **Census by count** — per-strategy totals must equal 13/16/23/29/19/11/27/11;
+a naive union of the model's appendices gives 152 and is WRONG, because exactly three
+ML1/ML2 requirements are SUPERSEDED at ML3 and are recorded in `supersededAtML3[]`
+rather than deleted (a cut requirement and a forgotten requirement look identical six
+months later). **Live controls** — every `effective` or `alternate-control` row names a
+step, job, or gate script that exists, and a CONDITIONAL one must say `(path-filtered)`
+or `(schedule-gated)`, because "this control exists" and "this control ran on this
+commit" are different claims. **Shared-clause dedup** — eight logging/incident clauses
+repeat across four strategies (32 of the 149 rows on one artefact set), so
+`sharedClauses[]` declares each artefact once and at most one row may claim it.
+Deliberately NOT asserted: that the instances share an outcome. The text is identical
+but its SUBJECT is the parent strategy's log stream, and those differ — the audit trail
+genuinely protects privileged-access events and genuinely has no application-control
+events to protect, so forcing equal grades would inflate three rows or deflate one.
+**Row shape** — `alternate-control` carries `assessorMayRefuse` (an alternate control is
+demonstrated by the system owner, never pre-earned by a generator), `not-applicable`
+carries a written negative proof, and `not-implemented` names an obligations row so the
+register cannot hide a gap. **Negative proof** — the macro strategy's eleven
+not-applicable grades rest on there being no document-parsing surface, which is
+decidable, so it is decided: `[storage]` disabled and no upload route.
+
+What it deliberately does NOT do is red on `not-implemented`. Rows are honestly unbuilt
+and say so; redding on them would create steady pressure to grade generously to get
+green, which is the exact failure the register exists to prevent. What reds is a
+MALFORMED or INFLATED claim. The `simulated-activity` evidence tier is judged
+factory-side by `scripts/check-essential-eight-evidence.mjs`, because
+`tests/canary/injections.json` never ships to an install.
+
+**Anti-vacuity:** delete a row → FAIL naming the strategy and both counts; point an
+`effective` row at a control nothing runs → FAIL naming it; let a second shared-clause
+instance claim a control → FAIL naming the double-count; drop an `obligation` from a
+`not-implemented` row, or `assessorMayRefuse` from an `alternate-control` row, or empty
+a `negativeProof` → FAIL naming the row; set `[storage] enabled = true` → FAIL demanding
+the eleven macro grades be revisited; empty `requirements[]` → FAIL, because an empty
+conformance register is not a clean bill of health but a missing one.
 
 ### the validate runner — serial by default, pooled under `--report-all`
 
@@ -1764,6 +1981,54 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   must fail) keeps it falsifiable, and the harness selftest proves the lane
   end-to-end (Canary C01: strip the api-client's one bearer-attaching line →
   the suite reds, restore → green).
+
+- **backup-evidence** (scheduled, in `osv-scan.yml`) — `node
+  tools/check-backup-posture.mjs`. **The one control in this harness whose subject is not in
+  the tree.** Backups live in the platform's control plane, so the only way to learn their
+  state is to ask over the network — which is exactly why it may not ride `pnpm validate`,
+  where a third party changing an answer would red an untouched commit overnight. It sits
+  beside `floor-review` because it is the same KIND of job, not the same subject: schedule and
+  dispatch only, never a PR blocker.
+  **What makes it more than decoration.** It skips on every machine without a
+  `SUPABASE_ACCESS_TOKEN`, including this harness's own CI, so nothing in the ordinary run of
+  things demonstrates it can go red. The judgement therefore lives in
+  `tools/lib/backup-posture.mjs` as a pure function over recorded API responses, exercised on
+  every `pnpm test`, and `tests/gates/backup-posture.test.mjs` spawns the shipped script
+  against a fixture so the lane itself is proven and not just its library.
+  **It asserts one thing: that a recovery mechanism exists** — PITR enabled, **OR** at least
+  one completed daily backup — and, only when PITR is off, that the newest daily backup is
+  inside the operator's own tolerance. `walg_enabled`, the physical-backup flags and the PITR
+  window are REPORTED and never asserted, because their exact semantics are not documented
+  well enough to red a project over.
+  **Four shapes that would red a CORRECT project, all avoided by quotation rather than
+  reasoning.** (1) Daily-vs-PITR is an OR: *"If you enable PITR, we will no longer take Daily
+  Backups."* (2) Freshness is not assertable under PITR: an idle database produces no recent
+  WAL backups and its latest recovery point still reflects current state, so a quiet project
+  would red on any recency bound. (3) A project that is `RESTORING`, `PAUSING`, `RESIZING`,
+  `COMING_UP` or `INACTIVE` is judged not at all — the sharpest case being a lane that failed a
+  project *because it was mid-restore*, firing at the exact moment the operator is using what
+  it exists to protect. (4) A project younger than the operator's own tolerance has not missed
+  a backup; that guard reuses **their** number and invents none.
+  **`maxDailyBackupAgeHours` ships NULL and must be set**, because ASD asks for backups "in
+  accordance with business criticality" and that is the operator's determination — a figure
+  invented by a generator would be an obligation with nothing behind it. The vendor publishes
+  an RPO of two minutes for PITR and **no RPO at all for daily backups**, so there is no
+  number to inherit either.
+  **Anti-vacuity:** a response missing any of the five required fields, or a `status` outside
+  the published six-value enum, or a non-array `backups` → FAIL, because "I could not see
+  anything" must never read as "correctly configured". A COMPLETED row whose `inserted_at`
+  cannot be read as an unambiguous instant → FAIL **as a shape problem**: the field is typed
+  as a bare string with no format, and dropping the row instead would empty the
+  newest-completed search and red the project for having no backups at all — the right verdict
+  for entirely the wrong reason. A 402 carrying `entitlement_required` is a plan gate and
+  skips; a 402 **without** it is a billing-state failure and fails, because an organisation
+  past due on payment is the one about to discover its backups matter.
+  **What it cannot do, stated rather than discovered during an assessment:** it cannot test a
+  restore. An in-place restore takes the project offline and the non-destructive alternative —
+  restore to a NEW project — is a Dashboard-only flow with no Management API path. So
+  restoration testing is a written, dated record in `tools/backup-posture.json` with a human's
+  name on it, labelled `documentation` tier rather than borrowing the credibility of the
+  checks around it.
 
 ## Opt-in modules
 

@@ -123,7 +123,15 @@ export const VALIDATE_STEPS = [
   // holds present the same way it holds the axe scan present.
   ['security-headers', 'node tools/check-security-headers.mjs'],
   ['e2e', 'node tools/check-e2e.mjs'],
-  ['docs-sync', 'node tools/check-docs-sync.mjs'],
+  // Two scripts under one step, the shape `boundaries` and `route-manifest` have shipped
+  // since 0.1.x. check-essential-eight.mjs judges the ASD Essential Eight conformance
+  // register (tools/essential-eight.json) — it belongs HERE rather than as a step of its
+  // own because it is the same KIND of closure docs-sync already owns: a claim in a
+  // reviewed file must name a control something actually runs. It reuses the identical
+  // derivation (tools/lib/live-controls.mjs), and folding it in keeps the chain at 34, so
+  // the committed chain-budget measurement stays count-matched and the two 0.10.0
+  // chain-step obligations keep their arithmetic.
+  ['docs-sync', 'node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs'],
 ]
 
 // What the Stop hook runs before a turn may end. These invoke the gate DIRECTLY —

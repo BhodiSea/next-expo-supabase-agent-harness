@@ -16,12 +16,19 @@
 // The closure is fail-closed: a crossed version that withholds files with NO SWEEPS entry
 // (absent, not empty) throws naming the version, so a future release cannot silently skip
 // the review that decides its sweep posture.
+//
+// 0.9.9 adds the case the derived pass was never built for. Every earlier record's fix
+// paths were harness-authored files whose template copy is right for any install, so
+// copying them WAS the remedy. supabase/config.toml carries per-project rendering, so the
+// remedy is the narrowest edit instead — an append of the reviewed [auth.mfa] block,
+// guarded on absence — and the last test here holds that literal to tools/auth-posture.json
+// in both directions, because a second copy of a register is a second copy that drifts.
 // SOURCE: scripts/ci/upgrade-sweep.mjs (computeSweepSet + SWEEPS) · template/migrations.json
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { computeSweepSet } from '../../scripts/ci/upgrade-sweep.mjs'
+import { AUTH_MFA_BLOCK, computeSweepSet } from '../../scripts/ci/upgrade-sweep.mjs'
 
 const MIGRATIONS = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../template/migrations.json', import.meta.url)), 'utf8'),
@@ -94,7 +101,11 @@ test('the full lineage hop (0.1.3, 0.7.0) adopts the same set — 0.2.x DDL and 
 })
 
 test('the 0.6.0 -> 0.7.0 hop sweeps NOTHING — the expiry release withholds no files', () => {
-  assert.deepEqual(computeSweepSet(AT_0_7_0, '0.6.0', '0.7.0'), { adopt: [], tomlSectionRenames: [] })
+  assert.deepEqual(computeSweepSet(AT_0_7_0, '0.6.0', '0.7.0'), {
+    adopt: [],
+    tomlSectionRenames: [],
+    tomlSectionAppends: [],
+  })
 })
 
 test('FAIL-CLOSED — a crossed version withholding files with NO SWEEPS entry throws naming it', () => {
@@ -109,4 +120,115 @@ test('FAIL-CLOSED — a crossed version withholding files with NO SWEEPS entry t
   // is something to decide about.
   const inert = { ...MIGRATIONS, '0.6.5': { configSteps: [] } }
   assert.deepEqual(computeSweepSet(inert, '0.3.0', '0.6.5').adopt, SWEEP_0_6_0)
+})
+
+// ── 0.9.9: the first seededSourceFixes path that must NOT be adopted by copy ─────────
+//
+// Every previous record's fix paths were harness-authored files whose template copy is
+// correct for any install, so §1c copying them was the whole remedy. supabase/config.toml
+// is not that: it carries per-project rendering, and adopting the template's copy would
+// overwrite the install's project id, ports and every value the installer filled in with
+// unrendered placeholders. So the path is withdrawn and the narrowest edit is made instead.
+
+test('0.9.9 — supabase/config.toml is WITHDRAWN from the derived copy pass', () => {
+  const { adopt, tomlSectionAppends } = computeSweepSet(MIGRATIONS, '0.9.5', '0.9.9')
+  assert.ok(
+    !adopt.includes('supabase/config.toml'),
+    'copying the template config.toml over an install replaces its rendered values with placeholders',
+  )
+  // And the exemption is not vacuous: the record really does name that path, so without
+  // skipDerivedAdopt the derived pass WOULD have copied it.
+  const fixPaths = MIGRATIONS['0.9.9'].seededSourceFixes.flatMap((f) => f.paths)
+  assert.ok(
+    fixPaths.includes('supabase/config.toml'),
+    'if the record stops naming this path the withdrawal above proves nothing — and computeSweepSet now throws on it',
+  )
+  assert.deepEqual(tomlSectionAppends, [['[auth.mfa]', AUTH_MFA_BLOCK]])
+})
+
+test("0.9.9 — the MFA migration and its proof are NOT adopted, by the record's own reasoning", () => {
+  // The migration creates a RESTRICTIVE policy on public.notes. An install that renamed or
+  // dropped that table takes a `db push` failure from a file it never asked for, and that
+  // is true whether a human or a script did the copying.
+  const { adopt } = computeSweepSet(MIGRATIONS, '0.9.5', '0.9.9')
+  for (const rel of MIGRATIONS['0.9.9'].seedOnInitOnly) {
+    assert.ok(!adopt.includes(rel), `0.9.9 withheld path swept back in: ${rel}`)
+  }
+  assert.ok(
+    MIGRATIONS['0.9.9'].seedOnInitOnly.some((/** @type {string} */ p) => p.endsWith('_mfa_aal2.sql')),
+    'the exclusion above still covers the migration it was written for',
+  )
+})
+
+test('FAIL-CLOSED — a skipDerivedAdopt entry naming no real fix path throws', () => {
+  // The failure this guards is quiet: a later release edits its seededSourceFixes paths,
+  // the exemption stops matching anything, and it sits there cancelling nothing while
+  // reading as a reviewed decision. Held to the record so it cannot outlive its fix.
+  const stale = {
+    ...MIGRATIONS,
+    '0.9.9': {
+      ...MIGRATIONS['0.9.9'],
+      seededSourceFixes: [{ paths: ['apps/web/lib/example.ts'], gate: 'x', why: 'y' }],
+    },
+  }
+  assert.throws(() => computeSweepSet(stale, '0.9.5', '0.9.9'), /skipDerivedAdopt/)
+})
+
+/** One TOML scalar, decoded. Only the three forms the reviewed block uses. */
+const scalar = (text) => {
+  if (text.startsWith('"')) return text.slice(1, -1)
+  if (text === 'true' || text === 'false') return text === 'true'
+  return Number(text)
+}
+
+/**
+ * A flat TOML block as a Map of dotted `<section>.<key>` -> value. Enough for the reviewed
+ * [auth.mfa] block and deliberately no more: a real parser here would be a second
+ * implementation of the thing the gate under test already owns.
+ * @param {string} block
+ */
+const dottedKeys = (block) => {
+  const seen = new Map()
+  let section = ''
+  for (const raw of block.split('\n')) {
+    const line = raw.trim()
+    if (line === '' || line.startsWith('#')) continue
+    const header = /^\[(.+)\]$/.exec(line)
+    if (header !== null) {
+      section = header[1]
+      continue
+    }
+    const kv = /^([A-Za-z0-9_]+)\s*=\s*(.+)$/.exec(line)
+    assert.ok(kv !== null, `unparseable line in the swept block: ${line}`)
+    seen.set(`${section}.${kv[1]}`, scalar(kv[2].trim()))
+  }
+  return seen
+}
+
+test('the appended [auth.mfa] block IS the reviewed posture, in both directions', () => {
+  // A literal copy of a register is a second copy, and a second copy drifts. This is the
+  // closure that stops it: every auth.mfa.* key the posture reviews must appear in the
+  // block with the same value, and the block must introduce no key the posture does not
+  // review — which is the same both-ways discipline check-auth-posture.mjs applies to the
+  // consumer's own config.toml, applied here to the text the sweep writes into it.
+  const posture = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../template/base/tools/auth-posture.json', import.meta.url)),
+      'utf8',
+    ),
+  ).posture
+
+  const seen = dottedKeys(AUTH_MFA_BLOCK)
+  const reviewed = Object.entries(posture).filter(([k]) => k.startsWith('auth.mfa'))
+  assert.equal(reviewed.length, 10, 'the [auth.mfa] tree is exactly ten reviewed keys')
+  for (const [key, value] of reviewed) {
+    assert.ok(seen.has(key), `the posture reviews ${key} and the swept block never writes it`)
+    assert.deepEqual(seen.get(key), value, `${key}: the swept block disagrees with the register`)
+  }
+  for (const key of seen.keys()) {
+    assert.ok(
+      Object.hasOwn(posture, key),
+      `the swept block writes ${key}, which tools/auth-posture.json does not review — an unreviewed key in a file the gate reads BOTH ways reds the install the sweep was meant to clear`,
+    )
+  }
 })

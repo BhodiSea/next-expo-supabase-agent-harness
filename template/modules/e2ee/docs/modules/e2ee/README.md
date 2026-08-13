@@ -31,7 +31,7 @@ with an intact cipher.
 | `packages/platform/crypto/src/webcrypto-provider.ts` | `createWebCryptoProvider()` — the ONE shipped provider (Node >= 22, every evergreen browser). Returns `null` where there is no Web Crypto rather than throwing |
 | `packages/platform/crypto/src/index.ts` | The `.` barrel: everything on `./client`, plus `createWebCryptoProvider` |
 | `packages/platform/crypto/src/client.ts` | The `./client` barrel: the Metro-safe surface — result vocabulary, envelope codec, keyring, and the port TYPES. Reaches for no runtime global |
-| `packages/platform/crypto/src/envelope.test.ts` | Roundtrip byte-faithfulness, one distinct reason per decode refusal, and the two AAD properties (role separation; NUL-separation injectivity) |
+| `packages/platform/crypto/src/envelope.test.ts` | Roundtrip byte-faithfulness, one distinct reason per decode refusal, and the two AAD properties (role separation; length-prefix injectivity, including the embedded-NUL and unpaired-surrogate cases a separator join could not survive) |
 | `packages/platform/crypto/src/keyring.test.ts` | The hierarchy over the REAL provider: fresh DEK per seal, wrap/unwrap, and the four refusals — moved row, moved user, role swap, wrong root key |
 | `packages/platform/crypto/src/webcrypto-provider.test.ts` | VECTOR conformance (seal must reproduce the published `ct‖tag` byte-exactly), plus tamper cases on ciphertext, AAD and tag |
 | `packages/platform/crypto/src/webcrypto-provider.test.ts` | The published AES-256-GCM and RFC 5869 appendix-A vectors the provider is held to, inlined beside the assertions that use them |
@@ -102,14 +102,25 @@ Four choices carry the weight, and each buys something specific:
   every other row.** That is the erase lever, and it is the one deletion in this
   design that is a cryptographic fact rather than a promise.
 - **AAD is mandatory and binds the row.** `buildAad` binds the version byte, the
-  alg byte, a ROLE byte, and `userId\0table\0itemId` as UTF-8. A ciphertext
+  alg byte, a ROLE byte, and then `userId`, `table`, `itemId` and `field` as
+  UTF-8, **each preceded by its own 4-byte big-endian length**. A ciphertext
   copied into another row, another table, or another user's row **fails
   authentication** — confidentiality alone does not stop a copy-paste attack
   inside one key's reach. The role byte (`0x00` item, `0x01` wrapped DEK) means
   an item ciphertext and a wrapped DEK can never authenticate in each other's
-  slot. NUL is the separator because a printable join character that can appear
-  inside an id would let two different identities encode identically —
-  `envelope.test.ts` asserts exactly that pair.
+  slot.
+
+  **Length prefixes rather than a NUL join, and the difference is not
+  cosmetic.** A separator is injective only while no field can contain it, and
+  the adversarial review demonstrated both halves of that failing: an embedded
+  NUL re-split the identity (`u1 / notes / a<NUL>b` collided with
+  `u1 / notes<NUL>a / b`), and `TextEncoder` maps every unpaired surrogate to
+  the same `U+FFFD`, so distinct `itemId`s collided too. A length prefix removes
+  every collision the FRAMING can cause. It does not remove the one the
+  ENCODING causes — UTF-8 has no representation for an unpaired surrogate — so
+  that residual is asserted in `envelope.test.ts` rather than left as a
+  footnote, and it is why `itemId` should come from real column values (a UUID
+  primary key is unaffected) rather than from anything user-supplied.
 
 ### The envelope, byte by byte
 

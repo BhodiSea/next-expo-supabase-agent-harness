@@ -32,7 +32,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 -- Counted by hand against the assertions below. pgTAP fails a plan mismatch, which is
 -- the point: an assertion deleted in a hurry cannot pass as a smaller suite.
-SELECT plan(26);
+SELECT plan(32);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Shape
@@ -251,6 +251,103 @@ SELECT throws_ok(
   NULL,
   'TRUNCATE on a PARTITION is refused — the guard is not inherited, so it is duplicated'
 );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The ELEVATED role, ATTEMPTED rather than inferred (0.9.9)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 2 above asks the privilege catalog whether `service_role` holds a grant. This
+-- section makes the elevated role actually TRY, and that difference is the whole reason
+-- the section exists: ASD's assessment process guide ranks documentation and interviews
+-- as POOR evidence and testing with simulated activity as EXCELLENT, and a catalog read
+-- is closer to the first than the second. `has_table_privilege` returning false is a
+-- statement about pg_class; a statement that raises is a statement about the system.
+--
+-- `service_role` is the role worth attempting it as. It BYPASSES RLS, no policy in this
+-- repository constrains it, and it is the credential an Edge Function holds — so "can the
+-- most privileged thing in the application tamper with the trail" is the question an
+-- assessor asks, and until now the answer was inferred from two grant lookups.
+--
+-- WHICH LAYER OWNS WHICH PROPERTY — established by experiment, not by reading. Granting
+-- `service_role` USAGE on the schema and full DML on the trail (i.e. deleting layer 2
+-- outright) reds EXACTLY the READ and the FORGED INSERT below, and leaves the UPDATE,
+-- DELETE and TRUNCATE assertions passing — the layer-3 row trigger and the layer-4
+-- statement triggers refuse those on their own, with every grant in place.
+--
+-- That is the four-layer design demonstrating itself rather than being described, and it
+-- corrects the assumption this comment first carried: the refusal is NOT uniformly
+-- over-determined. Reading and forging are held by the grant alone. If layer 2 is ever
+-- weakened — the single likeliest edit, since "just grant the Edge Function read access to
+-- the audit table" is a reasonable-sounding request — those two are the assertions that
+-- catch it, and nothing else in the suite would.
+-- The forged INSERT is built HERE, before the role switch, and stashed in a
+-- transaction-local GUC — because it has to be a statement that would OTHERWISE SUCCEED.
+-- An INSERT with a NULL org_id is refused by a NOT NULL constraint no matter who runs it,
+-- so asserting that it raises would prove nothing about privilege; this one carries a real
+-- org and lands cleanly as a privileged role. `audit_probe` is a temp table owned by
+-- postgres and unreadable by service_role, which is the other reason the interpolation
+-- cannot happen after the switch.
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SELECT set_config(
+  'audit.forge_sql',
+  format(
+    $fmt$ INSERT INTO audit.events (occurred_at, org_id, actor_id, action, table_name, row_id, payload)
+          VALUES (now(), %L, NULL, 'INSERT', 'public.notes', gen_random_uuid(), '{}'::jsonb) $fmt$,
+    (SELECT org_id FROM audit_probe)
+  ),
+  true
+);
+
+-- SOURCE: transaction-local GUCs — the role must not outlive the transaction, or a pooled
+-- backend serves the next request as the wrong identity [corpus: postgres/guc-set-local]
+SET LOCAL ROLE service_role;
+
+SELECT throws_ok(
+  $$ SELECT id FROM audit.events LIMIT 1 $$,
+  '42501',
+  NULL,
+  'service_role cannot READ the trail — an elevated role that could is a second, less-policied copy of every tenant history'
+);
+SELECT throws_ok(
+  -- SOURCE: transaction-local GUCs — the statement text crosses the role switch in a
+  -- transaction-local GUC, which every role can read [corpus: postgres/guc-set-local]
+  current_setting('audit.forge_sql'),
+  '42501',
+  NULL,
+  'service_role cannot FORGE a trail entry — a well-formed INSERT that would otherwise land, refused on privilege'
+);
+SELECT throws_ok(
+  $$ UPDATE audit.events SET actor_id = NULL WHERE true $$,
+  '42501',
+  NULL,
+  'service_role cannot MODIFY the trail (the elevated role, attempted — not inferred from a grant lookup)'
+);
+SELECT throws_ok(
+  $$ DELETE FROM audit.events WHERE true $$,
+  '42501',
+  NULL,
+  'service_role cannot DELETE from the trail (attempted, as the role that bypasses RLS)'
+);
+SELECT throws_ok(
+  $$ TRUNCATE audit.events $$,
+  '42501',
+  NULL,
+  'service_role cannot TRUNCATE the trail — the one statement no row trigger can see'
+);
+
+RESET ROLE;
+
+-- The client role, for the same reason and in one assertion. `authenticated` is what a
+-- stolen JWT gets you, and the trail must not be readable with one.
+-- SOURCE: transaction-local GUCs — SET LOCAL keeps the role inside this transaction
+-- [corpus: postgres/guc-set-local]
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$ SELECT id FROM audit.events LIMIT 1 $$,
+  '42501',
+  NULL,
+  'authenticated cannot reach the trail at all — the audit schema does not resolve for a client role'
+);
+RESET ROLE;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- The read path, in BOTH directions

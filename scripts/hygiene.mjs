@@ -12,6 +12,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { walkFiles } from '../installer/lib/fs-walk.mjs'
+import { maturityClaims } from './lib/maturity-claim.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const TEMPLATE = join(ROOT, 'template')
@@ -263,6 +264,35 @@ try {
 // `--cached` then `--others` are each sorted but concatenated, so sort the union: this
 // gate's own failure list has to be in the same order on every machine.
 const repoFiles = listing.split('\u0000').filter(Boolean).sort()
+// ---------------------------------------------------------------------------
+// 5. No unearned Essential Eight maturity claim (0.9.9) — same listing, same loop.
+// ---------------------------------------------------------------------------
+// The register shipped in 0.9.9 maps all 149 requirements of ASD's Maturity Level Three
+// and grades every one of them. What it must never become is the sentence a reader would
+// carry into a procurement conversation, because that sentence is wrong in the direction
+// that sells: maturity attaches to an organisation's system, ASD certifies no products,
+// and a repo-scoped reading of the model yields Maturity Level ZERO rather than Three.
+// The judgement lives in scripts/lib/maturity-claim.mjs (with its own stated limit); the
+// reason it is a sweep and not a note in CONTRIBUTING is that the pressure to write the
+// sentence arrives long after the review that would have caught it — a README edit for a
+// launch, a changelog line, a design doc answering a customer.
+//
+// Scope is the WHOLE repository rather than template/, because the claim's natural home
+// is the root README, and section 1 above never looks outside the shipped artifact.
+//
+// Two files carry the sentence legitimately, exempted per-file for the same reason
+// ALLOWLIST exempts gitleaks.toml: a rule that may not contain the thing it bans cannot
+// have a rule, and a red-proof that may not plant the violation cannot prove the red.
+// Both are named files, never a directory — and the first is held to actually TRIPPING
+// this rule by tests/gates/hygiene.test.mjs, so an exemption cannot outlive its reason.
+// The second is defensive rather than load-bearing: the claim string the red-proof plants
+// lives in that file, and whether the file reads as an assertion depends on how nearby
+// prose happens to be worded, which is a poor thing for a proof to depend on.
+const CLAIM_SWEEP_EXEMPT = new Map([
+  ['scripts/lib/maturity-claim.mjs', 'the rule itself — it spells the claim shapes it denies'],
+  ['tests/gates/hygiene.test.mjs', 'the red-proof — it plants the claim and asserts this sweep bites'],
+])
+
 let textFilesScanned = 0
 for (const relPath of repoFiles) {
   if (BINARY_EXT.test(relPath)) continue
@@ -272,7 +302,15 @@ for (const relPath of repoFiles) {
   textFilesScanned += 1
   const buf = readFileSync(join(ROOT, relPath))
   const at = buf.indexOf(0)
-  if (at === -1) continue
+  if (at === -1) {
+    if (CLAIM_SWEEP_EXEMPT.has(relPath)) continue
+    for (const { line, claim } of maturityClaims(buf.toString('utf8'))) {
+      failures.push(
+        `${relPath}:${String(line)} claims "${claim}". Nothing this repository generates holds an Essential Eight maturity level: maturity attaches to an organisation's SYSTEM, ASD certifies no products, and a repo-scoped reading of the model yields Maturity Level ZERO, not Three (template/base/docs/compliance/essential-eight.md sets out why, with sources). Say the true thing instead — this project produces machine-checkable evidence for the portions of an ML3 assessment a codebase can carry, and hands the rest to the operator.`,
+      )
+    }
+    continue
+  }
   const line = buf.subarray(0, at).toString('utf8').split('\n').length
   failures.push(
     `${relPath}:${String(line)} contains a literal NUL byte, which makes the whole file \`data\` rather than text — \`grep\` then skips it in silence and the file cannot be searched at all. If a NUL is meant as a separator, write it as the \`\\u0000\` escape (identical at runtime); if the file is binary, add its extension to BINARY_EXT.`,
@@ -292,5 +330,5 @@ if (textFilesScanned === 0) {
   process.exit(1)
 }
 console.log(
-  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes)`,
+  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes and of unearned maturity claims)`,
 )

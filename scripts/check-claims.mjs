@@ -368,6 +368,78 @@ for (const [, n] of readme.matchAll(/(\d+) guard[- ]rule ids/g)) {
   }
 }
 
+// ── 1d. DERIVED (0.9.9): the Essential Eight register's published standing ───────
+// A conformance figure is the most dangerous number this repository publishes. A stale
+// chain length embarrasses; a generous compliance count is the kind of wrong somebody
+// forwards to a procurement team, and unlike every other claim here it drifts in a
+// direction nobody complains about. So it is derived from the register — and it is
+// derived as a PARTITION, all seven counts matched as ONE phrase, because the cheapest
+// way to inflate a compliance claim is not to lie about a number: it is to publish the
+// flattering half and let the reader assume the rest. The phrase is the gate's own OK
+// line, so the README quotes the machine rather than paraphrasing it.
+//
+// This is also the only claim in this file judged for ABSENCE. Every count above is
+// checked wherever it appears and ignored where it does not, which is right for a count —
+// but a compliance standing that quietly vanishes from the README is not a corrected
+// claim, it is a product nobody can audit, and deleting the sentence must not be the
+// cheap way past a red. So while the register exists, the README must carry it.
+//
+// CHANGELOG.md is excluded, on this file's standing rule: "4 effective" inside the 0.9.9
+// entry is a true statement about 0.9.9, and rewriting history to satisfy a present-tense
+// claim is the opposite of what this script is for.
+const e8RegisterUrl = new URL('../template/base/tools/essential-eight.json', import.meta.url)
+const e8LibUrl = new URL('../template/base/tools/lib/essential-eight.mjs', import.meta.url)
+const E8_FIGURES =
+  /(\d+) ML3 requirements?: (\d+) effective, (\d+) alternate-control, (\d+) not-implemented, (\d+) not-applicable, (\d+) organisation-boundary; (\d+) shared clauses?/g
+/** What the OK line reports, so a reader sees the standing this run actually judged. */
+let e8Standing = 'conformance register absent'
+if (!existsSync(e8RegisterUrl) || !existsSync(e8LibUrl)) {
+  console.log(
+    'CLAIMS: NOTE — template/base/tools/essential-eight.json is not in this tree; the ' +
+      'conformance-figure class is SKIPPED, not passed. Any published Essential Eight ' +
+      'standing is unverified without the register it is derived from.',
+  )
+} else {
+  const { summarise } = await import(e8LibUrl.href)
+  const s = summarise(JSON.parse(readFileSync(e8RegisterUrl, 'utf8')))
+  e8Standing = `E8 ${String(s.total)} rows / ${String(s.effective)} effective`
+  /** @type {Array<[string, number]>} the partition, in the order the sentence states it */
+  const parts = [
+    ['ML3 requirements', s.total],
+    ['effective', s.effective],
+    ['alternate-control', s.alternateControl],
+    ['not-implemented', s.notImplemented],
+    ['not-applicable', s.notApplicable],
+    ['organisation-boundary', s.organisation],
+    ['shared clauses', s.sharedClauses],
+  ]
+  let statedInReadme = 0
+  for (const [file, text] of [
+    /** @type {[string, string]} */ (['README.md', readme]),
+    ...proseSurfaces.map(
+      ([f, t]) => /** @type {[string, string]} */ ([f, unwrap(t)]),
+    ),
+  ]) {
+    for (const m of text.matchAll(E8_FIGURES)) {
+      if (file === 'README.md') statedInReadme += 1
+      parts.forEach(([label, expected], i) => {
+        const claimed = Number(m[i + 1])
+        if (claimed !== expected) {
+          problems.push(
+            `${file} publishes "${String(claimed)} ${label}" for the Essential Eight register but template/base/tools/essential-eight.json grades ${String(expected)} — the register is the source of truth, and \`node tools/check-essential-eight.mjs\` prints this exact sentence`,
+          )
+        }
+      })
+    }
+  }
+  if (statedInReadme === 0) {
+    problems.push(
+      'README.md publishes no Essential Eight standing, but template/base/tools/essential-eight.json ships one. Deleting the sentence is not a way past a wrong number: state the whole partition — ' +
+        `"${String(s.total)} ML3 requirements: ${String(s.effective)} effective, ${String(s.alternateControl)} alternate-control, ${String(s.notImplemented)} not-implemented, ${String(s.notApplicable)} not-applicable, ${String(s.organisation)} organisation-boundary; ${String(s.sharedClauses)} shared clauses" — so a reader cannot be shown only the flattering half.`,
+    )
+  }
+}
+
 // ── 2. CONSISTENT: README vs the LATEST CHANGELOG entry on wall-clock figures ────
 // Nothing can assert a timing is TRUE on someone else's hardware — but two documents
 // describing the same release must not disagree. Extract "cold ≈ N s" / "warm ≈ N s"
@@ -520,5 +592,6 @@ console.log(
       ? 'canary registry pending (W5b), '
       : `canary ${String(truth.canarySteps)} steps, `) +
     `${String(truth.guardRuleIds)} guard-rule ids, ${String(truth.canaryLegs)} executed canary legs, ` +
+    `${e8Standing}, ` +
     'gates-catalog chain count in lockstep; README/CHANGELOG timings agree)',
 )

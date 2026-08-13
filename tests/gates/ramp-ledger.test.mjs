@@ -506,13 +506,13 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   )
 })
 
-test('the GROWN list (0.9.5): v0.9.0 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (0.9.9): v0.9.5 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
-  // checkVintages skips tags >= the version being cut — so at package 0.8.0 the entry
-  // '0.8.0' is never demanded and its absence would stay green right up to the bump commit,
+  // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
+  // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
   // where the same test reds with no code having changed. This is that wire, pulled early
-  // (the 0.8.0 release pulled the same wire for v0.7.0): the real released-tag set, judged
-  // as the 0.9.0 release will judge it, against the SHIPPED VINTAGES (the default argument —
+  // (0.8.0 pulled it for v0.7.0 and 0.9.5 for v0.9.0): the real released-tag set, judged as
+  // the 0.9.9 release will judge it, against the SHIPPED VINTAGES (the default argument —
   // a local literal here would be the drift the one-definition test above exists to prevent).
   const tags = [
     'v0.1.3',
@@ -525,11 +525,15 @@ test('the GROWN list (0.9.5): v0.9.0 released means VINTAGES carries it, judged 
     'v0.7.0',
     'v0.8.0',
     'v0.9.0',
+    'v0.9.5',
   ]
-  assert.deepEqual(checkVintages(tags, '0.9.5'), [])
+  assert.deepEqual(checkVintages(tags, '0.9.9'), [])
 
-  // And the defect shape it guards: the list stopped at 0.8.0 — exactly the forgotten-entry
-  // red the bump would otherwise be the first to surface.
+  // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
+  // red the bump would otherwise be the first to surface. The comparison underneath is
+  // cmpDotted, numeric per segment, which is what makes 0.9.5 a population BELOW 0.9.9 and
+  // will make 0.9.9 a population below 0.10.0 — the hop where a segment-wise string compare
+  // would silently drop every vintage from the ledger at once.
   const stopped = [
     '0.1.3',
     '0.2.0',
@@ -540,12 +544,13 @@ test('the GROWN list (0.9.5): v0.9.0 released means VINTAGES carries it, judged 
     '0.6.0',
     '0.7.0',
     '0.8.0',
+    '0.9.0',
   ]
-  const problems = checkVintages(tags, '0.9.5', stopped)
+  const problems = checkVintages(tags, '0.9.9', stopped)
   assert.equal(problems.length, 1, problems.join('\n'))
   assert.match(
     problems[0],
-    /v0\.9\.0 is a released vintage below 0\.9\.5 and is absent from VINTAGES/,
+    /v0\.9\.5 is a released vintage below 0\.9\.9 and is absent from VINTAGES/,
   )
 })
 
@@ -679,13 +684,16 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // agent-surface and ADR-shape checks), all advisory for a 0.6.0-vintage install running
   // harness 0.7.0.
   // These pins read the CURRENT fleet at a historical version and move with each reviewed
-  // ramp addition, in the same diff — the discipline the header states.
+  // ramp addition, in the same diff — the discipline the header states. THIRTEEN since 0.9.9
+  // added TWO ramps: auth-posture's [auth.mfa] posture and version-sync's absent
+  // end-of-life register, both due 0.10.0.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 11)
+  assert.equal(fresh.noting.length, 13)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
+      'auth-posture',
       'boundaries',
       'data-flow',
       'docs-sync',
@@ -694,7 +702,7 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'version-sync',
       'wiring',
     ],
-    'what 0.7.0 opened plus what 0.8.0, 0.9.0 and 0.9.5 open, all advisory for this vintage at harness 0.7.0',
+    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5 and 0.9.9 open, all advisory for this vintage at harness 0.7.0',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -752,8 +760,8 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
   assert.equal(fresh.expired.length, 0)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['boundaries', 'docs-sync', 'observability', 'version-sync', 'wiring'],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0 and 0.9.5 open (the 0.10.0/0.11.0 records will owe these)',
+    ['auth-posture', 'boundaries', 'docs-sync', 'observability', 'version-sync', 'wiring'],
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5 and 0.9.9 open (the 0.10.0/0.11.0 records will owe these)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -825,8 +833,8 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
   assert.equal(fresh.expired.length, 0)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['boundaries', 'docs-sync', 'version-sync', 'wiring'],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5 opens',
+    ['auth-posture', 'boundaries', 'docs-sync', 'version-sync', 'wiring'],
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5 and 0.9.9 open',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.

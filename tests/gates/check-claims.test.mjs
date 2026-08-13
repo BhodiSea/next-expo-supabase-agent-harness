@@ -8,8 +8,11 @@
 // inside a fixture tree that mirrors the repo layout (README/CHANGELOG/harness.config/
 // guard-rules/injections.json are all fixture-controlled), and the live repo is pinned
 // green as-is. Both claim classes are exercised: DERIVABLE (chain length, canary-registry
-// size, guard-rule ids — recomputed from the source of truth) and CONSISTENT (README vs
-// latest CHANGELOG entry wall-clock timings).
+// size, guard-rule ids, the Essential Eight conformance partition — recomputed from the
+// source of truth) and CONSISTENT (README vs latest CHANGELOG entry wall-clock timings).
+//
+// The conformance class (0.9.9) is the only one judged for ABSENCE as well as drift, and
+// the reason is in its own section at the bottom of this file.
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,6 +27,30 @@ const BUDGET_LIB_BYTES = readFileSync(
   fileURLToPath(new URL('../../scripts/lib/chain-budget.mjs', import.meta.url)),
   'utf8',
 )
+// The Essential Eight judgement, byte-identical for the same reason the budget lib is:
+// the fixture must not get a stand-in `summarise()` that could partition a register
+// differently from the one that ships.
+const E8_LIB_BYTES = readFileSync(
+  fileURLToPath(new URL('../../template/base/tools/lib/essential-eight.mjs', import.meta.url)),
+  'utf8',
+)
+// A five-row register, one row per outcome, plus two shared clauses — so the published
+// partition is "5 ML3 requirements: 1 effective, 1 alternate-control, 1 not-implemented,
+// 1 not-applicable, 1 organisation-boundary; 2 shared clauses" and every figure below is
+// unambiguous. Only the fields summarise() reads are present; the register's OTHER
+// closures are proven against the SHIPPED file in tests/gates/check-essential-eight.test.mjs.
+const FIXTURE_E8 = JSON.stringify({
+  requirements: [
+    { id: 'A', boundary: 'product', outcome: 'effective' },
+    { id: 'B', boundary: 'product', outcome: 'alternate-control' },
+    { id: 'C', boundary: 'product', outcome: 'not-implemented', obligation: 'e8-fixture' },
+    { id: 'D', boundary: 'product', outcome: 'not-applicable' },
+    { id: 'E', boundary: 'organisation', outcome: null },
+  ],
+  sharedClauses: [{ id: 'S1' }, { id: 'S2' }],
+})
+const FIXTURE_E8_SENTENCE =
+  '5 ML3 requirements: 1 effective, 1 alternate-control, 1 not-implemented, 1 not-applicable, 1 organisation-boundary; 2 shared clauses'
 
 function cleanEnv() {
   const env = { ...process.env }
@@ -48,7 +75,7 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, config?: string, hooks?: string[] }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, e8Register?: string | null, config?: string, hooks?: string[] }} parts
  */
 function runFixture({
   readme,
@@ -67,6 +94,10 @@ function runFixture({
   // on their existence, so every pre-0.7.0 fixture above stays byte-identical in intent.
   contributing = null,
   lintYml = null,
+  // The Essential Eight register is absent by default — its class is guarded on the
+  // register existing, so every pre-0.9.9 fixture above stays byte-identical in intent
+  // and takes the loud SKIP rather than a silent pass.
+  e8Register = null,
   config = FIXTURE_CONFIG,
   hooks = ['alpha.mjs', 'beta.mjs'],
 }) {
@@ -109,6 +140,10 @@ function runFixture({
   if (registry !== null) files['tests/canary/injections.json'] = registry
   if (contributing !== null) files['CONTRIBUTING.md'] = contributing
   if (lintYml !== null) files['.github/workflows/lint.yml'] = lintYml
+  if (e8Register !== null) {
+    files['template/base/tools/essential-eight.json'] = e8Register
+    files['template/base/tools/lib/essential-eight.mjs'] = E8_LIB_BYTES
+  }
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), content)
@@ -144,8 +179,11 @@ test('GREEN: a fixture whose every claim is true is CLEAN — and only the LATES
   assert.equal(r.code, 0, r.out)
   assert.match(
     r.out,
-    /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/,
+    /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, conformance register absent, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/,
   )
+  // The register is absent here, so the conformance class must announce the skip rather
+  // than let a green line imply it looked.
+  assert.match(r.out, /conformance-figure class is SKIPPED, not passed/)
 })
 
 test('RED (DERIVABLE): a drifted chain-length claim fails, naming the true count', () => {
@@ -527,4 +565,69 @@ test('GREEN (0.7.0): a CONTRIBUTING whose counts are true and whose list covers 
   })
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /CLAIMS: CLEAN/)
+})
+
+// ── THE ESSENTIAL EIGHT CONFORMANCE FIGURES (0.9.9) ───────────────────────────────
+// A conformance count is the one number in this repository that drifts in a direction
+// nobody complains about, so it gets the treatment no other claim here gets: it is
+// judged as a whole PARTITION, and it is judged for ABSENCE as well as for drift.
+// Deleting the sentence must not be the cheap way past a red — a compliance standing
+// that quietly vanishes is not a corrected claim, it is a product nobody can audit.
+
+test('GREEN (0.9.9): a README stating the whole partition, matching the register, is CLEAN', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_E8_SENTENCE}.\n`,
+    e8Register: FIXTURE_E8,
+  })
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /E8 5 rows \/ 1 effective/)
+})
+
+test('RED (0.9.9): a generous conformance figure fails, naming the register as the truth', () => {
+  // The realistic drift: `effective` alone is inflated, everything else left true. A
+  // matcher that read one number at a time would still have caught this one; the reason
+  // the whole partition is matched as a single phrase is the drift NEXT to it — quoting
+  // only the flattering half, which no per-number check can see.
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_E8_SENTENCE.replace('1 effective', '4 effective')}.\n`,
+    e8Register: FIXTURE_E8,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README\.md publishes "4 effective".*grades 1/s)
+})
+
+test('RED (0.9.9): deleting the sentence is not a way past a wrong number', () => {
+  const r = runFixture({ readme: 'nothing claimed here\n', e8Register: FIXTURE_E8 })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README\.md publishes no Essential Eight standing/)
+  // The remediation must hand back the whole partition, not just say "add a number".
+  assert.match(r.out, /1 effective, 1 alternate-control, 1 not-implemented/)
+})
+
+test('RED (0.9.9): the figures are judged on EVERY live prose surface, not only the README', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_E8_SENTENCE}.\n`,
+    e8Register: FIXTURE_E8,
+    docs: {
+      'template/base/docs/compliance/essential-eight.md': `Standing: ${FIXTURE_E8_SENTENCE.replace(
+        '1 not-implemented',
+        '0 not-implemented',
+      )}.\n`,
+    },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /essential-eight\.md publishes "0 not-implemented".*grades 1/s)
+})
+
+test('GREEN (0.9.9): the register is judged from the SHIPPED lib, so the live tree is its own proof', () => {
+  // The live repo run at the top of this file already covers this, but state it here too:
+  // the fixture gets a byte-identical copy of template/base/tools/lib/essential-eight.mjs,
+  // so a partition that the shipping `summarise()` computes differently cannot pass here
+  // and fail in CI.
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_E8_SENTENCE}.\n`,
+    e8Register: FIXTURE_E8,
+  })
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /conformance-figure class is SKIPPED/)
 })

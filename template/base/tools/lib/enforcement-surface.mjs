@@ -32,6 +32,16 @@ export const ESCAPE_LISTS = [
   // because the header above promised drift would be invisible and then was.
   'tools/decision-groups.json',
   'tools/license-exceptions.json',
+  // 0.9.9. Accepting a dependency whose VENDOR has stopped supporting it — the widening
+  // its neighbour above is for licences. It is an escape rather than a harness-owned floor
+  // (framework-floor.json is the floor) because the question "do we carry this abandoned
+  // package, and why" is answered by the project that has the dependency, not by the
+  // generator that has never seen its lockfile.
+  'tools/eol.json',
+  // 0.9.9. The recovery-point tolerance the backup lane judges against. It belongs with the
+  // budgets below rather than with the exemptions above: widening `maxDailyBackupAgeHours` is
+  // raising a ceiling, and it is the one edit that quietly turns the lane green.
+  'tools/backup-posture.json',
   'tools/route-allowlist.json',
   // 0.6.0. The web twin: allowlisting a page as chrome exempts it from declaring an id, a
   // title key and its three data states — the same widening as the line above, on the surface

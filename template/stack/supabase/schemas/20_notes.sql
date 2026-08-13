@@ -133,3 +133,23 @@ CREATE POLICY notes_delete_org ON public.notes
       AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
     )
   );
+
+-- The MFA rail. RESTRICTIVE, so it ANDs onto the four permissive policies above and
+-- can only ever subtract; no `FOR` clause, so it covers every command rather than
+-- being four copies of one predicate with four chances to omit one (the vendor's own
+-- documentation writes this policy `for update`, which gates UPDATE and leaves SELECT
+-- wide open). A caller who holds a verified second factor and presents an `aal1` token
+-- matches no row and can write none.
+--
+-- The predicate is deliberately a single boolean rather than the published
+-- set-membership form, whose empty-result branch DEFAULTS TO ALLOW — see
+-- supabase/migrations/20260812000000_mfa_aal2.sql for the full account of both ways
+-- the documented policy fails, and supabase/tests/mfa_aal2.test.sql for the proof
+-- that this one binds for an ENROLLED user, which is the only case that distinguishes
+-- them.
+-- SOURCE: PostgreSQL row security — a RESTRICTIVE policy is ANDed with the permissive
+-- set, so it can only ever remove rows [corpus: postgres/rls-force]
+CREATE POLICY notes_mfa_aal2 ON public.notes
+  AS RESTRICTIVE TO authenticated
+  USING ((SELECT private.mfa_satisfied()))
+  WITH CHECK ((SELECT private.mfa_satisfied()));

@@ -200,6 +200,10 @@ export const STAMP_INPUTS = {
     'package.json',
     'tools/framework-floor.json',
     'tools/cc-floor.json',
+    // 0.9.9's end-of-life register, here for the identical reason its two neighbours are:
+    // accepting or removing a vendor-abandoned dependency is MEANT to re-judge a tree whose
+    // code did not change, and a warm stamp would ride straight over the edit.
+    'tools/eol.json',
     'apps/mobile/package.json',
     'apps/web/package.json',
     'packages/api/package.json',

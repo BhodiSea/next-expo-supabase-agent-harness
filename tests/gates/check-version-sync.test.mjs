@@ -681,7 +681,11 @@ test('RAMP: a 0.7.0 baseVersion install is LIVE — the identical tree reds', ()
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('no pin means nothing can red'), r.out)
-  assert.ok(!r.out.includes('(ramp)'), r.out)
+  // Narrowed from a bare `(ramp)` search in 0.9.9. That proxy was exact only while this gate
+  // held ONE ramp; it now holds two, and the end-of-life register's ramp is legitimately
+  // live for a 0.7.0-baseVersion install, so the bare search asserts something this test
+  // never meant. The claim is that THE TOOLCHAIN RAMP is over — so it names it.
+  assert.ok(!r.out.includes('the iOS build-toolchain floor over eas.json'), r.out)
 })
 
 test('REAL TREE: the shipped eas.json pin + the shipped store-policy floor satisfy the shipped gate', () => {

@@ -80,6 +80,12 @@ const STEPS = [
   // Every escape hatch (SEEDED ∩ tools/** ∪ ESCAPE_LISTS, plus the write-guard rules) is a
   // registered, reviewed member — a quietly widened list reds the turn, not the fleet.
   ['escape-registry', ['scripts/check-escape-registry.mjs']],
+  // The Essential Eight register's factory-side closures (0.9.9). Pure-node and ~40ms, and
+  // it belongs in a maintainer's TURN rather than only on a PR: the register is the one
+  // reviewed file where a wrong edit is invisible to every other gate — regrading a row
+  // from `not-implemented` to `effective` touches no security-relevant code and would
+  // otherwise be caught only after the fact.
+  ['essential-eight', ['scripts/check-essential-eight-evidence.mjs']],
   // A template file added since the previous release that `update` would auto-plant into
   // every existing install must be registered seedOnInitOnly or reviewed as a deliberate
   // plant. Skips loudly when the previous tag is unreachable (shallow clone); red in CI —

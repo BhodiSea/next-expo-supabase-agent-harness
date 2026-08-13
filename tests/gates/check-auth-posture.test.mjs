@@ -193,3 +193,78 @@ test('the TOML reader handles the shipped config with zero errors', async () => 
   assert.equal(values.get('auth.enable_anonymous_sign_ins'), false)
   assert.ok(Array.isArray(values.get('auth.additional_redirect_urls')))
 })
+
+// ── THE [auth.mfa] RAMP (0.9.9) ───────────────────────────────────────────────────
+// This file is harness-OWNED and supabase/config.toml is SEEDED, which is the whole
+// problem in one sentence: `update` arms ten new [auth.mfa] keys across four new sections
+// on every install at once and cannot write the section it now demands. Left alone that is
+// fourteen hard failures on a file the consumer never touched — the ambush upgrade-lane
+// leg I caught for the 0.9.5 env register, in a new place.
+//
+// The ramp is scoped to the MFA findings ALONE, and both halves of that are asserted: a
+// pre-0.9.9 install takes NOTES for [auth.mfa] and still takes a HARD RED for anything
+// else. A whole-gate ramp was the easy move and the wrong one — it would withhold the
+// redirect-allowlist and session-cookie findings, which have nothing to do with this
+// release and are the ones worth having.
+const withVersion = (base, opts) => {
+  const dir = fixture(opts)
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: base, harnessVersion: '0.9.9' }),
+  )
+  return dir
+}
+const stripMfa = (s) =>
+  s.replace(/# ─+\n# Multi-factor authentication[\s\S]*?\n(?=# Realtime and Storage are OFF at seed\.)/, '')
+
+test('the [auth.mfa] RAMP: a pre-0.9.9 install takes NOTES for the whole absent section', () => {
+  const r = runGate(withVersion('0.9.0', { edit: stripMfa }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /finding\(s\) withheld by the 0\.9\.9 ramp/)
+  // Ten missing keys and four missing sections. A ramp withholds the exit code, never the
+  // information — and the OK line must not then claim the withheld values "hold".
+  assert.match(r.out, /auth\.mfa\.totp\.enroll_enabled` is MISSING/)
+  assert.match(r.out, /section `\[auth\.mfa\]` is reviewed .* but ABSENT/)
+  assert.match(r.out, /\[auth\.mfa\] finding\(s\) NOTE-only under the 0\.9\.9 ramp/)
+})
+
+test('the [auth.mfa] RAMP: a fresh 0.9.9 install enforces the whole section', () => {
+  const r = runGate(withVersion('0.9.9', { edit: stripMfa }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /auth\.mfa\.totp\.enroll_enabled` is MISSING/)
+})
+
+test('the [auth.mfa] RAMP is SCOPED: a pre-0.9.9 install still reds on a non-MFA finding', () => {
+  // The assertion that makes the ramp a scoped one rather than a gate switched off.
+  const r = runGate(
+    withVersion('0.9.0', { edit: (s) => stripMfa(sub('jwt_expiry = 3600', 'jwt_expiry = 86400')(s)) }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /jwt_expiry/)
+})
+
+test('RED: a wrong [auth.mfa] value on a current install — the documented default is the wrong one', () => {
+  // 5s is the CLI's own default, verified against its embedded config template; the
+  // published documentation says 10s. A gate pinned to the documented value would red on
+  // every untouched scaffold, which is how a correct control gets deleted for being noisy.
+  const r = runGate(
+    withVersion('0.9.9', { edit: sub('max_frequency = "5s"', 'max_frequency = "10s"') }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /max_frequency` is "10s", reviewed as "5s"/)
+})
+
+test('RED: enabling WebAuthn without review — the factor the CLI silently downgrades', () => {
+  const r = runGate(
+    withVersion('0.9.9', {
+      edit: (s) =>
+        s.replace(
+          /\[auth\.mfa\.web_authn\]\nenroll_enabled = false/,
+          '[auth.mfa.web_authn]\nenroll_enabled = true',
+        ),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /web_authn\.enroll_enabled` is true, reviewed as false/)
+})

@@ -48,6 +48,10 @@
     {
       "function": "public.reconcile_org_usage",
       "reason": "Nightly drift repair, recomputing every org's usage from count(*). Elevated AND deliberately left owned by the migration role rather than reassigned to app_quota_writer: reconciliation is inherently a whole-database read, and a tenant-scoped owner would resolve its policies through auth.uid() — which pg_cron does not have. The scope would come back empty, the truth set empty, and every counter in the database would be silently set to zero on a schedule. Safety is unreachability: EXECUTE is revoked from PUBLIC, anon and authenticated, so no client can call it by any path, and tools/check-db-limits.mjs reds if an ALTER FUNCTION ever reassigns it."
+    },
+    {
+      "function": "private.mfa_is_required",
+      "reason": "Reads auth.mfa_factors, on which `authenticated` holds no privilege — and that is the WHOLE reason it is a definer. The vendor-documented aal2 policy queries that table as the invoker and raises 42501 for every caller; the naive fix (`GRANT SELECT ON auth.mfa_factors TO authenticated`) makes it worse rather than better, because the table has RLS enabled and NO policy, so the count comes back 0 for enrolled users too, the CASE falls through to array['aal1','aal2'] and the policy silently accepts aal1. Running as the owner keeps the read inside this function: no grant on auth.mfa_factors is created, and the only thing that escapes is one boolean about the caller themself. Takes no parameter — the identity comes from private.caller_id(), never from an argument — and returns a BOOLEAN rather than a set the caller compares against, so there is no empty-result branch that means allow. Proven at runtime by supabase/tests/mfa_aal2.test.sql: an ENROLLED user presenting an aal1 token gets zero rows."
     }
   ]
 }

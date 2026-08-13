@@ -501,6 +501,15 @@ const RULE_CANARIES = {
     pathDeny('tools/security-headers.json'),
     pathAllow('tools/security-headers.md'),
   ],
+  // 0.9.9: the ASD Essential Eight conformance register. The only file in this block whose
+  // subject is a CLAIM rather than a control — regrading a row from `not-implemented` to
+  // `effective` turns an honest gap green without touching any security-relevant code,
+  // which is the cheapest possible way to fake conformance. The .md allow-case keeps the
+  // rule scoped to the register itself: the consumer-facing map prose is ordinary docs.
+  'essential-eight-register': [
+    pathDeny('tools/essential-eight.json'),
+    pathAllow('docs/compliance/essential-eight.md'),
+  ],
   // 0.5.0, tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
   // CREATING this file is the widening, because it exempts a (file, rule) pair from the
   // append-only migration rule.
@@ -541,6 +550,8 @@ const RULE_CANARIES = {
   'provenance-overrides': [pathDeny('tools/provenance-overrides.json')],
   'decision-groups': [pathDeny('tools/decision-groups.json')],
   'license-exceptions': [pathDeny('tools/license-exceptions.json')],
+  'eol-register': [pathDeny('tools/eol.json')],
+  'backup-posture': [pathDeny('tools/backup-posture.json')],
   // Reviewed platform-capability data: widening a permission or config-plugin
   // allowlist is native reach — a human decision.
   'expo-permissions': [pathDeny('tools/expo-permissions.json')],

@@ -1,0 +1,2613 @@
+{
+ "register": "ASD Essential Eight — Maturity Level Three cumulative requirement register",
+ "generated": "2026-08-12",
+ "source": {
+  "document": "Essential Eight maturity model (November 2023)",
+  "pageMetadata": "First published 30 Jun 2017 / Last updated 27 Nov 2023",
+  "url": "https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/essential-eight/essential-eight-maturity-model",
+  "verification": "Re-fetched live 2026-08-12 via curl (435,141 bytes; WebFetch unusable on this host). Appendix C parsed from table markup: 149 rows, per-strategy rowspans 13/16/23/29/19/11/27/11 — all requirement text below is byte-verbatim from that parse including U+2019 apostrophes. Appendix D parsed independently (152 rows) to derive cumulativeFrom from ASD's own en-dash/bold comparison table; 152 − 149 = the 3 superseded rows.",
+  "supporting": [
+   "Essential Eight assessment process guide (October 2024)",
+   "Essential Eight maturity model and ISM mapping (October 2024)",
+   "Essential Eight maturity model FAQ (October 2024)",
+   "Essential Eight maturity model changes (November 2023)",
+   "Patching applications and operating systems (November 2023) — supersedes the October 2021 patching publication"
+  ]
+ },
+ "cumulativeModel": {
+  "note": "Appendix C IS the cumulative ML3 set — every requirement that must hold at ML3 regardless of the level it first appeared. Nothing is marked ML3-only; cumulativeFrom records first appearance.",
+  "total": 149,
+  "byStrategy": {
+   "Patch applications": 13,
+   "Patch operating systems": 16,
+   "Multi-factor authentication": 23,
+   "Restrict administrative privileges": 29,
+   "Application control": 19,
+   "Restrict Microsoft Office macros": 11,
+   "User application hardening": 27,
+   "Regular backups": 11
+  },
+  "byOrigin": {
+   "ML1": 61,
+   "ML2": 43,
+   "new-at-ML3": 45
+  },
+  "supersessionTrap": "A naive union of the three appendices gives 152 and is WRONG. Exactly three ML1/ML2 requirements are REPLACED at ML3 (en dash in Appendix D's ML3 column) and are excluded here.",
+  "supersededAtML3": [
+   {
+    "strategy": "Patch applications",
+    "text": "Patches, updates or other vendor mitigations for vulnerabilities in office productivity suites, web browsers and their extensions, email clients, PDF software, and security products are applied within two weeks of release.",
+    "replacedBy": [
+     "PA-08",
+     "PA-09"
+    ],
+    "note": "ML1/ML2 was a flat two weeks. ML3 splits into 48h (vendor-critical or working exploit) and two weeks. The two-week baseline does NOT tighten — the common vendor claim that ML3 moves this class 'from one month to two weeks' is wrong at both ends."
+   },
+   {
+    "strategy": "Patch operating systems",
+    "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of workstations, non-internet-facing servers and non-internet-facing network devices are applied within one month of release.",
+    "replacedBy": [
+     "POS-09",
+     "POS-10"
+    ],
+    "note": "Unqualified one month becomes a 48h/one-month split."
+   },
+   {
+    "strategy": "Multi-factor authentication",
+    "text": "Multi-factor authentication used for authenticating customers of online customer services provides a phishing-resistant option.",
+    "replacedBy": [
+     "MFA-12"
+    ],
+    "note": "ML2 requires an option be OFFERED; ML3 requires it BE phishing-resistant. Letting a customer choose SMS passes ML2 and fails ML3."
+   }
+  ]
+ },
+ "scopeVerdict": {
+  "headline": "A code-generation harness cannot hold an Essential Eight Maturity Level Three rating, and neither can the applications it generates. Shipping a release that claims 'ML3' would be a false compliance claim.",
+  "reasons": [
+   "Maturity is a property of an ORGANISATION'S SYSTEM, not a product. Every ASD artefact attaches it to an organisation or system owner; the assessment outcome vocabulary is 'The organisation is effectively meeting the control's objective'. There is no ASD mechanism by which a product, template or generator holds a maturity level, no approved-product list, and no ASD certification for anyone.",
+   "ASD's own SaaS adaptation disclaims it: the Small business cloud security guides state they 'are not designed to help an organisation reach a particular maturity level' and are 'an adaptation of the Essential Eight, rather than a strict Essential Eight implementation'.",
+   "Assessment is all-or-nothing and must be done as a package: every control in a strategy must be 'effective' or 'alternate control'; one ineffective control kills the strategy; one failed strategy kills the target level. 46 of 149 requirements are flatly unreachable by any codebase, which forecloses ML3 on the package rule alone.",
+   "Risk-accepting an entire strategy (or transferring it via cyber insurance) forces Maturity Level Zero for that strategy AND for the whole implementation. 'Restrict Microsoft Office macros' has zero reachable requirements in this stack, so a repo-scoped claim collapses to ML0, not ML3.",
+   "The Essential Eight contains ZERO software-development controls. All 108 controls in ISM Guidelines for software development and all 13 in Guidelines for database systems are tagged 'Essential 8: N/A'. Code quality cannot earn E8 maturity.",
+   "'Analogue' is not an ASD outcome. ASD's outcomes are Effective, Alternate control, Ineffective, Not applicable, No visibility, Not implemented, Not assessed. An alternate control must be demonstrated BY THE SYSTEM OWNER to give equivalent protection to the specific requirement — a per-system human judgement, not pre-earned credit a generator ships."
+  ],
+  "coverage": {
+   "direct": 29,
+   "analogue": 74,
+   "orgOnly": 46,
+   "total": 149,
+   "directPercent": 19.5,
+   "analoguePercent": 49.7,
+   "orgOnlyPercent": 30.9,
+   "caveat": "Computed from the rows below, not asserted. Even the 29 direct rows evidence a DEPLOYED INSTANCE operated by a customer organisation — a generated app that has never been deployed, backed up, or run an audit log in production evidences none of them."
+  },
+  "byStrategyCoverage": {
+   "Patch applications": {
+    "direct": 8,
+    "analogue": 5,
+    "orgOnly": 0
+   },
+   "Patch operating systems": {
+    "direct": 1,
+    "analogue": 9,
+    "orgOnly": 6
+   },
+   "Multi-factor authentication": {
+    "direct": 7,
+    "analogue": 11,
+    "orgOnly": 5
+   },
+   "Restrict administrative privileges": {
+    "direct": 8,
+    "analogue": 12,
+    "orgOnly": 9
+   },
+   "Application control": {
+    "direct": 1,
+    "analogue": 10,
+    "orgOnly": 8
+   },
+   "Restrict Microsoft Office macros": {
+    "direct": 0,
+    "analogue": 3,
+    "orgOnly": 8
+   },
+   "User application hardening": {
+    "direct": 1,
+    "analogue": 16,
+    "orgOnly": 10
+   },
+   "Regular backups": {
+    "direct": 3,
+    "analogue": 8,
+    "orgOnly": 0
+   }
+  },
+  "honestClaim": "Two strategies are genuinely tractable: Patch applications (8 direct — the lockfile plus deployment records ARE a software inventory with machine-readable install dates) and Regular backups (3 direct, 0 org-only — backups of a cloud app are entirely a property of its own infrastructure). MFA and Restrict administrative privileges are partially tractable for the app's own end users and privileged surfaces. Restrict Microsoft Office macros is 0% tractable. User application hardening and Patch operating systems are near 0% — they name Internet Explorer, Office ASR rules, Adobe Reader, .NET Framework, PowerShell, drivers and firmware by product. DEFENSIBLE CLAIM: 'generates applications that produce machine-checkable evidence for the software-supply-chain, application-audit-log, authentication and backup portions of an organisation's ML3 assessment, and hands the endpoint, driver, firmware, Office, browser-fleet, workstation-telemetry and incident-response portions to the organisation.' INDEFENSIBLE CLAIM: 'achieves ML3'.",
+  "betterFramework": "The instrument ASD designed for a cloud/SaaS product is the ISM, assessed via IRAP. ISM Guidelines for software development (June 2026) holds the controls a generator can bake in and prove: ISM-0401 Secure by Design, ISM-2042 Secure by Default, ISM-1730 SBOM, ISM-2083 cryptographic BOM, ISM-2056 build provenance, ISM-2030 commit-time secret scanning, ISM-2032 zero-warning build gate, ISM-0402 SAST/DAST/SCA, ISM-0971 OWASP ASVS, ISM-1922 OWASP MASVS, ISM-1424 CSP/HSTS/X-Frame-Options, ISM-2063–2067 session handling, ISM-1276 parameterised queries, ISM-1268 least privilege via roles/views, ISM-1537 database security event logging, ISM-1717 security.txt. All are 'Essential 8: N/A' and all are shippable defaults.",
+  "currencyWarning": "ASD opened consultation on 15 Jun 2026 to replace the Essential Eight with an ISM-grounded 'Essentials series' ('Essentials for enterprise IT' first), citing the cloud gap explicitly; reported deprecation ~12 months, retirement ~24 months. Any E8 positioning built now has roughly a two-year shelf life, and the stated reason for the change is precisely the mismatch this register documents.",
+  "assessorTraps": [
+   "Documentation and interviews are ASD's WEAKEST evidence tier ('Poor evidence'); testing with simulated activity is 'Excellent'. A committed policy file proves almost nothing; a CI job that attempts the prohibited action and asserts denial proves a lot.",
+   "Exceptions need formal approval, eight documented elements, and 'should not be approved beyond one year'.",
+   "ASD sets NO numeric window for 'in a timely manner' or 'as soon as possible'. Do not invent 24/48/72h SLAs — that creates a contractual obligation with no framework backing."
+  ]
+ },
+ "fieldSemantics": {
+  "appliesToWebApp": {
+   "direct": "Satisfiable by an artefact in or produced by the repo or its deployed system, with no reinterpretation of the asset class ASD names. Still evidences a deployed instance, not the generator.",
+   "analogue": "ASD's named asset class does not exist in a Next.js + Expo + Supabase deployment, but a same-intent, machine-checkable control does. NOT an ASD outcome — an assessor must accept it as an 'alternate control' and may refuse.",
+   "org-only": "No honest counterpart. Marked org-only rather than analogue wherever the nearest mapping is already claimed under another requirement, because double-counting one artefact across rows is the commonest form of compliance inflation."
+  },
+  "evidenceIfDirect": "Populated only for direct rows; names a file, CI check, database policy, HTTP header or log stream. For analogue rows the proposed artefact sits inside why.",
+  "orgOnlyResidue": "Named asset classes inside a partially-reachable requirement that no repository can reach and the organisation must evidence regardless.",
+  "sharedClause": "Non-empty where ASD repeats identical text across strategies. All instances carry IDENTICAL classification, timeframe and evidence here — the source research classified three of these clauses four different ways across four strategies, which is corrected. The evidence is ONE artefact and must be counted once.",
+  "ismControls": "From the October 2024 E8-to-ISM mapping. Empty arrays are attribution gaps in this register (chiefly Restrict administrative privileges and the Patch operating systems scanning/patching rows), not gaps in ASD's mapping; fill from the mapping XLSX before using for ISM traceability."
+ },
+ "sharedClauses": [
+  {
+   "id": "SPINE-LOG-PROTECT",
+   "text": "Event logs are protected from unauthorised modification and deletion.",
+   "appearsIn": [
+    "MFA-16",
+    "RAP-22",
+    "AC-12",
+    "UAH-20"
+   ],
+   "classification": "direct",
+   "ism": [
+    "ISM-1815"
+   ]
+  },
+  {
+   "id": "SPINE-ANALYSE-INTERNET",
+   "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "appearsIn": [
+    "MFA-17",
+    "RAP-23",
+    "AC-13",
+    "UAH-21"
+   ],
+   "classification": "analogue",
+   "ism": [
+    "ISM-1906"
+   ]
+  },
+  {
+   "id": "SPINE-ANALYSE-NONINTERNET",
+   "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "appearsIn": [
+    "MFA-18",
+    "RAP-24",
+    "AC-14",
+    "UAH-22"
+   ],
+   "classification": "analogue",
+   "ism": [
+    "ISM-1907"
+   ]
+  },
+  {
+   "id": "SPINE-ANALYSE-WORKSTATION",
+   "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
+   "appearsIn": [
+    "MFA-19",
+    "RAP-25",
+    "AC-15",
+    "UAH-23"
+   ],
+   "classification": "org-only",
+   "ism": [
+    "ISM-0109"
+   ]
+  },
+  {
+   "id": "SPINE-EVENTS-TO-INCIDENTS",
+   "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
+   "appearsIn": [
+    "MFA-20",
+    "RAP-26",
+    "AC-16",
+    "UAH-24"
+   ],
+   "classification": "org-only",
+   "ism": [
+    "ISM-1228"
+   ]
+  },
+  {
+   "id": "SPINE-REPORT-CISO",
+   "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
+   "appearsIn": [
+    "MFA-21",
+    "RAP-27",
+    "AC-17",
+    "UAH-25"
+   ],
+   "classification": "org-only",
+   "ism": [
+    "ISM-0123"
+   ]
+  },
+  {
+   "id": "SPINE-REPORT-ASD",
+   "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
+   "appearsIn": [
+    "MFA-22",
+    "RAP-28",
+    "AC-18",
+    "UAH-26"
+   ],
+   "classification": "org-only",
+   "ism": [
+    "ISM-0140"
+   ]
+  },
+  {
+   "id": "SPINE-IR-PLAN",
+   "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
+   "appearsIn": [
+    "MFA-23",
+    "RAP-29",
+    "AC-19",
+    "UAH-27"
+   ],
+   "classification": "org-only",
+   "ism": [
+    "ISM-1819"
+   ]
+  }
+ ],
+ "correctionsAppliedToSourceResearch": [
+  "Normalised the eight shared logging/incident clauses to one classification each. Previously 'internet-facing server logs analysed' was analogue in two strategies and direct in two; 'events analysed to identify incidents' was org-only in two and analogue in two; 'IR plan is enacted' was org-only in three and analogue in one. Same ASD sentence, contradictory verdicts.",
+  "Downgraded POS-15 and POS-16 from direct to analogue. A repo operates no operating systems; android.targetSdkVersion and ios.deploymentTarget are what the app TARGETS on other people's handsets, and runs-on: ubuntu-24.04 is a build host.",
+  "Removed cross-strategy double-counting of Node/Postgres EOL evidence between PA-11/PA-13 and POS-16; the overlap is now flagged in the evidence text.",
+  "Downgraded PA-01 (asset discovery cannot discover undeclared assets), RB-01 (no yardstick without the BCP), RB-04 (a CI restore job is not an exercise) and MFA-11 (two-limbed requirement scored on one limb) from direct to analogue.",
+  "Reclassified eight Restrict Microsoft Office macros rows and five User application hardening rows from analogue to org-only where the proposed analogue restated evidence already claimed under Application control, MFA or Patch applications.",
+  "Levelled MFA-08 to analogue to match MFA-07 — the source split them on the identical noun 'systems' using a bookkeeping argument, not a scoping one.",
+  "Regenerated all tallies from the rows. Four of eight source self-tallies were arithmetically wrong.",
+  "Corrected the strategy name to ASD's live wording 'Restrict Microsoft Office macros' and restored ASD's canonical strategy ordering."
+ ],
+ "requirements": [
+  {
+   "id": "PA-01",
+   "strategy": "Patch applications",
+   "text": "An automated method of asset discovery is used at least fortnightly to support the detection of assets for subsequent vulnerability scanning activities.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1807"
+   ],
+   "measurable": "Live demo of the discovery method plus dated scan records, gap never exceeding 14 days, scope covering known assets; unknown assets surfaced between scans must show evidence of investigation.",
+   "appliesToWebApp": "analogue",
+   "why": "A fortnightly Actions cron enumerating Vercel projects/deployments/functions, Supabase projects and buckets, plus an SBOM of the dependency trees, committed as a dated manifest. Analogue because ASD's control is DISCOVERY of unknown assets and a manifest built from committed declarations cannot surface an undeclared one.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-02",
+   "strategy": "Patch applications",
+   "text": "A vulnerability scanner with an up-to-date vulnerability database is used for vulnerability scanning activities.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1808"
+   ],
+   "measurable": "Demo of a scan plus the timestamp of the scanner's last database update; ASD expects ideally within 24 hours of the scan.",
+   "appliesToWebApp": "direct",
+   "why": "osv-scanner, Trivy and pnpm audit query a live advisory database at invocation, so currency is structural.",
+   "evidenceIfDirect": "The scheduled workflow job log recording scanner version and advisory-database pull timestamp alongside the scan timestamp, plus the SARIF artefact uploaded to GitHub code scanning.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-03",
+   "strategy": "Patch applications",
+   "text": "A vulnerability scanner is used at least daily to identify missing patches or updates for vulnerabilities in online services.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least daily",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1698"
+   ],
+   "measurable": "Dated scan records with no gap exceeding 24 hours, plus reconciliation of scanned online services against the online services known to be in use.",
+   "appliesToWebApp": "direct",
+   "why": "ASD's FAQ defines an online service as any service directly accessible over the internet, expressly including a cloud service. The deployed Next.js app, its route handlers and Server Actions, and the Supabase PostgREST/GoTrue/Realtime/Storage endpoints all qualify.",
+   "evidenceIfDirect": "A daily-cron workflow running osv-scanner over pnpm-lock.yaml plus a ZAP baseline / testssl.sh scan against the production URL; run history is the cadence evidence, a committed route inventory the scope evidence.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-04",
+   "strategy": "Patch applications",
+   "text": "A vulnerability scanner is used at least weekly to identify missing patches or updates for vulnerabilities in office productivity suites, web browsers and their extensions, email clients, PDF software, and security products.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least weekly",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1699"
+   ],
+   "measurable": "Dated scan records with no gap exceeding 7 days and confirmation the scanned list includes every office suite, browser, extension, email client, PDF reader and security product in scope.",
+   "appliesToWebApp": "analogue",
+   "why": "Reachable slice is the app's own content-handling client dependencies — pdf.js/react-native-pdf, react-native-webview, DOMPurify, the Markdown/HTML pipeline, image and font decoders, browserslist targets — scanned weekly by a scoped osv-scanner job. That is the in-app analogue of the class ASD singles out because it parses attacker-supplied content.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Office productivity suites, email clients and endpoint security products on staff workstations."
+  },
+  {
+   "id": "PA-05",
+   "strategy": "Patch applications",
+   "text": "A vulnerability scanner is used at least fortnightly to identify missing patches or updates for vulnerabilities in applications other than office productivity suites, web browsers and their extensions, email clients, PDF software, and security products.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1700"
+   ],
+   "measurable": "Dated scan records no more than 14 days apart with scope extending to every remaining application, not only the commonly-targeted classes.",
+   "appliesToWebApp": "direct",
+   "why": "The catch-all class here is the rest of the dependency graph: remaining runtime and transitive packages, devDependencies, build tooling, Expo native modules, Edge Function Deno imports, container base images and pinned Actions.",
+   "evidenceIfDirect": "A scheduled (daily, over-satisfying the floor) osv-scanner/Trivy run over pnpm-lock.yaml, supabase/functions deno.lock and .github/workflows action pins, with SARIF uploaded to code scanning.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-06",
+   "strategy": "Patch applications",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in online services are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1876"
+   ],
+   "measurable": "Online service versions and install dates reviewed against vendor patch release dates to confirm 48 hours or less; criticality and exploit existence from CISA KEV, SANS ISC or MSRC. ASD warns a scanner may not detect missing non-patch vendor mitigations such as configuration changes. Trigger is disjunctive: vendor-critical OR a working exploit exists.",
+   "appliesToWebApp": "direct",
+   "why": "Elapsed time between advisory publication and the production deployment SHA carrying the fix is exactly computable from advisory metadata, the lockfile diff and the deployment record. The 'other vendor mitigations' limb is satisfiable in-repo by a middleware block or feature flag ahead of the patch.",
+   "evidenceIfDirect": "A CI gate failing the build on any critical or KEV-listed advisory in a production dependency, plus Dependabot security updates with auto-merge on green; evidence is advisory publish timestamp versus the Vercel production deployment timestamp for the bump commit.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-07",
+   "strategy": "Patch applications",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in online services are applied within two weeks of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "Two weeks",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1690"
+   ],
+   "measurable": "Same evidence chain as PA-06 with a 14-day window for vendor-rated non-critical vulnerabilities with no working exploit.",
+   "appliesToWebApp": "direct",
+   "why": "Identical mechanism on a 14-day budget; advisory date versus the production deploy carrying the bump, both timestamped.",
+   "evidenceIfDirect": "A CI check failing when any open non-critical advisory against a production dependency exceeds 14 days since publication, plus a Renovate/Dependabot cadence with a recorded merge-by SLA.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-08",
+   "strategy": "Patch applications",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in office productivity suites, web browsers and their extensions, email clients, PDF software, and security products are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "supersedes": "The ML1/ML2 flat two-week rule for this class.",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1692"
+   ],
+   "measurable": "Installed application inventory with versions and install dates reviewed against vendor release dates, applying 48 hours where vendor-critical or a working exploit exists.",
+   "appliesToWebApp": "analogue",
+   "why": "The same 48-hour window applied to the shipped content-handling client surface, plus the Expo OTA channel — the only mechanism in this stack that can push a fix to installed mobile clients inside 48 hours without App Store review. Measurable as advisory timestamp versus EAS Update publish timestamp.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The office suite, email client and endpoint security product on staff workstations."
+  },
+  {
+   "id": "PA-09",
+   "strategy": "Patch applications",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in office productivity suites, web browsers and their extensions, email clients, PDF software, and security products are applied within two weeks of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "supersedes": "The ML1/ML2 flat two-week rule for this class.",
+   "timeframes": "Two weeks",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1901"
+   ],
+   "measurable": "Same inventory-versus-release-date method against 14 days where the vendor rated the vulnerability non-critical and no working exploit exists.",
+   "appliesToWebApp": "analogue",
+   "why": "Non-critical advisories against shipped content-rendering dependencies reaching production web and a published Expo update within two weeks. Textually new at ML3 but not a tightening — ML1/ML2 already required two weeks for this class unconditionally.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The office suite, email client and endpoint security product on staff workstations."
+  },
+  {
+   "id": "PA-10",
+   "strategy": "Patch applications",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in applications other than office productivity suites, web browsers and their extensions, email clients, PDF software, and security products are applied within one month of release.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "One month",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1693"
+   ],
+   "measurable": "Full application inventory reviewed against vendor release dates confirming nothing is more than a month behind. This bullet carries NO criticality or exploit qualifier at any level — one month applies unconditionally, even to a critical vulnerability with a working exploit.",
+   "appliesToWebApp": "direct",
+   "why": "The most directly automatable requirement in the framework for a repository: for every advisory affecting a lockfile package, compare its publication date to the commit that bumped it.",
+   "evidenceIfDirect": "A CI check failing the build when the gap between any advisory publication date and the corresponding lockfile bump exceeds 30 days, plus renovate.json encoding a monthly-at-worst merge SLA.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-11",
+   "strategy": "Patch applications",
+   "text": "Online services that are no longer supported by vendors are removed.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1905"
+   ],
+   "measurable": "Demonstration of online service versions in use checked against vendor supported-version lists, or a scanner assessing end-of-life status.",
+   "appliesToWebApp": "direct",
+   "why": "Concrete and in-repo: a Node runtime past EOL, a Next.js major outside its support window, a Supabase Postgres major past community EOL, a deprecated Vercel runtime, or an abandoned package serving a production endpoint. Remediation is a version bump plus migration.",
+   "evidenceIfDirect": "A CI check querying the endoflife.date API for every runtime and framework major declared in package.json engines, .nvmrc, vercel.json and supabase/config.toml, failing on any past EOL. NOTE: overlaps POS-16 — count this artefact once, not in both strategies.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "PA-12",
+   "strategy": "Patch applications",
+   "text": "Office productivity suites, web browsers and their extensions, email clients, PDF software, Adobe Flash Player, and security products that are no longer supported by vendors are removed.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1704"
+   ],
+   "measurable": "Versions in use checked against vendor supported lists. ASD directs assessors to check hotfix KB4577586 as evidence Adobe Flash Player was removed, with the caveat it only removes Flash installed by Microsoft Windows.",
+   "appliesToWebApp": "analogue",
+   "why": "Removing archived or deprecated content-handling packages from package.json and dropping vendor-unsupported browsers from browserslist — both diffable and enforceable by a CI check on npm deprecation flags and browserslist EOL targets.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Nothing in a repository removes Adobe Flash Player, an EOL Office install, or an unsupported browser from a staff laptop. ASD still names Flash despite EOL in December 2020."
+  },
+  {
+   "id": "PA-13",
+   "strategy": "Patch applications",
+   "text": "Applications other than office productivity suites, web browsers and their extensions, email clients, PDF software, Adobe Flash Player, and security products that are no longer supported by vendors are removed.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-0304"
+   ],
+   "measurable": "ASD directs assessors to use the ML1 method and extend it to ALL applications — no unsupported application present anywhere. This is the quiet bullet that turns 'no dead browsers or Office installs' into 'no unsupported software anywhere on the system'.",
+   "appliesToWebApp": "direct",
+   "why": "Extended to all applications this is 'no unmaintained dependency anywhere in the tree', literally satisfiable and provable; removal is a lockfile change.",
+   "evidenceIfDirect": "A CI check failing on any npm registry deprecation flag in pnpm-lock.yaml, any Expo SDK below Expo's supported matrix, any Deno std past its support line, or any pinned GitHub Action from an archived repository.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-01",
+   "strategy": "Patch operating systems",
+   "text": "An automated method of asset discovery is used at least fortnightly to support the detection of assets for subsequent vulnerability scanning activities.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1807"
+   ],
+   "measurable": "Demo of the discovery method identifying workstations, servers and network devices plus dated records no more than 14 days apart; unknown assets found between scans must be immediately investigated and treated as suspicious until confirmed.",
+   "appliesToWebApp": "analogue",
+   "why": "A fortnightly cron enumerating base images and runtimes pinned in Dockerfile, .nvmrc, package.json engines, supabase/config.toml and runs-on declarations, committed as a dated manifest. Analogue on both counts: wrong asset class, and declarations cannot discover the undeclared.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The organisation's workstation, server and network device estate."
+  },
+  {
+   "id": "POS-02",
+   "strategy": "Patch operating systems",
+   "text": "A vulnerability scanner with an up-to-date vulnerability database is used for vulnerability scanning activities.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1808"
+   ],
+   "measurable": "Live demo of a scan plus evidence of when the scanner's database was last updated, ideally within 24 hours.",
+   "appliesToWebApp": "direct",
+   "why": "A Trivy or Grype step refreshing its CVE database on every run satisfies this literally; a stale offline database would be visible as a failure.",
+   "evidenceIfDirect": "The scheduled workflow log recording the Trivy/Grype version and its vulnerability-DB download timestamp immediately preceding the scan.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-03",
+   "strategy": "Patch operating systems",
+   "text": "A vulnerability scanner is used at least daily to identify missing patches or updates for vulnerabilities in operating systems of internet-facing servers and internet-facing network devices.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least daily",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Demo of a scan plus dated records covering every internet-facing server and network device, no more than 24 hours apart.",
+   "appliesToWebApp": "analogue",
+   "why": "No network devices exist here and the host OS is vendor-managed. Reachable slice: a daily scan of the internet-facing runtime layer the repo pins — Node version for route handlers, Deno version for Edge Functions, any Docker base image, and the Supabase Postgres platform version.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Operating systems of any servers or network devices the organisation operates; the managed host OS the tenant cannot scan."
+  },
+  {
+   "id": "POS-04",
+   "strategy": "Patch operating systems",
+   "text": "A vulnerability scanner is used at least fortnightly to identify missing patches or updates for vulnerabilities in operating systems of workstations, non-internet-facing servers and non-internet-facing network devices.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Demo of a scan plus dated records covering workstations, non-internet-facing servers and network devices, no more than 14 days apart.",
+   "appliesToWebApp": "analogue",
+   "why": "The repo declares scannable non-internet-facing compute: the CI runner image pinned in .github/workflows, the devcontainer/Docker base image, and the local Supabase container images pinned in supabase/config.toml.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Developer and staff workstations — the majority of this requirement's scope — need MDM and an endpoint vulnerability scanner."
+  },
+  {
+   "id": "POS-05",
+   "strategy": "Patch operating systems",
+   "text": "A vulnerability scanner is used at least fortnightly to identify missing patches or updates for vulnerabilities in drivers.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "ASD: apply the ML1 scanning method to drivers. Dated records whose scope demonstrably includes device drivers, no more than 14 days apart.",
+   "appliesToWebApp": "org-only",
+   "why": "Drivers exist only on physical hardware. Expo native modules and React Native native code are application libraries and fall under Patch applications; treating them as drivers would be inflation.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-06",
+   "strategy": "Patch operating systems",
+   "text": "A vulnerability scanner is used at least fortnightly to identify missing patches or updates for vulnerabilities in firmware.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "At least fortnightly",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "ASD: apply the ML1 scanning method to firmware. Dated records covering BIOS/UEFI, NIC and network device firmware, no more than 14 days apart.",
+   "appliesToWebApp": "org-only",
+   "why": "Under Vercel and Supabase the hardware and its firmware are the provider's responsibility and invisible to the tenant; the mobile app cannot see handset firmware.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-07",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of internet-facing servers and internet-facing network devices are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Scanner output listing operating systems, versions and install dates cross-referenced against vendor release dates. ASD warns WSUS reports patches as deployed without confirming successful application or reboot.",
+   "appliesToWebApp": "analogue",
+   "why": "The OS is vendor-managed but version selection lives in the repo: a commit bumping .nvmrc / engines.node / vercel.json nodeVersion / the Dockerfile base tag plus a Supabase platform upgrade, then redeploy. A daily critical-CVE gate enforces the clock; advisory-versus-deployment timestamps are the evidence.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Kernel and OS packages of the managed host, patchable only by Vercel and Supabase, and any servers or network devices the organisation runs."
+  },
+  {
+   "id": "POS-08",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of internet-facing servers and internet-facing network devices are applied within two weeks of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "Two weeks",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Same scanner-versus-release-date comparison showing 14 days or less, plus the basis on which non-critical and no-working-exploit was determined.",
+   "appliesToWebApp": "analogue",
+   "why": "Identical mechanism on a 14-day service level: a CI policy failing when a non-critical advisory affecting the pinned runtime, base image tag or Postgres major has been open more than 14 days without a bump.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The managed host OS and any organisation-operated servers or network devices."
+  },
+  {
+   "id": "POS-09",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of workstations, non-internet-facing servers and non-internet-facing network devices are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "supersedes": "The ML1/ML2 unqualified one-month rule for this class.",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "ASD: use the ML1 method but apply 48 hours where vendor-critical or a working exploit exists; scanner output or hotfix listings showing 48 hours or less between release and successful application.",
+   "appliesToWebApp": "analogue",
+   "why": "Repo-satisfiable slice is the declared non-internet-facing compute — CI runner image pins, devcontainer base, local Supabase container tags — bumpable within 48 hours by a scheduled job that opens a blocking PR and fails the pipeline until merged.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The developer and staff workstation fleet, the dominant asset class here; a real ML3 assessment fails on that limb alone."
+  },
+  {
+   "id": "POS-10",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of workstations, non-internet-facing servers and non-internet-facing network devices are applied within one month of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "supersedes": "The ML1/ML2 unqualified one-month rule for this class.",
+   "timeframes": "One month",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "ASD: use the ML1 method where vulnerabilities are non-critical and no working exploit exists; evidence showing one month or less between release and successful application.",
+   "appliesToWebApp": "analogue",
+   "why": "A scheduled freshness job comparing pinned digests for the CI runner image, devcontainer base and local Supabase container tags against vendor release dates, failing if any pin lags a non-critical advisory by more than 30 days.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The developer and staff workstation fleet."
+  },
+  {
+   "id": "POS-11",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in drivers are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "A driver inventory with installed versions and install dates compared against vendor driver release dates for vendor-critical or actively exploited driver vulnerabilities.",
+   "appliesToWebApp": "org-only",
+   "why": "Driver patching happens on physical machines the organisation owns; the repo ships no drivers and the cloud application runs on hardware whose drivers are the provider's.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-12",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in drivers are applied within one month of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "One month",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Driver inventory showing versions and install dates within one month of vendor release. Note the window is one month, not two weeks — drivers and firmware get a more lenient non-critical window than internet-facing operating systems.",
+   "appliesToWebApp": "org-only",
+   "why": "Driver currency is purely a property of the organisation's physical endpoint estate.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-13",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in firmware are applied within 48 hours of release when vulnerabilities are assessed as critical by vendors or when working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "48 hours",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Firmware inventory (BIOS/UEFI, network device and peripheral firmware) with versions and update dates compared against vendor firmware release dates.",
+   "appliesToWebApp": "org-only",
+   "why": "Firmware updating is a physical-estate operation; in a managed deployment the tenant cannot see, let alone update, host firmware.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-14",
+   "strategy": "Patch operating systems",
+   "text": "Patches, updates or other vendor mitigations for vulnerabilities in firmware are applied within one month of release when vulnerabilities are assessed as non-critical by vendors and no working exploits exist.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "One month",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Firmware inventory showing versions updated within one month of vendor release for non-critical, no-known-exploit vulnerabilities.",
+   "appliesToWebApp": "org-only",
+   "why": "Firmware currency belongs to the organisation's hardware estate and its vendor relationships.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "POS-15",
+   "strategy": "Patch operating systems",
+   "text": "The latest release, or the previous release, of operating systems are used.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1407"
+   ],
+   "measurable": "Scanner output listing operating systems and versions checked against latest vendor versions, or 'winver' for Windows and 'cat /etc/os-release' for Linux across workstations and servers. Every in-scope OS must be on the current release or the one immediately preceding it.",
+   "appliesToWebApp": "analogue",
+   "why": "DOWNGRADED from the source research's 'direct'. The subject is the operating systems of the organisation's workstations, servers and network devices. android.targetSdkVersion and ios.deploymentTarget are what the app TARGETS on other people's handsets — a repo cannot put a customer's phone on the current iOS major — and runs-on: ubuntu-24.04 is a build host. Honest analogue: a CI rule asserting every OS-release pin the repo does own is current or one behind.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The operating systems of the organisation's workstations, servers and network devices — the actual subject of the requirement."
+  },
+  {
+   "id": "POS-16",
+   "strategy": "Patch operating systems",
+   "text": "Operating systems that are no longer supported by vendors are replaced.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1501"
+   ],
+   "measurable": "Scanner output or 'winver'/'cat /etc/os-release' checked against vendors' supported lists; any unsupported OS must be shown to have been REPLACED, not risk-accepted. ASD's verb here is 'replaced', versus 'removed' in Patch applications.",
+   "appliesToWebApp": "analogue",
+   "why": "DOWNGRADED from 'direct'. A Node runtime and a Postgres major are not operating systems, and claiming them here double-counts evidence already claimed at PA-11. The genuine analogue is CI checking the OS releases the repo does pin — container base image, CI runner image, minimum supported iOS/Android OS — against vendor EOL.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Operating systems of workstations, servers and network devices; the managed host OS."
+  },
+  {
+   "id": "MFA-01",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate users to their organisation’s online services that process, store or communicate their organisation’s sensitive data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1504"
+   ],
+   "measurable": "Assessor attempts to log on to the organisation's own online services; two or more factors should be requested, possibly sequentially. The assessor must also probe for additional internet-exposed authentication portals the organisation did not disclose.",
+   "appliesToWebApp": "direct",
+   "why": "The deployed Next.js/Expo + Supabase application IS an organisation-operated online service, and enforcement is server-side and testable rather than a client gate.",
+   "evidenceIfDirect": "A migration whose RLS policies on sensitive tables include the predicate (auth.jwt()->>'aal') = 'aal2', plus an integration test authenticating password-only and asserting an empty result set / 401; plus a committed inventory of every auth entry point (web route handlers, Expo deep links, tRPC procedures, Edge Functions) answering ASD's undisclosed-portal probe.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-02",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate users to third-party online services that process, store or communicate their organisation’s sensitive data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1679"
+   ],
+   "measurable": "Assessor attempts to log on to the third-party online services staff use; vendor non-support is the only accepted excuse for absence.",
+   "appliesToWebApp": "analogue",
+   "why": "A committed provider register (GitHub org, Vercel team, Supabase org, Expo/EAS, Sentry, any provider in the env schema) with an mfa_enforced column and an owner, plus a CI assertion where an API exposes it — gh api /orgs/{org} --jq .two_factor_requirement_enabled must be true.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Actual MFA enforcement in each vendor's admin console."
+  },
+  {
+   "id": "MFA-03",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication (where available) is used to authenticate users to third-party online services that process, store or communicate their organisation’s non-sensitive data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1680"
+   ],
+   "measurable": "Same as MFA-02; '(where available)' means availability, not convenience, is the test.",
+   "appliesToWebApp": "analogue",
+   "why": "Same register mechanism extended to the lower-sensitivity vendor tail, with a CI check failing when a row reads available: true, enforced: false.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Enforcement in each vendor console."
+  },
+  {
+   "id": "MFA-04",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate users to their organisation’s online customer services that process, store or communicate their organisation’s sensitive customer data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1892"
+   ],
+   "measurable": "Assessor attempts to log on to the organisation's own online customer services as a STAFF user, not a customer.",
+   "appliesToWebApp": "direct",
+   "why": "This is the staff/back-office side of the deployed application — the admin console or support-agent view through which employees touch customer records.",
+   "evidenceIfDirect": "RLS policies on customer-data tables requiring both an is_staff claim and (auth.jwt()->>'aal') = 'aal2', shipped as a migration, plus a test asserting a staff JWT at aal1 returns zero rows.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-05",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate users to third-party online customer services that process, store or communicate their organisation’s sensitive customer data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1893"
+   ],
+   "measurable": "Assessor attempts to log on to third-party online customer services staff access — an outsourced CRM, help desk or identity portal holding customer data.",
+   "appliesToWebApp": "analogue",
+   "why": "The repo declares which processors touch customer data via env schemas and SDK imports; a committed data-processor register keyed off those imports with an MFA-enforcement column, plus a CI grep failing when a new customer-data SDK is imported without a register row.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The vendor-side MFA toggle on each processor account."
+  },
+  {
+   "id": "MFA-06",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate customers to online customer services that process, store or communicate sensitive customer data.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1681"
+   ],
+   "measurable": "Assessor logs on as a customer and specifically discusses whether MFA is part of account creation or an after-the-fact opt-in — the November 2023 change removed easy customer opt-out, so opt-in-only is a fail.",
+   "appliesToWebApp": "direct",
+   "why": "The end users of the generated app ARE the customers; this is the most repo-provable authentication row in the framework.",
+   "evidenceIfDirect": "The signup state machine making factor enrolment a required step rather than a settings toggle; an RLS predicate requiring aal2 on sensitive customer tables; an E2E test asserting a fresh account cannot reach data screens without enrolling; and a scheduled query asserting the count of AAL1-capable accounts holding sensitive data is zero.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-07",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate privileged users of systems.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1173"
+   ],
+   "measurable": "Assessor observes a privileged user authenticating to a workstation, and separately to a server, checking multiple factors are requested.",
+   "appliesToWebApp": "analogue",
+   "why": "'Systems' means workstations and servers. The server limb has a cloud referent: MFA required on Vercel owner and Supabase project admin accounts, no long-lived service-role keys in developer hands (CI-only, OIDC-federated), MFA-backed required-reviewer approval for production deploys and migrations, and the app's admin role gated at aal2 in middleware and RLS.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Workstation OS logon by privileged users — an endpoint/IdP control (Windows Hello for Business, smart cards, Conditional Access)."
+  },
+  {
+   "id": "MFA-08",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate unprivileged users of systems.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-0974"
+   ],
+   "measurable": "Assessor observes an unprivileged user authenticating to a workstation and checks multiple factors are requested.",
+   "appliesToWebApp": "analogue",
+   "why": "RECLASSIFIED for consistency: the source marked MFA-07 analogue and MFA-08 org-only on the identical noun 'systems', justified only by bookkeeping. If 'systems' stretches to the Supabase/Vercel project for privileged users it stretches for unprivileged ones — read-only Supabase members, Vercel viewer-role staff, support accounts — with MFA enforceable and evidenced from the org member list. The app's own end-user MFA is NOT claimed here; it is claimed at MFA-01/04/06.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Workstation OS logon by ordinary staff — the dominant limb, entirely an endpoint/IdP concern."
+  },
+  {
+   "id": "MFA-09",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication is used to authenticate users of data repositories.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1505"
+   ],
+   "measurable": "Assessor requests a list of ALL data repositories for the system plus screenshots of a user attempting to access each, showing multiple factors. ASD defines a data repository as 'a location in which data is stored, managed and made available to users' — file shares, databases, object stores, not just the primary database.",
+   "appliesToWebApp": "analogue",
+   "why": "The repository inventory is enumerable from the repo (Postgres via supabase/migrations, Storage buckets via bucket declarations). Application paths can require aal2 in RLS including on storage.objects, and a CI grep can fail on any RLS policy over a sensitive table or bucket lacking the AAL2 predicate. Analogue because human console access is a platform-account property.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "MFA on Supabase dashboard/SQL editor accounts and any direct psql path."
+  },
+  {
+   "id": "MFA-10",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication uses either: something users have and something users know, or something users have that is unlocked by something users know or are.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1401"
+   ],
+   "measurable": "Assessor discusses the implementation for users and customers, distinguishing multi-step from multi-factor and ranking strength (security key / smart card / passkey > hardware OTP > OTP app > push or SMS). Per the FAQ, security questions are NOT a valid memorised secret and biometrics are never a primary factor.",
+   "appliesToWebApp": "direct",
+   "why": "Which factor combinations the application accepts is entirely a property of its auth configuration and code.",
+   "evidenceIfDirect": "supabase/config.toml committed with only ASD-valid factor types enabled (TOTP + password, or WebAuthn) and Phone/SMS disabled; a test asserting enrolment of a disallowed factor type is rejected; a test asserting no 'remember this device' cookie path can downgrade a later session to one factor (ASD rules this out and requires MFA for re-authentication); and a grep asserting no security-question recovery path exists.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-11",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication used for authenticating users of online services is phishing-resistant.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1872"
+   ],
+   "measurable": "Assessor observes unprivileged and privileged users authenticating to the organisation's own AND third-party online services, checking a phishing-resistant form is required. ASD's exemplars are security keys, smart cards and passkeys; TOTP apps, push notifications and SMS/voice are explicitly NOT phishing-resistant.",
+   "appliesToWebApp": "analogue",
+   "why": "DOWNGRADED from 'direct'. The requirement spans the organisation's own AND third-party online services; scoring it direct on one limb is inflation. The app's own limb is real and testable — WebAuthn/FIDO2 only, RP ID and origins pinned to production hostnames, TOTP enrolment refused — but the third-party limb degrades to the register approach of MFA-02.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Phishing-resistant MFA on every third-party online service staff use."
+  },
+  {
+   "id": "MFA-12",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication used for authenticating customers of online customer services is phishing-resistant.",
+   "cumulativeFrom": "new-at-ML3",
+   "supersedes": "The ML2 requirement that a phishing-resistant OPTION be provided.",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1874"
+   ],
+   "measurable": "Assessor observes a customer authenticating and checks a phishing-resistant form is REQUIRED, not merely offered. An implementation letting customers pick SMS fails.",
+   "appliesToWebApp": "direct",
+   "why": "Passkeys are first-class on both targets — WebAuthn in the browser for Next.js, platform passkeys via the iOS/Android credential managers for Expo, whose association files are committed to the repo and served by the deployed app.",
+   "evidenceIfDirect": "public/.well-known/apple-app-site-association and public/.well-known/assetlinks.json served with correct content type; supabase/config.toml with only the WebAuthn factor enabled; an E2E test asserting an account without a passkey cannot reach sensitive screens; a scheduled query asserting zero customer accounts hold a non-phishing-resistant factor; and a test that no emailed-magic-link or SMS-reset recovery path reintroduces a phishable route.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-13",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication used for authenticating users of systems is phishing-resistant.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1682"
+   ],
+   "measurable": "Assessor observes unprivileged and privileged users authenticating to a workstation, and a privileged user to a server, checking a security key, smart card or passkey is required. ASD's change notes cite smart cards, security keys or Windows Hello for Business for workstations.",
+   "appliesToWebApp": "analogue",
+   "why": "Splits like MFA-07. Reachable: Vercel, Supabase and GitHub organisation accounts restricted to WebAuthn/passkey or SSO with a phishing-resistant IdP, GitHub org set to require 2FA, and no long-lived service-role or deploy token bypassing the human factor. Machine-checkable slice: OIDC federation rather than static secrets in the workflow YAML, required environment reviewers, and secret scanning failing on a committed service-role key.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Workstation OS logon for both privileged and unprivileged users."
+  },
+  {
+   "id": "MFA-14",
+   "strategy": "Multi-factor authentication",
+   "text": "Multi-factor authentication used for authenticating users of data repositories is phishing-resistant.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1894"
+   ],
+   "measurable": "Assessor observes unprivileged and privileged users authenticating to each repository in the MFA-09 inventory and checks a phishing-resistant form is required.",
+   "appliesToWebApp": "analogue",
+   "why": "The application path can go beyond AAL2: Supabase exposes the authentication method reference in the JWT, so an RLS predicate can require both aal2 and a WebAuthn AMR entry, refusing a TOTP-only session at the database. Analogue because the human console path is a platform setting, and because Supabase WebAuthn factor support is newer than TOTP and must be verified on the actual project before claiming this.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Passkey/security-key enforcement on Supabase dashboard, SQL editor and direct psql access."
+  },
+  {
+   "id": "MFA-15",
+   "strategy": "Multi-factor authentication",
+   "text": "Successful and unsuccessful multi-factor authentication events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1683"
+   ],
+   "measurable": "For Windows estates, RSoP showing Audit Logon and Audit Special Logon set to 'Success and Failure' with central storage. ASD explicitly allows that for certain MFA implementations this guidance is not applicable, in which case the assessor discusses whether logging exists for all systems users authenticate to. Both successful AND unsuccessful — success-only logging fails.",
+   "appliesToWebApp": "direct",
+   "why": "This is the 'certain MFA implementations' escape ASD wrote into the guidance; Supabase Auth emits entries for login, factor challenge and factor verification including failures.",
+   "evidenceIfDirect": "A committed log-drain configuration shipping Supabase Auth logs to a central sink, or a migration creating an auth_audit table written by a trigger/Edge Function; plus an integration test performing one successful and one deliberately failed MFA challenge and asserting two distinguishable rows land in the sink. The failure mode to test for is logging login and dropping the failed-challenge event.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-16",
+   "strategy": "Multi-factor authentication",
+   "text": "Event logs are protected from unauthorised modification and deletion.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-LOG-PROTECT",
+   "ismControls": [
+    "ISM-1815"
+   ],
+   "measurable": "Assessor discusses whether a SIEM, or equivalent, protects logs from unauthorised modification and deletion; demonstrable write-once retention is markedly stronger than assertion.",
+   "appliesToWebApp": "direct",
+   "why": "No endpoint specificity, and append-only logging is a schema property reviewable in the diff and provable by a negative test. The one shared-spine clause a repository can prove outright.",
+   "evidenceIfDirect": "A migration creating the audit table with RLS granting INSERT and SELECT only and no UPDATE/DELETE policy for any role including service_role; REVOKE UPDATE, DELETE, TRUNCATE from all application roles; a trigger raising on mutation; a committed test attempting UPDATE and DELETE as every role and asserting both refused; a CI check that no later migration re-grants those privileges; and a one-way drain to an object-lock/WORM sink the app's credentials cannot delete from. ONE artefact — counted once across MFA-16, RAP-22, AC-12, UAH-20.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-17",
+   "strategy": "Multi-factor authentication",
+   "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-INTERNET",
+   "ismControls": [
+    "ISM-1906"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor internet-facing server logs for signs of compromise; supporting evidence is detection rules plus records of alerts having been triaged.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL for this clause in all four strategies. Vercel functions and Supabase Edge Functions ARE internet-facing servers so the log source is in scope, and detection-as-code is committable (auth-failure spikes, RLS-denial bursts, CSP violation floods, anomalous privileged-procedure calls, each with severity and routing, plus a synthetic-event test firing a real alert in CI). Analogue because ASD's verb is 'are analysed' and timely triage is staffed.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Human triage of the alerts and the triage records the assessor examines."
+  },
+  {
+   "id": "MFA-18",
+   "strategy": "Multi-factor authentication",
+   "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-NONINTERNET",
+   "ismControls": [
+    "ISM-1907"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor non-internet-facing server logs for signs of compromise; the ML3 extension is coverage beyond internet-facing infrastructure.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL. The nearest true referent is the managed Postgres instance (genuinely non-internet-reachable once network restrictions are on) plus CI runners and scheduled workers. Committable: pgaudit and log-drain settings as configuration, alert rules for direct connections outside expected ranges, service-role queries outside migration windows, unexpected DDL, lockfile mutation during a build, workflow self-modification, deploys from unexpected actors.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Any internal server estate the organisation operates; human triage."
+  },
+  {
+   "id": "MFA-19",
+   "strategy": "Multi-factor authentication",
+   "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-WORKSTATION",
+   "ismControls": [
+    "ISM-0109"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor workstation event logs for signs of compromise, requiring central collection rather than local retention.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL. Workstation telemetry means EDR/Sysmon/Windows Security streams from staff endpoints. Mapping this onto Expo client telemetry is a category error — the mobile app runs on customers' personal devices. Mapping it onto CI runner logs would double-count the RAP-08 Secure Admin Workstation analogue.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-20",
+   "strategy": "Multi-factor authentication",
+   "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-EVENTS-TO-INCIDENTS",
+   "ismControls": [
+    "ISM-1228"
+   ],
+   "measurable": "Assessor discusses how SOC analysts analyse events to determine whether an incident occurred; the incident register also evidences this analysis.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL (the source split this org-only twice, analogue twice, on identical text). This is the human escalation judgement, evidenced by an incident register. The detection rules feeding it are already claimed at the two log-analysis rows.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-21",
+   "strategy": "Multi-factor authentication",
+   "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-CISO",
+   "ismControls": [
+    "ISM-0123"
+   ],
+   "measurable": "Assessor discusses reporting to the CISO or delegate and judges whether typical timeframes are reasonable; evidence is discovery-to-notification intervals in the incident register.",
+   "appliesToWebApp": "org-only",
+   "why": "Internal escalation to a named organisational officer, presupposing an org chart and a reporting relationship. Routing an alert to a distribution list is not the reporting obligation.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-22",
+   "strategy": "Multi-factor authentication",
+   "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-ASD",
+   "ismControls": [
+    "ISM-0140"
+   ],
+   "measurable": "Assessor discusses reporting to ASD and whether timeframes are reasonable; corroborating evidence is ReportCyber submissions or ASD case references in the incident register.",
+   "appliesToWebApp": "org-only",
+   "why": "External regulatory notification by a legal entity to a national authority. No repository has standing to report or any artefact evidencing it.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MFA-23",
+   "strategy": "Multi-factor authentication",
+   "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-IR-PLAN",
+   "ismControls": [
+    "ISM-1819"
+   ],
+   "measurable": "Assessor requests the incident response plan and discusses the extent to which it is followed after an incident; post-incident reviews are the strongest evidence.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — DOWNGRADED from the source's lone 'analogue' against three org-only calls on identical text. A repo can host the plan and automate response steps (session revocation, key rotation, kill-switch flag), but the requirement is that the plan IS ENACTED after an identified incident, assessed by discussing real past incidents.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-01",
+   "strategy": "Restrict administrative privileges",
+   "text": "Requests for privileged access to systems, applications and data repositories are validated when first requested.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "For every active privileged grant, a dated validation/approval record predating or coinciding with the grant, naming the business need and approving authority.",
+   "appliesToWebApp": "analogue",
+   "why": "Hold the privileged-access roster in the repo (CODEOWNERS plus a checked-in access manifest) and grant the app's admin role only via reviewed migration or an approval-carrying RPC, making git history the validation record. Grants made ad hoc in the Supabase or Vercel console leave no such record and fail.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Approval authority and business-need judgement for platform-console grants."
+  },
+  {
+   "id": "RAP-02",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged access to systems, applications and data repositories is disabled after 12 months unless revalidated.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "12 months",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "No privileged grant has an unrevalidated age greater than 12 months; evidence is a dated revalidation register or an automated expiry mechanism plus its execution log.",
+   "appliesToWebApp": "direct",
+   "why": "Literally implementable in the application and CI, with machine-checkable rows and job logs rather than a hand-maintained register.",
+   "evidenceIfDirect": "A migration adding granted_at/expires_at to the privileged-role table with an RLS predicate that stops honouring the admin role past expiry; a pg_cron or Edge Function job revoking at the 12-month boundary; and a CI cron diffing the live GitHub org admin list and Supabase member list against a dated in-repo roster, failing on any grant older than 12 months without recorded revalidation.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-03",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged access to systems and applications is disabled after 45 days of inactivity.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "45 days",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Last-use timestamps per privileged account with no enabled account exceeding 45 days since last use; evidence is the disablement job log plus a query over last-activity data.",
+   "appliesToWebApp": "direct",
+   "why": "Supabase exposes auth.users.last_sign_in_at, the app can record last_privileged_action_at, and GitHub's API reports token and deploy-key last-used dates, so machine identities are covered too.",
+   "evidenceIfDirect": "A scheduled job (pg_cron or Actions cron) disabling the privileged role at 45 days of inactivity and revoking idle privileged tokens, with its run log plus a committed test asserting a 46-day-idle admin row no longer satisfies the RLS admin predicate.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-04",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged users are assigned a dedicated privileged user account to be used solely for duties requiring privileged access.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Each privileged user has a separate attributable privileged account distinct from their day-to-day account, with audit logs showing privileged operations only ever under the privileged account.",
+   "appliesToWebApp": "analogue",
+   "why": "Admin capability is never a flag on a person's everyday application account — privileged identity is a distinct principal or an explicitly assumed, session-recorded role; and CI authenticates as a dedicated machine identity via GitHub OIDC rather than a maintainer's PAT.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Separate privileged accounts in the organisation's identity provider for platform-console access."
+  },
+  {
+   "id": "RAP-05",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged access to systems, applications and data repositories is limited to only what is required for users and services to undertake their duties.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "A documented mapping of each privileged role to the duties requiring it, plus role/permission dumps and policy tests showing no privileged principal exceeds that mapping.",
+   "appliesToWebApp": "direct",
+   "why": "The general least-privilege clause and the single most valuable ML3 requirement for a codebase to target — it maps almost one-to-one onto artefacts a generator can ship by default.",
+   "evidenceIfDirect": "Deny-by-default RLS with per-role policies rather than blanket grants; purpose-scoped Postgres roles with minimal GRANTs instead of the owner role; a build-time bundle scan asserting the service_role key never appears behind NEXT_PUBLIC_ or EXPO_PUBLIC_; per-workflow GitHub Actions permissions blocks linted to minimum; OIDC trust policies scoped to a single repo, branch and environment; plus negative-authorization tests asserting each role is denied what it should not hold.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-06",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged user accounts (excluding those explicitly authorised to access online services) are prevented from accessing the internet, email and web services.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Technical controls, not policy alone, demonstrably block internet, email and web access from privileged accounts; evidence is proxy/firewall or conditional-access configuration plus a test proving the block.",
+   "appliesToWebApp": "analogue",
+   "why": "Privileged credentials are never usable from an internet-exposed surface: service_role key and DB password excluded from the Next.js bundle and Expo binary (build-time secret scan plus a lint rule banning privileged secrets behind public env prefixes), and Supabase network restrictions confining the privileged Postgres role to application and CI egress ranges.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Egress blocking for privileged accounts on the corporate network and endpoint fleet — the literal control."
+  },
+  {
+   "id": "RAP-07",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged user accounts explicitly authorised to access online services are strictly limited to only what is required for users and services to undertake their duties.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "For each privileged account permitted online access, an enumerated allow-list of the specific services and scopes it may reach, with configuration evidence that access beyond the list is blocked.",
+   "appliesToWebApp": "analogue",
+   "why": "Privileged CI and service identities must reach the internet, which is exactly the 'explicitly authorised' carve-out; each is scope-minimised — fine-grained GitHub PATs bound to one repository, OIDC trust policies restricted to one repo/branch/environment, Vercel tokens scoped to one project, Supabase keys constrained by RLS. The scope configuration is checked in and diffable.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Scope decisions for human privileged accounts in platform consoles."
+  },
+  {
+   "id": "RAP-08",
+   "strategy": "Restrict administrative privileges",
+   "text": "Secure Admin Workstations are used in the performance of administrative activities.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Administrative activities performed only from a hardened, minimised-attack-surface environment; evidence is the SAW build/hardening configuration plus logs showing admin sessions originating only from SAWs. ASD's FAQ states a SAW is a philosophy of minimising the privileged environment's attack surface, not an equipment specification, and dedicated physical workstations are not required.",
+   "appliesToWebApp": "analogue",
+   "why": "No human holds production write credentials: migrations and production deploys execute only on an ephemeral CI runner inside a protected GitHub environment with required reviewers, direct psql to production is disabled by network restrictions, and the runner is destroyed after each job. FLAGGED AS ARGUABLE — a strict assessor could reasonably call this org-only.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The hardened endpoint from which a human performs any administration CI cannot — console-only operations, break-glass access."
+  },
+  {
+   "id": "RAP-09",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged users use separate privileged and unprivileged operating environments.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Demonstrable separation between the environment used for administrative work and that used for email and web browsing, with evidence privileged credentials are never entered in the unprivileged environment.",
+   "appliesToWebApp": "analogue",
+   "why": "Environment separation in topology and trust boundaries: production in a distinct Supabase project and Vercel environment from preview/development with disjoint credentials, and administrative code paths separated from user-facing ones by the server-only boundary and a distinct admin router. Checkable via per-environment variable inventories and router-level authorization tests.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The privileged versus unprivileged desktop environments used by human administrators."
+  },
+  {
+   "id": "RAP-10",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged operating environments are not virtualised within unprivileged operating environments.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Architecture evidence that no privileged environment runs as a guest on an unprivileged host; a privileged VM on a user's internet-connected workstation fails.",
+   "appliesToWebApp": "analogue",
+   "why": "The intent — the high-trust environment must not sit inside and depend on the low-trust one — maps cleanly: production is a separate Supabase project, not a branch nested under a development project; production secrets are not derivable from preview variables; preview deployments cannot reach the production database.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Hypervisor topology of any privileged environment the organisation runs."
+  },
+  {
+   "id": "RAP-11",
+   "strategy": "Restrict administrative privileges",
+   "text": "Unprivileged user accounts cannot logon to privileged operating environments.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Logon rights configuration denying unprivileged accounts access to privileged environments, plus a negative test showing the attempt is refused.",
+   "appliesToWebApp": "analogue",
+   "why": "Deny-by-default authorization at the data and delivery layers: RLS policies and admin procedures reject any principal without the admin role server-side, never trusting a client-side role claim; and fork-PR workflows cannot access production environment secrets (environment protection rules, no pull_request_target with checkout of untrusted refs). Provable with negative-authorization tests.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "OS logon rights on privileged hosts."
+  },
+  {
+   "id": "RAP-12",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged user accounts (excluding local administrator accounts) cannot logon to unprivileged operating environments.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Logon rights configuration denying privileged accounts access to unprivileged environments (local administrator accounts exempted), plus a negative test.",
+   "appliesToWebApp": "analogue",
+   "why": "The reverse-direction credential barrier: each environment issues its own Supabase keys and JWT signing secret so a production service_role key is not accepted by preview or development, and the public edge rejects privileged keys presented from a browser or mobile client. A CI check asserting production secret names are absent from preview/development configuration makes it machine-checkable.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "OS logon rights on unprivileged hosts."
+  },
+  {
+   "id": "RAP-13",
+   "strategy": "Restrict administrative privileges",
+   "text": "Just-in-time administration is used for administering systems and applications.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Privileged access granted only for the duration of the task and automatically revoked; evidence is elevation records with start and end timestamps showing accounts are unprivileged at rest.",
+   "appliesToWebApp": "direct",
+   "why": "Literally implementable in both the pipeline and the application rather than merely analogous.",
+   "evidenceIfDirect": "GitHub OIDC-issued short-lived credentials (minutes) for each deploy or migration job instead of a long-lived PAT, visible in the workflow YAML and token TTL configuration; plus an admin_sessions table carrying expires_at with the RLS admin predicate requiring now() < expires_at, so accounts are unprivileged at rest and the elevation rows are the evidence.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-14",
+   "strategy": "Restrict administrative privileges",
+   "text": "Administrative activities are conducted through jump servers.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Network and access-control evidence that administrative connections originate only from designated jump servers, corroborated by jump server session logs.",
+   "appliesToWebApp": "analogue",
+   "why": "A single audited choke point: Supabase network restrictions permit database connections only from application and CI egress ranges so no engineer connects from a laptop, and privileged data operations are exposed exclusively through audited admin procedures or CI workflows, both logging every invocation. The CI runner plus the admin procedure layer play the bastion's role in a topology with no bastion host.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Administration of any organisation-operated infrastructure outside this stack."
+  },
+  {
+   "id": "RAP-15",
+   "strategy": "Restrict administrative privileges",
+   "text": "Credentials for break glass accounts, local administrator accounts and service accounts are long, unique, unpredictable and managed.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [],
+   "measurable": "Credentials at least 30 characters (the number is from ASD's FAQ; the model text says only 'long'), randomly generated, unique per account, held in a managed secret store, and rotated; evidence is secret-store configuration, rotation records and a repository scan showing no credential is committed.",
+   "appliesToWebApp": "direct",
+   "why": "Every noun has a literal referent: the break glass account is the Supabase/Vercel organisation owner login; the service accounts are the service_role key, database password, CI deploy tokens and the Expo EAS token.",
+   "evidenceIfDirect": "A gitleaks step in CI failing the build on any committed credential; a committed secret inventory with a length/entropy assertion run against it; and Vercel/GitHub encrypted secret store configuration with a recorded rotation schedule rather than credentials in files.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-16",
+   "strategy": "Restrict administrative privileges",
+   "text": "Memory integrity functionality is enabled.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1896"
+   ],
+   "measurable": "Hypervisor-protected Code Integrity (HVCI) reported as enabled and running across in-scope Windows workstations and servers.",
+   "appliesToWebApp": "org-only",
+   "why": "A Windows kernel feature toggled via Group Policy, Intune or the registry. Nothing in the repo, its CI, or the deployed application can enable or evidence it; there is no defensible analogue and claiming one would be fabrication.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-17",
+   "strategy": "Restrict administrative privileges",
+   "text": "Local Security Authority protection functionality is enabled.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1861"
+   ],
+   "measurable": "LSA protection (Process Protection Light for LSASS) reported as enabled and running across in-scope Windows hosts. Note the model says 'Local Security Authority' while the FAQ says 'Local System Authority' — same Microsoft control; the FAQ wording appears to be the error.",
+   "appliesToWebApp": "org-only",
+   "why": "Protects LSASS against credential dumping. There is no LSASS here, no Windows hosts administered, and no configuration surface. Mapping it to 'protect secrets in process memory' would be hand-waving.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-18",
+   "strategy": "Restrict administrative privileges",
+   "text": "Credential Guard functionality is enabled.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1686"
+   ],
+   "measurable": "Windows Defender Credential Guard reported as configured and running (virtualisation-based security active) on in-scope Windows workstations and servers.",
+   "appliesToWebApp": "org-only",
+   "why": "Uses Windows VBS to isolate NTLM and Kerberos secrets, defeating pass-the-hash. It exists only on Windows hosts and depends on endpoint hardware and GPO/Intune; there is no equivalent in a Supabase/JWT model that would honestly stand in.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-19",
+   "strategy": "Restrict administrative privileges",
+   "text": "Remote Credential Guard functionality is enabled.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1897"
+   ],
+   "measurable": "Remote Credential Guard configured for Remote Desktop so credentials are not delegated to the remote host; evidence is GPO/registry settings on both client and target plus connection logs.",
+   "appliesToWebApp": "org-only",
+   "why": "Presupposes RDP, Windows clients and Windows targets under the organisation's control. This stack has no RDP and no Windows administration path.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-20",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged access events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1509"
+   ],
+   "measurable": "A central log store containing privileged access events (who, what, when, from where) across all in-scope systems, applications and data repositories, with demonstrated coverage rather than sampling.",
+   "appliesToWebApp": "direct",
+   "why": "The application can do this literally, and coverage is machine-checkable rather than sampled — absence of logging fails CI rather than surfacing at assessment.",
+   "evidenceIfDirect": "A Postgres AFTER trigger writing an append-only audit row for every action performed under the admin role; a committed log-drain config shipping Supabase Auth, Postgres and Vercel function logs plus the GitHub organisation audit log to one sink; and integration tests asserting each admin mutation produces exactly one audit row.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-21",
+   "strategy": "Restrict administrative privileges",
+   "text": "Privileged user account and security group management events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1650"
+   ],
+   "measurable": "Central logs containing creation, modification, deletion, enabling and disabling of privileged accounts and all security group membership changes, with actor and timestamp.",
+   "appliesToWebApp": "direct",
+   "why": "The analogue of a security group is the app's role table, and capturing every change to it is directly implementable and assertable.",
+   "evidenceIfDirect": "An AFTER INSERT/UPDATE/DELETE trigger on user_roles (or profiles.role) writing actor, target, old value, new value and timestamp to the central audit log, with a test asserting no grant or revocation can occur without producing a row; plus scheduled ingestion of GitHub org membership/team change events and Supabase project member changes into the same sink.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-22",
+   "strategy": "Restrict administrative privileges",
+   "text": "Event logs are protected from unauthorised modification and deletion.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-LOG-PROTECT",
+   "ismControls": [
+    "ISM-1815"
+   ],
+   "measurable": "Technical controls prevent alteration or deletion of stored logs by anyone including administrators — append-only storage, write-once retention, or an independent segregated log store — demonstrated by an attempted-modification test.",
+   "appliesToWebApp": "direct",
+   "why": "Same canonical treatment as MFA-16. One artefact satisfies this clause across all four strategies it appears in and must be counted once.",
+   "evidenceIfDirect": "The same append-only audit table migration, the negative CI test asserting UPDATE and DELETE both fail as every role including service_role, and the retention-locked external sink.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-23",
+   "strategy": "Restrict administrative privileges",
+   "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-INTERNET",
+   "ismControls": [
+    "ISM-1906"
+   ],
+   "measurable": "Evidence that internet-facing logs are actually reviewed or alerted on — detection rules, alert history and triage records — not merely collected.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL — DOWNGRADED from the source's 'direct' to match identical text under Application control and MFA. Rules are code (authorization-denial spikes, unexpected admin role assumption, service_role use from an unexpected source); the analysis is staffed and ASD's evidence method is a discussion with SOC analysts.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Human triage and its records."
+  },
+  {
+   "id": "RAP-24",
+   "strategy": "Restrict administrative privileges",
+   "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-NONINTERNET",
+   "ismControls": [
+    "ISM-1907"
+   ],
+   "measurable": "Detection rules and triage records covering internal server logs with the same timeliness as internet-facing systems.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL. Once network restrictions are enabled the managed Postgres instance is genuinely the non-internet-facing server here; its pgaudit and Postgres logs are drained and alerted on with committed rules.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Any internal server estate the organisation runs; human triage."
+  },
+  {
+   "id": "RAP-25",
+   "strategy": "Restrict administrative privileges",
+   "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-WORKSTATION",
+   "ismControls": [
+    "ISM-0109"
+   ],
+   "measurable": "Endpoint logs or EDR telemetry from the workstation fleet centrally collected and actively analysed, with detection rules and triage records.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL. Workstations in ASD's FAQ are every device using a desktop operating system — the endpoint fleet, not the build environment. Pointing at CI runner logs does not hold: a runner is the administrative environment already claimed at RAP-08.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-26",
+   "strategy": "Restrict administrative privileges",
+   "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-EVENTS-TO-INCIDENTS",
+   "ismControls": [
+    "ISM-1228"
+   ],
+   "measurable": "A documented triage process with evidence of execution — event queue, triage decisions, and events promoted to incidents with elapsed time from detection.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — DOWNGRADED from the source's 'analogue'. The judgement step is performed by people; the alert rules and severity thresholds feeding it are already claimed at RAP-23/24.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-27",
+   "strategy": "Restrict administrative privileges",
+   "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-CISO",
+   "ismControls": [
+    "ISM-0123"
+   ],
+   "measurable": "Incident records showing notification to the CISO or a named delegate, with elapsed time between discovery and notification.",
+   "appliesToWebApp": "org-only",
+   "why": "An organisational reporting obligation between people. Holding the runbook naming who to contact does not satisfy it; only the act of reporting does, evidenced in incident management records.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-28",
+   "strategy": "Restrict administrative privileges",
+   "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-ASD",
+   "ismControls": [
+    "ISM-0140"
+   ],
+   "measurable": "Records of reports lodged with ASD (ReportCyber or the ASD hotline), including reference numbers and elapsed time from discovery to report.",
+   "appliesToWebApp": "org-only",
+   "why": "External regulatory notification performed by the organisation; the evidence — an ASD report reference number — exists entirely outside the technical estate.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RAP-29",
+   "strategy": "Restrict administrative privileges",
+   "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-IR-PLAN",
+   "ismControls": [
+    "ISM-1819"
+   ],
+   "measurable": "An incident response plan exists and post-incident records demonstrate it was followed — roles activated, steps executed, decisions logged — for actual incidents rather than only exercises.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL. Enactment spans containment decisions, communications, legal and executive involvement. A repository should hold the technical runbooks the plan invokes, but possessing runbooks is not enactment.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-01",
+   "strategy": "Application control",
+   "text": "Application control is implemented on workstations.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-0843"
+   ],
+   "measurable": "Assessor checks whether an application control solution (WDAC, AppLocker or third-party) is implemented on workstations. Best evidence per ASD is simulated activity — attempting to run benign test executables — not policy documentation. NOTE: WDAC is not itself a requirement at any maturity level; the model is vendor-neutral.",
+   "appliesToWebApp": "org-only",
+   "why": "'Workstations' means staff and developer endpoint devices managed by the organisation. No repository, CI pipeline or deployed application controls what executes on an employee's laptop; this is an MDM concern.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-02",
+   "strategy": "Application control",
+   "text": "Application control is implemented on internet-facing servers.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1490"
+   ],
+   "measurable": "Assessor checks whether an application control solution is implemented on internet-facing servers, ideally by attempting to execute a benign unapproved binary and confirming it is blocked.",
+   "appliesToWebApp": "analogue",
+   "why": "The executable surface of the internet-facing runtime is exactly one immutable CI-produced artefact: deploys only from CI (no vercel deploy from a laptop), pnpm install --frozen-lockfile, an ESLint no-restricted-globals/no-restricted-imports rule banning eval, new Function, child_process and non-literal dynamic import() in server code, and a CSP with nonce/hash script-src and no unsafe-eval or unsafe-inline.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "OS-level execution control on the managed host, implementable only by the platform provider."
+  },
+  {
+   "id": "AC-03",
+   "strategy": "Application control",
+   "text": "Application control is implemented on non-internet-facing servers.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1656"
+   ],
+   "measurable": "Assessor checks whether an application control solution is implemented on non-internet-facing servers — internal application, database and management servers.",
+   "appliesToWebApp": "analogue",
+   "why": "Supply-chain control over what the build and background tier may execute: third-party Actions pinned to full commit SHAs rather than mutable tags, base images pinned by digest, ignore-scripts=true (or an explicit allowlist) so npm lifecycle scripts cannot run arbitrary code at install, and no curl-pipe-bash or ad-hoc npx remote steps in workflow files — all lintable in CI.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Any internal server estate the organisation runs."
+  },
+  {
+   "id": "AC-04",
+   "strategy": "Application control",
+   "text": "Application control is applied to user profiles and temporary folders used by operating systems, web browsers and email clients.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1870"
+   ],
+   "measurable": "Assessor attempts to run benign executables, scripts, DLLs, MSIs, .chm, .hta and .cpl files placed in user profile and temp directories and confirms each is blocked; ASD names E8MVT and the Application Control Verification Tool.",
+   "appliesToWebApp": "analogue",
+   "why": "The hazard — code executing from attacker-writable locations — is genuinely present: expo-updates downloads a JS bundle into the app's writable data directory and executes it, so the analogue is expo-updates code signing with a pinned channel so only organisation-signed bundles execute. Second half: nothing written to a Function's /tmp or fetched from an upload bucket is ever required, imported, spawned, or served with an executable/HTML content type, enforced by Content-Disposition: attachment and a non-HTML content type on upload buckets. This is the one place a mobile app really does have the hazard the requirement describes.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "OS user profile and temp folder execution control on endpoints."
+  },
+  {
+   "id": "AC-05",
+   "strategy": "Application control",
+   "text": "Application control is applied to all locations other than user profiles and temporary folders used by operating systems, web browsers and email clients.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1871"
+   ],
+   "measurable": "Same test method applied to every other disk location; for path-based implementations, review of effective access permissions on all allowed paths confirming standard users cannot write to any allowed-to-execute directory.",
+   "appliesToWebApp": "analogue",
+   "why": "The deployed filesystem is immutable and read-only apart from /tmp, so no location is simultaneously writable and executable — a property Vercel serverless and Deno Deploy provide by construction, assertable with a smoke test that a write outside /tmp fails. Repo-side, the entire executable set is the reproducible build output plus the lockfile-pinned closure, with no post-deploy code mutation path.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "All other disk locations on endpoints and organisation-operated servers."
+  },
+  {
+   "id": "AC-06",
+   "strategy": "Application control",
+   "text": "Application control restricts the execution of executables, software libraries, scripts, installers, compiled HTML, HTML applications and control panel applets to an organisation-approved set.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1657"
+   ],
+   "measurable": "ASD states the only truly effective check is testing: attempting to execute benign samples of each of the seven file types from writable locations. Free tooling: E8MVT, ASD's Application Control Verification Tool, AirLock Digital's Application Allowlisting Assessment Tool. ASD warns many solutions silently fail to cover .chm, .hta and .cpl.",
+   "appliesToWebApp": "analogue",
+   "why": "The most transferable row: 'software libraries' and 'scripts' map onto a JS/TS monorepo. Approved library set = pnpm-lock.yaml with integrity hashes installed --frozen-lockfile from an approved registry, lifecycle scripts disabled, additions gated by Renovate/Dependabot plus CODEOWNERS on the lockfile. Approved browser script set = CSP script-src with nonces or hashes, no unsafe-inline/unsafe-eval. CAVEAT an assessor will press: ASD permits only cryptographic hash, publisher certificate (publisher AND product name) and path rules; file and package names are explicitly NOT acceptable, which is a real weakness in the lockfile analogue.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Execution control over the seven named Windows file types on endpoints and servers."
+  },
+  {
+   "id": "AC-07",
+   "strategy": "Application control",
+   "text": "Application control restricts the execution of drivers to an organisation-approved set.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1658"
+   ],
+   "measurable": "Assessor requests the rulesets and checks for driver rules. ASD notes AppLocker does not currently support driver control whereas WDAC does.",
+   "appliesToWebApp": "org-only",
+   "why": "Drivers are kernel-mode code. Managed serverless runtimes and mobile app sandboxes expose no kernel-code loading surface — the platform forecloses the capability rather than the repo restricting it, so there is no ruleset for a repo to author. The nearest reach, restricting native Node addons, is already claimed at AC-06.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-08",
+   "strategy": "Application control",
+   "text": "Microsoft’s recommended application blocklist is implemented.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1544"
+   ],
+   "measurable": "Assessor requests the rulesets and checks whether Microsoft's recommended application blocklist has been specified. This is a DIFFERENT list from the vulnerable driver blocklist at AC-09; the two are commonly conflated, and older model versions called them 'recommended block rules'.",
+   "appliesToWebApp": "analogue",
+   "why": "Both halves of the living-off-the-land mechanism have counterparts: an externally maintained, continuously updated blocklist consumed as a CI gate (GitHub Advisory Database / OSV / pnpm audit failing the build on malicious-package advisories), and a deny-list of the JS runtime's own default-available primitives — eval, new Function, vm, child_process, process.binding, non-literal import() — via ESLint no-restricted-globals/no-restricted-imports.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The Microsoft blocklist itself on Windows endpoints and servers."
+  },
+  {
+   "id": "AC-09",
+   "strategy": "Application control",
+   "text": "Microsoft’s vulnerable driver blocklist is implemented.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1659"
+   ],
+   "measurable": "Assessor checks whether memory integrity has been enabled via the Windows Security app (which automatically enforces the blocklist), or reviews the ruleset for driver rules specifying it. ASD permits AppLocker at ML3 provided this blocklist is enforced via memory integrity.",
+   "appliesToWebApp": "org-only",
+   "why": "Satisfied by an OS-level toggle on Windows hosts. There is no kernel-code surface here, and the 'block known-vulnerable versions of trusted components' idea is already claimed at AC-06 and AC-08.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-10",
+   "strategy": "Application control",
+   "text": "Application control rulesets are validated on an annual or more frequent basis.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "Annual or more frequent",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1582"
+   ],
+   "measurable": "Assessor discusses how rulesets are validated, at what frequency, and the change-management governance. ASD names the observed failure modes: exploitable applications remaining approved, compromised vendor code-signing certificates remaining authorised, and administrator 'get it working' exceptions never removed.",
+   "appliesToWebApp": "analogue",
+   "why": "Once the ruleset analogue is fixed (lockfile + CSP script-src + expo-updates signing keys + CI action pins), the cadence is enforceable as code: a scheduled job failing when the allowlist manifest's recorded last-reviewed date is older than 12 months, plus CODEOWNERS review on every lockfile or CSP change. ASD's stale-exception failure mode maps exactly onto expiring eslint-disable comments, @ts-expect-error suppressions and CSP exemptions with a review-by date.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Validation of the actual endpoint application control ruleset."
+  },
+  {
+   "id": "AC-11",
+   "strategy": "Application control",
+   "text": "Allowed and blocked application control events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1660"
+   ],
+   "measurable": "Assessor requests screenshots showing BOTH content allowed to execute AND content blocked, then determines whether the logs are centrally stored; logs should ideally record file name, date/time stamp and username. The commonly-missed half is 'allowed' — most implementations log only denials.",
+   "appliesToWebApp": "analogue",
+   "why": "Every authorisation decision at the tRPC boundary and every RLS-relevant access emits a structured audit event carrying outcome (allow or deny), actor id, resource and timestamp — matching ASD's file/time/user triple — shipped to one central sink. Browser-side, CSP report-to captures blocked script execution, the literal browser equivalent of a blocked-execution event.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Allowed and blocked execution events from the endpoint application control solution."
+  },
+  {
+   "id": "AC-12",
+   "strategy": "Application control",
+   "text": "Event logs are protected from unauthorised modification and deletion.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-LOG-PROTECT",
+   "ismControls": [
+    "ISM-1815"
+   ],
+   "measurable": "Assessor discusses whether a SIEM, or equivalent, is used to protect event logs from unauthorised modification and deletion.",
+   "appliesToWebApp": "direct",
+   "why": "Same canonical treatment as MFA-16 and RAP-22. One artefact, counted once.",
+   "evidenceIfDirect": "The append-only audit table migration (RLS INSERT/SELECT only; REVOKE UPDATE, DELETE, TRUNCATE from all roles including service_role; trigger raising on mutation), the committed negative test asserting UPDATE and DELETE both fail, and the one-way drain to an object-lock/WORM sink.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-13",
+   "strategy": "Application control",
+   "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-INTERNET",
+   "ismControls": [
+    "ISM-1906"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor internet-facing server logs for signs of compromise; ASD does not quantify 'timely'.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL — see MFA-17.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Human triage and its records."
+  },
+  {
+   "id": "AC-14",
+   "strategy": "Application control",
+   "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-NONINTERNET",
+   "ismControls": [
+    "ISM-1907"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor non-internet-facing server logs for signs of compromise.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL — see MFA-18.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Any internal server estate; human triage."
+  },
+  {
+   "id": "AC-15",
+   "strategy": "Application control",
+   "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-WORKSTATION",
+   "ismControls": [
+    "ISM-0109"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor workstation event logs for signs of compromise.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-19.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-16",
+   "strategy": "Application control",
+   "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-EVENTS-TO-INCIDENTS",
+   "ismControls": [
+    "ISM-1228"
+   ],
+   "measurable": "Assessor discusses how SOC analysts analyse events to determine whether an incident occurred; the incident register may also evidence it.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-20.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-17",
+   "strategy": "Application control",
+   "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-CISO",
+   "ismControls": [
+    "ISM-0123"
+   ],
+   "measurable": "Assessor discusses reporting to the CISO or delegate and whether typical timeframes are reasonable.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-21.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-18",
+   "strategy": "Application control",
+   "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-ASD",
+   "ismControls": [
+    "ISM-0140"
+   ],
+   "measurable": "Assessor discusses reporting to ASD and whether timeframes are reasonable; evidence is ASD report references in the incident register.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-22.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "AC-19",
+   "strategy": "Application control",
+   "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-IR-PLAN",
+   "ismControls": [
+    "ISM-1819"
+   ],
+   "measurable": "Assessor requests the incident response plan for the system and discusses the extent to which it is followed after an incident.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-23.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-01",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros are disabled for users that do not have a demonstrated business requirement.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1671"
+   ],
+   "measurable": "RSoP shows 'VBA Macro Notification Settings' enabled and set to 'Disable all macros without notification' for unapproved users, plus Trust Center screenshots, documentation of each user's demonstrated business requirement and approver, the proportion of the user base approved, and evidence permission is revoked when the requirement lapses.",
+   "appliesToWebApp": "org-only",
+   "why": "Per-user entitlement to a desktop application feature across a managed Windows fleet plus an organisational approval register. The stack has no users of Microsoft Office; the nearest repo idea (approved-business-need gating of admin capability) is already claimed at RAP-01.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-02",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Only Microsoft Office macros running from within a sandboxed environment, a Trusted Location or that are digitally signed by a trusted publisher are allowed to execute.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1674"
+   ],
+   "measurable": "RSoP shows the notification setting at 'Disable all macros without notification' (Trusted Locations) or 'Disable all macros except digitally signed macros' (signing); if only signing is used, 'Disable all trusted locations' is checked; each Trusted Location is enumerated and none sits inside a user profile. NOTE the requirement is a three-way disjunction — sandboxing is a first-class option and is usually dropped in paraphrase.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The proposed analogue (expo-updates code signing, frozen lockfile, CSP script-src 'self' with nonces, CI-only Edge Function deploys) is exactly the evidence already claimed at AC-02, AC-04 and AC-06. Counting it again would inflate coverage by double-counting one artefact across two strategies.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-03",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros are checked to ensure they are free of malicious code before being digitally signed or placed within Trusted Locations.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1890"
+   ],
+   "measurable": "A documented macro assessment process; assessors demonstrably independent of macro developers; per-macro assessment records and sign-offs dated prior to signing or placement. NOTE introduced November 2023 — the August 2023 Assessment Process Guide had no method; re-derive from the October 2024 guide.",
+   "appliesToWebApp": "analogue",
+   "why": "Unique and non-duplicative: code is proven clean before it is signed and published. A release-tag pipeline that must pass SAST (CodeQL/Semgrep), secret scanning, dependency audit and licence checks BEFORE the signing/publish step, with the signing job gated on those outcomes, plus CODEOWNERS-enforced review by someone other than the author — ASD's independence-of-assessor requirement maps exactly onto 'author cannot approve own PR'.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Assessment of actual Office macros before signing."
+  },
+  {
+   "id": "MACRO-04",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Only privileged users responsible for checking that Microsoft Office macros are free of malicious code can write to and modify content within Trusted Locations.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1487"
+   ],
+   "measurable": "For each Trusted Location the assessor reviews effective file system permissions directly (preferred over screenshots) and counts the users in groups holding write/modify permission, confirming that set equals the designated macro assessors.",
+   "appliesToWebApp": "analogue",
+   "why": "Unique and non-duplicative: write access to the trusted publication surface is restricted to designated reviewers — branch protection on main/release (no direct pushes, required reviews, no force-push), CODEOWNERS gating deploy and migration directories, the artefact registry and Expo code-signing key in an environment with a restricted reviewer list, and the production service-role key issued only to the deploy job. ASD's count-the-principals evidence is reproducible from GitHub access listings.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "File system permissions on actual Trusted Locations."
+  },
+  {
+   "id": "MACRO-05",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros digitally signed by an untrusted publisher cannot be enabled via the Message Bar or Backstage View.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1675"
+   ],
+   "measurable": "RSoP shows 'Disable all Trust Bar notifications for security issues' enabled AND 'Disable commands' enabled with command bar ID 19092. ASD notes removing the Backstage View option needs this undocumented GUI setting, so this row is frequently only half-implemented.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The no-bypass mapping (expo-updates rejecting unverified bundles, no --no-verify, no continue-on-error on signing jobs, HSTS preload) restates artefacts already claimed at AC-02, AC-04 and UAH-05.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-06",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros digitally signed by signatures other than V3 signatures cannot be enabled via the Message Bar or Backstage View.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1891"
+   ],
+   "measurable": "Configuration evidence that only V3-format signed macros execute and that a legacy-signed macro presents no enable affordance; best verified by test. NOTE introduced November 2023 — the August 2023 guide has no method.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The source itself called its mapping (JWT alg allowlisting, TLS 1.2+ floor, current-format attestation bundles) the weakest of the eleven and an intent-level rather than form-level match to a control about a specific Microsoft signature format.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-07",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office’s list of trusted publishers is validated on an annual or more frequent basis.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "Annual or more frequent basis",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1676"
+   ],
+   "measurable": "Assessor enumerates Trust Center > Trusted Publishers; ideally only the organisation's own code-signing certificate appears. Where third-party certificates are listed, dated records of at least annual review plus the mechanism for detecting a certificate needing removal due to compromise or revocation. ASD prefers the organisation re-sign trusted macros with its own certificate.",
+   "appliesToWebApp": "analogue",
+   "why": "Unique, non-duplicative, and the timeframe transfers unchanged: a dated, committed trust inventory covering the Expo code-signing certificate and its rotation date, OIDC trust relationships from Actions to Vercel/Supabase, allowlisted registries and scoped tokens, and the Supabase JWT signing keys — enforced by a scheduled CI job failing when the recorded review date is older than twelve months or a certificate is inside its rotation window.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The actual Office trusted publishers list."
+  },
+  {
+   "id": "MACRO-08",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros in files originating from the internet are blocked.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1488"
+   ],
+   "measurable": "RSoP shows 'Block macros from running in Office files from the Internet' enabled per application. Where unconfigured, internet-sourced macros are blocked by default only in recent Office versions, so version evidence matters. Best verified by opening a Mark-of-the-Web tagged macro-enabled file.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The untrusted-origin mapping (CSP script-src 'self' with nonces, object-src 'none', uploads on a separate origin with Content-Disposition: attachment and nosniff, no dangerouslySetInnerHTML over user content) is the same evidence claimed at AC-04, UAH-07 and UAH-09.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-09",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macro antivirus scanning is enabled.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1672"
+   ],
+   "measurable": "RSoP shows 'Macro Runtime Scan Scope' enabled with value 1 (MoTW files, the default) or 2 (all files, ASD's ideal); value 0 fails. Alternatively an EICAR-containing macro is detected when run. Requires an AMSI-integrated antivirus product.",
+   "appliesToWebApp": "org-only",
+   "why": "There is no AMSI-integrated VBA runtime here. Upload scanning (a Storage webhook submitting objects to ClamAV or a scanning API before they become readable) is a worthwhile control but is not this requirement and has no ASD evidence path in this context.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-10",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macros are blocked from making Win32 API calls.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1673"
+   ],
+   "measurable": "Evidence the Defender ASR rule 'Block Win32 API calls from Office macros' is enabled in block mode, not audit mode; E8MVT includes a test file that must be blocked. The rule constrains the macro's Win32 API access, not the VBA language.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The host-primitive denial mapping (no child_process, no node-ffi, Deno explicit permissions, no raw SQL execution) is the same evidence claimed at UAH-06 and AC-02. This is also the ONLY requirement ML2 adds over ML1 for this strategy — the smallest ML1→ML2 delta in the framework.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "MACRO-11",
+   "strategy": "Restrict Microsoft Office macros",
+   "text": "Microsoft Office macro security settings cannot be changed by users.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1489"
+   ],
+   "measurable": "RSoP shows 'VBA Macro Notification Settings' enabled, greying out the Trust Center control, corroborated by a screenshot showing it is not user-modifiable. ASD's guidance is that macro security controls should be applied via Group Policy for exactly this reason.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The server-controlled-configuration mapping (headers from middleware, RLS reachable only with the service-role key, server-side feature flags) is the same evidence claimed at UAH-05 and UAH-11.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-01",
+   "strategy": "User application hardening",
+   "text": "Internet Explorer 11 is disabled or removed.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1654"
+   ],
+   "measurable": "RSoP shows 'Disable Internet Explorer 11 as a standalone browser' enabled, or a Windows Features screenshot showing IE11 absent. ASD also expects an application control block rule on iexplore.exe because standard users can still launch IE11 even on Windows 11 — a hidden dependency on Application control.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. Excluding IE11 from browserslist and serving an unsupported-browser response to MSIE user agents does not remove IE11 from an endpoint and does not reduce the risk the requirement addresses. Note this is an ML1 requirement present at all three levels, not new at ML3 as some summaries claim.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-02",
+   "strategy": "User application hardening",
+   "text": "Web browsers do not process Java from the internet.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1486"
+   ],
+   "measurable": "For each browser, visit a page containing Java and confirm it does not execute; review plug-ins for Java. A web content filter blocking internet-based Java is accepted where intranet Java is required. CRITICAL: ASD's FAQ states this does NOT include JavaScript — the single most common misreading of the strategy.",
+   "appliesToWebApp": "analogue",
+   "why": "The app never delivers plugin-executed content and forbids it: a CSP response header with object-src 'none', no <applet>/<object>/<embed> in the JSX, and no Java/NPAPI-adjacent asset in the build output. A CI test asserts the CSP header on a live preview and greps the bundle for those tags.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Java plug-in state in the browsers on staff endpoints."
+  },
+  {
+   "id": "UAH-03",
+   "strategy": "User application hardening",
+   "text": "Web browsers do not process web advertisements from the internet.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1485"
+   ],
+   "measurable": "Evidence an ad blocker extension is installed in each browser, or a content filter blocks advertisements. ASD explicitly states a built-in pop-up blocker does NOT meet the intent.",
+   "appliesToWebApp": "analogue",
+   "why": "The app serves no third-party ad or ad-tech code: no ad SDK in package.json or the Expo dependency tree, and a CSP script-src/connect-src/frame-src allowlist naming only first-party and approved origins so an ad network cannot load even if a dependency tries. Evidence is a dependency-allowlist check plus a CSP header assertion.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Ad blocking in the browsers staff use for the rest of the internet."
+  },
+  {
+   "id": "UAH-04",
+   "strategy": "User application hardening",
+   "text": "Web browsers are hardened using ASD and vendor hardening guidance, with the most restrictive guidance taking precedence when conflicts occur.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1412"
+   ],
+   "measurable": "Hardening delivered via vendor group policy templates and visible in RSoP; ASD points to Microsoft Security Baselines for Edge and Google's Chrome Browser Enterprise Security Configuration Guide. Note 'ASD AND vendor' replaced 'ASD OR vendor' in November 2023 — both must be implemented, most restrictive winning.",
+   "appliesToWebApp": "analogue",
+   "why": "The app hardens the browser context it controls via response headers in next.config.js or middleware: Content-Security-Policy (with frame-ancestors), Strict-Transport-Security with preload, X-Content-Type-Options: nosniff, Referrer-Policy, Permissions-Policy, COOP/COEP/CORP. Evidence is a header-assertion test against a deployed preview URL.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "GPO-delivered browser baselines on the endpoint fleet."
+  },
+  {
+   "id": "UAH-05",
+   "strategy": "User application hardening",
+   "text": "Web browser security settings cannot be changed by users.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1585"
+   ],
+   "measurable": "Inspect each browser for managed indicators — greyed-out controls (Firefox), 'managed by your organisation' (Edge), 'managed by your administrator' (Chrome). Also confirm Java Control Panel settings cannot be user-changed.",
+   "appliesToWebApp": "analogue",
+   "why": "Server-side rather than client-side enforcement: CSP delivered as an HTTP header rather than a <meta> tag so page script cannot relax it; session cookies set HttpOnly/Secure/SameSite by the server; authorization enforced by Postgres RLS so a tampered client, edited local storage or flipped flag cannot change what a user may read. Evidence is the RLS migrations plus a test authenticating as a low-privilege user and proving denial.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Browser setting lockdown on endpoints."
+  },
+  {
+   "id": "UAH-06",
+   "strategy": "User application hardening",
+   "text": "Microsoft Office is blocked from creating child processes.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1667"
+   ],
+   "measurable": "RSoP shows ASR rules D4F940AB-401B-4EFC-AADC-AD5F3C50688A and 26190899-1602-49E8-8B27-EB1D0A1CE869 set to 1; E8MVT ships macro test files exercising each rule.",
+   "appliesToWebApp": "analogue",
+   "why": "The underlying rule — a document-handling application must never become a launcher for arbitrary code — maps onto server code processing user uploads: a hard ban on subprocess spawning in request-handling paths via an ESLint no-restricted-imports rule forbidding node:child_process in route handlers, server actions and Edge Functions (Deno additionally requires --allow-run, which is simply not granted).",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The ASR rule on Windows endpoints — Microsoft Office is not in this stack."
+  },
+  {
+   "id": "UAH-07",
+   "strategy": "User application hardening",
+   "text": "Microsoft Office is blocked from creating executable content.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1668"
+   ],
+   "measurable": "RSoP shows ASR rules 3B576869-A4EC-4529-8536-B80A7769E899 and BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 set to 1; corroborated by E8MVT test files.",
+   "appliesToWebApp": "analogue",
+   "why": "User content can never be written where it will later be served or executed as active content: upload buckets private with RLS, objects served with a server-pinned Content-Type and Content-Disposition: attachment (never the client-declared MIME type), SVG and HTML never rendered inline, nothing user-supplied written into public/ or the build output. Evidence is the storage policy migrations plus a test uploading an HTML/SVG payload and asserting the download headers.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The ASR rule on Windows endpoints."
+  },
+  {
+   "id": "UAH-08",
+   "strategy": "User application hardening",
+   "text": "Microsoft Office is blocked from injecting code into other processes.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1669"
+   ],
+   "measurable": "RSoP shows ASR rule 75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84 set to 1; corroborated by an E8MVT test file.",
+   "appliesToWebApp": "analogue",
+   "why": "Cross-process injection maps onto one user's stored content executing in another user's browser or the server context: a ban on dangerouslySetInnerHTML and eval/new Function over user-derived values, sanitisation of rendered rich text, parameterised queries only (no concatenated SQL; SECURITY DEFINER functions with a pinned search_path), and per-tenant RLS isolation. Evidence is the lint rules, migration review and a stored-XSS regression test.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The ASR rule on Windows endpoints."
+  },
+  {
+   "id": "UAH-09",
+   "strategy": "User application hardening",
+   "text": "Microsoft Office is configured to prevent activation of Object Linking and Embedding packages.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1542"
+   ],
+   "measurable": "RSoP shows the 'PackagerPrompt' registry value under HKEY_CURRENT_USER\\Software\\Microsoft\\Office\\<version>\\<application>\\Security\\ set to REG_DWORD 2; E8MVT can confirm.",
+   "appliesToWebApp": "analogue",
+   "why": "OLE is how a passive document activates an embedded foreign object. Embedded objects can never be activated from app-hosted content: CSP object-src 'none', third-party or user-supplied embeds rendered only inside an <iframe sandbox> with a minimal allow-list, and frame-ancestors 'none' against clickjacking. Evidence is a CSP header assertion and a grep for un-sandboxed iframes.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The Office registry setting on Windows endpoints."
+  },
+  {
+   "id": "UAH-10",
+   "strategy": "User application hardening",
+   "text": "Office productivity suites are hardened using ASD and vendor hardening guidance, with the most restrictive guidance taking precedence when conflicts occur.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1859"
+   ],
+   "measurable": "Hardening applied via group policy templates and visible in RSoP; ASD directs assessors to its 'Hardening Microsoft 365, Office 2021, Office 2019 and Office 2016' publication and Microsoft's Security Baselines Blog, more restrictive winning on conflict.",
+   "appliesToWebApp": "analogue",
+   "why": "The generalised control — every platform the app is built on is configured per its vendor's published guidance, strictest wins — is concrete: Supabase security advisors run clean (RLS on every public table, no SECURITY DEFINER views, leaked-password protection on, pinned function search_path), Next.js per its production security checklist, Expo per its app-security guidance. Evidence is a CI step failing the build on any outstanding Supabase security advisor finding.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Hardening of the actual Office productivity suite on endpoints."
+  },
+  {
+   "id": "UAH-11",
+   "strategy": "User application hardening",
+   "text": "Office productivity suite security settings cannot be changed by users.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1823"
+   ],
+   "measurable": "RSoP shows security-related group policy settings defined for Microsoft Office, or screenshots of each application's security settings greyed out.",
+   "appliesToWebApp": "analogue",
+   "why": "Security configuration is declared in version-controlled infrastructure rather than runtime-mutable: RLS policies, grants and auth settings exist only as migrations under supabase/migrations, applied by CI, with production write access held by no interactive human account. A drift check (supabase db diff against the migration set, failing on any difference) is the machine-checkable evidence that nothing changed out of band.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Office setting lockdown on endpoints."
+  },
+  {
+   "id": "UAH-12",
+   "strategy": "User application hardening",
+   "text": "PDF software is blocked from creating child processes.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1670"
+   ],
+   "measurable": "RSoP shows ASR rule 7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C set to 1. ASD notes it applies only to Adobe PDF software and suggests a manual test: from Acrobat use File-Open, show all files, right-click an .exe and select Open — the rule should block it.",
+   "appliesToWebApp": "analogue",
+   "why": "Same mechanism as UAH-06 scoped to the document-rendering path: PDFs rendered client-side in a sandboxed context (pdf.js in a Web Worker inside an <iframe sandbox>, or the mobile OS document viewer), and any server-side PDF handling using an in-process library rather than shelling out to pdftoppm or ghostscript. Evidence is the absence of exec/spawn in the document pipeline, enforced by lint.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The ASR rule on endpoints running Adobe Acrobat."
+  },
+  {
+   "id": "UAH-13",
+   "strategy": "User application hardening",
+   "text": "PDF software is hardened using ASD and vendor hardening guidance, with the most restrictive guidance taking precedence when conflicts occur.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1860"
+   ],
+   "measurable": "Hardening typically applied via registry settings and visible in RSoP; ASD directs assessors to Adobe's 'Security Configuration Guide for Acrobat'.",
+   "appliesToWebApp": "analogue",
+   "why": "The PDF library the app ships is itself hardened and current: pdf.js instantiated with isEvalSupported: false and enableScripting: false so embedded PDF JavaScript cannot run, version pinned in the lockfile, and audit/Dependabot gating the build on known CVEs. Evidence is the viewer's option object in source plus a passing audit step.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Hardening of the PDF reader installed on endpoints."
+  },
+  {
+   "id": "UAH-14",
+   "strategy": "User application hardening",
+   "text": "PDF software security settings cannot be changed by users.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1824"
+   ],
+   "measurable": "RSoP shows security-related group policy settings for PDF software, or screenshots showing the controls greyed out.",
+   "appliesToWebApp": "analogue",
+   "why": "THE WEAKEST ANALOGUE IN THIS REGISTER, flagged rather than dressed up: the UAH-13 hardening flags are compile-time constants in the source bundle with no UI toggle, environment variable or remote-config key an end user or support operator could flip at runtime. Evidence is that a grep for the flag names finds exactly one definition site, in source, and no code path reads them from a user- or config-controlled value.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "PDF reader setting lockdown on endpoints."
+  },
+  {
+   "id": "UAH-15",
+   "strategy": "User application hardening",
+   "text": ".NET Framework 3.5 (includes .NET 2.0 and 3.0) is disabled or removed.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1655"
+   ],
+   "measurable": "Screenshot of Windows Features checking whether '.NET Framework 3.5 (includes .NET 2.0 and .NET 3.0)' shows a tick or black square. ASD notes enabling .NET 3.5 automatically enables PowerShell 2.0, so this and UAH-16 must be assessed together.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The proposed mapping — no EOL runtime or deprecated dependency in the build — is the identical evidence already claimed at PA-11, PA-13 and POS-16. The literal artefact is a Windows optional feature toggle.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-16",
+   "strategy": "User application hardening",
+   "text": "Windows PowerShell 2.0 is disabled or removed.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1621"
+   ],
+   "measurable": "Screenshot of Windows Features checking for 'Windows PowerShell 2.0'; ASD supplies Get-WindowsOptionalFeature -online | Where-Object {$_.FeatureName -match \"PowerShellv2\"} to confirm whether a downgrade is available.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The no-downgrade-path mapping (TLS floor, no legacy auth flow alongside PKCE, minimum-supported-app-version gate) restates controls claimed at MFA-10 and MFA-13. The literal artefact is a Windows optional feature.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-17",
+   "strategy": "User application hardening",
+   "text": "PowerShell is configured to use Constrained Language Mode.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1622"
+   ],
+   "measurable": "Screenshot of $ExecutionContext.SessionState.LanguageMode — 'ConstrainedLanguage' passes, 'FullLanguage' fails. ASD's rationale is that it prevents running tools that exploit PowerShell or load COM objects, libraries and classes into a session.",
+   "appliesToWebApp": "analogue",
+   "why": "The STRONGEST analogue in this strategy and retained for that reason: 'the interpreter available to an attacker runs in a restricted language mode'. In the browser the interpreter is JavaScript and the restriction is a CSP with no unsafe-eval and no unsafe-inline (nonce or hash based) plus no eval/new Function/dynamic Function construction in the bundle; server-side the database exposes only parameterised queries and named RPCs and Edge Functions run under a minimal explicit Deno permission set. Evidence: a CI check asserting unsafe-eval is absent from the deployed CSP header and a grep of the built bundle for eval sinks.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "PowerShell language mode on Windows endpoints."
+  },
+  {
+   "id": "UAH-18",
+   "strategy": "User application hardening",
+   "text": "PowerShell module logging, script block logging and transcription events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1623"
+   ],
+   "measurable": "RSoP shows 'Turn on Module Logging', 'Turn on PowerShell Script Block Logging' and 'Turn on PowerShell Transcription' all enabled, module logging ideally set to '*', and the assessor must confirm central storage rather than local retention.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The requirement names three specific PowerShell logging providers; the generalised 'server-side execution is logged centrally' mapping is a different control whose evidence (log drains from route handlers, Postgres, Auth, Storage and Edge Functions) is already claimed at RAP-20 and AC-11. Note this requirement changed shape in November 2023 — it used to mean application control events for blocked PowerShell scripts.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-19",
+   "strategy": "User application hardening",
+   "text": "Command line process creation events are centrally logged.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1889"
+   ],
+   "measurable": "RSoP shows 'Audit Process Creation' enabled with value 'Success' under Detailed Tracking AND 'Include command line in process creation events' enabled, with central storage confirmed. ASD's intent is to cover both shells an actor can use on a compromised device.",
+   "appliesToWebApp": "org-only",
+   "why": "RECLASSIFIED from 'analogue'. The subject is OS process creation with command lines on hosts the organisation runs. The control-plane audit mapping (Actions run logs, org audit log, Supabase project audit log, service-role key attribution) is already claimed at RAP-20 and RAP-21.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-20",
+   "strategy": "User application hardening",
+   "text": "Event logs are protected from unauthorised modification and deletion.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-LOG-PROTECT",
+   "ismControls": [
+    "ISM-1815"
+   ],
+   "measurable": "Assessor discusses whether a SIEM, or equivalent, protects logs from unauthorised modification and deletion; demonstrated write-once retention is stronger evidence.",
+   "appliesToWebApp": "direct",
+   "why": "Same canonical treatment as MFA-16, RAP-22 and AC-12. One artefact, counted once across all four strategies.",
+   "evidenceIfDirect": "The append-only audit table migration (RLS INSERT/SELECT only; REVOKE UPDATE, DELETE, TRUNCATE from every role including service_role; ON UPDATE/ON DELETE rule or trigger raising), the committed negative test asserting both fail as every role, and the log drain to object storage with a retention lock.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-21",
+   "strategy": "User application hardening",
+   "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-INTERNET",
+   "ismControls": [
+    "ISM-1906"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor internet-facing server logs for signs of compromise; supporting evidence is detection rules plus records of triage.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL — DOWNGRADED from the source's 'direct' to match identical text under Application control and MFA. See MFA-17.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Human triage and its records."
+  },
+  {
+   "id": "UAH-22",
+   "strategy": "User application hardening",
+   "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-NONINTERNET",
+   "ismControls": [
+    "ISM-1907"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor non-internet-facing server logs for signs of compromise.",
+   "appliesToWebApp": "analogue",
+   "why": "CANONICAL — see MFA-18.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Any internal server estate; human triage."
+  },
+  {
+   "id": "UAH-23",
+   "strategy": "User application hardening",
+   "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-ANALYSE-WORKSTATION",
+   "ismControls": [
+    "ISM-0109"
+   ],
+   "measurable": "Assessor discusses whether SOC analysts monitor workstation event logs for signs of compromise, with central collection rather than local retention.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-19.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-24",
+   "strategy": "User application hardening",
+   "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "in a timely manner (ASD sets no numeric window)",
+   "sharedClause": "SPINE-EVENTS-TO-INCIDENTS",
+   "ismControls": [
+    "ISM-1228"
+   ],
+   "measurable": "Assessor discusses how SOC analysts analyse events to determine whether an incident occurred; the incident register may also evidence it.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — DOWNGRADED from the source's 'analogue'. See MFA-20.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-25",
+   "strategy": "User application hardening",
+   "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-CISO",
+   "ismControls": [
+    "ISM-0123"
+   ],
+   "measurable": "Assessor discusses reporting to the CISO or delegate and whether typical timeframes are reasonable.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-21.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-26",
+   "strategy": "User application hardening",
+   "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "as soon as possible after they occur or are discovered (no numeric window)",
+   "sharedClause": "SPINE-REPORT-ASD",
+   "ismControls": [
+    "ISM-0140"
+   ],
+   "measurable": "Assessor discusses reporting to ASD and whether timeframes are reasonable; corroborating evidence is ReportCyber submissions or ASD case references.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-22.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "UAH-27",
+   "strategy": "User application hardening",
+   "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "SPINE-IR-PLAN",
+   "ismControls": [
+    "ISM-1819"
+   ],
+   "measurable": "Assessor requests the incident response plan and discusses the extent to which it is followed; post-incident reviews are the strongest evidence.",
+   "appliesToWebApp": "org-only",
+   "why": "CANONICAL — see MFA-23.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RB-01",
+   "strategy": "Regular backups",
+   "text": "Backups of data, applications and settings are performed and retained in accordance with business criticality and business continuity requirements.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "No fixed numeric window — frequency and retention are set by the organisation's own business criticality and business continuity requirements. ASD deliberately removed the previously prescriptive 'daily' frequency and 'three months or greater' retention; any checklist citing those numbers is pre-2023.",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1511"
+   ],
+   "measurable": "ASD directs assessors to discuss backup and retention frequencies including the business criticality of different data sets, and to request the business continuity plan to check frequency and retention are documented. Two-part evidence: a BCP stating the figures, plus backup configuration and job history showing they are met.",
+   "appliesToWebApp": "analogue",
+   "why": "DOWNGRADED from 'direct'. The repo holds the whole configuration half — Supabase PITR window and daily-backup retention days, a scheduled pg_dump/storage-sync job, object-store lifecycle rules, and a CI assertion that configuration >= a committed policy file — but the requirement's yardstick is 'in accordance with business criticality and business continuity requirements', and without the organisation's BCP there is nothing to be in accordance WITH. Note 'business criticality' was added in November 2023 and is the only change to this strategy in that release.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The business continuity plan supplying the RPO/RTO and criticality classifications."
+  },
+  {
+   "id": "RB-02",
+   "strategy": "Regular backups",
+   "text": "Backups of data, applications and settings are synchronised to enable restoration to a common point in time.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1810"
+   ],
+   "measurable": "Evidence that backup jobs for data, applications and settings are coordinated to a shared restore point. ASD's rationale: data backed up out of sync with associated applications and settings hampers restoration and risks data loss. An assessor looks for a single named/timestamped restore point spanning all three classes, not independently scheduled unaligned jobs.",
+   "appliesToWebApp": "direct",
+   "why": "All three artefact classes exist and can be bound into one record: data = Postgres plus Storage buckets; applications = the built Next.js/Expo artefacts and the commit that produced them; settings = migrations, RLS policies, Edge Function source and config manifests.",
+   "evidenceIfDirect": "A committed restore-manifest artefact emitted per backup binding the git commit SHA, applied migration version, Storage bucket snapshot id and Postgres PITR timestamp (or physical backup LSN); plus a CI assertion that all four fields in the newest manifest refer to the same wall-clock window and that the manifest's migration version matches the schema_migrations state captured in the dump.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RB-03",
+   "strategy": "Regular backups",
+   "text": "Backups of data, applications and settings are retained in a secure and resilient manner.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1811"
+   ],
+   "measurable": "ASD: 'Check what efforts have been made to ensure that backup processes and procedures are secure and resilient. For example, are backups encrypted and how quickly can they be used to recover from IT equipment failures?' Evidence: encryption at rest and in transit, storage isolated from the production failure domain, and a demonstrated recovery time. This is the bullet most often dropped from third-party ML1 checklists.",
+   "appliesToWebApp": "direct",
+   "why": "Every property is infrastructure the repo declares and CI can assert on a schedule.",
+   "evidenceIfDirect": "Committed infrastructure config placing backup artefacts in an object store in a separate region and separate cloud account from the production Supabase project, with server-side encryption plus an application-layer envelope key held outside the deploy credential, versioning enabled, and integrity checksums recorded in the restore manifest; plus a scheduled CI job verifying the checksums and asserting the bucket's encryption, region and cross-account policy.",
+   "orgOnlyResidue": ""
+  },
+  {
+   "id": "RB-04",
+   "strategy": "Regular backups",
+   "text": "Restoration of data, applications and settings from backups to a common point in time is tested as part of disaster recovery exercises.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "The model text sets no interval; ASD's assessment process guide qualifies it as 'regular (at least annually) disaster recovery exercises', so at least annually is the assessor's working expectation.",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1515"
+   ],
+   "measurable": "ASD: discuss whether DR exercises have been conducted, how often, when the last one was, and whether partial or full restoration (data, applications AND settings) was exercised; ideally an after-action review or post-exercise report exists. CRITICAL: 'business-as-usual recovery of user files is not sufficient. Rather, the intent of this control is the restoration of a significant component of a system as part of a scheduled exercise.'",
+   "appliesToWebApp": "analogue",
+   "why": "DOWNGRADED from 'direct', which the source itself qualified. A scheduled workflow restoring the newest manifest into a throwaway Supabase project, replaying migrations to the manifest's version, deploying the manifest's commit and running an E2E smoke suite with a dated pass/fail artefact is superb evidence — stronger than the interview method ASD describes — but ASD's subject is an EXERCISE, an organisational activity with participants and an after-action review, and a green CI job is not that.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "The scheduled organisational disaster recovery exercise, its participants, and the after-action review the assessor asks for."
+  },
+  {
+   "id": "RB-05",
+   "strategy": "Regular backups",
+   "text": "Unprivileged user accounts cannot access backups belonging to other user accounts.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1812"
+   ],
+   "measurable": "ASD: review the backup solution and AD security groups to determine who has access; where backups are on network shares, request a demonstration of effective access permissions showing an unprivileged account cannot access backups beyond their own. Evidence is an effective-permissions demonstration, not a policy statement.",
+   "appliesToWebApp": "analogue",
+   "why": "The literal control is NTFS/AD permissions on a backup share. Mapping: the unprivileged identity is the Postgres anon and authenticated role reached through PostgREST — REVOKE ALL on the backup schema, default-deny RLS with no permissive SELECT policy, per-user export buckets private with RLS keyed on auth.uid(), signed URLs per-object and short-lived. Testable with pgTAP/RLS tests asserting user A gets zero rows and 403s for user B's objects, plus a grant-audit query.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Backup-share permissions for any organisation-operated backup solution outside this stack."
+  },
+  {
+   "id": "RB-06",
+   "strategy": "Regular backups",
+   "text": "Unprivileged user accounts cannot access their own backups.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1813"
+   ],
+   "measurable": "ASD: use the ML1 guidance but apply the more restrictive access control — unprivileged accounts should no longer be able to access their OWN backups. At ML1 and ML2 self-access was explicitly acceptable ('it is not necessarily a problem if they are able to access their own backups'), so the assessor is checking for the tightening.",
+   "appliesToWebApp": "analogue",
+   "why": "Same identity mapping as RB-05 with the self-access carve-out removed: anon and authenticated have no read path to ANY backup artefact including their own — no self-service 'download my backup' route, no signed-URL issuance for the backup bucket from any user-facing procedure, REVOKE SELECT on all backup/snapshot tables from authenticated, default-deny RLS on the backup bucket's storage.objects rows. DESIGN TENSION WORTH FLAGGING: a GDPR/Privacy Act data-export feature is NOT a backup and must be built from live tables, not from the backup artefact, or this control breaks.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Backup-share permissions outside this stack."
+  },
+  {
+   "id": "RB-07",
+   "strategy": "Regular backups",
+   "text": "Privileged user accounts (excluding backup administrator accounts) cannot access backups belonging to other user accounts.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1705"
+   ],
+   "measurable": "ASD: use the ML1 guidance with more restrictive access control — privileged accounts should only be able to access their own backups, except backup administrator accounts. Assessors are pointed at AD queries and tools such as BloodHound to enumerate which accounts are privileged and which are genuinely backup administrators.",
+   "appliesToWebApp": "analogue",
+   "why": "Privileged identities here are the service_role key, the CI deploy identity, and human developers with Supabase or Vercel dashboard access. Define one narrow backup-administrator principal (a dedicated IAM role assumed only by the backup job) and deny every other privileged principal read access — no GetObject on the backup bucket for the deploy role, minimal Supabase org member roles, and a separate project/account boundary so production service_role confers nothing over the backup bucket. Checkable by asserting each non-backup principal's effective policy contains no read action on the backup bucket ARN.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Domain-admin-class account permissions on any organisation-operated backup solution."
+  },
+  {
+   "id": "RB-08",
+   "strategy": "Regular backups",
+   "text": "Privileged user accounts (excluding backup administrator accounts) cannot access their own backups.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1706"
+   ],
+   "measurable": "ASD: use the ML1 guidance with more restrictive access control — privileged accounts (excluding backup administrators) should no longer be able to access their own backups. The delta being assessed is removal of the self-access carve-out ML2 permitted.",
+   "appliesToWebApp": "analogue",
+   "why": "Same mapping as RB-07 with self-access removed: the deploy role, service_role and developer identities get zero read access to the backup store including any backup of their own environment, because the backup bucket's resource policy allows only the dedicated backup-administrator principal and explicitly Denies all others, so an admin cannot self-grant via an identity policy. Checkable by an IAM policy-simulator assertion in CI that each non-backup principal is denied GetObject/ListBucket.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Privileged account permissions on any organisation-operated backup solution."
+  },
+  {
+   "id": "RB-09",
+   "strategy": "Regular backups",
+   "text": "Unprivileged user accounts are prevented from modifying and deleting backups.",
+   "cumulativeFrom": "ML1",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1814"
+   ],
+   "measurable": "ASD: check whether unprivileged accounts can modify or delete their own backups; where backups are on network shares, demonstrate effective access permissions showing they cannot modify, delete, OR take ownership of content to change permissions. The 'take ownership' clause matters — the assessor checks indirect paths to write access. Note the verb is 'modifying AND deleting'; blocking delete while permitting overwrite fails, since ASD's stated threat is ransomware 'overwriting or deleting backups'.",
+   "appliesToWebApp": "analogue",
+   "why": "anon and authenticated hold no INSERT/UPDATE/DELETE grants on any backup or snapshot table and no permissive RLS write policy on the backup bucket's storage.objects rows, and no user-session-reachable mutation touches backup artefacts. The 'take ownership' equivalent is privilege-escalation paths — a SECURITY DEFINER function callable by authenticated that writes to backup tables, or an RLS policy whose USING clause a user can influence. Checkable by a pgTAP suite asserting write denial under a real user JWT plus a static check that no SECURITY DEFINER function granted to authenticated references the backup schema.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Write/ownership permissions on any organisation-operated backup share."
+  },
+  {
+   "id": "RB-10",
+   "strategy": "Regular backups",
+   "text": "Privileged user accounts (excluding backup administrator accounts) are prevented from modifying and deleting backups.",
+   "cumulativeFrom": "ML2",
+   "timeframes": "",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1707"
+   ],
+   "measurable": "ASD: use the ML1 guidance with more restrictive access control — privileged accounts should no longer be able to modify and delete backups; such activities are restricted to backup administrator accounts, provisioned per least privilege and separation of duties (a small group of trusted administrators, with a separate group for restoring).",
+   "appliesToWebApp": "analogue",
+   "why": "The CI deploy role, service_role and developer identities are denied PutObject, DeleteObject, DeleteObjectVersion and lifecycle/bucket-policy mutation on the backup bucket; only a dedicated backup-writer role may write and a distinct backup-restore role may only read into a scratch project, reproducing ASD's separation of duties. Checkable by asserting the bucket resource policy and each principal's effective permissions in CI. The residual gap from 'direct' is the cloud provider's root/organisation owner above the policy — which is exactly what RB-11 closes.",
+   "evidenceIfDirect": "",
+   "orgOnlyResidue": "Privileged account write permissions on any organisation-operated backup solution."
+  },
+  {
+   "id": "RB-11",
+   "strategy": "Regular backups",
+   "text": "Backup administrator accounts are prevented from modifying and deleting backups during their retention period.",
+   "cumulativeFrom": "new-at-ML3",
+   "timeframes": "'during their retention period' — the window is the organisation's own documented retention period set under RB-01, not an ASD-specified number. Deletion is permitted once that period has been exceeded.",
+   "sharedClause": "",
+   "ismControls": [
+    "ISM-1708"
+   ],
+   "measurable": "ASD: backup administrator accounts should no longer be able to modify and delete backups during the retention period, but may do so afterwards; where such activity is required during the period it 'need[s] to be restricted to break glass accounts'. NOTE 'break glass accounts' appears only in the assessment process guide, NOT in the maturity model text — do not cite it as model wording. Evidence: an immutability/retention-lock mechanism whose window matches the documented retention period, a demonstration that a backup administrator's delete attempt fails inside that window, and a controlled, logged break-glass path.",
+   "appliesToWebApp": "direct",
+   "why": "This maps onto WORM object storage exactly rather than by analogy: compliance-mode object lock is enforced by the storage service against every principal INCLUDING the account root and the backup-administrator role, so no identity policy can override it — the exact property ASD describes. Deletion inside the window then genuinely requires a break-glass path, auditable in the provider's audit trail.",
+   "evidenceIfDirect": "Committed infrastructure config enabling S3 Object Lock in COMPLIANCE mode (or the equivalent immutable-blob policy) on the backup bucket with default retention equal to the documented retention days; a CI assertion that GetObjectLockConfiguration returns COMPLIANCE with retention days >= the value in the committed retention policy file; and a negative test asserting the backup role's DeleteObject on a locked object returns AccessDenied.",
+   "orgOnlyResidue": ""
+  }
+ ],
+ "reviewNotes": [
+  "measurable fields marked NOTE were derived from the August 2023 or November 2023 Assessment Process Guide; the current edition is October 2024 and every such field should be re-derived from it before the register is used in an assessment.",
+  "ASD publishes example assessment test plans for ML2/ML3 (November 2023) with per-control Test IDs and a Test Methodology column, plus an assessment report template (v1.2). Those tables should replace the reconstructed measurable prose where they overlap.",
+  "Requirement text capture is verified clean and complete against the live page and should not be re-derived. All defects corrected in this register are downstream of the text: classification consistency, cross-strategy double-counting, and stale measurable sourcing."
+ ]
+}
