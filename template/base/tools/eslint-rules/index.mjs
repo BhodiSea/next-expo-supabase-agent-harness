@@ -464,7 +464,7 @@ const rules = {
             // before it surfaces (proven against the real Linter — the case
             // produced zero errors). A check cannot police the directive that
             // switches the checker off; that needs a scanner outside ESLint, which
-            // is the suppressions census the register schedules for 0.10.0.
+            // is the suppressions census the register schedules for 0.11.0.
             const named = comment.value.slice(directive[0].length).trim()
             if (named.includes('no-suppressed-complexity')) {
               context.report({ loc: comment.loc, messageId: 'stacked' })

@@ -11,13 +11,18 @@
 // sold it as one would be selling a boundary that a five-line curl walks around.
 // SOURCE: docs/adr/20260204-rate-limiting.md
 //
-// FAIL OPEN, DELIBERATELY. When the limiter cannot answer — Redis unreachable, a REST
-// timeout, a 500 from the provider — `withFailOpen` lets the request through and reports
-// the failure. A limiter that fails CLOSED converts a dependency outage into a total
-// outage of a product that was working fine a second earlier, and it does so at exactly
-// the moment the operator is least able to react. The trade is stated rather than hidden:
-// during a limiter outage there is no rate limiting, and the `degraded` flag on every
-// decision is what makes that visible to a metric instead of invisible.
+// FAIL OPEN, DELIBERATELY — BUT NOT UNBOUNDED (0.10.0). When the limiter cannot answer —
+// Redis unreachable, a REST timeout, a 500 from the provider — `withFailOpen` reports the
+// failure and DEGRADES TO THE IN-PROCESS LIMITER rather than letting everything through.
+// A limiter that fails CLOSED converts a dependency outage into a total outage of a
+// product that was working fine a second earlier, and it does so at exactly the moment the
+// operator is least able to react; that reasoning is unchanged. What changed is that
+// "cannot answer" no longer means "no limit at all": through 0.9.9 the outage rung was the
+// one place a real limiter existed in this file and was not used. The trade is still
+// stated rather than hidden — during an outage the budget is multiplied by the instance
+// count, and on a serverless platform that discards the process it approaches no limit —
+// and the `degraded` flag makes it visible to a metric. `counted` separates the two
+// degraded states: the fallback decided, or the fallback failed too and nothing counted.
 //
 // NO SDK. The Upstash adapter speaks the documented REST API over plain `fetch`, so this
 // package adds ZERO runtime dependencies to a scaffold: no supply-chain surface for a
@@ -67,6 +72,20 @@ export interface RateLimitDecision {
   readonly remaining: number
   /** Whole seconds until the caller is inside the budget again; 0 when allowed. */
   readonly retryAfterSeconds: number
+  /**
+   * Whether a limiter actually COUNTED this hit (0.10.0).
+   *
+   * `degraded` alone stopped being enough the moment the outage path gained a real
+   * limiter. It now covers two materially different states, and an operator needs to tell
+   * them apart during the incident, not afterwards:
+   *   degraded && counted    — the backend is down and the in-process fallback is
+   *                            counting. Budgets are multiplied by the instance count.
+   *   degraded && !counted   — the fallback ALSO failed. Nothing counted; this is the pure
+   *                            fail-open window the package shipped with.
+   * Optional, and read by nobody on the wire: the tRPC route projects a decision down to
+   * `{ allowed, retryAfterSeconds }`, so adding it cannot change a response.
+   */
+  readonly counted?: boolean
 }
 
 /** The port. Two adapters ship; a deployment may write a third. */
@@ -131,15 +150,49 @@ function degradedAllow(bucket: RateLimitBucket): RateLimitDecision {
 }
 
 /**
- * Wrap a limiter so an unavailable backend allows the request and REPORTS itself.
+ * Wrap a limiter so an unavailable backend DEGRADES TO PER-INSTANCE LIMITING and reports
+ * itself — rather than letting everything through.
  *
  * Every caller uses this. The adapters below are deliberately allowed to throw — an
  * adapter that swallowed its own failures could never be tested for them, and the
  * decision to fail open belongs at one reviewable seam rather than inside each transport.
+ *
+ * WHAT 0.10.0 CHANGED, AND WHY IT IS NOT A REVERSAL OF THE FAIL-OPEN DOCTRINE. Through
+ * 0.9.9 the catch returned `degradedAllow` unconditionally: during a Redis outage there
+ * was no rate limiting at all, on any instance, for as long as the outage lasted. The
+ * memory limiter already existed in this file and was already wired at the CONFIGURATION
+ * rung (no credentials at boot) — so the outage rung was the one place a real limiter was
+ * available and not used. It now runs there too. This is still fail-OPEN relative to the
+ * backend: a caller inside the per-instance budget is allowed, and the limiter never
+ * converts a dependency outage into a total outage. What changes is the ceiling during an
+ * outage — `limit × instances` instead of unbounded — which is the same trade the
+ * configuration rung already made, applied at the rung that needs it most.
+ *
+ * THE FALLBACK INSTANCE IS SHARED, AND THAT IS THE POINT. It is constructed ONCE per
+ * wrapper (a default parameter is evaluated at the `withFailOpen(...)` call, not per
+ * request), so its window survives a flapping backend: an outage that drops in and out ten
+ * times in a minute keeps one counter rather than resetting to zero on each recovery.
+ *
+ * STATED LOSSES, all three real:
+ *   1. `limit × instances` during an outage, and on a serverless platform that discards
+ *      the process between requests, effectively no limit at all.
+ *   2. `retryAfterSeconds` is computed from the FALLBACK's own sparse hit log, so during
+ *      an outage the advice can be up to a full window (3600s on the provisioning bucket)
+ *      and is NOT invalidated when the backend recovers. The seeded surfaces neither
+ *      render nor sleep on it; a consumer that does is the one taking that risk.
+ *   3. The outage's working set is RETAINED after recovery. createMemoryRateLimiter prunes
+ *      only the key it is touching, inside limit() — there is no timer and no sweep — so
+ *      keys seen during an outage stay in the Map until they are touched again or evicted
+ *      by the maxKeys LRU. Bounded in key count, unbounded in per-key array length.
+ *      Accepted rather than fixed: a reaper is a timer in a package that deliberately has
+ *      no lifecycle, and the LRU already bounds what a hostile caller can cost.
+ *
+ * @param fallback injectable for the tests; the default is the shared in-process limiter.
  */
 export function withFailOpen(
   inner: RateLimiter,
   onUnavailable: (error: unknown) => void,
+  fallback: RateLimiter = createMemoryRateLimiter(),
 ): RateLimiter {
   return {
     async limit(key, bucket) {
@@ -147,10 +200,52 @@ export function withFailOpen(
         return await inner.limit(key, bucket)
       } catch (error) {
         onUnavailable(error)
-        return degradedAllow(bucket)
+        try {
+          // `degraded: true` regardless of the verdict: the caller's ONE degraded-decision
+          // log line keys on it, and a DENIAL issued by the fallback is still a decision
+          // taken without the backend. `counted: true` is what separates it from the
+          // last-resort branch below.
+          const decision = await fallback.limit(key, bucket)
+          return { ...decision, counted: true, degraded: true }
+        } catch {
+          // THE LAST RESORT — the fallback threw too. `onUnavailable` deliberately does
+          // NOT fire a second time: the caller's contract is exactly one report per
+          // degraded decision, and rate-limit-runtime.ts's lastOutageReason would
+          // otherwise be overwritten by the in-process failure instead of naming the
+          // transport failure that actually caused the outage.
+          return { ...degradedAllow(bucket), counted: false }
+        }
       }
     },
   }
+}
+
+/**
+ * How a degraded decision should be reported, as data — the pure half of the caller's log.
+ *
+ * IT LIVES HERE BECAUSE THE CALLER CANNOT BE UNIT-TESTED. apps/web/lib/rate-limit-runtime.ts
+ * opens with `import 'server-only'`, whose exports map resolves to a module that throws
+ * outside a React Server Component, so a vitest file importing it dies on the import. That
+ * poison pill is correct and stays. Extracting the JUDGEMENT — which of the two degraded
+ * states this is, and therefore what the operator must be told — puts it in a module the
+ * package's own suite already imports, so the branch has a red-proof instead of an
+ * assertion nobody can execute.
+ */
+export function degradedReport(
+  decision: RateLimitDecision,
+): { readonly effect: string; readonly counting: boolean } | null {
+  if (!decision.degraded) return null
+  return decision.counted === false
+    ? {
+        counting: false,
+        effect:
+          'NOTHING is counting — the backend and the in-process fallback both failed, so this request was allowed unconditionally',
+      }
+    : {
+        counting: true,
+        effect:
+          'counting PER PROCESS — the backend is unavailable and the in-process fallback is deciding, so the configured budget is multiplied by the instance count',
+      }
 }
 
 /**

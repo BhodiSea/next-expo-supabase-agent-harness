@@ -38,7 +38,7 @@ const readme = unwrap(read('../README.md'))
 const changelog = unwrap(read('../CHANGELOG.md'))
 const chainBudget = JSON.parse(read('./chain-budget.json'))
 
-const { VALIDATE_STEPS } = await import(
+const { VALIDATE_STEPS, STOP_HOOK_STEPS } = await import(
   new URL('../template/base/tools/harness.config.mjs', import.meta.url).href
 )
 const guards = await import(
@@ -155,6 +155,7 @@ const lintBlockingChecks = (() => {
 
 const truth = {
   chainSteps: VALIDATE_STEPS.length,
+  stopSteps: STOP_HOOK_STEPS.length,
   canarySteps: injections === null ? null : Object.keys(injections.steps).length,
   guardRuleIds: ruleIds.length,
   canaryLegs: canaryNumbers.size,
@@ -341,6 +342,33 @@ for (const [, n] of readme.matchAll(/\b(\d+)[ -](?:gates|steps?\b)/g)) {
     problems.push(
       `README claims "${n} gates/steps" but VALIDATE_STEPS has ${String(truth.chainSteps)} — the chain is the source of truth (tools/harness.config.mjs)`,
     )
+  }
+}
+
+// ── 1a. DERIVABLE: the "<validate>/<stop>" count-match claim ─────────────────────
+// THE SENTENCE THAT ASSERTS THE COUNT-MATCH WAS ITSELF THE ONE CLAIM NOTHING READ.
+// README.md carries "count-matched to the 34/10 chain-and-Stop measurement", and every
+// matcher above needs the literal word `gates` or `steps` adjacent to the number — a
+// slash-joined pair matches none of them. So the sentence whose entire job is to say the
+// published figures are count-matched could go stale in exactly the release that changed
+// the counts, which is the release a reader would most rely on it. Both halves are judged,
+// because the Stop side has the same hole from the other direction (`AGENTS.md`'s "The 10
+// Stop-chain steps, in order:" evades CHAIN_PHRASE for want of the word `gates`).
+// README.md is deliberately added here: `proseSurfaces` is the SHIPPED/design prose set and
+// excludes it (the README has its own dedicated matchers above), but the count-match sentence
+// lives in the README and nowhere else — scanning only proseSurfaces would ship a checker
+// that cannot see its own subject, which is the vacuity this whole leg exists to prevent.
+for (const [file, text] of [
+  ...proseSurfaces,
+  /** @type {[string, string]} */ (['README.md', readme]),
+]) {
+  for (const m of unwrap(text).matchAll(/count-matched to the (\d+)\/(\d+)\b/gi)) {
+    const [claimedChain, claimedStop] = [Number(m[1]), Number(m[2])]
+    if (claimedChain !== truth.chainSteps || claimedStop !== truth.stopSteps) {
+      problems.push(
+        `${file} says "${m[0]}" but the chain is ${String(truth.chainSteps)}/${String(truth.stopSteps)} (VALIDATE_STEPS / STOP_HOOK_STEPS in tools/harness.config.mjs) — this is the sentence that ASSERTS the published figures are count-matched, so it is the last one that may drift.`,
+      )
+    }
   }
 }
 

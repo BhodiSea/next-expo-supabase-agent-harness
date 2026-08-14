@@ -250,6 +250,58 @@ test('RED: impure CLAUDE.md and an advertised script that does not exist', () =>
   assert.ok(ghost.out.includes('`pnpm validate`'), ghost.out)
 })
 
+// ── STOP-LIST lockstep (0.10.0). AGENTS.md's "The N Stop-chain steps, in order:"
+// sentence had no reader at all: check 2 closes only over VALIDATE_STEPS, and
+// check-claims' CHAIN_PHRASE needs the literal word `gates`, which that sentence
+// does not contain. Floor-scoped and one-directional, so a consumer APPEND stays
+// the consumer's business (the append case is pinned separately, below). ──
+
+test('RED: an AGENTS.md Stop list that omits a floor step reds, naming the omission', () => {
+  const dropped = shippedAgents.replace(/`test-quality`,\s*\n?\s*/, '')
+  assert.notEqual(dropped, shippedAgents, 'fixture must actually drop a Stop step')
+  const r = runGate(fixture({ agents: dropped }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('Stop-chain list omits'), r.out)
+  assert.ok(r.out.includes('test-quality'), r.out)
+})
+
+test('RED: a Stop sentence that contradicts its own count reds', () => {
+  const miscounted = shippedAgents.replace(
+    'The 10 Stop-chain steps, in order:',
+    'The 9 Stop-chain steps, in order:',
+  )
+  assert.notEqual(miscounted, shippedAgents, 'fixture must actually change the count')
+  const r = runGate(fixture({ agents: miscounted }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('then lists 10 names'), r.out)
+})
+
+test('GREEN: deleting the Stop sentence deletes the check — a fork may not document it', () => {
+  const gone = shippedAgents.replace(
+    /- The 10 Stop-chain steps, in order:[\s\S]*?reviewer-verdicts`\./,
+    '- (Stop chain undocumented in this fork.)',
+  )
+  assert.notEqual(gone, shippedAgents, 'fixture must actually remove the sentence')
+  assert.ok(!gone.includes('Stop-chain steps, in order'), 'the sentence must be gone')
+  const r = runGate(fixture({ agents: gone }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('NOTE: Stop-list drift is advisory on a pre-0.10.0 install until 0.11.0', () => {
+  // The measured population: v0.3.0 through v0.5.0 shipped "The 9 Stop-chain steps"
+  // against today's 10-step floor. AGENTS.md is SEEDED, so `update` cannot fix it and a
+  // hard red would be an ambush on an upgrade the consumer did not ask for.
+  const nineStep = shippedAgents
+    .replace('The 10 Stop-chain steps, in order:', 'The 9 Stop-chain steps, in order:')
+    .replace(/,\s*\n?\s*`reviewer-verdicts`\./, '.')
+  assert.ok(!nineStep.includes('`reviewer-verdicts`.'), 'fixture must drop the trailing step')
+  const r = runGate(
+    fixture({ agents: nineStep, manifest: { baseVersion: '0.5.0', harnessVersion: '0.10.0' } }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE') && r.out.includes('Stop-chain list'), r.out)
+})
+
 // ── catalog lockstep: every VALIDATE_STEPS name needs its numbered
 // `### <n>. <name> — ` section in docs/harness/gates-catalog.md. In this lineage
 // the check ships in 0.1.0, so it is live on every fresh install. ──
@@ -264,6 +316,37 @@ test('RED: renaming a numbered catalog section reds the catalog-lockstep sub-che
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes("gate 'perf-budget' has no section"), r.out)
   assert.ok(r.out.includes('FIX[docs-sync]:'), r.out)
+})
+
+// ── catalog ORDINALS (0.10.0). Membership answers "is every gate documented";
+// it cannot answer "does section 12 describe chain step 12". The ordinal was
+// parsed and discarded, so a mid-chain injection renumbered every heading below
+// it by hand with nothing checking the result. Landed on the 34-step tree ON
+// PURPOSE: the release that grows the chain must inherit a proved checker, not
+// author one against the tree it is meant to judge. ──
+
+test('RED: a catalog ordinal that disagrees with the chain index reds, naming both numbers', () => {
+  // `boundaries` is chain step 8. Renumber its heading to 9 and nothing else:
+  // membership still passes (the NAME is intact), so this can only be caught by
+  // the ordinal check — which is the point of the fixture.
+  const misnumbered = shippedCatalog.replace(/^### 8\. boundaries — /m, '### 9. boundaries — ')
+  assert.notEqual(misnumbered, shippedCatalog, 'fixture must actually renumber a section')
+  const r = runGate(fixture({ agents: shippedAgents, catalog: misnumbered }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("numbers 'boundaries' as section 9"), r.out)
+  assert.ok(r.out.includes('chain step 8'), r.out)
+  // And it is NOT the membership error — proving the two sub-checks are distinct.
+  assert.ok(!r.out.includes("gate 'boundaries' has no section"), r.out)
+})
+
+test('the ordinal check ignores headings that are not chain steps', () => {
+  // An unnumbered Stop-floor heading (`### reviewer-verdicts — `) and the runner
+  // note carry no ordinal at all, and a NUMBERED heading whose name is not a chain
+  // step must not be judged either — otherwise a fork documenting an extra gate
+  // would red on a number this chain has no opinion about.
+  const extra = `${shippedCatalog}\n\n### 99. not-a-chain-step — \`node tools/nope.mjs\`\n\nBody.\n`
+  const r = runGate(fixture({ agents: shippedAgents, catalog: extra }))
+  assert.equal(r.code, 0, r.out)
 })
 
 test('RED: a deleted catalog file fails naming the owned doc; module/runner sections never satisfy the check', () => {

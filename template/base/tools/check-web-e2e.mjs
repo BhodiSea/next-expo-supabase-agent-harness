@@ -4,13 +4,18 @@
 // Stop chain — the web analog of check-e2e-device.mjs for the mobile device lane. Its
 // value over a bare `playwright test` is that Playwright exits 0 on an EMPTY run, so a
 // consumer who deletes every spec would get a silently-green lane; this runner fails
-// closed on that (and on a spec with no assertion, or no accessibility scan) BEFORE
-// handing off to the browser.
+// closed on that (and on a spec with no assertion, no accessibility scan, or an
+// accessibility scan narrowed below the reviewed tag ladder) BEFORE handing off to the
+// browser.
 //   1. apps/web ships a Playwright config and at least one *.spec.* — a browser lane
 //      with no spec is vacuous.
 //   2. Non-vacuity: every spec carries a real `expect(`, and at least one spec runs an
 //      axe scan (@axe-core/playwright / AxeBuilder) — the a11y net must actually exist,
 //      not just the smoke test.
+//   2b. Every EXPLICITLY TAGGED axe scan carries the full reviewed ladder (0.10.0,
+//      ramped to 0.11.0). `withTags` narrows axe, so a short list is a decision not to
+//      run the rules outside it — and it is a decision nothing read until this axis
+//      existed. Untagged scans are exempt on purpose: they run a BROADER set.
 //   3. Then `pnpm --filter web exec playwright test` — a failing browser assertion or an
 //      axe violation reds the lane.
 // Skip-local / fail-closed-CI: without an install (browsers absent) this SKIPS loudly
@@ -76,9 +81,27 @@ const IDENTITY = /auth\.admin\.createUser|auth\.signUp|admin\.generateLink/
 const RELOAD = /\.reload\s*\(/
 const PLANTED = /\.addCookies\s*\(/
 
+// The tag ladder every EXPLICITLY TAGGED axe scan must carry (0.10.0). Measured against
+// axe-core 4.13.0's own rule table rather than recalled, because three of the obvious
+// spellings are wrong in ways that read as working:
+//   wcag22a  — selects ZERO rules, and axe's unknown-tag warning is suppressed by its
+//              own whitelist regex, so it would pass review, run green and check nothing.
+//   wcag21a  — its ONLY rule (label-content-name-mismatch) carries `experimental`, and
+//              axe's default tagExclude is ["experimental","deprecated"], so the tag can
+//              run on no DOM at all under the shipped configuration.
+//   wcag22aa — adds exactly ONE rule, target-size. That single rule IS the whole of axe's
+//              automated WCAG 2.2 AA surface: 2.4.11, 3.2.6, 3.3.7 and 3.3.8 have no
+//              automated rule of any kind, which is why no document here claims the level.
+// So the honest ladder is four tags selecting three more rules than the 2.0 pair did:
+// autocomplete-valid, avoid-inline-spacing (both wcag21aa) and target-size.
+const REQUIRED_AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']
+const TAGGED_SCAN = /withTags\s*\(/
+
 let anyAxe = false
 let anySecurityHeaders = false
 let anyAuthenticated = false
+/** specs that pass an explicit tag list, and which required tags each one omits */
+const tagGaps = []
 for (const spec of specs) {
   // COMMENTS BLANKED FIRST, for every axis below. A marker named only in prose must not
   // satisfy a requirement, and a construct that has been commented out must not create a
@@ -90,7 +113,21 @@ for (const spec of specs) {
     errs.push(`${spec} carries no \`expect(\` — a spec with no assertion cannot go red`)
   }
   if (IDENTITY.test(text) && RELOAD.test(text) && !PLANTED.test(text)) anyAuthenticated = true
-  if (/@axe-core\/playwright|AxeBuilder/.test(text)) anyAxe = true
+  if (/@axe-core\/playwright|AxeBuilder/.test(text)) {
+    anyAxe = true
+    // JUDGED ONLY WHEN THE SPEC PASSES AN EXPLICIT TAG LIST, and that exemption is the
+    // whole correctness of this check rather than a softening of it. `withTags` NARROWS
+    // axe to the named tags; a bare `new AxeBuilder({ page }).analyze()` runs every
+    // enabled, non-experimental rule — a BROADER scan than this ladder. Demanding tags
+    // there would red the stricter spec and its only accepted remediation would be to
+    // shrink the scan, which is the opposite of what this exists for.
+    if (TAGGED_SCAN.test(text)) {
+      const missing = REQUIRED_AXE_TAGS.filter(
+        (t) => !text.includes(`'${t}'`) && !text.includes(`"${t}"`),
+      )
+      if (missing.length > 0) tagGaps.push({ spec, missing })
+    }
+  }
   // The live half of the security-headers gate. Both markers required: reading
   // response.headers() proves the headers arrive, and collecting
   // securitypolicyviolation proves the CSP does not blank the app it protects. A
@@ -103,6 +140,30 @@ if (specs.length > 0 && !anyAxe) {
   errs.push(
     `no spec under ${E2E_DIR} runs an axe scan (@axe-core/playwright / AxeBuilder) — the accessibility net must exist, not just the smoke test`,
   )
+}
+if (tagGaps.length > 0) {
+  // RAMPED to 0.11.0, and for the channel reason rather than a soft one. This RUNNER is
+  // harness-OWNED, so `update` arms the demand on every install at once; the specs it
+  // judges are SEEDED, so `update` cannot rewrite them and an upgrading consumer would
+  // meet a hard-red lane on files they never touched. Same shape as the 0.6.0 axis above,
+  // and the same remedy: the correction travels as a seededSourceFixes instruction while
+  // the NOTE names it. A fresh scaffold is seeded with the widened specs and is held to
+  // the rule immediately, because rampNote is inert when baseVersion >= minVersion.
+  const ramped = rampNote(
+    GATE,
+    '0.10.0',
+    `the axe tag ladder (a tagged scan omitting ${REQUIRED_AXE_TAGS.join('/')}) — the seeded specs carry the widened set, but update cannot rewrite an existing install's`,
+    { until: '0.11.0' },
+  )
+  const bucket = ramped ? notes : errs
+  for (const { spec, missing } of tagGaps) {
+    bucket.push(
+      `${spec} runs a TAGGED axe scan that omits ${missing.map((t) => `'${t}'`).join(', ')} — a tag list is a NARROWING, so every rule outside it is one this suite has decided not to run. ` +
+        `Add the missing tag(s) to the withTags([...]) call. What they buy, stated exactly so nobody reads more into it than is there: ` +
+        `'wcag21aa' arms autocomplete-valid and avoid-inline-spacing, 'wcag22aa' arms target-size, and target-size is the ONLY automated WCAG 2.2 AA rule axe has. ` +
+        `On the routes this template seeds none of the three can currently produce a finding — no element carries an autocomplete attribute, React cannot emit '!important' from a style object, and every control clears 24px via the 44px touch token — so this ARMS the rules for the routes you add, and does not newly check the ones shipped here.`,
+    )
+  }
 }
 if (specs.length > 0 && !anyAuthenticated) {
   // RAMPED to 0.7.0, and the reason is a consequence of getting the seeding right rather

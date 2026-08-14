@@ -150,6 +150,96 @@ if (!listMatch) {
   }
 }
 
+// 2b. STOP-LIST LOCKSTEP (0.10.0). The mirror of check 2, on the array this harness also
+//     grows, and until now it had no reader at all. AGENTS.md carries "The 10 Stop-chain
+//     steps, in order: `validate`, ... `reviewer-verdicts`." — an always-loaded claim about
+//     the TURN-FATAL chain — and every existing matcher missed it from both sides:
+//     check 2 closes only over VALIDATE_STEPS, and check-claims' CHAIN_PHRASE needs the
+//     literal word `gates`, which this sentence does not contain. So the Stop chain could
+//     grow and the consumer's memory file would keep listing a chain that is not the chain,
+//     with nothing red, ever. Built here on a known-good 10-step tree deliberately.
+//
+//     ABSENT IS GREEN, matching the AGENTS.md self-budget precedent: deleting the sentence
+//     deletes the check, because a fork may legitimately not document the Stop chain. What
+//     is refused is a sentence that is WRONG.
+//
+//     THE UNIVERSE IS THE FROZEN FLOOR, NOT THE LIVE CONFIG, and this is the one place the
+//     Stop mirror must NOT copy check 2. STOP_HOOK_STEPS is the union of the floor and
+//     whatever the project APPENDED, and the harness has already decided — in the catalog
+//     closure below, and in a test that pins it — that a consumer-appended Stop step needs
+//     no harness documentation. Judging AGENTS.md against the live union would reverse that
+//     silently: appending a step to your own Stop chain would suddenly red your memory file.
+//     So membership runs ONE direction, floor -> AGENTS.md: every step the HARNESS ships
+//     must be documented, in floor order, and any extra name the project lists beyond the
+//     floor is the project's business. The count is judged for INTERNAL consistency against
+//     the names the sentence itself lists, which is the half that stays true either way.
+const stopMatch = agents.match(/The (\d+) Stop-chain steps, in order:([\s\S]*?)(?:\(|\.\s*$|\.\n)/m)
+let floorStopNames = []
+try {
+  const parsed = JSON.parse(readFileSync('tools/stop.floor.json', 'utf8'))
+  floorStopNames = (Array.isArray(parsed.steps) ? parsed.steps : [])
+    .map((s) => (Array.isArray(s) ? s[0] : null))
+    .filter((n) => typeof n === 'string')
+} catch {
+  // The catalog closure below already fails CLOSED on an unreadable floor and names it
+  // precisely; duplicating that error here would report one defect twice.
+}
+if (stopMatch && floorStopNames.length > 0) {
+  const documentedStopCount = Number(stopMatch[1])
+  const documentedStop = [...stopMatch[2].matchAll(/`([a-z0-9-]+)`/g)].map((m) => m[1])
+  const stopErrs = []
+  if (documentedStopCount !== documentedStop.length) {
+    stopErrs.push(
+      `AGENTS.md says "The ${String(documentedStopCount)} Stop-chain steps" but then lists ${String(documentedStop.length)} names — the sentence contradicts itself`,
+    )
+  }
+  const documentedSet = new Set(documentedStop)
+  const missingFromDoc = floorStopNames.filter((n) => !documentedSet.has(n))
+  if (missingFromDoc.length > 0) {
+    stopErrs.push(
+      `AGENTS.md Stop-chain list omits ${String(missingFromDoc.length)} step(s) the harness ships: ${missingFromDoc.join(', ')}.\n    documented: ${documentedStop.join(', ')}\n    floor:      ${floorStopNames.join(', ')}`,
+    )
+  }
+  // Order, judged over the floor steps the doc DOES carry — an append may sit anywhere,
+  // but the harness's own steps must appear in the order the harness runs them.
+  const docFloorOrder = documentedStop.filter((n) => floorStopNames.includes(n))
+  const expectedOrder = floorStopNames.filter((n) => documentedSet.has(n))
+  if (docFloorOrder.join(',') !== expectedOrder.join(',')) {
+    stopErrs.push(
+      `AGENTS.md Stop-chain list reorders the harness's own steps.\n    documented: ${docFloorOrder.join(', ')}\n    floor order: ${expectedOrder.join(', ')}`,
+    )
+  }
+  // Additive drift is the harness's doing here too, decided exactly as check 2 decides it:
+  // if every documented floor step still exists in the floor and their relative order
+  // holds, the only difference is steps the harness ADDED.
+  const stopAdditiveOnly = docFloorOrder.join(',') === expectedOrder.join(',')
+  // RAMPED because AGENTS.md is SEEDED and this check is NEW: `update` cannot rewrite a
+  // project's memory file, so every install that predates the sentence's current wording
+  // would meet a hard red on an upgrade it did not ask for. The population is real and was
+  // measured rather than assumed — v0.3.0 through v0.5.0 shipped "The 9 Stop-chain steps"
+  // against today's 10-step chain, and v0.1.3/v0.2.1 carry no sentence at all (green by the
+  // absent-is-green rule above). Expires at 0.11.0; the obligations row
+  // `docs-sync-stop-list-ramp-expiry` carries that deadline and was written DELIBERATELY,
+  // because rampObligationProblems matches on `id.includes(gate)` and the pre-existing
+  // docs-sync-adr-shape row would otherwise have satisfied the union by accident.
+  //
+  // The comment lives HERE and not inside the condition, for the reason check 2 records:
+  // check-ramp-ledger reads the line preceding `rampNote(` to decide the result is consumed.
+  if (stopErrs.length > 0) {
+    if (
+      stopAdditiveOnly &&
+      rampNote(GATE, '0.10.0', 'AGENTS.md Stop-chain list lockstep', { until: '0.11.0' })
+    ) {
+      for (const e of stopErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+      console.log(
+        `${GATE}: NOTE — every documented Stop step still exists and the order holds, so this drift is steps the UPDATE injected. Paste the ${String(floorStopNames.length)} floor names above into AGENTS.md's "The N Stop-chain steps, in order:" sentence, then graduate.`,
+      )
+    } else {
+      errs.push(...stopErrs)
+    }
+  }
+}
+
 // 3. Advertised pnpm scripts exist. Only bare `pnpm <script>` invocations are
 //    script names; exec/dlx/install/add/--filter forms are pnpm-native.
 let scripts = {}
@@ -350,11 +440,35 @@ if (!existsSync(CATALOG)) {
   catalogErrs.push(`${CATALOG} missing — the harness ships it (owned; \`update\` restores it)`)
 } else {
   const catalog = readFileSync(CATALOG, 'utf8')
-  const sections = new Set([...catalog.matchAll(/^### \d+\. ([a-z0-9-]+) — /gm)].map((m) => m[1]))
+  const numbered = [...catalog.matchAll(/^### (\d+)\. ([a-z0-9-]+) — /gm)].map((m) => ({
+    ordinal: Number(m[1]),
+    name: m[2],
+  }))
+  const sections = new Set(numbered.map((s) => s.name))
   for (const name of stepNames) {
     if (!sections.has(name)) {
       catalogErrs.push(
         `gate '${name}' has no section in ${CATALOG} — add a numbered heading (### <n>. ${name} — \`<command>\`) with its anti-vacuity proof`,
+      )
+    }
+  }
+
+  // THE ORDINAL WAS PARSED AND THROWN AWAY, which made the catalog's numbering the one
+  // chain-derived fact in the harness with no machine behind it. Membership above answers
+  // "is every gate documented"; it cannot answer "does section 12 describe chain step 12".
+  // That gap only bites during a MID-CHAIN INJECTION, when a new step renumbers every
+  // heading below it by hand — 0.8.0 renumbered 9 through 34 with nothing checking the
+  // result, and 0.10.0's own planning found the next injection would renumber ~27 more.
+  // Checked here, on a tree where the numbering is known-good, so the release that grows
+  // the chain inherits a proved checker instead of authoring one against the very tree it
+  // is meant to judge. Only gates that ARE chain steps are judged, in chain order; an
+  // unnumbered heading is the Stop-floor grammar below and is not this check's business.
+  const chainIndex = new Map(stepNames.map((n, i) => [n, i + 1]))
+  for (const { ordinal, name } of numbered) {
+    const expected = chainIndex.get(name)
+    if (expected !== undefined && ordinal !== expected) {
+      catalogErrs.push(
+        `${CATALOG} numbers '${name}' as section ${String(ordinal)} but it is chain step ${String(expected)} of ${String(stepNames.length)} (tools/harness.config.mjs) — a mid-chain injection renumbers every heading below it, and the ordinals are what a reader counts by.`,
       )
     }
   }

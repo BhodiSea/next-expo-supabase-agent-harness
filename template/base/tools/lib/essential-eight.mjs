@@ -338,36 +338,84 @@ export function sharedClauseProblems(reg) {
   return problems
 }
 
+/** A row that claims a control is one graded `effective` or `alternate-control`. */
+const POSITIVE = new Set(['effective', 'alternate-control'])
+
 /**
- * Closure 4 — a simulated-activity claim names a REGISTERED can-fail proof.
+ * One positive-claim row's canary obligations. @returns {string[]}
+ */
+function positiveCanaryProblems(r, at, canaryKeys) {
+  if (!r.canary) {
+    return [
+      `${at}: outcome '${String(r.outcome)}' is a POSITIVE claim, so it must name the 'canary' — the tests/canary/injections.json entry whose injection proves control '${String(r.control)}' can go RED. A control nobody has shown to fail is indistinguishable from one that cannot, and this register's whole subject is that difference.`,
+    ]
+  }
+  const out = []
+  if (!canaryKeys.has(r.canary)) {
+    out.push(
+      `${at}: canary '${String(r.canary)}' has no entry in tests/canary/injections.json under steps{} or lanes{} — the red-proof this row cites is not registered anywhere.`,
+    )
+  }
+  // THE ANTI-INFLATION HALF, and the reason the field is not merely a duplicate of `control`.
+  // Without it a row could cite ANY registered proof — the tenancy canary as evidence for an
+  // auth requirement — and the closure above would pass, because the id resolves. Naming a
+  // real proof for a different gate is the cheapest way to make an unproven claim look closed.
+  if (r.control && r.canary !== r.control) {
+    out.push(
+      `${at}: canary '${String(r.canary)}' does not name the control this row claims ('${String(r.control)}'). A row may cite only the red-proof of its OWN control; citing another gate's proof resolves cleanly and proves nothing about this requirement.`,
+    )
+  }
+  return out
+}
+
+/**
+ * Closure 4 — every POSITIVE claim names a REGISTERED can-fail proof (0.10.0).
  *
- * FACTORY-SIDE ONLY: tests/canary/injections.json never ships to an install. ASD calls
- * documentation and interviews POOR evidence and testing with simulated activity
- * EXCELLENT, so the top tier is exactly the claim that must be hardest to make.
+ * WHAT CHANGED AND WHY. Through 0.9.9 this closure was scoped to `evidenceTier:
+ * simulated-activity` — five rows — and a row could escape it entirely by claiming a lower
+ * tier while still grading itself `effective`. That is the wrong shape: the tier records how
+ * GOOD the evidence is, and this closure asks whether there is any evidence at all. A row
+ * saying "a live control runs here" while naming no proof that the control can fail is exactly
+ * the unfalsifiable claim the rest of the harness exists to delete, whatever tier it claims.
+ * So the subject is now `effective` ∪ `alternate-control` — 11 rows — and the tier rule rides
+ * on top of it rather than gating it.
+ *
+ * THE SET WAS COMPUTED BEFORE THE CHECK WAS WRITTEN, because a closure whose subjects cannot
+ * satisfy it is a closure that gets weakened rather than met. All 11 controls resolve: 8 are
+ * chain steps in steps{}, and 3 are CI jobs in lanes{} — which is why `canaryKeys` is the
+ * union of both registries and not steps{} alone, as it was through 0.9.9.
+ *
+ * WHAT IT STILL DOES NOT PROVE, stated because the lane half is weaker than the step half:
+ * `scan-full`'s registered proof says in its own words that it cannot show the vendor's scanner
+ * detects anything — it proves the lane is wired, not that the scanner works. That is why the
+ * three rows citing it stay `system-generated-artefact` and do not claim the top tier: the tier
+ * distinction is where that honesty lives, and this closure deliberately does not collapse it.
+ *
+ * FACTORY-SIDE ONLY: tests/canary/injections.json never ships to an install.
  * @param {any} reg
- * @param {Set<string>} canaryKeys registered step keys from tests/canary/injections.json
+ * @param {Set<string>} canaryKeys registered keys from tests/canary/injections.json (steps ∪ lanes)
  * @returns {string[]}
  */
 export function canaryProblems(reg, canaryKeys) {
   const problems = []
   for (const r of reg.requirements) {
-    if (r.evidenceTier !== 'simulated-activity') {
-      if (r.canary) {
-        problems.push(
-          `row '${String(r.id)}': names a canary but its evidenceTier is '${String(r.evidenceTier)}'. Claim the tier or drop the reference.`,
-        )
-      }
-      continue
-    }
-    if (!r.canary) {
+    const at = `row '${String(r.id)}'`
+
+    if (POSITIVE.has(r.outcome)) {
+      problems.push(...positiveCanaryProblems(r, at, canaryKeys))
+    } else if (r.canary) {
       problems.push(
-        `row '${String(r.id)}': evidenceTier 'simulated-activity' must name the 'canary' whose injection proves the control can go RED. A gate that cannot go red is decoration.`,
+        `${at}: names a canary but its outcome is '${String(r.outcome)}', which claims no control. A red-proof cited by a row that grades nothing reads as evidence for a claim nobody made.`,
       )
-      continue
     }
-    if (!canaryKeys.has(r.canary)) {
+
+    // The tier rule, now independent of the above: ASD ranks simulated activity EXCELLENT, so
+    // the top tier is the hardest claim to make and may never rest on an unregistered proof.
+    // Kept explicit rather than folded in, so a not-applicable or organisation-boundary row
+    // cannot reach the top tier through the branch that skips positive-claim rows.
+    if (r.evidenceTier === 'simulated-activity' && (!r.canary || !canaryKeys.has(r.canary))) {
       problems.push(
-        `row '${String(r.id)}': canary '${String(r.canary)}' has no entry in tests/canary/injections.json steps{}.`,
+        `${at}: evidenceTier 'simulated-activity' must name a REGISTERED canary whose injection proves the control can go RED — ASD ranks this tier EXCELLENT and it is the one claim that must be hardest to make.`,
       )
     }
   }

@@ -3,11 +3,19 @@
 # note: the desktop sibling scanned a second ecosystem; this lineage is npm-only.)
 # The PR job is diff-aware (fails only on NEWLY introduced vulns) — the
 # deterministic form of a vulnerability gate: an unchanged tree can never red on
-# an upstream advisory. The scheduled job scans the full tree weekly and owns
+# an upstream advisory. The scheduled job scans the full tree DAILY and owns
 # time-based discovery; Renovate owns the fix path. These are Google's official
 # reusable workflows: pinned by full commit SHA with the version marker in the
 # comment; Renovate keeps the pin current.
+#
+# DAILY SINCE 0.10.0, and the reason is a graded requirement rather than a taste:
+# ASD Essential Eight PA-03 asks for a vulnerability scanner at least daily for
+# online services, and the weekly cron this shipped with was a CADENCE GAP found
+# by grading the register rather than by reading the file. The diff-aware PR half
+# does not close it — a tree that has shipped a vulnerable pin since BEFORE the
+# advisory never reds on a diff — so the full scan is what has to move.
 # SOURCE: docs/harness/README.md (supply-chain scanning)
+# SOURCE: tools/essential-eight.json (PA-02 / PA-03 / PA-05 — three claims on this lane)
 name: osv-scan
 
 on:
@@ -16,8 +24,9 @@ on:
   push:
     branches: ['{{DEFAULT_BRANCH}}']
   schedule:
-    # Weekly full scan. Monday 03:47 UTC.
-    - cron: '47 3 * * 1'
+    # Daily full scan, 03:47 UTC. Off the hour on purpose: GitHub queues scheduled
+    # workflows and the top of the hour is the most contended slot on the platform.
+    - cron: '47 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -123,3 +132,57 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
         run: node tools/check-backup-posture.mjs
+
+  # The ASSET INVENTORY lane (0.10.0). Third of the same kind: scheduled-only, no PR
+  # blocking, cheap enough to run on the daily cron.
+  #
+  # It is here rather than in its own workflow because asset discovery exists TO SUPPORT
+  # vulnerability scanning — ASD's own wording for PA-01 — so the inventory and the scan
+  # aimed at it belong on one lane and one clock. A separate nightly emitting an artefact
+  # nothing consumes would be the decoration this job is written to avoid.
+  #
+  # THE JUDGEMENT IS THE POINT, NOT THE ARTEFACT. `pnpm sbom` is one line and cannot go
+  # red; a lane that only emits is a green tick over an inventory that may have silently
+  # lost half the tree. check-sbom.mjs closes the emission against pnpm-lock.yaml in BOTH
+  # directions — a resolved package with no component, and a component no lockfile entry
+  # resolves — and writes the artefact only after it has passed, so a broken inventory is
+  # never the file a reader downloads six months later.
+  #
+  # NO INSTALL, like the two jobs above: `--lockfile-only` reads the lockfile and never the
+  # store, so this needs no node_modules, no registry, and no cache. That is what makes a
+  # DAILY inventory honest rather than aspirational.
+  sbom-inventory:
+    name: asset inventory (SBOM, closed against the lockfile)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Corepack for the pinned pnpm; no `cache: pnpm` and no install, because there is
+      # nothing to restore — the whole lane reads two committed files.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Emit the inventory and prove it is the whole tree
+        run: node tools/check-sbom.mjs --out=sbom.cdx.json
+
+      # `if: always()` deliberately NOT set. A failed closure means the artefact does not
+      # describe this tree, and publishing it anyway is how a wrong inventory outlives the
+      # red run that found it.
+      - name: Upload the inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90

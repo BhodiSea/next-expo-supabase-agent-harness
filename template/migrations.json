@@ -505,5 +505,86 @@
       ],
       "why": "No NEW deadline arrives at 0.9.9 — these vintages carry deadlines already met at or before 0.9.0, and an upgrade to 0.9.9 reds them exactly as an upgrade to 0.9.0 did, with the remediation unchanged: docs/runbooks/harness-upgrade.md has a section per expiring gate; sweep the finding, then `graduate`, then re-run validate. If the pile is large, upgrade one minor at a time — each `graduate` moves baseVersion forward and every ramp at or below it goes inert."
     }
+  },
+  "0.10.0": {
+    "//": [
+      "0.10.0 the settlement release. The record injects NO chain step — VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10 on every install, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and the AGENTS.md gate-list escape is not re-triggered. That is a DECISION, not an omission: two chain steps were dated here (suppressions, resilience) and both were re-dated to 0.11.0, because no release in this lineage has ever combined a chain-step injection with a real expiry wave and this release carries the largest expiry wave the lineage has ever had. 0.4.0 — the only prior release facing one — recorded the same choice in the same words.",
+      "THE SIXTH ALARM, and it is the largest: ELEVEN vintages meet a hard failure here, against eight at 0.9.9 and 0.9.0. It is also the FIRST wave to red a 0.9.x install — 0.9.0 meets four gates and 0.9.5 meets two, where both previously met nothing. Six ramps fall due at once (auth-posture, docs-sync, version-sync twice, wiring, boundaries) and `tools/validate.mjs` is FAIL-FAST, so a human meets them one per run — five round trips before they see the last. An agent driving the Stop chain sees all six in one block, which is why this release also bounds that block: the Stop gate now spills each failing step to .harness/stop-output/<gate>.log and reports a head+tail plus the path, because the old tail-only truncation dropped exactly the first finding of a six-gate flood.",
+      "THE MITIGATION IS NOT STAGGERING, and the runbook section says so first rather than last. Moving a deadline later needs a reviewed rampExtensions entry per ramp, and the runbook promises consumers \"there is no flag that extends a deadline\". The real escape is the one 0.6.0 already documented: UPGRADE ONE MINOR AT A TIME. Each `graduate` moves baseVersion forward and every ramp at or below it goes inert, so a 0.8.0 install hopping 0.9.0 → 0.9.5 → 0.9.9 → 0.10.0 meets 0, 2, 2 and 2 gates rather than six at once.",
+      "NO configSteps and NO rampExtensions, both by construction rather than by omission — no step joins either chain and no deadline moves. FOUR ramps are OPENED here and all fall due at 0.11.0: docs-sync’s AGENTS.md Stop-chain list lockstep, web-e2e’s axe tag ladder, rate-limits’ outage-rung fallback declaration, and version-sync’s ARRIVAL of a harness-authored eol.json removalTarget — the last added after upgrade-lane leg A red on it, because re-dating the template’s register reaches fresh scaffolds and no existing install. Each is owned-checker-over-seeded-subject, the shape this key exists for, and each has its own obligations row carrying the expiry.",
+      "NO NEW SEEDED FILES, so no seedOnInitOnly key and nothing withheld: the two files this release adds (tools/check-sbom.mjs and tools/lib/sbom.mjs) are harness-OWNED, so `update` delivers them and the daily asset-inventory lane works on arrival. What the release DOES owe an existing install is the seeded-source sweep below — six files `update` cannot rewrite."
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "ONE ENTRY FOR THE WHOLE SWEEP, not one per file — THE UNIT IS THE SUBSYSTEM, NOT THE LINE (the 0.6.0 record’s words). A consumer meeting this release needs one ordered instruction, not five parked artefacts. Every probe below is lacks-shaped on the marker the fix introduces, so an install that has applied it — under any naming — stops matching and the parked artifact self-clears.",
+        "why": "Six seeded surfaces need a human edit that `update` cannot make. (1) THE AXE TAG LADDER: apps/web/e2e/home.spec.ts and tenancy.spec.ts run withTags([…]), and `withTags` NARROWS axe — a short list is a decision not to run the rules outside it. Widen both to [’wcag2a’, ’wcag2aa’, ’wcag21aa’, ’wcag22aa’]. The runner (tools/check-web-e2e.mjs) is owned and now REQUIRES it, ramped to 0.11.0. Stated exactly so nobody reads more into it: those four tags select 63 runnable rules over 21 success criteria — three more than the pair they replace (autocomplete-valid, avoid-inline-spacing, target-size) — and target-size is the ENTIRE automated WCAG 2.2 AA surface, so this is not a WCAG 2.2 AA claim and no document here makes one. On the two routes the template seeds, none of the three can currently produce a finding; this ARMS them for the routes you add. (2) THE TENANT SWITCHER: apps/web/app/(protected)/o/[orgSlug]/layout.tsx renders its org links at px-3 py-1, which is under the 24 CSS px target-size floor — add min-h-(--size-touch-min) and inline-flex items-center, the same 44px token every button and input already uses. Found by widening the tags, not by review. (3) THE OUTAGE RUNG: packages/platform/ratelimit/src/index.ts’s withFailOpen returned an unconditional allow while the backend was down, so a Redis outage removed rate limiting entirely; route its catch through createMemoryRateLimiter() — one shared instance per wrapper, so a flapping backend cannot reset the window — and mark the decision counted:true, keeping the last-resort degradedAllow (counted:false) for when the fallback throws too. (4) apps/web/lib/rate-limit-runtime.ts’s single degraded log line must stop saying \"allowed because nothing was counting\", which is now false: read @app/ratelimit’s degradedReport(decision) and log `allowed` beside it, because a degraded DENIAL is the one shape an operator must not read as a healthy allow. (5) tools/rate-limit-budget.json’s failOpen block needs a `fallback` string saying what limits traffic DURING an outage — the `rate-limits` gate now requires it, ramped to 0.11.0, and `update` cannot write it for you because the honest answer depends on your deployment. (6) THE ARRIVED ACCEPTANCE: tools/eol.json ships uuid's deprecation acceptance with \"removalTarget\": \"0.10.0\" — a date the HARNESS wrote — and at harness 0.10.0 it has ARRIVED. Re-affirm it (move removalTarget to a release you actually mean, with the re-review recorded in the diff) or remove the dependency. This one was found by the upgrade lane rather than by review, and it is the sharpest example of why this key exists: the template's own register is re-dated to 0.11.0 in this release, which fixes every FRESH scaffold and reaches no existing install, because eol.json is yours. The arrival is ramped to 0.11.0 so it reaches you as this NOTE rather than as a hard red on the first validate after upgrading.",
+        "probes": [
+          {
+            "path": "apps/web/e2e/home.spec.ts",
+            "brokenWhen": {
+              "lacks": "wcag22aa"
+            }
+          },
+          {
+            "path": "apps/web/e2e/tenancy.spec.ts",
+            "brokenWhen": {
+              "lacks": "wcag22aa"
+            }
+          },
+          {
+            "path": "apps/web/app/(protected)/o/[orgSlug]/layout.tsx",
+            "brokenWhen": {
+              "lacks": "min-h-(--size-touch-min)"
+            }
+          },
+          {
+            "path": "packages/platform/ratelimit/src/index.ts",
+            "brokenWhen": {
+              "lacks": "degradedReport"
+            }
+          },
+          {
+            "path": "apps/web/lib/rate-limit-runtime.ts",
+            "brokenWhen": {
+              "lacks": "degradedReport"
+            }
+          },
+          {
+            "path": "tools/eol.json",
+            "brokenWhen": {
+              "contains": "\"removalTarget\": \"0.10.0\""
+            }
+          }
+        ],
+        "paths": [
+          "apps/web/e2e/home.spec.ts",
+          "apps/web/e2e/tenancy.spec.ts",
+          "apps/web/app/(protected)/o/[orgSlug]/layout.tsx",
+          "packages/platform/ratelimit/src/index.ts",
+          "packages/platform/ratelimit/src/index.test.ts",
+          "apps/web/lib/rate-limit-runtime.ts",
+          "tools/rate-limit-budget.json",
+          "tools/eol.json"
+        ],
+        "gate": "web-e2e"
+      }
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED from HEAD’s 41 shipped ramp sites at harness 0.10.0, never typed: scripts/check-ramp-ledger.mjs derives this population and compares it byte-for-byte against the list below. ELEVEN vintages — the largest wave in the lineage, and the first to red a 0.9.x install (0.9.0 meets four gates, 0.9.5 meets two; both met nothing at 0.9.9). Only 0.9.9 is untouched, and it sees three advisory NOTEs for the ramps this release OPENS. The honest count for a given tree is `pnpm validate 2>&1 | grep ’RAMP EXPIRED’`, never this list.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5"
+      ],
+      "why": "Six ramps fall due here and they land on files `update` cannot rewrite: auth-posture (the ten [auth.mfa] keys in the seeded supabase/config.toml), docs-sync (the seeded AGENTS.md), version-sync twice (the committed-lockfile floor, and the end-of-life register both directions), wiring (the installed-not-dormant lefthook floor), and boundaries (the vertical-anatomy laws over the seeded packages/**). Two are trivial — `pnpm install` fixes wiring and the lockfile floor. The rest need a human: docs/runbooks/harness-upgrade.md has a section per gate, and its 0.10.0 section OPENS with the escape rather than burying it — upgrade one minor at a time, because each `graduate` moves baseVersion forward and every ramp at or below it goes inert, turning six-at-once into 0/2/2/2. Sweep the findings, then `graduate`, then re-run validate."
+    }
   }
 }

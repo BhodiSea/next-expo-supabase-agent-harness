@@ -32,7 +32,7 @@ import {
   rowShapeProblems,
   timeProblems,
 } from '../../scripts/lib/obligations.mjs'
-import { shippedRampSites } from '../../scripts/lib/ramp-sites.mjs'
+import { cmpDotted, shippedRampSites } from '../../scripts/lib/ramp-sites.mjs'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const SCRIPT = join(ROOT, 'scripts/check-obligations.mjs')
@@ -152,15 +152,27 @@ test('GREEN: the seeded register passes the clockless gate on the live repo (no 
   assert.match(out, /calendar .*clockful/i)
 })
 
-test('GREEN: the seeded register holds at 0.9.0 — release rows, census and ramp union all close (pure)', () => {
+test('GREEN: the seeded register holds at the version being cut — release rows, census and ramp union all close (pure)', () => {
+  // BOTH VERSIONS ARE DERIVED, and 0.10.0 is why. This test hardcoded '0.9.0' for the
+  // version AND for the ramp union's `base`, and the second one broke the moment the 0.10.0
+  // migrations record landed: `base` is the NEWEST of package.json and the highest
+  // migrations key (check-obligations.mjs), so writing that record moved base to 0.10.0 and
+  // correctly retired the six `until: '0.10.0'` rows — while this test, still pretending
+  // base was 0.9.0, reported all six as missing debt. A pinned number here does not test
+  // the register against the tree; it tests it against a release that has already shipped.
   const register = JSON.parse(readFileSync(join(ROOT, 'scripts/obligations.json'), 'utf8'))
   const rows = register.obligations
   const kinds = { release: 0, calendar: 0, condition: 0 }
   for (const row of rows) kinds[row.kind] += 1
   assert.ok(kinds.release > 0 && kinds.calendar > 0 && kinds.condition > 0, JSON.stringify(kinds))
   assert.deepEqual(rowShapeProblems(rows), [])
-  // The release being cut: no release row may have arrived at 0.9.0 (they all target 0.10.0+).
-  assert.deepEqual(timeProblems(rows, { version: '0.9.0', clockful: false }), [])
+
+  const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
+  // The release being cut: no release row may have ARRIVED at it. This is the assertion the
+  // bump commit has to satisfy, and deriving the version is what makes it survive the bump
+  // rather than having to be edited by the same diff it is supposed to police.
+  assert.deepEqual(timeProblems(rows, { version, clockful: false }), [])
+
   const deferrals = JSON.parse(
     readFileSync(join(ROOT, 'template/base/tools/deferrals.json'), 'utf8'),
   )
@@ -171,7 +183,12 @@ test('GREEN: the seeded register holds at 0.9.0 — release rows, census and ram
     ),
     [],
   )
-  assert.deepEqual(rampObligationProblems(rows, shippedRampSites(), '0.9.0'), [])
+
+  const migrations = JSON.parse(readFileSync(join(ROOT, 'template/migrations.json'), 'utf8'))
+  const base = Object.keys(migrations)
+    .filter((k) => /^\d+\.\d+\.\d+$/.test(k))
+    .reduce((hi, k) => (cmpDotted(k, hi) > 0 ? k : hi), version)
+  assert.deepEqual(rampObligationProblems(rows, shippedRampSites(), base), [])
 })
 
 test('GREEN: a clean fixture register is CLEAN, and says what it counted', () => {

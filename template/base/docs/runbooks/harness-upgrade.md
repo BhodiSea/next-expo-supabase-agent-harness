@@ -699,6 +699,91 @@ with a committed lockfile and installed hooks sweeps NOTHING — graduate reache
 its success branch untouched, the first un-swept graduation in the lineage, and
 the upgrade lane's leg A holds the release to exactly that.
 
+## 0.10.0 — THE SIXTH ALARM, and the largest: SIX expiries at once
+
+**Read this paragraph before anything else in this section, because it is the
+remedy and everything below it is detail.** Six ramps fall due here. If you are
+upgrading from **0.8.0 or older, do not hop straight to 0.10.0** — upgrade **one
+minor at a time**. Every `graduate` moves your `baseVersion` forward, and every
+ramp at or below it goes *inert*: it never fires and never expires. A 0.8.0
+install that goes `0.9.0 → 0.9.5 → 0.9.9 → 0.10.0` meets **0, then 2, then 2,
+then 2** gates instead of six in one run. That is not a trick — it is the
+mechanism working as designed, and it is the difference between four short
+sweeps and one long one.
+
+There is deliberately **no flag that extends a deadline** (see the top of this
+runbook), so staggering the hops is the only lever, and it is a real one.
+
+**Why six at once is worse than six spread out.** `tools/validate.mjs` is
+FAIL-FAST: it stops at the first red gate. So a human meets these **one per
+run** — five round trips, at roughly 24 s each, before seeing the last one. The
+Stop chain does not stop early, so an agent sees all six in a single block. That
+is why this release also bounds the Stop gate's output: each failing step's full
+output now goes to `.harness/stop-output/<gate>.log` and the block carries a
+head, a tail and the path, because the previous tail-only truncation dropped the
+*first* finding of exactly this kind of flood.
+
+| Your `baseVersion` | What 0.10.0 does to you |
+|---|---|
+| **0.9.9** | **Nothing expires.** You meet three advisory NOTEs for the ramps this release OPENS (the AGENTS.md Stop-chain list, the axe tag ladder, the outage-rung fallback declaration), all due 0.11.0. The upgrade lane's leg A holds the release to exactly that. |
+| **0.9.5** | **Two:** `auth-posture` (the ten `[auth.mfa]` keys) and `version-sync` (the end-of-life register). The first release where a 0.9.x install meets a deadline at all. |
+| **0.9.0** | **Four:** those two plus `docs-sync` (the AGENTS.md agent-surface list) and `boundaries` (the vertical-anatomy laws). |
+| **0.8.0** | **Six** — the four above plus `version-sync`'s committed-lockfile floor and `wiring`'s installed-not-dormant lefthook floor. Both of those are **one command**: `pnpm install`, then commit `pnpm-lock.yaml`. (Six EXPIRIES across five gate names: `version-sync` fires twice, once for the lockfile floor and once for the end-of-life register. `grep 'RAMP EXPIRED'` prints one line per expiry, so you will see six.) |
+| **0.7.0 and below** | Six, plus everything the earlier sections describe that you have not met yet. Follow each section in order, one `graduate` per hop. |
+| fresh `init` at 0.10.0 | Nothing ever ramped. |
+
+The honest count is the command, never this table:
+
+```sh
+pnpm validate 2>&1 | grep 'RAMP EXPIRED'
+```
+
+And the population is data, not prose: `template/migrations.json`'s
+`0.10.0.rampExpiry` states it, and `scripts/check-ramp-ledger.mjs` reds if that
+record disagrees with what the shipped call sites compute.
+
+### The six, and the move for each
+
+Two are trivial and are listed first so you can clear them before reading on.
+
+- **`wiring` — the lefthook floor.** `pnpm install` (the prepare script), or
+  `pnpm exec lefthook install`.
+- **`version-sync` — the committed-lockfile floor.** `pnpm install`, then commit
+  `pnpm-lock.yaml`.
+
+The remaining four land on files `update` **cannot** rewrite, because they are
+yours:
+
+- **`auth-posture` — the ten `[auth.mfa]` keys.** `supabase/config.toml` is
+  seeded. The 0.9.9 section above has the reviewed block; append it if you have
+  not already. Exactly ten keys across four sections, checked by value in both
+  directions, so a typo that the CLI silently ignores reds here.
+- **`version-sync` — the end-of-life register.** `tools/eol.json` was planted at
+  0.9.9 with six rows drawn from the harness's own lockfile. Yours is a superset,
+  so dispose of whatever else your tree resolves: each row records the package,
+  the scope, and why it is accepted or when it goes.
+- **`docs-sync` — the AGENTS.md agent-surface list.** `AGENTS.md` is seeded. The
+  finding prints the exact list; paste it in.
+- **`boundaries` — the vertical-anatomy laws.** `packages/**` is seeded. Each
+  finding names the package, the law and the path. The escape, where a finding is
+  wrong for your architecture, is a reviewed entry in
+  `tools/vertical-anatomy-allow.json` — and a stale entry reds, so it cannot rot.
+
+### The seeded-source sweep (five files, one instruction)
+
+Separately from the expiries, `update` parks one `seededSourceFixes` instruction
+covering five files it cannot edit for you: the two axe specs, the tenant
+switcher's link sizing, the rate limiter's outage rung, and its budget policy's
+new `fallback` field. `npx next-expo-supabase-agent-harness doctor` surfaces it,
+and each probe self-clears once your tree stops matching the broken shape. Those
+corrections are **not** on a deadline in this release — the checkers that demand
+them are ramped to 0.11.0.
+
+### Then graduate
+
+Sweep the reds, then
+`npx next-expo-supabase-agent-harness graduate`, then re-run `pnpm validate`.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

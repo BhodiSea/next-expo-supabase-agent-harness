@@ -29,11 +29,21 @@ function fixHint(gate) {
   return `FIX[${gate}]: reproduce with \`${cmd}\`; docs: docs/harness/gates-catalog.md ("${gate}")`
 }
 
+// The three exits below are annotated `@returns {never}` DELIBERATELY, and it is not
+// cosmetic. Under `checkJs: true` TypeScript infers `void` for a function whose body ends in
+// `process.exit()`, so at every `if (bad) fail(...)` call site the code after the branch is
+// still considered reachable with the pre-branch types — which is how a `fail()` that replaced
+// a `return process.exit(1)` silently stops narrowing (`never` is assignable to anything;
+// `void` is not). `strict: false` means adding the annotation cannot break a caller, and the
+// callers that already relied on narrowing get it back.
+
+/** @param {string} gate @param {string} [msg] @returns {never} */
 export function ok(gate, msg) {
   console.log(`${gate}: OK${msg ? ` — ${msg}` : ''}`)
   process.exit(0)
 }
 
+/** @param {string} gate @param {string} msg @returns {never} */
 export function fail(gate, msg) {
   console.error(`${gate}: FAIL — ${msg}`)
   console.error(fixHint(gate))
@@ -41,6 +51,7 @@ export function fail(gate, msg) {
 }
 
 // Prerequisite missing: loud local skip, hard CI failure.
+/** @param {string} gate @param {string} reason @returns {never} */
 export function skipOrFail(gate, reason) {
   if (inCI()) {
     console.error(

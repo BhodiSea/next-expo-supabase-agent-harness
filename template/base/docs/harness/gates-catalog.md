@@ -877,7 +877,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.10.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 0.11.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -892,15 +892,22 @@ every CLI pin bump — and the date is no longer decoration: this sentence, the 
 `tools/auth-posture.json` and `tools/check-auth-posture.mjs`, and the `tools/deferrals.json`
 entry are closed both ways by the `docs-sync` deferral scan, which reds the release the target
 arrives. The first deferral of this check rolled past its own date with nothing reading it;
-this one cannot — and the mechanism has now fired TWICE as designed: at 0.8.0 the arrival
+this one cannot — and the mechanism has now fired THREE times as designed: at 0.8.0 the arrival
 forced the re-check (CLI 2.113.0, config group still push-only, the ask open as
 supabase/cli#5894) and a reviewed four-site move to 0.9.0; at 0.9.0 it fired again against an
 unchanged upstream (latest still 2.113.0, the v2.114.0 betas' only config-adjacent change a
-docker image bump, #5894 still open with no milestone and no linked PR) and moved to 0.10.0.
+docker image bump, #5894 still open with no milestone and no linked PR) and moved to 0.10.0;
+at 0.10.0 (2026-08-13) it fired against a REAL pin bump for the first time — latest moved to
+2.114.0 (GA 2026-08-12), the CLI became a pnpm/nx monorepo and the Go CLI moved to
+`apps/cli-go`, and `apps/cli-go/cmd/config.go` at tag v2.114.0 STILL registers `push` alone
+(read at the tag, not inferred from the release notes, whose config-adjacent entries are
+`--project-ref`, skip-vault-sync and stack persistence); #5894 remains open with no milestone,
+no linked PR and zero comments, so the date moved to 0.11.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
 one-minor move in a reviewed diff — the discharge happens only when the side-effect-free
-subcommand actually ships.
+subcommand actually ships. The third firing is the one that tested the rule's own premise: the
+re-check clause says "at every CLI pin bump", and this is the first bump it has actually met.
 
 Static, <100ms, no Docker, no install: a hand-written TOML reader
 (`tools/lib/toml.mjs`) over the committed file, for the same reason every other gate hand-parses
@@ -1262,8 +1269,11 @@ bind the two APPLICATION seams. They do not bind a client that POSTs straight to
 sign-up, which go to GoTrue. The controls that bind every path are the per-org quota
 trigger and the per-role statement timeouts (`db-limits`). The limiter also FAILS OPEN when
 its backend is unavailable — an explicit, recorded decision (see
-`docs/adr/20260204-rate-limiting.md`), which means a Redis outage is a window with no rate
-limiting at all.
+`docs/adr/20260204-rate-limiting.md`). **Since 0.10.0 that no longer means a Redis outage
+is a window with no rate limiting at all**: the outage rung degrades to the in-process
+limiter, so the budget is multiplied by the instance count rather than removed — and on a
+serverless platform that discards the process, still effectively removed. A degraded
+decision may now be a DENIAL, and `counted` says whether anything counted.
 
 ### 25. parity — `node tools/check-mobile-parity.mjs`
 
@@ -1936,8 +1946,17 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   or a spec set with no axe scan; then it runs Playwright, whose `webServer` boots
   a PRODUCTION build against the Supabase local stack (started in the job; its URL
   + publishable key exported from `supabase status` at runtime — no key is
-  committed). The seeded `home.spec.ts` asserts the landing heading renders and
-  axe finds no critical/serious WCAG 2 A/AA violations. Path-filtered (the `web`
+  committed). **0.10.0 adds a fourth refusal:** an axe scan that passes an EXPLICIT
+  tag list must carry the whole reviewed ladder — `wcag2a`, `wcag2aa`, `wcag21aa`,
+  `wcag22aa` — because `withTags` NARROWS axe and a short list is a silent decision
+  not to run the rules outside it. Untagged scans are exempt, deliberately: they run
+  a broader set, so demanding tags would red the stricter spec. Ramped to 0.11.0 (the
+  runner is owned, the specs are seeded). State the coverage as what runs, never as a
+  level: **63 runnable rules over 21 success criteria** — the same four tags also
+  select 6 rules axe never runs (default `tagExclude` drops `experimental` and
+  `deprecated`), and `target-size` is the only automated WCAG 2.2 AA rule that exists.
+  The seeded `home.spec.ts` asserts the landing heading renders and that scan is
+  clean. Path-filtered (the `web`
   arm covers `apps/web` + the packages it bundles) + nightly, like the device
   lanes; the Playwright report uploads on failure. Falsifiability:
   `tests/gates/check-web-e2e.test.mjs` spawns the runner against a fake `pnpm` and
@@ -1969,9 +1988,30 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
   vulnerability gate: an unchanged tree never reds on an upstream advisory); the
-  weekly full-tree scan owns time-based discovery; Renovate owns the fix path.
+  DAILY full-tree scan owns time-based discovery; Renovate owns the fix path.
   Google's official reusable workflows, SHA-pinned. This is why `pnpm audit`
-  stays out of the validate chain (see Considered and rejected).
+  stays out of the validate chain (see Considered and rejected). Daily since
+  0.10.0: the schedule was weekly for nine releases and the gap was found by
+  GRADING (Essential Eight PA-03 asks for at least daily against online
+  services), not by reading the file — the diff-aware PR half cannot close it,
+  because a tree carrying a vulnerable pin since before the advisory reds on no
+  diff.
+- **sbom-inventory** (`osv-scan.yml`, 0.10.0) — the asset inventory, on the same
+  lane and the same clock as the scan it feeds, because asset discovery exists
+  TO SUPPORT vulnerability scanning. `pnpm sbom --sbom-format cyclonedx
+  --lockfile-only` emits it and `tools/check-sbom.mjs` CONSUMES it: the
+  component set is closed against `pnpm-lock.yaml` in BOTH directions, so a
+  resolved package with no component reds (the inventory under-reports the tree)
+  and a component no lockfile entry resolves reds (the artefact describes a
+  DIFFERENT tree — a stale commit, a stray `--filter`, a generator pointed
+  elsewhere; a too-large inventory reads as thorough, which is why that
+  direction is checked at all). Zero components is a hard failure, never an
+  empty set quietly matching an empty set. The judgement is the whole point:
+  `pnpm sbom` is one line and cannot go red, so a lane that only emitted would
+  be a green tick over an inventory that had silently lost half the tree. No
+  install — `--lockfile-only` reads two committed files and never the store,
+  which is what makes a daily cadence honest. The artefact uploads only after it
+  passes, so a broken inventory is never the file someone downloads later.
 - **live-api proof** — `__tests__/live-api-proof.test.ts` (jest, self-skipping
   unless `LIVE_PROOF=1` + a running `AUTH_MODE=stub` server): the one place the
   mobile client's real api-client talks to the real server over real Postgres
@@ -2092,7 +2132,7 @@ in the design record; the enduring ones repeat here):
   and brick every fresh scaffold — and an allowlist only converts each advisory
   into an emergency edit of a write-protected file. The `osv-scan` PR lane is
   the deterministic form of the same control (diff-aware: only NEWLY introduced
-  vulns red a PR), the weekly full scan owns time-based discovery, and Renovate
+  vulns red a PR), the daily full scan owns time-based discovery, and Renovate
   owns the fix path.
 - **react-native-reanimated (0.1.2)** — a Babel transform plus a native worklet
   runtime between the motion tokens and the pixels — the styling-compiler class,

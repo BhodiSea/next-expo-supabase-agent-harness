@@ -65,7 +65,9 @@ test.describe('tenancy surface', () => {
     page,
   }) => {
     await page.goto('/sign-in')
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+      .analyze()
     const blocking = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious',
     )

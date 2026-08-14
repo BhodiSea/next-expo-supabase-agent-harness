@@ -11,6 +11,216 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [0.10.0] — 2026-08-14
+
+**The settlement release.** Every one of the **27 obligations dated 0.10.0** is
+settled — twelve paid, six narrowed to ceilings they cannot escape, one split,
+and eight re-dated with the reason visible in the diff. No chain step is
+injected: `VALIDATE_STEPS` stays **34** and `STOP_HOOK_STEPS` stays **10**, so
+the committed 34/10 chain-budget measurement stays count-matched and no
+published figure is unlicensed for a single commit.
+
+**This is the sixth alarm and the largest.** Eleven vintages meet a hard failure,
+against eight at 0.9.9 — and it is the first wave ever to red a 0.9.x install
+(0.9.0 meets four gates, 0.9.5 two). Six expiries land at once across five gate
+names. The mitigation is stated first in the runbook rather than last, because
+it already exists: **upgrade one minor at a time.** Each `graduate` moves
+`baseVersion` forward and every ramp at or below it goes inert, so a 0.8.0
+install hopping 0.9.0 → 0.9.5 → 0.9.9 → 0.10.0 meets **0, 2, 2, 2** instead of six.
+
+**Why no chain step, when two were dated here.** No release in this lineage has
+combined a chain-step injection with a real expiry wave, and this release carries
+the largest wave it has ever had. 0.4.0 — the only prior release to face one —
+recorded the same choice in the same words. `suppressions` and `resilience` move
+to 0.11.0; what this release built instead is what 0.11.0 inherits.
+
+### Added
+
+- **The asset inventory, and the judgement that makes it evidence.** A daily
+  `sbom-inventory` job emits CycloneDX via `pnpm sbom --lockfile-only` (no
+  install, no store, no registry) and `tools/check-sbom.mjs` **consumes** it,
+  closing the component set against `pnpm-lock.yaml` in BOTH directions — a
+  resolved package with no component means the inventory under-reports the tree;
+  a component no lockfile entry resolves means the artefact describes a
+  *different* tree. Zero components is a hard failure, never an empty set
+  matching an empty set. The artefact uploads only after it passes. Emission
+  alone would have been decoration: `pnpm sbom` is one line and cannot go red.
+- **The axe tag ladder, as a requirement rather than a spec edit.** Both seeded
+  scans widen to `['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']`, and the
+  *requirement* lives in `check-web-e2e.mjs`'s per-spec loop, which closes over
+  every spec — the register anchored one of two, and its anchor fired on the fix
+  rather than on the omission. Untagged scans are exempt on purpose: they run a
+  broader set. **Stated as counts, never as a level:** 63 runnable rules over 21
+  success criteria. `wcag22a` selects zero rules (and axe suppresses the
+  unknown-tag warning); `wcag21a`'s only rule is experimental and axe's default
+  `tagExclude` drops it; `target-size` is the entire automated WCAG 2.2 AA
+  surface. On the seeded routes none of the three new rules can currently fire —
+  this **arms** them for the routes you add.
+- **The rate limiter degrades instead of disappearing.** `withFailOpen`'s outage
+  rung now runs the in-process limiter — one shared instance per wrapper, so a
+  flapping backend cannot reset the window — instead of allowing everything. Six
+  tests fail against the 0.9.9 implementation and pass against this one. New
+  `counted` field separates "the fallback decided" from "the fallback failed too",
+  and `degradedReport()` exists so that branch has a red-proof at all: the caller
+  is `import 'server-only'` and cannot be imported by a unit test.
+- **Bounded Stop output with spill-to-file.** Each failing step's full output goes
+  to `.harness/stop-output/<gate>.log`; the block carries head + tail + the path.
+  The old tail-only truncation dropped the **first** finding of any enumerating
+  gate — precisely the flood this release creates. Fails soft: an unwritable spill
+  still blocks the turn.
+
+### Changed
+
+- **The OSV full scan runs daily**, not weekly — a cadence gap found by grading
+  the register, not by reading the file. The diff-aware PR lane never closed it: a
+  tree carrying a vulnerable pin from *before* the advisory reds on no diff.
+- **Two Essential Eight requirements regrade**, both on new controls in this
+  release: **PA-03** to `effective` (the daily scan), **PA-01** to
+  `alternate-control` (the inventory). PA-01 is deliberately not `effective`:
+  ASD's asset discovery means discovering assets across an estate, and a
+  dependency inventory discovers none — it does the clause's stated *purpose*,
+  which is what an alternate control is. **MFA-09 moves to the organisation
+  boundary**, which claims *less* than the `not-implemented` it replaces: coverage
+  is a product judgement about sensitivity, not a fact about a generated system.
+- **The canary closure now covers every positive claim** (11 rows, was 5). The old
+  scope let a row grade itself `effective`, claim a lower evidence tier, name no
+  proof, and stay green — the tier records how *good* the evidence is; this asks
+  whether there is any. A row may cite only its **own** control's proof.
+- The env-through-register rule's two dated seeded exemptions are gone, so the
+  catalog's "zero standing allowlist" is now literally true.
+
+### The Essential Eight conversions — read this before concluding the numbers improved
+
+Six rows dated `release`/0.10.0 become `condition`, and three requirements sit at
+the organisation boundary. Read uncharitably that is a compliance release
+improving its score by moving goalposts. Four defences, each checkable:
+
+1. **No `outcome` improves as a result.** Every requirement naming a converted
+   row stays `not-implemented`. What changed is the *date* — a release row
+   asserts somebody can schedule the work, and for these six nobody can.
+2. **Each row says in its own reason why it is unschedulable** — log drains are
+   Dashboard-only and a live-endpoint gate is refused by hermeticity; the restore
+   manifest needs a deploy-time channel that does not exist; the backup grades
+   rest on vacuous truth; an unoffered Delete verb is absence of surface, not a
+   control; and grading POS-16 on `framework-floor.json` would double-count
+   against POS-15.
+3. **The conversions cost MORE than the dated rows did.** A `condition` row needs
+   `evidence`, which the checker accepts as any URL or extant path — so each
+   converted row also carries a `sites[]` anchor byte-checking a specific ceiling
+   sentence in `design/CONFORMANCE-FACTS.md`. That is a stricter bill, not a
+   cheaper one, and it fired during this release when an anchor was wrong.
+4. **The falsifiability widening ships in the same diff**, so the register's
+   positive claims got harder to make in the release that reclassified its debts.
+
+And the strategic frame, said plainly rather than left as convenience: ASD's own
+stated reason for retiring the Essential Eight (2027-06-15, tracked by
+`conformance-e8-retirement`) **is** the product-versus-organisation mismatch this
+register documents.
+
+### Obligations
+
+- **Discharged (13):** the six ramp-expiry rows, `env-through-register-seeded-exemption`,
+  `e8-daily-vuln-scan`, `e8-asset-inventory`, `e8-mfa-enforcement`,
+  `axe-tag-widening`, `withfailopen-memory-fallback`, and — the thirteenth, which
+  was never dated and could not be — `vuln-response-sla`. It was the one row in
+  the register an agent categorically could not close, because the numbers are a
+  claim about a human's availability. The maintainer supplied them, so the
+  factory's own `SECURITY.md` now carries the same three-row response table it
+  has shipped to consumers since v0.9.0 (acknowledgement 3 working days, initial
+  assessment 10, status updates every 10). The finding was an **asymmetry**, not
+  an absence: this harness had been asking consumers for a commitment it had not
+  made itself.
+- **Converted to `condition` (5)** with ceiling anchors: central log forwarding
+  (absorbing MFA-16, because the remedy for a protection requirement on a
+  vendor-owned schema is the same act as forwarding), restore manifest, backup
+  store posture, backup immutability, EOL closure.
+- **Split (1):** `e8-auth-event-logging` → `e8-auth-event-trail` @0.11.0 for the
+  buildable half (three failed sign-ins write *nothing*, verified live), with the
+  "centrally" half moving to the forwarding ceiling.
+- **Re-dated (8):** the two chain steps, `auth-posture-consumer-tunable-split`
+  (mechanically self-cancelling with the MFA ramp), `dsr-web-erase-surface`,
+  `consumer-ci-static-promotion` → **0.11.0**; `e8-jit-admin` and
+  `e8-privilege-lifecycle` → 0.11.0 **as a scope decision, labelled as one**;
+  `e8-mfa-enrolment-surface` and `e8-patch-window-evidence` → **1.0.0** on
+  capability ceilings no date can move.
+- **Opened (8):** `web-e2e-axe-tag-ramp-expiry`, `rate-limits-fallback-ramp-expiry`,
+  `docs-sync-stop-list-ramp-expiry`, `version-sync-eol-arrival-ramp-expiry`
+  (the four ramps this release opens), `canary-lane-proofs-unexecuted`,
+  `canary-registry-hook-closure`, `e8-register-canary-widening`,
+  `sbom-consumption` (condition → dated, its precondition met by construction
+  at this bump).
+
+### What the upgrade lane found, after the release was already green
+
+Both defects below were invisible to 23 green factory Stop steps and to a fresh
+scaffold, and each is the exact shape the lane exists to catch — **the release
+was correct for new installs and wrong for existing ones.**
+
+- **`tools/eol.json`'s arrived acceptance.** The shipped register dated `uuid`'s
+  deprecation acceptance to `removalTarget: 0.10.0` — *a date the harness wrote* —
+  and the file is **seeded**, so every install that ever ran `update` holds that
+  value and `update` may never rewrite it. At harness 0.10.0 it ARRIVED: a hard
+  red on the first validate after upgrading, for a value the consumer did not
+  choose and could not be sent a fix for. Re-dating the template to 0.11.0 fixes
+  fresh scaffolds and reaches nobody else. **Leg A caught it** — baseVersion
+  0.9.9 meets zero ramp deadlines, so the lane classified it precisely:
+  *"validate is RED on the upgraded install and NO ramp deadline is met — this is
+  a regression, not an expiry."* The ARRIVAL half now rides its own ramp
+  (minVersion 0.10.0, until 0.11.0), split from the census half whose ramp
+  expires at 0.10.0 as the fleet intends; the two are different obligations, one
+  triggered by the consumer's lockfile moving and one by a harness-chosen date
+  coming due. The expiry gradient is unchanged — a NOTE is not an expiry.
+- **`graduate` advanced the baseline over withheld findings — the worst shape a
+  graduate bug can take**, because advancing the baseline is the very act that makes
+  those findings turn-fatal. `stampGate` short-circuits a gate to *"inputs unchanged
+  since last green run"* when its declared inputs have not moved and we are not in CI;
+  the gate body never runs, so its `rampNote` never prints, so `graduate`'s
+  *"advance only if zero ramp NOTEs remain"* test passed over two outstanding
+  findings. **Leg A watched it happen**: baseVersion went 0.9.9 → 0.10.0 and the very
+  next validate came back RED on both `version-sync` and `rate-limits`. `graduate` now
+  invalidates the `.harness/*.ok` stamps before it runs validate — chosen over setting
+  `CI=true`, which would also flip every toolchain-dependent gate to fail-closed and
+  refuse a consumer for having no database running rather than for an unswept finding.
+  The stamp is documented as *"a local convenience, never proof"*; this is a place that
+  needed proof. Red-proof: `tests/installer/graduate.test.mjs`.
+- **The sweep could not clear the ramp this release had just created.** `leg E`
+  is the only leg that executes `graduate`'s SUCCESS branch: it applies the
+  documented sweep and then requires that **no** ramp NOTE survives. Exactly one
+  did — `docs-sync`'s new AGENTS.md Stop-chain list lockstep. The ramp and its
+  obligations row shipped, and the sweep had no rewrite for the seeded file the
+  ramp reds on, so the runbook's instruction was plausible rather than
+  sufficient. `upgrade-sweep.mjs` now rewrites that sentence from the install's
+  **own** `tools/stop.floor.json`, the same discipline the gate-list rewrite
+  beside it has used since 0.6.0.
+
+### Corrections to the record
+
+- **`CHANGELOG.md` 0.9.9 said "eleven `e8-*` release rows"; it was thirteen** — and
+  the same sentence described two of them as condition rows while they shipped as
+  dated ones, so the miscount and the kind error were one mistake.
+- **`README.md` described "macOS/Windows validate legs"; neither exists.**
+  `grep -rn macos .github/workflows/` returns nothing, and the only non-Linux job
+  is the `installer-unit` Windows matrix the same sentence already named
+  separately. `pnpm validate` has never run on a non-Linux runner.
+- The `consumer-ci-static-promotion` row's `sites[]` anchor pointed at that false
+  sentence — prose about a different subject entirely, since the lane is a Linux
+  one. Re-anchored to the `selftest.yml` comment that must change when it lands.
+- Four harness-owned surfaces said a Redis outage means "no rate limiting at
+  all" (README, the ADR, the gates catalog, and the reviewed budget policy). All
+  four now describe the degraded rung.
+- `obligations.test.mjs` hardcoded `0.9.0` as the ramp union's `base`; both the
+  version and the base are now derived, so the assertion survives this bump
+  instead of being edited by the diff it polices.
+
+### The expiry, as data
+
+`template/migrations.json`'s `0.10.0.rampExpiry` states the affected population
+and `scripts/check-ramp-ledger.mjs` reds if it disagrees with what the shipped
+call sites compute. No `configSteps`, no `rampExtensions` — both empty by
+construction. The upgrade lane gains an eleventh leg at `v0.9.5`, the vintage leg
+A vacated, giving the release a measured gradient of **0 → 2 → 4 → 6** expiries
+across baselines v0.9.9 / v0.9.5 / v0.9.0 / v0.8.0.
+
 ## [0.9.9] — 2026-08-13
 
 **The evidence release.** A machine-checked map of every requirement in the
@@ -190,9 +400,15 @@ the **blocker** to its operator's assessment.
 ### Obligations
 
 - **Opened:** three ramp-expiry rows (`auth-posture-mfa-ramp-expiry`,
-  `eol-register-ramp-expiry` at 0.10.0), eleven `e8-*` release rows naming the
-  gaps the register records honestly, two condition rows
-  (`e8-phishing-resistant-mfa`, and the backup findings), and — the one with a
+  `eol-register-ramp-expiry` at 0.10.0), <!-- corrected in 0.10.0: this said
+  "eleven `e8-*` release rows ... two condition rows (e8-phishing-resistant-mfa,
+  and the backup findings)". The count was thirteen, and the sentence's own
+  arithmetic is why: the backup findings were DESCRIBED here as condition rows
+  and SHIPPED as dated release rows, so the miscount and the kind error are the
+  same mistake, recorded contemporaneously. 0.10.0 converted five of the
+  thirteen to condition with sites[] anchors. -->thirteen `e8-*` release rows
+  naming the gaps the register records honestly, one condition row
+  (`e8-phishing-resistant-mfa`), and — the one with a
   clock — **`conformance-e8-retirement` (calendar, 2027-06-15)**: ASD opened
   consultation on **15 June 2026** to replace the Essential Eight with an
   ISM-grounded *Essentials* series, citing the cloud gap explicitly. The stated

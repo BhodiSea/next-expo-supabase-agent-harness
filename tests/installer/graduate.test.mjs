@@ -2,7 +2,7 @@
 // path (run validate → advance baseVersion when zero ramp NOTEs remain) is exercised
 // end-to-end against a real scaffold in the selftest CI matrix; here we lock the guards
 // that must hold without spawning a whole gate chain.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
@@ -58,6 +58,55 @@ test('graduate: a RED validate is refused NAMING the gate, not as one unattribut
   assert.match(said, /0001_init\.sql/, 'the failing gate’s detail bullets travel with it')
   assert.ok(!said.includes('format: OK'), 'a passing step is not a finding')
   assert.equal(JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8')).baseVersion, '0.0.1')
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('graduate: a STAMPED gate cannot hide a ramp NOTE — the .ok cache is invalidated first', async () => {
+  // THE 0.10.0 DEFECT, and the worst shape a graduate bug can take: it advanced baseVersion
+  // over findings it had been told to check for, which is the exact act that makes those
+  // findings turn-fatal. tools/lib/gate.mjs#stampGate short-circuits a gate to
+  // `ok(… inputs unchanged since last green run …)` when its declared inputs are unchanged
+  // and we are not in CI — the gate body never runs, so its rampNote never prints, so
+  // graduate's "zero ramp NOTEs" test passes over a withheld finding.
+  //
+  // Upgrade-lane leg A caught it live: graduate advanced 0.9.9 → 0.10.0 with two NOTEs
+  // outstanding and the very next validate came back RED on both. The stub below reproduces
+  // the short-circuit exactly — NOTE when the stamp is absent, the cached OK line when it is
+  // present — so this test FAILS against the pre-fix graduate (it would return 0 and write
+  // 0.10.0) and passes only because the stamps are invalidated before validate runs.
+  const dir = tempDir({ harnessVersion: installerVersion(), baseVersion: '0.9.9' })
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  writeFileSync(
+    join(dir, 'tools/validate.mjs'),
+    [
+      'import { existsSync } from "node:fs"',
+      'if (existsSync(".harness/version-sync.ok")) {',
+      '  console.log("version-sync: OK — inputs unchanged since last green run (.harness/version-sync.ok; CI always re-runs)")',
+      '} else {',
+      '  console.log("version-sync: NOTE — the arrival of tools/eol.json removalTarget dates (ramp: live from baseVersion 0.10.0; expires in 0.11.0)")',
+      '}',
+      'process.exit(0)',
+    ].join('\n'),
+  )
+  writeFileSync(join(dir, '.harness/version-sync.ok'), 'a-digest-that-would-match')
+  const errs = []
+  const real = console.error
+  console.error = (...a) => errs.push(a.join(' '))
+  try {
+    assert.equal(await graduate({ dir }), 1, 'a withheld finding must refuse the graduation')
+  } finally {
+    console.error = real
+  }
+  assert.match(errs.join('\n'), /ramped finding\(s\) still outstanding/)
+  assert.equal(
+    JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8')).baseVersion,
+    '0.9.9',
+    'baseVersion must NOT advance while a ramp NOTE stands',
+  )
+  assert.ok(
+    !existsSync(join(dir, '.harness/version-sync.ok')),
+    'the stamp is invalidated, so the next run re-asks the gate rather than re-reading the cache',
+  )
   rmSync(dir, { recursive: true, force: true })
 })
 

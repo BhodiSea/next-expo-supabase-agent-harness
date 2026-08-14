@@ -256,6 +256,90 @@ test('RED (0.6.0): a marker named only in PROSE satisfies nothing', () => {
   assert.ok(ok.out.includes('SKIPPED'), ok.out)
 })
 
+// ---- the axe tag ladder (0.10.0) ------------------------------------------------------
+//
+// `withTags` NARROWS axe. A short list is a silent decision not to run the rules outside
+// it, and until this axis existed nothing in the harness read which tags any spec passed —
+// check-web-e2e.mjs contained no occurrence of the string 'wcag' at all. The register row
+// anchored one of the two seeded specs, and its anchor fired on the FIX rather than on the
+// omission: widening home.spec.ts alone broke the anchor, and deleting the row to clear it
+// left tenancy.spec.ts running the 2.0 set forever with every gate green.
+
+/** A spec whose axe scan passes an explicit tag list. */
+const taggedSpec = (tags) =>
+  VALID_SPEC.replace(
+    '  const results = await new AxeBuilder({ page }).analyze()',
+    `  const results = await new AxeBuilder({ page }).withTags([${tags.map((t) => `'${t}'`).join(', ')}]).analyze()`,
+  )
+
+const LADDER = ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']
+
+test('RED (0.10.0): a TAGGED scan short of the ladder reds NAMING the missing tags', () => {
+  // The 2.0 pair both seeded specs shipped with for nine releases.
+  const r = runGate(fixture({ specs: [{ name: 'home.spec.ts', content: taggedSpec(['wcag2a', 'wcag2aa']) }] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("'wcag21aa'"), r.out)
+  assert.ok(r.out.includes("'wcag22aa'"), r.out)
+  // Named, not merely counted — the finding has to say which tags and what they buy.
+  assert.ok(r.out.includes('a tag list is a NARROWING'), r.out)
+  assert.ok(r.out.includes('target-size'), r.out)
+})
+
+test('RED: a HALF-widened suite reds on the spec that was forgotten, not the one that was fixed', () => {
+  // The defect the register anchor could not express. One spec widened, its twin not.
+  const r = runGate(
+    fixture({
+      specs: [
+        { name: 'home.spec.ts', content: taggedSpec(LADDER) },
+        { name: 'tenancy.spec.ts', content: taggedSpec(['wcag2a', 'wcag2aa']) },
+      ],
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('tenancy.spec.ts'), r.out)
+  assert.ok(!/home\.spec\.ts runs a TAGGED/.test(r.out), 'the widened spec must not be reported')
+})
+
+test('GREEN: the full ladder passes, and an UNTAGGED scan is exempt because it runs MORE', () => {
+  // The exemption is the correctness of the check, not a softening. A bare
+  // `new AxeBuilder({ page }).analyze()` runs every enabled non-experimental rule — a
+  // broader scan than the ladder — so demanding tags there would red the stricter spec and
+  // its only accepted remediation would be to shrink the scan.
+  for (const content of [taggedSpec(LADDER), VALID_SPEC]) {
+    const r = runGate(fixture({ specs: [{ name: 'home.spec.ts', content }] }), { ci: false })
+    assert.equal(r.code, 0, r.out)
+    assert.ok(r.out.includes('SKIPPED'), r.out) // static half green, no install
+    assert.ok(!r.out.includes('TAGGED axe scan'), r.out)
+  }
+})
+
+test('RED: a tag named only in a COMMENT does not satisfy the ladder', () => {
+  // Same rule as every other axis in this file: the source is blanked of comments first.
+  const cheat = taggedSpec(['wcag2a', 'wcag2aa']).replace(
+    "import AxeBuilder from '@axe-core/playwright'",
+    "import AxeBuilder from '@axe-core/playwright'\n// TODO: add 'wcag21aa' and 'wcag22aa' here",
+  )
+  const r = runGate(fixture({ specs: [{ name: 'home.spec.ts', content: cheat }] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("'wcag21aa'"), r.out)
+})
+
+test('RAMP: a pre-0.10.0 install gets a dated NOTE, not a hard red', () => {
+  // The runner is harness-OWNED and arms on every install via `update`; the specs it judges
+  // are SEEDED and `update` cannot rewrite them. Without the ramp, upgrading would hard-red
+  // a lane over two files the consumer never touched.
+  const dir = fixture({ specs: [{ name: 'home.spec.ts', content: taggedSpec(['wcag2a', 'wcag2aa']) }] })
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.9.5', harnessVersion: '0.10.0' }),
+  )
+  const r = runGate(dir, { ci: false })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE'), r.out)
+  assert.ok(r.out.includes('0.11.0'), r.out) // the deadline is stated, not implied
+})
+
 test('skip asymmetry: a static-green tree without node_modules → loud local SKIP, CI fail-closed', () => {
   const local = runGate(fixture(), { ci: false })
   assert.equal(local.code, 0, local.out)

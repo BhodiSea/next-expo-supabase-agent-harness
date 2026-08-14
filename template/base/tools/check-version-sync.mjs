@@ -378,6 +378,17 @@ if (existsSync(CC_FLOOR_PATH)) {
 // dated list of exactly what to disposition. A fresh 0.9.9 scaffold never sees the ramp — its
 // baseVersion is already 0.9.9 — so the census is live from the first validate on new trees.
 const eolErrs = []
+// THE ARRIVAL HALF RIDES ITS OWN RAMP, and 0.10.0 is the release that learned why. A
+// `removalTarget` is a date the HARNESS wrote into a SEEDED file: the shipped register
+// dated uuid's acceptance to 0.10.0, every install that ever ran `update` holds that
+// value, and at harness 0.10.0 it ARRIVES — hard, on a file `update` may not rewrite,
+// on the first validate after upgrading. The census half above and the arrival half are
+// therefore different obligations wearing one ramp: the census reds because the
+// consumer's lockfile moved, the arrival reds because a date the harness itself chose
+// came due. Splitting them lets the census ramp expire at 0.10.0 exactly as the fleet
+// intends while the arrival gets its own dated grace, so no upgraded install meets a
+// hard red for a value it did not choose and cannot receive a fix for.
+const arrivalErrs = []
 
 if (existsSync(EOL_PATH)) {
   const register = readJson(EOL_PATH)
@@ -423,7 +434,7 @@ if (existsSync(EOL_PATH)) {
         `${GATE}: NOTE — no .harness/manifest.json, so ${EOL_PATH}'s production-scope removalTarget dates are not judged for arrival; the census closure above still ran.`,
       )
     }
-    eolErrs.push(
+    arrivalErrs.push(
       ...arrivedAcceptances({
         rows: Array.isArray(register.deprecated) ? register.deprecated : [],
         path: EOL_PATH,
@@ -431,7 +442,7 @@ if (existsSync(EOL_PATH)) {
         cmp: cmpDotted,
       }),
     )
-    if (eolErrs.length === 0) {
+    if (eolErrs.length === 0 && arrivalErrs.length === 0) {
       console.log(
         `${GATE}: the end-of-life census judged ${String(census.judged)} vendor-deprecated package(s) against ${EOL_PATH} — ${String(census.unsupportedInProduction)} of them inside the PRODUCTION dependency closure — over ${String(scanned)} scanned lockfile entries, plus ${String(support.judged)} pinned version(s) against their vendors' supported lines.`,
       )
@@ -474,6 +485,24 @@ if (eolErrs.length > 0) {
     for (const e of eolErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
   } else {
     errs.push(...eolErrs)
+  }
+}
+
+// The 0.10.0 ramp over the ARRIVAL of a harness-authored removalTarget. Live from
+// baseVersion 0.10.0, so a fresh scaffold — which holds the re-dated register — is judged
+// immediately and an upgrading install gets a dated NOTE plus the seededSourceFixes
+// instruction telling it exactly which row to re-affirm. The escape ends at 0.11.0, by
+// which point every install has had a release in which to disposition the row. The comment
+// lives HERE and not inside the condition, for the reason the 0.7.0 site above records.
+if (arrivalErrs.length > 0) {
+  if (
+    rampNote(GATE, '0.10.0', "the arrival of tools/eol.json's removalTarget dates", {
+      until: '0.11.0',
+    })
+  ) {
+    for (const e of arrivalErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  } else {
+    errs.push(...arrivalErrs)
   }
 }
 

@@ -1319,29 +1319,36 @@ jobs:
           # deadline. Adding older legs must never replace it — it is the only leg on which a
           # RED chain is unambiguously a regression rather than an expiry.
           #
-          # AT 0.9.9 THIS LEG'S SECOND PROPERTY CHANGES HANDS, and the change is the
-          # release. The first property is unmoved: a v0.9.5 install computes EXPIRED=''
-          # with INERT at 36 — nothing this release opened falls due, because 0.9.9 is
-          # BELOW 0.10.0 and every live deadline is dated there — so a red chain here is a
-          # regression, full stop. What is no longer true is the un-swept `graduate`
-          # SUCCESS that 0.9.0 first executed here. 0.9.9 opens two ramps of its own at
-          # minVersion 0.9.9, which arms them for EVERY install below head including this
-          # one: auth-posture's [auth.mfa] posture (harness-owned register, seeded
-          # config.toml — the ambush the seededSourceFixes channel exists for) and
-          # version-sync's end-of-life census. The auth-posture one cannot be quiet on any
-          # upgraded install by construction — `update` cannot write a section into a
-          # seeded file — so graduate REFUSES here, and §8 judges that direction from the
-          # lane's own validate output rather than from a prediction written here.
+          # AT 0.10.0 THE BASELINE SLIDES TO v0.9.9 AND THE FIRST PROPERTY IS SHARPER THAN
+          # EVER: a v0.9.9 install computes EXPIRED='' against the largest expiry wave in
+          # the lineage. Eleven vintages meet a hard failure at 0.10.0 and this one meets
+          # NONE — every deadline that falls due here is dated for base < 0.9.9 — so a red
+          # chain on this leg is a regression, full stop, and that reading is worth more on
+          # a six-gate release than on a quiet one. It is also the INVERSE PROOF for leg I
+          # below: the same release, the same fleet, six expiries there and zero here, which
+          # is what shows the wave is dated rather than blanket.
           #
-          # NO LEG EXECUTES THE UN-SWEPT SUCCESS THIS RELEASE, and that is stated rather
-          # than left to be noticed: a release whose ramps open at minVersion == its own
-          # version arms them for every install below head at once, so every un-swept leg
-          # has something standing. Nothing goes uncovered — SUCCESS is one branch, and
-          # leg E executes it — but the specific reading "the door opens with nothing to
-          # sweep", which leg A carried at 0.9.0 and 0.9.5, is not available at 0.9.9 and
-          # returns whenever a release opens no ramp of its own. What this leg still owns
-          # alone is the regression reading: the only baseline whose red chain cannot be
-          # an expiry.
+          # THE UN-SWEPT `graduate` SUCCESS DOES NOT RETURN, and the reason is a fact about
+          # file ownership rather than a preference. 0.10.0 opens three ramps of its own at
+          # minVersion 0.10.0, arming them for every install below head including this one.
+          # Two are quiet here: docs-sync's AGENTS.md Stop-chain list produces no finding
+          # because the v0.9.9 AGENTS.md already carries the correct ten steps, and
+          # web-e2e's axe tag ladder cannot fire in this lane at all because web-e2e is a
+          # LANE RUNNER, not a chain step — `pnpm validate` never invokes it. The third
+          # cannot be quiet on ANY upgraded install: tools/rate-limit-budget.json is SEEDED
+          # (installer/lib/layout.mjs), the `rate-limits` gate now requires a
+          # `failOpen.fallback` string, and `update` cannot write it — the honest value
+          # depends on the deployment. So exactly one NOTE stands, graduate REFUSES, and §8
+          # judges that direction from the lane's own validate output rather than from a
+          # prediction written here.
+          #
+          # SO THE UN-SWEPT SUCCESS IS STILL UNEXECUTED, two releases running, and it is
+          # named rather than left to be noticed: any release that opens a ramp at
+          # minVersion == its own version over a SEEDED subject arms something on every
+          # un-swept leg. Nothing goes uncovered — SUCCESS is one branch and leg E executes
+          # it — but the specific reading "the door opens with nothing to sweep", which this
+          # leg carried at 0.9.0 and 0.9.5, returns only when a release opens no such ramp.
+          # What this leg still owns alone is the regression reading.
           - leg: A
             baseline: ''
             dir: upgrade
@@ -1502,6 +1509,29 @@ jobs:
             baseline: v0.9.0
             dir: upgrade-0-9-0
             why: the vacated vintage — the only baseline where 0.9.0's ramps are inert and 0.9.5's are live
+          # LEG K — the vintage leg A vacated at 0.10.0, added for the same reason leg J was
+          # added at 0.9.9: leg A's baseline slides every release, and the version it leaves
+          # behind is a released population no lane executes until one is written for it.
+          # v0.9.5 was leg A at 0.9.9; at 0.10.0 leg A is v0.9.9, so without this leg the
+          # 0.9.5 population goes uncovered in the release that FIRST reds it.
+          #
+          # IT IS THE SMALLEST NON-ZERO WAVE, and that is what it is for. A v0.9.5 install
+          # meets exactly TWO expiries — auth-posture's [auth.mfa] posture and version-sync's
+          # end-of-life register, both opened at minVersion 0.9.9 and dated 0.10.0 — where
+          # leg J (v0.9.0) meets four and leg I (v0.8.0) meets six. That gives the release a
+          # measured gradient rather than one endpoint: 0 (leg A) ⊂ 2 (here) ⊂ 4 (leg J) ⊂ 6
+          # (leg I), the A ⊂ K ⊂ J ⊂ I nesting the lane's own §7 invariant asks for, and the
+          # arithmetic behind the runbook's one-minor-at-a-time escape stated as executed
+          # legs rather than as a table nobody ran.
+          #
+          # It is ALSO the isolation leg for the 0.9.9-opened pair: this is the only baseline
+          # on which those two ramps are live and NOTHING older is, so a finding here names
+          # them and only them. Counts verified against `ramp-expectations.mjs 0.9.5 0.10.0`,
+          # which is what the lane asserts.
+          - leg: K
+            baseline: v0.9.5
+            dir: upgrade-0-9-5
+            why: the vintage leg A vacated — the 0.9.9-opened pair in isolation, and the smallest non-zero wave
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

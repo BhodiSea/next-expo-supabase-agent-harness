@@ -9,7 +9,7 @@
 // checks become turn-fatal exactly when the project has actually swept the findings, never
 // before. Refuses (and lists the outstanding NOTEs) while any remain. Idempotent.
 import { spawnSync } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { installerVersion, readManifest, writeManifest } from '../lib/manifest.mjs'
 import { rollbackDirFor } from '../lib/rollback.mjs'
@@ -24,6 +24,37 @@ function cmpDotted(a, b) {
     if (na !== nb) return na < nb ? -1 : 1
   }
   return 0
+}
+
+// THE STAMP CACHE MUST NOT DECIDE A GRADUATION (0.10.0). tools/lib/gate.mjs#stampGate
+// short-circuits a gate to `ok(… inputs unchanged since last green run …)` when its declared
+// inputs are byte-identical to the last GREEN run and we are not in CI — and a gate that does
+// not RUN prints no ramp NOTE. graduate's entire contract is "advance only if zero ramp NOTEs
+// remain", so a cached green reads to it as "nothing outstanding" while findings are in fact
+// being withheld. It then advances baseVersion, which is the very act that makes those
+// findings turn-fatal: the ambush the ramp system exists to prevent, delivered by the command
+// whose job is to prevent it.
+//
+// FOUND BY UPGRADE-LANE LEG A at 0.10.0 — the first release whose leg A reaches graduate with
+// a GREEN validate and outstanding NOTEs. It watched graduate advance 0.9.9 → 0.10.0 over two
+// withheld findings (version-sync's arrived eol acceptance, rate-limits' outage fallback) and
+// leave the install RED on its next validate.
+//
+// Invalidating the stamps rather than setting CI=true: CI also flips every toolchain-dependent
+// gate from skip-loudly to fail-closed, so a consumer graduating on a workstation with no
+// database running would meet a red chain and a refusal that is about their laptop rather than
+// their sweep. The stamp is documented as "a local convenience, never proof"; this is a place
+// that needs proof, and nothing else.
+//
+// `.sort()` because the determinism sweep holds every directory read in this repo to a stable
+// order — the rule the harness ships to consumers, applied to its own installer.
+/** @param {string} targetDir */
+function clearGateStamps(targetDir) {
+  const stampDir = join(targetDir, '.harness')
+  if (!existsSync(stampDir)) return
+  for (const f of readdirSync(stampDir).sort()) {
+    if (f.endsWith('.ok')) rmSync(join(stampDir, f), { force: true })
+  }
 }
 
 export async function graduate(opts) {
@@ -43,6 +74,8 @@ export async function graduate(opts) {
     console.error('graduate: tools/validate.mjs not found — is this an installed harness?')
     return 1
   }
+
+  clearGateStamps(targetDir)
 
   console.log(
     `graduate: running the ramp-aware validate to confirm the pre-${target} findings are swept…`,

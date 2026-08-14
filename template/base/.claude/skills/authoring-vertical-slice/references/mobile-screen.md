@@ -92,7 +92,7 @@ reads.
 `primitives-a11y` proof; a raw `Pressable`/`TextInput` outside them dodges that test. Raw text
 outside `AppText` is lint-red; new control styling goes INTO the primitive.
 
-## Accessibility (WCAG 2.2 AA, native edition)
+## Accessibility (native edition)
 
 Semantics come only from props — there is no DOM. `accessibilityLabel` on icon-only controls;
 `accessibilityRole` + `accessibilityState` everywhere interactive; composite rows grouped with
