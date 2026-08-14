@@ -53,11 +53,31 @@ try {
   fail([`${CANARIES} is missing or unparseable: ${e instanceof Error ? e.message : String(e)}`])
 }
 
-const keys = new Set(Object.keys(canaries.steps ?? {}))
-if (keys.size === 0) {
-  // Anti-vacuity: an empty registry would make every simulated-activity claim resolve to
-  // nothing and the check would pass by finding no evidence at all.
-  fail([`${CANARIES} declares no steps{} — the registry this check resolves against is empty.`])
+// steps ∪ lanes (0.10.0). A control a register row claims is either a CHAIN STEP or a CI JOB,
+// and both registries hold red-proofs — so resolving against steps{} alone, as this did through
+// 0.9.9, made every lane-backed claim unciteable. Three rows name `scan-full` and one names
+// `sbom-inventory`; under the narrow set they could not have named a proof at all, which is how
+// a widened closure ends up weakened to fit rather than met.
+const keys = new Set([...Object.keys(canaries.steps ?? {}), ...Object.keys(canaries.lanes ?? {})])
+if (Object.keys(canaries.steps ?? {}).length === 0 || Object.keys(canaries.lanes ?? {}).length === 0) {
+  // Anti-vacuity, PER REGISTRY rather than over the union: a union that is non-empty because
+  // one half survived would let every claim backed by the other half resolve to nothing while
+  // this check reported clean — the exact failure a single `keys.size === 0` guard misses.
+  fail([
+    `${CANARIES} declares ${String(Object.keys(canaries.steps ?? {}).length)} steps{} and ${String(Object.keys(canaries.lanes ?? {}).length)} lanes{} — both registries must be populated, or every claim resolving against the empty one passes by finding no evidence at all.`,
+  ])
+}
+
+// THE OTHER HALF OF THE SAME GUARD, and it was missing until 0.10.0 noticed it while widening
+// the closure below. canaryProblems() iterates the register's rows, so a register with NO rows
+// produces no findings and this script printed CLEAN — an empty register reading as a clean
+// bill of health, which is the exact shape the register's own doctrine forbids. censusProblems()
+// does catch it (9 findings on an empty file) but it runs in the CONSUMER gate, not here, so
+// factory-side there was nothing between a truncated register and a green machinery block.
+if (!Array.isArray(register.requirements) || register.requirements.length === 0) {
+  fail([
+    `${REGISTER} declares no requirements[] — the closure below iterates rows, so an empty register produces zero findings and would be reported CLEAN. An empty register is a broken file, never a compliant one.`,
+  ])
 }
 
 const problems = canaryProblems(register, keys)
@@ -86,12 +106,18 @@ for (const r of register.requirements) {
 if (problems.length > 0) fail(problems)
 
 const s = summarise(register)
+// The headline is the POSITIVE-CLAIM count, not the top-tier count. Through 0.9.9 this line
+// reported the five simulated-activity rows, which read as "five rows are proven" when the
+// register was in fact grading eleven rows as working and proving five of them.
+const positive = register.requirements.filter(
+  (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
+)
 const claiming = register.requirements.filter((r) => r.evidenceTier === 'simulated-activity')
 const tiers = {}
 for (const r of register.requirements) tiers[r.evidenceTier] = (tiers[r.evidenceTier] ?? 0) + 1
 
 console.log(
-  `ESSENTIAL EIGHT EVIDENCE: CLEAN (${String(s.total)} row(s); ${String(claiming.length)} claim simulated-activity and each names a registered can-fail proof [${[...new Set(claiming.map((r) => r.canary))].sort().join(', ')}]; tiers ${Object.entries(tiers)
+  `ESSENTIAL EIGHT EVIDENCE: CLEAN (${String(s.total)} row(s); all ${String(positive.length)} positive claim(s) name a registered can-fail proof for their OWN control [${[...new Set(positive.map((r) => r.canary))].sort().join(', ')}], of which ${String(claiming.length)} reach the simulated-activity tier; tiers ${Object.entries(tiers)
     .sort()
     .map(([k, v]) => `${k}=${String(v)}`)
     .join(' ')})`,

@@ -2,9 +2,11 @@
 name: accessibility-reviewer
 description: >
   Read-only accessibility auditor for the React Native mobile UI, at the rigor of
-  the `wcag2a`/`wcag2aa` tag set the web lane's axe scans actually run
-  (withTags(['wcag2a', 'wcag2aa']) — widening to WCAG 2.2 AA is a recorded
-  0.10.0 obligation). MUST BE USED after
+  the tag ladder the web lane's axe scans actually run — withTags(['wcag2a',
+  'wcag2aa', 'wcag21aa', 'wcag22aa']), which selects 63 runnable rules across 21
+  success criteria. That is a rule count, not a conformance level: axe implements
+  no rule at all for most of WCAG 2.1/2.2 AA, so the rest is this audit's job.
+  MUST BE USED after
   changes to apps/mobile/src or apps/mobile/app (components, features, screens,
   theme). Use PROACTIVELY when markup, focus behaviour, or announcements change.
   Cannot edit or run the test suite.
@@ -14,10 +16,17 @@ model: sonnet
 ---
 
 You audit a React Native (Expo) app against the WCAG A/AA success criteria as they
-apply to native mobile — the same `wcag2a`/`wcag2aa` bar the web lane's axe scans
-enforce mechanically; the 2.2-only criteria join when the recorded 0.10.0 obligation
-widens the tag set (until then, claiming "WCAG 2.2 AA" would assert more than the
-machine half checks). This is a native app: there is no browser chrome and no DOM — semantics come
+apply to native mobile. STATE THE BAR AS WHAT RUNS, NEVER AS A LEVEL — 0.10.0 widened
+the web lane to `withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])` and the
+honest description of that is 63 axe rules over 21 success criteria, not "WCAG 2.2 AA".
+Three facts make the level claim wrong in both directions, and all three were measured
+against axe-core 4.13's own rule table: the ladder's four tags also select 6 rules axe
+never runs (its default tagExclude drops `experimental` and `deprecated`, taking
+css-orientation-lock, table-fake-caption and four others with them); `target-size` is
+the ONLY automated WCAG 2.2 AA rule in existence, so 2.4.11, 3.2.6, 3.3.7 and 3.3.8 have
+no machine half at all; and axe's target-size floor is 24 CSS px, weaker than the 44dp
+this codebase already requires. Everything outside those 63 rules is YOUR job, and that
+gap is why this reviewer exists rather than being replaced by the lane. This is a native app: there is no browser chrome and no DOM — semantics come
 ONLY from accessibility props, and the screen readers are VoiceOver and TalkBack, so
 nothing comes for free. Read the diff (`git diff` vs base) and the changed
 components. Check:

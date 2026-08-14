@@ -3,6 +3,7 @@ import {
   createMemoryRateLimiter,
   createRateLimiter,
   createUpstashRateLimiter,
+  degradedReport,
   type RateLimitBucket,
   rateLimitKey,
   withFailOpen,
@@ -119,9 +120,12 @@ describe('fail-open', () => {
     )
     const d = await limiter.limit('k', BUCKET)
     expect(d.allowed).toBe(true)
-    // The whole point of the flag: "allowed because within budget" and "allowed because
-    // nothing was counting" are indistinguishable without it.
+    // The whole point of the flag: "allowed because within budget" and "allowed WITHOUT
+    // the backend" are indistinguishable without it. Since 0.10.0 the second case is the
+    // in-process fallback deciding — so this first hit is allowed because it is genuinely
+    // within the budget the fallback is now keeping, and `counted` says so.
     expect(d.degraded).toBe(true)
+    expect(d.counted).toBe(true)
     expect(onUnavailable).toHaveBeenCalledOnce()
   })
 
@@ -144,12 +148,18 @@ describe('fail-open', () => {
     expect(await limiter.limit('k', BUCKET)).toMatchObject({ allowed: true, degraded: false })
   })
 
-  it('the degraded flag is the ONLY field separating a degraded allow from a healthy one (0.9.0)', async () => {
-    // The consumers read this flag to emit their one-per-decision degraded ERROR log
+  it('degraded + counted are the ONLY fields separating a degraded allow from a healthy one (0.9.0, amended 0.10.0)', async () => {
+    // The consumers read these flags to emit their one-per-decision degraded ERROR log
     // (apps/web/lib/rate-limit-runtime.ts#spendRateLimit). If a refactor made the two
     // decisions differ in some OTHER field, a consumer could key on that instead and the
-    // flag would quietly stop being load-bearing; if it made them identical INCLUDING the
-    // flag, a Redis outage would be invisible. Pin both directions.
+    // flags would quietly stop being load-bearing; if it made them identical INCLUDING the
+    // flags, a Redis outage would be invisible. Pin both directions.
+    //
+    // 0.10.0 added EXACTLY ONE field to this comparison, deliberately: the outage rung now
+    // runs the in-process limiter, so `degraded` alone stopped being able to say whether
+    // anything counted. `remaining` still matches on the first hit — the fallback counts
+    // that hit exactly as a healthy limiter would — which is what keeps the rest of this
+    // assertion meaningful rather than trivially true.
     const healthy = await withFailOpen(
       createMemoryRateLimiter({ now: fakeClock().now }),
       vi.fn(),
@@ -158,8 +168,115 @@ describe('fail-open', () => {
       { limit: () => Promise.reject(new Error('ECONNREFUSED')) },
       vi.fn(),
     ).limit('k', BUCKET)
-    expect(degraded).toEqual({ ...healthy, degraded: true })
+    expect(degraded).toEqual({ ...healthy, counted: true, degraded: true })
     expect(healthy.degraded).toBe(false)
+  })
+
+  // ---- the outage rung actually LIMITS (0.10.0) ---------------------------------------
+  //
+  // Through 0.9.9 every test above asserted an ALLOW. Not one asserted a DENIAL after an
+  // outage, and that absence WAS the defect: `withFailOpen` returned degradedAllow
+  // unconditionally, so a Redis outage removed rate limiting entirely and the suite could
+  // not tell the difference between that and a working fallback.
+
+  it('RED-FIRST: the (N+1)-th request in the window is DENIED while the backend is down', async () => {
+    const onUnavailable = vi.fn()
+    // One shared fallback, as the default parameter gives — the window must survive across
+    // calls, or every request would be the first request and nothing would ever be denied.
+    const limiter = withFailOpen(
+      { limit: () => Promise.reject(new Error('ECONNREFUSED')) },
+      onUnavailable,
+      createMemoryRateLimiter({ now: fakeClock().now }),
+    )
+    for (let i = 0; i < BUCKET.limit; i += 1) {
+      const d = await limiter.limit('k', BUCKET)
+      expect(d).toMatchObject({ allowed: true, counted: true, degraded: true })
+    }
+    const over = await limiter.limit('k', BUCKET)
+    expect(over.allowed).toBe(false) // the whole point of the leg
+    expect(over.degraded).toBe(true) // still taken without the backend
+    expect(over.counted).toBe(true) // and something DID count it
+    expect(over.retryAfterSeconds).toBeGreaterThan(0)
+    // One report per degraded decision still holds, denials included.
+    expect(onUnavailable).toHaveBeenCalledTimes(BUCKET.limit + 1)
+  })
+
+  it('the fallback instance is SHARED across calls, so a flapping backend cannot reset the window', async () => {
+    // A per-call fallback would restart the count on every request and the denial above
+    // could never happen. This pins the construction, not just the behaviour: the default
+    // parameter is evaluated once, at the withFailOpen(...) call.
+    let up = false
+    const clock = fakeClock()
+    const limiter = withFailOpen(
+      {
+        limit: () => (up ? Promise.reject(new Error('flap')) : Promise.reject(new Error('down'))),
+      },
+      vi.fn(),
+      createMemoryRateLimiter({ now: clock.now }),
+    )
+    for (let i = 0; i < BUCKET.limit; i += 1) {
+      up = !up // the backend flaps between every request
+      expect((await limiter.limit('k', BUCKET)).allowed).toBe(true)
+    }
+    expect((await limiter.limit('k', BUCKET)).allowed).toBe(false)
+  })
+
+  it('LAST RESORT: when the fallback ALSO throws, nothing counted and onUnavailable fires ONCE', async () => {
+    // The pure fail-open window the package shipped with, now reachable only when both
+    // limiters are gone. onUnavailable must not fire twice: rate-limit-runtime.ts's
+    // lastOutageReason would be overwritten by the in-process failure and the operator
+    // would be told the wrong cause.
+    const onUnavailable = vi.fn()
+    const limiter = withFailOpen(
+      { limit: () => Promise.reject(new Error('ECONNREFUSED')) },
+      onUnavailable,
+      {
+        limit: () => {
+          throw new Error('the fallback is gone too')
+        },
+      },
+    )
+    const d = await limiter.limit('k', BUCKET)
+    expect(d).toMatchObject({ allowed: true, counted: false, degraded: true })
+    expect(onUnavailable).toHaveBeenCalledOnce()
+  })
+
+  it('degradedReport distinguishes the two degraded states, and is silent on a healthy one', () => {
+    // The pure half of the caller's log line. It lives here because
+    // apps/web/lib/rate-limit-runtime.ts is `import 'server-only'` and cannot be imported
+    // by any unit test — so without this extraction the branch would be unprovable.
+    expect(
+      degradedReport({
+        allowed: true,
+        degraded: false,
+        limit: 3,
+        remaining: 2,
+        retryAfterSeconds: 0,
+      }),
+    ).toBeNull()
+
+    const counting = degradedReport({
+      allowed: false,
+      counted: true,
+      degraded: true,
+      limit: 3,
+      remaining: 0,
+      retryAfterSeconds: 42,
+    })
+    expect(counting?.counting).toBe(true)
+    expect(counting?.effect).toMatch(/PER PROCESS/)
+    expect(counting?.effect).toMatch(/multiplied by the instance count/)
+
+    const nothing = degradedReport({
+      allowed: true,
+      counted: false,
+      degraded: true,
+      limit: 3,
+      remaining: 2,
+      retryAfterSeconds: 0,
+    })
+    expect(nothing?.counting).toBe(false)
+    expect(nothing?.effect).toMatch(/NOTHING is counting/)
   })
 
   it('onUnavailable fires exactly once PER degraded decision — the consumer log is per-decision too', async () => {

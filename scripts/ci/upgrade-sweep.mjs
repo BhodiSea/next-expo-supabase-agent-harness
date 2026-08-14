@@ -195,6 +195,24 @@ const SWEEPS = {
     skipDerivedAdopt: ['supabase/config.toml'],
     tomlSectionAppends: [['[auth.mfa]', AUTH_MFA_BLOCK]],
   },
+  // 0.10.0 — REVIEWED EMPTY, and the emptiness is the finding rather than a gap in the
+  // review. The release withholds NOTHING: its only two new files (tools/check-sbom.mjs and
+  // tools/lib/sbom.mjs) are harness-OWNED, so `update` delivers them and there is no
+  // seedOnInitOnly set for `adoptSeedOnInitOnly` to adopt. Its five seeded corrections are
+  // seededSourceFixes, which this module applies as DERIVED on every hop that crosses the
+  // version — an entry here could only veto them, and a review record must not be able to
+  // veto a fix.
+  //
+  // NO tomlSectionAppends, and that is worth saying out loud because 0.9.9 needed one and
+  // this release has the larger expiry wave: 0.10.0's auth-posture failure is the EXPIRY of
+  // the ramp over the [auth.mfa] keys 0.9.9 already appends, not a demand for a new section.
+  // A swept leg that crossed 0.9.9 already has the block; adding a second append here would
+  // write it twice.
+  //
+  // The entry exists at all because computeSweepSet() THROWS fail-closed on a crossed
+  // version with no entry — an unreviewed hop must never sweep silently — so "nothing to do"
+  // has to be said rather than left out.
+  '0.10.0': {},
 }
 
 /**

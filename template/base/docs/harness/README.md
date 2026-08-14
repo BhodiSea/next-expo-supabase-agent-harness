@@ -104,7 +104,19 @@ if the config cannot load it falls back to `pnpm validate` and warns — never s
 `stop_hook_active` escalates the message on repeat blocks — a payload field the docs do not
 list for `Stop` and every test supplies synthetically, so 0.6.0 **observed it** against a real
 invocation rather than trusting either (`design/CONTROL-PLANE-FACTS.md`).
-Failure output is truncated tail-first so the model sees the actual errors.
+**Failure output is bounded HEAD+TAIL, with the whole thing spilled to a file (0.10.0).**
+Through 0.9.9 each failure was reported tail-first — `out.slice(-4000)` — on the reasoning
+that a gate's summary comes last. It does for most; for the gates that ENUMERATE (a type
+error list, a lint run) the head is the finding and the tail is only the count, so the model
+read *"42 problems"* and never saw the first one, and nothing could recover it because the
+child's output existed only inside the catch. Now the full output goes to
+`.harness/stop-output/<gate>.log` — one file per gate, so several simultaneous failures are
+several readable logs rather than one interleaved one — and the block message carries the
+first 1000 characters, the last 2000, the count of what was elided, and the path. Short
+output is passed through untouched: the common case gains neither a file nor a paragraph.
+If the spill cannot be written the excerpt is still returned and the turn still blocks —
+bookkeeping never decides a turn, and a hook that threw while REPORTING a failure would turn
+a red gate into a crashed one.
 
 **The block cap leaves a mark (0.6.0).** `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` in
 `.claude/settings.json` is the safety valve so a genuinely stuck session terminates: after 8

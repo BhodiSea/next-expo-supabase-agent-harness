@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.9.x).** This repo was forked from
+> **Status: pre-release (0.10.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -23,8 +23,13 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > it on every push, including the live-Supabase RLS suite and the 29 can-fail
 > canaries (counted from the matrix itself, not hand-authored). The execution
 > proofs — the chain, the hooks, the upgrade ladder — run on **Linux**, plus a
-> Windows unit matrix over the gate/hook logic; the macOS/Windows validate legs
-> are schedule-gated measurement lanes, not per-commit proof. Nothing is claimed
+> Windows unit matrix (`installer-unit`) over the gate and hook logic, because
+> the path-separator/CRLF class only reproduces on a real Windows filesystem.
+> There is **no macOS lane and no off-Linux `validate` lane of any kind**:
+> `pnpm validate` has never been executed on a runner that is not Linux. Through
+> 0.9.9 this paragraph said the opposite — it described "macOS/Windows validate
+> legs" as schedule-gated measurement lanes, and `grep -rn macos
+> .github/workflows/` returns nothing at all. Nothing is claimed
 > here that that matrix does not run.
 >
 > **Honest losses.** Rate limiting binds the two application seams (the tRPC router
@@ -32,8 +37,10 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > directly with the publishable key and its own JWT, nor sign-in/sign-up, which go to
 > GoTrue; the controls that bind every path are the per-org quota trigger and the
 > per-role statement timeouts. The limiter **fails open** when its backend is
-> unavailable — a recorded decision, which means a Redis outage is a window with no
-> rate limiting at all. Statement timeouts bound duration, not concurrency. SELECT
+> unavailable — a recorded decision — but since 0.10.0 it degrades to the in-process
+> limiter rather than stopping: a Redis outage multiplies the budget by the instance
+> count instead of removing it, and on a serverless platform that discards the process
+> it still approaches no limit. Statement timeouts bound duration, not concurrency. SELECT
 > auditing is out of scope (the trail covers mutations). DSR export shipped in
 > 0.7.0 (`system.exportMyData`); erase ships as `session.deleteAccount` plus the
 > `delete-account` Edge Function (the expo-policy gate refuses an auth surface
@@ -232,8 +239,8 @@ incident-response portions back to the organisation.
 
 The standing below is recomputed from the register by `check-claims.mjs` and printed
 verbatim by the gate, as the whole partition rather than the flattering half of it:
-**149 ML3 requirements: 5 effective, 4 alternate-control, 30 not-implemented, 61
-not-applicable, 49 organisation-boundary; 8 shared clauses.** Grades are conservative by
+**149 ML3 requirements: 6 effective, 5 alternate-control, 27 not-implemented, 61
+not-applicable, 50 organisation-boundary; 8 shared clauses.** Grades are conservative by
 rule — absence of a surface is never a control, where two grades are defensible the lower
 one is taken, and an artefact another row already claims is not claimed again. Rows
 graded `not-implemented` are honestly unbuilt and each names the obligations row that owns

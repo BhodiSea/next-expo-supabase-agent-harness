@@ -36,95 +36,115 @@
       "evidence": "https://supabase.com/docs/guides/auth/auth-mfa"
     },
     {
-      "id": "e8-mfa-enforcement",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight MFA-09 (\"MFA is used to authenticate users of data repositories\") is graded not-implemented for a COVERAGE reason, not an enforcement one. 0.9.9 shipped the rail — private.mfa_is_required() (SECURITY DEFINER, no grant on auth.mfa_factors) behind a RESTRICTIVE aal2 policy with no FOR clause, proven against a live stack by supabase/tests/mfa_aal2.test.sql, which reds against the vendor-published policy — but applied it to public.notes alone, the worked vertical every slice is copied from. Which data warrants a second factor is a product decision: a low-sensitivity lookup table blocked at aal1 is a support ticket, not a control. Discharge is either a reviewed per-table register with a two-way closure, or a decision (recorded here) that coverage stays the consumer’s. ADR: docs/adr/20260812-mfa-aal2.md.",
-      "reviewedOn": "2026-08-12"
-    },
-    {
       "id": "e8-mfa-enrolment-surface",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight MFA-01, MFA-04 and MFA-06 all say MFA \"is used to authenticate\" users or customers — a claim about ALL of them — and mandatory enrolment is NOT expressible in GoTrue: MFAConfiguration carries no Required field and there is no project-level require-MFA switch for end users. 0.9.9 shipped the enforcement half (the aal2 rail makes enrolment MEAN something: an enrolled user cannot reach the data with a password alone, on any surface) and deliberately not the enrolment surface, which needs a signup state machine and a challenge flow on both product surfaces. Until it exists, a user who never enrols authenticates with one factor and these rows stay not-implemented rather than being softened to alternate-control. Same shape as dsr-web-erase-surface: the rail exists, the surface is owed. ADR: docs/adr/20260812-mfa-aal2.md.",
-      "reviewedOn": "2026-08-12"
+      "target": "1.0.0",
+      "reason": "Essential Eight MFA-01, MFA-04 and MFA-06 all say MFA \"is used to authenticate\" users or customers — a claim about ALL of them — and mandatory enrolment is NOT expressible in GoTrue: MFAConfiguration carries no Required field and there is no project-level require-MFA switch for end users. 0.9.9 shipped the enforcement half (the aal2 rail makes enrolment MEAN something: an enrolled user cannot reach the data with a password alone, on any surface) and deliberately not the enrolment surface, which needs a signup state machine and a challenge flow on both product surfaces. Until it exists, a user who never enrols authenticates with one factor and these rows stay not-implemented rather than being softened to alternate-control. Same shape as dsr-web-erase-surface: the rail exists, the surface is owed. ADR: docs/adr/20260812-mfa-aal2.md. RE-DATED TO 1.0.0 BY 0.10.0 on a CAPABILITY CEILING rather than on scope, and the distinction matters because a 0.11.0 date would be a promise nobody can keep: GoTrue’s MFAConfiguration carries no Required field and there is no project-level require-MFA switch for end users, so mandatory enrolment is not expressible on this platform at any date. What a release CAN build is the signup state machine and challenge flow on both surfaces, which is real work and does not by itself make the claim true — a user who never enrols still authenticates with one factor. It rides to 1.0.0 with the rest of the outcome-oracle work rather than being re-dated a minor at a time.",
+      "reviewedOn": "2026-08-14"
     },
     {
-      "id": "e8-auth-event-logging",
+      "id": "e8-auth-event-trail",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight MFA-15 and MFA-16 want authentication events centrally logged and protected. 0.9.9 established what is actually there, against a running stack rather than from documentation: auth.audit_log_entries EXISTS in every Supabase project (a first draft of the register wrongly said auth events were captured nowhere), a signup and a sign-in write rows to it, and THREE failed sign-ins write nothing — so the \"unsuccessful\" half of MFA-15 has no record at all. It is also unprotected in a way audit.events is not: zero non-internal triggers, and `postgres` holds UPDATE, DELETE and TRUNCATE, so there is no append-only layer and none can be added without editing a schema GoTrue owns and re-migrates. Discharge is not a harness gate: it is either an application-level auth-event trail written into audit.events at the sign-in seam (which would capture the unsuccessful half the platform drops) or an operator log drain, and the second is Dashboard-only. Recorded rather than scheduled until the shape is decided.",
-      "reviewedOn": "2026-08-12"
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "template/base/tools/essential-eight.json",
+          "mustContain": "e8-auth-event-trail"
+        }
+      ],
+      "reason": "THE SCHEDULABLE HALF OF THE RETIRED e8-auth-event-logging, split out in 0.10.0 because one row could not be honest about both halves at once. MFA-15 wants successful AND unsuccessful multi-factor authentication events centrally logged, and it fails on two independent grounds that have different owners. The CEILING half — \"centrally\", and the protection of the stream — moved to e8-central-log-forwarding: the drains are Dashboard-only on this platform and no append-only layer can be added to a schema GoTrue re-migrates. The BUILDABLE half is this row, and it is buildable because the gap is in THIS repository rather than the platform: verified against a running stack, a signup writes `user_signedup` and a sign-in writes `login`, but THREE FAILED SIGN-INS WRITE NOTHING AT ALL. An application-level auth-event trail written into audit.events at the sign-in seam would capture the unsuccessful half the platform simply drops, and audit.events already has the append-only discipline auth.audit_log_entries cannot be given. That is real work in a surface this repo owns, so it takes a date. It does NOT by itself pass MFA-15 — the central half stays ceilinged — which is exactly why the two halves are two rows.",
+      "reviewedOn": "2026-08-13"
     },
     {
       "id": "e8-central-log-forwarding",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RAP-20, RAP-21, AC-11, AC-12 and UAH-20 all turn on the word \"centrally\". The events this repository can produce ARE produced and ARE protected — audit.events is append-only in four layers and 0.9.9 added the elevated-role ATTEMPT (service_role trying to read, forge, modify, delete and truncate) rather than inferring refusal from a grant lookup, which is the difference between ASD's POOR and EXCELLENT evidence tiers. What no part of this repository can do is forward them: central logging means the record survives compromise of the system that produced it, and an in-database trail does not. THE FORWARDING HALF IS ASYMMETRIC AND MUST NOT BE GATED AS THOUGH IT WERE SYMMETRIC: one platform's log drains are API- and Terraform-addressable, the other's are Dashboard-only (verified negative against the live Management API specification — `drain` appears only as an enum value, never as a path). A gate resolving either from a live endpoint is refused outright by this repository's hermeticity rule (CONTRIBUTING: a gate that resolves its expectations from a live third-party endpoint turns an untouched commit red overnight, and this repo has already paid for that once). Retention is the other half of the reason: platform log retention tops out at 90 days by plan tier, so any requirement beyond that must ride a drain into a sink the operator controls. Discharge is a reviewed decision about WHERE the boundary sits, not a scheduled build.",
-      "reviewedOn": "2026-08-12"
+      "kind": "condition",
+      "target": null,
+      "reason": "Essential Eight RAP-20, RAP-21, AC-11, AC-12 and UAH-20 all turn on the word \"centrally\". The events this repository can produce ARE produced and ARE protected — audit.events is append-only in four layers and 0.9.9 added the elevated-role ATTEMPT (service_role trying to read, forge, modify, delete and truncate) rather than inferring refusal from a grant lookup, which is the difference between ASD's POOR and EXCELLENT evidence tiers. What no part of this repository can do is forward them: central logging means the record survives compromise of the system that produced it, and an in-database trail does not. THE FORWARDING HALF IS ASYMMETRIC AND MUST NOT BE GATED AS THOUGH IT WERE SYMMETRIC: one platform's log drains are API- and Terraform-addressable, the other's are Dashboard-only (verified negative against the live Management API specification — `drain` appears only as an enum value, never as a path). A gate resolving either from a live endpoint is refused outright by this repository's hermeticity rule (CONTRIBUTING: a gate that resolves its expectations from a live third-party endpoint turns an untouched commit red overnight, and this repo has already paid for that once). Retention is the other half of the reason: platform log retention tops out at 90 days by plan tier, so any requirement beyond that must ride a drain into a sink the operator controls. Discharge is a reviewed decision about WHERE the boundary sits, not a scheduled build. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work. IT ALSO ABSORBS MFA-16 (“event logs are protected from unauthorised modification and deletion”), which until 0.10.0 was owned by e8-auth-event-logging. The move is not filing convenience: auth.audit_log_entries carries zero non-internal triggers and `postgres` holds UPDATE, DELETE and TRUNCATE on it, and no append-only layer can be ADDED because the schema is GoTrue’s and GoTrue re-migrates it. So the only remedy for the protection requirement is the same act as the remedy for the forwarding ones — get a copy off the platform into a sink the operator controls — and two rows naming one remedy under two ids is how a ceiling gets discharged twice.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONFORMANCE-FACTS.md",
+      "sites": [
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "CEILING (RAP-20/21, AC-11/12, UAH-20, MFA-16): forwarding is not a build this repository"
+        }
+      ]
     },
     {
       "id": "e8-restore-manifest",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RB-02 wants backups of data, applications AND settings synchronised to a common point in time. 0.9.9 shipped the evidence lane (`backup-evidence`, tools/check-backup-posture.mjs) and established that it does NOT discharge this row, for a reason worth recording rather than rediscovering: the platform's backup does not contain two of the three asset classes. Verified against the vendor's own pages — Edge Functions, Auth settings and API keys, Realtime settings, extensions and project settings, read replicas and Storage API objects all sit outside the database backup (the database holds only Storage metadata), and custom-role LOGIN passwords are stripped from it. The sharpest exclusion is the Vault/pgsodium root key: a backup carries ciphertext but never the key, so a restore into a NEW project cannot decrypt what it just restored until the key is carried across by hand — which is also the thing most likely to be discovered during a real recovery rather than before one. Discharge is a manifest that binds the database backup to the commit, the migration set and the deployed function versions, emitted at deploy time. Not built, and not scheduled: it needs a deploy-time artefact channel this repository does not yet have.",
-      "reviewedOn": "2026-08-12"
+      "kind": "condition",
+      "target": null,
+      "reason": "Essential Eight RB-02 wants backups of data, applications AND settings synchronised to a common point in time. 0.9.9 shipped the evidence lane (`backup-evidence`, tools/check-backup-posture.mjs) and established that it does NOT discharge this row, for a reason worth recording rather than rediscovering: the platform's backup does not contain two of the three asset classes. Verified against the vendor's own pages — Edge Functions, Auth settings and API keys, Realtime settings, extensions and project settings, read replicas and Storage API objects all sit outside the database backup (the database holds only Storage metadata), and custom-role LOGIN passwords are stripped from it. The sharpest exclusion is the Vault/pgsodium root key: a backup carries ciphertext but never the key, so a restore into a NEW project cannot decrypt what it just restored until the key is carried across by hand — which is also the thing most likely to be discovered during a real recovery rather than before one. Discharge is a manifest that binds the database backup to the commit, the migration set and the deployed function versions, emitted at deploy time. Not built, and not scheduled: it needs a deploy-time artefact channel this repository does not yet have. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONFORMANCE-FACTS.md",
+      "sites": [
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "CEILING (RB-02): the manifest needs a deploy-time artefact channel that does not exist"
+        }
+      ]
     },
     {
       "id": "e8-backup-store-posture",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RB-03/RB-05/RB-06/RB-09 concern where backups live and who can reach them. 0.9.9 recorded what the vendor ATTESTS, labelled as attestation rather than as anything this system demonstrates: backups are AES-256 encrypted at rest with keys protected by FIPS 140-2 validated HSMs, stored in S3 on infrastructure independent of the project's own resources. That is a contractual statement in the data processing agreement, not an artefact any control here reads, so it cannot raise a grade. Two things remain unpublished and are recorded as unknowns rather than assumed either way: no storage region for backups is stated, and whether daily backups aging past the plan window (7 / 14 / 30 days) are DELETED or merely made inaccessible is never said — every statement takes the form \"can access the last N days\", which is an access claim and not a deletion one. RB-05/06/09 stay graded as they were, because \"no client role can reach a backup\" is true here only because this tree produces no backups of its own: vacuous truth, and the register's own rule is that absence of a surface is never a control. Discharge is a self-produced off-platform backup with its own store and IAM policy, which is an operator decision about where the boundary sits rather than a build to schedule.",
-      "reviewedOn": "2026-08-12"
+      "kind": "condition",
+      "target": null,
+      "reason": "Essential Eight RB-03/RB-05/RB-06/RB-09 concern where backups live and who can reach them. 0.9.9 recorded what the vendor ATTESTS, labelled as attestation rather than as anything this system demonstrates: backups are AES-256 encrypted at rest with keys protected by FIPS 140-2 validated HSMs, stored in S3 on infrastructure independent of the project's own resources. That is a contractual statement in the data processing agreement, not an artefact any control here reads, so it cannot raise a grade. Two things remain unpublished and are recorded as unknowns rather than assumed either way: no storage region for backups is stated, and whether daily backups aging past the plan window (7 / 14 / 30 days) are DELETED or merely made inaccessible is never said — every statement takes the form \"can access the last N days\", which is an access claim and not a deletion one. RB-05/06/09 stay graded as they were, because \"no client role can reach a backup\" is true here only because this tree produces no backups of its own: vacuous truth, and the register's own rule is that absence of a surface is never a control. Discharge is a self-produced off-platform backup with its own store and IAM policy, which is an operator decision about where the boundary sits rather than a build to schedule. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONFORMANCE-FACTS.md",
+      "sites": [
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "CEILING (RB-03/05/06/09): the current grade rests on vacuous truth"
+        }
+      ]
     },
     {
       "id": "e8-backup-immutability",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RB-11 requires backup administrator accounts to be prevented from modifying and deleting backups during the retention period. 0.9.9 re-verified the platform surface and the finding got SHARPER AND WEAKER AT THE SAME TIME, which is the point. Sharper: no Delete or Modify action for a backup appears anywhere — not as a row in the published permissions table, and not as any method across all 115 API paths. Weaker: that is an ABSENCE OF SURFACE, not a published control. Supabase nowhere states that backups cannot be deleted; it simply never offers the verb, and no page publishes an immutability, WORM or object-lock guarantee for the buckets holding them (searched: the backups guide, product security, the SOC 2 and HIPAA pages, the shared-responsibility model, the PITR usage page). Reading an unoffered verb as prevention would be exactly the inflation this register exists to refuse. There is also no backup-administrator role to separate: the four published roles are Owner, Administrator, Developer and Read-Only, the table grants backups only View/Download/Restore and PITR only View/Restore, `Developer` holds Download and Restore while being described as unable to change project settings, and `Read-Only` — the only role narrow enough to resemble a custodian — is denied both and is gated behind Team or Enterprise. ONE GAP IS EXPLICITLY UNVERIFIABLE AND MUST NOT BE GRADED IN EITHER DIRECTION: whether reducing the PITR recovery retention period, or removing the PITR add-on, destroys backup data already inside the previous window. The vendor documents the billing consequence and says the period can be changed, and publishes no data-lifecycle statement at all — which is the most plausible undocumented route by which a privileged account could destroy backups during their retention period, and precisely what this requirement asks about. Reachable only for self-produced off-platform dumps under S3 Object Lock in COMPLIANCE mode, which binds every principal including the account root.",
-      "reviewedOn": "2026-08-12"
+      "kind": "condition",
+      "target": null,
+      "reason": "Essential Eight RB-11 requires backup administrator accounts to be prevented from modifying and deleting backups during the retention period. 0.9.9 re-verified the platform surface and the finding got SHARPER AND WEAKER AT THE SAME TIME, which is the point. Sharper: no Delete or Modify action for a backup appears anywhere — not as a row in the published permissions table, and not as any method across all 115 API paths. Weaker: that is an ABSENCE OF SURFACE, not a published control. Supabase nowhere states that backups cannot be deleted; it simply never offers the verb, and no page publishes an immutability, WORM or object-lock guarantee for the buckets holding them (searched: the backups guide, product security, the SOC 2 and HIPAA pages, the shared-responsibility model, the PITR usage page). Reading an unoffered verb as prevention would be exactly the inflation this register exists to refuse. There is also no backup-administrator role to separate: the four published roles are Owner, Administrator, Developer and Read-Only, the table grants backups only View/Download/Restore and PITR only View/Restore, `Developer` holds Download and Restore while being described as unable to change project settings, and `Read-Only` — the only role narrow enough to resemble a custodian — is denied both and is gated behind Team or Enterprise. ONE GAP IS EXPLICITLY UNVERIFIABLE AND MUST NOT BE GRADED IN EITHER DIRECTION: whether reducing the PITR recovery retention period, or removing the PITR add-on, destroys backup data already inside the previous window. The vendor documents the billing consequence and says the period can be changed, and publishes no data-lifecycle statement at all — which is the most plausible undocumented route by which a privileged account could destroy backups during their retention period, and precisely what this requirement asks about. Reachable only for self-produced off-platform dumps under S3 Object Lock in COMPLIANCE mode, which binds every principal including the account root. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONFORMANCE-FACTS.md",
+      "sites": [
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "CEILING (RB-11): an unoffered verb is not a control"
+        }
+      ]
     },
     {
       "id": "e8-privilege-lifecycle",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RAP-02 and RAP-03 require privileged access to be disabled after 12 months unless revalidated and after 45 days of inactivity. Neither exists: role_rank membership is a standing grant with no expiry and no inactivity sweep, so a grant made once holds forever. Both windows are ASD's own verbatim numbers and are the only ones that may be encoded.",
-      "reviewedOn": "2026-08-12"
+      "target": "0.11.0",
+      "reason": "Essential Eight RAP-02 and RAP-03 require privileged access to be disabled after 12 months unless revalidated and after 45 days of inactivity. Neither exists: role_rank membership is a standing grant with no expiry and no inactivity sweep, so a grant made once holds forever. Both windows are ASD's own verbatim numbers and are the only ones that may be encoded. RE-DATED TO 0.11.0 BY 0.10.0, AND THIS IS A SCOPE DECISION, NOT AN INTERACTION — labelled that way because the honest label is the whole value of the re-date. The work is real, the machinery exists, and this pair is the only e8 discharge that would reach ASD’s simulated-activity tier, so nothing here says it is unimportant. It defers because it is the only genuinely new PRODUCT code in a release whose job is the upgrade path; because it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase; and because supabase/ is under SEEDED_PREFIXES, so it reaches ZERO existing installs — it buys fresh scaffolds at the cost of the release’s actual work. One migration or neither.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "e8-jit-admin",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight RAP-13 requires just-in-time administration for administering systems and applications. Nothing in this tree elevates temporarily: role_rank is a standing grant and no admin session carries an expiry. Discharge is a time-bounded elevation whose expiry the RLS admin predicate actually consults, so an expired session stops satisfying it rather than merely being marked expired.",
-      "reviewedOn": "2026-08-12"
-    },
-    {
-      "id": "e8-asset-inventory",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight PA-01 and POS-01 require an automated method of asset discovery at least fortnightly to support vulnerability scanning. The lockfile is already a deterministic dependency inventory but nothing emits it AS an inventory artefact. pnpm 11 ships `pnpm sbom` natively and design/CONFORMANCE-FACTS.md section 8 already records SBOM CONSUMPTION — diffing against the previous release tag and redding on an unallowlisted addition — as the differentiating control, deferred undated. This row dates it.",
-      "reviewedOn": "2026-08-12"
-    },
-    {
-      "id": "e8-daily-vuln-scan",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight PA-03 requires a vulnerability scanner at least DAILY for online services, and the shipped osv-scan schedule is WEEKLY. Found by grading rather than assumed, and the diff-aware PR lane does not close it: osv-scan.yml's own header records that a tree shipping a vulnerable pin from before the advisory never reds on the diff-aware half. Discharge is a daily cadence for the internet-facing class, or a reviewed regrade if the class is argued narrower.",
-      "reviewedOn": "2026-08-12"
+      "target": "0.11.0",
+      "reason": "Essential Eight RAP-13 requires just-in-time administration for administering systems and applications. Nothing in this tree elevates temporarily: role_rank is a standing grant and no admin session carries an expiry. Discharge is a time-bounded elevation whose expiry the RLS admin predicate actually consults, so an expired session stops satisfying it rather than merely being marked expired. RE-DATED TO 0.11.0 BY 0.10.0, AND THIS IS A SCOPE DECISION, NOT AN INTERACTION — labelled that way because the honest label is the whole value of the re-date. The work is real, the machinery exists, and this pair is the only e8 discharge that would reach ASD’s simulated-activity tier, so nothing here says it is unimportant. It defers because it is the only genuinely new PRODUCT code in a release whose job is the upgrade path; because it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase; and because supabase/ is under SEEDED_PREFIXES, so it reaches ZERO existing installs — it buys fresh scaffolds at the cost of the release’s actual work. One migration or neither.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "e8-eol-closure",
-      "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight PA-11 (online services), PA-13 (applications) and POS-16 (operating systems) require products no longer supported by vendors to be removed or replaced. 0.9.9 DISCHARGED PA-13 and disproved the plan’s assumption that one artefact would cover all three. The built closure reads the npm registry’s own `deprecated` flags out of the RESOLVED pnpm-lock.yaml (a committed third-party artefact, so the check is hermetic), dispositions every one of them in the reviewed tools/eol.json, and RECOMPUTES each row’s production-vs-development scope from the lockfile instead of believing it — which on its first run disproved the note about to be written, since five of the scaffold’s six deprecated packages are development-only and uuid@7 is not (it arrives through expo -> @expo/config-plugins -> xcode). WHAT IS STILL OWED IS THE OTHER TWO ROWS, and neither is a scheduling matter. PA-11 wants ONLINE SERVICES: Supabase, Vercel, GitHub Actions, the npm registry, EAS. None of them has a support flag in any artefact this tree contains, and asking their APIs is refused by the hermeticity rule in CONTRIBUTING. POS-16 wants PLATFORMS: the CI runner image, the Node major, the Postgres major, the mobile target SDKs. store-policy.json holds currency floors, which assert recency and not vendor support, and POS-15 already claims framework-floor.json plus the version-sync step as its runtime-currency alternate control — so grading POS-16 on the same artefact would double-count one control across two requirements. Discharge for both is a reviewed per-service and per-platform support register with its own freshness window, or an honest permanent ceiling; it is a decision about where the boundary sits, not a build to schedule.",
-      "reviewedOn": "2026-08-12"
+      "kind": "condition",
+      "target": null,
+      "reason": "Essential Eight PA-11 (online services), PA-13 (applications) and POS-16 (operating systems) require products no longer supported by vendors to be removed or replaced. 0.9.9 DISCHARGED PA-13 and disproved the plan’s assumption that one artefact would cover all three. The built closure reads the npm registry’s own `deprecated` flags out of the RESOLVED pnpm-lock.yaml (a committed third-party artefact, so the check is hermetic), dispositions every one of them in the reviewed tools/eol.json, and RECOMPUTES each row’s production-vs-development scope from the lockfile instead of believing it — which on its first run disproved the note about to be written, since five of the scaffold’s six deprecated packages are development-only and uuid@7 is not (it arrives through expo -> @expo/config-plugins -> xcode). WHAT IS STILL OWED IS THE OTHER TWO ROWS, and neither is a scheduling matter. PA-11 wants ONLINE SERVICES: Supabase, Vercel, GitHub Actions, the npm registry, EAS. None of them has a support flag in any artefact this tree contains, and asking their APIs is refused by the hermeticity rule in CONTRIBUTING. POS-16 wants PLATFORMS: the CI runner image, the Node major, the Postgres major, the mobile target SDKs. store-policy.json holds currency floors, which assert recency and not vendor support, and POS-15 already claims framework-floor.json plus the version-sync step as its runtime-currency alternate control — so grading POS-16 on the same artefact would double-count one control across two requirements. Discharge for both is a reviewed per-service and per-platform support register with its own freshness window, or an honest permanent ceiling; it is a decision about where the boundary sits, not a build to schedule. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONFORMANCE-FACTS.md",
+      "sites": [
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains"
+        }
+      ]
     },
     {
       "id": "e8-patch-window-evidence",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "Essential Eight PA-06, PA-07 and PA-10 carry ASD's verbatim 48-hour, two-week and one-month windows for applying vendor mitigations, and no control measures advisory-publication against deployment time. framework-floor.json is clockless and offline by design: it holds a version floor, not a window. Discharge must encode ONLY ASD's stated numbers — the assessment guidance sets no window for 'in a timely manner', and inventing a 24- or 72-hour SLA would manufacture a contractual obligation with no framework backing.",
-      "reviewedOn": "2026-08-12"
+      "target": "1.0.0",
+      "reason": "Essential Eight PA-06, PA-07 and PA-10 carry ASD's verbatim 48-hour, two-week and one-month windows for applying vendor mitigations, and no control measures advisory-publication against deployment time. framework-floor.json is clockless and offline by design: it holds a version floor, not a window. Discharge must encode ONLY ASD's stated numbers — the assessment guidance sets no window for 'in a timely manner', and inventing a 24- or 72-hour SLA would manufacture a contractual obligation with no framework backing. RE-DATED TO 1.0.0 BY 0.10.0, and it shares its blocker with e8-restore-manifest — which 0.10.0 converted to a condition row for exactly this reason. Both need a DEPLOY-TIME artefact channel: something emitted when the system is deployed, binding what shipped to when. This repository has no such channel, and inventing one is not a compliance task but an infrastructure one. Kept as a dated row rather than converted to a condition because unlike the restore manifest this one becomes schedulable the moment the channel exists, and 1.0.0 is where that work sits.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "auth-posture-cli-census",
@@ -136,61 +156,27 @@
           "mustContain": "auth-posture-cli-census"
         }
       ],
-      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand at the 2.113.0 pin parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
-      "reviewedOn": "2026-08-10",
+      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
+      "reviewedOn": "2026-08-13",
       "evidence": "https://github.com/supabase/cli/issues/5894"
     },
     {
-      "id": "version-sync-lockfile-ramp-expiry",
-      "kind": "release",
-      "target": "0.10.0",
+      "id": "control-plane-facts-currency",
+      "kind": "condition",
+      "target": null,
       "sites": [
         {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "until: '0.10.0'"
-        }
-      ],
-      "reason": "The committed-lockfile floor 0.9.0 opened inside version-sync (the absent-lockfile NOTE it replaces claimed 'CI always has one', which was false: the shipped workflows run `pnpm install --frozen-lockfile`, which hard-fails without a committed lockfile, and a fresh resolution drifts against the live registry) falls due at 0.10.0. The 0.10.0 migrations record owes this expiry the way every record has paid its predecessor's.",
-      "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "wiring-lefthook-ramp-expiry",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
+          "file": "design/CONTROL-PLANE-FACTS.md",
+          "mustContain": "Observed 2026-08-07"
+        },
         {
-          "file": "template/base/tools/check-wiring.mjs",
-          "mustContain": "until: '0.10.0'"
+          "file": "template/base/tools/cc-floor.json",
+          "mustContain": "2.1.163"
         }
       ],
-      "reason": "The commit-time installed-not-dormant floor 0.9.0 opened inside wiring (a committed lefthook.yml with nothing in .git/hooks is layer 2 disarmed while every description of the harness counts it armed) falls due at 0.10.0. The 0.10.0 migrations record owes this expiry alongside the version-sync lockfile floor's.",
-      "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "env-through-register-seeded-exemption",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
-        {
-          "file": "template/base/eslint.config.mjs",
-          "mustContain": "apps/web/lib/rate-limit-runtime.ts"
-        }
-      ],
-      "reason": "The env-through-register rule (0.9.5) is harness-OWNED, so `update` arms it on every install at once, while the two sites it was written for are SEEDED — an upgrading consumer would meet a hard-red lint step on files `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so the two paths sit in the rule's `ignores` as its ramp, paired with a 0.9.5 seededSourceFixes instruction that `doctor` surfaces. 0.10.0 owes the removal of those two ignore lines, once the source fix has had a release to land. Found by upgrade-lane leg I, not by review.",
-      "reviewedOn": "2026-08-11"
-    },
-    {
-      "id": "docs-sync-agent-surface-ramp-expiry",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "until: '0.10.0'"
-        }
-      ],
-      "reason": "The agent-surface truth checks 0.9.5 opened inside docs-sync (the AGENTS.md line-budget claims-check and the body command closure over .claude/{rules,commands,skills,agents}) fall due at 0.10.0. Ramped because AGENTS.md is seeded — every pre-0.9.5 install keeps the old ~200 sentence update cannot rewrite — and skills may be consumer-authored. The 0.10.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-11"
+      "reason": "THE DATED FACTS THIS HARNESS DEPENDS ON MOST HAVE NO FRESHNESS CONTROL, and until this row existed nothing said so. design/CONTROL-PLANE-FACTS.md opens 'Observed 2026-08-07 ... Re-verify on any Claude Code upgrade' — an instruction to a human with no machine behind it, in the one file whose subject is the harness's most important dependency. Its own standard is quoted two paragraphs below that line: 'a proof that has only ever been read is not a proof', and a proof that has only ever been read ONCE, fifteen releases ago, is the same defect wearing a date. THE STAKES ARE NOT UNIFORM ACROSS THE FILE: Fact 5 ('no CI lane in this repository spawns Claude at all') is the PRECONDITION on which six CI-agentic controls were rejected as a batch rather than on merit, and Fact 6's environment table was misread during 0.10.0 planning as licensing a subagent depth cap it does not license — CLAUDE_CODE_CHILD_SESSION=1 was observed in a MAIN VS Code session, so a hook denying on it would deny every reviewer spawn and brick the turn. A stale fact here does not merely age; it authorises a control that breaks the harness. WHY CONDITION AND NOT CALENDAR: the file's own trigger is a Claude Code upgrade, not a date, and inventing a review month would be this register's arithmetic wearing an observation's clothes. The two sites[] anchors ARE the machine half — the first pins the observation date, so re-observing forces this row to move in the same diff; the second pins tools/cc-floor.json's derived floor, so the CC upgrade that ought to trigger a re-observation cannot land silently while the facts stay dated. Discharges when the probe is re-run against the then-current Claude Code and the file is re-dated, or when a scheduled prober makes the question machine-asked.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "design/CONTROL-PLANE-FACTS.md"
     },
     {
       "id": "docs-sync-adr-shape-ramp-expiry",
@@ -206,70 +192,58 @@
       "reviewedOn": "2026-08-11"
     },
     {
-      "id": "boundaries-vertical-anatomy-ramp-expiry",
+      "id": "docs-sync-stop-list-ramp-expiry",
       "kind": "release",
-      "target": "0.10.0",
+      "target": "0.11.0",
       "sites": [
         {
-          "file": "template/base/tools/check-workspace-deps.mjs",
-          "mustContain": "until: '0.10.0'"
+          "file": "template/base/tools/check-docs-sync.mjs",
+          "mustContain": "AGENTS.md Stop-chain list lockstep"
         }
       ],
-      "reason": "The vertical-anatomy + intra-vertical layering laws 0.9.5 opened inside boundaries (dual barrels, pure barrels, domain purity, DAL-through-the-port, events purity, the select('*') ban — the worked notes anatomy as law, lib/vertical-anatomy.mjs) fall due at 0.10.0. The 0.10.0 migrations record owes this expiry; pre-0.9.5 installs see NOTEs until then.",
-      "reviewedOn": "2026-08-11"
+      "reason": "The Stop-list lockstep 0.10.0 opened inside docs-sync (AGENTS.md's 'The N Stop-chain steps, in order:' sentence, floor-scoped and one-directional) falls due at 0.11.0. THIS ROW WAS WRITTEN DELIBERATELY AND NOTHING FORCED IT, which is the reason it needs saying out loud: rampObligationProblems (scripts/lib/obligations.mjs) matches a ramp to its row with `id.includes(site.gate)`, so the pre-existing docs-sync-adr-shape-ramp-expiry — same gate, same 0.11.0 target — already satisfied the union for this brand-new ramp. The closure was green with no row at all. That is a real hole in the ramp union (it cannot tell two ramps of one gate apart) and it is recorded as the condition row `ramp-union-per-site-keying`; until that is fixed, a second ramp on an already-ramped gate must be paired with its row by hand or it ships unwatched. RAMPED BECAUSE THE POPULATION IS REAL AND MEASURED, not assumed: v0.3.0, v0.4.0 and v0.5.0 each shipped 'The 9 Stop-chain steps' against today's 10-step floor, and AGENTS.md is SEEDED so `update` cannot correct it — a hard red would ambush an upgrade the consumer never asked for. v0.1.3 and v0.2.1 carry no such sentence and are green by the absent-is-green rule the check shares with the AGENTS.md self-budget claim. The 0.11.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-13"
     },
     {
-      "id": "auth-posture-mfa-ramp-expiry",
-      "kind": "release",
-      "target": "0.10.0",
+      "id": "ramp-union-per-site-keying",
+      "kind": "condition",
+      "target": null,
       "sites": [
         {
-          "file": "template/base/tools/check-auth-posture.mjs",
-          "mustContain": "until: '0.10.0'"
+          "file": "scripts/lib/obligations.mjs",
+          "mustContain": "id.includes"
         }
       ],
-      "reason": "0.9.9 added the MFA rail and with it ten reviewed [auth.mfa] keys across four new config sections. tools/auth-posture.json is harness-OWNED so `update` arms the new posture on every install at once, while supabase/config.toml is SEEDED so `update` cannot write the section the posture now demands — the exact ambush upgrade-lane leg I caught for the 0.9.5 env register, and the reason this ramp is scoped to the [auth.mfa] findings alone rather than to the whole gate (the redirect-allowlist and session-cookie findings have nothing to do with this release and stay hard). Falls due at 0.10.0: the seededSourceFixes channel parks the instruction in .harness/pending/ meanwhile, and rampNote reds the finding itself once the deadline arrives. The 0.10.0 migrations record owes this expiry the way every record has paid its predecessor's.",
-      "reviewedOn": "2026-08-12"
-    },
-    {
-      "id": "eol-register-ramp-expiry",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "until: '0.10.0'"
-        }
-      ],
-      "reason": "0.9.9 added the end-of-life census to `version-sync`, and its subject is tools/eol.json — a NEW SEEDED file, DELIBERATELY PLANTED rather than withheld. Withholding it was the obvious move and the wrong one: the ramp would expire at 0.10.0 into a hard red demanding a file `update` had refused to give the install. Planting it creates the opposite problem, and this ramp is what pays for it: a consumer's lockfile is a SUPERSET of the harness's, so the six planted rows will not cover every deprecated package their tree resolves, and may name one it no longer resolves — both directions red on a tree whose code did not change. That is the same upgrade ambush the [auth.mfa] posture ramp exists for, and it takes the same shape. THE RAMP COVERS EVERY FINDING THE SECTION PRODUCES, from ONE call site, scoped to that section alone so the rest of `version-sync` stays hard: an upgrading consumer gets a dated list of exactly what to disposition instead of a wall of reds, and a fresh 0.9.9 scaffold never sees the ramp at all because its baseVersion is already 0.9.9. Falls due at 0.10.0, which the 0.10.0 migrations record owes the way every record has paid its predecessor's.",
-      "reviewedOn": "2026-08-12"
+      "reason": "THE RAMP UNION CANNOT TELL TWO RAMPS OF ONE GATE APART. rampObligationProblems pairs a shipped rampNote site with its obligation row by asking whether the row id CONTAINS the gate name, so the first row targeting a given (gate, until) satisfies every later ramp on that gate for free. Found while adding the 0.10.0 Stop-list ramp to docs-sync: the closure reported CLEAN with no row for it, because docs-sync-adr-shape-ramp-expiry already matched. The union is therefore a coverage claim it cannot actually make — it proves at least one ramp per gate is owed, not that every ramp is. The fix is to key the pairing on the ramp's own DETAIL string (already unique per file by checkDetailIds) rather than on the gate, which makes the row id carry the detail or the site carry the row id. Not scheduled here because it changes the shape of every existing ramp row's id and belongs in a release that is not simultaneously expiring six ramps; until then, every second-or-later ramp on an already-ramped gate must be paired with its row by hand, and both live docs-sync ramps say so in their reasons. A SECOND, WORSE INSTANCE WAS MEASURED WHILE DISCHARGING THIS RELEASE, and it is worse because the two rows are not even about the same subject: deleting all six ramp-expiry rows at base 0.9.9 produced five findings, not six — auth-posture-mfa-ramp-expiry's absence was silently covered by auth-posture-consumer-tunable-split, a row about splitting a consumer tunable that merely happens to contain the gate name. So the hole is not only 'two ramps of one gate' but 'any row whose id contains a gate name', which no naming convention constrains. The same measurement shows the two version-sync sites share one row by construction, and that eol-register-ramp-expiry — which does NOT contain 'version-sync' — is carried entirely by hand.",
+      "reviewedOn": "2026-08-13",
+      "evidence": "scripts/lib/obligations.mjs"
     },
     {
       "id": "suppressions-chain-step",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the full injection inventory, in order: a configSteps record anchored on a 0.1.x-vintage step every consumer chain carries, the chain-budget row FIRST (a step with no row reds the budget closure), the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape re-opened at minVersion 0.10.0 (the injected step grows every existing chain while the seeded AGENTS.md still documents 34), the check-docs-sync test fixture move, the upgrade lane's leg-A doctrine flip, and the chain-budget re-record at 36/36 before ANY published figure — a 34-step measurement stops licensing prose the moment the chain reaches 36.",
-      "reviewedOn": "2026-08-10"
+      "target": "0.11.0",
+      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the full injection inventory, in order: a configSteps record anchored on a 0.1.x-vintage step every consumer chain carries, the chain-budget row FIRST (a step with no row reds the budget closure), the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape re-opened at minVersion 0.10.0 (the injected step grows every existing chain while the seeded AGENTS.md still documents 34), the check-docs-sync test fixture move, the upgrade lane's leg-A doctrine flip, and the chain-budget re-record at 36/36 before ANY published figure — a 34-step measurement stops licensing prose the moment the chain reaches 36. RE-DATED TO 0.11.0 BY 0.10.0, and this is an INTERACTION decision rather than a judgement that the work is unimportant. No release in this lineage has ever combined a chain-step injection with a real expiry wave, and 0.10.0 carries the largest wave the lineage has had (eleven vintages, six expiries). 0.4.0 — the only prior release that faced one — recorded the same choice at template/migrations.json:115 in the same words: \"It adds NO configSteps: nothing joins VALIDATE_STEPS or STOP_HOOK_STEPS.\" Injecting here would mean an atomic ~20-site commit renumbering ~27 catalog headings under a Stop chain that blocks on five checks at once with HARNESS_ALLOW_SELF_EDIT scrubbed — and after CLAUDE_CODE_STOP_HOOK_BLOCK_CAP consecutive blocks Claude Code ends the turn anyway, which is the harness’s own stated way to leave the machinery inconsistent with no trace. What 0.10.0 built INSTEAD is what 0.11.0 inherits: the count-matched matcher, the catalog-ordinal assertion and the Stop-list closure, all authored against a known-good 34/10 tree rather than against the tree they must judge.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "resilience-chain-step",
       "kind": "release",
-      "target": "0.10.0",
-      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) ships as the second NEW chain step of 0.10.0 and pays the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, and the chain-budget re-record at 36/36 happens once, after both land, before any published figure.",
-      "reviewedOn": "2026-08-10"
+      "target": "0.11.0",
+      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) ships as the second NEW chain step of 0.10.0 and pays the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, and the chain-budget re-record at 36/36 happens once, after both land, before any published figure. RE-DATED TO 0.11.0 BY 0.10.0 on the same interaction argument as suppressions-chain-step, PLUS one fact specific to this row that would have made the injection premature regardless: the subject does not exist yet. The only occurrence of \"resilience\" under template/base/tools/ is an unrelated sentence in check-wiring.mjs — there is no register, no manifest and no surface for a `resilience` step to judge, so the step would have had to be authored together with the thing it checks, in the release with the largest expiry wave. Authoring the subject first is the cheaper order.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "consumer-ci-static-promotion",
       "kind": "release",
-      "target": "0.10.0",
+      "target": "0.11.0",
       "sites": [
         {
-          "file": "README.md",
-          "mustContain": "schedule-gated measurement lanes"
+          "file": ".github/workflows/selftest.yml",
+          "mustContain": "the promotion\n  # into the per-PR path is a recorded 0.10.0 obligation"
         }
       ],
-      "reason": "The cross-platform validate legs (macOS/Windows) run schedule-gated as measurement lanes, so off-Linux validate is proven nightly rather than per-commit — the README's platform-honesty qualifier states exactly that. After their first green scheduled runs, 0.10.0 owes the promotion of the schedule-gated static lane into the per-PR/tag population, at which point the qualifier is deleted rather than carried.",
-      "reviewedOn": "2026-08-10"
+      "reason": "0.9.0 built consumer-ci-static (scripts/ci/consumer-ci-static.sh): it inits a scaffold, commits, and replays the shipped quality-gate static job in BOTH directions — a tree committed before install must die with the exact frozen-lockfile refusal, and a tree that followed init's next-steps note must complete install and `validate --min-floor` green. It ships schedule/dispatch only, out of the PR and tag wait population, on the lane's own stated doctrine: A LANE JOINS THE POPULATION IT HAS BEEN SEEN PASSING IN, NOT THE ONE IT WAS WRITTEN FOR. 0.10.0 owes the promotion once it has a green run on a real runner, which costs roughly 30 minutes on every PR thereafter — that cost IS the decision and is why the promotion is a reviewed act rather than a default. TWO CORRECTIONS MADE IN 0.10.0 WITHOUT THE PROMOTION ITSELF. First, this row's own reason previously opened by asserting that cross-platform validate legs run schedule-gated as measurement lanes; that is FALSE — `grep -rn macos .github/workflows/` returns nothing, the only non-Linux job in the repository is the installer-unit Windows unit matrix, and `pnpm validate` has never run on a non-Linux runner. A re-target that leaves a false sentence behind is not a re-target, and a register row repeating a falsehood is worse than prose doing it, because the register is what a reader trusts. Second, the anchor: it indexed the README sentence carrying that falsehood, which is prose about a DIFFERENT subject — consumer-ci-static is a Linux lane and nothing about it is cross-platform — so the row could have been discharged by deleting an unrelated sentence. It now anchors the selftest.yml comment that must itself change when the promotion lands. The README sentence was corrected in the same diff. RE-DATED TO 0.11.0 IN 0.10.0, and the reason is a precondition this release cannot meet rather than a judgement that the work is unimportant. The lane's own doctrine — A LANE JOINS THE POPULATION IT HAS BEEN SEEN PASSING IN — requires a green run ON A REAL RUNNER, and the only ways to get one are a `schedule` firing or a `workflow_dispatch`; neither is available from a working tree, and promoting on the strength of a local run would be the harness accepting evidence it tells consumers not to accept. WHAT WAS ESTABLISHED INSTEAD, because a re-date with no new information is the shelf: the lane was EXECUTED locally against a fresh scaffold on 2026-08-14 (`bash scripts/ci/consumer-ci-static.sh <abs workdir>` under CI=true HARNESS_REQUIRE_TOOLCHAINS=1) and passed BOTH directions — the pre-install commit died at the exact frozen-lockfile refusal, and the guided tree completed install plus all 34 validate steps green in 53s. So the promotion is very likely to succeed and the remaining risk is runner-specific (network, cache, the 30-minute timeout), not tree-specific. 0.11.0 should dispatch the lane once and promote on that run's green, which is a minutes-long act rather than a release-sized one. The ~30 minutes this adds to every PR afterwards remains the actual decision, and it is why the promotion is a reviewed act and not a default.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "hook-fail-closed-launcher",
@@ -294,31 +268,26 @@
       "evidence": "design/CONFORMANCE-FACTS.md"
     },
     {
-      "id": "vuln-response-sla",
-      "kind": "condition",
-      "target": null,
-      "reason": "SECURITY.md ships the coordinated-disclosure channel but names no response SLA. Condition: the SLA is a maintainer-capacity commitment nobody should date on someone else's behalf — it discharges when the maintainer writes the sentence, by deleting this row with that sentence as evidence. (The row's former SCA half was paid at 0.9.5: hygiene.yml#factory-sca, the scheduled OSV lane over the factory's own lockfile.)",
-      "reviewedOn": "2026-08-11",
-      "evidence": "SECURITY.md"
-    },
-    {
       "id": "sbom-consumption",
-      "kind": "condition",
-      "target": null,
+      "kind": "release",
+      "target": "0.11.0",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "SBOM consumption is deferred, undated"
+          "mustContain": "SBOM release-diff consumption is dated to 0.11.0"
+        },
+        {
+          "file": "template/base/tools/check-sbom.mjs",
+          "mustContain": "judged against pnpm-lock.yaml in BOTH directions"
         }
       ],
-      "reason": "The differentiating control was never PRODUCING an SBOM (pnpm 11 does that natively) — it is CONSUMING one: diffing against the previous release tag and redding on an added component that is not allowlisted. design/CONFORMANCE-FACTS.md §8 records it deliberately undated; it becomes ACTIONABLE when the version-sync committed-lockfile ramp expires at 0.10.0, because a lockfile every install must commit is the input the diff needs.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "design/CONFORMANCE-FACTS.md"
+      "reason": "THE CONDITION IS MET, SO THE ROW IS DATED. Its precondition was a lockfile every install commits, which the version-sync committed-lockfile ramp makes universal at 0.10.0 — and a met condition left undated is the shelf. 0.10.0 built the PRODUCTION half and proved it: `pnpm sbom` runs daily on the osv-scan lane and tools/check-sbom.mjs closes the emitted component set against pnpm-lock.yaml in both directions, which is what regraded PA-01 to alternate-control. WHAT REMAINS IS A DIFFERENT SENSE OF 'CONSUMPTION' AND THE AMBIGUITY IS THE RISK THIS ROW CARRIES: the lockfile closure consumes the SBOM against the SAME tree, catching an incomplete inventory and nothing about supply-chain drift; this row's subject is the RELEASE-OVER-RELEASE DIFF — this tree's SBOM against the previous release tag's, redding on an ADDED component that is not allowlisted. A reviewer who reads 'the SBOM is consumed now' and closes this row will have discharged the wrong control, so design/CONFORMANCE-FACTS.md §8 states the split in the same words and both sentences are anchored below. The shape to copy is check-dependency-channel.mjs, which already diffs the catalog against the previous tag; the allowlist is the new surface.",
+      "reviewedOn": "2026-08-13"
     },
     {
       "id": "dsr-web-erase-surface",
       "kind": "release",
-      "target": "0.10.0",
+      "target": "0.11.0",
       "sites": [
         {
           "file": "README.md",
@@ -328,25 +297,8 @@
           "file": "template/base/tools/data-flow.json"
         }
       ],
-      "reason": "DSR erase EXISTS — session.deleteAccount plus the delete-account Edge Function, and the expo-policy gate requires the account-deletion surface on any auth-bearing app (Apple 5.1.1(v)) — but only the mobile surface reaches it, and tools/data-flow.json declares no erase.surface record, so the gate that holds export to its target has nothing to hold erase to. 0.10.0 owes the WEB erase surface and the data-flow record; the README's honest-losses sentence names this row.",
-      "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "axe-tag-widening",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
-        {
-          "file": "template/base/.claude/agents/accessibility-reviewer.md",
-          "mustContain": "WCAG 2.2 AA"
-        },
-        {
-          "file": "template/stack/apps/web/e2e/home.spec.ts",
-          "mustContain": "['wcag2a', 'wcag2aa']"
-        }
-      ],
-      "reason": "The accessibility-reviewer claims a WCAG 2.2 AA audit while the axe e2e sweeps run withTags(['wcag2a', 'wcag2aa']) — the 2.0/2.1-era tag set, which never selects the 2.2-only rules — so the machine half of the claim checks less than the prose asserts. 0.10.0 owes the tag widening (wcag21aa/wcag22aa) or the honest narrowing of the reviewer's claim, whichever review decides.",
-      "reviewedOn": "2026-08-10"
+      "reason": "DSR erase EXISTS — session.deleteAccount plus the delete-account Edge Function, and the expo-policy gate requires the account-deletion surface on any auth-bearing app (Apple 5.1.1(v)) — but only the mobile surface reaches it, and tools/data-flow.json declares no erase.surface record, so the gate that holds export to its target has nothing to hold erase to. 0.10.0 owes the WEB erase surface and the data-flow record; the README's honest-losses sentence names this row. RE-DATED TO 0.11.0 BY 0.10.0, and it is the one row a consumer would actually notice, so the reason is stated rather than implied: 0.10.0 already ships FIVE seeded corrections through the seededSourceFixes channel, on files `update` cannot rewrite, to installs that are simultaneously meeting up to six expiries. Adding a sixth seeded surface to that same hop is a second ambush collected while the first is still being paid. The rail exists and the surface is owed — the same shape e8-mfa-enrolment-surface carries — and 0.11.0 is a release with no expiry wave to compete with.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "e2ee-declared-ports-unimplemented",
@@ -376,8 +328,8 @@
           "mustContain": "src/data"
         }
       ],
-      "reason": "The DAL laws (port-presence, dal-client-value-import) and events-purity are keyed on DIRECTORY NAMES — src/data/, src/events.ts — so a vertical that names its data layer src/repo/ satisfies them by construction: an adversarial review put a module-scope createClient with a service-role key in packages/verticals/sneaky/src/repo/ and the scan reported zero findings. The laws that read a WHOLE tree (domain purity is scoped the same way; select-star and the barrels are not) are the ones with teeth. Condition rather than dated: closing it means either mandating the anatomy by name (the directory-shaped proxy metric this gate's own header rejects) or deriving the data layer from the port's import graph, which is a design decision. The architecture-reviewer's trigger covers packages/*/src/** whatever the folder is called, which is the compensating control today.",
-      "reviewedOn": "2026-08-11",
+      "reason": "The DAL laws (port-presence, dal-client-value-import) and events-purity are keyed on DIRECTORY NAMES — src/data/, src/events.ts — so a vertical that names its data layer src/repo/ satisfies them by construction: an adversarial review put a module-scope createClient with a service-role key in packages/verticals/sneaky/src/repo/ and the scan reported zero findings. The laws that read a WHOLE tree (domain purity is scoped the same way; select-star and the barrels are not) are the ones with teeth. Condition rather than dated: closing it means either mandating the anatomy by name (the directory-shaped proxy metric this gate's own header rejects) or deriving the data layer from the port's import graph, which is a design decision. The architecture-reviewer's trigger covers packages/*/src/** whatever the folder is called, which is the compensating control today. RE-REVIEWED FOR 0.10.0, DELIBERATELY AND NOT AS A DATE BUMP, because this release changes what the row means: the boundaries anatomy ramp (check-workspace-deps.mjs, minVersion 0.9.5) falls due here, so from 0.10.0 an anatomy finding is a hard FAILURE rather than a NOTE — and a blind spot beside an advisory NOTE and a blind spot beside a turn-fatal red are not the same object. The coupling is unchanged and was re-verified in the source, not inferred: vertical-anatomy.mjs still does join(dir, 'src/data') and join(dir, 'src/events.ts') literally. So is the compensating control: architecture-reviewer's paths are packages/*/src/** AND packages/*/*/src/**, the second of which is what actually reaches a vertical, so the sneaky src/repo/ tree still owes that verdict whatever it is named. It stays UNDATED on the same reasoning as before, with the honest addition that arming the laws raises the cost of the gap rather than closing it — the reviewer is a judgment control and the register should not record it as a mechanical one.",
+      "reviewedOn": "2026-08-13",
       "evidence": "template/base/tools/lib/vertical-anatomy.mjs"
     },
     {
@@ -447,14 +399,14 @@
     {
       "id": "auth-posture-consumer-tunable-split",
       "kind": "release",
-      "target": "0.10.0",
+      "target": "0.11.0",
       "sites": [
         {
           "file": "template/base/tools/auth-posture.json"
         }
       ],
-      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. 0.10.0 owes the split: floor rows owned and pinned, tunable rows seeded with declared bounds.",
-      "reviewedOn": "2026-08-10"
+      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. 0.10.0 owes the split: floor rows owned and pinned, tunable rows seeded with declared bounds. RE-DATED TO 0.11.0 BY 0.10.0, and the re-date is MECHANICALLY SELF-CANCELLING rather than a slip: this row asks the auth-posture register to separate harness-fixed keys from consumer-tunable ones, and the [auth.mfa] ramp whose findings it would reshape expires in this very release. Splitting the register in the same diff that arms ten new keys against every install would mean a consumer meeting both the new demand and its re-classification at once. It also silently covered a real gap while it sat here: with all six ramp rows deleted at base 0.9.9 the union reported FIVE findings, not six, because this row’s id contains \"auth-posture\" and satisfied the auth-posture ramp by accident (see ramp-union-per-site-keying). Paired with store-policy-consumer-tunable-split, which is the same shape one register over.",
+      "reviewedOn": "2026-08-14"
     },
     {
       "id": "mutation-scope-seeded-split",
@@ -463,19 +415,6 @@
       "reason": "The mutation critical-surface definition (tools/lib/mutation-critical.mjs, shared by the PR diff-scoper and the nightly) is harness-OWNED while every file it names is SEEDED — a consumer whose tree diverges from the exemplar paths silently mutates less than the lane claims. Condition: the discharge shape (derive the surface from the consumer's own inventories vs seed the definition) is an open design decision the ratchet's set semantics depend on.",
       "reviewedOn": "2026-08-10",
       "evidence": "template/base/tools/mutation-scope.mjs"
-    },
-    {
-      "id": "withfailopen-memory-fallback",
-      "kind": "release",
-      "target": "0.10.0",
-      "sites": [
-        {
-          "file": "template/stack/packages/platform/ratelimit/src/index.ts",
-          "mustContain": "createMemoryRateLimiter"
-        }
-      ],
-      "reason": "At the OUTAGE rung fail-open is a pure window: withFailOpen lets every request through while the backend is down, and the README records that loss. The memory limiter already exists in the package but is wired only at the CONFIGURATION rung (no Upstash credentials at boot) — 0.10.0 owes wiring it as the outage fallback too, so a backend outage degrades to per-instance limiting instead of none.",
-      "reviewedOn": "2026-08-10"
     },
     {
       "id": "conformance-supabase-grants-arrival",
@@ -500,8 +439,8 @@
           "mustContain": "2026-08-31"
         }
       ],
-      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target.",
-      "reviewedOn": "2026-08-10"
+      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED: the row's job is to ask the question ON the deadline, so slipping it forward would retire the check rather than satisfy it, and a calendar row cannot red a PR in any case (obligations.mjs gates the calendar branch on `clockful`). What the pre-verification found, all local because the claim is local: tools/store-policy.json's androidTargetSdk floor is 36, matching the requirement that takes effect on the target date; expoSdkDefaults maps SDK 57 to targetSdkVersion 36, so a stock scaffold satisfies it without declaring anything; and a search of the seeded config surface for wear/automotive/androidtv/leanback/xr found NO form-factor target — the only occurrences anywhere are store-policy.json's own prose describing the lower floors those form factors would use. The cut therefore still holds, and the scheduled lane's firing on the date is a confirmation rather than a discovery.",
+      "reviewedOn": "2026-08-13"
     },
     {
       "id": "conformance-cra-art14-application",
@@ -513,8 +452,8 @@
           "mustContain": "2026-09-11"
         }
       ],
-      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day.",
-      "reviewedOn": "2026-08-10"
+      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED, for the same reason as the Play row: 'the guidance in force on the day' is not readable before the day, so moving the target would convert a dated check into a retired one. The local half of the scope reading was re-confirmed — SECURITY.md ships in template/base and is planted for existing installs, so the consumer-enablement deliverable stands whatever the final guidance says about this repository's own status. The row stays undischarged on purpose: it is the one obligation in this register whose answer this repository cannot compute, only look up.",
+      "reviewedOn": "2026-08-13"
     },
     {
       "id": "conformance-ai-act-transitional",
@@ -564,6 +503,71 @@
       "reason": "The COLD path (fresh clone, cold caches, first validate) is unmeasured — the committed measurements cover the warm chain and the Stop turn-end only — so no cold figure may be published, and the README says so. Condition, not a date: the discharge is a reviewed cold-run recording through the same `check-chain-budget --record` channel, which exists only when a runner and a reviewed dispatch produce one.",
       "reviewedOn": "2026-08-10",
       "evidence": "scripts/chain-budget.json"
+    },
+    {
+      "id": "canary-lane-proofs-unexecuted",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "scripts/check-canary-coverage.mjs",
+          "mustContain": "const runProof = (label, ref) =>"
+        }
+      ],
+      "reason": "THE LANE CLOSURES CHECK THAT A RED-PROOF EXISTS, NOT THAT IT RUNS. scripts/check-canary-coverage.mjs calls runProof() — spawn under `node --test`, red if it exits non-zero, red if it declares zero tests — for the `steps` and `factoryGates` registries only. The `lanes` (28) and `factoryLanes` (22) registries get existsSync and nothing else, so a lane proof gutted to an empty file, or repointed at a file that tests something entirely different, passes the closure that exists to catch exactly that. This is the same G28 defect the 0.3.0 spawn pass fixed for steps, left standing on the other two registries. FOUND BY ADDING A LANE: 0.10.0's sbom-inventory registered tests/gates/sbom.test.mjs as its proof and nothing executed it — the proof is real and the full suite runs it, so the PA-01 regrade rests on a proof that does run, but the REGISTRY is not what establishes that and the register should not imply otherwise. COST MEASURED, so 0.11.0 need not re-derive it: 12 distinct lane-proof files are not already spawned by the steps pass, and they run in 7 seconds as a batch against a check that already costs 113 seconds — roughly a 15% increase on one machinery-lint gate, which is affordable. It is deliberately NOT done in 0.10.0: it changes a gate that runs on every PR, across 50 lanes, in a release whose stated job is the upgrade path, and a perf change smuggled in beside an expiry wave is how a release acquires a defect nobody attributes to it. Discharge is calling runProof from both lane loops plus a red-proof that a gutted lane fixture reds.",
+      "reviewedOn": "2026-08-13"
+    },
+    {
+      "id": "web-e2e-axe-tag-ramp-expiry",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-web-e2e.mjs",
+          "mustContain": "the axe tag ladder"
+        }
+      ],
+      "reason": "0.10.0 widened the seeded axe scans to the reviewed tag ladder ['wcag2a','wcag2aa','wcag21aa','wcag22aa'] and put the REQUIREMENT in check-web-e2e.mjs, where it closes over every spec rather than the one the old register row happened to anchor. The runner is harness-OWNED so `update` arms the demand on every install at once; the specs are SEEDED so `update` cannot rewrite them — the same asymmetry the 0.6.0 authenticated-render axis in the same file was ramped for, and the same remedy: a NOTE plus a seededSourceFixes instruction until 0.11.0. This row is the expiry. WHY THE LADDER IS FOUR TAGS AND NOT SIX, measured against axe-core 4.13.0's own rule table rather than recalled: 'wcag22a' selects ZERO rules and axe's own whitelist regex suppresses the unknown-tag warning, so it would pass review and check nothing; 'wcag21a''s only rule (label-content-name-mismatch) carries `experimental`, and axe's default tagExclude is [\"experimental\",\"deprecated\"], so it can run on no DOM at all. The four tags select 63 runnable rules over 21 success criteria, three more than the 2.0 pair: autocomplete-valid, avoid-inline-spacing and target-size. TARGET-SIZE IS THE WHOLE OF AXE'S AUTOMATED WCAG 2.2 AA SURFACE — 2.4.11, 3.2.6, 3.3.7 and 3.3.8 have no automated rule of any kind — which is why every prose site now states a rule count and no document claims the level.",
+      "reviewedOn": "2026-08-14"
+    },
+    {
+      "id": "rate-limits-fallback-ramp-expiry",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-rate-limits.mjs",
+          "mustContain": "the outage-rung fallback declaration"
+        }
+      ],
+      "reason": "0.10.0 wired the in-process limiter as withFailOpen's OUTAGE rung, so 'the limiter fails open' stopped being a complete description of what happens during a backend outage. tools/rate-limit-budget.json's failOpen block recorded WHETHER the limiter fails open (decided + reason) and had no way to say WHAT LIMITS TRAFFIC WHILE IT DOES — the difference between 'an outage removes rate limiting entirely' and 'an outage degrades to per-instance counting', which are different products during an incident. The gate now requires a failOpen.fallback string. RAMPED because rate-limit-budget.json is a reviewed, write-guarded CONSUMER file: demanding a new key of every install at once is the ambush the ramp doctrine exists to prevent, and update cannot write it for them since the honest answer depends on their deployment. The seededSourceFixes instruction carries the correction until this row falls due. Found by an adversarial review of the leg, which observed that the seededSourceFixes entry for the ratelimit change had no gate to name — a seeded correction no gate reports is one a consumer never learns they owe.",
+      "reviewedOn": "2026-08-14"
+    },
+    {
+      "id": "canary-registry-hook-closure",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "scripts/check-canary-coverage.mjs",
+          "mustContain": "for (const [hook, expected] of Object.entries(registry.hookRules ?? {}))"
+        }
+      ],
+      "reason": "THE HOOK CLOSURE RUNS ONE WAY ONLY: REGISTRY -> HOOK. check-canary-coverage.mjs iterates Object.entries(registry.hookRules), so a hook with NO entry is required by nothing — it needs no deny example, no denyToolCallSites pin, and no red-proof, and nothing anywhere notices. MEASURED at 0.10.0: the tree ships SEVEN hooks and the registry names THREE (the three pretool guards). The four with no entry are posttool-fast-check.mjs, posttool-source-check.mjs, subagent-verdict.mjs and stop-validate-gate.mjs — the last being the TURN-FATAL one, the hook whose whole job is that a turn cannot end on a red build. The inverse is worse than absent: a stale entry naming a deleted hook reaches an UNCAUGHT readFileSync on template/base/.claude/hooks/<name> and the gate dies with an ENOENT stack trace instead of a clean finding, so the failure mode of the registry going stale is a crashed checker rather than a red one. Discharge is a hook -> registry direction (every shipped hook carries an entry, or an explicit reasoned {kind:'steps'}-style declaration that it runs nothing the step registry does not already prove) plus a try/catch that turns the stale-entry case into a finding. NOT done in 0.10.0 despite this release touching stop-validate-gate.mjs, and the honest reason is scope rather than difficulty: it would add a fifth new axis to a release whose job is the upgrade path. The 0.10.0 spill change is proven by tests/hooks/stop-output-spill.test.mjs (4 of its 5 cases red against the 0.9.9 hook), so the change itself is covered — what is missing is the REGISTRY requiring that coverage.",
+      "reviewedOn": "2026-08-14"
+    },
+    {
+      "id": "e8-register-canary-widening",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "template/base/tools/lib/essential-eight.mjs",
+          "mustContain": "Closure 4 — every POSITIVE claim names a REGISTERED can-fail proof"
+        }
+      ],
+      "reason": "0.10.0 widened the canary closure from the five simulated-activity rows to all ELEVEN positive claims (effective ∪ alternate-control), closing the escape where a row graded itself `effective`, claimed a lower evidence tier, named no proof and stayed green. THE FULL WIDENING IS THE REST: 37 rows sit above the documentation floor, so 26 more carry a grade whose control is not required to name a registered red-proof. It was NOT done in 0.10.0 and the reason is arithmetic rather than reluctance — each of those rows needs an AUTHORED, EXECUTED canary, and 26 of them is not a leg in a release whose job is the upgrade path. The scoped version shipped and is proven; this row is the remainder. Discharge is per-row: supply the canary, or regrade the row down. A row that can name no proof is the finding, not the exception.",
+      "reviewedOn": "2026-08-14"
     }
   ]
 }

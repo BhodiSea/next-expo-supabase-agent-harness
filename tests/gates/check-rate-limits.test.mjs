@@ -494,6 +494,53 @@ test('FAIL CLOSED: a fail-open decision that was never recorded', () => {
   assert.ok(r.out.includes('must record the decision AND its argument'), r.out)
 })
 
+// ---- the outage rung is its own decision (0.10.0) --------------------------------------
+//
+// `decided` + `reason` recorded WHETHER the limiter fails open. Neither could distinguish
+// "an outage removes rate limiting entirely" from "an outage degrades to per-instance
+// counting" — and the harness shipped the first for nine releases with every gate green.
+
+test('RED (0.10.0): a failOpen block that never says what limits traffic DURING an outage', () => {
+  const noFallback = (b) => ({ ...b, failOpen: { decided: b.failOpen.decided, reason: b.failOpen.reason } })
+  const r = runGate(fixture({ budget: noFallback }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('declares no "fallback"'), r.out)
+  // The finding must say WHY the old two fields were not enough, or the next reader adds a
+  // one-word value to clear it.
+  assert.ok(r.out.includes('describes the first millisecond of an outage'), r.out)
+})
+
+test('RED: a token `fallback` does not clear it — the field wants a description', () => {
+  const r = runGate(fixture({ budget: (b) => ({ ...b, failOpen: { ...b.failOpen, fallback: 'yes' } }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('declares no "fallback"'), r.out)
+})
+
+test('RAMP: a pre-0.10.0 install gets a dated NOTE for the missing fallback, not a red', () => {
+  // rate-limit-budget.json is a reviewed, write-guarded CONSUMER file and `update` cannot
+  // write this key for anyone — the honest value depends on their deployment. Demanding it
+  // of every install at once is the ambush the ramp doctrine exists to prevent.
+  const dir = fixture({ budget: (b) => ({ ...b, failOpen: { decided: b.failOpen.decided, reason: b.failOpen.reason } }) })
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.9.5', harnessVersion: '0.10.0' }),
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE'), r.out)
+  assert.ok(r.out.includes('0.11.0'), r.out)
+})
+
+test('GREEN: the SHIPPED budget declares its fallback — the clean case is the real file', () => {
+  // Not a fixture that mirrors production by hand: the fixture reads
+  // template/base/tools/rate-limit-budget.json, so this reds if the shipped policy ever
+  // loses the key the gate now requires.
+  const r = runGate(fixture())
+  assert.equal(r.code, 0, r.out)
+  assert.ok(!r.out.includes('declares no "fallback"'), r.out)
+})
+
 test('FAIL CLOSED: no ceilings at all', () => {
   const r = runGate(fixture({ budget: (b) => ({ ...b, ceilings: {} }) }))
   assert.equal(r.code, 1, r.out)

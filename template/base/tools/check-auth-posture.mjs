@@ -227,10 +227,15 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.10.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.9.0
-// (2026-08-10): npm latest is still 2.113.0, the v2.114.0 betas' only config-adjacent change
-// is a docker image bump, the config group still registers `push` alone (no --dry-run), and
-// the ask is open as supabase/cli#5894 with no milestone and no linked PR. The upstream
+// deferred to 0.11.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.10.0
+// (2026-08-13), the FIRST firing against a real pin bump: npm latest moved 2.113.0 -> 2.114.0
+// (GA 2026-08-12), so the 're-check at every CLI pin bump' clause fired on its own terms. The
+// CLI is now a pnpm/nx monorepo and the Go CLI moved to apps/cli-go — the path changed, the
+// answer did not: apps/cli-go/cmd/config.go at tag v2.114.0 still registers `push` alone (read
+// at the tag, not inferred from release notes). v2.114.0's config-adjacent changes are
+// --project-ref, skip-vault-sync and stack persistence; the TS port serves `db diff`,
+// `db reset`, `functions download`, `migration squash`, none of which parse config.toml. The
+// ask is still open as supabase/cli#5894 with no milestone and no linked PR. The upstream
 // condition is a side-effect-free `config lint`-shaped subcommand, re-checked at every CLI
 // pin bump, and the docs-sync deferral scan reds this sentence the release the date arrives —
 // the standing rule (written at 0.9.0, the second scheduled firing) is that each such arrival

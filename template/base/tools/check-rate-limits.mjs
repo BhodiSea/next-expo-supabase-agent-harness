@@ -152,7 +152,32 @@ for (const e of budget.exemptProcedures) {
 const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 const errs = []
+/** Findings the 0.10.0 outage-rung ramp holds as NOTEs on an install that predates the key. */
+const notes = []
 const declared = new Map(budget.buckets.map((b) => [b.name, b]))
+
+// THE OUTAGE RUNG IS ITS OWN DECISION (0.10.0), and until now nothing asked about it.
+// `decided` + `reason` recorded WHETHER the limiter fails open; neither could distinguish
+// "an outage removes rate limiting entirely" from "an outage degrades to per-instance
+// limiting". Those are different products during an incident, and the harness shipped the
+// first for nine releases while every gate stayed green — so a policy file that does not
+// name its outage-rung fallback is a policy with a hole where its most consequential
+// sentence should be. RAMPED: `tools/rate-limit-budget.json` is a reviewed, write-guarded
+// CONSUMER file, so demanding a new key of every existing install at once is the ambush
+// the ramp doctrine exists to prevent; the seededSourceFixes instruction carries the
+// correction until 0.11.0.
+if (typeof budget.failOpen?.fallback !== 'string' || budget.failOpen.fallback.trim().length < 20) {
+  const ramped = rampNote(
+    GATE,
+    '0.10.0',
+    'the outage-rung fallback declaration (failOpen.fallback) — the policy records THAT it fails open but not what happens while it does',
+    { until: '0.11.0' },
+  )
+  const bucket = ramped ? notes : errs
+  bucket.push(
+    `${BUDGET}: "failOpen" declares no "fallback" — a string naming what limits traffic WHILE the backend is unavailable. The harness ships \`withFailOpen\` degrading to the in-process limiter (per-instance counting: the budget is multiplied by the instance count, and on a serverless platform that discards the process it approaches no limit at all). Record what YOUR deployment does, because "the limiter fails open" describes the first millisecond of an outage and says nothing about the rest of it.`,
+  )
+}
 
 // ---------------------------------------------------------------------------
 // 1. Ceilings. A budget above them is a widening that belongs in this diff.
@@ -382,6 +407,8 @@ failures(
   errs,
   `The contract is ${BUDGET}: buckets and ceilings are reviewed data, "procedures" is closed BOTH WAYS against the generated ${INVENTORY}, and an unlimited endpoint needs an entry in "exemptProcedures" with a reason. ${MODULE} is the code that runs and is diffed against it by value.`,
 )
+// Printed only once the hard failures are clear, so a NOTE never competes with a red.
+for (const n of notes) console.log(`${GATE}: NOTE — ${n}`)
 recordGreen()
 ok(
   GATE,

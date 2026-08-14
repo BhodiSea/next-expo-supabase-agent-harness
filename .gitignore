@@ -14,6 +14,11 @@ coverage/
 # machine's session — committing it would carry one developer's pid into every
 # other checkout, which is how it reached the index in the first place.
 .harness/turn.lock
+# The Stop gate's spill files (0.10.0): a failing step's FULL output, written per (run, gate)
+# so the block message can carry a bounded head+tail plus a path instead of a lone tail that
+# drops the finding. Pure run state, like the stamps above — and the consumer template
+# already ignores it wholesale via `.harness/*`.
+.harness/stop-output/
 # Scratch fixtures created by local selftest runs
 .fixtures/
 # The upgrade lane's workdir (scripts/ci/upgrade-lane.sh) — a whole rendered scaffold

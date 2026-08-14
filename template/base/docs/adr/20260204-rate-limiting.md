@@ -37,9 +37,25 @@ decision carries `degraded: true`.
 
 A limiter that fails closed converts a dependency outage into a total outage of a product
 that was working a second earlier, at the moment an operator is least able to react — for a
-control that is a courtesy layer rather than the authorization boundary. The cost is real
-and stated: **during a limiter outage there is no rate limiting.** The `degraded` flag, and
-the `error`-level log behind it, are what make that a metric instead of a silence.
+control that is a courtesy layer rather than the authorization boundary.
+
+**Amended in 0.10.0: the outage rung now DEGRADES rather than disappearing.** Through 0.9.9
+the sentence here read "during a limiter outage there is no rate limiting", and it was
+true: `withFailOpen`'s catch returned an unconditional allow. The in-process limiter
+already existed in the same file and was already wired at the CONFIGURATION rung (no
+credentials at boot), so the outage rung was the one place a real limiter was available and
+unused. It now runs there too, with one shared instance per wrapper so a flapping backend
+cannot reset the window. The reasoning above is unchanged — this is still fail-OPEN
+relative to the backend, and a caller inside the per-instance budget is still allowed.
+What changed is the ceiling during an outage: **`limit × instances` instead of unbounded**,
+and on a serverless platform that discards the process between requests, still effectively
+nothing. Two costs are new and stated rather than discovered: `retryAfterSeconds` now comes
+from the fallback's own log, so it can be up to a full window and is not invalidated when
+the backend recovers; and the outage's working set is retained afterwards, bounded in key
+count by the `maxKeys` LRU and unbounded in per-key length, because a reaper would mean a
+timer in a package that deliberately has no lifecycle. `degraded` still marks every
+decision taken without the backend — including a DENIAL, which is new — and `counted`
+separates "the fallback decided" from "the fallback failed too and nothing counted".
 
 The adapters are deliberately allowed to throw. Fail-open lives at one reviewable seam
 (`withFailOpen`), because an adapter that swallowed its own failures could never be tested

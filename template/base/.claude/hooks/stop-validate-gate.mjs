@@ -4,14 +4,60 @@
 // stop_hook_active; bounded by CLAUDE_CODE_STOP_HOOK_BLOCK_CAP (settings env).
 // SOURCE: docs/harness/README.md (stop-validate-gate)
 import { execSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, capHitBlockEligible, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.9.9'
+export const HARNESS_HOOK_VERSION = '0.10.0'
 
 const input = await readHookInput()
 const looping = input?.stop_hook_active === true
+
+// ---- BOUNDED OUTPUT WITH SPILL-TO-FILE (0.10.0) ----------------------------------------
+//
+// WHAT WAS LOST, AND WHEN IT MATTERED MOST. Each failure was reported as `out.slice(-4000)`
+// — the TAIL. For most gates that is the right 4000 characters, because the summary is last.
+// For the ones that enumerate (a type error list, a lint run, a chain that fails several
+// steps) the HEAD is the finding and the tail is the count, so the agent read "42 problems"
+// and never saw the first one. Nothing recovered it: the child's output existed only inside
+// this catch, and the turn ended.
+//
+// It becomes acute in exactly this release. An install upgrading to 0.10.0 can meet SIX
+// expired ramps at once, and `validate.mjs` is fail-fast, so a human meets them one per run
+// — but the Stop chain runs its steps to completion and an agent driving it sees the flood
+// in a single block, six tails deep, with the block budget draining.
+//
+// So the full output is written to a per-run file and the message carries a bounded tail
+// PLUS the path. `.harness/` is already gitignored and is already how every gate, the ramp
+// reader and the reviewer ledger reach run state; the filename is per (run, gate) so six
+// simultaneous failures produce six readable files rather than one interleaved one.
+//
+// FAILS SOFT, DELIBERATELY. If the spill cannot be written — a read-only checkout, a full
+// disk — the tail is still returned and the turn still blocks. Bookkeeping never decides a
+// turn, and a hook that threw while reporting a failure would convert a red gate into a
+// crashed hook, which is strictly worse than the truncation it replaced.
+const SPILL_DIR = '.harness/stop-output'
+const TAIL = 2000
+const HEAD = 1000
+/** @param {string} name @param {string} out @returns {string} */
+function spill(name, out) {
+  if (out.length <= HEAD + TAIL) return out
+  const slug = name.replace(/[^a-z0-9-]/gi, '-')
+  const path = `${SPILL_DIR}/${slug}.log`
+  let written = false
+  try {
+    mkdirSync(SPILL_DIR, { recursive: true })
+    writeFileSync(path, out)
+    written = true
+  } catch {
+    // fall through: the tail below is still the message
+  }
+  const omitted = out.length - HEAD - TAIL
+  return written
+    ? `${out.slice(0, HEAD)}\n\n… ${String(omitted)} characters omitted — FULL OUTPUT: ${path} …\n\n${out.slice(-TAIL)}`
+    : `${out.slice(0, HEAD)}\n\n… ${String(omitted)} characters omitted (the spill file could not be written) …\n\n${out.slice(-TAIL)}`
+}
 
 // Gate steps live in the project's harness config (tools/harness.config.mjs exports
 // STOP_HOOK_STEPS: Array<[name, command]>), so projects extend the gate — e.g. add a
@@ -113,7 +159,7 @@ for (const [name, cmd] of STEPS) {
     }
   } catch (e) {
     const out = (e.stdout?.toString() ?? '') + (e.stderr?.toString() ?? '')
-    failures.push(`### ${name} FAILED (${cmd})\n${out.slice(-4000)}`)
+    failures.push(`### ${name} FAILED (${cmd})\n${spill(name, out)}`)
     failedGates.push(name)
   }
 }

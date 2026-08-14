@@ -5,6 +5,7 @@ import { type ActionOutcome, appError, outcomeErr } from '@app/errors'
 import { createLogger } from '@app/observability'
 import {
   createRateLimiter,
+  degradedReport,
   type RateLimitBucket,
   type RateLimitDecision,
   // SOURCE: docs/adr/20260204-rate-limiting.md (one key builder, so the two seams cannot disagree)
@@ -105,16 +106,31 @@ export async function spendRateLimit(
   if (bucket === null) return null
   // SOURCE: docs/adr/20260204-rate-limiting.md
   const decision = await limiter.limit(rateLimitKey({ bucket: bucket.name, ...identity }), bucket)
-  // THE DEGRADED FLAG IS LOAD-BEARING (0.9.0). `degraded: true` means "allowed because
-  // nothing was counting" — indistinguishable from a healthy allow to both consumers
+  // THE DEGRADED FLAG IS LOAD-BEARING (0.9.0). `degraded: true` means the decision was
+  // taken WITHOUT the backend — indistinguishable from a healthy one to both consumers
   // downstream (the tRPC route port and the Server Action seam read `allowed` only), so
   // it is read HERE, the one seam both decisions flow through: exactly ONE structured
   // ERROR per degraded decision, with the bucket named and the transport reason folded
   // in. Redaction discipline unchanged — the bucket name is reviewed data and the reason
   // is an Error message, never the raw error object.
-  if (decision.degraded) {
-    log.error('rate limit decision DEGRADED — request allowed because nothing was counting', {
+  //
+  // IT NO LONGER MEANS "allowed because nothing was counting", and that sentence — which
+  // this comment carried through 0.9.9 — is exactly what 0.10.0 falsified: the outage rung
+  // now runs the in-process limiter, so a degraded decision may be a DENIAL, and the
+  // per-process count is real. `counted` is the field that still says whether anything
+  // counted, and `allowed` is logged beside it because a degraded denial is the one shape
+  // an operator must not read as a healthy one.
+  // 0.10.0: the message is no longer a constant, because `degraded` now covers two states
+  // and they need different operator responses. The JUDGEMENT lives in @app/ratelimit
+  // (`degradedReport`) rather than here: this file opens with `import 'server-only'`, so a
+  // unit test that imported it to check the branch would die on the import — the branch
+  // would be unprovable exactly where it matters. The package's own suite proves it.
+  const report = degradedReport(decision)
+  if (report !== null) {
+    log.error(`rate limit decision DEGRADED — ${report.effect}`, {
+      allowed: decision.allowed,
       bucket: bucket.name,
+      counting: report.counting,
       limit: bucket.limit,
       reason: lastOutageReason,
     })

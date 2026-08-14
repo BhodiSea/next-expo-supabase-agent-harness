@@ -46,10 +46,17 @@ export default async function OrgLayout({
                 // Colour alone would leave that information visible only to people who can
                 // see it — and "which company's data am I looking at" is not decorative.
                 aria-current={current ? 'page' : undefined}
+                // `min-h-(--size-touch-min)` + `inline-flex items-center`, not decoration:
+                // these were `px-3 py-1 text-sm`, which renders under 24 CSS px tall and is
+                // a WCAG 2.2 SC 2.5.8 (target size) failure the moment this route is
+                // axe-scanned with the 0.10.0 tag ladder. The token is the 44px floor the
+                // design system already applies to every button and input, so this makes the
+                // tenant switcher agree with the rest of the system rather than inventing a
+                // size for it. Found by widening the tags, not by review.
                 className={
                   current
-                    ? 'rounded-md bg-accent px-3 py-1 text-sm font-medium text-canvas'
-                    : 'rounded-md px-3 py-1 text-sm text-ink-muted hover:bg-canvas-subtle'
+                    ? 'inline-flex min-h-(--size-touch-min) items-center rounded-md bg-accent px-3 py-1 text-sm font-medium text-canvas'
+                    : 'inline-flex min-h-(--size-touch-min) items-center rounded-md px-3 py-1 text-sm text-ink-muted hover:bg-canvas-subtle'
                 }
                 data-testid={`org-switch-${candidate.slug}`}
               >

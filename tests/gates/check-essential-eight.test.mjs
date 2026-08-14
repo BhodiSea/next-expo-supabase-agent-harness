@@ -218,6 +218,18 @@ test('the upload scan covers BOTH surfaces — a mobile picker breaks the macro 
 })
 
 // ---- the factory-side evidence closure -----------------------------------------------
+//
+// 0.10.0 widened this from the five simulated-activity rows to all ELEVEN positive claims.
+// The old scope let a row grade itself `effective` and escape the closure entirely by
+// claiming a lower evidence tier — the tier records how GOOD the evidence is, and this
+// closure asks whether there is any. Every test below is a way that escape reopens.
+
+/** The real registry, both halves — the union the widened closure resolves against. */
+const realKeys = () => {
+  const c = JSON.parse(readFileSync(join(ROOT, 'tests/canary/injections.json'), 'utf8'))
+  return new Set([...Object.keys(c.steps), ...Object.keys(c.lanes)])
+}
+
 test('a simulated-activity claim naming an unregistered canary reds', () => {
   const reg = clone()
   reg.requirements.find((r) => r.id === 'RAP-22').canary = 'no-such-step'
@@ -230,9 +242,66 @@ test('a simulated-activity claim with NO canary reds — a gate that cannot go r
   assert.ok(canaryProblems(reg, new Set(['tenancy'])).some((p) => /must name the 'canary'/.test(p)))
 })
 
-test('every shipped simulated-activity claim resolves against the real canary registry', () => {
-  const canaries = JSON.parse(readFileSync(join(ROOT, 'tests/canary/injections.json'), 'utf8'))
-  assert.deepEqual(canaryProblems(clone(), new Set(Object.keys(canaries.steps))), [])
+test('WIDENED (0.10.0): an `effective` row with no canary reds even at a LOWER tier', () => {
+  // The escape the old scope left open, and the reason the widening was worth a release:
+  // grade yourself effective, claim system-generated-artefact, name no proof, stay green.
+  const reg = clone()
+  const row = reg.requirements.find((r) => r.id === 'PA-02')
+  assert.equal(row.outcome, 'effective')
+  assert.equal(row.evidenceTier, 'system-generated-artefact', 'not the top tier — that is the point')
+  delete row.canary
+  const problems = canaryProblems(reg, realKeys())
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /is a POSITIVE claim, so it must name the 'canary'/)
+  assert.match(problems[0], /indistinguishable from one that cannot/)
+})
+
+test('WIDENED: an `alternate-control` row is held to the same bar as an `effective` one', () => {
+  const reg = clone()
+  delete reg.requirements.find((r) => r.id === 'PA-01').canary
+  assert.ok(canaryProblems(reg, realKeys()).some((p) => /PA-01.*POSITIVE claim/s.test(p)))
+})
+
+test('ANTI-INFLATION: citing another gate’s real proof reds — the field is not a duplicate of `control`', () => {
+  // Without this arm the widening would be cosmetic: any row could name `tenancy`, the id
+  // would resolve, and the closure would report a proven claim about a gate it never ran.
+  const reg = clone()
+  reg.requirements.find((r) => r.id === 'MFA-10').canary = 'tenancy'
+  const problems = canaryProblems(reg, realKeys())
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /does not name the control this row claims \('auth-posture'\)/)
+})
+
+test('a row that grades NOTHING may not cite a red-proof', () => {
+  // The inverse direction. A not-implemented row carrying a canary reads as evidence for a
+  // claim nobody made — and MFA-09 is exactly the row a reader would expect one on.
+  const reg = clone()
+  reg.requirements.find((r) => r.id === 'MFA-15').canary = 'auth-posture'
+  assert.ok(canaryProblems(reg, realKeys()).some((p) => /claims no control/.test(p)))
+})
+
+test('LANE-BACKED claims resolve: three rows cite a CI job, not a chain step', () => {
+  // steps{} alone was the 0.9.9 scope, and under it PA-02/03/05 and PA-01 could not have
+  // named a proof at all — the shape in which a widened closure gets weakened to fit.
+  const stepsOnly = new Set(
+    Object.keys(JSON.parse(readFileSync(join(ROOT, 'tests/canary/injections.json'), 'utf8')).steps),
+  )
+  const problems = canaryProblems(clone(), stepsOnly)
+  assert.ok(problems.length >= 4, 'the narrow set must fail the lane-backed rows')
+  for (const id of ['PA-01', 'PA-02', 'PA-03', 'PA-05']) {
+    assert.ok(problems.some((p) => p.includes(id)), `${id} must red against steps{} alone`)
+  }
+  // ...and the union clears every one of them.
+  assert.deepEqual(canaryProblems(clone(), realKeys()), [])
+})
+
+test('every shipped POSITIVE claim resolves against the real canary registry', () => {
+  const reg = clone()
+  const positive = reg.requirements.filter(
+    (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
+  )
+  assert.equal(positive.length, 11, 'the closure is worthless if its subject set silently shrinks')
+  assert.deepEqual(canaryProblems(reg, realKeys()), [])
 })
 
 // ---- the summary the published figures derive from ------------------------------------

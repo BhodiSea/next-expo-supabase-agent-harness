@@ -9,6 +9,23 @@ credentials (database DSNs, Supabase service-role keys or JWT secrets, Expo
 access tokens, App Store Connect API keys, Play service-account JSON, Android
 upload keystores, Vercel tokens) in a report.
 
+## What to expect
+
+| Stage | Target |
+|---|---|
+| Acknowledgement that a human has it | 3 working days |
+| An initial assessment — is it reproducible, what is the impact | 10 working days |
+| Status updates while it is open | every 10 working days |
+
+If you have not heard anything within the acknowledgement window, assume the
+mail went astray and escalate through the advisory form.
+
+These are the same targets `template/base/SECURITY.md` has shipped to every
+scaffolded project since v0.9.0. Until 0.10.0 this file named a reporting
+channel and no times at all — so the harness asked its consumers to make a
+commitment it had not made itself. That asymmetry, not an absence, is what the
+register carried as `vuln-response-sla`, and this section is its discharge.
+
 ## Supported versions
 
 The latest tagged release and `main` are supported. Installed projects should

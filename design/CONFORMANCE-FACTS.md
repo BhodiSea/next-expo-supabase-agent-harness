@@ -243,11 +243,31 @@ The shipped `minimumReleaseAge: 0` stays, and its existing comment already recor
 live observation. Fact 2 is added there, because it is the one that silently wastes someone's
 afternoon.
 
-**Disposition: SBOM consumption is deferred, undated.** The differentiating control was never
-producing an SBOM — it is **consuming** one: diffing against the previous release tag and
-redding on an *added* component that is not allowlisted. That is a real gate and it is not
-small, and dating it here without intending to build it next would be the kind of commitment
-this file exists to prevent.
+**Disposition (0.10.0): SBOM release-diff consumption is dated to 0.11.0.** The undated
+disposition this paragraph carried through 0.9.9 said the differentiating control was never
+*producing* an SBOM but *consuming* one, and that dating it without intending to build it next
+would be the kind of commitment this file exists to prevent. 0.10.0 built the half that had
+become buildable and dated the half that had not, so the paragraph splits in two.
+
+**Built.** `pnpm sbom --sbom-format cyclonedx --lockfile-only` runs daily on the `osv-scan`
+lane (job `sbom-inventory`), and `tools/check-sbom.mjs` closes the emitted component set
+against `pnpm-lock.yaml` in **both** directions — a resolved package with no component, and a
+component no lockfile entry resolves — with a zero-component emission a hard failure rather
+than an empty set matching an empty set. Emission alone would have been decoration: `pnpm sbom`
+is one line and cannot go red, so a lane that only emitted would have been a green tick over an
+inventory that had silently lost half the tree. This is what regrades **PA-01**, and only to
+`alternate-control`: it is a software inventory, not estate asset discovery.
+
+**Still deferred, now dated — and it is a DIFFERENT sense of the word.** The control this
+paragraph originally meant is the *release-over-release diff*: compare this tree's SBOM against
+the previous release tag's and red on an **added** component that is not allowlisted. The
+lockfile closure above consumes the SBOM against the *same* tree, which catches an incomplete
+inventory and catches nothing about supply-chain drift. Naming both "consumption" is how the
+0.11.0 row would come to be treated as already discharged, so: the register row
+`sbom-consumption` targets **0.11.0** and its subject is the tag diff. Its precondition is met
+by construction at this bump — the `version-sync` committed-lockfile ramp expires at 0.10.0, so
+every install now carries the input the diff needs, and a met condition left undated is the
+shelf this file refuses.
 
 ## 9. ASD Essential Eight Maturity Model — **SHIPPED whole, and the claim is bounded**
 
@@ -392,6 +412,46 @@ directions.
   drains are Dashboard-only (verified against the live Management API OpenAPI spec, where
   `drain` appears seven times and every occurrence is an enum, never a path). Do not design a
   symmetric gate. Platform log retention tops out at **90 days** by plan tier.
+
+### The ceilings the 0.10.0 conversions rest on
+
+Five register rows were dated `release`/`0.10.0` and are converted to `condition` in that
+release. Read uncharitably that is a compliance release improving its numbers by moving
+goalposts, so the bill is deliberately **heavier** than the dated rows paid: each converted row
+carries a `sites[]` anchor byte-checking one of the sentences below, so the ceiling cannot be
+quietly edited away later while the row still claims it. **No `outcome` changes** — every
+affected requirement stays `not-implemented`. What changes is the honesty of the *date*: a
+release row asserts somebody can schedule the work, and for these five nobody can, because the
+discharge is a decision about where the product/organisation boundary sits.
+
+- **CEILING (RAP-20/21, AC-11/12, UAH-20, MFA-16): forwarding is not a build this repository
+  can schedule.** Central logging means the record survives compromise of the system that
+  produced it, and no in-database trail does. The drains are asymmetric (above) and a gate
+  resolving either from a live endpoint is refused outright by the hermeticity rule. MFA-16
+  joins this ceiling rather than the auth-trail one, and the reason is that the *remedy* is the
+  same: `auth.audit_log_entries` carries no append-only layer and none can be added, because
+  the schema is GoTrue's and it re-migrates it — so the only way to protect that stream is to
+  get a copy off the platform, which is forwarding.
+- **CEILING (RB-02): the manifest needs a deploy-time artefact channel that does not exist.**
+  Binding a database backup to the commit, the migration set and the deployed function versions
+  requires something emitted at deploy time, and this repository has no deploy-time channel to
+  emit it into. Until it does, the requirement is unreachable rather than unscheduled.
+- **CEILING (RB-03/05/06/09): the current grade rests on vacuous truth.** "No client role can
+  reach a backup" is true here only because this tree produces no backups of its own — absence
+  of a surface, which grading rule 2 refuses as a control. Raising it needs a self-produced
+  off-platform backup with its own store and IAM policy, which is an operator's decision about
+  where the boundary sits and not a build.
+- **CEILING (RB-11): an unoffered verb is not a control.** See the immutability bullet above:
+  no Delete or Modify action for a backup exists anywhere in the surface, and no immutability,
+  WORM or object-lock guarantee is published. Reading an unoffered verb as prevention is the
+  inflation this register exists to refuse.
+- **CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains.** PA-13
+  discharged because npm publishes `deprecated` into the lockfile. The online services
+  (Supabase, Vercel, GitHub Actions, npm, EAS) and the platforms (runner image, Node major,
+  Postgres major, mobile target SDKs) publish no equivalent, and asking their APIs is refused by
+  the hermeticity rule. The obvious shortcut is refused too: POS-15 already claims
+  `framework-floor.json` and the `version-sync` step, so grading POS-16 on the same artefact
+  would be rule 5 double-counting.
 
 ### Shelf life — **the deadline row this section owes**
 
