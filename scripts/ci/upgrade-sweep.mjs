@@ -198,10 +198,17 @@ const SWEEPS = {
   // 0.10.0 — REVIEWED EMPTY, and the emptiness is the finding rather than a gap in the
   // review. The release withholds NOTHING: its only two new files (tools/check-sbom.mjs and
   // tools/lib/sbom.mjs) are harness-OWNED, so `update` delivers them and there is no
-  // seedOnInitOnly set for `adoptSeedOnInitOnly` to adopt. Its five seeded corrections are
+  // seedOnInitOnly set for `adoptSeedOnInitOnly` to adopt. Its six seeded corrections are
   // seededSourceFixes, which this module applies as DERIVED on every hop that crosses the
   // version — an entry here could only veto them, and a review record must not be able to
   // veto a fix.
+  //
+  // The SEVENTH seeded surface this release touches needs no entry either, and it is worth
+  // saying why rather than leaving the asymmetry unexplained: AGENTS.md's Stop-chain
+  // sentence is rewritten in §3 below, not adopted here, because the file carries
+  // per-project rendering and a consumer's project memory must never be overwritten by a
+  // sweep. Leg E is what established that the rewrite was missing — it was the single NOTE
+  // the documented sweep could not clear.
   //
   // NO tomlSectionAppends, and that is worth saying out loud because 0.9.9 needed one and
   // this release has the larger expiry wave: 0.10.0's auth-posture failure is the EXPIRY of
@@ -381,6 +388,35 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .replace(/the \d+-step chain/g, `the ${String(names.length)}-step chain`)
       .replace(/The \d+ gates,/, `The ${String(names.length)} gates,`)
 
+    // 0.10.0: the STOP-CHAIN sentence, by the same discipline as the gate list above and
+    // for the same reason. 0.10.0 arms a docs-sync check that AGENTS.md's "The N Stop-chain
+    // steps, in order:" sentence matches tools/stop.floor.json — and AGENTS.md is SEEDED, so
+    // every install predating the current wording meets it. The gate's failure text says
+    // "paste the N floor names above into AGENTS.md's sentence, then graduate"; executing
+    // that here is what proves the instruction sufficient rather than merely plausible.
+    // FOUND BY LEG E: the ramp and its obligations row shipped without this, so the one NOTE
+    // the documented sweep could not clear was the one this release had just created.
+    // Derived from the install's OWN floor, never the template's, so it stays correct
+    // whatever the hop injected — the discipline the gate list uses one block up.
+    const floorPath = join(installDir, 'tools/stop.floor.json')
+    let withStop = withChain
+    if (existsSync(floorPath)) {
+      const floor = JSON.parse(readFileSync(floorPath, 'utf8'))
+      const stopNames = (Array.isArray(floor.steps) ? floor.steps : [])
+        .map((s) => (Array.isArray(s) ? s[0] : null))
+        .filter((n) => typeof n === 'string')
+      if (stopNames.length > 0) {
+        // `[^.]*` rather than a lazy any-run: a step name never contains a period, so the
+        // first one terminates the list and every sentence after it survives untouched.
+        withStop = withChain.replace(
+          /The \d+ Stop-chain steps, in order:[^.]*\./,
+          `The ${String(stopNames.length)} Stop-chain steps, in order: ${stopNames
+            .map((n) => `\`${n}\``)
+            .join(', ')}.`,
+        )
+      }
+    }
+
     // 0.9.5: the SELF-BUDGET sentence, restated honestly. docs-sync now checks that
     // AGENTS.md's own "Keep under ~N lines" claim is TRUE, and AGENTS.md is seeded —
     // so every upgraded install carries whatever number the harness shipped when it
@@ -391,17 +427,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // it takes the second, and DERIVES the number from the file rather than pasting
     // the template's — the same discipline as the gate list above. Rounded up to the
     // next 50 so an ordinary edit does not immediately re-red it.
-    const lineCount = withChain.trimEnd().split('\n').length
-    const after = withChain.replace(/Keep under ~(\d+) lines/, (whole, claimed) =>
+    const lineCount = withStop.trimEnd().split('\n').length
+    const after = withStop.replace(/Keep under ~(\d+) lines/, (whole, claimed) =>
       lineCount > Number(claimed)
         ? `Keep under ~${String(Math.ceil(lineCount / 50) * 50)} lines`
         : whole,
     )
     if (after !== before) {
       writeFileSync(agentsPath, after)
-      const budgetMoved = after !== withChain
+      const budgetMoved = after !== withStop
+      const stopMoved = withStop !== withChain
       done.push(
-        `AGENTS.md (gate list + counts → ${String(names.length)}${budgetMoved ? '; self-budget restated' : ''})`,
+        `AGENTS.md (gate list + counts → ${String(names.length)}${stopMoved ? '; Stop-chain list' : ''}${budgetMoved ? '; self-budget restated' : ''})`,
       )
     }
   }

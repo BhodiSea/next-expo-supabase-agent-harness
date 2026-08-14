@@ -255,10 +255,32 @@ test('the shipped lib agrees with a REAL `pnpm sbom` run over this repository', 
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   })
+  // TOOLCHAIN ABSENT vs REAL FAILURE — the distinction stop-factory-gate.mjs already draws,
+  // and conflating them is how this test first shipped: a spawn ENOENT leaves `stderr`
+  // UNDEFINED, so the CI-strict branch below reported `pnpm sbom failed in CI: undefined`
+  // 4ms into a job that has no pnpm to fail.
+  //
+  // AND THE GAP, STATED RATHER THAN HIDDEN: no CI job runs this corpus with pnpm on PATH.
+  // installer-unit (which owns tests/**) and release.yml's tag gate are both setup-node
+  // ONLY — deliberately dependency-free — so in CI this test SKIPS, every time. Where it
+  // actually executes is the factory Stop hook, which runs tests/gates/*.test.mjs on every
+  // maintainer turn with a real toolchain. That is a weaker home than CI and it is the
+  // honest one; the seventeen fixture tests above are unaffected and run everywhere.
+  if (run.error !== undefined) {
+    console.log(
+      'sbom: SKIPPED the real-emission cross-check — pnpm is not on PATH (%s). The fixture closure above still ran.',
+      run.error.message,
+    )
+    return
+  }
   if (run.status !== 0) {
-    // pnpm absent from PATH is a toolchain fact, not a finding — the same asymmetry the
-    // gate itself applies. In CI it is a failure.
-    assert.equal(process.env.CI === 'true', false, `pnpm sbom failed in CI: ${run.stderr}`)
+    // pnpm RAN and refused. That is a finding about the emission, not about the toolchain,
+    // so it fails closed in CI and skips loudly on a workstation mid-install.
+    assert.equal(
+      process.env.CI === 'true',
+      false,
+      `pnpm sbom exited ${String(run.status)} in CI: ${run.stderr}`,
+    )
     return
   }
   const real = JSON.parse(run.stdout)

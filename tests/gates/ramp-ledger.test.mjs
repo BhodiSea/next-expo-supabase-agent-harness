@@ -701,14 +701,16 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // These pins read the CURRENT fleet at a historical version and move with each reviewed
   // ramp addition, in the same diff — the discipline the header states. THIRTEEN since 0.9.9
   // added TWO ramps: auth-posture's [auth.mfa] posture and version-sync's absent
-  // end-of-life register, both due 0.10.0. SIXTEEN since 0.10.0 added THREE, all due
+  // end-of-life register, both due 0.10.0. SEVENTEEN since 0.10.0 added FOUR, all due
   // 0.11.0: docs-sync's AGENTS.md Stop-chain list lockstep (leg B), web-e2e's axe tag
-  // ladder and rate-limits' outage-rung fallback declaration (leg F). Only the last two
-  // widen the gate set below — docs-sync was already carrying ramps, those two gates were
-  // not.
+  // ladder and rate-limits' outage-rung fallback declaration (leg F), and version-sync's
+  // ARRIVAL of a harness-authored eol.json removalTarget — the fourth added after
+  // upgrade-lane leg A red on it. Only the axe and fallback ramps widen the gate set
+  // below: docs-sync and version-sync were both already carrying ramps at this vintage,
+  // those two gates were not.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 16)
+  assert.equal(fresh.noting.length, 17)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [

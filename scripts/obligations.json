@@ -531,6 +531,19 @@
       "reviewedOn": "2026-08-14"
     },
     {
+      "id": "version-sync-eol-arrival-ramp-expiry",
+      "kind": "release",
+      "target": "0.11.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-version-sync.mjs",
+          "mustContain": "the arrival of tools/eol.json's removalTarget dates"
+        }
+      ],
+      "reason": "FOUND BY THE UPGRADE LANE, not by review, and it is the defect this release existed to catch. tools/eol.json shipped uuid's deprecation acceptance with removalTarget 0.10.0 — a date the HARNESS wrote — and the file is SEEDED, so every install that ever ran `update` holds that value and `update` may never rewrite it. At harness 0.10.0 the acceptance ARRIVED, hard, on the first validate after upgrading, for a value the consumer did not choose and could not be given a fix for. Leg A (baseVersion 0.9.9, which meets ZERO ramp deadlines) went red and the lane classified it correctly: 'validate is RED on the upgraded install and NO ramp deadline is met — this is a regression, not an expiry.' Re-dating the template's register to 0.11.0 fixes fresh scaffolds and reaches no existing install, which is exactly the seeded/owned asymmetry the release's other five source fixes are ramped for. So the ARRIVAL half now rides its own ramp (minVersion 0.10.0, until 0.11.0), split from the census half whose ramp expires at 0.10.0 as the fleet intends — the two are different obligations: the census reds because the consumer's lockfile moved, the arrival because a harness-chosen date came due. The gradient is unaffected (0/2/4/6 across 0.9.9/0.9.5/0.9.0/0.8.0) because a NOTE is not an expiry. Discharge at 0.11.0: by then every install has had a release in which to re-affirm or remove the row, and the seededSourceFixes instruction names it explicitly.",
+      "reviewedOn": "2026-08-14"
+    },
+    {
       "id": "rate-limits-fallback-ramp-expiry",
       "kind": "release",
       "target": "0.11.0",

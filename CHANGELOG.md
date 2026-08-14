@@ -143,11 +143,55 @@ register documents.
   `e8-privilege-lifecycle` → 0.11.0 **as a scope decision, labelled as one**;
   `e8-mfa-enrolment-surface` and `e8-patch-window-evidence` → **1.0.0** on
   capability ceilings no date can move.
-- **Opened (7):** `web-e2e-axe-tag-ramp-expiry`, `rate-limits-fallback-ramp-expiry`,
-  `docs-sync-stop-list-ramp-expiry` (the three ramps this release opens),
-  `canary-lane-proofs-unexecuted`, `canary-registry-hook-closure`,
-  `e8-register-canary-widening`, `sbom-consumption` (condition → dated, its
-  precondition met by construction at this bump).
+- **Opened (8):** `web-e2e-axe-tag-ramp-expiry`, `rate-limits-fallback-ramp-expiry`,
+  `docs-sync-stop-list-ramp-expiry`, `version-sync-eol-arrival-ramp-expiry`
+  (the four ramps this release opens), `canary-lane-proofs-unexecuted`,
+  `canary-registry-hook-closure`, `e8-register-canary-widening`,
+  `sbom-consumption` (condition → dated, its precondition met by construction
+  at this bump).
+
+### What the upgrade lane found, after the release was already green
+
+Both defects below were invisible to 23 green factory Stop steps and to a fresh
+scaffold, and each is the exact shape the lane exists to catch — **the release
+was correct for new installs and wrong for existing ones.**
+
+- **`tools/eol.json`'s arrived acceptance.** The shipped register dated `uuid`'s
+  deprecation acceptance to `removalTarget: 0.10.0` — *a date the harness wrote* —
+  and the file is **seeded**, so every install that ever ran `update` holds that
+  value and `update` may never rewrite it. At harness 0.10.0 it ARRIVED: a hard
+  red on the first validate after upgrading, for a value the consumer did not
+  choose and could not be sent a fix for. Re-dating the template to 0.11.0 fixes
+  fresh scaffolds and reaches nobody else. **Leg A caught it** — baseVersion
+  0.9.9 meets zero ramp deadlines, so the lane classified it precisely:
+  *"validate is RED on the upgraded install and NO ramp deadline is met — this is
+  a regression, not an expiry."* The ARRIVAL half now rides its own ramp
+  (minVersion 0.10.0, until 0.11.0), split from the census half whose ramp
+  expires at 0.10.0 as the fleet intends; the two are different obligations, one
+  triggered by the consumer's lockfile moving and one by a harness-chosen date
+  coming due. The expiry gradient is unchanged — a NOTE is not an expiry.
+- **`graduate` advanced the baseline over withheld findings — the worst shape a
+  graduate bug can take**, because advancing the baseline is the very act that makes
+  those findings turn-fatal. `stampGate` short-circuits a gate to *"inputs unchanged
+  since last green run"* when its declared inputs have not moved and we are not in CI;
+  the gate body never runs, so its `rampNote` never prints, so `graduate`'s
+  *"advance only if zero ramp NOTEs remain"* test passed over two outstanding
+  findings. **Leg A watched it happen**: baseVersion went 0.9.9 → 0.10.0 and the very
+  next validate came back RED on both `version-sync` and `rate-limits`. `graduate` now
+  invalidates the `.harness/*.ok` stamps before it runs validate — chosen over setting
+  `CI=true`, which would also flip every toolchain-dependent gate to fail-closed and
+  refuse a consumer for having no database running rather than for an unswept finding.
+  The stamp is documented as *"a local convenience, never proof"*; this is a place that
+  needed proof. Red-proof: `tests/installer/graduate.test.mjs`.
+- **The sweep could not clear the ramp this release had just created.** `leg E`
+  is the only leg that executes `graduate`'s SUCCESS branch: it applies the
+  documented sweep and then requires that **no** ramp NOTE survives. Exactly one
+  did — `docs-sync`'s new AGENTS.md Stop-chain list lockstep. The ramp and its
+  obligations row shipped, and the sweep had no rewrite for the seeded file the
+  ramp reds on, so the runbook's instruction was plausible rather than
+  sufficient. `upgrade-sweep.mjs` now rewrites that sentence from the install's
+  **own** `tools/stop.floor.json`, the same discipline the gate-list rewrite
+  beside it has used since 0.6.0.
 
 ### Corrections to the record
 
