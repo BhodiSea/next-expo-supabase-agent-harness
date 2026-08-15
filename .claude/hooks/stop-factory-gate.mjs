@@ -96,6 +96,11 @@ const STEPS = [
   // highestReleaseBelow(), so at a tag SHA it resolves the true predecessor, never the tag
   // being cut. Same skip-loudly/fail-closed posture on shallow history as the step above.
   ['dependency-channel', ['scripts/check-dependency-channel.mjs']],
+  // A production-scope `removalTarget` in the SEEDED tools/eol.json that has arrived in the
+  // release being cut is a red the factory hands every fresh scaffold and cannot take back.
+  // Sits beside the two above because it shares their posture exactly: strictly-below
+  // baseline, skip-loudly on shallow history, fail-closed in CI.
+  ['eol-target', ['scripts/check-eol-target.mjs']],
   // The offline REUSE mirror: every file covered by an annotation, every referenced
   // license present and allowlisted, README/CITATION/package.json license in agreement.
   ['reuse', ['scripts/check-reuse.mjs']],

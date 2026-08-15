@@ -755,10 +755,44 @@ export function parseColumnFacts(statements) {
 }
 
 /**
+ * The EFFECTIVE definition of a function, by qualified name: the LAST one in migration
+ * order, never the first.
+ *
+ * WHY THIS EXISTS (0.11.0). `parseFunctions` returns EVERY `CREATE [OR REPLACE] FUNCTION`
+ * across the append-only migration set, in file order, so a function redefined by a later
+ * migration appears more than once. Every caller resolving a name reached for
+ * `functions.find(...)`, which returns the FIRST — the definition the migration set has
+ * already replaced. Policies fold last-wins in this codebase; functions did not, and the
+ * asymmetry was silent because a tree with no redefinition behaves identically under both.
+ *
+ * The consequence is a gate that judges a definition the database will never run: a later
+ * `CREATE OR REPLACE FUNCTION private.member_ranks()` that inverted the rank ladder, or
+ * dropped a `SET search_path`, would be checked against the original and pass. Any
+ * discharge that redefines a helper is VACUOUS AT THE GATE until this resolves last-wins,
+ * which is why it is fixed before anything is built on top of it.
+ *
+ * Deliberately NOT applied to the whole-fleet scans in check-rls-manifest.mjs: asking
+ * "does every definer definition pin search_path" over all definitions is stricter than
+ * asking it of the survivor, and a transiently-unsafe definition still executes during a
+ * replay against real data. This resolver is for NAME RESOLUTION only.
+ * @param {Array<{qualified: string}>} functions in migration order, as parseFunctions returns them
+ * @param {string} qualified schema-qualified function name
+ */
+export function resolveFunction(functions, qualified) {
+  for (let i = functions.length - 1; i >= 0; i -= 1) {
+    if (functions[i].qualified === qualified) return functions[i]
+  }
+  return undefined
+}
+
+/**
  * CREATE FUNCTION, with the three attributes that decide whether a definer function
  * is a hardening tool or a privilege-escalation footgun: whether it is SECURITY
  * DEFINER, whether it pins `search_path`, and its parameter list (an identity-shaped
  * parameter means the caller tells the function who they are).
+ *
+ * Returns EVERY definition, including redefinitions, in migration order — use
+ * `resolveFunction` to get the effective one by name.
  */
 export function parseFunctions(statements) {
   const fns = []

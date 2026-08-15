@@ -45,6 +45,7 @@ import {
   qualify,
   readSqlDir,
   readSqlDirByFile,
+  resolveFunction,
   splitStatements,
   stripSchema,
 } from './lib/sql-parse.mjs'
@@ -440,7 +441,7 @@ if (!quotaAdopted) {
       )
     }
   }
-  const reconcile = functions.find((f) => f.qualified === reconcileFn)
+  const reconcile = resolveFunction(functions, reconcileFn)
   if (reconcile === undefined) {
     errs.push(
       `${cfg.quota.reconcileFunction}: named by ${CONFIG} but defined in no migration — every incrementing counter drifts (a disabled trigger, a logical restore, a bug in a decrement), and drift UP blocks a paying customer while drift DOWN gives the product away. Recomputing from count(*) is the only thing that closes both`,

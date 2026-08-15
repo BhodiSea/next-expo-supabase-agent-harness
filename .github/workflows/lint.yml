@@ -199,6 +199,17 @@ jobs:
       # consumer-ci-static selftest lane; this is its per-commit static closure.
       - name: machinery-ci-preconditions (the shipped CI's entry path is satisfiable; actions pinned)
         run: node scripts/check-ci-preconditions.mjs
+      # tools/eol.json is SEEDED and its production-scope `removalTarget` is a date the
+      # HARNESS writes, so a target equal to the version being cut reds every fresh scaffold
+      # on `version-sync` while `update` cannot correct any install that already holds it.
+      # That shipped twice — 0.10.0 (found by the upgrade lane after 23 green Stop steps)
+      # and again in the fix it wrote — because nothing compared the register against
+      # package.json. The second closure is the seeded reach: a target that MOVED owes a
+      # seededSourceFixes probe, or the correction lands only where it was not needed.
+      # Needs full history (fetch-depth: 0, already set) and SKIPS LOUDLY without a
+      # previous tag rather than passing.
+      - name: machinery-eol-target (no shipped removalTarget has arrived in the release being cut)
+        run: node scripts/check-eol-target.mjs
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)

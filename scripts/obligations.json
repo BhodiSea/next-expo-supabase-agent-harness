@@ -185,7 +185,7 @@
       "sites": [
         {
           "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "until: '0.11.0'"
+          "mustContain": "ADR shape finding(s)"
         }
       ],
       "reason": "The ADR content-shape check 0.9.5 opened inside docs-sync (load-bearing sections with real bodies, closed-vocabulary Status, resolvable corpus refs, allowlisted source hosts) falls due at 0.11.0 — two releases, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile. The 0.11.0 migrations record owes this expiry.",

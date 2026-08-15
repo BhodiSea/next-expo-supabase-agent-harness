@@ -9,8 +9,8 @@
 // dead-code (the hand-maintained-list gap the 0.1.4 release survived by luck).
 // This script makes forgetting the registration a red PR instead of a red fleet.
 //   usage: node scripts/check-seeded-migrations.mjs
-//   env:   PREVIOUS_RELEASE_TAG — the release to diff against
-//          (default: `git describe --tags --abbrev=0`)
+//   env:   PREVIOUS_RELEASE_TAG — the release to diff against (default: the highest
+//          v*.*.* tag STRICTLY BELOW this tree's package.json version)
 // Path mapping REUSES the installer's own storageToInstall (the .tmpl strip +
 // top-level dotless RENAMES walkTemplate routes every install through), and the
 // classification reuses fileMode + seedOnInitOnlyPatterns/matchSeedOnInitOnly —
@@ -29,8 +29,13 @@ import {
   readTemplateMigrations,
   seedOnInitOnlyPatterns,
 } from '../installer/lib/migrations.mjs'
+import { highestReleaseBelow } from './lib/ramp-sites.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
+// This tree's own version, so the previous-release baseline can be resolved STRICTLY BELOW
+// it. Read here rather than inside the git block because the rule is about the version, not
+// about git: a baseline that can equal the version being cut is the defect, wherever it came from.
+const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
 
 // Deliberate plants: rare seeded/config additions that SHOULD auto-plant into
 // existing installs on `update` (nothing references them, or every install must
@@ -415,7 +420,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let prev = process.env.PREVIOUS_RELEASE_TAG || null
   if (prev === null) {
     try {
-      prev = git(['describe', '--tags', '--abbrev=0']).trim()
+      // STRICTLY BELOW this tree's own version, never `git describe --tags --abbrev=0`.
+      // Through 0.10.0 this was the describe form, and it is the v0.6.0 self-predecessor
+      // class surviving in its FOURTH copy: on a release commit the nearest reachable tag
+      // IS the tag being cut, so the gate diffed the release against its own tree, found no
+      // seeded addition by construction, and passed vacuously — green through development
+      // and green forever after tagging, which is the one shape this gate exists to refuse.
+      // check-ramp-ledger.mjs and check-dependency-channel.mjs already resolve it this way;
+      // `highestReleaseBelow` is the single home for the rule.
+      prev = highestReleaseBelow(git(['tag', '--list', 'v*.*.*']).split('\n'), VERSION)
     } catch {
       // fall through to the reachability failure below with prev still null
     }

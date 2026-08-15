@@ -638,6 +638,36 @@ test('RED: a SECURITY DEFINER scope helper breaks the invoker-based recursion sa
   assert.ok(r.out.includes('must be SECURITY INVOKER'), r.out)
 })
 
+// ── the last-wins fold (0.11.0) ───────────────────────────────────────────────
+// Migrations are append-only, so a helper can be redefined by a later file, and the
+// database runs the LAST definition. Through 0.10.0 every name resolution here used
+// `functions.find(...)` — the FIRST — so the gate judged a definition the database had
+// already replaced. Policies already folded last-wins; functions did not, and nothing
+// noticed because a tree with no redefinition behaves identically under both rules.
+// The consequence is not cosmetic: any change that ships a `CREATE OR REPLACE` of a
+// tenancy helper is VACUOUS AT THE GATE, so these two cases guard the fold itself.
+
+test('RED (last-wins): a later CREATE OR REPLACE is what the database runs, so it is what the gate must judge', () => {
+  const helpers = `${HELPERS_SQL}
+CREATE OR REPLACE FUNCTION private.member_ranks() RETURNS jsonb
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+  AS $$ SELECT '{}'::jsonb $$;`
+  const r = runGate(fixture({ migration: tenancyMigration({ helpers }) }))
+  // Under the old first-wins resolution this fixture PASSED: the gate read the original
+  // SECURITY INVOKER helper and never saw the definer replacement.
+  assert.equal(r.code, 1, `the EFFECTIVE definition is the last one, not the first:\n${r.out}`)
+  assert.ok(r.out.includes('must be SECURITY INVOKER'), r.out)
+})
+
+test('GREEN (last-wins): a redefinition that is still correct stays green — the rule is last-wins, not no-redefinition', () => {
+  const helpers = `${HELPERS_SQL}
+CREATE OR REPLACE FUNCTION private.member_ranks() RETURNS jsonb
+  LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''
+  AS $$ SELECT coalesce(jsonb_object_agg(m.org_id::text, m.role_rank), '{}'::jsonb) FROM public.memberships m WHERE m.user_id = (SELECT auth.uid()) $$;`
+  const r = runGate(fixture({ migration: tenancyMigration({ helpers }) }))
+  assert.equal(r.code, 0, `a conforming replacement must not red:\n${r.out}`)
+})
+
 test('RED: a helper that takes a parameter is the correlated-SubPlan door', () => {
   const helpers = HELPERS_SQL.replace('private.member_ranks() RETURNS jsonb', 'private.member_ranks(_scope uuid) RETURNS jsonb')
   assert.notEqual(helpers, HELPERS_SQL, 'the mutation matched nothing — the fixture SQL moved')

@@ -167,17 +167,51 @@ export function censusProblems(rows, deferralIds) {
 }
 
 /**
+ * Does `row` anchor THIS ramp site — not merely some ramp of the same gate?
+ *
+ * THE KEY IS THE SITE, NOT THE GATE, and that is the whole of the 0.11.0 fix. Through
+ * 0.10.0 the match was `row.id.includes(site.gate)`, which cannot tell two ramps of one
+ * gate apart: with two docs-sync ramps both dated 0.11.0, deleting EITHER row left the
+ * union reporting zero problems, because the survivor's id still contained "docs-sync".
+ * It also matched by accident in the other direction — `auth-posture-consumer-tunable-split`
+ * is not a ramp row at all, yet its id contains "auth-posture" and it satisfied an
+ * auth-posture ramp for a whole release. Both failures are the same one: an id substring is
+ * not an identifier.
+ *
+ * The site's own anchor is. A ramp row already carries `sites: [{file, mustContain}]` as its
+ * prose anchor, and `check-ramp-ledger.mjs` already treats each ramp's `detail` as an id
+ * (checkDetailIds). So a row anchors a ramp when its anchor points at the ramp's FILE and
+ * its `mustContain` appears inside that ramp's DETAIL — which is exactly what a reviewer
+ * reading the row would take it to mean, and which no sibling ramp can satisfy by accident.
+ * @param {any} row
+ * @param {{gate: string, until: string|null, file: string, detail?: string}} site
+ */
+function rowAnchorsRamp(row, site) {
+  if (row?.kind !== 'release' || row.target !== site.until) return false
+  const anchors = Array.isArray(row.sites) ? row.sites : []
+  const detail = String(site.detail ?? '')
+  return anchors.some(
+    (a) =>
+      typeof a?.file === 'string' &&
+      typeof a?.mustContain === 'string' &&
+      a.mustContain.length > 0 &&
+      a.file.endsWith(site.file) &&
+      detail.includes(a.mustContain),
+  )
+}
+
+/**
  * The ramp union: every shipped rampNote site whose deadline is still in the FUTURE —
  * `until` strictly above `base`, where base is the newest of package.json and the highest
  * template/migrations.json record — must be represented by a release row targeting that
- * expiry version and naming the gate in its id. Sites at or below `base` are already paid
- * by the current release's rampExpiry record (check-ramp-ledger.mjs computes that
- * population); the future ones are the debt the NEXT record will owe, and this is where
- * that debt is written down before it is due.
+ * expiry version and ANCHORED ON THAT SITE (see rowAnchorsRamp). Sites at or below `base`
+ * are already paid by the current release's rampExpiry record (check-ramp-ledger.mjs
+ * computes that population); the future ones are the debt the NEXT record will owe, and
+ * this is where that debt is written down before it is due.
  *
  * Anti-vacuity first: a scan that found no sites at all proves nothing, so it reds — the
  * exact rule check-ramp-ledger.mjs applies to its own fleet.
- * @param {Array<{gate: string, until: string|null, file: string}>} sites
+ * @param {Array<{gate: string, until: string|null, file: string, detail?: string}>} sites
  * @param {any[]} rows
  * @param {string} base
  * @returns {string[]}
@@ -191,14 +225,13 @@ export function rampObligationProblems(rows, sites, base) {
   const problems = []
   const future = sites.filter((s) => s.until !== null && cmpDotted(s.until, base) > 0)
   for (const site of future) {
-    const covered = rows.some(
-      (r) => r?.kind === 'release' && r.target === site.until && typeof r.id === 'string' && r.id.includes(site.gate),
+    if (rows.some((r) => rowAnchorsRamp(r, site))) continue
+    // The detail is in the message because it is what distinguishes this ramp from its
+    // siblings — the old message named only the gate and the file, so with two ramps in one
+    // file a reader could not tell which of them was uncovered.
+    problems.push(
+      `gate '${site.gate}' (${site.file}) carries a ramp with until: '${site.until}' whose detail is ${JSON.stringify(site.detail ?? '')} — a deadline the ${site.until} record will owe — but no kind:release row here targets ${site.until} with a \`sites\` anchor on that file whose \`mustContain\` appears in that detail. Add the row now, anchored on THIS ramp: a row that merely names the gate in its id cannot tell two ramps of one gate apart, which is how a ramp ships unwatched.`,
     )
-    if (!covered) {
-      problems.push(
-        `gate '${site.gate}' (${site.file}) carries a ramp with until: '${site.until}' — a deadline the ${site.until} record will owe — but no kind:release row here targets ${site.until} with '${site.gate}' in its id. Add the row now, so the expiry is a debt the register carries rather than a surprise the release meets.`,
-      )
-    }
   }
   return problems
 }

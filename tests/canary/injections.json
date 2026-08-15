@@ -464,6 +464,30 @@
         "mcp__wide__apply_migration",
         "mcp__wide__execute_sql"
       ]
+    },
+    "posttool-source-check.mjs": {
+      "//": "0.11.0, the hook->registry direction. This hook BLOCKS with exit 2 rather than denyTool(), so the pin is 0 and it is load-bearing in that form: gaining a denyTool( site here would be a change of mechanism, not a tweak, and must be a reviewed registry bump. The examples are the uncited decision sites its own contract tests write and expect to be refused.",
+      "denyToolCallSites": 0,
+      "denyExamples": [
+        "const claims = await jwtVerify(token, jwks)",
+        "ALTER TABLE notes FORCE ROW LEVEL SECURITY;"
+      ]
+    },
+    "stop-validate-gate.mjs": {
+      "//": "0.11.0. THE TURN-FATAL HOOK, and until this release it was required by nothing: no entry, no example, no pinned call-site count. Exit 2 is its mechanism (denyTool( is a PreToolUse shape), so the pin is 0. The examples are the two refusals that matter most — a BROKEN gate config blocks the turn even when the fallback chain would pass, and a green run must SURFACE skipped layers rather than reading as fully verified.",
+      "denyToolCallSites": 0,
+      "denyExamples": [
+        "gate-config BROKEN",
+        "skipped layers"
+      ]
+    },
+    "posttool-fast-check.mjs": {
+      "kind": "steps",
+      "note": "0.11.0, a REASONED exemption rather than a pin. This hook runs no rule of its own: it is a per-edit fast path over checks the step registry already proves tree-wide (format/types/lint on the touched file), so a deny example here would duplicate a step proof rather than add one. What it must not do is fail OPEN on malformed input, and that is proven by tests/hooks/hookio-failclosed.test.mjs — the one behaviour unique to the hook layer."
+    },
+    "subagent-verdict.mjs": {
+      "kind": "steps",
+      "note": "0.11.0, a reasoned exemption WITH A NAMED REMAINDER. Its subject is the TURN, not a tool call: it records reviewer verdicts for the reviewer-verdicts Stop step, which the step registry already proves. Path-state handling is proven by tests/hooks/subagent-verdict-pathstate.test.mjs. What is still missing is a deny/block canary of its own and an exit-code pin — carved out to 0.12.0 as canary-registry-hook-closure rather than asserted here, because an entry that claims coverage it does not have is worse than the absence this release just fixed."
     }
   },
   "lanes": {
@@ -742,6 +766,13 @@
         "kind": "fixture",
         "ref": "tests/gates/check-dependency-channel.test.mjs",
         "note": "0.7.0, includes the tag-time pin: the baseline resolves STRICTLY BELOW the version being cut (highestReleaseBelow), so the v0.6.0 self-predecessor class cannot regress"
+      }
+    ],
+    "check-eol-target.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-eol-target.test.mjs",
+        "note": "0.11.0: the arrival half (a production-scope removalTarget at or below the version being cut reds, because eol.json is SEEDED and every fresh scaffold would red on version-sync) and the seeded-reach half (a target that MOVED since the previous tag owes a seededSourceFixes probe, or the correction reaches only the trees that did not need it). Carries the same strictly-below tag pin as check-dependency-channel: the fixture's highest tag IS its own version, so a baseline of anything but the predecessor means the self-predecessor class regressed"
       }
     ],
     "check-escape-registry.mjs": [

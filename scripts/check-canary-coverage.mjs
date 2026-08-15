@@ -236,11 +236,28 @@ for (const id of Object.keys(lanes)) {
 }
 for (const [id, proofs] of Object.entries(lanes)) {
   for (const proof of proofs ?? []) {
-    if (proof.kind === 'steps') continue // runs only steps the step registry already proves
+    if (proof.kind === 'steps') {
+      // The note requirement, mirrored from the factoryLanes loop below (0.11.0). A bare
+      // {"kind":"steps"} here was a silent skip wearing a registry entry: it asserted that
+      // the step registry already proves this lane's work and named nothing that does.
+      if (typeof proof.note !== 'string' || proof.note.trim() === '') {
+        errs.push(
+          `lane '${id}': a {"kind":"steps"} declaration must carry a non-empty note naming what already proves the lane's work — a bare declaration is a silent skip wearing a registry entry`,
+        )
+      }
+      continue
+    }
     if (proof.kind === 'fixture' || proof.kind === 'runner') {
       if (!existsSync(join(ROOT, proof.ref))) {
         errs.push(`lane '${id}': ${proof.kind} proof ${proof.ref} does not exist`)
+        continue
       }
+      // EXECUTED, not merely present (0.11.0). Through 0.10.0 the two lane registries got
+      // existsSync and nothing else, so a lane proof gutted to an empty file — or repointed
+      // at a file testing something entirely different — passed the closure that exists to
+      // catch exactly that. Same G28 bar the `steps` pass has applied since 0.3.0; 12
+      // distinct files are added to the spawn set by this and the factoryLanes loop.
+      runProof(`lane '${id}'`, proof.ref)
     } else if (proof.kind === 'selftest') {
       if (!selftest.includes(proof.ref)) {
         errs.push(`lane '${id}': selftest proof step "${proof.ref}" not found in .github/workflows/selftest.yml (or a scripts/ci/* helper it invokes)`)
@@ -309,7 +326,10 @@ for (const [key, proofs] of Object.entries(factoryLanes)) {
     } else if (proof.kind === 'fixture') {
       if (!existsSync(join(ROOT, proof.ref))) {
         errs.push(`factory lane '${key}': fixture proof ${proof.ref} does not exist`)
+        continue
       }
+      // EXECUTED, not merely present (0.11.0) — see the lanes loop above for the class.
+      runProof(`factory lane '${key}'`, proof.ref)
     } else {
       errs.push(`factory lane '${key}': unknown proof kind ${JSON.stringify(proof.kind)}`)
     }
@@ -503,14 +523,58 @@ for (const [hook, expected] of Object.entries(registry.hookRules ?? {})) {
   }
 }
 
+// 3a-bis. THE HOOK -> REGISTRY DIRECTION (0.11.0). Every loop above iterates the REGISTRY,
+// so a hook with no entry was required by nothing: no deny example, no call-site pin, no
+// proof, and nothing anywhere noticed. Measured at 0.10.0 the tree shipped seven hooks and
+// the registry named three — the four uncovered ones included `stop-validate-gate.mjs`, the
+// TURN-FATAL hook whose whole job is that a turn cannot end on a red build. A closure that
+// runs one way is a census of what somebody remembered to write down.
+const shippedHooks = readdirSync(join(ROOT, 'template/base/.claude/hooks'))
+  .filter((f) => f.endsWith('.mjs'))
+  .sort()
+if (shippedHooks.length === 0) {
+  errs.push(
+    'no .mjs hooks found under template/base/.claude/hooks — the hook closure cannot fail open',
+  )
+}
+for (const hook of shippedHooks) {
+  if (registry.hookRules?.[hook] === undefined) {
+    errs.push(
+      `hook '${hook}' ships under template/base/.claude/hooks but has NO entry in tests/canary/injections.json#hookRules — an unregistered hook is required to carry no deny example, no denyToolCallSites pin and no red-proof. Give it an entry, or declare {"kind":"steps"} with a note naming what already proves it.`,
+    )
+  }
+}
+
 // 3b. Path-scoped checks living INSIDE the hooks (app-config weakenings, append-only
 // migrations, DAL wrapper, secure-store seam, …) are not in the data tables, so the
 // per-id closure above cannot see them. Pin their denyTool( call-site count instead —
 // adding an inline deny site forces a conscious registry bump plus a deny test, the
 // speed bump the old denySites count provided.
 for (const [hook, expected] of Object.entries(registry.hookRules ?? {})) {
+  // A {"kind":"steps"} declaration is a reasoned exemption, not a pin — it carries a note
+  // instead of a count, checked below.
+  if (expected?.kind === 'steps') {
+    if (typeof expected.note !== 'string' || expected.note.trim() === '') {
+      errs.push(
+        `hook '${hook}': a {"kind":"steps"} declaration must carry a non-empty note naming what already proves the hook's behaviour — a bare declaration is a silent skip wearing a registry entry`,
+      )
+    }
+    continue
+  }
   if (typeof expected.denyToolCallSites !== 'number') continue
-  const src = readFileSync(join(ROOT, 'template/base/.claude/hooks', hook), 'utf8')
+  // A STALE entry naming a deleted hook reached an UNCAUGHT readFileSync here, so the gate
+  // died with an ENOENT stack trace instead of reporting a finding — the failure mode of
+  // the registry going stale was a CRASHED checker rather than a red one, and a crash is
+  // the one outcome a reader cannot tell from infrastructure trouble.
+  let src
+  try {
+    src = readFileSync(join(ROOT, 'template/base/.claude/hooks', hook), 'utf8')
+  } catch {
+    errs.push(
+      `hookRules registry covers '${hook}' but template/base/.claude/hooks/${hook} does not exist — stale entry. Delete it, or restore the hook it was written for.`,
+    )
+    continue
+  }
   const count = (src.match(/denyTool\(/g) ?? []).length
   if (count !== expected.denyToolCallSites) {
     errs.push(

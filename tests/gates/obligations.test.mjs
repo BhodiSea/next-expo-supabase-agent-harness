@@ -70,6 +70,11 @@ const baseRegister = () => ({
       id: 'widget-ramp-expiry',
       kind: 'release',
       target: '0.10.0',
+      // The 0.11.0 keying: a ramp row is matched to its ramp by this ANCHOR — the file the
+      // ramp lives in plus a `mustContain` that appears in the ramp's own detail — never by
+      // the gate name appearing somewhere in the row id. Before that change this row needed
+      // no sites at all, which is precisely why two ramps of one gate were indistinguishable.
+      sites: [{ file: 'template/base/tools/check-widget.mjs', mustContain: 'the widget adoption escape' }],
       reason: GOOD_REASON,
       reviewedOn: '2026-08-10',
     },
@@ -366,6 +371,68 @@ test("RED (ramp union): a release row at the WRONG target does not satisfy the r
   const r = runFixture({ register: reg })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /gate 'widget'/)
+})
+
+// ── THE 0.11.0 PER-SITE KEYING (ramp-union-per-site-keying) ─────────────────────────────
+// Two ramps in ONE gate, both dated the same version. Through 0.10.0 the union matched a
+// ramp to a row with `row.id.includes(site.gate)`, so the two were indistinguishable and
+// deleting EITHER row left the survivor covering both — reproduced against the real register
+// at 0.10.0, where dropping either docs-sync row yielded zero problems. These are FIXTURE
+// tests on purpose: after this release's bump no shipped ramp has an `until` above the
+// current version, so a live-register assertion would go vacuous and prove nothing.
+const TWO_RAMP_GATE = [
+  "const GATE = 'widget'",
+  '// a fixture gate carrying TWO future-until ramps at the same expiry',
+  "const a = rampNote(GATE, '0.9.0', 'the widget adoption escape', { until: '0.10.0' })",
+  "const b = rampNote(GATE, '0.9.0', 'the widget rollout escape', { until: '0.10.0' })",
+  'if (a || b) process.exit(0)',
+  '',
+].join('\n')
+
+/** The base register plus a SECOND, correctly anchored row for the second widget ramp. */
+const twoRampRegister = () => {
+  const reg = baseRegister()
+  reg.obligations.push({
+    id: 'widget-rollout-ramp-expiry',
+    kind: 'release',
+    target: '0.10.0',
+    sites: [{ file: 'template/base/tools/check-widget.mjs', mustContain: 'the widget rollout escape' }],
+    reason: GOOD_REASON,
+    reviewedOn: '2026-08-10',
+  })
+  return reg
+}
+
+test('GREEN: two ramps of one gate, each with its OWN anchored row, close the union', () => {
+  const r = runFixture({ register: twoRampRegister(), tools: { 'check-widget.mjs': TWO_RAMP_GATE } })
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (per-site keying): deleting ONE of two same-gate rows reds — the sibling no longer covers it', () => {
+  const reg = twoRampRegister()
+  reg.obligations = reg.obligations.filter((row) => row.id !== 'widget-rollout-ramp-expiry')
+  const r = runFixture({ register: reg, tools: { 'check-widget.mjs': TWO_RAMP_GATE } })
+  assert.equal(r.code, 1, `the surviving same-gate row must NOT cover the deleted one's ramp:\n${r.out}`)
+  // The detail is what names WHICH ramp is uncovered — the old message could not say.
+  assert.match(r.out, /the widget rollout escape/)
+  assert.ok(
+    !r.out.includes('the widget adoption escape'),
+    `only the uncovered ramp may be reported; the anchored one is covered:\n${r.out}`,
+  )
+})
+
+test('RED (per-site keying): a row whose id merely CONTAINS the gate name does not satisfy a ramp', () => {
+  // The other half of the same defect, and it ran unnoticed for a release:
+  // `auth-posture-consumer-tunable-split` is not a ramp row at all, yet its id contains
+  // "auth-posture" and it satisfied an auth-posture ramp by accident. An id substring is not
+  // an identifier — only the anchor is.
+  const reg = baseRegister()
+  const row = reg.obligations.find((x) => x.id === 'widget-ramp-expiry')
+  row.id = 'widget-something-else-entirely'
+  delete row.sites
+  const r = runFixture({ register: reg })
+  assert.equal(r.code, 1, `a gate-name substring must not cover a ramp:\n${r.out}`)
+  assert.match(r.out, /a row that merely names the gate in its id cannot tell two ramps of one gate apart/)
 })
 
 test('RED (anti-vacuity): a tools tree with NO ramp sites makes the union check vacuous, so it reds', () => {

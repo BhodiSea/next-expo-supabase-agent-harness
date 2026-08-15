@@ -101,6 +101,7 @@ import {
   parseColumnFacts,
   parseCreatedTables,
   parseFunctions,
+  resolveFunction,
   parseGrants,
   parseIndexes,
   parsePolicies,
@@ -1234,7 +1235,7 @@ function checkAuditImmutabilityTriggers() {
 
 /** The write path: one definer function, an actor it derives rather than accepts. */
 function checkAuditWriter() {
-  const fn = functions.find((f) => f.qualified === auditWriteFn)
+  const fn = resolveFunction(functions, auditWriteFn)
   if (fn === undefined) {
     errs.push(
       `${cfg.auditWriteFunction}: named by ${CONFIG} as the audit writer but defined in no migration — every audit trigger executes it, so applying them fails`,
@@ -1500,7 +1501,7 @@ checkAuditTrail()
 // ---------------------------------------------------------------------------
 
 function checkHelper(name) {
-  const fn = functions.find((f) => f.qualified === qualify(name).qualified)
+  const fn = resolveFunction(functions, qualify(name).qualified)
   if (fn === undefined) {
     errs.push(
       `${name}: named by ${CONFIG} (the predicate forms call it) but defined in no migration — CREATE POLICY would fail at apply time, or a later same-named function gets the job`,
@@ -1538,7 +1539,7 @@ checkHelper(cfg.scopeHelper)
 checkHelper(cfg.rankHelper)
 
 function checkFreezeFunction(fnName) {
-  const fn = functions.find((f) => f.qualified === qualify(fnName).qualified)
+  const fn = resolveFunction(functions, qualify(fnName).qualified)
   if (fn === undefined) {
     errs.push(
       `${fnName}: named by ${CONFIG} but defined in no migration — the freeze triggers execute it, so applying them fails (or a later same-named function silently gets the job)`,
@@ -1553,7 +1554,7 @@ checkFreezeFunction(cfg.freezeFunction)
 if (judged.includes(membership)) checkFreezeFunction(cfg.membershipFreezeFunction)
 
 if (cfg.directoryRpc !== null) {
-  const fn = functions.find((f) => f.qualified === qualify(cfg.directoryRpc).qualified)
+  const fn = resolveFunction(functions, qualify(cfg.directoryRpc).qualified)
   if (fn === undefined) {
     errs.push(
       `${cfg.directoryRpc}: named by ${CONFIG} as the directory RPC but defined in no migration — set "directoryRpc": null if this install deliberately ships no member directory`,

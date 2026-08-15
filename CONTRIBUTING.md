@@ -89,6 +89,7 @@ node scripts/check-obligations.mjs         # the obligations register: release r
 node scripts/check-essential-eight-evidence.mjs  # the E8 register's factory-side closures: simulated-activity claims name a registered can-fail proof; not-implemented rows name a real obligations row
 node scripts/check-ci-preconditions.mjs    # the shipped CI's entry path stays satisfiable; actions SHA-pinned
 node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
+node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe
 
 # The one that matters most — the scaffold must be green with ZERO edits:
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
