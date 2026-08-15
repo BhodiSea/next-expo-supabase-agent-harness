@@ -106,6 +106,20 @@ export const PLACEHOLDERS = {
     validate: (v) =>
       /^@[\w./-]+( @[\w./-]+)*$/.test(v) ? null : 'must be one or more @handles/@org/team entries (space-separated)',
   },
+  // RFC 9116 makes security.txt's `Expires` MANDATORY — a reviewer-supplied bound on
+  // how long the published disclosure channel may be trusted. It is an init ANSWER
+  // (default: 180 days out) rather than a baked date precisely because a baked date is
+  // the off-switch shape 0.6.0 removed from framework-floor.json: the bound must be the
+  // consumer's review, and the scheduled floor-review job reds when it lapses. Rendered
+  // into apps/web/public/.well-known/security.txt as {{SECURITY_TXT_EXPIRES}}T23:59:59.000Z.
+  SECURITY_TXT_EXPIRES: {
+    prompt: 'security.txt Expires date (YYYY-MM-DD — the RFC 9116 mandatory bound on the disclosure channel)',
+    default: () => new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10),
+    validate: (v) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))
+        ? null
+        : 'must be a calendar date, YYYY-MM-DD',
+  },
   DEFAULT_BRANCH: {
     prompt: 'Default git branch',
     default: () => 'main',

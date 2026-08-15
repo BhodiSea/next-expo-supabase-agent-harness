@@ -1595,6 +1595,19 @@ preload list takes months) and `coep` (ships UNSET, because `require-corp` break
 every third-party embed that does not send its own CORP header, and a gate that
 produces a broken app is a gate everyone exempts).
 
+**RFC 9116 security.txt (1.0.0).** `apps/web/public/.well-known/security.txt` seeds
+at init — its mandatory `Expires` is YOUR reviewed bound, the `{{SECURITY_TXT_EXPIRES}}`
+init answer (default init+180d), which is why it is seedOnInitOnly and never planted
+into an existing install (a planted bound is a date nobody reviewed — the off-switch
+shape 0.6.0 removed from framework-floor.json). This gate holds the CLOCKLESS half:
+present ⇒ parses against the RFC line grammar, Contact present as an
+https/mailto/tel URI (cleartext http reds), Expires present exactly once as an
+RFC 3339 date-time. Absence never reds — an install without the file has no
+machine-readable disclosure channel to judge, and SECURITY.md still carries the
+human-readable policy. The CALENDAR half — an expired bound, or one past the RFC's
+one-year recommendation — rides the scheduled `floor-review` job
+(`tools/lib/security-txt.mjs` is the shared parser; the cc-floor/eol clock split).
+
 **Honest limit.** It cannot prove the DEPLOYED response carries these headers. A
 correct config behind a header-stripping CDN, or a nonce that never reaches Next's
 inline bootstrap, is invisible from here. That half is the `web-e2e` lane's

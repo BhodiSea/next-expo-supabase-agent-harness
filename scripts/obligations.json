@@ -228,8 +228,8 @@
           "mustContain": "architecture-reviewer-apps-widening"
         }
       ],
-      "reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review.",
-      "reviewedOn": "2026-08-11",
+      "reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review. RE-REVIEWED FOR 1.0.0, DELIBERATELY AND NOT AS A DATE BUMP: the widening's evidence bar is a release of reviewer-ledger population, and the population available to this review is ZERO BY CONSTRUCTION from where the factory sits — no consumer install's .harness/reviewer-ledger.jsonl reaches this repository, and the factory's own scaffolds never spawn reviewers (no CI lane spawns Claude; the deliberate posture CONTROL-PLANE-FACTS Fact 5 records). So the review RECORDS the refusal rather than the widening, on the trigger file's own narrowness-first doctrine: widening on zero evidence would be exactly the over-match the doctrine exists to refuse, and a stability release does not get to convert an evidence-gated condition into a leap. The row stays until a consumer-reported or maintainer-dogfooded ledger population exists to judge; the condition is unchanged, so the anchor and the trigger scope are byte-identical to 0.9.5.",
+      "reviewedOn": "2026-08-15",
       "evidence": "template/base/tools/reviewer-triggers.json"
     },
     {
@@ -291,20 +291,6 @@
       ],
       "reason": "EU AI Act Article 50 transparency: in force since 2026-08-02 with a 2026-12-02 transitional. The recorded disposition is a CONFIRMED NEGATIVE on the role split (Art. 50(2) binds the provider of the generative system, not the author of software written with one); this row is the dated re-verification of that negative when the transitional window closes, since the robust rationale must survive whatever guidance accretes by then.",
       "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "security-txt-rfc9116",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "scripts/check-seeded-migrations.mjs",
-          "mustContain": "RFC 9116"
-        }
-      ],
-      "reason": "security.txt is a deliberate non-ship: RFC 9116 makes `Expires` MANDATORY, which is a reviewer-supplied date in a seeded file — exactly the off-switch shape 0.6.0 removed from framework-floor.json — so it ships only when it ships with a bound. Its only record today is the SECURITY.md plant-entry comment in scripts/check-seeded-migrations.mjs, which this row anchors so the disposition is finally machine-read.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "scripts/check-seeded-migrations.mjs"
     },
     {
       "id": "conformance-map-whole-or-not-at-all",

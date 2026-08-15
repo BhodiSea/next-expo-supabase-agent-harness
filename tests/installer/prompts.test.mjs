@@ -111,12 +111,26 @@ const DEFAULT_ANSWERS = {
   SUPABASE_PROJECT_REF: 'TBD',
   GITHUB_OWNER: 'acme-co',
   SECURITY_OWNERS: '@acme-co',
+  // Computed at answer time (today+180d) — a clock read, so the asserts below
+  // judge it by shape and window via assertDefaultAnswers rather than baking a
+  // byte-exact date that would go stale the day after it was written.
+  SECURITY_TXT_EXPIRES: '(computed: today+180d)',
   DEFAULT_BRANCH: 'main',
   EAS_PROJECT_ID: 'TBD',
   ASC_APP_ID: 'TBD',
   APPLE_TEAM_ID: 'TBD',
 }
 const PLACEHOLDER_COUNT = Object.keys(DEFAULT_ANSWERS).length
+
+/** deepEqual on everything byte-stable; the RFC 9116 bound by shape + window. */
+const assertDefaultAnswers = (/** @type {Record<string, string>} */ answers) => {
+  const { SECURITY_TXT_EXPIRES: expires, ...rest } = answers
+  const { SECURITY_TXT_EXPIRES: _sentinel, ...expected } = DEFAULT_ANSWERS
+  assert.match(expires, /^\d{4}-\d{2}-\d{2}$/)
+  const days = (Date.parse(`${expires}T00:00:00Z`) - Date.now()) / 86_400_000
+  assert.ok(days > 178 && days < 181, `default Expires ${expires} is not ~180 days out`)
+  assert.deepEqual(rest, expected)
+}
 
 // ---------------------------------------------------------------------------
 // parseSets()
@@ -186,7 +200,7 @@ test('parseSets: a leading "=" (empty key) is rejected as an unknown placeholder
 test('--yes fills every placeholder from defaults, chaining derived values', async () => {
   const c = ctx()
   const answers = await collectAnswers({ yes: true, sets: {}, ctx: c })
-  assert.deepEqual(answers, DEFAULT_ANSWERS)
+  assertDefaultAnswers(answers)
   // ctx.answers is the very object returned (defaults read through it).
   assert.equal(c.answers, answers)
 })
@@ -218,6 +232,7 @@ test('fully --set answers resolve with NO readline even when yes is false', asyn
     SUPABASE_PROJECT_REF: 'TBD',
     GITHUB_OWNER: 'acme-co',
     SECURITY_OWNERS: '@acme-co',
+    SECURITY_TXT_EXPIRES: '2027-02-11',
     DEFAULT_BRANCH: 'main',
     EAS_PROJECT_ID: 'TBD',
     ASC_APP_ID: 'TBD',
@@ -277,7 +292,7 @@ test('interactive: empty replies accept the default for every placeholder', () =
     lines: Array(PLACEHOLDER_COUNT).fill(''),
   })
   assert.ok(r.ok, JSON.stringify(r))
-  assert.deepEqual(r.answers, DEFAULT_ANSWERS)
+  assertDefaultAnswers(r.answers)
   assert.equal(r.prompts.length, PLACEHOLDER_COUNT, 'exactly one prompt per placeholder')
 })
 
@@ -294,6 +309,7 @@ test('interactive: typed replies are stored, trimmed of surrounding whitespace',
       '', // SUPABASE_PROJECT_REF (default TBD)
       'acme-co', // GITHUB_OWNER
       '@acme-co @acme-co/security', // SECURITY_OWNERS
+      '', // SECURITY_TXT_EXPIRES (default today+180d)
       '  develop  ', // DEFAULT_BRANCH
       '', // EAS_PROJECT_ID (default TBD)
       '', // ASC_APP_ID
@@ -327,6 +343,7 @@ test('interactive: an invalid reply re-prompts, then accepts a valid one', () =>
       '', // SUPABASE_PROJECT_REF
       'acme-co', // GITHUB_OWNER
       '@acme-co', // SECURITY_OWNERS
+      '', // SECURITY_TXT_EXPIRES (default today+180d)
       'develop', // DEFAULT_BRANCH
       '', // EAS_PROJECT_ID
       '', // ASC_APP_ID
@@ -380,6 +397,7 @@ test('interactive: an invalid DESIGN_TOKENS reply re-prompts, then accepts metal
       '', // SUPABASE_PROJECT_REF
       '', // GITHUB_OWNER
       '', // SECURITY_OWNERS
+      '', // SECURITY_TXT_EXPIRES (default today+180d)
       '', // DEFAULT_BRANCH
       '', // EAS_PROJECT_ID
       '', // ASC_APP_ID

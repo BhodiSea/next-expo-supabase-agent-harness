@@ -1,0 +1,8 @@
+# Coordinated disclosure for {{PROJECT_NAME}} — the machine-readable half of
+# SECURITY.md (RFC 9116), served at /.well-known/security.txt on the web origin.
+# `Expires` is MANDATORY and it is YOUR reviewed bound: the shape rides the
+# security-headers gate; the lapse rides the scheduled floor-review job.
+Contact: https://github.com/{{GITHUB_OWNER}}/{{PROJECT_SLUG}}/security/advisories/new
+Expires: {{SECURITY_TXT_EXPIRES}}T23:59:59.000Z
+Policy: https://github.com/{{GITHUB_OWNER}}/{{PROJECT_SLUG}}/blob/{{DEFAULT_BRANCH}}/SECURITY.md
+Preferred-Languages: en
