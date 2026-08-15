@@ -219,20 +219,6 @@
       "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
     },
     {
-      "id": "vertical-anatomy-folder-name-coupling",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/lib/vertical-anatomy.mjs",
-          "mustContain": "src/data"
-        }
-      ],
-      "reason": "The DAL laws (port-presence, dal-client-value-import) and events-purity are keyed on DIRECTORY NAMES — src/data/, src/events.ts — so a vertical that names its data layer src/repo/ satisfies them by construction: an adversarial review put a module-scope createClient with a service-role key in packages/verticals/sneaky/src/repo/ and the scan reported zero findings. The laws that read a WHOLE tree (domain purity is scoped the same way; select-star and the barrels are not) are the ones with teeth. Condition rather than dated: closing it means either mandating the anatomy by name (the directory-shaped proxy metric this gate's own header rejects) or deriving the data layer from the port's import graph, which is a design decision. The architecture-reviewer's trigger covers packages/*/src/** whatever the folder is called, which is the compensating control today. RE-REVIEWED FOR 0.10.0, DELIBERATELY AND NOT AS A DATE BUMP, because this release changes what the row means: the boundaries anatomy ramp (check-workspace-deps.mjs, minVersion 0.9.5) falls due here, so from 0.10.0 an anatomy finding is a hard FAILURE rather than a NOTE — and a blind spot beside an advisory NOTE and a blind spot beside a turn-fatal red are not the same object. The coupling is unchanged and was re-verified in the source, not inferred: vertical-anatomy.mjs still does join(dir, 'src/data') and join(dir, 'src/events.ts') literally. So is the compensating control: architecture-reviewer's paths are packages/*/src/** AND packages/*/*/src/**, the second of which is what actually reaches a vertical, so the sneaky src/repo/ tree still owes that verdict whatever it is named. It stays UNDATED on the same reasoning as before, with the honest addition that arming the laws raises the cost of the gap rather than closing it — the reviewer is a judgment control and the register should not record it as a mechanical one.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "template/base/tools/lib/vertical-anatomy.mjs"
-    },
-    {
       "id": "crypto-one-door-namespace-imports",
       "kind": "condition",
       "target": null,
@@ -428,6 +414,19 @@
         }
       ],
       "reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
+      "reviewedOn": "2026-08-15"
+    },
+    {
+      "id": "boundaries-anatomy-widening-ramp-expiry",
+      "kind": "release",
+      "target": "1.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-workspace-deps.mjs",
+          "mustContain": "the behavior-keyed widening of the vertical-anatomy DAL laws"
+        }
+      ],
+      "reason": "1.0.0 re-keys the vertical-anatomy DAL laws on BEHAVIOR — a value-import of @app/supabase/@supabase reds anywhere under src/**, and a file that speaks PostgREST (.from(/.rpc(/.select( in call position) must import a port.ts that exists, wherever both live — discharging vertical-anatomy-folder-name-coupling (the src/repo/ service-role escape the directory keying admitted by construction). Per the ramp doctrine the WIDENED findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a vertical that satisfied the 0.9.5 directory keying (its DAL under src/data/ with a port beside it) may hold a PostgREST caller elsewhere that never owed a port import before, and it gets one release of dated NOTEs to route the seam through a port or record the reviewed allow entry, never a hard red on the update that delivered the re-keying. Nothing weakens meanwhile: findings the directory keying already produced keep their vintage tag and stay on the expired 0.9.5 ramp, hard for every real install. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
       "reviewedOn": "2026-08-15"
     }
   ]

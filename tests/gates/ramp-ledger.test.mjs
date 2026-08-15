@@ -457,7 +457,7 @@ test('0.5.0 closed EIGHT escapes; seven still stand and the eighth is a recorded
     ['diff-coverage', 'docs-sync', 'gate-integrity', 'wiring'],
     'the four gates 0.5.0 named — the extension moved one of docs-sync’s four, not the last',
   )
-  // Kept, not deleted. Dropping the wrappers would take the fleet from 20 to 12 against
+  // Kept, not deleted. Dropping the wrappers would take the fleet from 21 to 13 against
   // three separate anti-vacuity floors that hard-fail below 15.
   assert.ok(shippedRampSites().length >= 15, 'the fleet floor the ledger and both tests pin')
 })
@@ -716,12 +716,14 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // those two gates were not. EIGHTEEN since 0.11.0 added ONE — data-flow's erase.surface
   // record and its two-surface clients closure, due 0.12.0 — and it does NOT widen the gate
   // set, because data-flow already carried its 0.6.0 closure ramp at this vintage.
-  // TWENTY since 1.0.0 added TWO — the injected suppressions census and the resilience
-  // register closure, both at minVersion 1.0.0 due 1.1.0 — and both WIDEN the gate set
-  // below, because neither gate existed before the 1.0.0 injections.
+  // TWENTY-ONE since 1.0.0 added THREE, all at minVersion 1.0.0 due 1.1.0 — the injected
+  // suppressions census and the resilience register closure (both WIDEN the gate set
+  // below, because neither gate existed before the 1.0.0 injections), and boundaries'
+  // behavior-keyed widening of the vertical-anatomy DAL laws (which does NOT widen the
+  // set — boundaries already carries its 0.9.5 anatomy ramp at this vintage).
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 20)
+  assert.equal(fresh.noting.length, 21)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [

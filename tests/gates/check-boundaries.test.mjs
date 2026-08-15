@@ -371,11 +371,21 @@ test('RED anatomy: a DAL file value-importing @app/supabase; import type stays c
   assert.equal(green.code, 0, green.out)
 })
 
-test('RED anatomy: src/data without a port (port presence)', () => {
-  const files = /** @type {[string, string][]} */ ([[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']])
+test('RED anatomy: a PostgREST caller with no port import (port discipline); a call-free data file owes nothing', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [`packages/${N}/src/data/notes.ts`, "export const list = (db) => db.from('notes').select('id')\n"],
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('port-presence'), r.out)
+
+  // The 1.0.0 correction of the directory keying's inversion: a src/data/ file that
+  // never speaks PostgREST owes no port — it has nothing to receive through one.
+  const callFree = fixture({
+    files: /** @type {[string, string][]} */ ([[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']]),
+  })
+  const green = run(WORKSPACE_DEPS, callFree)
+  assert.equal(green.code, 0, green.out)
 })
 
 test('RED anatomy: a vertical missing the ./client export key (dual barrel)', () => {
@@ -412,7 +422,10 @@ test("RED anatomy: select('*') in a DAL file; the same text in a COMMENT stays c
     fixture({
       files: [
         [`packages/${N}/src/data/port.ts`, 'export interface Db { x: 1 }\n'],
-        [`packages/${N}/src/data/notes.ts`, "export const q = db.from(T).select('*')\n"],
+        [
+          `packages/${N}/src/data/notes.ts`,
+          "import type { Db } from './port.js'\nexport const q = (db) => db.from(T).select('*')\n",
+        ],
       ],
     }),
   )
@@ -429,6 +442,64 @@ test("RED anatomy: select('*') in a DAL file; the same text in a COMMENT stays c
     }),
   )
   assert.equal(green.code, 0, green.out)
+})
+
+// ── the 1.0.0 behavior keying (the folder-name-coupling discharge) ───────────────
+
+test('RED anatomy: a module-scope service-role client in src/repo/ — the folder-name escape, closed', () => {
+  // The adversarial fixture from the discharged register row, verbatim in spirit: the
+  // 0.9.5 directory keying reported ZERO findings on this tree.
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/db.ts`,
+      "import { createServiceRoleClient_BYPASSES_RLS } from '@app/supabase'\nconst db = createServiceRoleClient_BYPASSES_RLS('w')\nexport const q = db.from('notes').select('id')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import') && r.out.includes('src/repo/db.ts'), r.out)
+  assert.ok(r.out.includes('port-presence'), r.out)
+})
+
+test('GREEN anatomy: a DAL living outside src/data/ with its port beside it (behavior, not names)', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [`packages/${N}/src/repo/port.ts`, 'export interface Db { from(t: string): unknown }\n'],
+    [
+      `packages/${N}/src/repo/notes.ts`,
+      "import type { Db } from './port.js'\nexport const list = (db) => db.from('notes')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED anatomy: a PostgREST caller whose port import resolves to no file', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/notes.ts`,
+      "import type { Db } from './port.js'\nexport const list = (db) => db.from('notes')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('port-presence'), r.out)
+})
+
+test('the vintage partition: widened findings NOTE for a 0.9.5-vintage install while armed laws stay hard', () => {
+  // baseVersion 0.10.0: at or above the 0.9.5 ramp (inert — domain-purity reds hard),
+  // below the 1.0.0 widening (harness 0.11.1 < until 1.1.0 — the src/repo reach NOTEs).
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/db.ts`,
+      "import { createBrowserSupabaseClient } from '@app/supabase/client'\nexport const q = 1\n",
+    ],
+    [`packages/${N}/src/domain/note.ts`, "import { readFileSync } from 'node:fs'\nexport const x = 1\n"],
+    ['.harness/manifest.json', JSON.stringify({ baseVersion: '0.10.0', harnessVersion: '0.11.1' })],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('NOTE — anatomy: @app/notes [dal-client-value-import]'), r.out)
+  assert.ok(r.out.includes('domain-purity'), r.out)
 })
 
 test('GREEN anatomy: a reviewed allow entry suppresses exactly its finding', () => {
