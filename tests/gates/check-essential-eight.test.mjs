@@ -295,6 +295,68 @@ test('LANE-BACKED claims resolve: three rows cite a CI job, not a chain step', (
   assert.deepEqual(canaryProblems(clone(), realKeys()), [])
 })
 
+// ---- the NEGATIVE half of closure 4 (0.11.0) -----------------------------------------
+// 0.10.0 recorded the remainder as "26 more rows" discharged by "supply the canary, or
+// regrade the row down". Both halves were wrong: the remainder is 28, and every one of them
+// is `not-applicable`, so supplying a canary REDS via the claims-no-control branch. What such
+// a row owes is the opposite artefact — a proof the absence would be NOTICED if it ended.
+
+test('a not-applicable row above the documentation floor must name a negativeCanary', () => {
+  const reg = clone()
+  const row = reg.requirements.find((r) => r.id === 'MACRO-01')
+  assert.equal(row.evidenceTier, 'system-generated-artefact', 'fixture assumes an above-floor row')
+  delete row.negativeCanary
+  const problems = canaryProblems(reg, realKeys())
+  assert.equal(problems.length, 1, problems.join('\n'))
+  assert.match(problems[0], /names no 'negativeCanary'/)
+  assert.match(problems[0], /regrade the row to 'documentation'/)
+})
+
+test('a negativeCanary that resolves nowhere reds — the absence rests on an unregistered proof', () => {
+  const reg = clone()
+  reg.requirements.find((r) => r.id === 'MACRO-01').negativeCanary = 'no-such-proof'
+  assert.ok(canaryProblems(reg, realKeys()).some((p) => /has no entry in tests\/canary\/injections\.json/.test(p)))
+})
+
+test('THE FLOOR IS A REAL FLOOR: a documentation-tier not-applicable row needs no negativeCanary', () => {
+  // The demand attaches exactly where the row claims a machine-generated artefact. UAH-02 is
+  // one of the four regraded DOWN in this release: web-browser hardening rests on "no
+  // browser-fleet component", which nothing machine-checks, so the honest tier is documentation.
+  const reg = clone()
+  const row = reg.requirements.find((r) => r.id === 'UAH-02')
+  assert.equal(row.evidenceTier, 'documentation')
+  assert.equal(row.negativeCanary, undefined)
+  assert.deepEqual(canaryProblems(reg, realKeys()), [])
+})
+
+test('the negative field cannot be attached to a row that claims no absence', () => {
+  const reg = clone()
+  reg.requirements.find((r) => r.id === 'MFA-15').negativeCanary = 'docs-sync'
+  assert.ok(canaryProblems(reg, realKeys()).some((p) => /claims no absence/.test(p)))
+})
+
+test('BYPASS GUARD: a not-applicable row still may not name a positive `canary`', () => {
+  // The new field must not become an escape from the old arm — a row cannot buy its way out
+  // of "claims no control" by supplying both.
+  const reg = clone()
+  const row = reg.requirements.find((r) => r.id === 'MACRO-01')
+  row.canary = 'docs-sync'
+  assert.ok(canaryProblems(reg, realKeys()).some((p) => /claims no control/.test(p)))
+})
+
+test('every shipped not-applicable row above the floor resolves against the real registry', () => {
+  // The negative twin of the positive closure below. Pins the subject set so a silent shrink
+  // (a regrade sweep that empties the population) cannot make this pass vacuously.
+  const reg = clone()
+  const above = reg.requirements.filter(
+    (r) =>
+      r.outcome === 'not-applicable' &&
+      (r.evidenceTier === 'system-generated-artefact' || r.evidenceTier === 'simulated-activity'),
+  )
+  assert.equal(above.length, 24, 'the closure is worthless if its subject set silently shrinks')
+  assert.deepEqual(canaryProblems(reg, realKeys()), [])
+})
+
 test('every shipped POSITIVE claim resolves against the real canary registry', () => {
   const reg = clone()
   const positive = reg.requirements.filter(

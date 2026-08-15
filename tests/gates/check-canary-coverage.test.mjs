@@ -121,6 +121,7 @@ function greenRegistry() {
     factoryLanes: Object.fromEntries(
       factoryJobKeys.map((k) => [k, [{ kind: 'steps', note: 'fixture note' }]]),
     ),
+    hookRules: greenHookRules(),
   }
 }
 
@@ -162,16 +163,22 @@ function syntheticFactorySections() {
 }
 
 /**
- * Run the checker via its two positional overrides. Defaults to --no-spawn: these tests
+ * Run the checker via its positional overrides. Defaults to --no-spawn: these tests
  * exercise the STATIC lockstep, and spawning would recurse — the suite is already running
  * proof files the checker would spawn. The spawn cases opt in to prove the G28 execution
  * path itself reds/greens.
+ *
+ * `hooksDir` (0.11.0) becomes the --hooks-dir= flag. The hook -> registry direction walks a
+ * DIRECTORY, so a fixture must present its own or it is judged against the real seven
+ * shipped hooks, which no synthetic registry covers. A flag rather than a positional so a
+ * case needing only a hook universe does not have to supply the factory paths first.
  * @param {string} registryPath @param {string} hookContractPath
- * @param {{ spawn?: boolean, factory?: { scriptsDir: string, hookPath: string, workflowsDir: string } }} [opts]
+ * @param {{ spawn?: boolean, factory?: { scriptsDir: string, hookPath: string, workflowsDir: string }, hooksDir?: string }} [opts]
  */
-function run(registryPath, hookContractPath, { spawn = false, factory } = {}) {
+function run(registryPath, hookContractPath, { spawn = false, factory, hooksDir = GREEN_HOOKS_DIR } = {}) {
   const args = [registryPath, hookContractPath]
   if (factory !== undefined) args.push(factory.scriptsDir, factory.hookPath, factory.workflowsDir)
+  if (hooksDir !== undefined) args.push(`--hooks-dir=${hooksDir}`)
   if (!spawn) args.push('--no-spawn')
   const env = { ...process.env }
   delete env.CI
@@ -190,6 +197,30 @@ function fixture(registry, contract = CONTRACT_TEXT) {
   writeFileSync(contractPath, contract)
   return { registryPath, contractPath }
 }
+
+/**
+ * A synthetic hook universe: one .mjs per name, each carrying `count` denyTool( sites so the
+ * call-site pin has something real to count. Returns the directory.
+ */
+function hookDir(hooks) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-cancov-hooks-'))
+  for (const [name, count] of Object.entries(hooks)) {
+    writeFileSync(join(dir, name), `${'denyTool(1)\n'.repeat(count)}export const x = 1\n`)
+  }
+  return dir
+}
+
+// The synthetic hook universe every fixture is judged against (0.11.0). Two shapes, because
+// the closure admits exactly two: a deny-shaped hook with a pinned denyTool( call-site count,
+// and one exempted by a reasoned {kind:'steps'} declaration. Fixtures must never be judged
+// against the REAL seven shipped hooks — no synthetic registry covers them, and a test that
+// reds for that reason is testing the wrong thing.
+const GREEN_HOOKS = { 'guard-alpha.mjs': 2, 'guard-beta.mjs': 0 }
+const GREEN_HOOKS_DIR = hookDir(GREEN_HOOKS)
+const greenHookRules = () => ({
+  'guard-alpha.mjs': { denyToolCallSites: 2, denyExamples: [] },
+  'guard-beta.mjs': { kind: 'steps', note: 'fixture exemption note naming what already proves it' },
+})
 
 test('LIVE LOCKSTEP (static): RULE_TABLES names every rule table guard-rules.mjs exports', () => {
   // Both this file and scripts/check-canary-coverage.mjs carry the table list. A new
@@ -380,7 +411,8 @@ test('RED: a guard rule id with no behavioral canary fails, naming the rule', ()
 test('RED: a registry denyExample absent from the hook-contract fails', () => {
   const reg = greenRegistry()
   reg.hookRules = {
-    'pretool-bash-guard.mjs': { denyExamples: ['this command has no deny test'] },
+    ...greenHookRules(),
+    'guard-alpha.mjs': { denyToolCallSites: 2, denyExamples: ['this command has no deny test'] },
   }
   const { registryPath, contractPath } = fixture(reg)
   const r = run(registryPath, contractPath)
@@ -391,12 +423,55 @@ test('RED: a registry denyExample absent from the hook-contract fails', () => {
 test('RED: a drifted denyTool( call-site count pins the path-scoped in-hook checks', () => {
   const reg = greenRegistry()
   reg.hookRules = {
-    'pretool-bash-guard.mjs': { denyToolCallSites: 999, denyExamples: [] },
+    ...greenHookRules(),
+    'guard-alpha.mjs': { denyToolCallSites: 999, denyExamples: [] },
   }
   const { registryPath, contractPath } = fixture(reg)
   const r = run(registryPath, contractPath)
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /pretool-bash-guard\.mjs: \d+ denyTool\( call sites but the registry pins 999/, r.out)
+  assert.match(r.out, /guard-alpha\.mjs: \d+ denyTool\( call sites but the registry pins 999/, r.out)
+})
+
+// ── the hook -> registry direction (0.11.0) ──────────────────────────────────────────
+// Every loop above iterates the REGISTRY, so through 0.10.0 a hook with no entry was
+// required by nothing — no deny example, no call-site pin, no proof — and nothing noticed.
+// Measured then: seven hooks shipped, three were named, and the four uncovered included the
+// TURN-FATAL stop-validate-gate.mjs.
+
+test('RED (hook closure): a shipped hook with NO registry entry reds, naming the file', () => {
+  const reg = greenRegistry()
+  const dir = hookDir({ ...GREEN_HOOKS, 'guard-unregistered.mjs': 1 })
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { hooksDir: dir })
+  assert.equal(r.code, 1, `an unregistered hook must red:\n${r.out}`)
+  assert.ok(r.out.includes("hook 'guard-unregistered.mjs'"), r.out)
+  assert.ok(r.out.includes('NO entry'), r.out)
+})
+
+test('RED (hook closure): a STALE entry naming a deleted hook is a FINDING, not an ENOENT crash', () => {
+  // The inverse direction, and its old failure mode was worse than absence: the entry reached
+  // an uncaught readFileSync, so the gate died with a stack trace instead of reporting. A
+  // crash is the one outcome a reader cannot tell from infrastructure trouble, so this asserts
+  // the MESSAGE SHAPE — exit code alone cannot distinguish a crash from a finding.
+  const reg = greenRegistry()
+  reg.hookRules = { ...greenHookRules(), 'guard-deleted.mjs': { denyToolCallSites: 1, denyExamples: [] } }
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("hookRules registry covers 'guard-deleted.mjs'"), r.out)
+  assert.ok(r.out.includes('stale entry'), r.out)
+  assert.ok(!r.out.includes('ENOENT'), `a stale entry must not surface as a crash:\n${r.out}`)
+  assert.ok(!r.out.includes('at Object.readFileSync'), `no stack trace:\n${r.out}`)
+})
+
+test('RED (hook closure): a note-less {kind:"steps"} exemption is a silent skip wearing an entry', () => {
+  const reg = greenRegistry()
+  reg.hookRules = { ...greenHookRules(), 'guard-beta.mjs': { kind: 'steps' } }
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("hook 'guard-beta.mjs'"), r.out)
+  assert.ok(r.out.includes('non-empty note'), r.out)
 })
 
 test('RED (spawn, G28): a proof that RUNS but declares zero tests fails — empty is not a proof', () => {

@@ -369,6 +369,58 @@ function positiveCanaryProblems(r, at, canaryKeys) {
 }
 
 /**
+ * The NEGATIVE half of Closure 4 (0.11.0) — an ABSENCE claimed above the documentation floor
+ * must be machine-checked, not merely asserted.
+ *
+ * WHY THIS EXISTS, and it is a correction as much as an addition. 0.10.0 widened the positive
+ * arm from the five simulated-activity rows to all eleven positive claims, and recorded the
+ * remainder as "26 more rows carry a grade whose control is not required to name a registered
+ * red-proof", with the discharge "supply the canary, or regrade the row down".
+ *
+ * Both halves of that were wrong. The arithmetic: 39 rows sit above the documentation floor,
+ * not 37, so the remainder is 28. And the discharge was UNEXECUTABLE — every one of those 28
+ * is `not-applicable`, and the branch above reds any non-positive row that names a `canary`,
+ * so "supply the canary" turns the gate red by construction. `not-applicable` is the negative
+ * terminus of OUTCOMES; it never takes a positive proof.
+ *
+ * What such a row actually owes is the opposite artefact: a proof that the ABSENCE it rests on
+ * is real and would be NOTICED if it stopped being true. That already exists for the document
+ * surface — `negativeProofProblems` reds when `[storage]` is enabled or an upload route appears
+ * on either surface — it was simply not required by anything. `negativeCanary` names it.
+ *
+ * THE FLOOR IS A REAL FLOOR: a `documentation`-tier not-applicable row needs only its written
+ * `negativeProof`, because that tier claims no artefact. The demand attaches exactly where the
+ * row claims a machine-generated one.
+ * @param {any} r
+ * @param {string} at
+ * @param {Set<string>} canaryKeys
+ * @returns {string[]}
+ */
+function negativeCanaryProblems(r, at, canaryKeys) {
+  const aboveFloor = r.evidenceTier === 'system-generated-artefact' || r.evidenceTier === 'simulated-activity'
+  if (r.outcome !== 'not-applicable') {
+    // Symmetry with the positive arm: a field that can be attached to anything means nothing.
+    return r.negativeCanary
+      ? [
+          `${at}: names a negativeCanary but its outcome is '${String(r.outcome)}', which claims no absence. A negative proof cited by a row that is not 'not-applicable' reads as evidence for a claim nobody made.`,
+        ]
+      : []
+  }
+  if (!aboveFloor) return []
+  if (!r.negativeCanary) {
+    return [
+      `${at}: grades 'not-applicable' at evidenceTier '${String(r.evidenceTier)}' — a claim that a machine-generated artefact establishes the absence — but names no 'negativeCanary'. Name the registered proof that would RED if the asset class reappeared, or regrade the row to 'documentation', which is what an absence resting on prose alone actually is.`,
+    ]
+  }
+  if (!canaryKeys.has(r.negativeCanary)) {
+    return [
+      `${at}: negativeCanary '${String(r.negativeCanary)}' has no entry in tests/canary/injections.json under steps{} or lanes{} — the proof this row's absence rests on is not registered anywhere.`,
+    ]
+  }
+  return []
+}
+
+/**
  * Closure 4 — every POSITIVE claim names a REGISTERED can-fail proof (0.10.0).
  *
  * WHAT CHANGED AND WHY. Through 0.9.9 this closure was scoped to `evidenceTier:
@@ -408,6 +460,8 @@ export function canaryProblems(reg, canaryKeys) {
         `${at}: names a canary but its outcome is '${String(r.outcome)}', which claims no control. A red-proof cited by a row that grades nothing reads as evidence for a claim nobody made.`,
       )
     }
+
+    problems.push(...negativeCanaryProblems(r, at, canaryKeys))
 
     // The tier rule, now independent of the above: ASD ranks simulated activity EXCELLENT, so
     // the top tier is the hardest claim to make and may never rest on an unregistered proof.

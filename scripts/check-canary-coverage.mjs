@@ -14,6 +14,7 @@
 // keyed '<file>#<job>', never bare ids.
 //   usage: node scripts/check-canary-coverage.mjs [registry-path] [hook-contract-path]
 //            [factory-scripts-dir] [factory-hook-path] [factory-workflows-dir]
+//          flags: --no-spawn, --hooks-dir=<path>
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -22,7 +23,7 @@ import { walkTemplate } from '../installer/lib/copy.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // Flags and positionals are separated so `--no-spawn` may appear anywhere without being
-// mistaken for the registry path (argv[2]); the two positionals are the optional overrides.
+// mistaken for the registry path (argv[2]); the positionals are the optional overrides.
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 const REGISTRY = resolve(positional[0] ?? join(ROOT, 'tests/canary/injections.json'))
 const HOOK_CONTRACT = resolve(positional[1] ?? join(ROOT, 'tests/hooks/hook-contract.test.mjs'))
@@ -30,6 +31,14 @@ const HOOK_CONTRACT = resolve(positional[1] ?? join(ROOT, 'tests/hooks/hook-cont
 const FACTORY_SCRIPTS_DIR = resolve(positional[2] ?? join(ROOT, 'scripts'))
 const FACTORY_HOOK = resolve(positional[3] ?? join(ROOT, '.claude/hooks/stop-factory-gate.mjs'))
 const FACTORY_WORKFLOW_DIR = resolve(positional[4] ?? join(ROOT, '.github/workflows'))
+// The hook universe (0.11.0), overridable for the same reason as the four above: the
+// hook -> registry direction walks a DIRECTORY, so a fixture must be able to present its own.
+// A FLAG rather than a sixth positional, because the positionals are ordered and a fixture
+// that only wants a synthetic hooks dir should not have to supply three factory paths first.
+const HOOKS_DIR = resolve(
+  process.argv.find((a) => a.startsWith('--hooks-dir='))?.slice('--hooks-dir='.length) ??
+    join(ROOT, 'template/base/.claude/hooks'),
+)
 const errs = []
 
 const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
@@ -529,7 +538,7 @@ for (const [hook, expected] of Object.entries(registry.hookRules ?? {})) {
 // the registry named three — the four uncovered ones included `stop-validate-gate.mjs`, the
 // TURN-FATAL hook whose whole job is that a turn cannot end on a red build. A closure that
 // runs one way is a census of what somebody remembered to write down.
-const shippedHooks = readdirSync(join(ROOT, 'template/base/.claude/hooks'))
+const shippedHooks = readdirSync(HOOKS_DIR)
   .filter((f) => f.endsWith('.mjs'))
   .sort()
 if (shippedHooks.length === 0) {
@@ -568,10 +577,10 @@ for (const [hook, expected] of Object.entries(registry.hookRules ?? {})) {
   // the one outcome a reader cannot tell from infrastructure trouble.
   let src
   try {
-    src = readFileSync(join(ROOT, 'template/base/.claude/hooks', hook), 'utf8')
+    src = readFileSync(join(HOOKS_DIR, hook), 'utf8')
   } catch {
     errs.push(
-      `hookRules registry covers '${hook}' but template/base/.claude/hooks/${hook} does not exist — stale entry. Delete it, or restore the hook it was written for.`,
+      `hookRules registry covers '${hook}' but ${hook} does not exist under the hooks directory — stale entry. Delete it, or restore the hook it was written for.`,
     )
     continue
   }

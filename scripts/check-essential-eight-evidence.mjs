@@ -115,9 +115,17 @@ const positive = register.requirements.filter(
 const claiming = register.requirements.filter((r) => r.evidenceTier === 'simulated-activity')
 const tiers = {}
 for (const r of register.requirements) tiers[r.evidenceTier] = (tiers[r.evidenceTier] ?? 0) + 1
+// The NEGATIVE half (0.11.0) is reported beside the positive one, because a closure nobody
+// can see the result of is indistinguishable from one that did not run — and this is the arm
+// whose predecessor spent a release describing a discharge that could not be executed.
+const negative = register.requirements.filter(
+  (r) =>
+    r.outcome === 'not-applicable' &&
+    (r.evidenceTier === 'system-generated-artefact' || r.evidenceTier === 'simulated-activity'),
+)
 
 console.log(
-  `ESSENTIAL EIGHT EVIDENCE: CLEAN (${String(s.total)} row(s); all ${String(positive.length)} positive claim(s) name a registered can-fail proof for their OWN control [${[...new Set(positive.map((r) => r.canary))].sort().join(', ')}], of which ${String(claiming.length)} reach the simulated-activity tier; tiers ${Object.entries(tiers)
+  `ESSENTIAL EIGHT EVIDENCE: CLEAN (${String(s.total)} row(s); all ${String(positive.length)} positive claim(s) name a registered can-fail proof for their OWN control [${[...new Set(positive.map((r) => r.canary))].sort().join(', ')}], of which ${String(claiming.length)} reach the simulated-activity tier; all ${String(negative.length)} above-floor not-applicable row(s) name a registered negativeCanary [${[...new Set(negative.map((r) => r.negativeCanary))].sort().join(', ')}]; tiers ${Object.entries(tiers)
     .sort()
     .map(([k, v]) => `${k}=${String(v)}`)
     .join(' ')})`,
