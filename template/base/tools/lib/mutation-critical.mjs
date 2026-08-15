@@ -32,29 +32,46 @@
 //     the contract-drift gate, not by tests; including them inflates the score. (This file
 //     is harness-owned, write-guard-denied and sha-pinned by check-gate-integrity.mjs on an
 //     install — a local edit reds as tampering and `update` parks the incoming version — so
-//     widening the scope is a harness-release act today; the consumer-tunable split is the
-//     recorded `mutation-scope-seeded-split` obligation.)
+//     widening the FLOOR is a harness-release act; YOUR additive surface is the seeded
+//     tools/mutation-scope-extra.json below, the 1.0.0 discharge of the
+//     mutation-scope-seeded-split row.)
 //   - packages/design-tokens|design-system* — presentation, covered by the tokens/styleguide
 //     gates and the render/variants suites, not on the auth/data path.
+//
+// THE 1.0.0 SPLIT, and the design decision the discharged row left open. This file is the
+// FLOOR — owned, sha-pinned, union semantics: nothing a consumer writes can subtract from
+// it. The seeded tools/mutation-scope-extra.json is the consumer's ADDITIVE half — reviewed
+// {root, why} rows that widen the mutated surface onto their own code. DERIVING the surface
+// from the consumer's own inventories (route manifests, the exports census) was considered
+// and REFUSED: an inventory-derived surface moves when the inventory moves, so deleting a
+// registry row would silently shrink what the lane mutates — and the ratchet's SET
+// semantics need a definition only a reviewed diff can change. The residual drift risk
+// (a tree whose structure diverged from the exemplar paths silently mutates less than the
+// lane claims) is handled by the scoper's zero-match alarm instead: a concrete floor root
+// or ANY extra root matching zero files is a hard red — anti-vacuity, never ramped.
 // SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
+import { readFileSync } from 'node:fs'
 
-// Module-local, not exported: these two feed MUTATE_GLOBS and isCritical below and nothing
-// imports them — exporting an unimported constant is exactly the dead API `knip --strict`
-// reds a consumer for. NOT an invitation to edit in place: this file is hash-pinned (see the
-// NOT-in-scope note above), and the honest channel for a wider surface is a harness release
-// until the `mutation-scope-seeded-split` obligation lands the consumer-tunable half.
+// CRITICAL_EXCLUDES below is module-local, not exported: it feeds MUTATE_GLOBS and
+// isCritical and nothing imports it — exporting an unimported constant is exactly the dead
+// API `knip --strict` reds a consumer for. NOT an invitation to edit in place: this file is
+// hash-pinned (see the NOT-in-scope note above), and the honest channels for a wider
+// surface are the seeded tools/mutation-scope-extra.json (additive roots, reviewed) or a
+// harness release for the floor itself.
 
 /** Directory roots (trailing slash) whose .ts files are mutated. The verticals entry is
  * `*`-shaped because the surface is each vertical's src/ tree, not the package dir: a
  * vertical's scripts/ or docs/ .ts file is not on the auth/data path, and until 0.9.0 the
  * GLOB said `packages/verticals/**` while isCritical said `.../src/**` — the drift the
- * tests/gates MUTATE_GLOBS==isCritical pin now reds. */
+ * tests/gates MUTATE_GLOBS==isCritical pin now reds. Exported as FLOOR_ROOTS for the
+ * scoper's zero-match alarm (which reads, and must never rewrite, the floor). */
 const CRITICAL_ROOTS = [
   'packages/api/src/',
   'packages/platform/supabase/src/',
   'packages/platform/errors/src/',
   'packages/verticals/*/src/',
 ]
+export const FLOOR_ROOTS = CRITICAL_ROOTS
 
 /**
  * Carve-outs INSIDE those roots. Each is code the VITEST runner (the mutation lane's test
@@ -118,13 +135,103 @@ export const MUTATE_GLOBS = [
   ...CRITICAL_EXCLUDES.map((path) => `!${path}`),
 ]
 
-/** True when a repo-relative path is a file this lane mutates. */
-export function isCritical(file) {
+/** True when a repo-relative path is a file this lane mutates. `extraRoots` is the
+ * loaded additive half (loadExtraRoots below), consulted AFTER the carve-outs (an extra
+ * root cannot resurrect a NoCoverage exclusion) but BEFORE the floor's scoping rules
+ * (an extra root may deliberately widen inside a floor tree — e.g. a verticals scripts/
+ * dir the floor scopes out) — so extras only ever WIDEN the answer, never flip a
+ * carve-out. */
+export function isCritical(file, extraRoots = []) {
   const path = file.replaceAll('\\', '/')
   if (!path.endsWith('.ts') || path.endsWith('.test.ts') || path.endsWith('.d.ts')) return false
   if (CRITICAL_EXCLUDES.includes(path)) return false
   if (PROBE_FILE.test(path)) return false
   if (/^packages\/verticals\/[^/]+\/src\/(index|client)\.ts$/.test(path)) return false
+  if (extraRoots.some((e) => rootMatches(path, e.root))) return true
   if (path.startsWith('packages/verticals/')) return /^packages\/verticals\/[^/]+\/src\//.test(path)
   return CRITICAL_ROOTS.some((root) => path.startsWith(root))
+}
+
+// ── YOUR additive half (1.0.0): tools/mutation-scope-extra.json ────────────────────────
+
+const EXTRA_FILE = 'tools/mutation-scope-extra.json'
+
+/** One root's grammar: a directory prefix ending '/', each segment a plain name or a
+ * single `*` spanning exactly one level (the verticals grammar above). */
+const ROOT_SHAPE = /^([\w.-]+|\*)(\/([\w.-]+|\*))*\/$/
+
+/** True when `path` sits under `root` (either grammar). */
+export function rootMatches(path, root) {
+  if (!root.includes('*')) return path.startsWith(root)
+  const re = new RegExp(
+    `^${root
+      .split('*')
+      .map((s) => s.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+      .join('[^/]+')}`,
+  )
+  return re.test(path)
+}
+
+/**
+ * Shape problems for a parsed tools/mutation-scope-extra.json. Union semantics make the
+ * failure direction gentle — a bad row can only fail to ADD surface — but an unvalidated
+ * row that silently adds nothing is exactly the claimed-but-absent coverage the zero-match
+ * alarm exists to red, so the shape fails loud here first.
+ * @param {any} doc
+ * @returns {string[]} problems, empty when usable
+ */
+export function extraRootProblems(doc) {
+  if (doc === null || typeof doc !== 'object' || !Array.isArray(doc.roots)) {
+    return [`${EXTRA_FILE} must carry a "roots" ARRAY of { root, why } entries`]
+  }
+  const problems = []
+  for (const [i, e] of doc.roots.entries()) {
+    if (typeof e?.root !== 'string' || !ROOT_SHAPE.test(e.root)) {
+      problems.push(
+        `roots[${i}] needs a "root": a directory prefix ending '/' whose segments are plain names or a single '*' spanning one level — got ${JSON.stringify(e?.root)}`,
+      )
+      continue
+    }
+    if (typeof e.why !== 'string' || e.why.trim().length < 40) {
+      problems.push(
+        `roots[${i}] (${e.root}) needs a "why" of at least 40 characters — what lives there and why a silent break matters; an unreasoned surface is noise waiting to be deleted`,
+      )
+    }
+  }
+  return problems
+}
+
+/** Stryker `mutate` globs for the extra roots — the same dialect as MUTATE_GLOBS. */
+export function extraGlobs(roots) {
+  return roots.map((e) => `${e.root}**/*.ts`)
+}
+
+/**
+ * Read and validate the seeded additive half from the repo root (both consumers —
+ * stryker.config.mjs and the PR diff-scoper — run there). Throws on a missing,
+ * unparsable, or malformed file: the register is SEEDED, so its absence is a broken
+ * tree, and a scoper that shrugged would report "nothing extra to mutate" in exactly
+ * the tone of an honest empty register.
+ * @returns {Array<{root: string, why: string}>}
+ */
+export function loadExtraRoots() {
+  let raw
+  try {
+    raw = readFileSync(EXTRA_FILE, 'utf8')
+  } catch {
+    throw new Error(
+      `${EXTRA_FILE} is missing — it is SEEDED; restore it from git history or replant it with \`npx next-expo-supabase-agent-harness update\``,
+    )
+  }
+  let doc
+  try {
+    doc = JSON.parse(raw)
+  } catch (e) {
+    throw new Error(
+      `${EXTRA_FILE} is not valid JSON (${e.message}) — the additive surface must be reviewable data`,
+    )
+  }
+  const problems = extraRootProblems(doc)
+  if (problems.length > 0) throw new Error(`${EXTRA_FILE}: ${problems.join('; ')}`)
+  return doc.roots
 }

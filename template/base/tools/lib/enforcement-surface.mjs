@@ -59,6 +59,11 @@ export const ESCAPE_LISTS = [
   // the exact rls-exempt sense: the row is the widening a reviewer must see.
   'tools/suppressions-allow.json',
   'tools/resilience.json',
+  // 1.0.0. The additive mutation surface. Union semantics mean a row can never weaken
+  // the FLOOR — but deleting a row un-mutates code a human chose to protect, which is
+  // exactly the quiet widening the commit-not-dirty rule exists to surface: either
+  // direction of edit must be a committed, reviewable act.
+  'tools/mutation-scope-extra.json',
   // 1.0.0. A tunables row is a reviewed auth-posture value (jwt lifetime, signup
   // toggles) and additionalSections licenses a whole config SURFACE — both are the
   // rls-exempt shape: the row is the widening a reviewer must see.

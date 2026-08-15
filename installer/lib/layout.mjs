@@ -143,6 +143,12 @@ export const SEEDED_FILES = new Set([
   // floors stay owned in tools/store-policy.json, which check-version-sync depends on
   // being update-restorable).
   'tools/store-tunables.json',
+  // 1.0.0. The consumer's ADDITIVE mutation surface — {root, why} rows union'd onto
+  // the owned floor (tools/lib/mutation-critical.mjs). Seeded because widening the
+  // mutated surface onto THEIR code is the consumer's reviewed act; union semantics
+  // mean nothing here can subtract from the floor, so plant-when-absent is safe by
+  // construction.
+  'tools/mutation-scope-extra.json',
   'tools/identity.lock.json',
   'tools/prompts.lock.json',
   // Human-tuned budget/design data: write-guard-protected against agents, but a

@@ -549,6 +549,11 @@ export const WRITE_PROTECTED = [
   { id: 'startup-budget', re: /^tools\/startup-budget\.json$/ },
   { id: 'styleguide-manifest', re: /^tools\/styleguide\.manifest\.json$/ },
   { id: 'mutation-baseline', re: /^tools\/mutation-baseline\.json$/ }, // accepting a surviving mutant is a human decision
+  // The consumer's ADDITIVE mutation surface (1.0.0). Union semantics mean an edit can
+  // never weaken the floor — but deleting a row un-mutates a surface a human chose to
+  // protect, which is licensing an escape from the added coverage; adding one is a
+  // reviewed widening. Either direction is a human act.
+  { id: 'mutation-scope-extra', re: /^tools\/mutation-scope-extra\.json$/ },
   { id: 'route-allowlist', re: /^tools\/route-allowlist\.json$/ }, // exempting a screen from ROUTES is a human decision
   { id: 'web-route-allowlist', re: /^tools\/web-route-allowlist\.json$/ }, // exempting a web PAGE from the registry is the same decision on the other surface
   { id: 'dto-bounds-allow', re: /^tools\/dto-bounds-allow\.json$/ }, // exempting a wire string from the .max() bound is a human decision

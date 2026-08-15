@@ -546,7 +546,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-mutation-ratchet.test.mjs",
-        "note": "the PRIMARY assertion-quality control — the only check that asks what coverage cannot: change the code, does a test go red? A surviving mutant the committed baseline does not accept reds the lane naming file, mutator and the exact edit; an accepted survivor with an EMPTY reason reds; a NoCoverage mutant counts as a survivor; identity is position-independent; an absent baseline self-disables locally and FAILS CLOSED in CI."
+        "note": "the PRIMARY assertion-quality control — the only check that asks what coverage cannot: change the code, does a test go red? A surviving mutant the committed baseline does not accept reds the lane naming file, mutator and the exact edit; an accepted survivor with an EMPTY reason reds; a NoCoverage mutant counts as a survivor; identity is position-independent; an absent baseline self-disables locally and FAILS CLOSED in CI. 1.0.0 splits the surface: the owned floor plus the seeded additive tools/mutation-scope-extra.json — the drift pin extends to the extras (glob and predicate encodings agree; the union only widens; a covering extra root cannot resurrect a floor carve-out) and the register shape fails loud in every malformed direction."
       },
       {
         "kind": "selftest",

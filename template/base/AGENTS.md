@@ -212,7 +212,10 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   declarations; the mutation lane (`pnpm mutation`, CI-blocking) changes the
   code and asks whether a test goes red — a SET-based ratchet against
   `tools/mutation-baseline.json`, never a score. Accepting a survivor is a
-  reviewed human act (empty reasons FAIL).
+  reviewed human act (empty reasons FAIL). The mutated surface is the owned
+  floor (`tools/lib/mutation-critical.mjs`) plus YOUR additive
+  `tools/mutation-scope-extra.json` roots — union semantics; a root matching
+  zero files reds the scoper.
 - **Styling is tokens-only, in BOTH themes.** `@app/design-tokens` (the TS
   modules in `packages/design-tokens/src`, OKLCH) is the single source;
   `packages/design-tokens/scripts/gen.mjs` compiles them — fail-closed on gamut +

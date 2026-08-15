@@ -241,14 +241,6 @@
       "evidence": ".github/workflows/selftest.yml"
     },
     {
-      "id": "mutation-scope-seeded-split",
-      "kind": "condition",
-      "target": null,
-      "reason": "The mutation critical-surface definition (tools/lib/mutation-critical.mjs, shared by the PR diff-scoper and the nightly) is harness-OWNED while every file it names is SEEDED — a consumer whose tree diverges from the exemplar paths silently mutates less than the lane claims. Condition: the discharge shape (derive the surface from the consumer's own inventories vs seed the definition) is an open design decision the ratchet's set semantics depend on.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "template/base/tools/mutation-scope.mjs"
-    },
-    {
       "id": "conformance-supabase-grants-arrival",
       "kind": "calendar",
       "target": "2026-10-30",

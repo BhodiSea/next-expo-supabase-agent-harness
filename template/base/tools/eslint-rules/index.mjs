@@ -414,12 +414,14 @@ const rules = {
 
       return {
         ImportDeclaration(node) {
-          if (!NODE_CRYPTO.has(node.source.value)) return
+          if (!NODE_CRYPTO.has(String(node.source.value))) return
           for (const s of node.specifiers) {
             if (s.type === 'ImportNamespaceSpecifier' || s.type === 'ImportDefaultSpecifier') {
               moduleAliases.add(s.local.name)
             } else if (s.type === 'ImportSpecifier') {
-              const name = s.imported.type === 'Identifier' ? s.imported.name : s.imported.value
+              const name = String(
+                s.imported.type === 'Identifier' ? s.imported.name : s.imported.value,
+              )
               if (name === 'webcrypto') webcryptoAliases.add(s.local.name)
               else if (CIPHER_API.test(name)) {
                 context.report({ node: s, messageId: 'cipherImport', data: { name } })
@@ -429,9 +431,9 @@ const rules = {
         },
         ExportNamedDeclaration(node) {
           // A re-export is a door too: `export { createCipheriv } from 'node:crypto'`.
-          if (node.source === null || !NODE_CRYPTO.has(node.source.value)) return
+          if (node.source === null || !NODE_CRYPTO.has(String(node.source.value))) return
           for (const s of node.specifiers) {
-            const name = s.local.type === 'Identifier' ? s.local.name : s.local.value
+            const name = String(s.local.type === 'Identifier' ? s.local.name : s.local.value)
             if (CIPHER_API.test(name)) {
               context.report({ node: s, messageId: 'cipherImport', data: { name } })
             }

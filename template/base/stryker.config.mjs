@@ -13,7 +13,7 @@
 // the two can never disagree about what "critical" means. The RUNNER is vitest — the pure
 // half of the unit floor; the jest-expo half is a recorded honest loss there.
 // SOURCE: docs/harness/gates-catalog.md (mutation-ratchet) [corpus: harness/doctrine]
-import { MUTATE_GLOBS } from './tools/lib/mutation-critical.mjs'
+import { extraGlobs, loadExtraRoots, MUTATE_GLOBS } from './tools/lib/mutation-critical.mjs'
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 const config = {
@@ -24,7 +24,11 @@ const config = {
   vitest: { configFile: 'vitest.config.ts' },
 
   coverageAnalysis: 'perTest',
-  mutate: MUTATE_GLOBS,
+  // The floor plus YOUR additive half (tools/mutation-scope-extra.json, 1.0.0) —
+  // loadExtraRoots throws on a missing or malformed register, which is the right
+  // failure here: a config that shrugged would mutate the floor and silently claim
+  // the extras were covered.
+  mutate: [...MUTATE_GLOBS, ...extraGlobs(loadExtraRoots())],
 
   // The ratchet is the gate; a score threshold is not. `break: null` keeps Stryker itself
   // from failing the run, so the ratchet always gets to speak (and can distinguish "a NEW

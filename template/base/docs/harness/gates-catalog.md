@@ -2058,8 +2058,18 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   authorization and transport boundary code), a SET-based ratchet against
   `tools/mutation-baseline.json`: a NEW surviving mutant reds; accepting one is a
   reviewed human act (empty reason FAILS; the file is write-guard-protected and
-  gate-integrity-hashed). Never in the Stop chain — minutes vs the chain's
-  seconds budget.
+  gate-integrity-hashed). The surface is split since 1.0.0: the FLOOR
+  (`tools/lib/mutation-critical.mjs`) stays owned and sha-pinned, and YOUR
+  additive roots live in the seeded `tools/mutation-scope-extra.json`
+  (`{root, why ≥ 40}`, union semantics — a row can only ADD surface, never
+  subtract; write-guarded). Deriving the surface from the consumer's inventories
+  was considered and refused — an inventory-derived surface shrinks when a
+  registry row is deleted, and the ratchet's set semantics need a definition only
+  a reviewed diff can change. The scoper's zero-match alarm is the drift
+  tripwire instead: a concrete floor root or ANY extra root matching zero .ts
+  files is a hard red (anti-vacuity, never ramped) — a tree whose structure
+  diverged from the exemplar paths used to silently mutate less than the lane
+  claimed. Never in the Stop chain — minutes vs the chain's seconds budget.
 - **osv-scan** (`osv-scan.yml`, its own workflow) — known-vulnerability SCA over
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
