@@ -72,7 +72,10 @@ function lineKinds(t, importsSupabase) {
   const kinds = []
   if (/\bcreateTRPCClient\(|\bhttpBatchLink\(/.test(t)) kinds.push('trpc-client')
   if (/\bfetch\(|new WebSocket\(|new EventSource\(/.test(t)) kinds.push('server-fetch')
-  if (importsSupabase && /\bcreateClient\(|\bcreateServerClient\(|\bcreateBrowserClient\(/.test(t)) {
+  if (
+    importsSupabase &&
+    /\bcreateClient\(|\bcreateServerClient\(|\bcreateBrowserClient\(/.test(t)
+  ) {
     kinds.push('supabase-client')
   }
   return kinds

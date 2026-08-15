@@ -13,7 +13,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { before, test } from 'node:test'
@@ -1569,4 +1569,91 @@ test('ENV HYGIENE: the escape hatch still WORKS when a case passes it deliberate
     !denied(r),
     `${HATCH}=1 passed explicitly must still open the guard:\n${r.stdout}${r.stderr}`,
   )
+})
+
+// ── subagent-verdict: the TURN-subject hook's refusal pair (1.0.0) ──────────────────
+// The registry pins denyToolCallSites at 0 because this hook's mechanism is EXIT 2 on
+// SubagentStop — blocking the SUBAGENT, never a tool call — and these are the executed
+// proofs behind its two denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
+// and an empty or unparseable SubagentStop payload. The exit code is asserted EXACTLY 2
+// on every refusal path, because under Claude Code's exit-code contract any OTHER
+// nonzero is non-blocking (the fail-open hazard CONTROL-PLANE-FACTS Fact 12 documents,
+// re-probed 2026-08-15) — and each in-hook refusal must land a blocked-kind entry in
+// the shared turn ledger so the consecutive-block cap counts hook blocks and Stop
+// blocks as one budget. Path-state RECORDING stays proven by
+// tests/hooks/subagent-verdict-pathstate.test.mjs; this block owns REFUSAL.
+
+function verdictFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-verdict-refusal-'))
+  cpSync(join(TEMPLATE, '.claude/agents'), join(dir, '.claude/agents'), { recursive: true })
+  return dir
+}
+
+const verdictPayload = (over = {}) => ({
+  hook_event_name: 'SubagentStop',
+  agent_type: 'security-reviewer',
+  agent_id: 'a1',
+  session_id: 's1',
+  prompt_id: 'p1',
+  last_assistant_message: 'checked it\n\nVERDICT: PASS',
+  ...over,
+})
+
+const verdictBlocks = (dir) =>
+  readFileSync(join(dir, '.harness/turn-outcomes.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l))
+
+test('subagent-verdict REFUSAL: malformed stdin exits EXACTLY 2 via the installed fail-closed handler', () => {
+  // Non-empty unparseable input THROWS in readHookInput by design, and hookio's
+  // uncaughtException handler converts the crash into a block — the only fail-closed
+  // route Fact 12's torn-hook matrix leaves (a LOAD failure exits 1, fail-open).
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', 'not-json{{', { cwd: dir })
+  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /failing closed, action blocked/)
+})
+
+test('subagent-verdict REFUSAL: a non-object payload exits EXACTLY 2 in-hook and records the block', () => {
+  // JSON `null` parses cleanly, so it reaches the hook's own unrecognizable-payload
+  // branch — the one that records into the shared turn ledger before blocking.
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', 'null', { cwd: dir })
+  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /fails CLOSED/)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(block.gates.includes('subagent-verdict/unparseable-payload'), JSON.stringify(block.gates))
+})
+
+test('subagent-verdict REFUSAL: a reviewer ending without a verdict exits EXACTLY 2 and records the block', () => {
+  const dir = verdictFixture()
+  const r = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ last_assistant_message: 'looks broadly fine to me' }),
+    { cwd: dir },
+  )
+  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /ended without a verdict/)
+  assert.match(r.stderr, /VERDICT: PASS/)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(block.gates.includes('subagent-verdict/security-reviewer'), JSON.stringify(block.gates))
+})
+
+test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (refusal is not the default)', () => {
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', verdictPayload(), { cwd: dir })
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+})
+
+test('subagent-verdict CONTROL: a non-reviewer agent is not this hook’s business — exit 0', () => {
+  const dir = verdictFixture()
+  const r = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ agent_type: 'dal-author', last_assistant_message: 'done' }),
+    { cwd: dir },
+  )
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
 })
