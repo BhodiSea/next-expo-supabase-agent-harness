@@ -219,20 +219,6 @@
       "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
     },
     {
-      "id": "crypto-one-door-namespace-imports",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/eslint-rules/index.mjs",
-          "mustContain": "crypto-primitives-one-door"
-        }
-      ],
-      "reason": "crypto-primitives-one-door matches a `crypto.subtle` member chain and NAMED cipher imports, and an adversarial review showed it misses the namespace routes: `import { webcrypto } from 'node:crypto'` then webcrypto.subtle.*, a default or `* as` import used as nodeCrypto.createCipheriv(...), and `const c = require('node:crypto')` followed by c.createCipheriv(...). Each needs binding-level tracking (which local names alias the module) rather than the single-node test the rule does now, and a half-tracked version would red honest code. The compensating controls are the mobile cipher-library one-door, the weak-crypto-algorithm write-guard, and the security reviewers on the crypto trigger paths.",
-      "reviewedOn": "2026-08-11",
-      "evidence": "template/base/tools/eslint-rules/index.mjs"
-    },
-    {
       "id": "exports-walls-module-name-validation",
       "kind": "condition",
       "target": null,
