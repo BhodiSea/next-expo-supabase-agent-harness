@@ -234,11 +234,17 @@ Doctrine notes for the citations:
   (rows enter as `unknown`; the compiler is never trusted for row shapes). Normal
   requests run as `authenticated` (the RLS-subject role); `service_role` BYPASSES RLS and
   is Edge-Function-only, ADR-governed.
-- **the api-client one-door** — every request goes through
-  `apps/mobile/src/lib/api-client.ts` (origin, bearer, envelope decode, the single
-  401-refresh-retry). In the source harness, features once called the network directly
+- **the api-client one-door** — every mobile request goes through the tRPC client
+  (`apps/mobile/src/lib/trpc/client.ts`): `createApiClient`'s `httpBatchLink`
+  attaches the bearer token and the `x-client-version` header per request in
+  `headers()`, and responses ride the tRPC envelope. There is no 401-refresh-retry
+  in the client — session rotation is supabase-js's `startAutoRefresh`, on the
+  provider. In the source harness, features once called the network directly
   with no auth header and every mocked lane stayed green; the one-door plus the
-  live-api proof is the answer. The token lives behind `src/host/**`
+  live-api proof is the answer. (Through 0.11.1 this bullet named an
+  `apps/mobile/src/lib/api-client.ts` that never shipped in this lineage —
+  ancestor-port residue; the enforcement always pointed at the true door.) The
+  session lives behind `LargeSecureStore` via `src/host/**`
   (expo-secure-store — iOS Keychain / Android Keystore), never in JS-visible app
   storage and never behind an `EXPO_PUBLIC_` name (inlined into the shipped bundle).
 - **GUC discipline** — production identity rides the request-scoped supabase-js client's

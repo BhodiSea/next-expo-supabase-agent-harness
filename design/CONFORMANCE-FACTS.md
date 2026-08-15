@@ -264,16 +264,17 @@ is one line and cannot go red, so a lane that only emitted would have been a gre
 inventory that had silently lost half the tree. This is what regrades **PA-01**, and only to
 `alternate-control`: it is a software inventory, not estate asset discovery.
 
-**Still deferred, now dated — and it is a DIFFERENT sense of the word.** The control this
-paragraph originally meant is the *release-over-release diff*: compare this tree's SBOM against
-the previous release tag's and red on an **added** component that is not allowlisted. The
-lockfile closure above consumes the SBOM against the *same* tree, which catches an incomplete
-inventory and catches nothing about supply-chain drift. Naming both "consumption" is how the
-0.11.0 row would come to be treated as already discharged, so: the register row
-`sbom-consumption` targets **0.11.0** and its subject is the tag diff. Its precondition is met
-by construction at this bump — the `version-sync` committed-lockfile ramp expires at 0.10.0, so
-every install now carries the input the diff needs, and a met condition left undated is the
-shelf this file refuses.
+**DISCHARGED AT 0.11.0 — and the two senses of "consumption" stayed distinct to the end.**
+The control this paragraph originally meant is the *release-over-release diff*: compare this
+tree's SBOM against the previous release tag's and red on an **added** component that is not
+allowlisted. The lockfile closure above consumes the SBOM against the *same* tree, which
+catches an incomplete inventory and catches nothing about supply-chain drift. The register row
+`sbom-consumption` (target 0.11.0) carried the tag-diff half, and 0.11.0 shipped it as
+`scripts/check-sbom-drift.mjs`: the resolved closure diffed against the previous release tag,
+an ADDED component red unless a reviewed row in `scripts/sbom-additions.json` names it — the
+half a catalog diff structurally cannot see, because a transitive arrival changes no key. The
+row is deleted; this paragraph is its record. (Through 0.11.1 this paragraph still described
+the row as open — stale prose no machine read, corrected in the 1.0.0 pass.)
 
 ## 9. ASD Essential Eight Maturity Model — **SHIPPED whole, and the claim is bounded**
 

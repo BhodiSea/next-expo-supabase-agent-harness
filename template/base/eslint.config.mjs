@@ -169,22 +169,28 @@ export default tseslint.config(
     rules: { 'no-console': 'off' },
   },
   {
-    // THE one door to the API (src/lib/api-client.ts): apiFetch/apiPost attach the
-    // bearer token and decode the error envelope. A direct global fetch() call is a
-    // request that 401s against the real server while every unit test mocks the
-    // network — nothing local would tell you. The door module itself is the only
-    // carve-out; injected transports (expo/fetch in src/lib/sse.ts) are imported
-    // bindings, not the restricted global, and still route through apiFetch.
+    // THE one door to the API is the tRPC client (src/lib/trpc/client.ts):
+    // createApiClient's httpBatchLink attaches the bearer token and the
+    // x-client-version header in headers(), and every response rides the tRPC
+    // envelope. A direct global fetch() call is a request that 401s against the
+    // real server while every unit test mocks the network — nothing local would
+    // tell you. The door module itself is the only carve-out, so a future
+    // injected-fetch option on httpBatchLink stays legal inside the door.
+    // (Through 0.11.1 this block named an apps/mobile/src/lib/api-client.ts and
+    // an src/lib/sse.ts that never shipped in this lineage — ancestor-port
+    // residue; the ignores entry matched nothing, so the carve-out was inert
+    // while the ban itself was real. Canary C01 and live-api-proof.test.ts
+    // always exercised the true door.)
     // SOURCE: docs/harness/README.md (api-client one-door) [corpus: harness/doctrine]
     files: ['apps/mobile/**/*.ts', 'apps/mobile/**/*.tsx'],
-    ignores: ['apps/mobile/src/lib/api-client.ts'],
+    ignores: ['apps/mobile/src/lib/trpc/client.ts'],
     rules: {
       'no-restricted-globals': [
         'error',
         {
           name: 'fetch',
           message:
-            'Call the API through src/lib/api-client.ts (apiFetch/apiPost) — it attaches the bearer token and decodes the error envelope. A bare fetch() ships unauthenticated.',
+            "Call the API through the tRPC client (src/lib/trpc/client.ts) or a vertical's ./client barrel — the client attaches the bearer token and the version header. A bare fetch() ships unauthenticated.",
         },
       ],
     },

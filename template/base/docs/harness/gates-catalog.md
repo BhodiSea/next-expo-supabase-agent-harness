@@ -37,7 +37,7 @@ here deliberately rather than papered over:
 
 - **The Stop chain contains no on-device proof.** The `e2e` gate and the `mobile-unit`
   suite run jest-expo + React Native Testing Library under Node — the shipped screens,
-  expo-router navigation, api-client and i18n run for real, but Hermes bytecode load,
+  expo-router navigation, the tRPC client and i18n run for real, but Hermes bytecode load,
   native module init, Fabric layout, and the OS keychain do not. The on-device half is
   the Maestro emulator lane plus the startup-budget measurement, and those are CI-ONLY
   (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly; `mobile-perf
@@ -164,7 +164,7 @@ Type-aware rules (strictTypeChecked + stylisticTypeChecked via projectService),
 react-hooks (including the React Compiler rule set) on the Expo app,
 eslint-plugin-react-native + eslint-plugin-react-native-a11y with EVERY rule at
 error, sonarjs cognitive-complexity ≤ 15, plus the boundary bans: global `fetch`
-outside `src/lib/api-client.ts`, `expo-secure-store` outside `src/host/**` +
+outside the tRPC client (`src/lib/trpc/client.ts`), `expo-secure-store` outside `src/host/**` +
 `src/auth/**`, chart libraries in the dense features, raw text outside AppText,
 bare `console` outside `src/lib/log.ts`.
 **0.9.5 adds two custom rules.** `env-through-register` (the env-register-gate
@@ -1545,7 +1545,7 @@ The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-ex
 + React Native Testing Library) — the states sweep over every ROUTES entry
 (loading/empty/error via the mock network seam), screen flows (notes optimistic
 write, matrix pagination, actions modal), boot/layout wiring, primitives a11y —
-with the shipped screens, expo-router navigation, api-client and error
+with the shipped screens, expo-router navigation, the tRPC client and error
 translation running for real against the in-process mock server. Seconds,
 laptop-complete, and exactly what the CI e2e job runs. Runner detection is module
 resolution (jest-expo resolved FROM apps/mobile), never subprocess vibes: absent →
@@ -1729,10 +1729,10 @@ the suite cannot green vacuously.
 ### unit — `pnpm exec vitest run --coverage --silent`
 
 The node-side behavioral net: server (auth clock-skew, envelope bounds,
-production+stub boot-fatal, skew middleware, SSE abort), packages (contracts
+production+stub boot-fatal, skew middleware, csrf), packages (contracts
 drift, importer property tests, eval fixture scorer), and the PURE mobile modules
 (i18n incl. the pseudo-locale derivation and RTL direction table, routes closure,
-kv, the SSE parser, the fuzzy scorer, recents) — pure meaning zero react-native in
+kv, the fuzzy scorer, recents) — pure meaning zero react-native in
 the import closure, so Node's runner is honest for them. `--coverage` enforces the
 aggregate thresholds in `vitest.config.ts` and writes the istanbul map the
 diff-coverage step reads.
@@ -2016,12 +2016,12 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   passes, so a broken inventory is never the file someone downloads later.
 - **live-api proof** — `__tests__/live-api-proof.test.ts` (jest, self-skipping
   unless `LIVE_PROOF=1` + a running `AUTH_MODE=stub` server): the one place the
-  mobile client's real api-client talks to the real server over real Postgres
+  mobile client's real tRPC client talks to the real server over real Postgres
   under FORCE RLS. Every other lane mocks the network — which is exactly how the
   desktop original once shipped requests with no Authorization header at all
   while every gate stayed green. Its negative control (an unauthenticated call
   must fail) keeps it falsifiable, and the harness selftest proves the lane
-  end-to-end (Canary C01: strip the api-client's one bearer-attaching line →
+  end-to-end (Canary C01: strip the tRPC client's one bearer-attaching line →
   the suite reds, restore → green).
 
 - **backup-evidence** (scheduled, in `osv-scan.yml`) — `node
@@ -2108,9 +2108,14 @@ in the design record; the enduring ones repeat here):
 - **Maestro-in-the-chain** — an emulator boot ahead of every validate would turn
   a seconds gate into a minutes gate; the closure check keeps the floor while the
   device lane pays the cost in CI.
-- **A second SSE dependency** — an XHR-based client would bypass the api-client
-  one-door; the SSE client is a hand-rolled pure parser driven through injected
-  streaming fetch, unit-tested at every chunk boundary.
+- **An SSE dependency (`react-native-sse`)** — rejected in the ancestor's port
+  spec, and the hand-rolled parser that spec designed as the alternative NEVER
+  SHIPPED in this lineage: no SSE client of any kind exists in the scaffold, and
+  no shipped surface streams. (Through 0.11.1 this entry claimed the parser
+  shipped and was "unit-tested at every chunk boundary" — ancestor-port residue,
+  corrected at 1.0.0.) If a streaming seam is ever added it belongs inside the
+  tRPC-client one-door, with its retry/timeout posture declared in
+  `tools/resilience.json` like every other outbound seam.
 - ~~**pgTAP**~~ — **ADOPTED, and this entry was stale ancestor text.** The claim
   it made ("plain-SQL catalog assertions check the same facts without a second
   toolchain") is false in this tree and had been for some time: pgTAP is shipped
