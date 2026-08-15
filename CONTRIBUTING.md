@@ -99,7 +99,7 @@ cd /tmp/scratch && pnpm install && git init -q && git add -A \
   && node tools/validate.mjs --report-all
 ```
 
-`--report-all` runs all **34** steps and shows every red at once. The two added in
+`--report-all` runs all **36** steps and shows every red at once. The two added in
 0.3.0 run before anything expensive and are the ones most likely to catch a
 machinery mistake: `wiring` (step 3 — are the enforcement layers actually
 connected) and `secrets` (step 4 — a hermetic credential scan, in rule-id lockstep

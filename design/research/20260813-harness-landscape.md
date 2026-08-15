@@ -132,7 +132,7 @@ Five things nothing else in the survey does:
 
 Ranked. Each is structural rather than incremental, and each is load-bearing *only* because the target is unsupervised operation.
 
-**1 — No outcome oracle.** Every claim in the repo is about a **control**; none is about an **outcome**. 87 gate and hook test files, zero about agent outcomes. No CI lane spawns Claude at all. All 34 gates are the visible oracle in a regime where SpecBench measured visible/held-out gaps up to 100pp. Until this exists, the repo cannot distinguish *"produces world-class systems"* from *"produces systems that satisfy this harness"* — which is exactly the unfalsifiable class the other 34 gates exist to delete.
+**1 — No outcome oracle.** Every claim in the repo is about a **control**; none is about an **outcome**. 87 gate and hook test files, zero about agent outcomes. No CI lane spawns Claude at all. All 36 gates are the visible oracle in a regime where SpecBench measured visible/held-out gaps up to 100pp. Until this exists, the repo cannot distinguish *"produces world-class systems"* from *"produces systems that satisfy this harness"* — which is exactly the unfalsifiable class the other gates exist to delete.
 
 **2 — No OS containment.** The best sandbox writeup in the corpus sits in this repo's own `docs/security/sandbox-and-supply-chain.md` §99, arguing the whole case, and ships none of it. Worse, the four keys that matter — `strictAllowlist`, `mask`, `tlsTerminate`, and the credential controls — are **ignored when set in a repository's `.claude/settings.json`**, so a naive one-file version would be inert while looking committed and reviewed.
 
@@ -171,7 +171,7 @@ Full rows with integration points, proofs and risks are in the JSON. Every item 
 
 Two implementation traps worth pulling out of the JSON, because both would silently disable the item:
 
-- `now4` token accounting must be `input + output + cacheWrite` **excluding cacheRead**. With prompt caching on Opus 5, a 34-step chain otherwise reads as a 300k-token run and the ceiling fires immediately.
+- `now4` token accounting must be `input + output + cacheWrite` **excluding cacheRead**. With prompt caching on Opus 5, a 36-step chain otherwise reads as a 300k-token run and the ceiling fires immediately.
 - `now2`'s `gate_state` must be captured **when the subagent stops**, not read back at Stop time — the chain runs `reviewer-verdicts` last, so a late read records the post-fix tree rather than the reviewed one. Reuse the `pathStateDigest` idiom, which already solves this exact binding problem.
 
 ### Next — 15 items

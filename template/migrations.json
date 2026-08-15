@@ -673,5 +673,24 @@
       ],
       "why": "0.11.1 opens no escape and closes none. The population below is 0.11.0's, restated because a direct hop from any of these vintages crosses 0.11.0's record. What 0.11.1 CHANGES is that one of the five escapes 0.11.0 closed is re-opened as a dated NOTE by the reviewed rampExtensions entry above, so these installs now meet FOUR expiring sites rather than five: docs-sync twice, web-e2e and rate-limits still fall due, and version-sync's arrival of a harness-authored eol.json removalTarget does not. At 0.11.0 that arrival was a hard red for a value the consumer did not author, on a seeded file update may never rewrite, with NO deadline met at baseVersion 0.10.0 — the upgrade lane called it a regression rather than an expiry and it was right. Older vintages still meet version-sync expiries from its OTHER sites; at baseVersion 0.9.9 the arrival was version-sync's only one, which is why that vintage drops from four gate names to three. The sweep is otherwise unchanged and docs/runbooks/harness-upgrade.md carries it under 0.11.0; upgrading one minor at a time remains the mitigation."
     }
+  },
+  "1.0.0": {
+    "//": [
+      "THE SETTLEMENT RELEASE — 0.11.1 to 1.0.0 direct, with no 0.12.0 ever cut. Every comparison in the fleet is >=, so the deadlines the 0.11.x records wrote as '0.12.0' arrive at this hop exactly as they would have at a 0.12.0: nothing strands, and the two advisory sites (data-flow's erase record, version-sync's eol arrival) fall due here. This record is authored INCREMENTALLY on the release branch and reconciled at the bump commit — rampExpiry.affects is copied from check-ramp-ledger's output at the version this record names, never typed early.",
+      "TWO INJECTED STEPS, the first since 0.8.0, and the first release to inject two at once — which is the point of batching them: one chain-budget re-record pays for both. `suppressions` (after `lint`) is the inline-directive census — the scanner OUTSIDE ESLint that polices the rule-less disable no in-ESLint rule can see. `resilience` (after `boundaries`) is the outbound-seam posture register, closed both ways with symbol-backed claims. Both anchors are 0.1.x-vintage single-line entries, per the injection contract. Both steps ship RAMPED for pre-1.0.0 installs (NOTE until 1.1.0), and their registers are PLANTED (see check-seeded-migrations DELIBERATE_PLANT), green-by-construction: the shipped rows describe the harness-seeded tree, so the only NOTE an upgraded install meets is about code its own tree added. Neither step owes an enforcement-tiers row — both scan every product surface (apps/, packages/, supabase/), and the tiers table binds single-surface scan roots only.",
+      "PLANTED — tools/suppressions-allow.json and tools/resilience.json (the two new seeded registers; reasons in scripts/check-seeded-migrations.mjs DELIBERATE_PLANT). Registering a row in either is a reviewed act: both are write-guard-protected and in ESCAPE_LISTS. This is the seeded-register shape the 0.11.0 auth-posture deferral refused to plant on an expiry-wave hop — the difference argued here rather than assumed: these plants are green-by-construction acceptance records of the tree the harness itself seeded, not demand-bearing registers that red until the consumer answers them."
+    ],
+    "configSteps": [
+      {
+        "name": "suppressions",
+        "cmd": "node tools/check-suppressions.mjs",
+        "after": "lint"
+      },
+      {
+        "name": "resilience",
+        "cmd": "node tools/check-resilience.mjs",
+        "after": "boundaries"
+      }
+    ]
   }
 }

@@ -77,6 +77,10 @@
       "class": "toolchain",
       "measuredMs": 2063
     },
+    "suppressions": {
+      "class": "static",
+      "measuredMs": null
+    },
     "provenance": {
       "class": "static",
       "measuredMs": 107
@@ -84,6 +88,10 @@
     "boundaries": {
       "class": "static",
       "measuredMs": 88
+    },
+    "resilience": {
+      "class": "static",
+      "measuredMs": null
     },
     "observability": {
       "class": "static",

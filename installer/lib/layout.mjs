@@ -125,6 +125,14 @@ export const SEEDED_FILES = new Set([
   // determinations, and sha-pinning a file whose own text tells the consumer to fill it in
   // would call that edit tampering.
   'tools/backup-posture.json',
+  // 1.0.0. The inline-suppression census and the outbound-seam posture register. Seeded
+  // rather than owned for the reason eol.json gives above: the rows are decisions about
+  // THIS project's tree — a consumer whose code grows a new reasoned directive or a new
+  // outbound seam must be able to record the review, and `update` must never clobber
+  // those rows to re-plant the harness's own. Both are write-guard-protected and in
+  // ESCAPE_LISTS, so adding a row is a reviewed human act, exactly like rls-exempt.json.
+  'tools/suppressions-allow.json',
+  'tools/resilience.json',
   'tools/identity.lock.json',
   'tools/prompts.lock.json',
   // Human-tuned budget/design data: write-guard-protected against agents, but a

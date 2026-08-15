@@ -70,10 +70,11 @@ started" record, not for a verdict.
 
 ## Fact 4 — the `Stop` payload, and `stop_hook_active` is REAL
 
-2026-08-15 re-verification status: the field's presence and `false` default were
-re-observed on `SubagentStop` (the same field rides both events); the `Stop`-side
-payload capture and the one-shot `true` transition were not re-run — the 2026-08-07
-observation stands for those two, at the original version.
+2026-08-15 re-verification status: the `Stop` payload was re-captured (2.1.232) and is
+**key-for-key identical** to the list below — `stop_hook_active: false` on an ordinary
+turn, no `agent_*` fields, `last_assistant_message` present and untruncated. The
+one-shot `true` transition was not re-run (it requires deliberately blocking a turn);
+the 2026-08-07 observation stands for that half, at the original version.
 
 `stop-validate-gate.mjs` reads `input?.stop_hook_active === true`, and
 `docs/harness/README.md` states that it "escalates the message on repeat blocks". The current

@@ -716,9 +716,12 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // those two gates were not. EIGHTEEN since 0.11.0 added ONE — data-flow's erase.surface
   // record and its two-surface clients closure, due 0.12.0 — and it does NOT widen the gate
   // set, because data-flow already carried its 0.6.0 closure ramp at this vintage.
+  // TWENTY since 1.0.0 added TWO — the injected suppressions census and the resilience
+  // register closure, both at minVersion 1.0.0 due 1.1.0 — and both WIDEN the gate set
+  // below, because neither gate existed before the 1.0.0 injections.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 18)
+  assert.equal(fresh.noting.length, 20)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -728,12 +731,14 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'docs-sync',
       'observability',
       'rate-limits',
+      'resilience',
       'reviewer-verdicts',
+      'suppressions',
       'version-sync',
       'web-e2e',
       'wiring',
     ],
-    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9 and 0.10.0 open, all advisory for this vintage at harness 0.7.0',
+    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open, all advisory for this vintage at harness 0.7.0',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -791,8 +796,8 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
   assert.equal(fresh.expired.length, 0)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['auth-posture', 'boundaries', 'data-flow', 'docs-sync', 'observability', 'rate-limits', 'version-sync', 'web-e2e', 'wiring'],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0 and 0.11.0 open (the 0.10.0/0.11.0/0.12.0 records owe these)',
+    ['auth-posture', 'boundaries', 'data-flow', 'docs-sync', 'observability', 'rate-limits', 'resilience', 'suppressions', 'version-sync', 'web-e2e', 'wiring'],
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open (the later records owe these)',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -864,8 +869,8 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
   assert.equal(fresh.expired.length, 0)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
-    ['auth-posture', 'boundaries', 'data-flow', 'docs-sync', 'rate-limits', 'version-sync', 'web-e2e', 'wiring'],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0 and 0.11.0 open',
+    ['auth-posture', 'boundaries', 'data-flow', 'docs-sync', 'rate-limits', 'resilience', 'suppressions', 'version-sync', 'web-e2e', 'wiring'],
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0 and 1.0.0 open',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.

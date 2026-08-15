@@ -53,6 +53,12 @@ export const ESCAPE_LISTS = [
   // vendorSpecifiers is the benign direction only because narrowing it is refused by the
   // gate's floor check; the row itself is the widening a reviewer must see.
   'tools/observability.json',
+  // 1.0.0. A suppressions-allow row licenses an inline directive that switches a lint
+  // rule off at one site, and a resilience row is the reviewed posture (including a
+  // declared do-nothing) of a seam that calls out of the system — both are escapes in
+  // the exact rls-exempt sense: the row is the widening a reviewer must see.
+  'tools/suppressions-allow.json',
+  'tools/resilience.json',
   'tools/duplication-allow.json', // accepting a code clone
   'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog

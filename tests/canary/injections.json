@@ -64,6 +64,13 @@
         "note": "0.9.5: the two new custom rules' RuleTester red-proofs, both LOCAL rules precisely to avoid the plugin-channel hazard the canary above records. env-through-register: a raw process.env read of a non-public name reds, a computed read reds as un-reviewable, bare process.env reds as the whole-environment smuggle, while literal NEXT_PUBLIC_/EXPO_PUBLIC_/NODE_ENV reads and non-process `env` members stay clean. no-suppressed-complexity: the sonarjs/cognitive-complexity disable directive is itself the error in both line and block form, and a directive naming the rule itself reds as the stacking evasion."
       }
     ],
+    "suppressions": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-suppressions.test.mjs",
+        "note": "the inline-directive census over apps/ + packages/ + supabase/ (1.0.0): a rule-LESS eslint-disable reds naming the off-switch problem (ESLint applies it to every rule id including the one that would report it — tools/eslint-rules/index.mjs records the proven in-Linter attempt, so the scanner lives OUTSIDE ESLint); @ts-ignore/@ts-nocheck red naming the self-expiring @ts-expect-error alternative; a rule-named directive with no inline reason of substance reds; the census closes BOTH WAYS against seeded tools/suppressions-allow.json (a directive-carrying file with no row, a row whose directives went away, and a count mismatch all red — a second site cannot ride a one-site review); a missing register fails naming the --refresh-seeded pull; the 1.0.0 ramp NOTEs on pre-1.0.0 installs and the RAMP EXPIRED branch at harness 1.1.0 is EXECUTED — the registered proof for the next release, written the release the ramp opens. The green case runs on the SHIPPED template/stack trees and asserts a non-vacuous directive count."
+      }
+    ],
     "provenance": [
       {
         "kind": "selftest",
@@ -80,6 +87,13 @@
         "kind": "fixture",
         "ref": "tests/gates/check-boundaries.test.mjs",
         "note": "the two census consumers red: a ./client barrel with no tools/exports-walls.json sanction; a stale sanction naming a missing package; @app/api as a runtime mobile dep; a mobile dep neither sanctioned nor universal; a vertical importing another vertical; shared depending on a vertical; web carrying the RN-only design system. 0.9.5 adds the anatomy laws (lib/vertical-anatomy.mjs): domain purity, DAL value-import of the client, missing port, missing ./client barrel, impure barrel, events impurity, select('*') — each red in the same file, with the allow-file closed both ways (stale entry reds), the zero-files anti-vacuity floor, and the pre-0.9.5 ramp NOTE mode all pinned"
+      }
+    ],
+    "resilience": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-resilience.test.mjs",
+        "note": "the outbound-seam posture register closure (1.0.0): an outbound-transport construction site (tRPC client / server fetch / WebSocket-EventSource / supabase-js factory / Edge Function) with no tools/resilience.json row reds ('an undeclared seam's posture is whatever the runtime default is, decided by nobody'); the register is closed both ways (a row naming a missing file, and a row whose seam went away, both red); a posture claim the file does not implement reds (timeoutMs without AbortSignal.timeout — a deadline that exists only in the register bounds nothing); a kind the file does not construct reds; backoffMs beside retries:0 reds as incoherent; a missing register fails naming the --refresh-seeded pull; the 1.0.0 ramp NOTEs on pre-1.0.0 installs and the RAMP EXPIRED branch at harness 1.1.0 is EXECUTED. The green case runs on the SHIPPED template/stack trees and asserts the real seam census; a declared {timeoutMs:null, retries:0} with a written why is proven LEGAL — the gate refuses undeclared and false, never modest."
       }
     ],
     "observability": [
@@ -491,8 +505,12 @@
       "note": "0.11.0, a REASONED exemption rather than a pin. This hook runs no rule of its own: it is a per-edit fast path over checks the step registry already proves tree-wide (format/types/lint on the touched file), so a deny example here would duplicate a step proof rather than add one. What it must not do is fail OPEN on malformed input, and that is proven by tests/hooks/hookio-failclosed.test.mjs — the one behaviour unique to the hook layer."
     },
     "subagent-verdict.mjs": {
-      "kind": "steps",
-      "note": "0.11.0, a reasoned exemption WITH A NAMED REMAINDER. Its subject is the TURN, not a tool call: it records reviewer verdicts for the reviewer-verdicts Stop step, which the step registry already proves. Path-state handling is proven by tests/hooks/subagent-verdict-pathstate.test.mjs. What is still missing is a deny/block canary of its own and an exit-code pin — carved out to 0.12.0 as canary-registry-hook-closure rather than asserted here, because an entry that claims coverage it does not have is worse than the absence this release just fixed."
+      "//": "1.0.0, the remainder of the 0.11.0 registry split, shipped WITH its proofs rather than claimed ahead of them. This hook's subject is the TURN: its refusal mechanism is EXIT 2 on SubagentStop (which prevents the subagent from stopping), never denyTool(), so the pin is 0 and load-bearing in that form — gaining a denyTool( site here would be a change of mechanism, not a tweak, and must be a reviewed registry bump. The examples are the two refusals tests/hooks/subagent-verdict-refusal.test.mjs executes and pins at EXACTLY exit 2 (any other nonzero is non-blocking under the SubagentStop contract — the fail-open hazard CONTROL-PLANE-FACTS Fact 12 documents), each asserted to record blocked-kind entries into the shared turn ledger so the consecutive-block cap sees hook blocks and Stop blocks as one budget. Path-state recording stays proven by tests/hooks/subagent-verdict-pathstate.test.mjs.",
+      "denyToolCallSites": 0,
+      "denyExamples": [
+        "a reviewer reply ending without a \"VERDICT: PASS|BLOCK\" line",
+        "an empty or unparseable SubagentStop payload"
+      ]
     }
   },
   "lanes": {

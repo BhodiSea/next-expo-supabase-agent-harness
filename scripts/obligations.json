@@ -174,7 +174,7 @@
           "mustContain": "2.1.163"
         }
       ],
-      "reason": "THE DATED FACTS THIS HARNESS DEPENDS ON MOST HAVE NO SCHEDULED FRESHNESS CONTROL, and this row is the standing re-verification obligation that stands in for one. RE-VERIFIED AT 1.0.0 (2026-08-15) against Claude Code 2.1.232 / SDK 0.3.232, by the file's own method rather than by reading: the payload probe re-armed in .claude/settings.local.json (Facts 1/2/3 re-observed — SubagentStop's 14-key payload is key-for-key identical, last_assistant_message untruncated, verdict on the last non-empty line), the torn-hook exit-code matrix re-probed empirically (Fact 12 — identical: every load failure exits 1/fail-open, malformed stdin on an intact hook exits 2), the advisory surface re-queried (Fact 10 — same 28 advisories, floor unchanged at 2.1.163, checkedOn moved), the CI-spawn grep re-run (Fact 5 — still zero), and the hook environment re-captured (Fact 6 — two ADDITIVE deltas: CLAUDE_CODE_MESSAGING_SOCKET/TOKEN now reach hooks, the token is credential-shaped; CLAUDE_CODE_CHILD_SESSION=1 again observed in a MAIN session, re-confirming that a depth-cap control keyed on it would brick reviewer spawns). NOT RE-RUN: Fact 4's Stop-side payload capture and the one-shot stop_hook_active=true transition (the 2026-08-07 observation stands for those, at the original version, and the file says so in place); Facts 7/8/9/11/13 are documentation-sourced and were re-read, not probed. WHY THE ROW SURVIVES ITS OWN DISCHARGE CLAUSE: deleting it on a completed re-probe would recreate the no-freshness-control defect it names the next time Claude Code moves — the honest shape is a RECURRING re-verification row (the auth-posture-cli-census precedent), re-dated at each pass, whose first sites[] anchor pins the CURRENT re-verification date so the next re-observation must move this row in the same diff. A scheduled prober stays refused while Fact 5 holds: a prober needs a live Claude Code session in CI, and 'no CI lane spawns Claude' is a deliberate posture, not an accident to fix.",
+      "reason": "THE DATED FACTS THIS HARNESS DEPENDS ON MOST HAVE NO SCHEDULED FRESHNESS CONTROL, and this row is the standing re-verification obligation that stands in for one. RE-VERIFIED AT 1.0.0 (2026-08-15) against Claude Code 2.1.232 / SDK 0.3.232, by the file's own method rather than by reading: the payload probe re-armed in .claude/settings.local.json (Facts 1/2/3 re-observed — SubagentStop's 14-key payload is key-for-key identical, last_assistant_message untruncated, verdict on the last non-empty line), the torn-hook exit-code matrix re-probed empirically (Fact 12 — identical: every load failure exits 1/fail-open, malformed stdin on an intact hook exits 2), the advisory surface re-queried (Fact 10 — same 28 advisories, floor unchanged at 2.1.163, checkedOn moved), the CI-spawn grep re-run (Fact 5 — still zero), and the hook environment re-captured (Fact 6 — two ADDITIVE deltas: CLAUDE_CODE_MESSAGING_SOCKET/TOKEN now reach hooks, the token is credential-shaped; CLAUDE_CODE_CHILD_SESSION=1 again observed in a MAIN session, re-confirming that a depth-cap control keyed on it would brick reviewer spawns). Fact 4's Stop-side payload was re-captured at the following turn end (key-for-key identical, stop_hook_active false, no agent_* fields); NOT RE-RUN: the one-shot stop_hook_active=true transition (it requires deliberately blocking a turn — the 2026-08-07 observation stands, at the original version, and the file says so in place); Facts 7/8/9/11/13 are documentation-sourced and were re-read, not probed. WHY THE ROW SURVIVES ITS OWN DISCHARGE CLAUSE: deleting it on a completed re-probe would recreate the no-freshness-control defect it names the next time Claude Code moves — the honest shape is a RECURRING re-verification row (the auth-posture-cli-census precedent), re-dated at each pass, whose first sites[] anchor pins the CURRENT re-verification date so the next re-observation must move this row in the same diff. A scheduled prober stays refused while Fact 5 holds: a prober needs a live Claude Code session in CI, and 'no CI lane spawns Claude' is a deliberate posture, not an accident to fix.",
       "reviewedOn": "2026-08-15",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
     },
@@ -445,16 +445,29 @@
       "reviewedOn": "2026-08-15"
     },
     {
-      "id": "canary-registry-hook-subagent-verdict",
+      "id": "suppressions-census-ramp-expiry",
       "kind": "release",
-      "target": "0.12.0",
+      "target": "1.1.0",
       "sites": [
         {
-          "file": "tests/canary/injections.json",
-          "mustContain": "carved out to 0.12.0 as canary-registry-hook-closure"
+          "file": "template/base/tools/check-suppressions.mjs",
+          "mustContain": "the inline-suppression census over the product tree"
         }
       ],
-      "reason": "THE REMAINDER OF THE SPLIT canary-registry-hook-closure, discharged in half at 0.11.0. What shipped: the hook -> registry direction (every shipped hook now carries an entry, so an unregistered hook reds instead of being required by nothing), a try/catch that turns a stale entry naming a deleted hook into a clean FINDING rather than an uncaught ENOENT stack trace, the note requirement on reasoned exemptions, and real entries for posttool-source-check.mjs and the TURN-FATAL stop-validate-gate.mjs built from proofs that already existed. What did NOT ship is subagent-verdict.mjs's own deny/block canary and an exit-code pin: its subject is the TURN rather than a tool call, so the deny-example/denyToolCallSites shape does not fit it, and the honest entry is a reasoned {kind:'steps'} declaration naming tests/hooks/subagent-verdict-pathstate.test.mjs. That is coverage of path-state handling, not of refusal. Writing an entry that CLAIMED refusal coverage would be worse than the absence 0.11.0 just fixed, which is why this is a split rather than a completion.",
+      "reason": "1.0.0 injects the `suppressions` chain step (the inline-directive census — the scanner outside ESLint that polices the rule-less disable no in-ESLint check can see) and, per the ramp doctrine, ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0: an install whose seeded tree predates the census must get one release of dated NOTEs to reason each site and adopt the planted tools/suppressions-allow.json register, not a hard red on the update that delivered the scanner. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The register is planted (DELIBERATE_PLANT — green-by-construction: its shipped rows describe the harness-seeded files), so the only surviving NOTE source on an upgraded install is a directive ITS OWN tree added without a row, which is exactly the population the census exists to make visible.",
+      "reviewedOn": "2026-08-15"
+    },
+    {
+      "id": "resilience-register-ramp-expiry",
+      "kind": "release",
+      "target": "1.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-resilience.mjs",
+          "mustContain": "the outbound-seam resilience register closure"
+        }
+      ],
+      "reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
       "reviewedOn": "2026-08-15"
     },
     {

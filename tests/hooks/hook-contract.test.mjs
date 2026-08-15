@@ -490,6 +490,12 @@ const RULE_CANARIES = {
   'data-flow': [pathDeny('tools/data-flow.json')],
   // 0.8.0. A sinks[] row licenses a telemetry egress path; a narrowed detector unsees one.
   'observability-sinks': [pathDeny('tools/observability.json')],
+  // 1.0.0. The two seeded registers the injected chain steps close over: a
+  // suppressions-allow row licenses an inline lint suppression, a resilience row is the
+  // reviewed posture of an outbound seam — an agent that could edit either could
+  // license its own escape mid-turn and stay green.
+  'suppressions-allow': [pathDeny('tools/suppressions-allow.json')],
+  'resilience-register': [pathDeny('tools/resilience.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates

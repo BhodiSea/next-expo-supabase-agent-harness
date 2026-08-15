@@ -411,6 +411,15 @@ export const WRITE_PROTECTED = [
   // register its own bypass of the redaction seam mid-turn and stay green.
   { id: 'observability-sinks', re: /^tools\/observability\.json$/ },
 
+  // WHAT LINT MAY NOT SEE, AND WHAT CALLS OUT (1.0.0). A suppressions-allow row
+  // licenses an inline directive that switches a rule off at one site — an agent that
+  // could edit it could license its own suppression mid-turn, which is the exact
+  // self-review the census exists to route through a human. A resilience row is the
+  // reviewed posture of an outbound seam; an agent that could edit it could declare a
+  // paper timeout for a transport it just added and stay green.
+  { id: 'suppressions-allow', re: /^tools\/suppressions-allow\.json$/ },
+  { id: 'resilience-register', re: /^tools\/resilience\.json$/ },
+
   // WHO OWES A REVIEW. Narrowing a pattern here is how a reviewer stops being summoned by
   // the diff it exists for, and it is a one-word edit in a file that reads like config.
   { id: 'reviewer-triggers', re: /^tools\/reviewer-triggers\.json$/ },

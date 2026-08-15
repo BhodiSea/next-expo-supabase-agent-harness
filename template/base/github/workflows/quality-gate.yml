@@ -142,7 +142,7 @@ jobs:
   # question coverage cannot: change the code, does a test go red?
   #
   # Blocking, and CI-only: a run is minutes, and the warm validate chain measures
-  # ~24s wall. Scoped to the CRITICAL files THIS PR touched (tools/mutation-scope.mjs) —
+  # seconds. Scoped to the CRITICAL files THIS PR touched (tools/mutation-scope.mjs) —
   # auth, the DAL, the error envelope, the route wiring, and the mobile client's
   # auth/transport seam — so the cost is proportional to the change and a docs-only PR
   # pays nothing. The nightly full run over the whole critical surface lives in

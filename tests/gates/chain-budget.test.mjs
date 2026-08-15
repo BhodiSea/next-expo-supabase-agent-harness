@@ -157,30 +157,38 @@ test('the wall warn band warns and the ceiling reds', () => {
 })
 
 test('the committed measurement describes THIS chain — and the published figures ARE the committed ones', () => {
-  // This pin has now flipped three times, and the round-trip is the doctrine working. The
+  // This pin has now flipped FOUR times, and the round-trip is the doctrine working. The
   // 0.7.0 recording (selftest run 31307386944) satisfied it; 0.8.0 grew the chain to 34
   // (`observability`) and the release deliberately shipped in the interim state — count
   // mismatch, hasCommittedMeasurement false, no figure licensed — until the post-release
   // dispatch (selftest run 31342080611) re-measured all 34 steps and both Stop halves in
-  // one artifact, committed verbatim. 0.9.0 then PUBLISHED the licensed figures (the W5
-  // prose-truth batch), so the sentinel half flips with it: the README's numbers must be
-  // the committed measurement's own millisecond values, derived here rather than
-  // hand-typed, and check-claims' chain-cost class holds the ~Ns phrasings around them.
-  // The invariant is the same as ever: a measuredMs may exist only under a count-matched
-  // provenance stamp, and never over its own ceiling.
-  assert.equal(hasCommittedMeasurement(budget, chainSteps), true)
+  // one artifact, committed verbatim. 0.9.0 then PUBLISHED the licensed figures, and
+  // this test pinned them. 1.0.0 grows the chain to 36 (`suppressions`, `resilience`),
+  // so the pin flips BACK to the interim state — the 34-step measurement is committed
+  // history for a chain this tree no longer runs, hasCommittedMeasurement is false,
+  // check-claims refuses any ~Ns figure, and the README says so in prose instead of
+  // publishing one. The dispatched 36/10 re-record on the release branch flips this
+  // test forward again in the same commit that republishes the figures — measure,
+  // commit, then publish, with this pin as the sentinel on both edges.
+  assert.equal(
+    hasCommittedMeasurement(budget, chainSteps),
+    false,
+    'the 34-step measurement must not count-match the 36-step chain — if this fails, the re-record landed and this pin must flip forward to the published state',
+  )
+  // The interim state keeps the HISTORY intact — the measurement block is evidence of
+  // the last recording, never deleted, only outgrown.
   assert.ok(budget.measurement.runner.trim(), 'a measurement with no runner is unattributed')
   assert.match(budget.measurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
-  assert.equal(budget.measurement.stepsMeasured, chainSteps.length)
-  assert.ok(budget.wall.measuredMs <= budget.wall.ceilingMs, 'a committed wall over its own ceiling')
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.ok(
-    readme.includes(`(${budget.wall.measuredMs} ms`),
-    'the README wall figure must be the committed measurement, verbatim in milliseconds',
+    !readme.includes(`(${budget.wall.measuredMs} ms`) &&
+      !readme.includes(`(${budget.stopWall.measuredMs} ms`),
+    'no stale millisecond figure may survive in the README while the measurement does not count-match the live chain',
   )
-  assert.ok(
-    readme.includes(`(${budget.stopWall.measuredMs} ms`),
-    'the README Stop turn-end figure must be the committed stopWall measurement, verbatim',
+  assert.match(
+    readme,
+    /UNPUBLISHED until the dispatched re-record lands/,
+    'the README must state the unmeasured interim plainly rather than silently dropping the paragraph',
   )
 })
 

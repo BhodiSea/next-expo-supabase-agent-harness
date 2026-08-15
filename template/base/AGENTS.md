@@ -51,7 +51,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 34-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 36-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -77,9 +77,9 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 34 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
-  `types`, `lint`,
-  `provenance`, `boundaries`, `observability`, `expo-policy`, `native-deps`, `version-sync`,
+- The 36 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
+  `types`, `lint`, `suppressions`,
+  `provenance`, `boundaries`, `resilience`, `observability`, `expo-policy`, `native-deps`, `version-sync`,
   `prompts`, `licenses`, `schema-rls`, `tenancy`, `auth-posture`, `data-flow`, `types-drift`, `migrations`,
   `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
   `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,

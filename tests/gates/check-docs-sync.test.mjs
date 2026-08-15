@@ -326,15 +326,15 @@ test('RED: renaming a numbered catalog section reds the catalog-lockstep sub-che
 // author one against the tree it is meant to judge. ──
 
 test('RED: a catalog ordinal that disagrees with the chain index reds, naming both numbers', () => {
-  // `boundaries` is chain step 8. Renumber its heading to 9 and nothing else:
-  // membership still passes (the NAME is intact), so this can only be caught by
-  // the ordinal check — which is the point of the fixture.
-  const misnumbered = shippedCatalog.replace(/^### 8\. boundaries — /m, '### 9. boundaries — ')
+  // `boundaries` is chain step 9 (since the 1.0.0 injections). Renumber its heading to
+  // 10 and nothing else: membership still passes (the NAME is intact), so this can only
+  // be caught by the ordinal check — which is the point of the fixture.
+  const misnumbered = shippedCatalog.replace(/^### 9\. boundaries — /m, '### 10. boundaries — ')
   assert.notEqual(misnumbered, shippedCatalog, 'fixture must actually renumber a section')
   const r = runGate(fixture({ agents: shippedAgents, catalog: misnumbered }))
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes("numbers 'boundaries' as section 9"), r.out)
-  assert.ok(r.out.includes('chain step 8'), r.out)
+  assert.ok(r.out.includes("numbers 'boundaries' as section 10"), r.out)
+  assert.ok(r.out.includes('chain step 9'), r.out)
   // And it is NOT the membership error — proving the two sub-checks are distinct.
   assert.ok(!r.out.includes("gate 'boundaries' has no section"), r.out)
 })

@@ -19,7 +19,7 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 34 gates — and the selftest matrix proves
+> fresh scaffold with zero edits — all 36 gates — and the selftest matrix proves
 > it on every push, including the live-Supabase RLS suite and the 29 can-fail
 > canaries (counted from the matrix itself, not hand-authored). The execution
 > proofs — the chain, the hooks, the upgrade ladder — run on **Linux**, plus a
@@ -67,18 +67,16 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > encrypted column cannot be searched, sorted or filtered by the database.
 > `docs/modules/e2ee/README.md` states each of these losses in full.
 >
-> **Honest limits.** The wall-clock figures are measured, committed, and
-> qualified: warm validate is ~24.3 s wall (24337 ms — the serial reference
-> capture; no agent turn runs serial mode) and the Stop chain's turn-end is
-> ~50.5 s wall (50531 ms, including the nested validate member), recorded
-> 2026-08-09 on Linux/X64 (selftest) and count-matched to the 34/10
-> chain-and-Stop measurement in `scripts/chain-budget.json`. They are that
-> runner's numbers, not a promise about yours. The cold path is unmeasured and
-> carries no figure: unmeasured numbers do not ship — `check-claims` reds on a
-> published figure with no committed measurement behind it, and
-> `check-chain-budget --record` is the thing that can produce one (dispatch the
-> selftest lane, review the artifact, commit it). The order is measure, commit,
-> then publish. The device lanes (Android emulator + Maestro) are schedule- and
+> **Honest limits.** The chain grew to 36 steps in this release, so the
+> wall-clock figures are UNPUBLISHED until the dispatched re-record lands: the
+> committed 34/10 measurements in `scripts/chain-budget.json` (recorded
+> 2026-08-09, Linux/X64) are history for a chain this tree no longer runs, and a
+> figure whose measurement does not count-match the live chain licenses nothing —
+> `check-claims` reds on a published figure with no committed measurement behind
+> it, and `check-chain-budget --record` is the thing that can produce one
+> (dispatch the selftest lane, review the artifact, commit it). The cold path is
+> unmeasured and carries no figure for the same reason. The order is measure,
+> commit, then publish. The device lanes (Android emulator + Maestro) are schedule- and
 > dispatch-gated, so a PR does not pay for them — which also means they are
 > proven nightly, not per-commit. The gate chain contains no on-device proof at
 > agent time.
@@ -89,7 +87,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (134 guard-rule ids: shell-command denials, write-protected harness paths,
+   (136 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -106,7 +104,7 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-34 gates, cheap → expensive:
+36 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
 `node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen

@@ -44,6 +44,16 @@ const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).ver
 // reject. Example: { file: 'template/stack/tools/new-budget.json', reason: '…' }
 const DELIBERATE_PLANT = [
   {
+    file: 'template/base/tools/suppressions-allow.json',
+    reason:
+      'ABSENT, tools/check-suppressions.mjs still scans but then FAILS asking for the register (after the 1.0.0 ramp), so a pre-1.0.0 install would trade its dated NOTE for a hard red the moment the ramp expires — the observability.json shape exactly. Planting costs an existing install nothing: the census closes over THEIR tree, and the shipped rows describe the harness-seeded files their tree already carries (a consumer who edited a seeded file away simply deletes the stale row the gate names). The content is a review record of the scaffold’s own directives; it names no consumer-specific site.',
+  },
+  {
+    file: 'template/base/tools/resilience.json',
+    reason:
+      'Identical reasoning to suppressions-allow.json one line up: tools/check-resilience.mjs fails closed on a missing register after its ramp, so withholding would convert a dated NOTE into a hard red on the exact install that cannot receive the file. The shipped rows declare the scaffold’s own eight seam files (tRPC client, rate-limiter fetch, five supabase-js factories, the delete-account Edge Function) — universal exemplar content, no consumer-specific seam.',
+  },
+  {
     file: 'template/base/tools/backup-posture.json',
     reason:
       "ABSENT, `tools/check-backup-posture.mjs` skips loudly and produces no backup evidence at all — and the scheduled `backup-evidence` job that runs it arrives on the SAME `update` that would withhold this file, so seedOnInitOnly would ship the job and hold back its one input, guaranteeing a lane that can never do anything on an upgraded install. Planting it costs an existing install NOTHING: the file ships deliberately incomplete (maxDailyBackupAgeHours null, restorationTesting.lastTestedOn null) and the script never reaches the shape check without credentials, so an install that has not wired SUPABASE_ACCESS_TOKEN sees exactly one loud SKIP on a weekly cron and no red anywhere. The content is a posture contract plus the vendor ceilings — it names no consumer table, project or number, exactly like tenancy.json above.",
