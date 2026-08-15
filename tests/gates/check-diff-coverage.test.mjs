@@ -524,6 +524,9 @@ test('CANARY — the 0.4.0 surface ramp EXPIRES: banner + hard red on a pre-0.4.
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('diff-coverage: RAMP EXPIRED'), r.out)
+  // The banner must name ITS ramp (the per-detail binding stop-side-expiries.json keys
+  // on) — a RAMP EXPIRED line naming a different deadline would excuse nothing.
+  assert.ok(r.out.includes('the surface 0.4.0 added'), r.out)
   assert.ok(r.out.includes('deadline of 0.5.0'), r.out)
   assert.ok(r.out.includes('apps/web/lib/quota.ts'), r.out)
 })

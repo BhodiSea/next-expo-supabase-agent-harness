@@ -443,20 +443,6 @@
       ],
       "reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
       "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "compensating-proof-names-its-ramp",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "scripts/ci/upgrade-lane.sh",
-          "mustContain": "RAMP EXPIRED"
-        }
-      ],
-      "reason": "§7e OF THE UPGRADE LANE ACCEPTS A PROOF OF THE WRONG DEADLINE. When a gate outside the validate chain meets an expiry, the lane cannot execute it, so scripts/ci/stop-side-expiries.json registers a compensating unit proof — and §7e's check is `grep -qF 'RAMP EXPIRED' <proof>`, which asserts the FILE mentions the string and never that the string belongs to the ramp falling due. FOUND AT 0.11.0 AND THE INSTANCE IS FIXED: check-web-e2e.test.mjs carried four RAMP EXPIRED mentions, all driving the 0.6.0 authenticated-render ramp, so the 0.10.0 axe tag ladder's expiry would have been excused by a proof of an unrelated deadline; an axe-specific canary now asserts the banner names its own ramp. THE CLASS IS OPEN: one registry entry holds one proof path, several ramps can live in one gate, and nothing requires a proof to name the ramp it drives. Discharge is keying the compensating proof on the ramp's DETAIL — the same per-site identity the obligations ramp union adopted at 0.11.0 — rather than on the gate. NOT a dated row: it is a control over a control, it reds nothing today, and shipping it in the release that already added twelve discharges would be the fifth new axis in a release whose subject is expiry.",
-      "reviewedOn": "2026-08-15",
-      "evidence": "scripts/ci/stop-side-expiries.json"
     }
   ]
 }

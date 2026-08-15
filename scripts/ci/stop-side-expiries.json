@@ -1,15 +1,34 @@
 {
-  "//": "Deadlines the upgrade lane cannot execute, each naming the unit proof that does. The lane's §7 narrow() keeps only gates in the validate chain, so a gate outside it whose ramp EXPIRES is dropped from the expectation set — its RAMP EXPIRED branch fires in no lane, structurally (the hole the 0.4.0 `--from` header describes, one chain over). An entry here is the reviewed compensating control: `proof` is the test file that drives the REAL gate to its RAMP EXPIRED exit on a fixture (upgrade-lane.sh §7e asserts the file exists and executes the expiry); `note` says why the lane cannot. §7e dies on a dropped expiry with no entry, and on an entry naming a gate this leg's chain runs — that expiry IS lane-executed (§7a), so the entry would excuse a drop that cannot happen.",
-  "diff-coverage": {
-    "proof": "tests/gates/check-diff-coverage.test.mjs",
-    "note": "Stop-chain step: it reads the coverage maps the two unit steps just wrote, and no lane runs the Stop chain (rls-isolation/unit/mobile-unit fail closed under CI without a full toolchain). Its 0.4.0 surface ramp (until 0.5.0) therefore expires where only the unit proof looks."
-  },
-  "reviewer-verdicts": {
-    "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
-    "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. Its 0.6.0 roster ramp expired at 0.7.0 this same way; at 0.8.0 the expiring escape is the 0.7.0 path_state BINDING ramp — a PASS must post-date the last edit to the paths that summoned it — and the proof file executes that RAMP EXPIRED branch at a harness-0.8.0 fixture."
-  },
-  "web-e2e": {
-    "proof": "tests/gates/check-web-e2e.test.mjs",
-    "note": "Not a chain member AT ALL — validate's e2e step is check-e2e.mjs and the Stop chain never names it; its home is the consumer quality-gate CI lane (the path-filtered browser job), which needs Chromium and which no upgrade-lane leg runs. Its 0.6.0 authenticated-render ramp (until 0.7.0) therefore expires where only the unit proof looks. 0.11.0: THE FILE NOW COVERS TWO RAMPS, and the second one is why this note grew. The 0.10.0 axe-tag ramp falls due at 0.11.0 in the same structurally-unexecuted position, and §7e's check is `grep -qF 'RAMP EXPIRED' <proof>` — it asserts the FILE mentions the string, never that the string belongs to the deadline falling due. All four prior mentions here drove the 0.6.0 ramp, so the axe expiry would have been excused by a proof of an unrelated deadline. The axe canary asserts the banner names 'the axe tag ladder' specifically. THE CLASS IS STILL OPEN: one file can register only one proof path, and nothing makes a proof name the ramp it drives — recorded as a condition row rather than left undescribed."
-  }
+  "//": "Deadlines the upgrade lane cannot execute, each naming the unit proof that does — KEYED ON THE RAMP'S DETAIL since 1.0.0 (the same per-site identity the obligations ramp union adopted at 0.11.0). The lane's §7 narrow() keeps only gates in the validate chain, so a gate outside it whose ramp EXPIRES is dropped from the expectation set — its RAMP EXPIRED branch fires in no lane, structurally. An entry here is the reviewed compensating control: `detail` is a substring that must match EXACTLY ONE of the gate's shipped rampNote details (upgrade-lane.sh §7e re-derives the dropped sites from scripts/lib/ramp-sites.mjs and binds each to its entry), `proof` is the test file that drives the REAL gate to that ramp's RAMP EXPIRED exit on a fixture, and §7e asserts the proof file carries BOTH the literal 'RAMP EXPIRED' and the detail substring — the banner must name ITS OWN ramp, which is the closure the 0.11.0 axe finding was missing: check-web-e2e.test.mjs carried four RAMP EXPIRED mentions, all driving the 0.6.0 ramp, so the 0.10.0 axe expiry would have been excused by a proof of an unrelated deadline. `note` says why the lane cannot execute the gate. §7e dies on a dropped expiry with no matching entry, on an entry naming a gate this leg's chain runs, and on an entry whose detail matches no shipped site (stale).",
+  "diff-coverage": [
+    {
+      "detail": "the surface 0.4.0 added",
+      "proof": "tests/gates/check-diff-coverage.test.mjs",
+      "note": "Stop-chain step: it reads the coverage maps the two unit steps just wrote, and no lane runs the Stop chain (rls-isolation/unit/mobile-unit fail closed under CI without a full toolchain). Its 0.4.0 surface ramp (until 0.5.0) therefore expires where only the unit proof looks."
+    }
+  ],
+  "reviewer-verdicts": [
+    {
+      "detail": "closure over the reviewer roster",
+      "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+      "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. The 0.6.0 roster ramp expired at 0.7.0 this way."
+    },
+    {
+      "detail": "verdict-to-diff binding",
+      "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+      "note": "The 0.7.0 path_state BINDING ramp — a PASS must post-date the last edit to the paths that summoned it — expires in the same structurally-unexecuted position as the roster ramp; the proof file executes its RAMP EXPIRED branch at a harness-0.8.0 fixture."
+    }
+  ],
+  "web-e2e": [
+    {
+      "detail": "the authenticated-render axis",
+      "proof": "tests/gates/check-web-e2e.test.mjs",
+      "note": "Not a chain member AT ALL — validate's e2e step is check-e2e.mjs and the Stop chain never names it; its home is the consumer quality-gate CI lane (the path-filtered browser job), which needs Chromium and which no upgrade-lane leg runs. Its 0.6.0 authenticated-render ramp (until 0.7.0) expires where only the unit proof looks."
+    },
+    {
+      "detail": "the axe tag ladder",
+      "proof": "tests/gates/check-web-e2e.test.mjs",
+      "note": "The 0.10.0 axe-tag ramp, in the same structurally-unexecuted position — and the entry whose 0.11.0 near-miss produced this file's per-detail keying: its canary asserts the RAMP EXPIRED banner names 'the axe tag ladder' specifically, so a proof of the 0.6.0 ramp can no longer excuse it."
+    }
+  ]
 }
