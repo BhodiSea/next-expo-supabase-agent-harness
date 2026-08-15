@@ -488,16 +488,29 @@ if (eolErrs.length > 0) {
   }
 }
 
-// The 0.10.0 ramp over the ARRIVAL of a harness-authored removalTarget. Live from
-// baseVersion 0.10.0, so a fresh scaffold — which holds the re-dated register — is judged
-// immediately and an upgrading install gets a dated NOTE plus the seededSourceFixes
-// instruction telling it exactly which row to re-affirm. The escape ends at 0.11.0, by
-// which point every install has had a release in which to disposition the row. The comment
-// lives HERE and not inside the condition, for the reason the 0.7.0 site above records.
+// The ramp over the ARRIVAL of a harness-authored removalTarget. EXTENDED at 0.11.1 — from
+// (minVersion 0.10.0, until 0.11.0) to (minVersion 0.11.0, until 0.12.0) — and recorded as
+// the lineage's third `rampExtensions` entry, because the first shape was live for exactly
+// the population it could not help.
+//
+// THE DEFECT IT FIXES, found by the upgrade lane on the v0.11.0 tag and not before it.
+// `rampNote` is INERT when baseVersion >= minVersion, so minVersion 0.10.0 meant a
+// 0.10.0-vintage install was never covered. That install is precisely the one holding a
+// seeded tools/eol.json whose `removalTarget` the harness itself wrote as "0.11.0" — so at
+// harness 0.11.0 the date ARRIVED, hard, on the first validate after `update`, on a seeded
+// file `update` may never rewrite. The lane's verdict was exact: red with NO deadline met at
+// that baseVersion is a regression, not an expiry. Older vintages never saw it, because an
+// install whose eol.json was absent is PLANTED with the template's current copy and gets the
+// re-dated row for free; the harm lands only where a previous release seeded a date.
+//
+// So the extension is not a re-date of an unmet obligation — the thing this lineage calls
+// the shelf. It moves an escape onto the vintage the original minVersion excluded, and the
+// deadline moves with it because an escape that opens at 0.11.0 cannot expire at 0.11.0.
+// The comment lives HERE and not inside the condition, for the reason the 0.7.0 site records.
 if (arrivalErrs.length > 0) {
   if (
-    rampNote(GATE, '0.10.0', "the arrival of tools/eol.json's removalTarget dates", {
-      until: '0.11.0',
+    rampNote(GATE, '0.11.0', "the arrival of tools/eol.json's removalTarget dates", {
+      until: '0.12.0',
     })
   ) {
     for (const e of arrivalErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)

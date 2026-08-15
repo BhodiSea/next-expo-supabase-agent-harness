@@ -220,6 +220,29 @@ const SWEEPS = {
   // version with no entry — an unreviewed hop must never sweep silently — so "nothing to do"
   // has to be said rather than left out.
   '0.10.0': {},
+  // 0.11.0 withholds the web erase surface (seedOnInitOnly) and the tools/eol.json re-date
+  // (seededSourceFixes, which the derived pass adopts unconditionally — the entry is the
+  // review record, it cannot veto the fix). The sweep is REAL, and for the 0.6.0 reason
+  // rather than a new one: the data-flow erase ramp NOTEs for as long as the surface is
+  // missing, and §7d of the lane requires that NO ramp NOTE survive the documented sweep.
+  // A `{}` posture here would model a runbook that does not clear what this release ramped
+  // — which is exactly the claim §7d exists to refuse.
+  //
+  // extraAdopt carries the two files the withheld set cannot name. The button lives under
+  // apps/web/app/(protected)/, a seedOnInitOnly subtree since 0.2.0, so 0.11.0's own list
+  // does not repeat it. The LAYOUT that renders it has to travel with it: adopting a
+  // component nothing imports is a dead-code red, the same trap 0.6.0's page-body entry
+  // documents, and it is the trap 0.11.0's own seedOnInitOnlyWhy names as the reason the
+  // three files travel together or not at all. Honest only because this lane's install is a
+  // pristine scaffold with zero local drift — a real consumer edits their own layout, which
+  // is why the runbook's 0.11.0 section describes that edit instead of promising a copy.
+  '0.11.0': {
+    adoptSeedOnInitOnly: true,
+    extraAdopt: [
+      'apps/web/app/(protected)/delete-account-button.tsx',
+      'apps/web/app/(protected)/layout.tsx',
+    ],
+  },
 }
 
 /**

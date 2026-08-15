@@ -11,6 +11,71 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [0.11.1] — 2026-08-15
+
+**The correction release, and the correction is to the release before it.** v0.11.0 was
+tagged with every factory checker clean, 2331/2331 tests green, and all 34 gates green on a
+freshly rendered scaffold — and then the **upgrade lane went red on the tag**. Two legs
+failed. Neither defect is reachable by anything that runs without a CI runner and a previous
+tag, which is exactly why `CONTRIBUTING.md` makes `upgrade-linux` step 4 of cutting a
+release rather than a nicety. **0.11.0 was tagged before it ran. That ordering was the
+mistake**, and both fixes below are its consequences.
+
+### Fixed
+
+- **The arrival escape was live for exactly the population it could not help** (leg A,
+  v0.10.0 → v0.11.0). `rampNote` is **inert** when `baseVersion >= minVersion`, so an escape
+  opened at `minVersion 0.10.0` never covered a 0.10.0-vintage install — and that install is
+  the only one holding a seeded `tools/eol.json` whose `removalTarget` the *harness itself*
+  wrote as `"0.11.0"`. At harness 0.11.0 the date arrived **hard**, on the first `validate`
+  after `update`, on a seeded file `update` may never rewrite. The lane's verdict was exact
+  and is quoted here because it is the whole finding:
+
+  > `validate is RED on the upgraded install (exit 1) and NO ramp deadline is met at baseVersion 0.10.0 — this is a regression, not an expiry.`
+
+  Older vintages were never harmed: an install whose `eol.json` is *absent* is planted with
+  the template's current copy and receives the re-dated row for free. The harm lands only
+  where a previous release **seeded a date**. The escape now opens at `minVersion 0.11.0`
+  and expires at 0.12.0, recorded as the lineage's **third** `rampExtensions` entry — and
+  the first that moves a `minVersion` rather than only a deadline. It is not a re-date of an
+  unmet obligation: the obligation was met (the harness re-argued its own row at 0.11.0),
+  and what failed was the escape's **reach**.
+- **The 0.11.0 record withheld files with no reviewed sweep posture** (leg E, v0.3.0).
+  Every crossed version that withholds anything must carry a `SWEEPS` entry in
+  `scripts/ci/upgrade-sweep.mjs` — *even an empty one*, so that no hop sweeps unreviewed —
+  and 0.11.0 withheld the web erase surface and the `eol.json` re-date with none, so the
+  swept leg threw. The entry added here is a **real** sweep rather than an empty posture,
+  because §7d forbids any ramp NOTE surviving the documented sweep and the `data-flow` erase
+  ramp NOTEs until the surface exists. It adopts the button and the layout that renders it
+  alongside the seam, for the reason 0.11.0's own `seedOnInitOnlyWhy` gives: a component
+  nothing imports is a dead-code red, so the files travel together or not at all.
+
+### Changed
+
+- **`version-sync`'s arrival drops out of the expiring set.** An install crossing from any
+  pre-0.11.0 vintage now meets **four** expiring sites, not five — `docs-sync` twice,
+  `web-e2e`, `rate-limits` — and receives the arrival as a dated NOTE instead. At
+  `baseVersion 0.9.9` the arrival was `version-sync`'s only expiring site, so that vintage
+  drops from four gate names to three; older vintages still meet `version-sync` expiries
+  from its other sites.
+- **The advisory column on a pre-0.11.0 vintage is two**, both opened by the 0.11.x line and
+  both due at 0.12.0: `data-flow`'s erase record and this arrival. A 0.11.0-vintage install
+  carries **zero**.
+- `version-sync-eol-arrival-ramp-expiry` is **re-opened** at 0.12.0 — a row of that id was
+  discharged at 0.11.0. The register says so in its own `reason` rather than presenting it
+  as new.
+
+### Corrections to the record
+
+- **The 0.11.0 record's headline claim was false, and was corrected before the tag rather
+  than after it.** Its drafts — in `CHANGELOG.md`, in the migrations record and in the
+  release commit message — said *"the advisory column reaches zero"* and twice said a
+  *"42-site fleet"*. `check-ramp-ledger` printed `1 still advisory` on all thirteen vintage
+  lines while they did, and the fleet was **43**. The honest claim is the one 0.11.0 shipped
+  with: the *inherited* backlog reaches zero, and the single survivor is the ramp that
+  release itself opened. Recorded here because the same release corrected six register
+  claims of that shape and had written a seventh.
+
 ## [0.11.0] — 2026-08-15
 
 **The expiry release.** Every one of the **17 obligations dated 0.11.0** is settled —

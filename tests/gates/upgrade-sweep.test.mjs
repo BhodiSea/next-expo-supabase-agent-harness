@@ -232,3 +232,40 @@ test('the appended [auth.mfa] block IS the reviewed posture, in both directions'
     )
   }
 })
+
+// ── 0.11.1: the entry whose ABSENCE red the v0.11.0 tag ──────────────────────────────
+// 0.11.0 withheld the web erase surface and the tools/eol.json re-date and shipped NO SWEEPS
+// entry, so leg E threw on the tag — after every factory checker was clean and all 34 gates
+// were green on a fresh scaffold. The fail-closed throw above is what caught it; these two
+// pin the entry that answers it, so a later edit cannot quietly empty the posture back.
+test('0.11.0 — the erase surface is adopted WITH the layout that renders it', () => {
+  const { adopt } = computeSweepSet(MIGRATIONS, '0.10.0', '0.11.1')
+
+  // The seam and its proof come from the record's own seedOnInitOnly set...
+  assert.ok(adopt.includes('apps/web/lib/account/'), `seam missing: ${adopt.join(', ')}`)
+  assert.ok(adopt.includes('apps/web/__tests__/delete-account.test.ts'))
+  // ...the button does NOT, because apps/web/app/(protected)/ has been a seedOnInitOnly
+  // subtree since 0.2.0 and 0.11.0's list does not repeat it — so extraAdopt carries it.
+  assert.ok(adopt.includes('apps/web/app/(protected)/delete-account-button.tsx'))
+  // THE ASSERTION THAT IS THE POINT. A component nothing imports is a dead-code red, which
+  // is the trap 0.11.0's own seedOnInitOnlyWhy names as the reason the files travel together
+  // or not at all. Adopting the button without its layout would satisfy every line above and
+  // still red the post-sweep chain, which §7d requires to be GREEN.
+  assert.ok(
+    adopt.includes('apps/web/app/(protected)/layout.tsx'),
+    'the button was adopted without the layout that renders it — dead-code red after the sweep',
+  )
+  // And the derived pass still carries the seeded-source fix unconditionally.
+  assert.ok(adopt.includes('tools/eol.json'))
+})
+
+test('0.11.0 withholds files, so its posture may never go missing again', () => {
+  // The record and the table are two files that must agree; this reds if either side moves.
+  const record = MIGRATIONS['0.11.0']
+  const withholds =
+    (record.seedOnInitOnly ?? []).length > 0 || (record.seededSourceFixes ?? []).length > 0
+  assert.equal(withholds, true, '0.11.0 no longer withholds — retire this test with the entry')
+  // computeSweepSet throws when a crossed version withholds with no entry, so a hop that
+  // spans 0.11.0 completing at all IS the assertion that the entry is present.
+  assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '0.9.9', '0.11.1'))
+})

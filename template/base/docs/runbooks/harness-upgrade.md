@@ -803,7 +803,10 @@ deadline; moving one needs a reviewed `rampExtensions` entry in the harness itse
 
 ### What you must sweep, in the order the chain will ask for it
 
-1. **`tools/eol.json` — the uuid acceptance (gate: `version-sync`).** The register ships a
+1. **`tools/eol.json` — the uuid acceptance (gate: `version-sync`).**
+   **CORRECTED AT 0.11.1 — on 0.11.1 or later this is a NOTE, not a hard red; see the
+   0.11.1 section below. The paragraph that follows describes 0.11.0 only.** The register
+   ships a
    `removalTarget` the HARNESS wrote, your copy is SEEDED, and `update` may never rewrite
    it. At 0.11.0 that date arrives AND the ramp that softened it into a NOTE expires, so
    the finding is hard. Re-affirm the acceptance — move `removalTarget` to a release you
@@ -853,6 +856,32 @@ shipped `rampNote` sites is still advisory, and 0.11.0 is the release that opene
 `graduate`'s refusal-while-NOTEs-stand has exactly one thing left to hold, and adding the
 erase surface clears it. For the count that applies to YOUR `baseVersion`, run
 `pnpm validate 2>&1 | grep 'NOTE — (ramp)'`; never read it off this page.
+
+## 0.11.1 — a correction to 0.11.0, and one less thing to sweep
+
+**If you are on 0.11.0 already, nothing here applies to you** — your baseVersion is at or
+above every escape this release touches, and you meet nothing. This section is for an
+install crossing 0.11.0 on its way to 0.11.1 or later.
+
+**One expiry is withdrawn.** `tools/eol.json`'s uuid acceptance — item 1 of the 0.11.0 list
+above — is a dated **NOTE** on 0.11.1, not a hard red, and it now falls due at 0.12.0. So
+you meet **four** expiring sites crossing this hop rather than five: `docs-sync` twice,
+`web-e2e` and `rate-limits`. Items 2 through 5 above are unchanged and still hard.
+
+**Why it was withdrawn, because "we moved a deadline" deserves a reason.** The escape was
+live for exactly the population it could not help. A ramp is inert once your `baseVersion`
+reaches its `minVersion`, and that one opened at 0.10.0 — so a 0.10.0-vintage install was
+never covered by it, and a 0.10.0-vintage install is the only one whose seeded
+`tools/eol.json` carries a `removalTarget` of `"0.11.0"` that the harness itself wrote. You
+would have met a hard failure, on your first `validate` after `update`, for a value you did
+not choose, in a file `update` is not allowed to fix for you. That is not an expiry — no
+deadline of yours had been reached — and the upgrade lane refused the release for it.
+
+**You still owe the row.** Re-affirm the uuid acceptance and move `removalTarget` to a
+release you actually mean, recording what you re-checked in the diff. The deadline is 0.12.0
+and it will not move again: `check-eol-target` now reds any harness PR that would ship an
+arrived target, so the harness cannot re-author this date into your seeded file a fourth
+time.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

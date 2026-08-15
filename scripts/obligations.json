@@ -432,6 +432,19 @@
       "reviewedOn": "2026-08-15"
     },
     {
+      "id": "version-sync-eol-arrival-ramp-expiry",
+      "kind": "release",
+      "target": "0.12.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-version-sync.mjs",
+          "mustContain": "the arrival of tools/eol.json's removalTarget dates"
+        }
+      ],
+      "reason": "THIS ROW IS RE-OPENED, and saying so is the point. A row of this id was discharged at 0.11.0 when the arrival escape expired on schedule — and the escape turned out to have been live for exactly the population it could not help. rampNote is INERT when baseVersion >= minVersion, so opening at minVersion 0.10.0 excluded the 0.10.0 vintage, which is the ONLY vintage holding a seeded tools/eol.json whose removalTarget the harness itself wrote as 0.11.0. At harness 0.11.0 that date arrived hard, on a seeded file update may never rewrite, with no deadline met — a regression, not an expiry, and the upgrade lane on the v0.11.0 TAG is what found it. 0.11.1 moves the escape onto that vintage (minVersion 0.11.0, until 0.12.0) through the lineage third reviewed rampExtensions entry. THE DISCHARGE IS NOT ANOTHER RE-DATE: by 0.12.0 every install has had a release in which to re-affirm its own uuid row, and scripts/check-eol-target.mjs now reds any PR that lets a production-scope removalTarget stand at or below the version being cut, so the arrival cannot be re-authored into the seeded file a fourth time. The 0.12.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-15"
+    },
+    {
       "id": "canary-registry-hook-subagent-verdict",
       "kind": "release",
       "target": "0.12.0",

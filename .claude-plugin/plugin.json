@@ -1,7 +1,7 @@
 {
   "name": "next-expo-supabase-agent-harness",
   "description": "Subagents, commands, and the cross-surface vertical-slice + UI-design skills from the next-expo-supabase-agent-harness. The deterministic layer (hooks, gates, permissions, CI) cannot ship in a plugin \u2014 install it with: npx --yes github:BhodiSea/next-expo-supabase-agent-harness init",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "license": "Apache-2.0",
   "homepage": "https://github.com/BhodiSea/next-expo-supabase-agent-harness#readme",
   "repository": "https://github.com/BhodiSea/next-expo-supabase-agent-harness",

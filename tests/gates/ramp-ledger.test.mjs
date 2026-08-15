@@ -506,13 +506,14 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   )
 })
 
-test('the GROWN list (0.11.0): v0.10.0 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (0.11.1): v0.11.0 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
   // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
   // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
   // where the same test reds with no code having changed. This is that wire, pulled early
-  // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9, and
-  // 0.11.0 for v0.10.0): the real released-tag set, judged as the 0.11.0 release will judge
+  // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9,
+  // 0.11.0 for v0.10.0, and 0.11.1 for v0.11.0): the real released-tag set, judged as the
+  // 0.11.1 release will judge
   // it, against the
   // SHIPPED VINTAGES (the default argument — a local literal here would be the drift the
   // one-definition test above exists to prevent).
@@ -536,8 +537,9 @@ test('the GROWN list (0.11.0): v0.10.0 released means VINTAGES carries it, judge
     'v0.9.5',
     'v0.9.9',
     'v0.10.0',
+    'v0.11.0',
   ]
-  assert.deepEqual(checkVintages(tags, '0.11.0'), [])
+  assert.deepEqual(checkVintages(tags, '0.11.1'), [])
 
   // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface. The comparison underneath is
@@ -919,4 +921,51 @@ test('highestReleaseBelow: ordering is numeric and non-release refs are ignored'
   assert.equal(highestReleaseBelow(['v0.5.0', 'v0.6.0-rc.1', 'nightly', ''], '0.6.0'), 'v0.5.0')
   // Prefix is preserved as given, because callers hand the result to `git`.
   assert.equal(highestReleaseBelow(['0.5.0', '0.4.0'], '0.6.0'), '0.5.0')
+})
+
+// ── 0.11.1: the escape that was live for exactly the population it could not help ─────
+// The v0.11.0 tag's upgrade lane leg A went red on this and nothing before it could have.
+// rampNote is INERT when baseVersion >= minVersion, so an arrival escape opened at
+// minVersion 0.10.0 never covered a 0.10.0-vintage install — and that install is the only
+// one whose SEEDED tools/eol.json carries a removalTarget the harness itself wrote as
+// "0.11.0". The date arrived hard, on a file `update` may never rewrite, with no deadline of
+// theirs met. This is the regression proof: it fails against minVersion 0.10.0.
+const ARRIVAL = "the arrival of tools/eol.json's removalTarget dates"
+
+test('0.11.1 — the eol ARRIVAL escape reaches the 0.10.0 vintage it used to exclude', () => {
+  const sites = shippedRampSites()
+  const arrival = sites.filter((s) => s.detail?.includes(ARRIVAL))
+  assert.equal(arrival.length, 1, `expected exactly one arrival site, got ${arrival.length}`)
+
+  // At baseVersion 0.10.0 on this harness the site must be ADVISORY. Under the old
+  // (minVersion 0.10.0) shape it classified as INERT — which is the hard red leg A met.
+  const at010 = classifyForInstall('0.10.0', '0.11.1', arrival)
+  assert.equal(at010.noting.length, 1, 'the 0.10.0 vintage is not covered by the arrival ramp')
+  assert.equal(at010.inert.length, 0)
+  assert.equal(at010.expired.length, 0)
+
+  // A FRESH install of this harness is judged immediately — the escape is for installs
+  // seeded before the demand, never for trees that ship with the re-dated register.
+  assert.equal(classifyForInstall('0.11.1', '0.11.1', arrival).inert.length, 1)
+
+  // And it is still an escape with an expiry, not an open-ended one.
+  assert.equal(arrival[0].until, '0.12.0')
+})
+
+test('0.11.1 — the extension is RECORDED, and matches the site byte-for-byte', () => {
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const exts = migrations['0.11.1'].rampExtensions
+  assert.equal(exts.length, 1, 'one move, one record')
+  const [ext] = exts
+  assert.equal(ext.from, '0.11.0')
+  assert.equal(ext.to, '0.12.0')
+  assert.equal(ext.file, 'check-version-sync.mjs')
+  // The ratchet keys on `detail` byte-for-byte — a paraphrase here would leave the real
+  // move unexcused (and red) while this record pre-authorised a move that does not exist.
+  assert.ok(ext.detail.includes(ARRIVAL), `detail does not name the site: ${ext.detail}`)
+  // The `why` is the only thing a consumer reads to learn why a deadline they were told was
+  // fixed has moved; deadlineRegressions reds below 40 chars, and a real one is far longer.
+  assert.ok(ext.why.length > 200, `thin why (${String(ext.why.length)} chars)`)
 })
