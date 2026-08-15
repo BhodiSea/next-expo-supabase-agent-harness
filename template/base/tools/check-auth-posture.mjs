@@ -227,7 +227,7 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.11.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.10.0
+// deferred to 0.12.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.11.0
 // (2026-08-13), the FIRST firing against a real pin bump: npm latest moved 2.113.0 -> 2.114.0
 // (GA 2026-08-12), so the 're-check at every CLI pin bump' clause fired on its own terms. The
 // CLI is now a pnpm/nx monorepo and the Go CLI moved to apps/cli-go — the path changed, the

@@ -466,7 +466,11 @@ test('RED (hook closure): a STALE entry naming a deleted hook is a FINDING, not 
 
 test('RED (hook closure): a note-less {kind:"steps"} exemption is a silent skip wearing an entry', () => {
   const reg = greenRegistry()
-  reg.hookRules = { ...greenHookRules(), 'guard-beta.mjs': { kind: 'steps' } }
+  // The note is deliberately absent — that is the case. Spelled as a delete rather than a
+  // narrower literal so the fixture keeps the registry's real shape.
+  const beta = { ...greenHookRules()['guard-beta.mjs'] }
+  delete beta.note
+  reg.hookRules = { ...greenHookRules(), 'guard-beta.mjs': beta }
   const { registryPath, contractPath } = fixture(reg)
   const r = run(registryPath, contractPath)
   assert.equal(r.code, 1, r.out)

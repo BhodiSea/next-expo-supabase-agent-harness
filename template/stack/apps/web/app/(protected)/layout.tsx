@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { getVerifiedUser } from '../../lib/supabase/server'
+import { DeleteAccountButton } from './delete-account-button'
 import { SignOutButton } from './sign-out-button'
 
 // The signed-in shell. Everything under this route group assumes a verified caller, so the
@@ -30,7 +31,13 @@ export default async function ProtectedLayout({
       <header className="border-b border-line px-6 py-3">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <span className="text-sm text-ink-muted">{user.email ?? user.id}</span>
-          <SignOutButton />
+          <div className="flex items-center gap-2">
+            {/* DSR erase reaches the WEB surface from 0.11.0. It sits in the signed-in
+                shell rather than behind a new route so no page.meta.ts, route-manifest
+                entry or state-testid triple is owed for a two-button control. */}
+            <DeleteAccountButton />
+            <SignOutButton />
+          </div>
         </div>
       </header>
       {children}

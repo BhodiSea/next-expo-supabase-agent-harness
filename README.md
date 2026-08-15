@@ -9,7 +9,7 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.10.x).** This repo was forked from
+> **Status: pre-release (0.11.x).** This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -44,10 +44,12 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > auditing is out of scope (the trail covers mutations). DSR export shipped in
 > 0.7.0 (`system.exportMyData`); erase ships as `session.deleteAccount` plus the
 > `delete-account` Edge Function (the expo-policy gate refuses an auth surface
-> without an account-deletion command — Apple 5.1.1(v)). The honest remainder is
-> the missing WEB erase surface and an `erase.surface` record in
-> `tools/data-flow.json` — a dated 0.10.0 row in the obligations register
-> (`scripts/obligations.json`, `dsr-web-erase-surface`).
+> without an account-deletion command — Apple 5.1.1(v)), and since 0.11.0 the WEB
+> app reaches the same rail from the signed-in shell. `tools/data-flow.json` now
+> carries an `erase` record whose `clients` closure names BOTH initiators, so the
+> gate that holds export to a delivered surface holds erase to one on each
+> surface — the failure it was written for is a backing that works while one
+> surface cannot reach it, which is what the previous four releases shipped.
 >
 > **E2EE ships as RAILS, not as an encrypted app** (0.9.5, the opt-in `e2ee`
 > module). What works: a versioned AEAD envelope with mandatory associated data

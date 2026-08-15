@@ -784,6 +784,76 @@ them are ramped to 0.11.0.
 Sweep the reds, then
 `npx next-expo-supabase-agent-harness graduate`, then re-run `pnpm validate`.
 
+## 0.11.0 — THE SEVENTH ALARM, and the widest population the lineage has published
+
+**Twelve vintages meet a hard failure** (0.1.3 through 0.9.9), against eleven at 0.10.0 —
+and it is the first wave ever to reach a 0.9.9 install. **Five ramps fall due at once**
+across four gate names: `docs-sync` (twice), `web-e2e`, `version-sync` and `rate-limits`.
+
+**If your `baseVersion` is 0.10.0 you are UNAFFECTED.** Four of the five carry
+`minVersion 0.10.0`, and a ramp is inert when `baseVersion >= minVersion` — the demand was
+live for you from your first validate, so nothing expires. This section is for installs
+seeded before the demand existed.
+
+**THE MITIGATION IS THE ONE THAT HAS ALWAYS WORKED, and it is stated first rather than
+last: UPGRADE ONE MINOR AT A TIME.** Each `graduate` moves `baseVersion` forward and every
+ramp at or below it goes inert. `tools/validate.mjs` is FAIL-FAST, so a human meets these
+one per run — five round trips before you see the last. There is no flag that extends a
+deadline; moving one needs a reviewed `rampExtensions` entry in the harness itself.
+
+### What you must sweep, in the order the chain will ask for it
+
+1. **`tools/eol.json` — the uuid acceptance (gate: `version-sync`).** The register ships a
+   `removalTarget` the HARNESS wrote, your copy is SEEDED, and `update` may never rewrite
+   it. At 0.11.0 that date arrives AND the ramp that softened it into a NOTE expires, so
+   the finding is hard. Re-affirm the acceptance — move `removalTarget` to a release you
+   actually mean, recording what you re-checked in the diff — or remove the dependency.
+   This is the one correction this release parks for you through `seededSourceFixes`.
+2. **`AGENTS.md` — the Stop-chain list (gate: `docs-sync`).** The sentence
+   "The N Stop-chain steps, in order:" must agree with your floor. `AGENTS.md` is seeded,
+   so `update` cannot correct it. v0.3.0, v0.4.0 and v0.5.0 each shipped "The 9 Stop-chain
+   steps" against a 10-step floor. If your file carries no such sentence, you are green by
+   the absent-is-green rule — a fork may decline to document the Stop chain.
+3. **`docs/adr/**` — ADR content shape (gate: `docs-sync`).** Load-bearing sections need
+   real bodies, `Status` comes from a closed vocabulary, corpus refs must resolve, and
+   source hosts must be allowlisted. ADRs are owned by you, which is why this had two
+   releases of runway rather than one.
+4. **The seeded axe scans (gate: `web-e2e`).** `apps/web/e2e/*.spec.ts` calling
+   `withTags([...])` must carry the full ladder `['wcag2a','wcag2aa','wcag21aa','wcag22aa']`
+   — `withTags` NARROWS axe, so a short list is a decision not to run everything outside it.
+   Stated as counts and never as a level: those four tags select 63 runnable rules over 21
+   success criteria. An UNTAGGED scan is exempt because it runs more.
+5. **`tools/rate-limit-budget.json` — `failOpen.fallback` (gate: `rate-limits`).** The block
+   records WHETHER the limiter fails open; it must now also say WHAT limits traffic while it
+   does. `update` cannot write this for you because the honest answer depends on your
+   deployment.
+
+Items 2, 4 and 5 were parked for you by the 0.10.0 record as advisory `seededSourceFixes`.
+At 0.11.0 they stop being advisory.
+
+### What this release OPENS, recorded beside what it closes
+
+**The web account-deletion surface (gate: `data-flow`), advisory until 0.12.0.** The
+`delete-account` Edge Function and the mobile command that calls it have shipped since
+0.7.0; `tools/data-flow.json` now carries an `erase` record whose `clients` closure names
+BOTH initiators, so the rule that holds export to a delivered surface holds erase to one
+too. Your web app is very likely missing its half. Two reasons it arrives as a NOTE and not
+a file: `tools/data-flow.json` is SEEDED, so `update` cannot write the record for you, and
+`apps/web/app/(protected)/` has been `seedOnInitOnly` since 0.2.0, so `update` was never
+going to plant the button either. A FRESH 0.11.0 scaffold is seeded with the whole surface
+and held to it immediately. Yours is yours to add — the shape to copy is
+`apps/web/lib/account/delete-account.ts` in a fresh scaffold: server-side deletion FIRST,
+local session dropped only after it succeeds. Apple 5.1.1(v) already requires this of the
+mobile half.
+
+### After this release, one ramp is left — and it is the one above
+
+Every ramp opened BEFORE this release is now inert or expired. Exactly one of the 43
+shipped `rampNote` sites is still advisory, and 0.11.0 is the release that opened it — so
+`graduate`'s refusal-while-NOTEs-stand has exactly one thing left to hold, and adding the
+erase surface clears it. For the count that applies to YOUR `baseVersion`, run
+`pnpm validate 2>&1 | grep 'NOTE — (ramp)'`; never read it off this page.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

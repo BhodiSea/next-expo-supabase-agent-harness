@@ -11,6 +11,142 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [0.11.0] — 2026-08-15
+
+**The expiry release.** Every one of the **17 obligations dated 0.11.0** is settled —
+twelve paid, one split, and five re-targeted with the reason visible in the diff. No
+chain step is injected: `VALIDATE_STEPS` stays **34** and `STOP_HOOK_STEPS` stays **10**,
+so the committed 34/10 chain-budget measurement stays count-matched and no published
+figure is unlicensed for a single commit.
+
+**The inherited advisory backlog reaches zero.** Five ramps fall due — `docs-sync` twice,
+`web-e2e`, `version-sync`, `rate-limits` — across **twelve vintages**, 0.1.3 through 0.9.9,
+the first wave ever to reach 0.9.9. When they do, every ramp this codebase opened *before*
+this release is inert or expired. Exactly **one** of the 43 shipped `rampNote` sites is
+still advisory, and it is the one **this release itself opens**: `data-flow`'s erase record
+(`minVersion 0.11.0`, `until 0.12.0`), and then only for an install that has not yet added
+the web erase surface. So `graduate`'s refusal-while-NOTEs-stand has exactly one thing left
+to clear, and that thing is new rather than inherited — which is the honest version of a
+claim this record carried in draft as "the advisory column reaches zero". It does not; the
+same release that empties it opens one. **A 0.10.0-vintage install is unaffected by the
+wave** — four of the five carry `minVersion 0.10.0`, and `rampNote` is inert when
+`baseVersion >= minVersion`.
+
+**The release-blocker it opened on.** `tools/eol.json` shipped uuid's acceptance with
+`removalTarget: "0.11.0"` — the date 0.10.0's own fix wrote — while the ramp that softens
+that arrival expires in this same release. A fresh 0.11.0 scaffold would have been **red
+out of the box** on `version-sync`, on a SEEDED file `update` may never rewrite. That is
+the second consecutive release to meet this, so the fix is not the date.
+
+### Added
+
+- **`check-eol-target` — the control that was missing both times.** No production-scope
+  `removalTarget` may have arrived in the release being cut, and a target that MOVED since
+  the previous tag must be paired with a `seededSourceFixes` probe, or the correction
+  reaches only the trees that did not need it. The honest limit is stated in its header: it
+  does not predict the next release, it moves discovery from "a consumer's fresh scaffold
+  reds after the tag" to "the version-bump commit reds in its own PR".
+- **`check-sbom-drift` — the SBOM consumed as a RELEASE DIFF.** 0.10.0 closed the emitted
+  component set against `pnpm-lock.yaml` in both directions; that is completeness against
+  the *same* tree and catches nothing about drift. This diffs the resolved closure against
+  the previous release tag and reds on an ADDED component with no reviewed row in
+  `scripts/sbom-additions.json` — the half a CATALOG diff structurally cannot see, because
+  a transitive arrival changes no key. **It ships finding zero additions**, which is
+  meaningful only because its red-proof shows it can find one.
+- **DSR erase reaches the WEB surface.** The rail has existed since 0.7.0 and only mobile
+  could reach it, because `expo-policy` required it there (Apple 5.1.1(v)) and nothing
+  required it anywhere else. `tools/data-flow.json` gains an `erase` record whose `clients`
+  closure names BOTH initiators and is checked both ways — naming only the Edge Function
+  would have been satisfied in exactly the state the record exists to catch. The
+  choreography lives in `apps/web/lib/account/delete-account.ts`, under the unit floor,
+  because `apps/web/app/**` is excluded from it; server first, session torn down only on
+  success, and a failure leaves the session intact.
+- **The E8 register's NEGATIVE proof arm.** An absence claimed above the documentation
+  floor must name a registered `negativeCanary` that would red if the asset class returned.
+
+### Changed
+
+- **`consumer-ci-static` is promoted into the per-PR path**, on the lane's own doctrine —
+  a lane joins the population it has been SEEN PASSING IN. It had already run green at job
+  level on three scheduled firings. The ~30 minutes per PR is the real decision and is
+  stated where the job is defined.
+- **Lane canaries are EXECUTED, not existence-checked.** The `lanes` and `factoryLanes`
+  registries got `existsSync` and nothing else, so a lane proof gutted to an empty file —
+  or repointed at a file testing something entirely different — passed the closure that
+  exists to catch exactly that. Twelve more proof files now run under the same G28 bars the
+  `steps` pass has applied since 0.3.0.
+- **The hook closure runs hook → registry.** Seven hooks shipped and the registry named
+  three; the four uncovered included the turn-fatal `stop-validate-gate.mjs`. A stale entry
+  naming a deleted hook now yields a clean finding instead of an uncaught `ENOENT` stack
+  trace — the failure mode of the registry going stale was a *crashed* checker.
+- **UAH-02..05 are regraded DOWN** to `documentation`. Tiers move 110/34/5 → 114/30/5.
+
+### Fixed
+
+- **Functions did not fold last-wins.** Every SQL name resolution used `functions.find(…)`
+  — the FIRST definition — while policies folded last-wins, so a later
+  `CREATE OR REPLACE FUNCTION` was judged against the definition the database had already
+  replaced. Any change that redefines a tenancy helper was **vacuous at the gate**.
+  `resolveFunction` is the single home for the rule; its red-proof fails against the old
+  resolution and passes against the new one.
+- **The ramp union could not tell two ramps apart.** It matched a ramp to a row with
+  `row.id.includes(site.gate)`, so with two `docs-sync` ramps both dated 0.11.0, deleting
+  EITHER row left the union reporting zero problems — reproduced against the real register.
+  It also matched in the other direction: `auth-posture-consumer-tunable-split` is not a
+  ramp row and satisfied an `auth-posture` ramp for a release. Keying is now the site's own
+  anchor.
+- **`check-seeded-migrations` resolved its own tag as its predecessor.** It used
+  `git describe --tags --abbrev=0`, the fourth copy of a rule two siblings had already
+  fixed: on a release commit the nearest reachable tag IS the tag being cut.
+- **The axe expiry's compensating proof was a false green.** `upgrade-lane.sh` §7e greps a
+  bare `RAMP EXPIRED`, which asserts the FILE mentions the string and never that the string
+  belongs to the deadline falling due; all four mentions drove the *0.6.0* ramp. The class
+  is recorded as a condition row rather than left undescribed.
+
+### Corrections to the record
+
+- `e8-register-canary-widening` priced **"37 rows above the floor, so 26 more"**. Computed,
+  it is **39 and 28** — and its stated discharge, "supply the canary, or regrade the row
+  down", was **unexecutable**: all 28 are `not-applicable`, and the closure reds any
+  non-positive row that names a `canary`. The row priced 26 authoring jobs that do not exist.
+- `template/migrations.json`'s 0.10.0 record said the population was computed from **41**
+  shipped ramp sites "never typed". It was **42**, then and now — the one number in that
+  paragraph nothing machine-compared, inside the sentence claiming nothing is typed.
+- `consumer-ci-static-promotion` said a runner green **"is not available"**. It had already
+  happened, three times.
+- `auth-posture-consumer-tunable-split` deferred on the `[auth.mfa]` ramp "expiring in this
+  very release". `MFA_RAMP` is `'0.9.9'` with `until: '0.10.0'` — it expired in the release
+  that wrote the sentence.
+- The premise half these deferrals rested on — **"0.11.0 is a release with no expiry wave
+  to compete with"** — was false by the largest margin in the lineage.
+- `README.md` called `dsr-web-erase-surface` "a dated 0.10.0 row"; it targeted 0.11.0.
+
+### Obligations
+
+- **Discharged (12):** the five ramp-expiry rows, `consumer-ci-static-promotion`,
+  `canary-lane-proofs-unexecuted`, `e8-register-canary-widening`, `sbom-consumption`,
+  `dsr-web-erase-surface`, `ramp-union-per-site-keying`, and `canary-registry-hook-closure`
+  (split — see below).
+- **Split (1):** `canary-registry-hook-closure` → half A shipped;
+  `canary-registry-hook-subagent-verdict` @0.12.0 carries the remainder, because an entry
+  claiming refusal coverage it does not have would be worse than the absence just fixed.
+- **Re-targeted (5):** `suppressions-chain-step` and `resilience-chain-step` → 0.12.0
+  (batched so one CI chain-budget re-record pays for both; the resilience *subject* is
+  blocked on a divergence where the shipped lint config and docs name an
+  `apps/mobile/src/lib/api-client.ts` and an `src/lib/sse.ts` that **do not exist**);
+  `e8-privilege-lifecycle` and `e8-jit-admin` → 0.12.0 (their precondition — the
+  first-wins function fold — is SHIPPED here, so 0.12.0's migration lands against a gate
+  that can see it); `e8-auth-event-trail` → 1.0.0 (four verified blockers, starting with a
+  `CHECK (action IN ('INSERT','UPDATE','DELETE'))` that refuses the row outright).
+  `auth-posture-consumer-tunable-split` → 0.12.0 on a stated interaction: it plants a
+  second seeded register on a hop already carrying five expiries.
+- **Opened (3):** `data-flow-erase-ramp-expiry` @0.12.0,
+  `canary-registry-hook-subagent-verdict` @0.12.0, and the condition row
+  `compensating-proof-names-its-ramp`.
+- **Re-dated deferral:** `auth-posture-cli-census` → 0.12.0 across all four sites, after
+  re-checking `supabase/cli#5894` directly at the arrival — still open, no milestone, no
+  linked PR.
+
 ## [0.10.0] — 2026-08-14
 
 **The settlement release.** Every one of the **27 obligations dated 0.10.0** is

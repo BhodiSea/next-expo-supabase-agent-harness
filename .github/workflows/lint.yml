@@ -210,6 +210,14 @@ jobs:
       # previous tag rather than passing.
       - name: machinery-eol-target (no shipped removalTarget has arrived in the release being cut)
         run: node scripts/check-eol-target.mjs
+      # The SBOM consumed as a RELEASE DIFF rather than a completeness check. 0.10.0 closed
+      # the emitted component set against pnpm-lock.yaml in both directions — the same tree,
+      # which catches nothing about supply-chain drift. This diffs the resolved closure against
+      # the previous release tag and reds on an ADDED component no reviewed row allows, which
+      # is the half a CATALOG diff (check-dependency-channel) structurally cannot see: a
+      # transitive arrival changes no key. Needs full history; SKIPS LOUDLY without a tag.
+      - name: machinery-sbom-drift (no unreviewed component arrived since the previous release)
+        run: node scripts/check-sbom-drift.mjs
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)

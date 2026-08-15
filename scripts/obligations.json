@@ -45,15 +45,15 @@
     {
       "id": "e8-auth-event-trail",
       "kind": "release",
-      "target": "0.11.0",
+      "target": "1.0.0",
       "sites": [
         {
           "file": "template/base/tools/essential-eight.json",
           "mustContain": "e8-auth-event-trail"
         }
       ],
-      "reason": "THE SCHEDULABLE HALF OF THE RETIRED e8-auth-event-logging, split out in 0.10.0 because one row could not be honest about both halves at once. MFA-15 wants successful AND unsuccessful multi-factor authentication events centrally logged, and it fails on two independent grounds that have different owners. The CEILING half — \"centrally\", and the protection of the stream — moved to e8-central-log-forwarding: the drains are Dashboard-only on this platform and no append-only layer can be added to a schema GoTrue re-migrates. The BUILDABLE half is this row, and it is buildable because the gap is in THIS repository rather than the platform: verified against a running stack, a signup writes `user_signedup` and a sign-in writes `login`, but THREE FAILED SIGN-INS WRITE NOTHING AT ALL. An application-level auth-event trail written into audit.events at the sign-in seam would capture the unsuccessful half the platform simply drops, and audit.events already has the append-only discipline auth.audit_log_entries cannot be given. That is real work in a surface this repo owns, so it takes a date. It does NOT by itself pass MFA-15 — the central half stays ceilinged — which is exactly why the two halves are two rows.",
-      "reviewedOn": "2026-08-13"
+      "reason": "THE SCHEDULABLE HALF OF THE RETIRED e8-auth-event-logging. MFA-15 wants successful AND unsuccessful multi-factor authentication events centrally logged; verified against a running stack, a signup writes `user_signedup` and a sign-in writes `login`, but THREE FAILED SIGN-INS WRITE NOTHING AT ALL. RE-TARGETED FROM 0.11.0 TO 1.0.0, and the move is a correction of the 0.10.0 split rather than a slip: that row called this half 'BUILDABLE because the gap is in THIS repository rather than the platform', and walking the actual surfaces for 0.11.0 established that it is not buildable in the shape described. FOUR BLOCKERS, none previously recorded. (a) THE SCHEMA REFUSES THE ROW: audit.events carries `CONSTRAINT events_action_known CHECK (action IN ('INSERT','UPDATE','DELETE'))` in both the declarative schema and its migration, plus a NOT NULL org_id and table_name and an actor pinned to auth.uid() — a failed sign-in has no org, no table, and no uid, so 'write it into audit.events' is not a small addition but a change to the shape of the trail. (b) THERE IS NO SERVER-SIDE SIGN-IN SEAM to instrument on either surface; the web sign-in is deliberately client-side and its own source comments record why. (c) EVERY ANON-REACHABLE WRITER SHAPE IS ALREADY REFUSED by the rls-manifest closure and the security-definer allowlist — an unauthenticated endpoint that appends to the audit trail is also a write-amplification surface, and the limiter does not bind sign-in at all because that path goes to GoTrue. (d) MFA-15 IS ITS ONLY CITING ROW and cannot move regardless until e8-mfa-enrolment-surface, which is dated 1.0.0. A date this release could keep would have been a promise about a design nobody has. SHIPPED NOW INSTEAD, because it was actively misleading: docs/compliance/essential-eight.md told consumers to do the thing that the schema refuses.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "e8-central-log-forwarding",
@@ -114,16 +114,16 @@
     {
       "id": "e8-privilege-lifecycle",
       "kind": "release",
-      "target": "0.11.0",
-      "reason": "Essential Eight RAP-02 and RAP-03 require privileged access to be disabled after 12 months unless revalidated and after 45 days of inactivity. Neither exists: role_rank membership is a standing grant with no expiry and no inactivity sweep, so a grant made once holds forever. Both windows are ASD's own verbatim numbers and are the only ones that may be encoded. RE-DATED TO 0.11.0 BY 0.10.0, AND THIS IS A SCOPE DECISION, NOT AN INTERACTION — labelled that way because the honest label is the whole value of the re-date. The work is real, the machinery exists, and this pair is the only e8 discharge that would reach ASD’s simulated-activity tier, so nothing here says it is unimportant. It defers because it is the only genuinely new PRODUCT code in a release whose job is the upgrade path; because it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase; and because supabase/ is under SEEDED_PREFIXES, so it reaches ZERO existing installs — it buys fresh scaffolds at the cost of the release’s actual work. One migration or neither.",
-      "reviewedOn": "2026-08-14"
+      "target": "0.12.0",
+      "reason": "Essential Eight RAP-02 and RAP-03 require privileged access to be disabled after 12 months unless revalidated and after 45 days of inactivity. Neither exists: role_rank membership is a standing grant with no expiry and no inactivity sweep. Both windows are ASD's own verbatim numbers and are the only ones that may be encoded. RE-TARGETED TO 0.12.0 BY 0.11.0, AND THE PRECONDITION IT WAITED ON IS NOW SHIPPED rather than merely described. The blocker found while planning this release: check-tenancy.mjs resolved SQL functions FIRST-WINS (`functions.find` over migration order) while policies folded last-wins, so a `CREATE OR REPLACE FUNCTION private.member_ranks()` — which is exactly the shape this discharge takes — would have been judged against the 2026-02-01 definition and the whole change would have been VACUOUS AT THE GATE: green on a migration whose rank ladder could be inverted. 0.11.0 fixes that fold (`resolveFunction`, the single home for the rule, with a red-proof that fails against the old resolution), so 0.12.0's migration lands against a gate that can actually see it. What remains unchanged is the cost: it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase. One migration or neither.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "e8-jit-admin",
       "kind": "release",
-      "target": "0.11.0",
-      "reason": "Essential Eight RAP-13 requires just-in-time administration for administering systems and applications. Nothing in this tree elevates temporarily: role_rank is a standing grant and no admin session carries an expiry. Discharge is a time-bounded elevation whose expiry the RLS admin predicate actually consults, so an expired session stops satisfying it rather than merely being marked expired. RE-DATED TO 0.11.0 BY 0.10.0, AND THIS IS A SCOPE DECISION, NOT AN INTERACTION — labelled that way because the honest label is the whole value of the re-date. The work is real, the machinery exists, and this pair is the only e8 discharge that would reach ASD’s simulated-activity tier, so nothing here says it is unimportant. It defers because it is the only genuinely new PRODUCT code in a release whose job is the upgrade path; because it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase; and because supabase/ is under SEEDED_PREFIXES, so it reaches ZERO existing installs — it buys fresh scaffolds at the cost of the release’s actual work. One migration or neither.",
-      "reviewedOn": "2026-08-14"
+      "target": "0.12.0",
+      "reason": "Essential Eight RAP-13 requires just-in-time administration. Nothing in this tree elevates temporarily: role_rank is a standing grant and no admin session carries an expiry. Discharge is a time-bounded elevation whose expiry the RLS admin predicate actually CONSULTS, so an expired session stops satisfying it rather than merely being marked expired. RE-TARGETED TO 0.12.0 BY 0.11.0 on the same shipped precondition as e8-privilege-lifecycle — the check-tenancy function fold, which until 0.11.0 judged a redefined helper by its FIRST definition and would have passed this discharge without seeing it. One migration or neither: separated, `last_privileged_at` loses its only writer and RAP-03 degrades to an alternate control.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "e8-eol-closure",
@@ -179,71 +179,18 @@
       "evidence": "design/CONTROL-PLANE-FACTS.md"
     },
     {
-      "id": "docs-sync-adr-shape-ramp-expiry",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "ADR shape finding(s)"
-        }
-      ],
-      "reason": "The ADR content-shape check 0.9.5 opened inside docs-sync (load-bearing sections with real bodies, closed-vocabulary Status, resolvable corpus refs, allowlisted source hosts) falls due at 0.11.0 — two releases, because consumer-authored ADRs are exactly the content ramps exist for and a documentation debt cannot rot the tree meanwhile. The 0.11.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-11"
-    },
-    {
-      "id": "docs-sync-stop-list-ramp-expiry",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-docs-sync.mjs",
-          "mustContain": "AGENTS.md Stop-chain list lockstep"
-        }
-      ],
-      "reason": "The Stop-list lockstep 0.10.0 opened inside docs-sync (AGENTS.md's 'The N Stop-chain steps, in order:' sentence, floor-scoped and one-directional) falls due at 0.11.0. THIS ROW WAS WRITTEN DELIBERATELY AND NOTHING FORCED IT, which is the reason it needs saying out loud: rampObligationProblems (scripts/lib/obligations.mjs) matches a ramp to its row with `id.includes(site.gate)`, so the pre-existing docs-sync-adr-shape-ramp-expiry — same gate, same 0.11.0 target — already satisfied the union for this brand-new ramp. The closure was green with no row at all. That is a real hole in the ramp union (it cannot tell two ramps of one gate apart) and it is recorded as the condition row `ramp-union-per-site-keying`; until that is fixed, a second ramp on an already-ramped gate must be paired with its row by hand or it ships unwatched. RAMPED BECAUSE THE POPULATION IS REAL AND MEASURED, not assumed: v0.3.0, v0.4.0 and v0.5.0 each shipped 'The 9 Stop-chain steps' against today's 10-step floor, and AGENTS.md is SEEDED so `update` cannot correct it — a hard red would ambush an upgrade the consumer never asked for. v0.1.3 and v0.2.1 carry no such sentence and are green by the absent-is-green rule the check shares with the AGENTS.md self-budget claim. The 0.11.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-13"
-    },
-    {
-      "id": "ramp-union-per-site-keying",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "scripts/lib/obligations.mjs",
-          "mustContain": "id.includes"
-        }
-      ],
-      "reason": "THE RAMP UNION CANNOT TELL TWO RAMPS OF ONE GATE APART. rampObligationProblems pairs a shipped rampNote site with its obligation row by asking whether the row id CONTAINS the gate name, so the first row targeting a given (gate, until) satisfies every later ramp on that gate for free. Found while adding the 0.10.0 Stop-list ramp to docs-sync: the closure reported CLEAN with no row for it, because docs-sync-adr-shape-ramp-expiry already matched. The union is therefore a coverage claim it cannot actually make — it proves at least one ramp per gate is owed, not that every ramp is. The fix is to key the pairing on the ramp's own DETAIL string (already unique per file by checkDetailIds) rather than on the gate, which makes the row id carry the detail or the site carry the row id. Not scheduled here because it changes the shape of every existing ramp row's id and belongs in a release that is not simultaneously expiring six ramps; until then, every second-or-later ramp on an already-ramped gate must be paired with its row by hand, and both live docs-sync ramps say so in their reasons. A SECOND, WORSE INSTANCE WAS MEASURED WHILE DISCHARGING THIS RELEASE, and it is worse because the two rows are not even about the same subject: deleting all six ramp-expiry rows at base 0.9.9 produced five findings, not six — auth-posture-mfa-ramp-expiry's absence was silently covered by auth-posture-consumer-tunable-split, a row about splitting a consumer tunable that merely happens to contain the gate name. So the hole is not only 'two ramps of one gate' but 'any row whose id contains a gate name', which no naming convention constrains. The same measurement shows the two version-sync sites share one row by construction, and that eol-register-ramp-expiry — which does NOT contain 'version-sync' — is carried entirely by hand.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "scripts/lib/obligations.mjs"
-    },
-    {
       "id": "suppressions-chain-step",
       "kind": "release",
-      "target": "0.11.0",
-      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the full injection inventory, in order: a configSteps record anchored on a 0.1.x-vintage step every consumer chain carries, the chain-budget row FIRST (a step with no row reds the budget closure), the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape re-opened at minVersion 0.10.0 (the injected step grows every existing chain while the seeded AGENTS.md still documents 34), the check-docs-sync test fixture move, the upgrade lane's leg-A doctrine flip, and the chain-budget re-record at 36/36 before ANY published figure — a 34-step measurement stops licensing prose the moment the chain reaches 36. RE-DATED TO 0.11.0 BY 0.10.0, and this is an INTERACTION decision rather than a judgement that the work is unimportant. No release in this lineage has ever combined a chain-step injection with a real expiry wave, and 0.10.0 carries the largest wave the lineage has had (eleven vintages, six expiries). 0.4.0 — the only prior release that faced one — recorded the same choice at template/migrations.json:115 in the same words: \"It adds NO configSteps: nothing joins VALIDATE_STEPS or STOP_HOOK_STEPS.\" Injecting here would mean an atomic ~20-site commit renumbering ~27 catalog headings under a Stop chain that blocks on five checks at once with HARNESS_ALLOW_SELF_EDIT scrubbed — and after CLAUDE_CODE_STOP_HOOK_BLOCK_CAP consecutive blocks Claude Code ends the turn anyway, which is the harness’s own stated way to leave the machinery inconsistent with no trace. What 0.10.0 built INSTEAD is what 0.11.0 inherits: the count-matched matcher, the catalog-ordinal assertion and the Stop-list closure, all authored against a known-good 34/10 tree rather than against the tree they must judge.",
-      "reviewedOn": "2026-08-14"
+      "target": "0.12.0",
+      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the injection inventory is unchanged and is enumerated in the 0.10.0 record: a configSteps record, the chain-budget row FIRST, the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape, the check-docs-sync fixture move, the upgrade lane's leg-A doctrine flip, and a chain-budget re-record before ANY published figure. RE-TARGETED TO 0.12.0 BY 0.11.0. THE 0.10.0 ARGUMENT IS NOT REPEATED, because it no longer applies and saying so is the point: 0.10.0 deferred on the ground that no release in this lineage had combined a chain-step injection with a real expiry wave, and 0.11.0 carries the LARGEST wave the lineage has produced — five ramps across twelve vintages — so that argument now points at this release exactly as it did at the last one, and a reason that survives every release is not a reason. THE ACTUAL NEW INFORMATION IS THE COST OF THE RE-RECORD, and it is a CI dependency rather than a scope judgement: the committed 34/10 chain-budget measurement is what licenses the wall-clock figures published in README.md, `check-claims` reds on a published figure with no committed measurement behind it, and the re-record runs ONLY through the reviewed workflow_dispatch path. So an injection cannot be completed inside a working tree at all — it needs a dispatched measurement landed and committed before the release that grows the chain may publish a figure. Batching both steps into one release pays that CI round trip ONCE rather than twice, which is why this row and resilience-chain-step now share a target. CORRECTION CARRIED FORWARD: the 0.10.0 reason specified re-opening the AGENTS.md gate-list escape 'at minVersion 0.10.0'. That is stale — an escape opened at a minVersion at or below the population it protects is inert for exactly that population — and the correct value is the version that injects the step.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "resilience-chain-step",
       "kind": "release",
-      "target": "0.11.0",
-      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) ships as the second NEW chain step of 0.10.0 and pays the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, and the chain-budget re-record at 36/36 happens once, after both land, before any published figure. RE-DATED TO 0.11.0 BY 0.10.0 on the same interaction argument as suppressions-chain-step, PLUS one fact specific to this row that would have made the injection premature regardless: the subject does not exist yet. The only occurrence of \"resilience\" under template/base/tools/ is an unrelated sentence in check-wiring.mjs — there is no register, no manifest and no surface for a `resilience` step to judge, so the step would have had to be authored together with the thing it checks, in the release with the largest expiry wave. Authoring the subject first is the cheaper order.",
-      "reviewedOn": "2026-08-14"
-    },
-    {
-      "id": "consumer-ci-static-promotion",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": ".github/workflows/selftest.yml",
-          "mustContain": "the promotion\n  # into the per-PR path is a recorded 0.10.0 obligation"
-        }
-      ],
-      "reason": "0.9.0 built consumer-ci-static (scripts/ci/consumer-ci-static.sh): it inits a scaffold, commits, and replays the shipped quality-gate static job in BOTH directions — a tree committed before install must die with the exact frozen-lockfile refusal, and a tree that followed init's next-steps note must complete install and `validate --min-floor` green. It ships schedule/dispatch only, out of the PR and tag wait population, on the lane's own stated doctrine: A LANE JOINS THE POPULATION IT HAS BEEN SEEN PASSING IN, NOT THE ONE IT WAS WRITTEN FOR. 0.10.0 owes the promotion once it has a green run on a real runner, which costs roughly 30 minutes on every PR thereafter — that cost IS the decision and is why the promotion is a reviewed act rather than a default. TWO CORRECTIONS MADE IN 0.10.0 WITHOUT THE PROMOTION ITSELF. First, this row's own reason previously opened by asserting that cross-platform validate legs run schedule-gated as measurement lanes; that is FALSE — `grep -rn macos .github/workflows/` returns nothing, the only non-Linux job in the repository is the installer-unit Windows unit matrix, and `pnpm validate` has never run on a non-Linux runner. A re-target that leaves a false sentence behind is not a re-target, and a register row repeating a falsehood is worse than prose doing it, because the register is what a reader trusts. Second, the anchor: it indexed the README sentence carrying that falsehood, which is prose about a DIFFERENT subject — consumer-ci-static is a Linux lane and nothing about it is cross-platform — so the row could have been discharged by deleting an unrelated sentence. It now anchors the selftest.yml comment that must itself change when the promotion lands. The README sentence was corrected in the same diff. RE-DATED TO 0.11.0 IN 0.10.0, and the reason is a precondition this release cannot meet rather than a judgement that the work is unimportant. The lane's own doctrine — A LANE JOINS THE POPULATION IT HAS BEEN SEEN PASSING IN — requires a green run ON A REAL RUNNER, and the only ways to get one are a `schedule` firing or a `workflow_dispatch`; neither is available from a working tree, and promoting on the strength of a local run would be the harness accepting evidence it tells consumers not to accept. WHAT WAS ESTABLISHED INSTEAD, because a re-date with no new information is the shelf: the lane was EXECUTED locally against a fresh scaffold on 2026-08-14 (`bash scripts/ci/consumer-ci-static.sh <abs workdir>` under CI=true HARNESS_REQUIRE_TOOLCHAINS=1) and passed BOTH directions — the pre-install commit died at the exact frozen-lockfile refusal, and the guided tree completed install plus all 34 validate steps green in 53s. So the promotion is very likely to succeed and the remaining risk is runner-specific (network, cache, the 30-minute timeout), not tree-specific. 0.11.0 should dispatch the lane once and promote on that run's green, which is a minutes-long act rather than a release-sized one. The ~30 minutes this adds to every PR afterwards remains the actual decision, and it is why the promotion is a reviewed act and not a default.",
-      "reviewedOn": "2026-08-14"
+      "target": "0.12.0",
+      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) is the second chain step, paying the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, one chain-budget re-record after both land and before any published figure. RE-TARGETED TO 0.12.0 BY 0.11.0 ON A FACT 0.10.0 COULD NOT STATE, established by walking the seams this gate would judge: the shipped lint config (eslint.config.mjs) and the shipped documentation (docs/harness/README.md, docs/harness/gates-catalog.md) both describe an `apps/mobile/src/lib/api-client.ts` one-door and an `src/lib/sse.ts` streaming client, and NEITHER FILE EXISTS anywhere under template/. A gate whose whole subject is the posture of the outbound seams cannot be authored on top of a tree whose own configuration and prose disagree with it about which seams exist — the register would be written against files, the checker would scan a tree without them, and the closure would pass vacuously in precisely the way this repository deletes checks for. Reconciling that divergence is the prerequisite, it is a separate reviewed act from the step, and it is now the first half of this row. The 0.10.0 statement that 'the subject does not exist yet' was right in substance and understated the reason: the subject does not exist AND the tree claims it does.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "hook-fail-closed-launcher",
@@ -266,39 +213,6 @@
       "reason": "The enterprise-facing controls crosswalk + threat model is GENERATABLE — harness.config.mjs (the chain), the guard-rules tables (the hooks), and tests/canary/injections.json (the proofs) are the three machine-read inputs — but it is gated on the licensing/wholeness decision design/CONFORMANCE-FACTS.md records for the conformance map: built whole against Annex I directly, or not at all, because a claimed level with an unmapped requirement is worse than no claim.",
       "reviewedOn": "2026-08-10",
       "evidence": "design/CONFORMANCE-FACTS.md"
-    },
-    {
-      "id": "sbom-consumption",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "SBOM release-diff consumption is dated to 0.11.0"
-        },
-        {
-          "file": "template/base/tools/check-sbom.mjs",
-          "mustContain": "judged against pnpm-lock.yaml in BOTH directions"
-        }
-      ],
-      "reason": "THE CONDITION IS MET, SO THE ROW IS DATED. Its precondition was a lockfile every install commits, which the version-sync committed-lockfile ramp makes universal at 0.10.0 — and a met condition left undated is the shelf. 0.10.0 built the PRODUCTION half and proved it: `pnpm sbom` runs daily on the osv-scan lane and tools/check-sbom.mjs closes the emitted component set against pnpm-lock.yaml in both directions, which is what regraded PA-01 to alternate-control. WHAT REMAINS IS A DIFFERENT SENSE OF 'CONSUMPTION' AND THE AMBIGUITY IS THE RISK THIS ROW CARRIES: the lockfile closure consumes the SBOM against the SAME tree, catching an incomplete inventory and nothing about supply-chain drift; this row's subject is the RELEASE-OVER-RELEASE DIFF — this tree's SBOM against the previous release tag's, redding on an ADDED component that is not allowlisted. A reviewer who reads 'the SBOM is consumed now' and closes this row will have discharged the wrong control, so design/CONFORMANCE-FACTS.md §8 states the split in the same words and both sentences are anchored below. The shape to copy is check-dependency-channel.mjs, which already diffs the catalog against the previous tag; the allowlist is the new surface.",
-      "reviewedOn": "2026-08-13"
-    },
-    {
-      "id": "dsr-web-erase-surface",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "README.md",
-          "mustContain": "dsr-web-erase-surface"
-        },
-        {
-          "file": "template/base/tools/data-flow.json"
-        }
-      ],
-      "reason": "DSR erase EXISTS — session.deleteAccount plus the delete-account Edge Function, and the expo-policy gate requires the account-deletion surface on any auth-bearing app (Apple 5.1.1(v)) — but only the mobile surface reaches it, and tools/data-flow.json declares no erase.surface record, so the gate that holds export to its target has nothing to hold erase to. 0.10.0 owes the WEB erase surface and the data-flow record; the README's honest-losses sentence names this row. RE-DATED TO 0.11.0 BY 0.10.0, and it is the one row a consumer would actually notice, so the reason is stated rather than implied: 0.10.0 already ships FIVE seeded corrections through the seededSourceFixes channel, on files `update` cannot rewrite, to installs that are simultaneously meeting up to six expiries. Adding a sixth seeded surface to that same hop is a second ambush collected while the first is still being paid. The rail exists and the surface is owed — the same shape e8-mfa-enrolment-surface carries — and 0.11.0 is a release with no expiry wave to compete with.",
-      "reviewedOn": "2026-08-14"
     },
     {
       "id": "e2ee-declared-ports-unimplemented",
@@ -399,14 +313,14 @@
     {
       "id": "auth-posture-consumer-tunable-split",
       "kind": "release",
-      "target": "0.11.0",
+      "target": "0.12.0",
       "sites": [
         {
           "file": "template/base/tools/auth-posture.json"
         }
       ],
-      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. 0.10.0 owes the split: floor rows owned and pinned, tunable rows seeded with declared bounds. RE-DATED TO 0.11.0 BY 0.10.0, and the re-date is MECHANICALLY SELF-CANCELLING rather than a slip: this row asks the auth-posture register to separate harness-fixed keys from consumer-tunable ones, and the [auth.mfa] ramp whose findings it would reshape expires in this very release. Splitting the register in the same diff that arms ten new keys against every install would mean a consumer meeting both the new demand and its re-classification at once. It also silently covered a real gap while it sat here: with all six ramp rows deleted at base 0.9.9 the union reported FIVE findings, not six, because this row’s id contains \"auth-posture\" and satisfied the auth-posture ramp by accident (see ramp-union-per-site-keying). Paired with store-policy-consumer-tunable-split, which is the same shape one register over.",
-      "reviewedOn": "2026-08-14"
+      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. Discharge is the split: floor rows owned and pinned, tunable rows seeded with declared bounds. RE-TARGETED TO 0.12.0 BY 0.11.0, AND ITS PREVIOUS REASON WAS FALSE — that is the first thing this row now says, because the register repeating a falsehood is worse than prose doing it. The 0.10.0 text deferred on the ground that 'the [auth.mfa] ramp whose findings it would reshape expires in this very release'; MFA_RAMP is '0.9.9' with `until: '0.10.0'`, so it expired in the release that wrote the sentence and the stated blocker was already spent when it was written. THE HONEST REASON IS AN INTERACTION, stated as one rather than dressed as a capability limit: the split PLANTS A NEW SEEDED FILE (the tunables register) into installs that are, in this same release, meeting five ramp expiries across twelve vintages and receiving a new seeded erase record. 0.11.0 already spends its one seeded-source correction on the uuid acceptance, which is a release-blocker rather than a choice. A second planted register on the same hop is the ambush the ramp doctrine exists to prevent, and 0.12.0 carries no expiry wave at all — every ramp in the fleet falls due at or below 0.11.0. PAIRED with store-policy-consumer-tunable-split, which is the same shape one register over and stays a condition row: doing both on one mechanism is what makes the second an application rather than an unreasoned copy.",
+      "reviewedOn": "2026-08-15"
     },
     {
       "id": "mutation-scope-seeded-split",
@@ -505,82 +419,44 @@
       "evidence": "scripts/chain-budget.json"
     },
     {
-      "id": "canary-lane-proofs-unexecuted",
+      "id": "data-flow-erase-ramp-expiry",
       "kind": "release",
-      "target": "0.11.0",
+      "target": "0.12.0",
       "sites": [
         {
-          "file": "scripts/check-canary-coverage.mjs",
-          "mustContain": "const runProof = (label, ref) =>"
+          "file": "template/base/tools/check-data-flow.mjs",
+          "mustContain": "the erase.surface record and its two-surface clients closure"
         }
       ],
-      "reason": "THE LANE CLOSURES CHECK THAT A RED-PROOF EXISTS, NOT THAT IT RUNS. scripts/check-canary-coverage.mjs calls runProof() — spawn under `node --test`, red if it exits non-zero, red if it declares zero tests — for the `steps` and `factoryGates` registries only. The `lanes` (28) and `factoryLanes` (22) registries get existsSync and nothing else, so a lane proof gutted to an empty file, or repointed at a file that tests something entirely different, passes the closure that exists to catch exactly that. This is the same G28 defect the 0.3.0 spawn pass fixed for steps, left standing on the other two registries. FOUND BY ADDING A LANE: 0.10.0's sbom-inventory registered tests/gates/sbom.test.mjs as its proof and nothing executed it — the proof is real and the full suite runs it, so the PA-01 regrade rests on a proof that does run, but the REGISTRY is not what establishes that and the register should not imply otherwise. COST MEASURED, so 0.11.0 need not re-derive it: 12 distinct lane-proof files are not already spawned by the steps pass, and they run in 7 seconds as a batch against a check that already costs 113 seconds — roughly a 15% increase on one machinery-lint gate, which is affordable. It is deliberately NOT done in 0.10.0: it changes a gate that runs on every PR, across 50 lanes, in a release whose stated job is the upgrade path, and a perf change smuggled in beside an expiry wave is how a release acquires a defect nobody attributes to it. Discharge is calling runProof from both lane loops plus a red-proof that a gutted lane fixture reds.",
-      "reviewedOn": "2026-08-13"
+      "reason": "0.11.0 shipped the WEB half of DSR erase and the tools/data-flow.json `erase` record that closes over both surfaces, and put the requirement in check-data-flow.mjs where it closes over the product rather than over one initiator. The runner is harness-OWNED so `update` arms the demand on every install at once; data-flow.json is SEEDED so `update` cannot write the record for them, and the web surface it declares is theirs to add — the owned-checker-over-seeded-subject asymmetry the ramp doctrine exists for. Ramped to 0.12.0 as a THIRD block rather than a widening of either existing data-flow ramp, because folding a new finding into an older one re-opens an escape the deadline ratchet has already counted closed. THE CLOSURE IS TWO-WAY ON PURPOSE: the defect this record was written for is a backing that works while one surface cannot reach it, so naming only the Edge Function would have been satisfied in exactly that state. The 0.12.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-15"
     },
     {
-      "id": "web-e2e-axe-tag-ramp-expiry",
+      "id": "canary-registry-hook-subagent-verdict",
       "kind": "release",
-      "target": "0.11.0",
+      "target": "0.12.0",
       "sites": [
         {
-          "file": "template/base/tools/check-web-e2e.mjs",
-          "mustContain": "the axe tag ladder"
+          "file": "tests/canary/injections.json",
+          "mustContain": "carved out to 0.12.0 as canary-registry-hook-closure"
         }
       ],
-      "reason": "0.10.0 widened the seeded axe scans to the reviewed tag ladder ['wcag2a','wcag2aa','wcag21aa','wcag22aa'] and put the REQUIREMENT in check-web-e2e.mjs, where it closes over every spec rather than the one the old register row happened to anchor. The runner is harness-OWNED so `update` arms the demand on every install at once; the specs are SEEDED so `update` cannot rewrite them — the same asymmetry the 0.6.0 authenticated-render axis in the same file was ramped for, and the same remedy: a NOTE plus a seededSourceFixes instruction until 0.11.0. This row is the expiry. WHY THE LADDER IS FOUR TAGS AND NOT SIX, measured against axe-core 4.13.0's own rule table rather than recalled: 'wcag22a' selects ZERO rules and axe's own whitelist regex suppresses the unknown-tag warning, so it would pass review and check nothing; 'wcag21a''s only rule (label-content-name-mismatch) carries `experimental`, and axe's default tagExclude is [\"experimental\",\"deprecated\"], so it can run on no DOM at all. The four tags select 63 runnable rules over 21 success criteria, three more than the 2.0 pair: autocomplete-valid, avoid-inline-spacing and target-size. TARGET-SIZE IS THE WHOLE OF AXE'S AUTOMATED WCAG 2.2 AA SURFACE — 2.4.11, 3.2.6, 3.3.7 and 3.3.8 have no automated rule of any kind — which is why every prose site now states a rule count and no document claims the level.",
-      "reviewedOn": "2026-08-14"
+      "reason": "THE REMAINDER OF THE SPLIT canary-registry-hook-closure, discharged in half at 0.11.0. What shipped: the hook -> registry direction (every shipped hook now carries an entry, so an unregistered hook reds instead of being required by nothing), a try/catch that turns a stale entry naming a deleted hook into a clean FINDING rather than an uncaught ENOENT stack trace, the note requirement on reasoned exemptions, and real entries for posttool-source-check.mjs and the TURN-FATAL stop-validate-gate.mjs built from proofs that already existed. What did NOT ship is subagent-verdict.mjs's own deny/block canary and an exit-code pin: its subject is the TURN rather than a tool call, so the deny-example/denyToolCallSites shape does not fit it, and the honest entry is a reasoned {kind:'steps'} declaration naming tests/hooks/subagent-verdict-pathstate.test.mjs. That is coverage of path-state handling, not of refusal. Writing an entry that CLAIMED refusal coverage would be worse than the absence 0.11.0 just fixed, which is why this is a split rather than a completion.",
+      "reviewedOn": "2026-08-15"
     },
     {
-      "id": "version-sync-eol-arrival-ramp-expiry",
-      "kind": "release",
-      "target": "0.11.0",
+      "id": "compensating-proof-names-its-ramp",
+      "kind": "condition",
+      "target": null,
       "sites": [
         {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "the arrival of tools/eol.json's removalTarget dates"
+          "file": "scripts/ci/upgrade-lane.sh",
+          "mustContain": "RAMP EXPIRED"
         }
       ],
-      "reason": "FOUND BY THE UPGRADE LANE, not by review, and it is the defect this release existed to catch. tools/eol.json shipped uuid's deprecation acceptance with removalTarget 0.10.0 — a date the HARNESS wrote — and the file is SEEDED, so every install that ever ran `update` holds that value and `update` may never rewrite it. At harness 0.10.0 the acceptance ARRIVED, hard, on the first validate after upgrading, for a value the consumer did not choose and could not be given a fix for. Leg A (baseVersion 0.9.9, which meets ZERO ramp deadlines) went red and the lane classified it correctly: 'validate is RED on the upgraded install and NO ramp deadline is met — this is a regression, not an expiry.' Re-dating the template's register to 0.11.0 fixes fresh scaffolds and reaches no existing install, which is exactly the seeded/owned asymmetry the release's other five source fixes are ramped for. So the ARRIVAL half now rides its own ramp (minVersion 0.10.0, until 0.11.0), split from the census half whose ramp expires at 0.10.0 as the fleet intends — the two are different obligations: the census reds because the consumer's lockfile moved, the arrival because a harness-chosen date came due. The gradient is unaffected (0/2/4/6 across 0.9.9/0.9.5/0.9.0/0.8.0) because a NOTE is not an expiry. Discharge at 0.11.0: by then every install has had a release in which to re-affirm or remove the row, and the seededSourceFixes instruction names it explicitly.",
-      "reviewedOn": "2026-08-14"
-    },
-    {
-      "id": "rate-limits-fallback-ramp-expiry",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-rate-limits.mjs",
-          "mustContain": "the outage-rung fallback declaration"
-        }
-      ],
-      "reason": "0.10.0 wired the in-process limiter as withFailOpen's OUTAGE rung, so 'the limiter fails open' stopped being a complete description of what happens during a backend outage. tools/rate-limit-budget.json's failOpen block recorded WHETHER the limiter fails open (decided + reason) and had no way to say WHAT LIMITS TRAFFIC WHILE IT DOES — the difference between 'an outage removes rate limiting entirely' and 'an outage degrades to per-instance counting', which are different products during an incident. The gate now requires a failOpen.fallback string. RAMPED because rate-limit-budget.json is a reviewed, write-guarded CONSUMER file: demanding a new key of every install at once is the ambush the ramp doctrine exists to prevent, and update cannot write it for them since the honest answer depends on their deployment. The seededSourceFixes instruction carries the correction until this row falls due. Found by an adversarial review of the leg, which observed that the seededSourceFixes entry for the ratelimit change had no gate to name — a seeded correction no gate reports is one a consumer never learns they owe.",
-      "reviewedOn": "2026-08-14"
-    },
-    {
-      "id": "canary-registry-hook-closure",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "scripts/check-canary-coverage.mjs",
-          "mustContain": "for (const [hook, expected] of Object.entries(registry.hookRules ?? {}))"
-        }
-      ],
-      "reason": "THE HOOK CLOSURE RUNS ONE WAY ONLY: REGISTRY -> HOOK. check-canary-coverage.mjs iterates Object.entries(registry.hookRules), so a hook with NO entry is required by nothing — it needs no deny example, no denyToolCallSites pin, and no red-proof, and nothing anywhere notices. MEASURED at 0.10.0: the tree ships SEVEN hooks and the registry names THREE (the three pretool guards). The four with no entry are posttool-fast-check.mjs, posttool-source-check.mjs, subagent-verdict.mjs and stop-validate-gate.mjs — the last being the TURN-FATAL one, the hook whose whole job is that a turn cannot end on a red build. The inverse is worse than absent: a stale entry naming a deleted hook reaches an UNCAUGHT readFileSync on template/base/.claude/hooks/<name> and the gate dies with an ENOENT stack trace instead of a clean finding, so the failure mode of the registry going stale is a crashed checker rather than a red one. Discharge is a hook -> registry direction (every shipped hook carries an entry, or an explicit reasoned {kind:'steps'}-style declaration that it runs nothing the step registry does not already prove) plus a try/catch that turns the stale-entry case into a finding. NOT done in 0.10.0 despite this release touching stop-validate-gate.mjs, and the honest reason is scope rather than difficulty: it would add a fifth new axis to a release whose job is the upgrade path. The 0.10.0 spill change is proven by tests/hooks/stop-output-spill.test.mjs (4 of its 5 cases red against the 0.9.9 hook), so the change itself is covered — what is missing is the REGISTRY requiring that coverage.",
-      "reviewedOn": "2026-08-14"
-    },
-    {
-      "id": "e8-register-canary-widening",
-      "kind": "release",
-      "target": "0.11.0",
-      "sites": [
-        {
-          "file": "template/base/tools/lib/essential-eight.mjs",
-          "mustContain": "Closure 4 — every POSITIVE claim names a REGISTERED can-fail proof"
-        }
-      ],
-      "reason": "0.10.0 widened the canary closure from the five simulated-activity rows to all ELEVEN positive claims (effective ∪ alternate-control), closing the escape where a row graded itself `effective`, claimed a lower evidence tier, named no proof and stayed green. THE FULL WIDENING IS THE REST: 37 rows sit above the documentation floor, so 26 more carry a grade whose control is not required to name a registered red-proof. It was NOT done in 0.10.0 and the reason is arithmetic rather than reluctance — each of those rows needs an AUTHORED, EXECUTED canary, and 26 of them is not a leg in a release whose job is the upgrade path. The scoped version shipped and is proven; this row is the remainder. Discharge is per-row: supply the canary, or regrade the row down. A row that can name no proof is the finding, not the exception.",
-      "reviewedOn": "2026-08-14"
+      "reason": "§7e OF THE UPGRADE LANE ACCEPTS A PROOF OF THE WRONG DEADLINE. When a gate outside the validate chain meets an expiry, the lane cannot execute it, so scripts/ci/stop-side-expiries.json registers a compensating unit proof — and §7e's check is `grep -qF 'RAMP EXPIRED' <proof>`, which asserts the FILE mentions the string and never that the string belongs to the ramp falling due. FOUND AT 0.11.0 AND THE INSTANCE IS FIXED: check-web-e2e.test.mjs carried four RAMP EXPIRED mentions, all driving the 0.6.0 authenticated-render ramp, so the 0.10.0 axe tag ladder's expiry would have been excused by a proof of an unrelated deadline; an axe-specific canary now asserts the banner names its own ramp. THE CLASS IS OPEN: one registry entry holds one proof path, several ramps can live in one gate, and nothing requires a proof to name the ramp it drives. Discharge is keying the compensating proof on the ramp's DETAIL — the same per-site identity the obligations ramp union adopted at 0.11.0 — rather than on the gate. NOT a dated row: it is a control over a control, it reds nothing today, and shipping it in the release that already added twelve discharges would be the fifth new axis in a release whose subject is expiry.",
+      "reviewedOn": "2026-08-15",
+      "evidence": "scripts/ci/stop-side-expiries.json"
     }
   ]
 }

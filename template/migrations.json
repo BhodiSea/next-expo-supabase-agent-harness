@@ -586,5 +586,56 @@
       ],
       "why": "Six ramps fall due here and they land on files `update` cannot rewrite: auth-posture (the ten [auth.mfa] keys in the seeded supabase/config.toml), docs-sync (the seeded AGENTS.md), version-sync twice (the committed-lockfile floor, and the end-of-life register both directions), wiring (the installed-not-dormant lefthook floor), and boundaries (the vertical-anatomy laws over the seeded packages/**). Two are trivial — `pnpm install` fixes wiring and the lockfile floor. The rest need a human: docs/runbooks/harness-upgrade.md has a section per gate, and its 0.10.0 section OPENS with the escape rather than burying it — upgrade one minor at a time, because each `graduate` moves baseVersion forward and every ramp at or below it goes inert, turning six-at-once into 0/2/2/2. Sweep the findings, then `graduate`, then re-run validate."
     }
+  },
+  "0.11.0": {
+    "//": [
+      "0.11.0 the expiry release. The record injects NO chain step — VALIDATE_STEPS stays 34 and STOP_HOOK_STEPS stays 10, so the committed 34/34 + 10/10 chain-budget measurement stays count-matched and no published figure is unlicensed for a single commit. Both dated steps (suppressions, resilience) are re-targeted to 0.12.0 with NEW information rather than the 0.10.0 argument repeated: the suppressions SUBJECT ships here folded into `boundaries` on the 0.10.0 check-essential-eight precedent, and the resilience subject was found not to exist in the form its own gate would judge.",
+      "THE INHERITED ADVISORY BACKLOG REACHES ZERO, which is a narrower claim than the one this record carried in draft and is the only one the ledger supports. Five ramps fall due (docs-sync twice, web-e2e, version-sync, rate-limits) across TWELVE vintages — 0.1.3 through 0.9.9, the first wave ever to reach 0.9.9 — and when they do, every ramp opened BEFORE this release is inert or expired. Exactly ONE of the 43 shipped rampNote sites is still advisory afterwards, and it is the one this release itself opens: data-flow's erase record, minVersion 0.11.0 until 0.12.0, and then only for an install that has not yet added the web erase surface. The draft of this paragraph said the advisory column reaches zero and named a 42-site fleet; both were wrong, in the release that corrects six register claims of exactly that shape, and the number to read is `node scripts/check-ramp-ledger.mjs` — which prints the still-advisory count per vintage and printed 1 on every line while the draft said 0. So `graduate`'s refusal-while-NOTEs-stand is not trivially satisfiable: it has exactly one thing left to clear, and upgrade-lane leg E will find that one.",
+      "A 0.10.0-VINTAGE INSTALL IS UNAFFECTED, which is worth stating because the population looks total. Four of the five expiring ramps carry minVersion 0.10.0, and `rampNote` is inert when baseVersion >= minVersion: the demand was live for those installs from their first validate, so nothing expires for them. The wave lands on installs that were seeded BEFORE the demand existed.",
+      "THE MITIGATION IS THE ONE 0.6.0 DOCUMENTED AND 0.10.0 RESTATED: upgrade one minor at a time. Each `graduate` moves baseVersion forward and every ramp at or below it goes inert. It is repeated here rather than assumed because this is the widest population the lineage has published.",
+      "NO configSteps, NO rampExtensions, NO seedOnInitOnly — all three by construction rather than omission. No step joins either chain, no deadline moves, and the two files this release adds (scripts/check-eol-target.mjs, scripts/check-sbom-drift.mjs) are FACTORY-side and reach no install at all.",
+      "ONE SEEDED CORRECTION, down from six at 0.10.0, and it is the one the factory cannot make for you: tools/eol.json's uuid acceptance. See seededSourceFixes below."
+    ],
+    "seedOnInitOnly": [
+      "apps/web/lib/account/",
+      "apps/web/__tests__/delete-account.test.ts"
+    ],
+    "seedOnInitOnlyWhy": "THE WEB ERASE SURFACE IS WITHHELD FROM EXISTING INSTALLS, and withholding it is what makes the ramp honest rather than decorative. Its control already was: apps/web/app/(protected)/ has been a seedOnInitOnly subtree since 0.2.0, so `update` was never going to plant delete-account-button.tsx. Planting the seam and its test WITHOUT the button would deliver a module nothing imports — knip and dead-code red it on the consumer's next validate, which is precisely the unreferenced-exemplar failure this key exists to prevent — so the three files travel together or not at all. A fresh scaffold is seeded with the whole surface and is held to the data-flow erase record immediately; an existing install receives the requirement as a NOTE ramped to 0.12.0 and adds the surface itself, which is the only honest order when the harness cannot write the file for them.",
+    "seededSourceFixes": [
+      {
+        "//": "ONE ENTRY, ONE FILE. 0.10.0 swept six seeded surfaces at once; this release deliberately adds a single correction, because the same installs are simultaneously meeting up to five expiries and a second ambush collected while the first is being paid is how an upgrade stops being reviewable. The probe is contains-shaped on the value the fix replaces, so an install that has re-dated the row under any target stops matching and the parked artifact self-clears.",
+        "gate": "version-sync",
+        "why": "THE uuid ACCEPTANCE HAS ARRIVED AGAIN. tools/eol.json ships uuid@7.0.3's vendor-deprecation acceptance with a `removalTarget` the HARNESS wrote, and the file is SEEDED — `update` may never rewrite it. 0.10.0 re-dated the template's copy to 0.11.0, which fixed fresh scaffolds and reached no existing install; at harness 0.11.0 that date arrives, and the 0.10.0 ramp that softened the arrival into a NOTE expires in this same release. So the two land together and the finding is HARD. Re-affirm the acceptance and move `removalTarget` to a release you actually mean (recording what you re-checked in the diff — the lockfile resolution, the deprecation message, the production closure), or remove the dependency. The harness re-argued its own copy and moved it to 0.12.0 on the same evidence: the pin belongs to Expo's config-plugins and nothing in this tree can move it. WHAT IS NEW AT 0.11.0 IS THAT THIS STOPS RECURRING: scripts/check-eol-target.mjs now compares every production-scope removalTarget against package.json on every PR, so a date that would red a fresh scaffold at the next bump reds the PR that lets it stand. Twice — 0.10.0 and 0.11.0 — this was found by the upgrade lane or by a release-planning pass rather than by a gate.",
+        "paths": [
+          "tools/eol.json"
+        ],
+        "probes": [
+          {
+            "path": "tools/eol.json",
+            "brokenWhen": {
+              "contains": "\"removalTarget\": \"0.11.0\""
+            }
+          }
+        ]
+      }
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED from HEAD's 42 shipped ramp sites at harness 0.11.0, never typed: scripts/check-ramp-ledger.mjs derives this population and compares it byte-for-byte against the list below. (The 0.10.0 record's twin sentence said 41 — the one number in that paragraph nothing machine-compared, inside the sentence claiming nothing is typed. It was 42 then too.)",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9"
+      ],
+      "why": "Five escapes close: docs-sync's ADR content-shape check (opened 0.9.5) and its AGENTS.md Stop-chain list lockstep (opened 0.10.0), web-e2e's axe tag ladder, version-sync's arrival of a harness-authored eol.json removalTarget, and rate-limits' outage-rung fallback declaration. What each install must sweep depends on how far back it was seeded: the 0.10.0 record's six-file source-fix sweep becomes HARD here rather than advisory, so an install that parked it must now apply it — widen both seeded axe scans to ['wcag2a','wcag2aa','wcag21aa','wcag22aa'], give tools/rate-limit-budget.json a failOpen.fallback string, bring AGENTS.md's 'The N Stop-chain steps, in order:' sentence into lockstep with its floor, and re-affirm tools/eol.json's uuid row. docs/runbooks/harness-upgrade.md carries the ordered walk-through. Upgrading one minor at a time is what turns this from five at once into one or two per hop."
+    }
   }
 }

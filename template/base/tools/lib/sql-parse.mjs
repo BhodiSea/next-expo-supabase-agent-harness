@@ -775,8 +775,10 @@ export function parseColumnFacts(statements) {
  * "does every definer definition pin search_path" over all definitions is stricter than
  * asking it of the survivor, and a transiently-unsafe definition still executes during a
  * replay against real data. This resolver is for NAME RESOLUTION only.
- * @param {Array<{qualified: string}>} functions in migration order, as parseFunctions returns them
+ * @template {{ qualified: string }} T
+ * @param {T[]} functions in migration order, as parseFunctions returns them
  * @param {string} qualified schema-qualified function name
+ * @returns {T | undefined}
  */
 export function resolveFunction(functions, qualified) {
   for (let i = functions.length - 1; i >= 0; i -= 1) {

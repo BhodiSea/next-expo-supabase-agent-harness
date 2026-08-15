@@ -69,6 +69,13 @@ export const en = {
   // ---- auth -------------------------------------------------------------------
   'auth.signIn': 'Sign in',
   'auth.signOut': 'Sign out',
+  // DSR erase, web half (0.11.0). Deliberately the same five-key shape the mobile catalog
+  // carries, so the two surfaces say the same thing about the same irreversible act.
+  'account.delete': 'Delete account',
+  'account.delete.confirmBody': 'This permanently deletes your account and content.',
+  'account.delete.confirm': 'Delete permanently',
+  'account.delete.cancel': 'Cancel',
+  'account.delete.failed': 'Your account was not deleted. You are still signed in.',
   'auth.email': 'Email',
   'auth.password': 'Password',
   'auth.signIn.lede':

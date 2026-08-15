@@ -800,13 +800,6 @@
         "note": "0.9.0: the obligations register's death-tests — shape rows fail closed (short reason, unknown kind, dated condition, evidence-less condition, duplicate id), a kind:release row reds CLOCKLESSLY at a simulated arrived version, a kind:calendar row reds ONLY under --clockful (the clockless spawn is pinned green on the same fixture), a kind:condition row never time-reds, the deferrals census and future-until ramp unions red on a missing row, prose anchors red when the sentence moves, and an empty ramp scan reds as vacuous. The --clockful half's execution home is hygiene.yml#obligations-clockful (schedule/dispatch), declared there."
       }
     ],
-    "check-register-freshness.mjs": [
-      {
-        "kind": "fixture",
-        "ref": "tests/gates/register-freshness.test.mjs",
-        "note": "0.9.9: the clockful half of the shipped registers' review discipline, factory-side. Its CLOCKLESS half — was the window the reviewer granted themselves bounded at all — is not here and is not missing: reviewWindowProblems and eolReviewWindow run inside the consumer gates on every chain, with their own red-proofs in tests/gates/framework-floor.test.mjs and tests/gates/eol.test.mjs. This fixture owns the lapse verdict, the per-register isolation, the anti-vacuity count in the CLEAN line, and the exit-2 refusal of a malformed --today (a date the script could not parse must not read as \"no lapse\"). Execution home is hygiene.yml#registers-clockful, declared there."
-      }
-    ],
     "check-plugin-manifest.mjs": [
       {
         "kind": "fixture",
@@ -817,6 +810,13 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/ramp-ledger.test.mjs"
+      }
+    ],
+    "check-register-freshness.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/register-freshness.test.mjs",
+        "note": "0.9.9: the clockful half of the shipped registers' review discipline, factory-side. Its CLOCKLESS half — was the window the reviewer granted themselves bounded at all — is not here and is not missing: reviewWindowProblems and eolReviewWindow run inside the consumer gates on every chain, with their own red-proofs in tests/gates/framework-floor.test.mjs and tests/gates/eol.test.mjs. This fixture owns the lapse verdict, the per-register isolation, the anti-vacuity count in the CLEAN line, and the exit-2 refusal of a malformed --today (a date the script could not parse must not read as \"no lapse\"). Execution home is hygiene.yml#registers-clockful, declared there."
       }
     ],
     "check-release-lockstep.mjs": [
@@ -844,6 +844,13 @@
         "ref": "tests/gates/check-rule-integrity.test.mjs"
       }
     ],
+    "check-sbom-drift.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-sbom-drift.test.mjs",
+        "note": "0.11.0: the OTHER sense of 'consuming' the SBOM. tools/check-sbom.mjs closes the emitted component set against pnpm-lock.yaml in both directions — completeness against the SAME tree, which catches nothing about drift. This diffs the resolved closure against the PREVIOUS RELEASE TAG and reds on an ADDED component with no reviewed row. Its first real run finds ZERO, so the proof is what establishes it can find anything: an unreviewed addition reds, the same addition with a row greens, a scoped package must match on its PERCENT-ENCODED purl (comparing raw silently mismatches most of npm), a row claiming the current release that is not an addition is retired, and a row for an EARLIER release is deliberately left alone because its component is now in both trees. Carries the strictly-below tag pin."
+      }
+    ],
     "check-seeded-migrations.mjs": [
       {
         "kind": "fixture",
@@ -868,6 +875,27 @@
         "note": "the shared live-controls derivation both this factory gate and the consumer docs-sync closure consume — an undeclared one-surface gate reds"
       }
     ],
+    "dead-code": [
+      {
+        "kind": "lane",
+        "ref": "lint.yml#machinery-lint",
+        "note": "the machinery-knip step; vendor exit is the red, lane is the fail-closed backstop for the loud local skip"
+      }
+    ],
+    "eslint": [
+      {
+        "kind": "lane",
+        "ref": "lint.yml#machinery-lint",
+        "note": "the machinery-eslint step; the vendor's non-zero exit is the red, same posture as the consumer 'lint' runner entry in #steps. The Stop-hook step skips loudly when the toolchain is absent and this lane is the fail-closed backstop."
+      }
+    ],
+    "format": [
+      {
+        "kind": "lane",
+        "ref": "selftest.yml#bootstrap-linux",
+        "note": "no factory workflow runs biome over template/ directly; the rendered scaffold's `pnpm validate` step ONE is `biome ci` over the same shipped files, which is the fail-closed backstop the Stop-hook header names — and the 0.6.0 upgrade lane redding on check-auth-posture.mjs's over-width line is this path having actually fired"
+      }
+    ],
     "generate-floor.mjs": [
       {
         "kind": "fixture",
@@ -882,11 +910,11 @@
         "note": "0.9.9 added the maturity-claim sweep over the whole `git ls-files` set: a planted affirmative Essential Eight maturity claim reds naming file:line, and the DENIAL of that same claim stays green — the hard half, since docs/compliance/essential-eight.md describes, quotes and refutes the model on nearly every page. The rule module's exemption is held to actually tripping its own rule, so an exemption cannot outlive its reason."
       }
     ],
-    "eslint": [
+    "tests": [
       {
         "kind": "lane",
-        "ref": "lint.yml#machinery-lint",
-        "note": "the machinery-eslint step; the vendor's non-zero exit is the red, same posture as the consumer 'lint' runner entry in #steps. The Stop-hook step skips loudly when the toolchain is absent and this lane is the fail-closed backstop."
+        "ref": "selftest.yml#installer-unit",
+        "note": "the Stop-hook step runs the scoped tests/gates + tests/hooks corpus per turn; this lane runs the FULL suite under coverage floors on ubuntu AND windows, plus this checker in spawn mode — the superset that catches what the scoped run deliberately leaves to CI (tests/installer)"
       }
     ],
     "types": [
@@ -894,27 +922,6 @@
         "kind": "lane",
         "ref": "lint.yml#machinery-lint",
         "note": "the machinery-types step (tsc --noEmit over installer/scripts/tools/hooks); vendor exit is the red, lane is the fail-closed backstop for the loud local skip"
-      }
-    ],
-    "dead-code": [
-      {
-        "kind": "lane",
-        "ref": "lint.yml#machinery-lint",
-        "note": "the machinery-knip step; vendor exit is the red, lane is the fail-closed backstop for the loud local skip"
-      }
-    ],
-    "format": [
-      {
-        "kind": "lane",
-        "ref": "selftest.yml#bootstrap-linux",
-        "note": "no factory workflow runs biome over template/ directly; the rendered scaffold's `pnpm validate` step ONE is `biome ci` over the same shipped files, which is the fail-closed backstop the Stop-hook header names — and the 0.6.0 upgrade lane redding on check-auth-posture.mjs's over-width line is this path having actually fired"
-      }
-    ],
-    "tests": [
-      {
-        "kind": "lane",
-        "ref": "selftest.yml#installer-unit",
-        "note": "the Stop-hook step runs the scoped tests/gates + tests/hooks corpus per turn; this lane runs the FULL suite under coverage floors on ubuntu AND windows, plus this checker in spawn mode — the superset that catches what the scoped run deliberately leaves to CI (tests/installer)"
       }
     ]
   },

@@ -90,6 +90,7 @@ node scripts/check-essential-eight-evidence.mjs  # the E8 register's factory-sid
 node scripts/check-ci-preconditions.mjs    # the shipped CI's entry path stays satisfiable; actions SHA-pinned
 node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
 node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe
+node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
 
 # The one that matters most — the scaffold must be green with ZERO edits:
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes

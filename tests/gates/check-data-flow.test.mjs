@@ -85,6 +85,18 @@ function fixture({ policy, edit, extraSql, schemaEdit, manifest } = {}) {
       '// fixture stand-in for the shipped export procedure (template/stack owns the real one)\n',
     )
   }
+  // The ERASE surface and its per-surface initiators (0.11.0), planted on exactly the same
+  // rule as the export procedure above: the SHIPPED paths and only them, so a fixture is
+  // judged against the tree a real install has while an EDIT naming any other path still
+  // finds it absent — which is what the missing-client and missing-procedure reds depend on.
+  for (const path of [
+    SHIPPED_POLICY.erase?.surface?.procedure,
+    ...(SHIPPED_POLICY.erase?.clients ?? []).map((c) => c?.file),
+  ]) {
+    if (typeof path !== 'string' || path === '') continue
+    mkdirSync(join(dir, dirname(path)), { recursive: true })
+    writeFileSync(join(dir, path), '// fixture stand-in for a shipped erase surface/initiator\n')
+  }
 
   if (schemaEdit) {
     const p = join(dir, 'supabase/schemas/20_notes.sql')
@@ -406,6 +418,24 @@ test('GREEN: the shipped policy declares the DELIVERED surface, and the template
   assert.ok(
     existsSync(join(STACK_ROOT, procedure)),
     `${procedure} is named by tools/data-flow.json but does not exist under template/stack`,
+  )
+  // The ERASE half, closed the same way (0.11.0). The record is BACKING + INITIATORS, and
+  // the defect it exists for is a backing that works while one surface cannot reach it —
+  // so both named clients must exist in the tree a fresh scaffold actually holds.
+  assert.equal(SHIPPED_POLICY.erase.surface.kind, 'procedure')
+  for (const path of [
+    SHIPPED_POLICY.erase.surface.procedure,
+    ...SHIPPED_POLICY.erase.clients.map((c) => c.file),
+  ]) {
+    assert.ok(
+      existsSync(join(STACK_ROOT, path)),
+      `${path} is named by tools/data-flow.json erase but does not exist under template/stack`,
+    )
+  }
+  assert.deepEqual(
+    SHIPPED_POLICY.erase.clients.map((c) => c.surface).sort(),
+    ['mobile', 'web'],
+    'both surfaces must be able to reach the erase backing — one-sided reach is the defect',
   )
   // And the shipped-policy fixture (procedure planted, no manifest) is green with NO
   // deadline note — a delivered surface has no date left to judge.

@@ -101,6 +101,9 @@ const STEPS = [
   // Sits beside the two above because it shares their posture exactly: strictly-below
   // baseline, skip-loudly on shallow history, fail-closed in CI.
   ['eol-target', ['scripts/check-eol-target.mjs']],
+  // The release-over-release component diff. Same posture as the three above: strictly-below
+  // baseline, skip-loudly on shallow history, fail-closed in CI.
+  ['sbom-drift', ['scripts/check-sbom-drift.mjs']],
   // The offline REUSE mirror: every file covered by an annotation, every referenced
   // license present and allowlisted, README/CITATION/package.json license in agreement.
   ['reuse', ['scripts/check-reuse.mjs']],

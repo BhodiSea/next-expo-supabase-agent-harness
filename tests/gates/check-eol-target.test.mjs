@@ -62,9 +62,10 @@ const UNPROBED = { '0.2.0': { seededSourceFixes: [{ probes: [{ path: 'apps/web/e
  * A fixture repo at version 0.2.0. Tagged history: v0.1.0 carries `before`, v0.2.0 carries
  * `after` — so the highest tag equals the fixture's own version and the baseline must
  * resolve to v0.1.0, never to itself.
+ * @param {{ before?: string, after?: string, migrations?: Record<string, unknown>, tagged?: boolean }} [opts]
  * @returns {string} the fixture root
  */
-function makeRepo({ before, after, migrations = PROBED, tagged = true } = {}) {
+function makeRepo({ before = register([]), after = register([]), migrations = PROBED, tagged = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nsah-eoltarget-'))
   const write = (rel, content) => {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })

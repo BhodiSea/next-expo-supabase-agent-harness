@@ -397,7 +397,8 @@ function positiveCanaryProblems(r, at, canaryKeys) {
  * @returns {string[]}
  */
 function negativeCanaryProblems(r, at, canaryKeys) {
-  const aboveFloor = r.evidenceTier === 'system-generated-artefact' || r.evidenceTier === 'simulated-activity'
+  const aboveFloor =
+    r.evidenceTier === 'system-generated-artefact' || r.evidenceTier === 'simulated-activity'
   if (r.outcome !== 'not-applicable') {
     // Symmetry with the positive arm: a field that can be attached to anything means nothing.
     return r.negativeCanary

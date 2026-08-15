@@ -243,11 +243,17 @@ The shipped `minimumReleaseAge: 0` stays, and its existing comment already recor
 live observation. Fact 2 is added there, because it is the one that silently wastes someone's
 afternoon.
 
-**Disposition (0.10.0): SBOM release-diff consumption is dated to 0.11.0.** The undated
+**Disposition (0.11.0): SBOM release-diff consumption SHIPPED.** The undated
 disposition this paragraph carried through 0.9.9 said the differentiating control was never
 *producing* an SBOM but *consuming* one, and that dating it without intending to build it next
 would be the kind of commitment this file exists to prevent. 0.10.0 built the half that had
-become buildable and dated the half that had not, so the paragraph splits in two.
+become buildable and dated the half that had not, so the paragraph splits in two. 0.11.0 built
+the dated half: `scripts/check-sbom-drift.mjs` diffs this tree's resolved component closure
+against the PREVIOUS RELEASE TAG's and reds on an added component with no reviewed row in
+`scripts/sbom-additions.json`. Its first run finds ZERO additions, which is only meaningful
+because its red-proof establishes that it can find one — and it is deliberately FACTORY-side:
+the completeness closure (`tools/check-sbom.mjs`) judges the consumer's own tree, while drift
+is a question about this repository's releases.
 
 **Built.** `pnpm sbom --sbom-format cyclonedx --lockfile-only` runs daily on the `osv-scan`
 lane (job `sbom-inventory`), and `tools/check-sbom.mjs` closes the emitted component set
@@ -325,9 +331,12 @@ The assessment process guide calls **documentation and interviews *Poor*** evide
 **testing with simulated activity *Excellent***. That is the harness's own doctrine — a gate
 that cannot go red is decoration — so `evidenceTier` is a first-class field with three values,
 and a row may claim the top tier only while naming a `tests/canary/injections.json` entry that
-makes its control go red. The standing shape at 0.9.9 is **112 documentation, 32
-system-generated-artefact, 5 simulated-activity**; the point of writing the weakest tier on 112
-rows is that they are not dressed up as the other two.
+makes its control go red. The standing shape at 0.11.0 is **114 documentation, 30
+system-generated-artefact, 5 simulated-activity**; the point of writing the weakest tier on 114
+rows is that they are not dressed up as the other two. (0.9.9's figures were 112/32/5; 0.10.0
+promoted two rows, and 0.11.0 regraded UAH-02..05 DOWN — web-browser hardening rests on "no
+browser-fleet component", which nothing machine-checks, and an absence resting on prose alone
+is documentation tier by definition.)
 
 Two anti-inflation closures matter more than they look. **Absence of a surface is not a
 control** — a requirement about an artefact this system does not produce is `not-implemented`,

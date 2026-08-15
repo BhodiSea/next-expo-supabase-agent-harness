@@ -877,7 +877,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.11.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 0.12.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -902,7 +902,9 @@ at 0.10.0 (2026-08-13) it fired against a REAL pin bump for the first time — l
 `apps/cli-go`, and `apps/cli-go/cmd/config.go` at tag v2.114.0 STILL registers `push` alone
 (read at the tag, not inferred from the release notes, whose config-adjacent entries are
 `--project-ref`, skip-vault-sync and stack persistence); #5894 remains open with no milestone,
-no linked PR and zero comments, so the date moved to 0.11.0.
+no linked PR and zero comments, so the date moved to 0.11.0. Re-checked again at the 0.11.0
+arrival (2026-08-15) against the issue itself: still open, still no milestone, still no
+linked PR, so the standing rule moved it to 0.12.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
 one-minor move in a reviewed diff — the discharge happens only when the side-effect-free

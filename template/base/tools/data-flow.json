@@ -1,8 +1,6 @@
 {
   "comment": "What survives a data subject's deletion, and what a portability request has to return — as reviewed data rather than as prose in six file headers. tools/check-data-flow.mjs replays supabase/migrations/, walks the foreign-key graph out from auth.users, and puts every link in exactly one bucket: ERASED (a chain of ON DELETE CASCADE — nothing to review), SEVERED (ON DELETE SET NULL / SET DEFAULT — the row SURVIVES and only the link is cut), BLOCKING (RESTRICT / NO ACTION, including an FK with no clause at all, which is NO ACTION by default and means the delete FAILS), or UNREACHABLE (subject data with no FK path at all). Every entry below is a human decision that the schema cannot make for itself, and the gate closes each list BOTH ways: an unreviewed site reds, and a reviewed site the schema no longer has reds too. WHY THIS IS NOT A COMPLIANCE CHECKBOX: the tenancy ADR already records that after the org re-scope 'DSR completeness is procedure-backed, not schema-backed', and that sentence was true, unenforced, and impossible to verify from any file. This is that sentence made mechanical. SOURCE: docs/adr/20260201-org-scoped-tenancy.md · https://www.postgresql.org/docs/current/ddl-constraints.html",
-
   "subjectRoot": "auth.users",
-
   "severed": [
     {
       "table": "notes",
@@ -20,7 +18,6 @@
       "reason": "Attribution for a pending seat grant. The invitation belongs to the ORG and stays valid when its sender leaves — revoking every outstanding invitation because an admin closed their account would be a surprising second effect of an unrelated act. The invitee's own email is a separate matter and is recorded under retained[] below."
     }
   ],
-
   "retained": [
     {
       "table": "audit.events",
@@ -54,10 +51,8 @@
       "procedure": "supabase/functions/delete-account/index.ts"
     }
   ],
-
   "blockingAllowed": [],
   "blockingAllowedWhy": "A foreign key to the subject with ON DELETE RESTRICT or NO ACTION makes account deletion FAIL — a GDPR Art. 17 failure and an Apple 5.1.1(v) review rejection at the same time — and the spelling nobody notices is the omitted clause, because NO ACTION is what PostgreSQL assumes when none is written. The list is empty and should stay empty. An entry is legal only with a `procedure` naming the committed file that clears the rows BEFORE the delete is attempted, the way delete-account sweeps the personal org; the gate requires that file to exist.",
-
   "export": {
     "//": "The portability half. A projection is the answer to 'what is MY data' and it is the same question the erasure half asks, which is why one gate owns both: a column that survives erasure with a reviewed reason and a column that must appear in an export are drawn from one inventory. Closed both ways against the schema — a projected column no migration creates is a promise nobody can keep, and a subject-data column that is neither projected nor excluded is a gap. THE DELIVERED SURFACE (0.7.0) is system.exportMyData on the tRPC system router, running AS THE CALLER under RLS — every projected row is readable by the subject's own policies, so no elevated privilege is involved anywhere in the path (supabase/functions/README.md rule 1: anything expressible as a procedure running as the user is NOT an Edge Function; the plan's original Edge-Function placement was wrong by the repo's own rule and is recorded here rather than silently followed). AND THE ONE READING RLS CANNOT PROVIDE: the notes projection is filtered owner_id = the verified caller IN THE QUERY. The SELECT policy admits every org-mate's notes to this caller, so authored-only is APPLICATION LOGIC, not an authorization derivation — an export missing that filter would copy the whole org's content into one member's personal archive, exactly the over-export the excluded[] rationale below forbids for orgs and invitations. The filter lives in @app/notes listAuthoredNotes, and its red-proof is packages/api/src/routers/system.export.test.ts, because no RLS suite can see an over-projection that the policies happily admit.",
     "surface": {
@@ -65,9 +60,18 @@
       "procedure": "packages/api/src/routers/system.ts"
     },
     "projection": [
-      { "table": "profiles", "columns": ["id", "display_name", "created_at", "updated_at"] },
-      { "table": "memberships", "columns": ["user_id", "org_id", "role_rank", "created_at"] },
-      { "table": "notes", "columns": ["id", "org_id", "title", "body", "created_at", "updated_at"] }
+      {
+        "table": "profiles",
+        "columns": ["id", "display_name", "created_at", "updated_at"]
+      },
+      {
+        "table": "memberships",
+        "columns": ["user_id", "org_id", "role_rank", "created_at"]
+      },
+      {
+        "table": "notes",
+        "columns": ["id", "org_id", "title", "body", "created_at", "updated_at"]
+      }
     ],
     "excluded": [
       {
@@ -93,6 +97,25 @@
       {
         "table": "quota_defaults",
         "reason": "Static harness-authored reference data — the metric names and their default ceilings. Nothing about any person."
+      }
+    ]
+  },
+  "erase": {
+    "//": "THE ERASURE HALF'S DELIVERY SURFACE (0.11.0). Erase has EXISTED since 0.7.0 — supabase/functions/delete-account, reached from the mobile `session.deleteAccount` command, and `expo-policy` refuses an auth-bearing app without it (Apple 5.1.1(v)). What did not exist was any record of it here, so the gate that holds EXPORT to a delivered surface had nothing to hold erase to, and for four releases the rail was reachable from exactly one of the two surfaces this harness exists to keep in parity. WHY THIS BLOCK CARRIES `clients` AND export DOES NOT: an export is one call and one payload, so naming the procedure is naming the whole of it. Erase is a BACKING plus an INITIATOR per surface, and the failure mode this record was written for is precisely a backing that exists while one surface cannot reach it — naming only the Edge Function would have declared the record satisfied in exactly the state that made it necessary. RLS CANNOT EXPRESS THIS OPERATION: the row being deleted is the identity the policies are evaluated against, so it needs the service-role client, whose one sanctioned home is an ADR-governed Edge Function. `functions.invoke` carries the caller's own bearer token, so the function deletes the CALLER and has no user id to be tricked about. WHAT ERASURE DOES NOT REACH is stated where it is enforced rather than here: `retained[]` above carries every column that survives, each with its reason.",
+    "surface": {
+      "kind": "procedure",
+      "procedure": "supabase/functions/delete-account/index.ts"
+    },
+    "clients": [
+      {
+        "surface": "mobile",
+        "file": "apps/mobile/src/features/actions/registry.ts",
+        "//": "the `session.deleteAccount` command; the confirm choreography is apps/mobile/app/actions.tsx"
+      },
+      {
+        "surface": "web",
+        "file": "apps/web/lib/account/delete-account.ts",
+        "//": "the seam under the unit floor; the two-step control is apps/web/app/(protected)/delete-account-button.tsx, which apps/web/app/** exclusion keeps out of diff-coverage"
       }
     ]
   }

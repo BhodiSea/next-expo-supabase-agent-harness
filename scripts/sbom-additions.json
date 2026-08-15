@@ -1,0 +1,10 @@
+{
+  "//": [
+    "THE REVIEWED SUPPLY-CHAIN ADDITIONS (0.11.0) — every component that appears in this tree's resolved closure and did NOT appear at the previous release tag, with the argument for why it arrived. Read by scripts/check-sbom-drift.mjs.",
+    "Row schema: { purl (pkg:npm/… exactly as purlForLockKey spells it — scoped names percent-encode their '@'), reason (>= 40 chars: WHY this component arriving is acceptable), release (x.y.z — the release the addition was reviewed for), reviewedOn (YYYY-MM-DD) }.",
+    "SCOPING IS WHAT KEEPS THIS FILE FROM ROTTING. A row is judged against the release it names: at that release the purl must actually BE an addition, or the row is retired as one that allows nothing or has outlived its subject. Rows for earlier releases are left alone — their component is now present in both trees and is no longer an addition, which is the correct end state rather than staleness.",
+    "WHAT THIS IS NOT: it is not a license allowlist (tools/license-exceptions.json), not an end-of-life acceptance (tools/eol.json), and not the catalog channel (check-dependency-channel.mjs, which asks whether a gained CATALOG key reaches an existing install). This file's subject is the TRANSITIVE closure, which is the half a key diff structurally cannot see.",
+    "EMPTY IS THE EXPECTED STATE. The 0.11.0 release adds no dependency, so this array ships empty and the gate reports 0 added. An empty allowlist is meaningful only because the gate CAN red — tests/gates/check-sbom-drift.test.mjs is where that is established."
+  ],
+  "additions": []
+}

@@ -227,6 +227,74 @@ if (policy !== null && (surface === null || surface === undefined)) {
   )
 }
 
+// ── 5a. THE ERASURE SURFACE, and the closure export does not need (0.11.0) ───────────
+// Erase shipped in 0.7.0 and this file said nothing about it, so the gate that holds export
+// to a delivered surface had nothing to hold erase to. The asymmetry that produced was not
+// hypothetical: the Edge Function existed, `expo-policy` required the MOBILE command (Apple
+// 5.1.1(v)), and the web app simply had no way to reach it for four releases.
+//
+// SO THE RECORD IS BACKING + INITIATORS, not a single procedure. Naming only the function
+// would be satisfied in exactly the state this check exists to catch — a backing that works
+// while one surface cannot reach it — which is why `clients` is closed BOTH ways below.
+const erase = policy?.erase
+const eraseErrs = []
+if (policy !== null && (erase === null || erase === undefined)) {
+  eraseErrs.push(
+    `${POLICY} has no \`erase\` record — DSR erasure has a backing in this tree, and an undelivered or single-surface erase is exactly what an undeclared record hides. Declare { kind: "procedure", procedure } with a \`clients\` entry per surface, or { kind: "none", reason, target }.`,
+  )
+} else if (erase?.surface?.kind === 'none') {
+  if (
+    (erase.surface.reason ?? '').trim().length < 40 ||
+    !/^\d+\.\d+\.\d+$/.test(erase.surface.target ?? '')
+  ) {
+    eraseErrs.push(
+      `${POLICY} erase.surface is "none" but does not carry both a reason of at least 40 characters and a \`target\` version — an absence with no date is a deferral nobody has to keep.`,
+    )
+  }
+} else if (erase?.surface?.kind === 'procedure') {
+  if (!existsSync(String(erase.surface.procedure ?? ''))) {
+    eraseErrs.push(
+      `${POLICY} erase.surface names procedure ${JSON.stringify(erase.surface.procedure ?? null)}, which is not a file in this tree.`,
+    )
+  }
+  // THE PARITY CLOSURE. Every surface this repo ships must be able to REACH the backing, and
+  // every named initiator must exist. One direction alone reproduces the original defect.
+  const clients = Array.isArray(erase.clients) ? erase.clients : []
+  const named = new Set(clients.map((c) => String(c?.surface ?? '')))
+  for (const required of ['web', 'mobile']) {
+    if (!named.has(required)) {
+      eraseErrs.push(
+        `${POLICY} erase.clients names no '${required}' initiator — a backing only one surface can reach is the defect this record exists for, not a partial implementation of it. Name the file the ${required} app calls it from, or declare the surface absent.`,
+      )
+    }
+  }
+  for (const c of clients) {
+    if (!existsSync(String(c?.file ?? ''))) {
+      eraseErrs.push(
+        `${POLICY} erase.clients lists ${JSON.stringify(c?.file ?? null)} for the '${String(c?.surface ?? '?')}' surface, which is not a file in this tree — a client entry that resolves nowhere reports reach this product does not have.`,
+      )
+    }
+  }
+}
+
+// RAMPED to 0.12.0, and a THIRD block rather than a widening of either ramp above — the
+// header at the 0.6.0 site records why: folding a new finding into an older ramp re-opens an
+// escape the deadline ratchet has already counted closed. tools/data-flow.json is SEEDED, so
+// `update` cannot write the erase record for an existing install, and the web surface it
+// declares is theirs to add. The comment sits OUTSIDE the condition because
+// check-ramp-ledger reads the line preceding `rampNote(` to decide the result is consumed.
+if (eraseErrs.length > 0) {
+  if (
+    rampNote(GATE, '0.11.0', 'the erase.surface record and its two-surface clients closure', {
+      until: '0.12.0',
+    })
+  ) {
+    for (const e of eraseErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  } else {
+    errs.push(...eraseErrs)
+  }
+}
+
 // ── 5b. THE TARGET IS A DEADLINE, not a format (0.7.0) ───────────────────────────────
 // The surface's own reason string promises "this gate reds if it passes without either a
 // surface or a re-reviewed target" — and through 0.6.0 the check above only asked whether
