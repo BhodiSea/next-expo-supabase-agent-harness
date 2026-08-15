@@ -113,10 +113,11 @@ github:…` never installs them.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **seven**
+   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **eight**
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
-   (`subagent-verdict.mjs` joined them in 0.6.0 — the gate iterates the
-   directory, so the count follows the tree rather than this sentence).
+   (`subagent-verdict.mjs` joined them in 0.6.0 and `launch.mjs` in 1.0.0 — the
+   gate iterates the directory, so the count follows the tree rather than this
+   sentence).
 3. Run `node scripts/check-release-lockstep.mjs` — the same check runs on every
    PR in the selftest matrix and again at tag time.
 4. **Confirm `upgrade-linux` is green on the release commit.** It installs the

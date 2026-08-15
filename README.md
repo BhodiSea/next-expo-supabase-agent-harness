@@ -92,7 +92,9 @@ installs three enforcement layers into it:
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
    until the validation chain, RLS isolation tests, and both unit suites pass.
-   Seven hooks are wired, each invoked as `node "<path>"` so a hook's executable
+   Eight hooks are wired — seven guards plus the fail-closed launcher that
+   invokes each of them (1.0.0: a hook that cannot LOAD becomes exit 2 instead
+   of a silent fail-open) — each as `node "<path>"` so a hook's executable
    bit is not in the trust path.
 2. **Commit-time checks** — lefthook + commitlint + gitleaks.
 3. **CI** — the same validation chain, fail-closed, plus device lanes
@@ -109,7 +111,7 @@ the three layers can never disagree about what "done" means. The chain is
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
 `node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen
 `tools/stop.floor.json` — tampering is turn-fatal) → **wiring** (the enforcement
-layers are actually CONNECTED: seven hooks wired, the permission posture,
+layers are actually CONNECTED: eight hooks wired, the permission posture,
 `pnpm validate` still running the gate, `CLAUDE.md` a pure include, and CODEOWNERS
 covering every escape list and enforcement-surface prefix — the invariants `doctor`
 was the only check for, and nothing ran `doctor`) → **secrets** (a hermetic,

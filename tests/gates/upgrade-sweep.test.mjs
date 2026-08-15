@@ -211,24 +211,38 @@ test('the appended [auth.mfa] block IS the reviewed posture, in both directions'
   // block with the same value, and the block must introduce no key the posture does not
   // review — which is the same both-ways discipline check-auth-posture.mjs applies to the
   // consumer's own config.toml, applied here to the text the sweep writes into it.
+  // Since the 1.0.0 floor/tunable split the reviewed [auth.mfa] tree spans BOTH
+  // registers: nine floor keys in auth-posture.json plus max_enrolled_factors, whose
+  // seeded value lives in auth-tunables.json — the merged view is exactly what
+  // check-auth-posture.mjs judges the consumer's config against.
   const posture = JSON.parse(
     readFileSync(
       fileURLToPath(new URL('../../template/base/tools/auth-posture.json', import.meta.url)),
       'utf8',
     ),
   ).posture
+  const tunableValues = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../template/base/tools/auth-tunables.json', import.meta.url)),
+      'utf8',
+    ),
+  ).values
+  const merged = {
+    ...posture,
+    ...Object.fromEntries(Object.entries(tunableValues).map(([k, row]) => [k, row.value])),
+  }
 
   const seen = dottedKeys(AUTH_MFA_BLOCK)
-  const reviewed = Object.entries(posture).filter(([k]) => k.startsWith('auth.mfa'))
-  assert.equal(reviewed.length, 10, 'the [auth.mfa] tree is exactly ten reviewed keys')
+  const reviewed = Object.entries(merged).filter(([k]) => k.startsWith('auth.mfa'))
+  assert.equal(reviewed.length, 10, 'the [auth.mfa] tree is exactly ten reviewed keys across the two registers')
   for (const [key, value] of reviewed) {
-    assert.ok(seen.has(key), `the posture reviews ${key} and the swept block never writes it`)
-    assert.deepEqual(seen.get(key), value, `${key}: the swept block disagrees with the register`)
+    assert.ok(seen.has(key), `the registers review ${key} and the swept block never writes it`)
+    assert.deepEqual(seen.get(key), value, `${key}: the swept block disagrees with the registers`)
   }
   for (const key of seen.keys()) {
     assert.ok(
-      Object.hasOwn(posture, key),
-      `the swept block writes ${key}, which tools/auth-posture.json does not review — an unreviewed key in a file the gate reads BOTH ways reds the install the sweep was meant to clear`,
+      Object.hasOwn(merged, key),
+      `the swept block writes ${key}, which neither tools/auth-posture.json nor tools/auth-tunables.json reviews — an unreviewed key in a file the gate reads BOTH ways reds the install the sweep was meant to clear`,
     )
   }
 })

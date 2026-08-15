@@ -76,7 +76,12 @@ Exit-code semantics (the crux of the design):
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
 | SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts` |
 
-Seven hooks, and **every command is `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
+Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
+`node "$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs" <hook>.mjs` — a hook that cannot
+LOAD exits 2 and blocks, instead of the exit-1 fail-open a torn `lib/hookio.mjs`
+produced, which disarmed every guard at once; a torn `launch.mjs` itself is the stated
+residual, one tiny import-free file wide), and **every command is
+`node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
 the commands were bare paths relying on the executable bit, and `check-gate-integrity`
 hashes CONTENT and never MODE — so `chmod -x` on the Stop hook silently disarmed the turn
 gate while every sha256 still matched. The fix deletes the vulnerability rather than

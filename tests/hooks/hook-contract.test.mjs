@@ -1659,3 +1659,96 @@ test('subagent-verdict CONTROL: a non-reviewer agent is not this hook’s busine
   )
   assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
 })
+
+// ── launch.mjs: the fail-closed LAUNCHER (1.0.0) ────────────────────────────────────
+// Fact 12's torn-hook matrix (probed 2026-08-10, re-probed 2026-08-15, identical): a
+// hook whose LOAD fails exits 1, which the exit-code contract reads as non-blocking —
+// a torn lib/hookio.mjs disarmed every guard at once, silently. The launcher converts
+// load failure into exit 2, and these are the executed proofs behind its registry
+// entry's denyExamples: a torn .claude/hooks/lib/hookio.mjs, and a deleted hook module.
+// The passthrough controls prove the launcher adds NO judgement of its own — an intact
+// hook's deny still denies and its allow still allows, byte-identically.
+
+function launcherFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-launcher-'))
+  cpSync(join(TEMPLATE, '.claude'), join(dir, '.claude'), { recursive: true })
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/lib'), join(dir, 'tools/lib'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/approved-tools.json'), join(dir, 'tools/approved-tools.json'))
+  return dir
+}
+
+function runLauncher(dir, hookName, input) {
+  const res = spawnSync('node', [join(dir, '.claude/hooks/launch.mjs'), hookName], {
+    input: typeof input === 'string' ? input : JSON.stringify(input),
+    encoding: 'utf8',
+    cwd: dir,
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: dir },
+  })
+  return { code: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' }
+}
+
+const LAUNCH_WRITE = {
+  tool_name: 'Write',
+  tool_input: { file_path: 'tools/validate.floor.json', content: '{}' },
+}
+
+test('launch.mjs REFUSAL: a torn .claude/hooks/lib/hookio.mjs exits EXACTLY 2 (the Fact 12 hole, closed)', () => {
+  const dir = launcherFixture()
+  const lib = join(dir, '.claude/hooks/lib/hookio.mjs')
+  const bytes = readFileSync(lib, 'utf8')
+  writeFileSync(lib, bytes.slice(0, Math.floor(bytes.length * 0.6)))
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.equal(
+    r.code,
+    2,
+    `a load failure must BLOCK now — exit 1 is the fail-open this exists to close:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /FAILED TO LOAD/)
+  assert.match(r.stderr, /RECOVERY/)
+})
+
+test('launch.mjs REFUSAL: a deleted hook module exits EXACTLY 2', () => {
+  const dir = launcherFixture()
+  rmSync(join(dir, '.claude/hooks/pretool-write-guard.mjs'))
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.equal(r.code, 2, `${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /FAILED TO LOAD/)
+})
+
+test('launch.mjs REFUSAL: a path-shaped argument is refused — the launcher is not an import primitive', () => {
+  const dir = launcherFixture()
+  for (const evil of ['../../evil.mjs', '/tmp/evil.mjs', 'lib/hookio.mjs', 'launch.mjs', '']) {
+    const r = runLauncher(dir, evil, LAUNCH_WRITE)
+    assert.equal(r.code, 2, `${JSON.stringify(evil)} must be refused:\n${r.stdout}${r.stderr}`)
+  }
+})
+
+test('launch.mjs PASSTHROUGH: an intact hook still denies what it denied — the launcher adds no judgement', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.ok(
+    r.stdout.includes('"deny"'),
+    `the write-guard's protected-path deny must survive the launcher:\n${r.stdout}${r.stderr}`,
+  )
+})
+
+test('launch.mjs PASSTHROUGH: an intact hook still allows what it allowed', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', {
+    tool_name: 'Write',
+    tool_input: { file_path: 'apps/web/lib/notes.ts', content: 'export const x = 1\n' },
+  })
+  assert.equal(
+    r.code,
+    0,
+    `an ordinary product write must pass through the launcher untouched:\n${r.stdout}${r.stderr}`,
+  )
+  assert.ok(!r.stdout.includes('"deny"'), r.stdout)
+})
+
+test('launch.mjs PASSTHROUGH: malformed stdin still reaches the hook’s own fail-closed handler (exit 2)', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', 'not-json{{')
+  assert.equal(r.code, 2, `${r.stdout}${r.stderr}`)
+})

@@ -56,10 +56,10 @@ const editSettings = (fn) =>
     return `${JSON.stringify(s, null, 2)}\n`
   })
 
-test('GREEN: a fresh scaffold is wired — seven hooks, posture held, CODEOWNERS covering', () => {
+test('GREEN: a fresh scaffold is wired — eight hooks (seven guards + the launcher), posture held, CODEOWNERS covering', () => {
   const r = runGate()
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /7 hooks wired/)
+  assert.match(r.out, /8 hooks wired/)
   assert.match(r.out, /permission posture held/)
   assert.match(r.out, /enforcement path\(s\)/)
 })

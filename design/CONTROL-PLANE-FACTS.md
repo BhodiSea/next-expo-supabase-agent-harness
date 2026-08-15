@@ -266,8 +266,11 @@ gate-integrity (which would name the sha mismatch) never runs locally; first det
 The 0.9.0 mitigations: the installer's write primitive stages to a dot-tmp and renames (a
 destination is old bytes or new bytes, never a truncation), `update --rollback` restores the
 recorded pre-update tree, and the upgrade runbook's RECOVERY section names the torn-hook case
-as the urgent one. A fail-closed *launcher* (a wrapper whose only job is to exit 2 when the
-real hook cannot load) is a recorded obligation, not shipped.
+as the urgent one. The fail-closed *launcher* SHIPPED at 1.0.0
+(`.claude/hooks/launch.mjs` — every hook command routes through it, and a hook that cannot
+load exits 2 and blocks; proven by the launcher block in tests/hooks/hook-contract.test.mjs
+against exactly this matrix). The residual is the launcher itself: one import-free file
+whose own tearing still fails open, re-probed at every Claude Code pin bump.
 
 ## Fact 13 — a bare tool name in `permissions.allow` retires every scoped rule for that tool
 

@@ -457,6 +457,14 @@
     ]
   },
   "hookRules": {
+    "launch.mjs": {
+      "//": "1.0.0, the fail-closed launcher — the load-side twin of hookio's installed handlers, closing CONTROL-PLANE-FACTS Fact 12's hole (a hook that cannot LOAD exits 1, which the exit-code contract reads as non-blocking; probed 2026-08-10, re-probed 2026-08-15, matrix identical). Its mechanism is exit 2 with no denyTool() and no stdin read, so the pin is 0 and load-bearing: gaining a denyTool( site or a payload read here would make the launcher a judge, which is exactly what its own header refuses. The denyExamples are the two load failures tests/hooks/hook-contract.test.mjs executes at EXACTLY exit 2, beside the passthrough controls proving an intact hook's deny and allow both survive the indirection byte-identically, and the arbitrary-import refusal (a path-shaped argument exits 2).",
+      "denyToolCallSites": 0,
+      "denyExamples": [
+        "a torn .claude/hooks/lib/hookio.mjs",
+        "a deleted hook module"
+      ]
+    },
     "pretool-bash-guard.mjs": {
       "denyToolCallSites": 1,
       "denyExamples": [

@@ -300,11 +300,17 @@ if (existsSync(SETTINGS)) {
     ),
   )
   for (const [event, command] of commands) {
-    // The canonical shape the installer writes: node "<$CLAUDE_PROJECT_DIR-rooted path>".
-    const m = /^node\s+"?\$CLAUDE_PROJECT_DIR\/([^"\s]+)"?\s*$/.exec(command)
+    // The canonical shape the installer writes (1.0.0): node "<$CLAUDE_PROJECT_DIR-rooted
+    // launch.mjs>" <hook>.mjs — the fail-closed launcher form, where the one argument is a
+    // bare sibling hook filename. The pre-1.0.0 direct form (no argument) stays legal so a
+    // consumer-authored extra hook keeps its shape, but an ARGUMENT is only legal on the
+    // launcher: any other path taking one is a wrapper nobody reviewed.
+    const m = /^node\s+"?\$CLAUDE_PROJECT_DIR\/([^"\s]+)"?(?:\s+([a-z][a-z-]*\.mjs))?\s*$/.exec(
+      command,
+    )
     if (m === null) {
       errs.push(
-        `${SETTINGS}: the ${event} hook command ${JSON.stringify(command)} is not \`node "$CLAUDE_PROJECT_DIR/<path>"\` — a hook that does not invoke node explicitly depends on the executable bit, which nothing in this repo hashes, and a command rewritten to anything else is a wired-looking hook that runs nothing.`,
+        `${SETTINGS}: the ${event} hook command ${JSON.stringify(command)} is not \`node "$CLAUDE_PROJECT_DIR/<path>"\` (optionally \`.claude/hooks/launch.mjs <hook>.mjs\`) — a hook that does not invoke node explicitly depends on the executable bit, which nothing in this repo hashes, and a command rewritten to anything else is a wired-looking hook that runs nothing.`,
       )
       continue
     }
@@ -312,6 +318,17 @@ if (existsSync(SETTINGS)) {
       errs.push(
         `${SETTINGS}: the ${event} hook command points at ${m[1]}, which does not exist — the hook is wired to nothing.`,
       )
+    }
+    if (m[2] !== undefined) {
+      if (m[1] !== '.claude/hooks/launch.mjs') {
+        errs.push(
+          `${SETTINGS}: the ${event} hook command passes an argument (${m[2]}) to ${m[1]} — only the fail-closed launcher (.claude/hooks/launch.mjs) takes a hook-filename argument; any other wrapper is an unreviewed indirection in the trust path.`,
+        )
+      } else if (!existsSync(`.claude/hooks/${m[2]}`)) {
+        errs.push(
+          `${SETTINGS}: the ${event} hook command launches .claude/hooks/${m[2]}, which does not exist — the launcher would fail closed on every event, which is the designed behaviour but not a wired hook.`,
+        )
+      }
     }
   }
 }

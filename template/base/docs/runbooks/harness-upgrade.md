@@ -915,9 +915,16 @@ by symptom:
    atomic): the parked copy is the harness's CORRECT version and the in-tree
    file may be torn. Compare them; if the in-tree file is truncated, take the
    parked copy (`mv .harness/pending/<path> <path>`), then re-run `update`.
-   A torn file under `.claude/hooks/` is the urgent case — a hook that cannot
-   parse FAILS OPEN (Claude Code treats its exit 1 as non-blocking), so the
-   agent-time layer is silently disarmed until the file is whole again.
+   A torn file under `.claude/hooks/` is still the case to treat first, and
+   since 1.0.0 it BLOCKS instead of disarming: every hook is invoked through
+   the fail-closed launcher (`launch.mjs`), so a hook or library file that
+   cannot LOAD exits 2 and refuses the action rather than failing open (the
+   pre-1.0.0 behaviour, where Claude Code read the load-failure exit 1 as
+   non-blocking and the agent-time layer was silently gone). The honest
+   residual: a torn `launch.mjs` ITSELF still fails open — the class cannot be
+   closed from inside the process it disarms; what shipped is a shrink of the
+   fail-open surface from every hook and library file to one tiny import-free
+   file, re-probed at every Claude Code pin bump per CONTROL-PLANE-FACTS.
 
 ## How to graduate
 
