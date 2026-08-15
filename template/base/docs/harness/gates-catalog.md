@@ -240,7 +240,14 @@ package that ships a `./client` subpath export must carry a sanctioned `{package
 reason}` entry (Metro does not tree-shake, so a `./client` on a package holding a
 server graph puts it one import from the native binary); two-way, so a sanction naming
 a missing package reds too. `sanctioned` is MAY not MUST — a listed package shipping
-only `.` is fine. **check-workspace-deps** (the declared-dependency allow-matrix):
+only `.` is fine. An entry's `module` value (the opt-in-module dormancy arm) is closed
+against the OWNED `tools/modules.json` since 1.0.0 — the shipped copy of the
+installer's module list, write-guarded and refreshed by `update`, with a factory
+lockstep test holding the two set-equal — so a typo'd module name can no longer park
+the stale arm permanently dormant; unknown or retired names red (ramped for pre-1.0.0
+installs until 1.1.0, register row `exports-walls-module-closure-ramp-expiry`), and a
+missing or malformed module list fails closed unramped naming `update`.
+**check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
 system); `@app/api` must be an import-type-only devDependency; verticals never depend on

@@ -219,20 +219,6 @@
       "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
     },
     {
-      "id": "exports-walls-module-name-validation",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/check-exports-walls.mjs",
-          "mustContain": "providedBy"
-        }
-      ],
-      "reason": "A census entry's `module` value is validated as a non-empty string and never against the real module set, so a typo'd module name parks the stale arm PERMANENTLY dormant while the entry still pre-authorises a ./client barrel and a mobile runtime dependency — the silent widening the stale arm exists to prevent. The module list is canonical and readable (installer/lib/layout.mjs MODULES, template/modules/*), but the gate ships to consumers where neither path is guaranteed present, so the check needs a shipped list rather than a factory import. Condition until that list has a home.",
-      "reviewedOn": "2026-08-11",
-      "evidence": "template/base/tools/check-exports-walls.mjs"
-    },
-    {
       "id": "architecture-reviewer-apps-widening",
       "kind": "condition",
       "target": null,
@@ -413,6 +399,19 @@
         }
       ],
       "reason": "1.0.0 re-keys the vertical-anatomy DAL laws on BEHAVIOR — a value-import of @app/supabase/@supabase reds anywhere under src/**, and a file that speaks PostgREST (.from(/.rpc(/.select( in call position) must import a port.ts that exists, wherever both live — discharging vertical-anatomy-folder-name-coupling (the src/repo/ service-role escape the directory keying admitted by construction). Per the ramp doctrine the WIDENED findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a vertical that satisfied the 0.9.5 directory keying (its DAL under src/data/ with a port beside it) may hold a PostgREST caller elsewhere that never owed a port import before, and it gets one release of dated NOTEs to route the seam through a port or record the reviewed allow entry, never a hard red on the update that delivered the re-keying. Nothing weakens meanwhile: findings the directory keying already produced keep their vintage tag and stay on the expired 0.9.5 ramp, hard for every real install. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-15"
+    },
+    {
+      "id": "exports-walls-module-closure-ramp-expiry",
+      "kind": "release",
+      "target": "1.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-exports-walls.mjs",
+          "mustContain": "the census module-name closure over the shipped module list"
+        }
+      ],
+      "reason": "1.0.0 ships tools/modules.json (OWNED — the installer MODULES list finally has a shipped home a consumer gate can read, discharging exports-walls-module-name-validation) and closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. The census is SEEDED, so per the ramp doctrine the closure's findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a tree that wrote a module name before any list existed to check it against gets one release of dated NOTEs to fix the name or remove the sanction, never a hard red on the update that delivered the list. The register file itself fails closed unramped when absent or malformed — it is owned and arrives with the same release as the check, so its absence is a broken tree, not a consumer choice. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
       "reviewedOn": "2026-08-15"
     }
   ]

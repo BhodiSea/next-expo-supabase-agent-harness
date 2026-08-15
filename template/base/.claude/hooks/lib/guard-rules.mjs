@@ -529,6 +529,12 @@ export const WRITE_PROTECTED = [
   // tracking signals, privacy-manifest lockstep, the account-deletion closure —
   // every value is a store-review posture, so widening it is a human decision.
   { id: 'store-policy', re: /^tools\/store-policy\.json$/ },
+  // The shipped module list (1.0.0): OWNED, machine-derived from the installer, and
+  // read by check-exports-walls.mjs to close census `module` values. An agent that
+  // could append a fictional name could park a stale census sanction dormant forever
+  // — the exact silent widening the closure was built to end — so the file has no
+  // legitimate in-tree author at all: `update` refreshes it, nothing else writes it.
+  { id: 'modules-register', re: /^tools\/modules\.json$/ },
   { id: 'bundle-budget', re: /^tools\/bundle-budget\.json$/ },
   // The committed gzip-ratchet baseline: regenerated ONLY by `pnpm perf:baseline`
   // in a reviewed commit — an agent editing it would re-baseline its own regression.
