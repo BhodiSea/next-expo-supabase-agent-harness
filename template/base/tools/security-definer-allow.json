@@ -52,6 +52,14 @@
     {
       "function": "private.mfa_is_required",
       "reason": "Reads auth.mfa_factors, on which `authenticated` holds no privilege — and that is the WHOLE reason it is a definer. The vendor-documented aal2 policy queries that table as the invoker and raises 42501 for every caller; the naive fix (`GRANT SELECT ON auth.mfa_factors TO authenticated`) makes it worse rather than better, because the table has RLS enabled and NO policy, so the count comes back 0 for enrolled users too, the CASE falls through to array['aal1','aal2'] and the policy silently accepts aal1. Running as the owner keeps the read inside this function: no grant on auth.mfa_factors is created, and the only thing that escapes is one boolean about the caller themself. Takes no parameter — the identity comes from private.caller_id(), never from an argument — and returns a BOOLEAN rather than a set the caller compares against, so there is no empty-result branch that means allow. Proven at runtime by supabase/tests/mfa_aal2.test.sql: an ENROLLED user presenting an aal1 token gets zero rows."
+    },
+    {
+      "function": "public.elevate",
+      "reason": "The JIT door (Essential Eight RAP-13). Definer because elevation rows are written as app_tenancy_rpc — authenticated holds deny-all writes on admin_elevations so no caller can mint their own admin hour directly; the function derives the caller from auth.uid() internally, reads the RAW seat (it mints what the effective helpers consult, so it must not consult them), applies ASD's verbatim 12-month/45-day windows at the threshold, and gates the lapsed-owner self-revalidation branch on aal2. EXECUTE to authenticated is the point: elevating is the deliberate act every admin performs before administering."
+    },
+    {
+      "function": "public.revalidate_member",
+      "reason": "The human half of RAP-02: an ELEVATED owner re-affirms a colleague's privileged seat by re-stamping revalidated_at. Definer for the same reason as set_member_role — seat writes run as app_tenancy_rpc — and it rides the identical rank-below-caller policy, so the caller must hold effective (elevated) rank strictly above the target; IF NOT FOUND converts a policy miss into a loud 42501."
     }
   ]
 }

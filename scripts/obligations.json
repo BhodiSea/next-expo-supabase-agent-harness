@@ -112,20 +112,6 @@
       ]
     },
     {
-      "id": "e8-privilege-lifecycle",
-      "kind": "release",
-      "target": "0.12.0",
-      "reason": "Essential Eight RAP-02 and RAP-03 require privileged access to be disabled after 12 months unless revalidated and after 45 days of inactivity. Neither exists: role_rank membership is a standing grant with no expiry and no inactivity sweep. Both windows are ASD's own verbatim numbers and are the only ones that may be encoded. RE-TARGETED TO 0.12.0 BY 0.11.0, AND THE PRECONDITION IT WAITED ON IS NOW SHIPPED rather than merely described. The blocker found while planning this release: check-tenancy.mjs resolved SQL functions FIRST-WINS (`functions.find` over migration order) while policies folded last-wins, so a `CREATE OR REPLACE FUNCTION private.member_ranks()` — which is exactly the shape this discharge takes — would have been judged against the 2026-02-01 definition and the whole change would have been VACUOUS AT THE GATE: green on a migration whose rank ladder could be inverted. 0.11.0 fixes that fold (`resolveFunction`, the single home for the rule, with a red-proof that fails against the old resolution), so 0.12.0's migration lands against a gate that can actually see it. What remains unchanged is the cost: it touches the RLS admin predicate and therefore schema-rls, tenancy, migrations, db-limits, types-drift, contracts and the turn-fatal Stop step rls-isolation, which needs a live Supabase. One migration or neither.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "e8-jit-admin",
-      "kind": "release",
-      "target": "0.12.0",
-      "reason": "Essential Eight RAP-13 requires just-in-time administration. Nothing in this tree elevates temporarily: role_rank is a standing grant and no admin session carries an expiry. Discharge is a time-bounded elevation whose expiry the RLS admin predicate actually CONSULTS, so an expired session stops satisfying it rather than merely being marked expired. RE-TARGETED TO 0.12.0 BY 0.11.0 on the same shipped precondition as e8-privilege-lifecycle — the check-tenancy function fold, which until 0.11.0 judged a redefined helper by its FIRST definition and would have passed this discharge without seeing it. One migration or neither: separated, `last_privileged_at` loses its only writer and RAP-03 degrades to an alternate control.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
       "id": "e8-eol-closure",
       "kind": "condition",
       "target": null,

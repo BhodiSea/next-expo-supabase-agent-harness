@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- Count checked by hand against the SELECTs below. pgTAP fails a plan mismatch,
 -- which is the point: an assertion deleted in a hurry cannot pass as a smaller
 -- suite.
-SELECT plan(33);
+SELECT plan(34);
 
 -- The tables under the RLS contract, and the column their policies filter on.
 -- Adding a table to the domain means adding a row here; a table that never
@@ -39,6 +39,9 @@ INSERT INTO rls_targets (table_name, owner_column) VALUES
   ('profiles', 'id'),
   ('orgs', 'id'),
   ('memberships', 'user_id'),
+  -- The JIT elevation table (1.0.0): filtered by user_id like the seat table —
+  -- its policies are the self-only scalars the effective-rank fold depends on.
+  ('admin_elevations', 'user_id'),
   ('invitations', 'org_id'),
   ('notes', 'org_id'),
   ('org_usage', 'org_id');
@@ -47,6 +50,7 @@ SELECT has_table('public', 'profiles', 'public.profiles exists');
 SELECT has_table('public', 'orgs', 'public.orgs exists');
 SELECT has_table('public', 'memberships', 'public.memberships exists');
 SELECT has_table('public', 'invitations', 'public.invitations exists');
+SELECT has_table('public', 'admin_elevations', 'public.admin_elevations exists');
 SELECT has_table('public', 'notes', 'public.notes exists');
 
 -- ENABLE alone leaves the table owner exempt, and the owner is the role that
@@ -237,19 +241,19 @@ SELECT is_empty(
 -- let a client bypass the RPC entirely and write seats over PostgREST.
 SELECT is_empty(
   $$ SELECT t, priv
-       FROM unnest(ARRAY['orgs', 'memberships', 'invitations']) AS t
+       FROM unnest(ARRAY['orgs', 'memberships', 'invitations', 'admin_elevations']) AS t
        CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE', 'DELETE']) AS priv
       WHERE has_table_privilege('authenticated'::name, 'public.' || t, priv) $$,
-  'authenticated holds NO write grant on orgs, memberships or invitations'
+  'authenticated holds NO write grant on orgs, memberships, invitations or admin_elevations'
 );
 
 -- POSITIVE CONTROL for the seat tables: they must still be READABLE, or every
 -- assertion above would pass against a database that denied everything.
 SELECT is_empty(
   $$ SELECT t
-       FROM unnest(ARRAY['orgs', 'memberships', 'invitations']) AS t
+       FROM unnest(ARRAY['orgs', 'memberships', 'invitations', 'admin_elevations']) AS t
       WHERE NOT has_table_privilege('authenticated'::name, 'public.' || t, 'SELECT') $$,
-  'authenticated can still SELECT orgs, memberships and invitations'
+  'authenticated can still SELECT orgs, memberships, invitations and admin_elevations'
 );
 
 -- ── the RPC writer role ─────────────────────────────────────────────────────
@@ -372,6 +376,11 @@ SELECT is_empty(
 CREATE TEMPORARY TABLE freeze_triggers (table_name text, trigger_name text, PRIMARY KEY (table_name, trigger_name));
 INSERT INTO freeze_triggers (table_name, trigger_name) VALUES
   ('memberships', 'memberships_freeze_identity'),
+  -- Both twins on the elevation table: the tenant-key freeze every org-scoped
+  -- table carries, and the identity freeze — an elevation whose user_id could be
+  -- UPDATEd would walk one seat's privilege onto another user.
+  ('admin_elevations', 'admin_elevations_freeze'),
+  ('admin_elevations', 'admin_elevations_freeze_identity'),
   ('invitations', 'invitations_freeze_org'),
   ('notes', 'notes_freeze_org');
 

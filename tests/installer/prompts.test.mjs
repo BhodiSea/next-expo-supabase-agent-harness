@@ -123,7 +123,7 @@ const DEFAULT_ANSWERS = {
 const PLACEHOLDER_COUNT = Object.keys(DEFAULT_ANSWERS).length
 
 /** deepEqual on everything byte-stable; the RFC 9116 bound by shape + window. */
-const assertDefaultAnswers = (/** @type {Record<string, string>} */ answers) => {
+const assertDefaultAnswers = (/** @type {any} */ answers) => {
   const { SECURITY_TXT_EXPIRES: expires, ...rest } = answers
   const { SECURITY_TXT_EXPIRES: _sentinel, ...expected } = DEFAULT_ANSWERS
   assert.match(expires, /^\d{4}-\d{2}-\d{2}$/)

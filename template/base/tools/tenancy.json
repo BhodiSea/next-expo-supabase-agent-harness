@@ -46,36 +46,56 @@
     {
       "name": "self-row",
       "sql": "user_id = (SELECT auth.uid())",
-      "tables": ["memberships"],
-      "reason": "The recursion terminator. memberships' own SELECT policy must not call the scope helpers — they read memberships, so a helper-bearing SELECT policy re-enters itself (54001 stack depth exceeded). A self-only scalar is what makes SECURITY INVOKER helpers safe, and it is why no seat table needs a definer read."
+      "tables": [
+        "memberships",
+        "admin_elevations"
+      ],
+      "reason": "The recursion terminator. memberships' own SELECT policy must not call the scope helpers — they read memberships, so a helper-bearing SELECT policy re-enters itself (54001 stack depth exceeded). A self-only scalar is what makes SECURITY INVOKER helpers safe, and it is why no seat table needs a definer read. Widened to admin_elevations at 1.0.0 for the same recursion fact one table over: the effective-rank fold makes member_ranks() read the elevation table too, so its policies must be helper-free self-only scalars or the helper re-enters them."
     },
     {
       "name": "rank-below-caller",
       "sql": "role_rank < coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0)",
-      "tables": ["memberships"],
+      "tables": [
+        "memberships"
+      ],
       "reason": "Admin-escalation closure expressed as a predicate rather than as procedural logic in an RPC. USING sees the OLD row and WITH CHECK sees the NEW one, so `strictly below the caller's rank` on both clauses means an admin can neither promote anyone to or past their own rank nor touch a peer. It also makes the last-owner rule structural: rank 40 is below nobody, so an owner seat can never be removed or demoted — including one's own. Ownership transfer is therefore a deliberate v0.3 feature, not an accident of a missing count."
     },
     {
       "name": "org-self-created",
       "sql": "created_by = (SELECT auth.uid())",
-      "tables": ["orgs"],
+      "tables": [
+        "orgs"
+      ],
       "reason": "Creating an org is the other write performed by someone who is not yet a member of the row they are writing — at INSERT time no membership exists, so `id = ANY(member_org_ids())` is false by construction and a scope form would make org creation impossible. Binding the new row to the caller's own id is the strongest property available at that instant."
     },
     {
       "name": "invitation-live",
       "sql": "expires_at > now()",
-      "tables": ["invitations"],
+      "tables": [
+        "invitations"
+      ],
       "reason": "Acceptance is the ONE write in the system performed by someone who is not yet a member, so no rank or scope term can be true for them — they hold a bearer token and nothing else. The predicate carries the only property that is checkable without a membership: the invitation has not expired. Consumption is a DELETE (never an accepted_at stamp), so redemption is atomic and a consumed token cannot be replayed — the row is gone."
     },
     {
       "name": "rpc-admin-scope",
       "sql": "org_id = ANY((SELECT private.rpc_admin_org_ids())::uuid[])",
-      "tables": ["memberships"],
-      "reason": "The admin arm of the seat table's rpc-role SELECT policy, and the only place readerScopeHelper may appear. It is what lets set_member_role and remove_member reach a colleague's seat at all: PostgreSQL AND-s this SELECT policy onto their UPDATE/DELETE WHERE clauses, so without it every promotion matches zero rows and raises. Narrowed to the seat table because nothing else needs it — every other tenant table scopes through the ordinary member_org_ids form."
+      "tables": [
+        "memberships",
+        "admin_elevations"
+      ],
+      "reason": "The admin arm of the seat table's rpc-role SELECT policy, and the only place readerScopeHelper may appear. It is what lets set_member_role and remove_member reach a colleague's seat at all: PostgreSQL AND-s this SELECT policy onto their UPDATE/DELETE WHERE clauses, so without it every promotion matches zero rows and raises. Narrowed to the seat table because nothing else needs it — every other tenant table scopes through the ordinary member_org_ids form. Widened to admin_elevations at 1.0.0: set_member_role's demote path DELETEs the TARGET's elevation, and PostgreSQL AND-s the elevation table's SELECT policies onto that DELETE's WHERE clause — without the admin arm the delete matches zero rows and reports success, the exact defect this form was born from."
     }
   ],
-  "knownPureFunctions": ["coalesce", "nullif", "now", "lower"],
-  "nonPublicSchemas": ["private", "audit"],
+  "knownPureFunctions": [
+    "coalesce",
+    "nullif",
+    "now",
+    "lower"
+  ],
+  "nonPublicSchemas": [
+    "private",
+    "audit"
+  ],
   "exemptTables": [],
   "untenantedTablesComment": "TABLES WITH NO TENANT KEY AT ALL, which is a different escape from exemptTables (that one is for tables that DO carry the column but sit outside the predicate rules). Every other check in this gate is discovered BY the tenant column, so without this list the way to pass is to omit the column entirely. A per-user table in a B2B product is a design regression that no isolation test can catch, because per-user isolation is strictly TIGHTER than per-org: every cross-tenant assertion passes while the colleagues who are supposed to share the data cannot see it.",
   "untenantedTables": [

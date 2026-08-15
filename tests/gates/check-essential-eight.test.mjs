@@ -362,7 +362,9 @@ test('every shipped POSITIVE claim resolves against the real canary registry', (
   const positive = reg.requirements.filter(
     (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
   )
-  assert.equal(positive.length, 11, 'the closure is worthless if its subject set silently shrinks')
+  // 14 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03 and RAP-13
+  // to effective and RAP-02 to alternate-control, each on the rls-isolation canary.
+  assert.equal(positive.length, 14, 'the closure is worthless if its subject set silently shrinks')
   assert.deepEqual(canaryProblems(reg, realKeys()), [])
 })
 
