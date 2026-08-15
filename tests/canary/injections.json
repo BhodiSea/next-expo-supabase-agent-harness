@@ -1046,7 +1046,7 @@
     "selftest.yml#consumer-ci-static": [
       {
         "kind": "steps",
-        "note": "0.9.0: the job IS an executed red/green pair — scripts/ci/consumer-ci-static.sh must see the exact frozen-lockfile refusal on the commit-before-install order AND complete the shipped static job (install + validate --min-floor) on a tree that followed init's next-steps note literally; registered as the #lanes static selftest proof. Schedule/dispatch only until its first runner green (the per-PR promotion is a recorded 0.10.0 obligation); the per-commit static closure over the same claims is check-ci-preconditions.mjs, proven in #factoryGates."
+        "note": "0.9.0: the job IS an executed red/green pair — scripts/ci/consumer-ci-static.sh must see the exact frozen-lockfile refusal on the commit-before-install order AND complete the shipped static job (install + validate --min-floor) on a tree that followed init's next-steps note literally; registered as the #lanes static selftest proof. PROMOTED INTO THE PER-PR PATH AT 0.11.0 on the lane's own doctrine — a lane joins the population it has been SEEN PASSING IN — after job-level greens on the scheduled firings; the 0.10.0 deferral rested on the claim that a runner green was unobtainable, which was false. The per-commit static closure over the same claims is check-ci-preconditions.mjs, proven in #factoryGates."
       }
     ],
     "selftest.yml#integration": [

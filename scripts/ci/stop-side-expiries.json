@@ -10,6 +10,6 @@
   },
   "web-e2e": {
     "proof": "tests/gates/check-web-e2e.test.mjs",
-    "note": "Not a chain member AT ALL — validate's e2e step is check-e2e.mjs and the Stop chain never names it; its home is the consumer quality-gate CI lane (the path-filtered browser job), which needs Chromium and which no upgrade-lane leg runs. Its 0.6.0 authenticated-render ramp (until 0.7.0) therefore expires where only the unit proof looks."
+    "note": "Not a chain member AT ALL — validate's e2e step is check-e2e.mjs and the Stop chain never names it; its home is the consumer quality-gate CI lane (the path-filtered browser job), which needs Chromium and which no upgrade-lane leg runs. Its 0.6.0 authenticated-render ramp (until 0.7.0) therefore expires where only the unit proof looks. 0.11.0: THE FILE NOW COVERS TWO RAMPS, and the second one is why this note grew. The 0.10.0 axe-tag ramp falls due at 0.11.0 in the same structurally-unexecuted position, and §7e's check is `grep -qF 'RAMP EXPIRED' <proof>` — it asserts the FILE mentions the string, never that the string belongs to the deadline falling due. All four prior mentions here drove the 0.6.0 ramp, so the axe expiry would have been excused by a proof of an unrelated deadline. The axe canary asserts the banner names 'the axe tag ladder' specifically. THE CLASS IS STILL OPEN: one file can register only one proof path, and nothing makes a proof name the ramp it drives — recorded as a condition row rather than left undescribed."
   }
 }

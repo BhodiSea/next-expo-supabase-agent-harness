@@ -1614,13 +1614,23 @@ jobs:
   # scripts/check-ci-preconditions.mjs is the per-commit static closure over the
   # same claims; this lane is their execution.
   #
-  # Schedule/dispatch only — the maestro-smoke idiom — DELIBERATELY out of the
-  # PR/tag wait population until its first green on a real runner; the promotion
-  # into the per-PR path is a recorded 0.10.0 obligation. A lane joins the
-  # population it has been seen passing in, not the one it was written for.
+  # PROMOTED INTO THE PER-PR PATH AT 0.11.0, on the lane's own doctrine: a lane
+  # joins the population it has been SEEN PASSING IN, not the one it was written
+  # for. 0.9.0 built it; 0.10.0 deferred the promotion on the ground that a green
+  # run on a real runner was unobtainable. That was false and is corrected here —
+  # the job had already run green at job level on the scheduled firings (runs
+  # 31772633121, 31671334581, 31566076693), which is exactly the evidence the
+  # doctrine asks for and the reason the deferral no longer has one.
+  #
+  # THE COST IS THE DECISION, and it is why this was never a default: the lane
+  # inits a scaffold, installs it, and runs `validate --min-floor` twice over, so
+  # every PR from here on pays for it (timeout-minutes: 30 is the ceiling, not the
+  # measured cost — a local execution against a fresh scaffold completed both
+  # directions in 53s plus install). What it buys is the one claim no static
+  # closure can make: check-ci-preconditions.mjs reads the shipped CI's entry path
+  # and this EXECUTES it, in both directions.
   # ---------------------------------------------------------------------------
   consumer-ci-static:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

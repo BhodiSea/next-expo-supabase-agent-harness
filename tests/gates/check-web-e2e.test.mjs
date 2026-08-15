@@ -313,6 +313,43 @@ test('GREEN: the full ladder passes, and an UNTAGGED scan is exempt because it r
   }
 })
 
+test('CANARY — the 0.10.0 axe tag ramp EXPIRES at 0.11.0: banner + hard red on a pre-0.10.0 vintage', () => {
+  // THE COMPENSATING PROOF FOR *THIS* RAMP, and it did not exist until 0.11.0. web-e2e is a
+  // chain member nowhere, so upgrade-lane.sh §7 narrows it out and §7e demands a registered
+  // stand-in from scripts/ci/stop-side-expiries.json. But §7e's check is a bare
+  // `grep -qF 'RAMP EXPIRED' <proof>` — it asserts the FILE mentions the string, not that the
+  // string belongs to the ramp falling due. This file already contained four such mentions,
+  // all driving the 0.6.0 authenticated-render ramp, so the axe expiry would have been
+  // excused by a proof of an unrelated deadline: a green that means nothing.
+  //
+  // baseVersion below the ramp's minVersion, harnessVersion at the deadline: the escape is
+  // over, so the finding must be REPORTED rather than withheld as a NOTE.
+  const dir = fixture({ specs: [{ name: 'home.spec.ts', content: taggedSpec(['wcag2a', 'wcag2aa']) }] })
+  withManifest(dir, '0.9.9', '0.11.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('web-e2e: RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('deadline of 0.11.0'), r.out)
+  // The banner must name the AXE ramp specifically — this is the assertion that stops a
+  // different ramp's expiry from standing in for this one.
+  assert.ok(r.out.includes('the axe tag ladder'), r.out)
+  // Reported, not withheld: the finding text also appears inside a NOTE, so only these two
+  // lines separate the two states.
+  assert.ok(r.out.includes('web-e2e: FAIL'), r.out)
+  assert.ok(!r.out.includes('web-e2e: NOTE'), r.out)
+})
+
+test('CANARY — a 0.10.0-vintage install reds on the same suite WITHOUT the banner (inert)', () => {
+  // baseVersion at the ramp's minVersion: the demand was live for this install from day one,
+  // and an expiry banner here would announce a deadline it never had.
+  const dir = fixture({ specs: [{ name: 'home.spec.ts', content: taggedSpec(['wcag2a', 'wcag2aa']) }] })
+  withManifest(dir, '0.10.0', '0.11.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
+  assert.ok(r.out.includes('a tag list is a NARROWING'), r.out)
+})
+
 test('RED: a tag named only in a COMMENT does not satisfy the ladder', () => {
   // Same rule as every other axis in this file: the source is blanked of comments first.
   const cheat = taggedSpec(['wcag2a', 'wcag2aa']).replace(
