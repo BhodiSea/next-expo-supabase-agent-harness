@@ -297,18 +297,6 @@
       "evidence": ".github/workflows/selftest.yml"
     },
     {
-      "id": "auth-posture-consumer-tunable-split",
-      "kind": "release",
-      "target": "0.12.0",
-      "sites": [
-        {
-          "file": "template/base/tools/auth-posture.json"
-        }
-      ],
-      "reason": "tools/auth-posture.json holds the harness FLOOR and the consumer-TUNABLE values in one reviewed file, so a consumer legitimately retuning a tunable produces the same diff shape as weakening the floor, and review carries the whole burden of telling them apart. Discharge is the split: floor rows owned and pinned, tunable rows seeded with declared bounds. RE-TARGETED TO 0.12.0 BY 0.11.0, AND ITS PREVIOUS REASON WAS FALSE — that is the first thing this row now says, because the register repeating a falsehood is worse than prose doing it. The 0.10.0 text deferred on the ground that 'the [auth.mfa] ramp whose findings it would reshape expires in this very release'; MFA_RAMP is '0.9.9' with `until: '0.10.0'`, so it expired in the release that wrote the sentence and the stated blocker was already spent when it was written. THE HONEST REASON IS AN INTERACTION, stated as one rather than dressed as a capability limit: the split PLANTS A NEW SEEDED FILE (the tunables register) into installs that are, in this same release, meeting five ramp expiries across twelve vintages and receiving a new seeded erase record. 0.11.0 already spends its one seeded-source correction on the uuid acceptance, which is a release-blocker rather than a choice. A second planted register on the same hop is the ambush the ramp doctrine exists to prevent, and 0.12.0 carries no expiry wave at all — every ramp in the fleet falls due at or below 0.11.0. PAIRED with store-policy-consumer-tunable-split, which is the same shape one register over and stays a condition row: doing both on one mechanism is what makes the second an application rather than an unreasoned copy.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
       "id": "mutation-scope-seeded-split",
       "kind": "condition",
       "target": null,
