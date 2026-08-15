@@ -183,7 +183,7 @@ function git(dir, ...args) {
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
-/** @param {{ config?: any, banner?: string, lock?: any, perms?: any, pluginsFile?: any, eas?: any, tokens?: any, storePolicy?: any, assets?: Record<string, Buffer> | null, nodeModules?: boolean, sources?: Record<string, string | Buffer>, gitignore?: string }} [opts] */
+/** @param {{ config?: any, banner?: string, lock?: any, perms?: any, pluginsFile?: any, eas?: any, tokens?: any, storePolicy?: any, storeTunables?: any, assets?: Record<string, Buffer> | null, nodeModules?: boolean, sources?: Record<string, string | Buffer>, gitignore?: string }} [opts] */
 function fixture({
   config = baseConfig(),
   banner = 'Scope: all 5 workspace projects',
