@@ -60,6 +60,7 @@ function walkSources(dir) {
 const GATE = 'auth-posture'
 const CONFIG = 'supabase/config.toml'
 const POLICY = 'tools/auth-posture.json'
+const TUNABLES = 'tools/auth-tunables.json'
 const RAMP = '0.6.0'
 
 if (!existsSync(CONFIG)) {
@@ -80,6 +81,25 @@ try {
   policy = JSON.parse(readFileSync(POLICY, 'utf8'))
 } catch (e) {
   fail(GATE, `${POLICY} is not valid JSON (${e.message}) — the policy must be reviewable data`)
+}
+
+// The tunables register (1.0.0 split): the consumer's own values for the keys the owned
+// policy declares tunable. SEEDED — a retune is the consumer's reviewed commit — and
+// planted-when-absent, so a missing file is a deleted file, not an unshipped one.
+if (!existsSync(TUNABLES)) {
+  fail(
+    GATE,
+    `${TUNABLES} is missing — it is the seeded register holding this project's OWN values for the tunable auth keys (${POLICY} holds the floor and the bounds). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${TUNABLES}\`.`,
+  )
+}
+let tunables
+try {
+  tunables = JSON.parse(readFileSync(TUNABLES, 'utf8'))
+} catch (e) {
+  fail(
+    GATE,
+    `${TUNABLES} is not valid JSON (${e.message}) — an unreadable tunables register fails CLOSED rather than un-reviewing every retune; restore it from git history`,
+  )
 }
 
 const { values, sections, errors: tomlErrs } = parseToml(readFileSync(CONFIG, 'utf8'))
@@ -134,6 +154,66 @@ for (const [key, want] of Object.entries(policy.posture ?? {})) {
   }
 }
 
+// ── 1a. the TUNABLES closure (1.0.0 split), three ways ───────────────────────────────
+// The owned policy declares WHICH keys are tunable and the bound each must stay inside;
+// the seeded register holds the project's VALUE and why. Three closures, each with its
+// own failure: a declared tunable with no row (an unreviewed posture), a row outside its
+// bound (a retune the floor refuses), and a config value that disagrees with the row
+// (the two-place act half-done). The reverse census — a row for a key the policy never
+// declared — reds too: a consumer cannot mint a tunable, because widening the tunable
+// SET is a harness-release act exactly like widening the floor.
+/** @param {string} key @param {any} bound @param {any} row */
+function tunableRowProblems(key, bound, row) {
+  const out = []
+  if (row === undefined || row === null || typeof row !== 'object') {
+    out.push(
+      `${TUNABLES}: no row for \`${key}\` — ${POLICY} declares it tunable, so this project owes a reviewed value and why here (the seeded exemplar carries the template defaults).`,
+    )
+    return out
+  }
+  const v = row.value
+  const typeOk = bound.type === 'number' ? typeof v === 'number' : typeof v === 'boolean'
+  if (!typeOk) {
+    out.push(
+      `${TUNABLES}: \`${key}\` value ${JSON.stringify(v)} is not a ${bound.type} — the bound in ${POLICY} types the key, and a mistyped value is a posture the CLI would silently ignore.`,
+    )
+    return out
+  }
+  if (typeof v === 'number' && (v < (bound.min ?? -Infinity) || v > (bound.max ?? Infinity))) {
+    out.push(
+      `${TUNABLES}: \`${key}\` is ${String(v)}, outside the owned bound ${String(bound.min)}..${String(bound.max)} declared in ${POLICY} — retuning is yours, the bound is the floor's. ${bound.why ?? ''}`,
+    )
+  }
+  if (String(row.why ?? '').trim().length < 40) {
+    out.push(
+      `${TUNABLES}: \`${key}\` has a \`why\` under 40 characters — the row IS the review record of this project's value; a bare number reviews nothing.`,
+    )
+  }
+  const got = values.get(key)
+  if (got === undefined) {
+    out.push(
+      `${CONFIG}: \`${key}\` is MISSING — ${TUNABLES} reviews it as ${JSON.stringify(v)}. The CLI ignores an absent key silently and applies its own default, so a deleted line is a posture change nobody sees.`,
+    )
+  } else if (got !== v) {
+    out.push(
+      `${CONFIG}: \`${key}\` is ${JSON.stringify(got)} but this project's ${TUNABLES} row says ${JSON.stringify(v)} — retuning is editing BOTH in one diff; half the act is drift, not a decision.`,
+    )
+  }
+  return out
+}
+
+const tunableBounds = Object.entries(policy.tunables ?? {}).filter(([k]) => !k.startsWith('//'))
+for (const [key, bound] of tunableBounds) {
+  for (const msg of tunableRowProblems(key, bound, tunables.values?.[key])) push(key, msg)
+}
+for (const key of Object.keys(tunables.values ?? {})) {
+  if (policy.tunables?.[key] === undefined) {
+    errs.push(
+      `${TUNABLES} carries a row for \`${key}\`, which ${POLICY} does not declare tunable — a consumer cannot mint a tunable; if this key genuinely belongs to the project, widening the tunable set is a harness-release act with a bound.`,
+    )
+  }
+}
+
 // ── 1b. project-valued keys: present, and the right SHAPE ────────────────────────────
 // Some keys hold the project's value rather than the harness's — `site_url` is the consumer's
 // origin. Pinning those by equality would either red on every scaffold that filled one in, or
@@ -162,6 +242,7 @@ for (const [key, rule] of Object.entries(policy.projectValued ?? {})) {
 const reviewed = new Set(
   [
     ...Object.keys(policy.posture ?? {}),
+    ...tunableBounds.map(([k]) => k),
     ...Object.keys(policy.projectValued ?? {}).filter((k) => !k.startsWith('//')),
     policy.redirectAllowlist?.key,
   ].filter(Boolean),
@@ -240,12 +321,24 @@ for (const name of policy.requiredSections ?? []) {
 // pin bump, and the docs-sync deferral scan reds this sentence the release the date arrives —
 // the standing rule (written at 0.9.0, the second scheduled firing) is that each such arrival
 // moves the date one minor in a reviewed diff until the upstream subcommand actually ships.
-const known = policy.knownSections ?? []
+// The census unions the owned core with the seeded additionalSections (the 1.0.0 split
+// applied to sections): a consumer who enables [realtime] records it in the tunables
+// register with the same two-place discipline as a key retune. A malformed addition reds
+// rather than silently widening the census.
+const additional = Array.isArray(tunables.additionalSections) ? tunables.additionalSections : []
+for (const name of additional) {
+  if (typeof name !== 'string' || name.trim() === '') {
+    errs.push(
+      `${TUNABLES}: additionalSections carries a non-string entry — a section the census cannot name is a section it cannot watch.`,
+    )
+  }
+}
+const known = [...(policy.knownSections ?? []), ...additional.filter((n) => typeof n === 'string')]
 for (const name of sections) {
   if (!known.includes(name)) {
     push(
       name,
-      `${CONFIG}: section \`[${name}]\` is present but not in ${POLICY} knownSections — a Supabase config section is a SURFACE (realtime replays row changes through its own policy check; storage has a separate bucket policy model), so one appearing without review is a door in the wall that no test in this repo watches.`,
+      `${CONFIG}: section \`[${name}]\` is present but in neither ${POLICY} knownSections nor ${TUNABLES} additionalSections — a Supabase config section is a SURFACE (realtime replays row changes through its own policy check; storage has a separate bucket policy model), so one appearing without review is a door in the wall that no test in this repo watches. Enabling a surface is the consumer's act: record it in ${TUNABLES} additionalSections.`,
     )
   }
 }
@@ -253,7 +346,7 @@ for (const name of known) {
   if (!sections.includes(name)) {
     push(
       name,
-      `${CONFIG}: section \`[${name}]\` is reviewed in ${POLICY} knownSections but ABSENT from the config — either it was removed without review, or upstream renamed it (the CLI renames sections and warns rather than erroring, which is how the shipped \`[inbucket]\` sat deprecated with nothing reading the warning).`,
+      `${CONFIG}: section \`[${name}]\` is reviewed (${POLICY} knownSections or ${TUNABLES} additionalSections) but ABSENT from the config — either it was removed without review, or upstream renamed it (the CLI renames sections and warns rather than erroring, which is how the shipped \`[inbucket]\` sat deprecated with nothing reading the warning).`,
     )
   }
 }
@@ -328,7 +421,7 @@ if (
 failures(
   GATE,
   errs,
-  `Change ${CONFIG} back — the reviewed posture is ${POLICY}, and the diff between them is the finding. (${POLICY} is harness-owned and sha-pinned by check-gate-integrity.mjs on an install: a local edit reds as tampering and \`update\` parks the incoming version, so recording a genuinely new posture is a harness-release act today; the consumer-tunable split is a recorded harness obligation.)`,
+  `The reviewed posture is split since 1.0.0: the FLOOR and the bounds live in ${POLICY} (harness-owned, sha-pinned — weakening it is a harness-release act), the project's TUNABLE values live in ${TUNABLES} (seeded, write-guard-protected — a retune edits that register and ${CONFIG} in ONE reviewed diff). The diff between config and register is the finding.`,
 )
 // The count is the REVIEWED total minus anything a ramp withheld. An OK line claiming
 // nineteen values hold while ten of them are missing is the same class of untrue summary
@@ -336,6 +429,6 @@ failures(
 const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length
 ok(
   GATE,
-  `${String(Math.max(held, 0))} reviewed value(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
+  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
 )
 process.exitCode = 0

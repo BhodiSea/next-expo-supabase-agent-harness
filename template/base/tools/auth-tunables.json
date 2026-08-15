@@ -1,0 +1,26 @@
+{
+  "comment": "The consumer's auth tunables — the project's OWN reviewed values for the keys tools/auth-posture.json declares tunable, each inside the bound that file holds. This file is SEEDED (yours to retune; `update` never clobbers it) and write-guard-protected: a retune is a reviewed human commit, and tools/check-auth-posture.mjs holds the closure three ways — config.toml must equal the row, the row must sit inside the owned bound, and every declared tunable must have a row. `additionalSections` is the same split applied to the section census: a consumer who enables a surface section ([realtime], [storage], [functions.<name>]) records it here with a why, and the census unions it with the owned core — a section neither register names still reds. The seeded values below are the template's own; retuning is editing this file and config.toml in one diff, which is the two-place act that makes the change reviewable.",
+  "values": {
+    "auth.jwt_expiry": {
+      "value": 3600,
+      "why": "One hour — the template default. Long enough that a mobile session survives ordinary use between refreshes; short enough that a stolen access token dies the same afternoon. Retune inside the owned 300..86400 bound with the trade written here."
+    },
+    "auth.enable_signup": {
+      "value": true,
+      "why": "Self-service signup is on — the scaffold is a product skeleton and a signup path is part of the worked example. An invite-only deployment flips this with its reasoning in this row."
+    },
+    "auth.email.enable_signup": {
+      "value": true,
+      "why": "Email/password is the scaffold's worked signup channel (the sign-in exemplar uses it). A deployment moving to OAuth-only flips this here."
+    },
+    "auth.email.enable_confirmations": {
+      "value": false,
+      "why": "LOCAL-ONLY FALSE: `supabase start` must give a usable account without a round trip through Mailpit. The DEPLOYED project must have confirmations ON — the [remotes] blocks or the Dashboard own that value, and no local gate can see it; this row is where that trade stays written."
+    },
+    "auth.mfa.max_enrolled_factors": {
+      "value": 10,
+      "why": "The CLI default ceiling. Lowering it is a legitimate product tightening (one factor per user is a real posture); the owned bound refuses zero, which would disable enrolment while the totp floor claims it works."
+    }
+  },
+  "additionalSections": []
+}

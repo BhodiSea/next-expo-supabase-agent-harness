@@ -59,6 +59,14 @@ export const ESCAPE_LISTS = [
   // the exact rls-exempt sense: the row is the widening a reviewer must see.
   'tools/suppressions-allow.json',
   'tools/resilience.json',
+  // 1.0.0. A tunables row is a reviewed auth-posture value (jwt lifetime, signup
+  // toggles) and additionalSections licenses a whole config SURFACE — both are the
+  // rls-exempt shape: the row is the widening a reviewer must see.
+  'tools/auth-tunables.json',
+  // 1.0.0. Flipping iosEncryption.nonExemptAllowed, adding a privacy-manifest row, or
+  // re-shaping the account-deletion surface are store-review decisions — the same
+  // reviewed-widening class as every escape above.
+  'tools/store-tunables.json',
   'tools/duplication-allow.json', // accepting a code clone
   'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog

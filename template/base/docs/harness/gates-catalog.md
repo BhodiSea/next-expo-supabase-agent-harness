@@ -348,8 +348,12 @@ the splash/adaptive-icon background hex equals the generated dark `canvas` token
 untracked and ignored. Needs `apps/mobile/node_modules` — loud SKIP locally
 without it, FAIL CLOSED in CI; unchanged inputs ride a content stamp.
 
-The STORE-READINESS floor (0.1.2), driven by `tools/store-policy.json`
-(reviewed data, write-guard-protected; malformed fails CLOSED — the checks can
+The STORE-READINESS floor (0.1.2; SPLIT at 1.0.0 into the owned floor
+`tools/store-policy.json` and the consumer's seeded `tools/store-tunables.json` —
+export compliance, privacy-manifest rows, the account-deletion surface and icon
+policy are the PROJECT's decisions, and the old single owned register made the
+exact edit this gate's failure text demanded read as tampering; both halves are
+write-guard-protected and malformed fails CLOSED — the checks can
 never silently disarm): iOS `*UsageDescription` strings reviewed bidirectionally
 against the `ios[]` list in `tools/expo-permissions.json`, never empty or
 placeholder-shaped, and every plugin-implied key present (pre-prebuild honesty:
@@ -1074,7 +1078,7 @@ Every link out of the subject lands in exactly one bucket:
 The portability half closes `export.projection` against the schema both ways, and every table
 carrying subject data is either projected or excluded **with a reason**. `export.surface`
 declares how the export is delivered, or states its absence with a dated `target` — the same
-shape `store-policy.json` uses for `accountDeletion`.
+shape `store-tunables.json` uses for `accountDeletion`.
 
 It also does the one thing nothing else in the repo does: it compares `supabase/schemas/`
 against `supabase/migrations/` on the referential actions. `check-migrations.mjs` used to

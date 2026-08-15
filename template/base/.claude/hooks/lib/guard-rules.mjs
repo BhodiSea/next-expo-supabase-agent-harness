@@ -419,6 +419,14 @@ export const WRITE_PROTECTED = [
   // paper timeout for a transport it just added and stay green.
   { id: 'suppressions-allow', re: /^tools\/suppressions-allow\.json$/ },
   { id: 'resilience-register', re: /^tools\/resilience\.json$/ },
+  // The consumer's auth tunables (1.0.0 split): an agent that could edit this file
+  // could stretch jwt_expiry to its bound or enable a config surface section mid-turn
+  // — a retune is a human's two-place reviewed act (this register + config.toml).
+  { id: 'auth-tunables', re: /^tools\/auth-tunables\.json$/ },
+  // The consumer's store tunables (1.0.0 split): an agent that could edit this file
+  // could flip export compliance, invent a privacy-manifest row, or reshape the
+  // account-deletion surface mid-turn — all store-review decisions a human signs.
+  { id: 'store-tunables', re: /^tools\/store-tunables\.json$/ },
 
   // WHO OWES A REVIEW. Narrowing a pattern here is how a reviewer stops being summoned by
   // the diff it exists for, and it is a one-word edit in a file that reads like config.

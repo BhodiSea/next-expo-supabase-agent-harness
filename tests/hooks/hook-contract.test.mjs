@@ -496,6 +496,8 @@ const RULE_CANARIES = {
   // license its own escape mid-turn and stay green.
   'suppressions-allow': [pathDeny('tools/suppressions-allow.json')],
   'resilience-register': [pathDeny('tools/resilience.json')],
+  'auth-tunables': [pathDeny('tools/auth-tunables.json')],
+  'store-tunables': [pathDeny('tools/store-tunables.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates

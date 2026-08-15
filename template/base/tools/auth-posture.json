@@ -1,16 +1,11 @@
 {
-  "comment": "The Supabase auth posture as reviewed policy. tools/check-auth-posture.mjs parses supabase/config.toml and diffs the [auth*] tree against this file BY VALUE and IN BOTH DIRECTIONS: a value changed in config without a reviewed diff reds, and a key present in config that is absent here reds too. The second direction is the one that earns the gate. The Supabase CLI parses config.toml LENIENTLY — an unknown key under [auth] produces no error and no warning, verified against 2.111.0 — so `enable_refresh_token_rotaton = true` (one letter short) reads to a reviewer as protection while GoTrue runs its default. A config file that can silently claim a posture it does not have is exactly the shape of control this release exists to eliminate. Widening anything here is a CODEOWNERS-reviewed act. On an INSTALL this file is harness-owned and sha-pinned by check-gate-integrity.mjs — a local edit reds as tampering and `update` parks the incoming version rather than adopt yours; the consumer-tunable posture split is a recorded harness obligation, and until it ships a deliberate posture change is a harness-release act, not a local edit.",
+  "comment": "The Supabase auth posture as reviewed policy — SPLIT SINCE 1.0.0 into the harness FLOOR (this file: owned, sha-pinned by check-gate-integrity.mjs, refreshed by `update`) and the consumer TUNABLES (tools/auth-tunables.json: seeded, write-guard-protected, the project's own reviewed values inside bounds THIS file declares). tools/check-auth-posture.mjs parses supabase/config.toml and diffs the [auth*] tree against BOTH registers BY VALUE and IN BOTH DIRECTIONS: a config value that drifts from its register reds, a key present in config that neither register names reds too, and a tunable value outside its declared bound reds even when config and register agree — retuning is the consumer's act, weakening the floor is nobody's. Before the split a consumer legitimately retuning jwt_expiry produced the same diff shape as weakening the rotation floor, and review carried the whole burden of telling them apart. The Supabase CLI parses config.toml LENIENTLY — an unknown key under [auth] produces no error and no warning, verified against 2.111.0 — so `enable_refresh_token_rotaton = true` (one letter short) reads to a reviewer as protection while GoTrue runs its default. Widening anything in THIS file is a harness-release, CODEOWNERS-reviewed act.",
   "posture": {
     "auth.enabled": true,
-    "auth.jwt_expiry": 3600,
     "auth.enable_refresh_token_rotation": true,
     "auth.refresh_token_reuse_interval": 10,
-    "auth.enable_signup": true,
     "auth.enable_anonymous_sign_ins": false,
-    "auth.email.enable_signup": true,
-    "auth.email.enable_confirmations": false,
     "auth.email.double_confirm_changes": true,
-    "auth.mfa.max_enrolled_factors": 10,
     "auth.mfa.totp.enroll_enabled": true,
     "auth.mfa.totp.verify_enabled": true,
     "auth.mfa.phone.enroll_enabled": false,
@@ -21,12 +16,37 @@
     "auth.mfa.web_authn.enroll_enabled": false,
     "auth.mfa.web_authn.verify_enabled": false
   },
+  "tunables": {
+    "//": "The keys whose VALUE is legitimately the project's, each with the harness-declared BOUND a retune must stay inside. The consumer's actual values live in the seeded tools/auth-tunables.json — one row per key here, value equal to config.toml, value inside the bound, and a written why. A key in this block with no row there reds (an undeclared tunable is an unreviewed posture); a row there for a key not in this block reds too (a consumer cannot mint a tunable — widening the tunable SET is a harness act). Bounds are the floor's half of the bargain: `auth.jwt_expiry` may be tuned between five minutes and a day, never disabled into a week-long token; signup toggles are product decisions with no dangerous direction the floor must hold.",
+    "auth.jwt_expiry": {
+      "type": "number",
+      "min": 300,
+      "max": 86400,
+      "why": "Access-token life. Longer widens the window a stolen token is useful for; much shorter signs mobile users out mid-session, which is the pressure that gets rotation turned off. The bound refuses both cliffs: never under five minutes (a token that expires mid-request turns every slow network into a sign-out) and never over a day (a stolen token that outlives the working day is an incident, not an inconvenience)."
+    },
+    "auth.enable_signup": {
+      "type": "boolean",
+      "why": "Whether the project accepts self-service signups at all — an invite-only product legitimately turns this off. No dangerous direction for the floor to hold: both states are product decisions, and the register row is where the decision gets a written why."
+    },
+    "auth.email.enable_signup": {
+      "type": "boolean",
+      "why": "Whether email/password is a signup channel — a project that moves to OAuth-only legitimately turns this off. Same reasoning as auth.enable_signup: the value is the product's, the review record is the point."
+    },
+    "auth.email.enable_confirmations": {
+      "type": "boolean",
+      "why": "FALSE IS LOCAL-ONLY, and this is the one tunable where the seeded value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — the config's [remotes] blocks or the Dashboard own that, and this gate cannot see either. The row exists so the local-only trade is WRITTEN where the next reader meets it."
+    },
+    "auth.mfa.max_enrolled_factors": {
+      "type": "number",
+      "min": 1,
+      "max": 10,
+      "why": "How many factors one user may enrol. The floor holds the bound: never zero (a cap of zero disables enrolment while the totp.enroll_enabled floor claims it works — two keys asserting opposite postures), never above the CLI's own ceiling of ten."
+    }
+  },
   "postureNotes": {
-    "auth.jwt_expiry": "One hour of access-token life. Pinned by VALUE rather than by a ceiling because both directions matter: a longer token widens the window a stolen one is useful for, and a much shorter one signs mobile users out mid-session, which is the pressure that gets rotation turned off.",
     "auth.enable_refresh_token_rotation": "Off means a leaked refresh token is valid until it expires and its use is indistinguishable from the real client's. On means reuse is detectable, which is what refresh_token_reuse_interval is calibrated against.",
     "auth.refresh_token_reuse_interval": "Ten seconds, and it is NOT slack for an attacker: it is the allowance for a mobile client that fires two refreshes concurrently (a cold start racing a resumed request), which without it invalidates the whole family and signs the user out at random. Raising it widens the replay window; removing it trades a security property for a support burden that ends with rotation disabled.",
     "auth.enable_anonymous_sign_ins": "An anonymous sign-in mints a real `authenticated` JWT with a real `sub`, so it satisfies EVERY auth.uid() policy in this tree. The RLS wall would still hold — it would be holding open a door for an identity nobody verified. Turning this on is a product decision that belongs in an ADR.",
-    "auth.email.enable_confirmations": "FALSE IS LOCAL-ONLY, and this is the one row where the reviewed value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — this file's [remotes] blocks, or the Dashboard, own that, and this gate cannot see either.",
     "auth.email.double_confirm_changes": "An email change with no confirmation on the OLD address is an account-takeover primitive: whoever holds the session for one minute owns the account forever.",
     "auth.mfa.totp.enroll_enabled": "ON, and it is the whole MFA rail. TOTP is something the user HAS (the enrolled secret in an authenticator app) beside the password, which is something they KNOW — the pairing ASD's Maturity Level Three asks a second factor to be. Enrolment being available is NOT the same as MFA being used: GoTrue's MFA configuration carries no `required` field anywhere, so mandatory enrolment is an application decision this file cannot express, and the register says so rather than claiming the requirement.",
     "auth.mfa.totp.verify_enabled": "ON. Enrol-without-verify would mint factors that can never raise a session to `aal2`, which reads as MFA in the dashboard and enforces nothing — and the restrictive `notes_mfa_aal2` policy would then lock every enrolled user out of their own data, since it refuses `aal1` for anyone holding a verified factor. The two keys are one decision.",

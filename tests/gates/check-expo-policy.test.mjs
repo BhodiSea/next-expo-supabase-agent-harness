@@ -36,6 +36,10 @@ const SHIPPED_STORE_POLICY = readFileSync(
   fileURLToPath(new URL('../../template/base/tools/store-policy.json', import.meta.url)),
   'utf8',
 )
+const SHIPPED_STORE_TUNABLES = readFileSync(
+  fileURLToPath(new URL('../../template/base/tools/store-tunables.json', import.meta.url)),
+  'utf8',
+)
 // @app/design-tokens' committed RN adapter is the single source apps/mobile paints from,
 // and the one the splash lockstep reads the dark canvas token out of.
 const NATIVE_MODULE_REL = 'packages/design-tokens/src/generated/native.ts'
@@ -189,6 +193,7 @@ function fixture({
   eas = SHIPPED_EAS,
   tokens = SHIPPED_TOKENS,
   storePolicy = SHIPPED_STORE_POLICY,
+  storeTunables = SHIPPED_STORE_TUNABLES,
   assets = defaultAssets(),
   nodeModules = true,
   sources = {},
@@ -216,6 +221,8 @@ function fixture({
     writeFileSync(join(dir, NATIVE_MODULE_REL), asText(tokens))
   }
   if (storePolicy !== null) writeFileSync(join(dir, 'tools/store-policy.json'), asText(storePolicy))
+  if (storeTunables !== null)
+    writeFileSync(join(dir, 'tools/store-tunables.json'), asText(storeTunables))
   for (const [rel, content] of Object.entries(assets ?? {})) {
     const abs = join(dir, rel)
     mkdirSync(dirname(abs), { recursive: true })
@@ -234,6 +241,12 @@ function fixture({
 
 function storePolicyWith(mutate) {
   const p = JSON.parse(SHIPPED_STORE_POLICY)
+  mutate(p)
+  return p
+}
+
+function storeTunablesWith(mutate) {
+  const p = JSON.parse(SHIPPED_STORE_TUNABLES)
   mutate(p)
   return p
 }
@@ -730,7 +743,7 @@ test('11c privacy manifests: malformed category and unreviewed declaration red; 
   assert.equal(unreviewed.code, 1, unreviewed.out)
   assert.ok(unreviewed.out.includes('no reviewed row'), unreviewed.out)
 
-  const reviewed = storePolicyWith((p) => {
+  const reviewed = storeTunablesWith((p) => {
     p.privacyAccessedApiTypes = [
       { category: 'NSPrivacyAccessedAPICategoryUserDefaults', reasons: ['CA92.1'], why: 'kv seam persists preferences' },
     ]
@@ -744,12 +757,12 @@ test('11c privacy manifests: malformed category and unreviewed declaration red; 
           ],
         }
       }),
-      storePolicy: reviewed,
+      storeTunables: reviewed,
     }),
   )
   assert.equal(green.code, 0, green.out)
 
-  const staleRow = runGate(fixture({ storePolicy: reviewed }))
+  const staleRow = runGate(fixture({ storeTunables: reviewed }))
   assert.equal(staleRow.code, 1, staleRow.out)
   assert.ok(staleRow.out.includes('no ios.privacyManifests'), staleRow.out)
 })
@@ -836,7 +849,7 @@ test('11f icons: wrong dimensions, alpha in the marketing icon, and a dangling a
 
 test('11f icons: the solid-placeholder posture escalates from NOTE to red via the policy', () => {
   const escalated = runGate(
-    fixture({ storePolicy: storePolicyWith((p) => (p.icons.solidColorPlaceholder = 'error')) }),
+    fixture({ storeTunables: storeTunablesWith((p) => (p.icons.solidColorPlaceholder = 'error')) }),
   )
   assert.equal(escalated.code, 1, escalated.out)
   assert.ok(escalated.out.includes('solid-color placeholder'), escalated.out)
@@ -844,7 +857,7 @@ test('11f icons: the solid-placeholder posture escalates from NOTE to red via th
   // Real (non-solid) art passes even under the escalated posture.
   const realArt = runGate(
     fixture({
-      storePolicy: storePolicyWith((p) => (p.icons.solidColorPlaceholder = 'error')),
+      storeTunables: storeTunablesWith((p) => (p.icons.solidColorPlaceholder = 'error')),
       assets: {
         'apps/mobile/assets/icon.png': makePng(1024, 1024, { vary: true }),
         'apps/mobile/assets/adaptive-icon.png': makePng(1024, 1024, { alpha: true, vary: true }),
@@ -885,7 +898,7 @@ test('11g account deletion: an auth surface without the registered action or the
         ...AUTH_SOURCES,
         'apps/mobile/src/features/actions/registry.ts': 'export const ACTION_COMMANDS = []\n',
       },
-      storePolicy: storePolicyWith((p) => {
+      storeTunables: storeTunablesWith((p) => {
         p.accountDeletion = { surface: 'none', reason: 'SSO-only enterprise app; accounts are organization-managed' }
       }),
     }),
@@ -903,4 +916,13 @@ test('RED store policy: a malformed policy FAILS CLOSED; a missing one is a rest
   const missing = runGate(fixture({ storePolicy: null }))
   assert.equal(missing.code, 1, missing.out)
   assert.ok(missing.out.includes('tools/store-policy.json missing'), missing.out)
+
+  // The tunables half (1.0.0 split) fails closed the same way, naming the seeded pull —
+  // it is planted-when-absent, so a missing file is a deleted one.
+  const missingTunables = runGate(fixture({ storeTunables: null }))
+  assert.equal(missingTunables.code, 1, missingTunables.out)
+  assert.ok(
+    missingTunables.out.includes('--refresh-seeded tools/store-tunables.json'),
+    missingTunables.out,
+  )
 })

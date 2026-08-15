@@ -54,6 +54,16 @@ const DELIBERATE_PLANT = [
       'Identical reasoning to suppressions-allow.json one line up: tools/check-resilience.mjs fails closed on a missing register after its ramp, so withholding would convert a dated NOTE into a hard red on the exact install that cannot receive the file. The shipped rows declare the scaffold’s own eight seam files (tRPC client, rate-limiter fetch, five supabase-js factories, the delete-account Edge Function) — universal exemplar content, no consumer-specific seam.',
   },
   {
+    file: 'template/base/tools/auth-tunables.json',
+    reason:
+      'ABSENT, tools/check-auth-posture.mjs fails closed asking for it — the 1.0.0 floor/tunable split moved five posture values out of the owned register into this seeded one, so an upgraded install with no planted copy would red on values it never chose to move. Planting is green-by-construction: the seeded rows carry the exact values the owned register pinned before the split, so config.toml agrees with them on every vintage, and the only future finding is a retune the consumer performs half-way (register without config, or config without register) — which is the two-place act the split exists to make visible. The content is the template defaults with written whys; it names nothing project-specific.',
+  },
+  {
+    file: 'template/base/tools/store-tunables.json',
+    reason:
+      'ABSENT, tools/check-expo-policy.mjs fails closed asking for it — the 1.0.0 split moved the four consumer store decisions (iosEncryption, privacyAccessedApiTypes, accountDeletion, icons) out of the owned store-policy.json into this seeded register, because the old single owned file made the exact edit the gate’s failure text demanded (set nonExemptAllowed with a reason) read as tampering. 0.9.5 tried the seeded flip on the WHOLE file and upgrade-lane leg E caught it — a v0.3.0 install kept its pre-0.7.0 copy and redded both version-sync and docs-sync — which is why the FLOORS stay owned and only these four move. Planting is green-by-construction: the seeded values are the exact ones the owned register carried before the split, so every vintage’s resolved config already satisfies them. Template defaults only; nothing project-specific.',
+  },
+  {
     file: 'template/base/tools/backup-posture.json',
     reason:
       "ABSENT, `tools/check-backup-posture.mjs` skips loudly and produces no backup evidence at all — and the scheduled `backup-evidence` job that runs it arrives on the SAME `update` that would withhold this file, so seedOnInitOnly would ship the job and hold back its one input, guaranteeing a lane that can never do anything on an upgraded install. Planting it costs an existing install NOTHING: the file ships deliberately incomplete (maxDailyBackupAgeHours null, restorationTesting.lastTestedOn null) and the script never reaches the shape check without credentials, so an install that has not wired SUPABASE_ACCESS_TOKEN sees exactly one loud SKIP on a weekly cron and no red anywhere. The content is a posture contract plus the vendor ceilings — it names no consumer table, project or number, exactly like tenancy.json above.",

@@ -129,10 +129,12 @@ full statement of what the module does NOT solve, each loss with its cost, is
   argument — and reds again when an entry names a column no migration creates,
   so the deny list cannot go stale as the schema moves under it.*
 
-- **Shipping real cryptography flips `tools/store-policy.json` `iosEncryption`
+- **Shipping real cryptography flips `tools/store-tunables.json` `iosEncryption`
   WITH a reason, and declares `ITSAppUsesNonExemptEncryption`, in the same
   diff.** Standard TLS is exempt and an https-only app declares `false`; AES over
-  user content is not that, and the two halves are one decision. *Twin:
+  user content is not that, and the two halves are one decision. (Since the 1.0.0
+  floor/tunable split this is YOUR seeded register — the edit the gate asks for
+  no longer reads as tampering on an owned file.) *Twin:
   `node tools/check-expo-policy.mjs`, which already enforces the declaration in
   BOTH directions over the RESOLVED config — `ITSAppUsesNonExemptEncryption`
   must be a boolean (undeclared re-asks the question on every TestFlight build),

@@ -133,6 +133,16 @@ export const SEEDED_FILES = new Set([
   // ESCAPE_LISTS, so adding a row is a reviewed human act, exactly like rls-exempt.json.
   'tools/suppressions-allow.json',
   'tools/resilience.json',
+  // 1.0.0. The consumer's auth tunables — the project's own values for the keys
+  // tools/auth-posture.json declares tunable (the floor/tunable split). Seeded because a
+  // retune is the CONSUMER's reviewed act; the bounds stay owned so a retune can never
+  // become a floor weakening.
+  'tools/auth-tunables.json',
+  // 1.0.0. The consumer's store tunables — export compliance, privacy-manifest rows,
+  // the account-deletion surface, icon policy (the store half of the same split; the
+  // floors stay owned in tools/store-policy.json, which check-version-sync depends on
+  // being update-restorable).
+  'tools/store-tunables.json',
   'tools/identity.lock.json',
   'tools/prompts.lock.json',
   // Human-tuned budget/design data: write-guard-protected against agents, but a

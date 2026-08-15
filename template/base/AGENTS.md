@@ -173,11 +173,14 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   `ios.buildNumber`, `android.versionCode` are DERIVED from package.json in
   `app.config.ts`; `eas.json` keeps `appVersionSource: "local"`,
   `autoIncrement: false`; `runtimeVersion.policy` stays `appVersion`.
-- **Store readiness is gate data** (`tools/store-policy.json`, reviewed):
-  export compliance stays DECLARED (`ITSAppUsesNonExemptEncryption`), every
-  iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`, the
-  targetSdk floor holds, and an auth surface requires the account-deletion
-  surface (a `session.deleteAccount` procedure — Apple 5.1.1(v)).
+- **Store readiness is gate data**, split since 1.0.0: the harness FLOOR
+  (`tools/store-policy.json` — targetSdk, the Xcode floor, plugin key map) is
+  owned; YOUR store decisions (`tools/store-tunables.json` — export compliance
+  stays DECLARED via `ITSAppUsesNonExemptEncryption`, privacy-manifest rows,
+  the account-deletion surface, icon policy) are seeded and write-guarded.
+  Every iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`,
+  and an auth surface requires the account-deletion surface (a
+  `session.deleteAccount` procedure — Apple 5.1.1(v)).
 - **`WITH RECURSIVE` requires a `CYCLE` clause or visited guard** — graph data
   loops forever otherwise.
 - **Prompt lock discipline:** every LLM prompt file is versioned in its name

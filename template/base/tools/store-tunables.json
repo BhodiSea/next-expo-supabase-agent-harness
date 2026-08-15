@@ -1,0 +1,11 @@
+{
+  "//": "The consumer's store tunables — the PROJECT's half of the store policy since the 1.0.0 split (the harness floor stays in the owned tools/store-policy.json). Every value here is a decision only this project can make, which is exactly why the file is SEEDED: the old single owned register was sha-pinned, so the edit check-expo-policy's own failure text demanded (set iosEncryption.nonExemptAllowed with a reason) read as tampering the moment a consumer performed it. This file is write-guard-protected — a change is a reviewed human commit — and planted-when-absent, so an upgrading install receives the template defaults its config already satisfies. iosEncryption: nonExemptAllowed=true (with a reason) is the reviewed escape for apps that genuinely ship non-exempt cryptography; the gate requires ITSAppUsesNonExemptEncryption to be DECLARED either way, and flipping both halves is ONE decision in ONE diff (.claude/rules/encryption.md holds the twin). privacyAccessedApiTypes: the reviewed lockstep for ios.privacyManifests NSPrivacyAccessedAPITypes rows ({ category, reasons, why }) — declared-but-unreviewed and reviewed-but-undeclared both red. accountDeletion: the Apple 5.1.1(v) closure — surface 'action' asserts the command-registry id + the backing Edge Function exist whenever an auth surface ships; 'route' asserts a ROUTES id + the Edge Function; 'external' (https url + reason) and 'none' (reason) are the reviewed escapes. icons.solidColorPlaceholder: 'warn' keeps the scaffold's deliberate placeholder art green with a NOTE; flip to 'error' as a pre-submission step.",
+  "iosEncryption": { "nonExemptAllowed": false, "reason": "" },
+  "privacyAccessedApiTypes": [],
+  "accountDeletion": {
+    "surface": "action",
+    "actionId": "session.deleteAccount",
+    "edgeFunction": "delete-account"
+  },
+  "icons": { "solidColorPlaceholder": "warn" }
+}

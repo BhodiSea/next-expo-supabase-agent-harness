@@ -429,7 +429,14 @@ function checkEasJson() {
 }
 
 // ---- 11. store readiness (tools/store-policy.json — reviewed data) --------------
+// SPLIT SINCE 1.0.0: the harness FLOOR (androidTargetSdk, iosToolchain, the plugin
+// key map, the tracking signals) stays in the OWNED store-policy.json; the PROJECT's
+// decisions (iosEncryption, privacyAccessedApiTypes, accountDeletion, icons) live in
+// the SEEDED store-tunables.json — the old single owned register made the edit this
+// gate's own failure text demanded read as tampering. Both halves are shape-checked
+// fail-closed and merged for the checks below.
 const STORE_FILE = 'tools/store-policy.json'
+const STORE_TUNABLES_FILE = 'tools/store-tunables.json'
 const PLACEHOLDER_STRING = /(TODO|TBD|FIXME|lorem|replace this|^xx+$)/i
 // Apple's closed category vocabulary for required-reason APIs — spec data, not
 // project policy, so it lives here rather than in the reviewed file.
@@ -492,14 +499,6 @@ function loadStorePolicy() {
   ) {
     badly('androidTargetSdk.expoSdkDefaults must map SDK majors to positive integers')
   }
-  if (typeof p.iosEncryption?.nonExemptAllowed !== 'boolean')
-    badly('iosEncryption.nonExemptAllowed must be a boolean')
-  if (
-    p.iosEncryption.nonExemptAllowed === true &&
-    (typeof p.iosEncryption.reason !== 'string' || p.iosEncryption.reason.trim() === '')
-  ) {
-    badly('iosEncryption.nonExemptAllowed: true requires a non-empty reason')
-  }
   const keyMap = p.usageDescriptionKeysByPlugin
   if (
     keyMap === null ||
@@ -515,6 +514,35 @@ function loadStorePolicy() {
     !p.trackingSdkSignals.every((s) => typeof s === 'string' && s !== '')
   ) {
     badly('trackingSdkSignals must be an array of package names')
+  }
+  return p
+}
+
+// Load + shape-check the consumer's tunables half. Same fail-closed posture as the
+// floor: an unreadable register never silently disarms a store check. A MISSING file
+// is a deleted one (it is planted-when-absent), so the remedy is the seeded pull.
+function loadStoreTunables() {
+  if (!existsSync(STORE_TUNABLES_FILE)) {
+    fail(
+      GATE,
+      `${STORE_TUNABLES_FILE} is missing — it holds this project's store decisions (export compliance, privacy-manifest rows, the account-deletion surface, icon policy; the harness floor is ${STORE_FILE}). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${STORE_TUNABLES_FILE}\`.`,
+    )
+  }
+  const p = readJson(STORE_TUNABLES_FILE)
+  if (p === null) return null
+  const badly = (what) => {
+    fail(
+      GATE,
+      `${STORE_TUNABLES_FILE} ${what} — the store-readiness checks cannot silently disarm; fix the register in a reviewed diff`,
+    )
+  }
+  if (typeof p.iosEncryption?.nonExemptAllowed !== 'boolean')
+    badly('iosEncryption.nonExemptAllowed must be a boolean')
+  if (
+    p.iosEncryption.nonExemptAllowed === true &&
+    (typeof p.iosEncryption.reason !== 'string' || p.iosEncryption.reason.trim() === '')
+  ) {
+    badly('iosEncryption.nonExemptAllowed: true requires a non-empty reason')
   }
   if (
     !Array.isArray(p.privacyAccessedApiTypes) ||
@@ -613,7 +641,7 @@ function checkExportCompliance(policy) {
     )
   } else if (its === true && policy.iosEncryption.nonExemptAllowed !== true) {
     errs.push(
-      `ios.infoPlist.ITSAppUsesNonExemptEncryption: true but ${STORE_FILE} iosEncryption.nonExemptAllowed is false — shipping non-exempt cryptography is a reviewed decision (set nonExemptAllowed with a reason, and expect export documentation at submission)`,
+      `ios.infoPlist.ITSAppUsesNonExemptEncryption: true but ${STORE_TUNABLES_FILE} iosEncryption.nonExemptAllowed is false — shipping non-exempt cryptography is a reviewed decision (set nonExemptAllowed with a reason in YOUR seeded register, and expect export documentation at submission)`,
     )
   }
 }
@@ -629,7 +657,7 @@ function checkPrivacyManifests(policy) {
   if (pm === undefined) {
     if (rows.length > 0) {
       errs.push(
-        `${STORE_FILE} reviews ${String(rows.length)} privacyAccessedApiTypes row(s) but the resolved config declares no ios.privacyManifests — reviewed-but-undeclared; declare the block or drop the rows`,
+        `${STORE_TUNABLES_FILE} reviews ${String(rows.length)} privacyAccessedApiTypes row(s) but the resolved config declares no ios.privacyManifests — reviewed-but-undeclared; declare the block or drop the rows`,
       )
     } else {
       console.log(
@@ -660,7 +688,7 @@ function checkPrivacyManifests(policy) {
     }
     if (!reviewedByCategory.has(category)) {
       errs.push(
-        `ios.privacyManifests declares ${category} with no reviewed row in ${STORE_FILE} privacyAccessedApiTypes — declaring a required-reason API is a reviewed human act`,
+        `ios.privacyManifests declares ${category} with no reviewed row in ${STORE_TUNABLES_FILE} privacyAccessedApiTypes — declaring a required-reason API is a reviewed human act`,
       )
     }
   }
@@ -668,7 +696,7 @@ function checkPrivacyManifests(policy) {
   for (const row of rows) {
     if (!declaredCategories.has(row.category)) {
       errs.push(
-        `${STORE_FILE} reviews privacy category "${row.category}" but the resolved config no longer declares it — stale row; remove it`,
+        `${STORE_TUNABLES_FILE} reviews privacy category "${row.category}" but the resolved config no longer declares it — stale row; remove it`,
       )
     }
   }
@@ -804,7 +832,7 @@ function checkIconSite(site, rel, wants, escalate) {
     )
   }
   if (isSolidColor(buffer) === true) {
-    const line = `${site} (${path}) is a solid-color placeholder — ship real art before submission (flip ${STORE_FILE} icons.solidColorPlaceholder to "error" as the pre-submission step)`
+    const line = `${site} (${path}) is a solid-color placeholder — ship real art before submission (flip ${STORE_TUNABLES_FILE} icons.solidColorPlaceholder to "error" as the pre-submission step)`
     if (escalate) errs.push(line)
     else console.log(`${GATE}: NOTE — ${line}`)
   }
@@ -867,7 +895,17 @@ function checkAccountDeletion(policy) {
   }
 }
 
-const storePolicy = loadStorePolicy()
+// The merged policy the store checks consume: floor + tunables, one object, so every
+// check below is indifferent to which register a value came from — the SPLIT is a
+// review-surface fact, not a behavioural one. Either half unreadable → null, so the
+// store checks stay skipped-with-a-red exactly as before the split (readJson already
+// pushed the restore-it finding).
+const storeFloorHalf = loadStorePolicy()
+const storeTunablesHalf = loadStoreTunables()
+const storePolicy =
+  storeFloorHalf === null || storeTunablesHalf === null
+    ? null
+    : { ...storeFloorHalf, ...storeTunablesHalf }
 
 checkIdentity()
 checkEngine()
