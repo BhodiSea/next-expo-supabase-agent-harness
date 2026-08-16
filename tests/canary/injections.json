@@ -742,6 +742,27 @@
         "ref": "tests/gates/sbom.test.mjs",
         "note": "The asset-inventory lane (0.10.0), and the ONE lane in this workflow whose red-proof is not a vendor-shaped disclaimer — because unlike osv-scanner and gitleaks, the judgement here is code this repository owns. `pnpm sbom` is one line and cannot go red, so a lane that only EMITS an inventory is a green tick over an artefact that may have silently lost half the tree; check-sbom.mjs closes the emission against pnpm-lock.yaml in BOTH directions and the fixtures prove each. Under-reporting reds naming the absent packages (the inventory a scan is aimed at has a hole in it); OVER-reporting reds naming the foreign components (the artefact describes a different tree — a stale commit, a stray --filter, a generator pointed at another workspace — and a too-large inventory reads as thorough, which is why that arm exists at all). ANTI-VACUITY on both inputs, because each of them makes an empty set match an empty set and report clean: a zero-component SBOM is a hard red rather than a dependency-free repository, and a lockfile the parser found no `packages:` entries in is a hard red rather than a clean tree — and when both are gone the closure STOPS instead of adding noise about the comparison it could not make. A non-CycloneDX document reds and stops for the same reason. The spawned script proves the exit codes in both directions on one fixture set (a truncated inventory exits 1 with the FIX line, the complete one exits 0), so the red is not consistent with a script that always fails, and it proves the absent-lockfile asymmetry — loud local SKIP, hard CI failure. One test deliberately runs the REAL `pnpm sbom` over this repository and asserts the real closure is clean over it: the fixtures prove the judgement, and that test is the only thing that would notice a CycloneDX field rename or a pnpm change that stopped emitting components, both of which would leave every fixture green."
       }
+    ],
+    "deploy-record": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/deploy-record.test.mjs",
+        "note": "The deploy-time artefact channel's emitter, EMIT-AFTER-JUDGE both ways: a scaffold-shaped tree emits the manifest (commit, deployedAt from the deployment event, migration and function hashes, the resolved set), and a hollow tree — no migrations, the anti-vacuity shape — emits NOTHING and exits 1, so the artefact a reader downloads later is always one that passed. The manifest shape judgement itself is proven red field by field, each failure naming the downstream judgement it would starve."
+      }
+    ],
+    "patch-window": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/deploy-record.test.mjs",
+        "note": "ASD's verbatim windows and no invented ones: judgePatchWindows is proven red OUTSIDE each window (a critical advisory 6 days public reds PA-06 naming '48 hours' and the fix; a non-critical one at 20 days reds PA-07 'two weeks') and green inside, with `now` a parameter so the proof waits for no calendar; an advisory with NO published date is a FINDING, never a shrug — dateless advisories would otherwise be the evasion. The judgement runs against the DEPLOYED manifest's resolutions, so an undeployed fix satisfies nothing. The OSV network half is the vendor boundary, not reproduced here (the backup-evidence doctrine)."
+      }
+    ],
+    "restore-manifest": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/deploy-record.test.mjs",
+        "note": "The RB-02 binding proven in both directions: a complete pair (backup fact + deploy manifest) emits the record binding data/applications/settings at the deployment's own point in time WITH the verified exclusions carried in the artefact (the Vault root key above all); a missing backup fact, a never-completed daily backup ('a promise, not a record'), and a malformed manifest each red and emit nothing. The Management-API half is the same vendor boundary backup-evidence records."
+      }
     ]
   },
   "factoryComment": "THE FACTORY CLOSURE (0.7.0). #factoryGates: every gate script in scripts/ (check-*.mjs, hygiene.mjs, generate-floor.mjs) unioned with every step name in .claude/hooks/stop-factory-gate.mjs — a hook step invoking a scripts/*.mjs identifies with that script, so each gate carries ONE entry; toolchain-only steps (eslint, types, dead-code, format, tests) stand alone. Kinds: 'fixture' (a repo test that drives the gate red — executed in spawn mode under the same G28 bars as #steps proofs) and 'lane' (a '<file>#<job>' declaration naming the factory workflow job that executes what no fixture can — a vendor toolchain or a network scan). #factoryLanes: every job in the factory's own .github/workflows, keyed '<workflow-file>#<job>' — NEVER bare ids, because #lanes above already claims 'actionlint' and 'zizmor' and one proof must never silently stand in for two workflows. Kinds: 'fixture' (the lane logic's own death-tests) and 'steps' (a reasoned declaration — the note must name what already proves the job's work; a note-less declaration is rejected). This closes the class the 0.6.0 lineage named 'hygiene had none': the gates that guard the guards, and the lanes that run them, were the last enforcement surfaces with no falsifiability ledger.",

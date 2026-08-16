@@ -37,7 +37,7 @@ the easiest place to reintroduce it.
 **Three of those words were doing less work than they looked like, and 0.5.0 fixed each.**
 
 - *any workflow.* The check resolved against one hard-coded `quality-gate.yml` while
-  **eight** ship, so a row compensated by `gitleaks` or `scan-pr` resolved to nothing. Same
+  **nine** ship, so a row compensated by `gitleaks` or `scan-pr` resolved to nothing. Same
   defect `check-canary-coverage.mjs` corrected in 0.3.0; the derivation is now shared
   (`tools/lib/live-controls.mjs`) rather than written a third time.
 - *live.* `web-e2e`, `perf-lane`, `mobile-e2e`, `native` and `db-scale` are **path-filtered**

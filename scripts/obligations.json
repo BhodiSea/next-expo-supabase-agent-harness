@@ -1,374 +1,353 @@
 {
-  "comment": [
-    "The factory obligations register (0.9.0) — every forward-looking debt this release carries, in ONE machine-read home, read by scripts/check-obligations.mjs (clockless in lint.yml's machinery block; --clockful ONLY in hygiene.yml's scheduled job). The release's obligations previously lived in three unjoined sources — the ramp fleet (rampNote sites + template/migrations.json records), template/base/tools/deferrals.json, and prose — and gates-catalog.md's docs-sync section recorded the factory-side reader debt this register discharges.",
-    "Row schema: { id, kind: release|calendar|condition, target (x.y.z for release; YYYY-MM-DD for calendar; null for condition), sites?: [{file, mustContain?}] (prose anchors, ONE-WAY — the register is the index, the sites are anchors; the both-ways closure is the consumer scan's grammar and was the vacuous-port trap factory-side), reason (>= 40 chars), reviewedOn (YYYY-MM-DD), evidence (URL or repo file ref — REQUIRED for kind:condition) }.",
-    "Kinds: release reds CLOCKLESSLY when package.json reaches the target (check-ramp-ledger.mjs's version authority); calendar is judged ONLY under --clockful in the scheduled lane (a verdict that changes with the date must never red a PR); condition NEVER reds on time — shape + evidence is its bar, and discharging one is DELETING it in a reviewed diff.",
-    "Unions the reader closes: every template/base/tools/deferrals.json entry id has a condition-or-release row here under the same id (the census); every shipped rampNote site whose `until` is still in the future has a kind:release row targeting its expiry version (the debt the next migrations record will owe, written down before it is due).",
-    "DELIBERATELY NOT LEDGERED: .harness/pending/source-fixes.json — it is CONSUMER-side, parked by `update` on the install and self-clearing via the probes in template/migrations.json seededSourceFixes (owned there, checked by scripts/check-seeded-migrations.mjs); a factory row would be a second, staler copy of a record that already has an owner."
-  ],
-  "obligations": [
-    {
-      "id": "conformance-e8-retirement",
-      "kind": "calendar",
-      "target": "2027-06-15",
-      "sites": [
-        {
-          "file": "template/base/docs/compliance/essential-eight.md",
-          "mustContain": "15 June 2026"
-        }
-      ],
-      "reason": "ASD opened consultation on 2026-06-15 to replace the Essential Eight with an ISM-grounded 'Essentials' series (Essentials for enterprise IT first), citing the cloud gap explicitly; reported at roughly 12 months to deprecation and 24 to retirement. Everything built against the E8 in 0.9.9 therefore has a bounded shelf life, and the stated reason for the change IS the product-versus-organisation mismatch tools/essential-eight.json documents. Judged in the scheduled lane only: a verdict that changes with the date must never red a PR. On arrival, re-verify against ASD and either re-date this row or retarget the register at the successor framework.",
-      "reviewedOn": "2026-08-12",
-      "evidence": "design/CONFORMANCE-FACTS.md"
-    },
-    {
-      "id": "e8-phishing-resistant-mfa",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/essential-eight.json",
-          "mustContain": "e8-phishing-resistant-mfa"
-        }
-      ],
-      "reason": "Essential Eight MFA-11, MFA-12 and MFA-14 require phishing-resistant multi-factor authentication at ML3, and the platform cannot supply it today. TOTP is not phishing-resistant. Supabase WebAuthn MFA does produce aal2 (GoTrue IsAAL2Claim accepts mfa/webauthn) but is undocumented, absent from the Dashboard, marked @experimental in auth-js, challengeAndVerify is TOTP-only, and it is a billable add-on the CLI silently downgrades to false when cost is not confirmed. Passkeys are a SEPARATE aal1 primary sign-in system and do not satisfy it. This is a platform ceiling, not a schedule: it discharges when WebAuthn MFA ships documented and dashboard-reachable, by deleting this row and regrading the three requirements together.",
-      "reviewedOn": "2026-08-12",
-      "evidence": "https://supabase.com/docs/guides/auth/auth-mfa"
-    },
-    {
-      "id": "e8-mfa-mandatory-enrolment",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/essential-eight.json",
-          "mustContain": "e8-mfa-mandatory-enrolment"
-        }
-      ],
-      "reason": "MFA-01/04/06 ask that multi-factor authentication IS USED, and after 1.0.0 the only missing ingredient is compulsion: the aal2 rail enforces the second factor for every ENROLLED user on every surface, and the 1.0.0 enrolment surface (the offered TOTP step in both sign-ups, the challenge screens, the security page and screen, the shared mfa-flow ceremony) lets any user enrol end to end — but GoTrue carries no `required` field, so enrolment stays an offer and a user who declines authenticates with one factor. Condition rather than dated because the discharge is a design decision with two shapes, neither of which the harness may default: adopt an upstream mandatory-enrolment control if GoTrue ever ships one, or impose an application-level wall (refuse session bootstrap without a verified factor) — a posture that locks every casual project out of its own scaffold, so it belongs to the consumer, stated here rather than defaulted. The three rows stay not-implemented until one of those lands.",
-      "reviewedOn": "2026-08-16",
-      "evidence": "template/base/tools/essential-eight.json"
-    },
-    {
-      "id": "e8-restore-manifest",
-      "kind": "condition",
-      "target": null,
-      "reason": "Essential Eight RB-02 wants backups of data, applications AND settings synchronised to a common point in time. 0.9.9 shipped the evidence lane (`backup-evidence`, tools/check-backup-posture.mjs) and established that it does NOT discharge this row, for a reason worth recording rather than rediscovering: the platform's backup does not contain two of the three asset classes. Verified against the vendor's own pages — Edge Functions, Auth settings and API keys, Realtime settings, extensions and project settings, read replicas and Storage API objects all sit outside the database backup (the database holds only Storage metadata), and custom-role LOGIN passwords are stripped from it. The sharpest exclusion is the Vault/pgsodium root key: a backup carries ciphertext but never the key, so a restore into a NEW project cannot decrypt what it just restored until the key is carried across by hand — which is also the thing most likely to be discovered during a real recovery rather than before one. Discharge is a manifest that binds the database backup to the commit, the migration set and the deployed function versions, emitted at deploy time. Not built, and not scheduled: it needs a deploy-time artefact channel this repository does not yet have. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "design/CONFORMANCE-FACTS.md",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "CEILING (RB-02): the manifest needs a deploy-time artefact channel that does not exist"
-        }
-      ]
-    },
-    {
-      "id": "e8-backup-store-posture",
-      "kind": "condition",
-      "target": null,
-      "reason": "Essential Eight RB-03/RB-05/RB-06/RB-09 concern where backups live and who can reach them. 0.9.9 recorded what the vendor ATTESTS, labelled as attestation rather than as anything this system demonstrates: backups are AES-256 encrypted at rest with keys protected by FIPS 140-2 validated HSMs, stored in S3 on infrastructure independent of the project's own resources. That is a contractual statement in the data processing agreement, not an artefact any control here reads, so it cannot raise a grade. Two things remain unpublished and are recorded as unknowns rather than assumed either way: no storage region for backups is stated, and whether daily backups aging past the plan window (7 / 14 / 30 days) are DELETED or merely made inaccessible is never said — every statement takes the form \"can access the last N days\", which is an access claim and not a deletion one. RB-05/06/09 stay graded as they were, because \"no client role can reach a backup\" is true here only because this tree produces no backups of its own: vacuous truth, and the register's own rule is that absence of a surface is never a control. Discharge is a self-produced off-platform backup with its own store and IAM policy, which is an operator decision about where the boundary sits rather than a build to schedule. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "design/CONFORMANCE-FACTS.md",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "CEILING (RB-03/05/06/09): the current grade rests on vacuous truth"
-        }
-      ]
-    },
-    {
-      "id": "e8-backup-immutability",
-      "kind": "condition",
-      "target": null,
-      "reason": "Essential Eight RB-11 requires backup administrator accounts to be prevented from modifying and deleting backups during the retention period. 0.9.9 re-verified the platform surface and the finding got SHARPER AND WEAKER AT THE SAME TIME, which is the point. Sharper: no Delete or Modify action for a backup appears anywhere — not as a row in the published permissions table, and not as any method across all 115 API paths. Weaker: that is an ABSENCE OF SURFACE, not a published control. Supabase nowhere states that backups cannot be deleted; it simply never offers the verb, and no page publishes an immutability, WORM or object-lock guarantee for the buckets holding them (searched: the backups guide, product security, the SOC 2 and HIPAA pages, the shared-responsibility model, the PITR usage page). Reading an unoffered verb as prevention would be exactly the inflation this register exists to refuse. There is also no backup-administrator role to separate: the four published roles are Owner, Administrator, Developer and Read-Only, the table grants backups only View/Download/Restore and PITR only View/Restore, `Developer` holds Download and Restore while being described as unable to change project settings, and `Read-Only` — the only role narrow enough to resemble a custodian — is denied both and is gated behind Team or Enterprise. ONE GAP IS EXPLICITLY UNVERIFIABLE AND MUST NOT BE GRADED IN EITHER DIRECTION: whether reducing the PITR recovery retention period, or removing the PITR add-on, destroys backup data already inside the previous window. The vendor documents the billing consequence and says the period can be changed, and publishes no data-lifecycle statement at all — which is the most plausible undocumented route by which a privileged account could destroy backups during their retention period, and precisely what this requirement asks about. Reachable only for self-produced off-platform dumps under S3 Object Lock in COMPLIANCE mode, which binds every principal including the account root. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "design/CONFORMANCE-FACTS.md",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "CEILING (RB-11): an unoffered verb is not a control"
-        }
-      ]
-    },
-    {
-      "id": "e8-patch-window-evidence",
-      "kind": "release",
-      "target": "1.0.0",
-      "reason": "Essential Eight PA-06, PA-07 and PA-10 carry ASD's verbatim 48-hour, two-week and one-month windows for applying vendor mitigations, and no control measures advisory-publication against deployment time. framework-floor.json is clockless and offline by design: it holds a version floor, not a window. Discharge must encode ONLY ASD's stated numbers — the assessment guidance sets no window for 'in a timely manner', and inventing a 24- or 72-hour SLA would manufacture a contractual obligation with no framework backing. RE-DATED TO 1.0.0 BY 0.10.0, and it shares its blocker with e8-restore-manifest — which 0.10.0 converted to a condition row for exactly this reason. Both need a DEPLOY-TIME artefact channel: something emitted when the system is deployed, binding what shipped to when. This repository has no such channel, and inventing one is not a compliance task but an infrastructure one. Kept as a dated row rather than converted to a condition because unlike the restore manifest this one becomes schedulable the moment the channel exists, and 1.0.0 is where that work sits.",
-      "reviewedOn": "2026-08-14"
-    },
-    {
-      "id": "auth-posture-cli-census",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/deferrals.json",
-          "mustContain": "auth-posture-cli-census"
-        }
-      ],
-      "reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "https://github.com/supabase/cli/issues/5894"
-    },
-    {
-      "id": "control-plane-facts-currency",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "design/CONTROL-PLANE-FACTS.md",
-          "mustContain": "re-verified 2026-08-15"
-        },
-        {
-          "file": "template/base/tools/cc-floor.json",
-          "mustContain": "2.1.163"
-        }
-      ],
-      "reason": "THE DATED FACTS THIS HARNESS DEPENDS ON MOST HAVE NO SCHEDULED FRESHNESS CONTROL, and this row is the standing re-verification obligation that stands in for one. RE-VERIFIED AT 1.0.0 (2026-08-15) against Claude Code 2.1.232 / SDK 0.3.232, by the file's own method rather than by reading: the payload probe re-armed in .claude/settings.local.json (Facts 1/2/3 re-observed — SubagentStop's 14-key payload is key-for-key identical, last_assistant_message untruncated, verdict on the last non-empty line), the torn-hook exit-code matrix re-probed empirically (Fact 12 — identical: every load failure exits 1/fail-open, malformed stdin on an intact hook exits 2), the advisory surface re-queried (Fact 10 — same 28 advisories, floor unchanged at 2.1.163, checkedOn moved), the CI-spawn grep re-run (Fact 5 — still zero), and the hook environment re-captured (Fact 6 — two ADDITIVE deltas: CLAUDE_CODE_MESSAGING_SOCKET/TOKEN now reach hooks, the token is credential-shaped; CLAUDE_CODE_CHILD_SESSION=1 again observed in a MAIN session, re-confirming that a depth-cap control keyed on it would brick reviewer spawns). Fact 4's Stop-side payload was re-captured at the following turn end (key-for-key identical, stop_hook_active false, no agent_* fields); NOT RE-RUN: the one-shot stop_hook_active=true transition (it requires deliberately blocking a turn — the 2026-08-07 observation stands, at the original version, and the file says so in place); Facts 7/8/9/11/13 are documentation-sourced and were re-read, not probed. WHY THE ROW SURVIVES ITS OWN DISCHARGE CLAUSE: deleting it on a completed re-probe would recreate the no-freshness-control defect it names the next time Claude Code moves — the honest shape is a RECURRING re-verification row (the auth-posture-cli-census precedent), re-dated at each pass, whose first sites[] anchor pins the CURRENT re-verification date so the next re-observation must move this row in the same diff. A scheduled prober stays refused while Fact 5 holds: a prober needs a live Claude Code session in CI, and 'no CI lane spawns Claude' is a deliberate posture, not an accident to fix.",
-      "reviewedOn": "2026-08-15",
-      "evidence": "design/CONTROL-PLANE-FACTS.md"
-    },
-    {
-      "id": "suppressions-chain-step",
-      "kind": "release",
-      "target": "0.12.0",
-      "reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the injection inventory is unchanged and is enumerated in the 0.10.0 record: a configSteps record, the chain-budget row FIRST, the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape, the check-docs-sync fixture move, the upgrade lane's leg-A doctrine flip, and a chain-budget re-record before ANY published figure. RE-TARGETED TO 0.12.0 BY 0.11.0. THE 0.10.0 ARGUMENT IS NOT REPEATED, because it no longer applies and saying so is the point: 0.10.0 deferred on the ground that no release in this lineage had combined a chain-step injection with a real expiry wave, and 0.11.0 carries the LARGEST wave the lineage has produced — five ramps across twelve vintages — so that argument now points at this release exactly as it did at the last one, and a reason that survives every release is not a reason. THE ACTUAL NEW INFORMATION IS THE COST OF THE RE-RECORD, and it is a CI dependency rather than a scope judgement: the committed 34/10 chain-budget measurement is what licenses the wall-clock figures published in README.md, `check-claims` reds on a published figure with no committed measurement behind it, and the re-record runs ONLY through the reviewed workflow_dispatch path. So an injection cannot be completed inside a working tree at all — it needs a dispatched measurement landed and committed before the release that grows the chain may publish a figure. Batching both steps into one release pays that CI round trip ONCE rather than twice, which is why this row and resilience-chain-step now share a target. CORRECTION CARRIED FORWARD: the 0.10.0 reason specified re-opening the AGENTS.md gate-list escape 'at minVersion 0.10.0'. That is stale — an escape opened at a minVersion at or below the population it protects is inert for exactly that population — and the correct value is the version that injects the step.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "resilience-chain-step",
-      "kind": "release",
-      "target": "0.12.0",
-      "reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) is the second chain step, paying the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, one chain-budget re-record after both land and before any published figure. RE-TARGETED TO 0.12.0 BY 0.11.0 ON A FACT 0.10.0 COULD NOT STATE, established by walking the seams this gate would judge: the shipped lint config (eslint.config.mjs) and the shipped documentation (docs/harness/README.md, docs/harness/gates-catalog.md) both describe an `apps/mobile/src/lib/api-client.ts` one-door and an `src/lib/sse.ts` streaming client, and NEITHER FILE EXISTS anywhere under template/. A gate whose whole subject is the posture of the outbound seams cannot be authored on top of a tree whose own configuration and prose disagree with it about which seams exist — the register would be written against files, the checker would scan a tree without them, and the closure would pass vacuously in precisely the way this repository deletes checks for. Reconciling that divergence is the prerequisite, it is a separate reviewed act from the step, and it is now the first half of this row. The 0.10.0 statement that 'the subject does not exist yet' was right in substance and understated the reason: the subject does not exist AND the tree claims it does.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "controls-crosswalk-and-threat-model",
-      "kind": "condition",
-      "target": null,
-      "reason": "The enterprise-facing controls crosswalk + threat model is GENERATABLE — harness.config.mjs (the chain), the guard-rules tables (the hooks), and tests/canary/injections.json (the proofs) are the three machine-read inputs — but it is gated on the licensing/wholeness decision design/CONFORMANCE-FACTS.md records for the conformance map: built whole against Annex I directly, or not at all, because a claimed level with an unmapped requirement is worse than no claim.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "design/CONFORMANCE-FACTS.md"
-    },
-    {
-      "id": "e2ee-declared-ports-unimplemented",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/modules/e2ee/packages/platform/crypto/src/ports-declared.ts",
-          "mustContain": "RecipientWrapPort"
-        },
-        {
-          "file": "template/modules/e2ee/docs/modules/e2ee/README.md",
-          "mustContain": "What this deliberately does NOT solve"
-        }
-      ],
-      "reason": "The 0.9.5 e2ee rails DECLARE three ports with no implementations — RecipientWrapPort (org sharing: an org-mate's RLS-visible row is ciphertext they cannot open), RecoveryPort (a lost device is lost data; WebCrypto ships no Argon2 and PBKDF2-as-the-KDF would be a dishonest default), and DeviceSyncPort (a second device has no path to the root key). Condition, not a dated row: each needs a design decision the harness should not date on a consumer's behalf, and the honest state is a declaration plus a stated loss rather than a promise. This row anchors the declarations to the README section that states their cost, so an implementation cannot quietly turn a declared port into a claim without the register moving too. Also open by construction: the web KeystoreAdapter returns raw bytes, which forecloses a non-extractable CryptoKey handle, and the keyring exports no rewrap primitive so key rotation is a full client-side re-encryption pass.",
-      "reviewedOn": "2026-08-11",
-      "evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
-    },
-    {
-      "id": "architecture-reviewer-apps-widening",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "template/base/tools/reviewer-triggers.json",
-          "mustContain": "architecture-reviewer-apps-widening"
-        }
-      ],
-      "reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review. RE-REVIEWED FOR 1.0.0, DELIBERATELY AND NOT AS A DATE BUMP: the widening's evidence bar is a release of reviewer-ledger population, and the population available to this review is ZERO BY CONSTRUCTION from where the factory sits — no consumer install's .harness/reviewer-ledger.jsonl reaches this repository, and the factory's own scaffolds never spawn reviewers (no CI lane spawns Claude; the deliberate posture CONTROL-PLANE-FACTS Fact 5 records). So the review RECORDS the refusal rather than the widening, on the trigger file's own narrowness-first doctrine: widening on zero evidence would be exactly the over-match the doctrine exists to refuse, and a stability release does not get to convert an evidence-gated condition into a leap. The row stays until a consumer-reported or maintainer-dogfooded ledger population exists to judge; the condition is unchanged, so the anchor and the trigger scope are byte-identical to 0.9.5.",
-      "reviewedOn": "2026-08-15",
-      "evidence": "template/base/tools/reviewer-triggers.json"
-    },
-    {
-      "id": "off-linux-stop-chain",
-      "kind": "condition",
-      "target": null,
-      "reason": "The full Stop chain executes off-Linux nowhere: the blocker is the DATABASE, not the shell — rls-isolation needs the live Supabase stack (Docker), which the Windows/macOS runners do not carry, while the gate/hook LOGIC is already proven cross-platform by the Windows unit matrix. Condition: discharge needs a supported off-Linux local-stack story upstream, re-checked at every Supabase CLI pin bump, not a date this repo can set.",
-      "reviewedOn": "2026-08-10",
-      "evidence": ".github/workflows/selftest.yml"
-    },
-    {
-      "id": "conformance-supabase-grants-arrival",
-      "kind": "calendar",
-      "target": "2026-10-30",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-10-30"
-        }
-      ],
-      "reason": "Supabase Data API grants stop being automatic for projects created on or after this date (three roles including service_role, SEQUENCES revoked too, failure is SQLSTATE 42501 not a silent 404, and the auto_expose_new_tables restore flag is removed the SAME day). The closure SHIPPED in 0.6.0 inside schema-rls; this row is the dated re-verification that the shipped closure and its prose still describe the regime as it actually lands.",
-      "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "conformance-play-target-api-window",
-      "kind": "calendar",
-      "target": "2026-08-31",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-08-31"
-        }
-      ],
-      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED: the row's job is to ask the question ON the deadline, so slipping it forward would retire the check rather than satisfy it, and a calendar row cannot red a PR in any case (obligations.mjs gates the calendar branch on `clockful`). What the pre-verification found, all local because the claim is local: tools/store-policy.json's androidTargetSdk floor is 36, matching the requirement that takes effect on the target date; expoSdkDefaults maps SDK 57 to targetSdkVersion 36, so a stock scaffold satisfies it without declaring anything; and a search of the seeded config surface for wear/automotive/androidtv/leanback/xr found NO form-factor target — the only occurrences anywhere are store-policy.json's own prose describing the lower floors those form factors would use. The cut therefore still holds, and the scheduled lane's firing on the date is a confirmation rather than a discovery.",
-      "reviewedOn": "2026-08-13"
-    },
-    {
-      "id": "conformance-cra-art14-application",
-      "kind": "calendar",
-      "target": "2026-09-11",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-09-11"
-        }
-      ],
-      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED, for the same reason as the Play row: 'the guidance in force on the day' is not readable before the day, so moving the target would convert a dated check into a retired one. The local half of the scope reading was re-confirmed — SECURITY.md ships in template/base and is planted for existing installs, so the consumer-enablement deliverable stands whatever the final guidance says about this repository's own status. The row stays undischarged on purpose: it is the one obligation in this register whose answer this repository cannot compute, only look up.",
-      "reviewedOn": "2026-08-13"
-    },
-    {
-      "id": "conformance-ai-act-transitional",
-      "kind": "calendar",
-      "target": "2026-12-02",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-12-02"
-        }
-      ],
-      "reason": "EU AI Act Article 50 transparency: in force since 2026-08-02 with a 2026-12-02 transitional. The recorded disposition is a CONFIRMED NEGATIVE on the role split (Art. 50(2) binds the provider of the generative system, not the author of software written with one); this row is the dated re-verification of that negative when the transitional window closes, since the robust rationale must survive whatever guidance accretes by then.",
-      "reviewedOn": "2026-08-10"
-    },
-    {
-      "id": "conformance-map-whole-or-not-at-all",
-      "kind": "condition",
-      "target": null,
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "carries **no date** here, deliberately"
-        }
-      ],
-      "reason": "tools/conformance-map.json (gates mapped to ASVS/MASVS requirement ids with a claimed level) is the artifact an enterprise buyer asks for by name and the one thing that must not ship partially: a claimed level with an unmapped requirement is worse than no claim, and with no harmonised standard cited in the OJ there is no presumption of conformity to anchor it to. Deliberately undated; built whole against Annex I directly, or not at all.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "design/CONFORMANCE-FACTS.md"
-    },
-    {
-      "id": "cold-path-measurement-publication",
-      "kind": "condition",
-      "target": null,
-      "reason": "The COLD path (fresh clone, cold caches, first validate) is unmeasured — the committed measurements cover the warm chain and the Stop turn-end only — so no cold figure may be published, and the README says so. Condition, not a date: the discharge is a reviewed cold-run recording through the same `check-chain-budget --record` channel, which exists only when a runner and a reviewed dispatch produce one.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "scripts/chain-budget.json"
-    },
-    {
-      "id": "data-flow-erase-ramp-expiry",
-      "kind": "release",
-      "target": "0.12.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-data-flow.mjs",
-          "mustContain": "the erase.surface record and its two-surface clients closure"
-        }
-      ],
-      "reason": "0.11.0 shipped the WEB half of DSR erase and the tools/data-flow.json `erase` record that closes over both surfaces, and put the requirement in check-data-flow.mjs where it closes over the product rather than over one initiator. The runner is harness-OWNED so `update` arms the demand on every install at once; data-flow.json is SEEDED so `update` cannot write the record for them, and the web surface it declares is theirs to add — the owned-checker-over-seeded-subject asymmetry the ramp doctrine exists for. Ramped to 0.12.0 as a THIRD block rather than a widening of either existing data-flow ramp, because folding a new finding into an older one re-opens an escape the deadline ratchet has already counted closed. THE CLOSURE IS TWO-WAY ON PURPOSE: the defect this record was written for is a backing that works while one surface cannot reach it, so naming only the Edge Function would have been satisfied in exactly that state. The 0.12.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "version-sync-eol-arrival-ramp-expiry",
-      "kind": "release",
-      "target": "0.12.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "the arrival of tools/eol.json's removalTarget dates"
-        }
-      ],
-      "reason": "THIS ROW IS RE-OPENED, and saying so is the point. A row of this id was discharged at 0.11.0 when the arrival escape expired on schedule — and the escape turned out to have been live for exactly the population it could not help. rampNote is INERT when baseVersion >= minVersion, so opening at minVersion 0.10.0 excluded the 0.10.0 vintage, which is the ONLY vintage holding a seeded tools/eol.json whose removalTarget the harness itself wrote as 0.11.0. At harness 0.11.0 that date arrived hard, on a seeded file update may never rewrite, with no deadline met — a regression, not an expiry, and the upgrade lane on the v0.11.0 TAG is what found it. 0.11.1 moves the escape onto that vintage (minVersion 0.11.0, until 0.12.0) through the lineage third reviewed rampExtensions entry. THE DISCHARGE IS NOT ANOTHER RE-DATE: by 0.12.0 every install has had a release in which to re-affirm its own uuid row, and scripts/check-eol-target.mjs now reds any PR that lets a production-scope removalTarget stand at or below the version being cut, so the arrival cannot be re-authored into the seeded file a fourth time. The 0.12.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "suppressions-census-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-suppressions.mjs",
-          "mustContain": "the inline-suppression census over the product tree"
-        }
-      ],
-      "reason": "1.0.0 injects the `suppressions` chain step (the inline-directive census — the scanner outside ESLint that polices the rule-less disable no in-ESLint check can see) and, per the ramp doctrine, ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0: an install whose seeded tree predates the census must get one release of dated NOTEs to reason each site and adopt the planted tools/suppressions-allow.json register, not a hard red on the update that delivered the scanner. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The register is planted (DELIBERATE_PLANT — green-by-construction: its shipped rows describe the harness-seeded files), so the only surviving NOTE source on an upgraded install is a directive ITS OWN tree added without a row, which is exactly the population the census exists to make visible.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "resilience-register-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-resilience.mjs",
-          "mustContain": "the outbound-seam resilience register closure"
-        }
-      ],
-      "reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "boundaries-anatomy-widening-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-workspace-deps.mjs",
-          "mustContain": "the behavior-keyed widening of the vertical-anatomy DAL laws"
-        }
-      ],
-      "reason": "1.0.0 re-keys the vertical-anatomy DAL laws on BEHAVIOR — a value-import of @app/supabase/@supabase reds anywhere under src/**, and a file that speaks PostgREST (.from(/.rpc(/.select( in call position) must import a port.ts that exists, wherever both live — discharging vertical-anatomy-folder-name-coupling (the src/repo/ service-role escape the directory keying admitted by construction). Per the ramp doctrine the WIDENED findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a vertical that satisfied the 0.9.5 directory keying (its DAL under src/data/ with a port beside it) may hold a PostgREST caller elsewhere that never owed a port import before, and it gets one release of dated NOTEs to route the seam through a port or record the reviewed allow entry, never a hard red on the update that delivered the re-keying. Nothing weakens meanwhile: findings the directory keying already produced keep their vintage tag and stay on the expired 0.9.5 ramp, hard for every real install. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "exports-walls-module-closure-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-exports-walls.mjs",
-          "mustContain": "the census module-name closure over the shipped module list"
-        }
-      ],
-      "reason": "1.0.0 ships tools/modules.json (OWNED — the installer MODULES list finally has a shipped home a consumer gate can read, discharging exports-walls-module-name-validation) and closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. The census is SEEDED, so per the ramp doctrine the closure's findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a tree that wrote a module name before any list existed to check it against gets one release of dated NOTEs to fix the name or remove the sanction, never a hard red on the update that delivered the list. The register file itself fails closed unramped when absent or malformed — it is owned and arrives with the same release as the check, so its absence is a broken tree, not a consumer choice. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
-      "id": "auth-posture-hook-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-auth-posture.mjs",
-          "mustContain": "the [auth.hook] trail posture (the auth-event trail, new in"
-        }
-      ],
-      "reason": "1.0.0 pins the auth-event trail's hook wiring as auth-posture floors (the [auth.hook.*] enabled/uri keys) and adds the two sections to the census. supabase/config.toml is SEEDED and the sections arrive with the 1.0.0 trail migration, so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite — the identical ambush the 0.9.9 [auth.mfa] routing resolved, resolved the same way: hook findings ride their own NOTE ramp until 1.1.0, every other auth-posture finding stays hard, and the NOTE names the paired adoption (the migration AND the config sections together, per the ADR). The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-16"
-    },
-    {
-      "id": "version-sync-support-ramp-expiry",
-      "kind": "release",
-      "target": "1.1.0",
-      "sites": [
-        {
-          "file": "template/base/tools/check-version-sync.mjs",
-          "mustContain": "the vendor-support register (PA-11/POS-16)"
-        }
-      ],
-      "reason": "1.0.0 ships tools/support-register.json (the reviewed vendor-support dispositions for the online services and platforms this stack runs on — the decision the deleted e8-eol-closure condition row said someone had to make) and judges it clocklessly in version-sync with a platform-fact closure against the tree's own Postgres/Node pins. The register is SEEDED for eol.json's reason: a consumer on a different Postgres major must be able to review THEIR platform's row, and update must never clobber that review. So the whole section rides one NOTE ramp until 1.1.0 for pre-1.0.0 installs — planted-register adoption with a deadline, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
-      "reviewedOn": "2026-08-16"
-    }
-  ]
+	"comment": [
+		"The factory obligations register (0.9.0) — every forward-looking debt this release carries, in ONE machine-read home, read by scripts/check-obligations.mjs (clockless in lint.yml's machinery block; --clockful ONLY in hygiene.yml's scheduled job). The release's obligations previously lived in three unjoined sources — the ramp fleet (rampNote sites + template/migrations.json records), template/base/tools/deferrals.json, and prose — and gates-catalog.md's docs-sync section recorded the factory-side reader debt this register discharges.",
+		"Row schema: { id, kind: release|calendar|condition, target (x.y.z for release; YYYY-MM-DD for calendar; null for condition), sites?: [{file, mustContain?}] (prose anchors, ONE-WAY — the register is the index, the sites are anchors; the both-ways closure is the consumer scan's grammar and was the vacuous-port trap factory-side), reason (>= 40 chars), reviewedOn (YYYY-MM-DD), evidence (URL or repo file ref — REQUIRED for kind:condition) }.",
+		"Kinds: release reds CLOCKLESSLY when package.json reaches the target (check-ramp-ledger.mjs's version authority); calendar is judged ONLY under --clockful in the scheduled lane (a verdict that changes with the date must never red a PR); condition NEVER reds on time — shape + evidence is its bar, and discharging one is DELETING it in a reviewed diff.",
+		"Unions the reader closes: every template/base/tools/deferrals.json entry id has a condition-or-release row here under the same id (the census); every shipped rampNote site whose `until` is still in the future has a kind:release row targeting its expiry version (the debt the next migrations record will owe, written down before it is due).",
+		"DELIBERATELY NOT LEDGERED: .harness/pending/source-fixes.json — it is CONSUMER-side, parked by `update` on the install and self-clearing via the probes in template/migrations.json seededSourceFixes (owned there, checked by scripts/check-seeded-migrations.mjs); a factory row would be a second, staler copy of a record that already has an owner."
+	],
+	"obligations": [
+		{
+			"id": "conformance-e8-retirement",
+			"kind": "calendar",
+			"target": "2027-06-15",
+			"sites": [
+				{
+					"file": "template/base/docs/compliance/essential-eight.md",
+					"mustContain": "15 June 2026"
+				}
+			],
+			"reason": "ASD opened consultation on 2026-06-15 to replace the Essential Eight with an ISM-grounded 'Essentials' series (Essentials for enterprise IT first), citing the cloud gap explicitly; reported at roughly 12 months to deprecation and 24 to retirement. Everything built against the E8 in 0.9.9 therefore has a bounded shelf life, and the stated reason for the change IS the product-versus-organisation mismatch tools/essential-eight.json documents. Judged in the scheduled lane only: a verdict that changes with the date must never red a PR. On arrival, re-verify against ASD and either re-date this row or retarget the register at the successor framework.",
+			"reviewedOn": "2026-08-12",
+			"evidence": "design/CONFORMANCE-FACTS.md"
+		},
+		{
+			"id": "e8-phishing-resistant-mfa",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "template/base/tools/essential-eight.json",
+					"mustContain": "e8-phishing-resistant-mfa"
+				}
+			],
+			"reason": "Essential Eight MFA-11, MFA-12 and MFA-14 require phishing-resistant multi-factor authentication at ML3, and the platform cannot supply it today. TOTP is not phishing-resistant. Supabase WebAuthn MFA does produce aal2 (GoTrue IsAAL2Claim accepts mfa/webauthn) but is undocumented, absent from the Dashboard, marked @experimental in auth-js, challengeAndVerify is TOTP-only, and it is a billable add-on the CLI silently downgrades to false when cost is not confirmed. Passkeys are a SEPARATE aal1 primary sign-in system and do not satisfy it. This is a platform ceiling, not a schedule: it discharges when WebAuthn MFA ships documented and dashboard-reachable, by deleting this row and regrading the three requirements together.",
+			"reviewedOn": "2026-08-12",
+			"evidence": "https://supabase.com/docs/guides/auth/auth-mfa"
+		},
+		{
+			"id": "e8-mfa-mandatory-enrolment",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "template/base/tools/essential-eight.json",
+					"mustContain": "e8-mfa-mandatory-enrolment"
+				}
+			],
+			"reason": "MFA-01/04/06 ask that multi-factor authentication IS USED, and after 1.0.0 the only missing ingredient is compulsion: the aal2 rail enforces the second factor for every ENROLLED user on every surface, and the 1.0.0 enrolment surface (the offered TOTP step in both sign-ups, the challenge screens, the security page and screen, the shared mfa-flow ceremony) lets any user enrol end to end — but GoTrue carries no `required` field, so enrolment stays an offer and a user who declines authenticates with one factor. Condition rather than dated because the discharge is a design decision with two shapes, neither of which the harness may default: adopt an upstream mandatory-enrolment control if GoTrue ever ships one, or impose an application-level wall (refuse session bootstrap without a verified factor) — a posture that locks every casual project out of its own scaffold, so it belongs to the consumer, stated here rather than defaulted. The three rows stay not-implemented until one of those lands.",
+			"reviewedOn": "2026-08-16",
+			"evidence": "template/base/tools/essential-eight.json"
+		},
+		{
+			"id": "e8-backup-store-posture",
+			"kind": "condition",
+			"target": null,
+			"reason": "Essential Eight RB-03/RB-05/RB-06/RB-09 concern where backups live and who can reach them. 0.9.9 recorded what the vendor ATTESTS, labelled as attestation rather than as anything this system demonstrates: backups are AES-256 encrypted at rest with keys protected by FIPS 140-2 validated HSMs, stored in S3 on infrastructure independent of the project's own resources. That is a contractual statement in the data processing agreement, not an artefact any control here reads, so it cannot raise a grade. Two things remain unpublished and are recorded as unknowns rather than assumed either way: no storage region for backups is stated, and whether daily backups aging past the plan window (7 / 14 / 30 days) are DELETED or merely made inaccessible is never said — every statement takes the form \"can access the last N days\", which is an access claim and not a deletion one. RB-05/06/09 stay graded as they were, because \"no client role can reach a backup\" is true here only because this tree produces no backups of its own: vacuous truth, and the register's own rule is that absence of a surface is never a control. Discharge is a self-produced off-platform backup with its own store and IAM policy, which is an operator decision about where the boundary sits rather than a build to schedule. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+			"reviewedOn": "2026-08-13",
+			"evidence": "design/CONFORMANCE-FACTS.md",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "CEILING (RB-03/05/06/09): the current grade rests on vacuous truth"
+				}
+			]
+		},
+		{
+			"id": "e8-backup-immutability",
+			"kind": "condition",
+			"target": null,
+			"reason": "Essential Eight RB-11 requires backup administrator accounts to be prevented from modifying and deleting backups during the retention period. 0.9.9 re-verified the platform surface and the finding got SHARPER AND WEAKER AT THE SAME TIME, which is the point. Sharper: no Delete or Modify action for a backup appears anywhere — not as a row in the published permissions table, and not as any method across all 115 API paths. Weaker: that is an ABSENCE OF SURFACE, not a published control. Supabase nowhere states that backups cannot be deleted; it simply never offers the verb, and no page publishes an immutability, WORM or object-lock guarantee for the buckets holding them (searched: the backups guide, product security, the SOC 2 and HIPAA pages, the shared-responsibility model, the PITR usage page). Reading an unoffered verb as prevention would be exactly the inflation this register exists to refuse. There is also no backup-administrator role to separate: the four published roles are Owner, Administrator, Developer and Read-Only, the table grants backups only View/Download/Restore and PITR only View/Restore, `Developer` holds Download and Restore while being described as unable to change project settings, and `Read-Only` — the only role narrow enough to resemble a custodian — is denied both and is gated behind Team or Enterprise. ONE GAP IS EXPLICITLY UNVERIFIABLE AND MUST NOT BE GRADED IN EITHER DIRECTION: whether reducing the PITR recovery retention period, or removing the PITR add-on, destroys backup data already inside the previous window. The vendor documents the billing consequence and says the period can be changed, and publishes no data-lifecycle statement at all — which is the most plausible undocumented route by which a privileged account could destroy backups during their retention period, and precisely what this requirement asks about. Reachable only for self-produced off-platform dumps under S3 Object Lock in COMPLIANCE mode, which binds every principal including the account root. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
+			"reviewedOn": "2026-08-13",
+			"evidence": "design/CONFORMANCE-FACTS.md",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "CEILING (RB-11): an unoffered verb is not a control"
+				}
+			]
+		},
+		{
+			"id": "auth-posture-cli-census",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "template/base/tools/deferrals.json",
+					"mustContain": "auth-posture-cli-census"
+				}
+			],
+			"reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
+			"reviewedOn": "2026-08-13",
+			"evidence": "https://github.com/supabase/cli/issues/5894"
+		},
+		{
+			"id": "control-plane-facts-currency",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "design/CONTROL-PLANE-FACTS.md",
+					"mustContain": "re-verified 2026-08-15"
+				},
+				{
+					"file": "template/base/tools/cc-floor.json",
+					"mustContain": "2.1.163"
+				}
+			],
+			"reason": "THE DATED FACTS THIS HARNESS DEPENDS ON MOST HAVE NO SCHEDULED FRESHNESS CONTROL, and this row is the standing re-verification obligation that stands in for one. RE-VERIFIED AT 1.0.0 (2026-08-15) against Claude Code 2.1.232 / SDK 0.3.232, by the file's own method rather than by reading: the payload probe re-armed in .claude/settings.local.json (Facts 1/2/3 re-observed — SubagentStop's 14-key payload is key-for-key identical, last_assistant_message untruncated, verdict on the last non-empty line), the torn-hook exit-code matrix re-probed empirically (Fact 12 — identical: every load failure exits 1/fail-open, malformed stdin on an intact hook exits 2), the advisory surface re-queried (Fact 10 — same 28 advisories, floor unchanged at 2.1.163, checkedOn moved), the CI-spawn grep re-run (Fact 5 — still zero), and the hook environment re-captured (Fact 6 — two ADDITIVE deltas: CLAUDE_CODE_MESSAGING_SOCKET/TOKEN now reach hooks, the token is credential-shaped; CLAUDE_CODE_CHILD_SESSION=1 again observed in a MAIN session, re-confirming that a depth-cap control keyed on it would brick reviewer spawns). Fact 4's Stop-side payload was re-captured at the following turn end (key-for-key identical, stop_hook_active false, no agent_* fields); NOT RE-RUN: the one-shot stop_hook_active=true transition (it requires deliberately blocking a turn — the 2026-08-07 observation stands, at the original version, and the file says so in place); Facts 7/8/9/11/13 are documentation-sourced and were re-read, not probed. WHY THE ROW SURVIVES ITS OWN DISCHARGE CLAUSE: deleting it on a completed re-probe would recreate the no-freshness-control defect it names the next time Claude Code moves — the honest shape is a RECURRING re-verification row (the auth-posture-cli-census precedent), re-dated at each pass, whose first sites[] anchor pins the CURRENT re-verification date so the next re-observation must move this row in the same diff. A scheduled prober stays refused while Fact 5 holds: a prober needs a live Claude Code session in CI, and 'no CI lane spawns Claude' is a deliberate posture, not an accident to fix.",
+			"reviewedOn": "2026-08-15",
+			"evidence": "design/CONTROL-PLANE-FACTS.md"
+		},
+		{
+			"id": "suppressions-chain-step",
+			"kind": "release",
+			"target": "0.12.0",
+			"reason": "The suppressions census (inline-disable/escape-comment accounting) ships as a NEW chain step, and a new step is PRICED, not free — the injection inventory is unchanged and is enumerated in the 0.10.0 record: a configSteps record, the chain-budget row FIRST, the injections.json canary, the enforcement-tiers row, the validate.floor.json regen, the AGENTS.md gate-list escape, the check-docs-sync fixture move, the upgrade lane's leg-A doctrine flip, and a chain-budget re-record before ANY published figure. RE-TARGETED TO 0.12.0 BY 0.11.0. THE 0.10.0 ARGUMENT IS NOT REPEATED, because it no longer applies and saying so is the point: 0.10.0 deferred on the ground that no release in this lineage had combined a chain-step injection with a real expiry wave, and 0.11.0 carries the LARGEST wave the lineage has produced — five ramps across twelve vintages — so that argument now points at this release exactly as it did at the last one, and a reason that survives every release is not a reason. THE ACTUAL NEW INFORMATION IS THE COST OF THE RE-RECORD, and it is a CI dependency rather than a scope judgement: the committed 34/10 chain-budget measurement is what licenses the wall-clock figures published in README.md, `check-claims` reds on a published figure with no committed measurement behind it, and the re-record runs ONLY through the reviewed workflow_dispatch path. So an injection cannot be completed inside a working tree at all — it needs a dispatched measurement landed and committed before the release that grows the chain may publish a figure. Batching both steps into one release pays that CI round trip ONCE rather than twice, which is why this row and resilience-chain-step now share a target. CORRECTION CARRIED FORWARD: the 0.10.0 reason specified re-opening the AGENTS.md gate-list escape 'at minVersion 0.10.0'. That is stale — an escape opened at a minVersion at or below the population it protects is inert for exactly that population — and the correct value is the version that injects the step.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "resilience-chain-step",
+			"kind": "release",
+			"target": "0.12.0",
+			"reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) is the second chain step, paying the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, one chain-budget re-record after both land and before any published figure. RE-TARGETED TO 0.12.0 BY 0.11.0 ON A FACT 0.10.0 COULD NOT STATE, established by walking the seams this gate would judge: the shipped lint config (eslint.config.mjs) and the shipped documentation (docs/harness/README.md, docs/harness/gates-catalog.md) both describe an `apps/mobile/src/lib/api-client.ts` one-door and an `src/lib/sse.ts` streaming client, and NEITHER FILE EXISTS anywhere under template/. A gate whose whole subject is the posture of the outbound seams cannot be authored on top of a tree whose own configuration and prose disagree with it about which seams exist — the register would be written against files, the checker would scan a tree without them, and the closure would pass vacuously in precisely the way this repository deletes checks for. Reconciling that divergence is the prerequisite, it is a separate reviewed act from the step, and it is now the first half of this row. The 0.10.0 statement that 'the subject does not exist yet' was right in substance and understated the reason: the subject does not exist AND the tree claims it does.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "controls-crosswalk-and-threat-model",
+			"kind": "condition",
+			"target": null,
+			"reason": "The enterprise-facing controls crosswalk + threat model is GENERATABLE — harness.config.mjs (the chain), the guard-rules tables (the hooks), and tests/canary/injections.json (the proofs) are the three machine-read inputs — but it is gated on the licensing/wholeness decision design/CONFORMANCE-FACTS.md records for the conformance map: built whole against Annex I directly, or not at all, because a claimed level with an unmapped requirement is worse than no claim.",
+			"reviewedOn": "2026-08-10",
+			"evidence": "design/CONFORMANCE-FACTS.md"
+		},
+		{
+			"id": "e2ee-declared-ports-unimplemented",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "template/modules/e2ee/packages/platform/crypto/src/ports-declared.ts",
+					"mustContain": "RecipientWrapPort"
+				},
+				{
+					"file": "template/modules/e2ee/docs/modules/e2ee/README.md",
+					"mustContain": "What this deliberately does NOT solve"
+				}
+			],
+			"reason": "The 0.9.5 e2ee rails DECLARE three ports with no implementations — RecipientWrapPort (org sharing: an org-mate's RLS-visible row is ciphertext they cannot open), RecoveryPort (a lost device is lost data; WebCrypto ships no Argon2 and PBKDF2-as-the-KDF would be a dishonest default), and DeviceSyncPort (a second device has no path to the root key). Condition, not a dated row: each needs a design decision the harness should not date on a consumer's behalf, and the honest state is a declaration plus a stated loss rather than a promise. This row anchors the declarations to the README section that states their cost, so an implementation cannot quietly turn a declared port into a claim without the register moving too. Also open by construction: the web KeystoreAdapter returns raw bytes, which forecloses a non-extractable CryptoKey handle, and the keyring exports no rewrap primitive so key rotation is a full client-side re-encryption pass.",
+			"reviewedOn": "2026-08-11",
+			"evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
+		},
+		{
+			"id": "architecture-reviewer-apps-widening",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "template/base/tools/reviewer-triggers.json",
+					"mustContain": "architecture-reviewer-apps-widening"
+				}
+			],
+			"reason": "The architecture-reviewer's trigger (0.9.5) is scoped to packages/** plus the two structural registers, deliberately NOT apps/** — the triggers file's own doctrine is narrowness first, because an over-matching trigger makes every diff owe every reviewer and gets routed around. Condition: widen to apps/*/lib/** (the web seam files) only once a release of reviewer-ledger evidence shows the packages-scoped trigger earns its verdicts rather than producing noise; the evidence is the .harness/reviewer-ledger.jsonl population at the widening review. RE-REVIEWED FOR 1.0.0, DELIBERATELY AND NOT AS A DATE BUMP: the widening's evidence bar is a release of reviewer-ledger population, and the population available to this review is ZERO BY CONSTRUCTION from where the factory sits — no consumer install's .harness/reviewer-ledger.jsonl reaches this repository, and the factory's own scaffolds never spawn reviewers (no CI lane spawns Claude; the deliberate posture CONTROL-PLANE-FACTS Fact 5 records). So the review RECORDS the refusal rather than the widening, on the trigger file's own narrowness-first doctrine: widening on zero evidence would be exactly the over-match the doctrine exists to refuse, and a stability release does not get to convert an evidence-gated condition into a leap. The row stays until a consumer-reported or maintainer-dogfooded ledger population exists to judge; the condition is unchanged, so the anchor and the trigger scope are byte-identical to 0.9.5.",
+			"reviewedOn": "2026-08-15",
+			"evidence": "template/base/tools/reviewer-triggers.json"
+		},
+		{
+			"id": "off-linux-stop-chain",
+			"kind": "condition",
+			"target": null,
+			"reason": "The full Stop chain executes off-Linux nowhere: the blocker is the DATABASE, not the shell — rls-isolation needs the live Supabase stack (Docker), which the Windows/macOS runners do not carry, while the gate/hook LOGIC is already proven cross-platform by the Windows unit matrix. Condition: discharge needs a supported off-Linux local-stack story upstream, re-checked at every Supabase CLI pin bump, not a date this repo can set.",
+			"reviewedOn": "2026-08-10",
+			"evidence": ".github/workflows/selftest.yml"
+		},
+		{
+			"id": "conformance-supabase-grants-arrival",
+			"kind": "calendar",
+			"target": "2026-10-30",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "2026-10-30"
+				}
+			],
+			"reason": "Supabase Data API grants stop being automatic for projects created on or after this date (three roles including service_role, SEQUENCES revoked too, failure is SQLSTATE 42501 not a silent 404, and the auto_expose_new_tables restore flag is removed the SAME day). The closure SHIPPED in 0.6.0 inside schema-rls; this row is the dated re-verification that the shipped closure and its prose still describe the regime as it actually lands.",
+			"reviewedOn": "2026-08-10"
+		},
+		{
+			"id": "conformance-play-target-api-window",
+			"kind": "calendar",
+			"target": "2026-08-31",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "2026-08-31"
+				}
+			],
+			"reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED: the row's job is to ask the question ON the deadline, so slipping it forward would retire the check rather than satisfy it, and a calendar row cannot red a PR in any case (obligations.mjs gates the calendar branch on `clockful`). What the pre-verification found, all local because the claim is local: tools/store-policy.json's androidTargetSdk floor is 36, matching the requirement that takes effect on the target date; expoSdkDefaults maps SDK 57 to targetSdkVersion 36, so a stock scaffold satisfies it without declaring anything; and a search of the seeded config surface for wear/automotive/androidtv/leanback/xr found NO form-factor target — the only occurrences anywhere are store-policy.json's own prose describing the lower floors those form factors would use. The cut therefore still holds, and the scheduled lane's firing on the date is a confirmation rather than a discovery.",
+			"reviewedOn": "2026-08-13"
+		},
+		{
+			"id": "conformance-cra-art14-application",
+			"kind": "calendar",
+			"target": "2026-09-11",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "2026-09-11"
+				}
+			],
+			"reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED, for the same reason as the Play row: 'the guidance in force on the day' is not readable before the day, so moving the target would convert a dated check into a retired one. The local half of the scope reading was re-confirmed — SECURITY.md ships in template/base and is planted for existing installs, so the consumer-enablement deliverable stands whatever the final guidance says about this repository's own status. The row stays undischarged on purpose: it is the one obligation in this register whose answer this repository cannot compute, only look up.",
+			"reviewedOn": "2026-08-13"
+		},
+		{
+			"id": "conformance-ai-act-transitional",
+			"kind": "calendar",
+			"target": "2026-12-02",
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "2026-12-02"
+				}
+			],
+			"reason": "EU AI Act Article 50 transparency: in force since 2026-08-02 with a 2026-12-02 transitional. The recorded disposition is a CONFIRMED NEGATIVE on the role split (Art. 50(2) binds the provider of the generative system, not the author of software written with one); this row is the dated re-verification of that negative when the transitional window closes, since the robust rationale must survive whatever guidance accretes by then.",
+			"reviewedOn": "2026-08-10"
+		},
+		{
+			"id": "conformance-map-whole-or-not-at-all",
+			"kind": "condition",
+			"target": null,
+			"sites": [
+				{
+					"file": "design/CONFORMANCE-FACTS.md",
+					"mustContain": "carries **no date** here, deliberately"
+				}
+			],
+			"reason": "tools/conformance-map.json (gates mapped to ASVS/MASVS requirement ids with a claimed level) is the artifact an enterprise buyer asks for by name and the one thing that must not ship partially: a claimed level with an unmapped requirement is worse than no claim, and with no harmonised standard cited in the OJ there is no presumption of conformity to anchor it to. Deliberately undated; built whole against Annex I directly, or not at all.",
+			"reviewedOn": "2026-08-10",
+			"evidence": "design/CONFORMANCE-FACTS.md"
+		},
+		{
+			"id": "cold-path-measurement-publication",
+			"kind": "condition",
+			"target": null,
+			"reason": "The COLD path (fresh clone, cold caches, first validate) is unmeasured — the committed measurements cover the warm chain and the Stop turn-end only — so no cold figure may be published, and the README says so. Condition, not a date: the discharge is a reviewed cold-run recording through the same `check-chain-budget --record` channel, which exists only when a runner and a reviewed dispatch produce one.",
+			"reviewedOn": "2026-08-10",
+			"evidence": "scripts/chain-budget.json"
+		},
+		{
+			"id": "data-flow-erase-ramp-expiry",
+			"kind": "release",
+			"target": "0.12.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-data-flow.mjs",
+					"mustContain": "the erase.surface record and its two-surface clients closure"
+				}
+			],
+			"reason": "0.11.0 shipped the WEB half of DSR erase and the tools/data-flow.json `erase` record that closes over both surfaces, and put the requirement in check-data-flow.mjs where it closes over the product rather than over one initiator. The runner is harness-OWNED so `update` arms the demand on every install at once; data-flow.json is SEEDED so `update` cannot write the record for them, and the web surface it declares is theirs to add — the owned-checker-over-seeded-subject asymmetry the ramp doctrine exists for. Ramped to 0.12.0 as a THIRD block rather than a widening of either existing data-flow ramp, because folding a new finding into an older one re-opens an escape the deadline ratchet has already counted closed. THE CLOSURE IS TWO-WAY ON PURPOSE: the defect this record was written for is a backing that works while one surface cannot reach it, so naming only the Edge Function would have been satisfied in exactly that state. The 0.12.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "version-sync-eol-arrival-ramp-expiry",
+			"kind": "release",
+			"target": "0.12.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-version-sync.mjs",
+					"mustContain": "the arrival of tools/eol.json's removalTarget dates"
+				}
+			],
+			"reason": "THIS ROW IS RE-OPENED, and saying so is the point. A row of this id was discharged at 0.11.0 when the arrival escape expired on schedule — and the escape turned out to have been live for exactly the population it could not help. rampNote is INERT when baseVersion >= minVersion, so opening at minVersion 0.10.0 excluded the 0.10.0 vintage, which is the ONLY vintage holding a seeded tools/eol.json whose removalTarget the harness itself wrote as 0.11.0. At harness 0.11.0 that date arrived hard, on a seeded file update may never rewrite, with no deadline met — a regression, not an expiry, and the upgrade lane on the v0.11.0 TAG is what found it. 0.11.1 moves the escape onto that vintage (minVersion 0.11.0, until 0.12.0) through the lineage third reviewed rampExtensions entry. THE DISCHARGE IS NOT ANOTHER RE-DATE: by 0.12.0 every install has had a release in which to re-affirm its own uuid row, and scripts/check-eol-target.mjs now reds any PR that lets a production-scope removalTarget stand at or below the version being cut, so the arrival cannot be re-authored into the seeded file a fourth time. The 0.12.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "suppressions-census-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-suppressions.mjs",
+					"mustContain": "the inline-suppression census over the product tree"
+				}
+			],
+			"reason": "1.0.0 injects the `suppressions` chain step (the inline-directive census — the scanner outside ESLint that polices the rule-less disable no in-ESLint check can see) and, per the ramp doctrine, ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0: an install whose seeded tree predates the census must get one release of dated NOTEs to reason each site and adopt the planted tools/suppressions-allow.json register, not a hard red on the update that delivered the scanner. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The register is planted (DELIBERATE_PLANT — green-by-construction: its shipped rows describe the harness-seeded files), so the only surviving NOTE source on an upgraded install is a directive ITS OWN tree added without a row, which is exactly the population the census exists to make visible.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "resilience-register-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-resilience.mjs",
+					"mustContain": "the outbound-seam resilience register closure"
+				}
+			],
+			"reason": "1.0.0 injects the `resilience` chain step (the outbound-seam posture register, closed both ways with symbol-backed claims) and ships its findings NOTE-only for pre-1.0.0 installs until 1.1.0, for the same reason as the suppressions ramp one row up: an install that grew its own outbound seams before the scanner existed gets one release of dated NOTEs to declare each seam in the planted tools/resilience.json, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry. The planted register declares the scaffold's own eight seams, so an upgraded install NOTEs only on transports its own tree constructed — the undeclared-posture population the register exists to close over.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "boundaries-anatomy-widening-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-workspace-deps.mjs",
+					"mustContain": "the behavior-keyed widening of the vertical-anatomy DAL laws"
+				}
+			],
+			"reason": "1.0.0 re-keys the vertical-anatomy DAL laws on BEHAVIOR — a value-import of @app/supabase/@supabase reds anywhere under src/**, and a file that speaks PostgREST (.from(/.rpc(/.select( in call position) must import a port.ts that exists, wherever both live — discharging vertical-anatomy-folder-name-coupling (the src/repo/ service-role escape the directory keying admitted by construction). Per the ramp doctrine the WIDENED findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a vertical that satisfied the 0.9.5 directory keying (its DAL under src/data/ with a port beside it) may hold a PostgREST caller elsewhere that never owed a port import before, and it gets one release of dated NOTEs to route the seam through a port or record the reviewed allow entry, never a hard red on the update that delivered the re-keying. Nothing weakens meanwhile: findings the directory keying already produced keep their vintage tag and stay on the expired 0.9.5 ramp, hard for every real install. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "exports-walls-module-closure-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-exports-walls.mjs",
+					"mustContain": "the census module-name closure over the shipped module list"
+				}
+			],
+			"reason": "1.0.0 ships tools/modules.json (OWNED — the installer MODULES list finally has a shipped home a consumer gate can read, discharging exports-walls-module-name-validation) and closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. The census is SEEDED, so per the ramp doctrine the closure's findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a tree that wrote a module name before any list existed to check it against gets one release of dated NOTEs to fix the name or remove the sanction, never a hard red on the update that delivered the list. The register file itself fails closed unramped when absent or malformed — it is owned and arrives with the same release as the check, so its absence is a broken tree, not a consumer choice. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-15"
+		},
+		{
+			"id": "auth-posture-hook-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-auth-posture.mjs",
+					"mustContain": "the [auth.hook] trail posture (the auth-event trail, new in"
+				}
+			],
+			"reason": "1.0.0 pins the auth-event trail's hook wiring as auth-posture floors (the [auth.hook.*] enabled/uri keys) and adds the two sections to the census. supabase/config.toml is SEEDED and the sections arrive with the 1.0.0 trail migration, so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite — the identical ambush the 0.9.9 [auth.mfa] routing resolved, resolved the same way: hook findings ride their own NOTE ramp until 1.1.0, every other auth-posture finding stays hard, and the NOTE names the paired adoption (the migration AND the config sections together, per the ADR). The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-16"
+		},
+		{
+			"id": "version-sync-support-ramp-expiry",
+			"kind": "release",
+			"target": "1.1.0",
+			"sites": [
+				{
+					"file": "template/base/tools/check-version-sync.mjs",
+					"mustContain": "the vendor-support register (PA-11/POS-16)"
+				}
+			],
+			"reason": "1.0.0 ships tools/support-register.json (the reviewed vendor-support dispositions for the online services and platforms this stack runs on — the decision the deleted e8-eol-closure condition row said someone had to make) and judges it clocklessly in version-sync with a platform-fact closure against the tree's own Postgres/Node pins. The register is SEEDED for eol.json's reason: a consumer on a different Postgres major must be able to review THEIR platform's row, and update must never clobber that review. So the whole section rides one NOTE ramp until 1.1.0 for pre-1.0.0 installs — planted-register adoption with a deadline, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+			"reviewedOn": "2026-08-16"
+		}
+	]
 }
