@@ -1,12 +1,14 @@
-// The two ports the package is built over, declared here and implemented
-// NOWHERE in it — the SessionStorageAdapter precedent (@app/supabase
-// src/session-storage.ts): the shared package states the contract, the HOSTS
-// implement it, and that split is what keeps platform SDKs and runtime globals
-// out of the shared graph. The web/node implementation of CryptoProvider ships
-// on the `.` barrel (webcrypto-provider.ts); the mobile implementation is a
-// consumer decision documented in docs/modules/e2ee/mobile-provider.patch.md,
-// because a native crypto dependency is a decision made deliberately, not
-// defaulted (the observability module's OTLP stance, applied to primitives).
+// The ports the package is built over — every contract a HOST must supply,
+// declared here and implemented NOWHERE in it: the SessionStorageAdapter
+// precedent (@app/supabase src/session-storage.ts): the shared package states
+// the contract, the HOSTS implement it, and that split is what keeps platform
+// SDKs and runtime globals out of the shared graph. The web/node
+// implementations ship on the `.` barrel (webcrypto-provider.ts for
+// CryptoProvider, webcrypto-x25519.ts for X25519Provider); each mobile
+// implementation is a consumer decision documented in
+// docs/modules/e2ee/mobile-provider.patch.md, because a native crypto
+// dependency is a decision made deliberately, not defaulted (the observability
+// module's OTLP stance, applied to primitives).
 
 /**
  * The injected primitives. Everything above this line of the stack is pure
@@ -31,6 +33,7 @@ export interface CryptoProvider {
    * through a `sealItem` that had no way to express failure.
    * The iv MUST be 12 bytes and MUST NEVER repeat under one key.
    */
+  // SOURCE: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf (96-bit iv, full tag) [corpus: nist/sp800-38d-gcm]
   aeadSeal(args: {
     key: Uint8Array
     iv: Uint8Array
@@ -38,6 +41,7 @@ export interface CryptoProvider {
     aad: Uint8Array
   }): Promise<Uint8Array | null>
   /** AES-256-GCM open: null on ANY authentication failure — never throws. */
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 (one failure output) [corpus: ietf/rfc5116-aead]
   aeadOpen(args: {
     key: Uint8Array
     iv: Uint8Array
@@ -47,13 +51,54 @@ export interface CryptoProvider {
   /**
    * HKDF-SHA-256 (extract + expand), or NULL when the engine refuses. Never
    * throws, for the same reason as aeadSeal above.
-   * SOURCE: https://www.rfc-editor.org/rfc/rfc5869 [corpus: ietf/rfc5869-hkdf]
    */
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5869 [corpus: ietf/rfc5869-hkdf]
   hkdfSha256(args: {
     ikm: Uint8Array
     salt: Uint8Array
     info: Uint8Array
     length: number
+  }): Promise<Uint8Array | null>
+}
+
+/** A raw X25519 key pair: 32-byte scalar, 32-byte u-coordinate. */
+export interface X25519KeyPair {
+  readonly publicKey: Uint8Array
+  readonly secretKey: Uint8Array
+}
+
+/**
+ * The X25519 primitive the recipient-wrap seam (recipient-wrap.ts) is built
+ * over. A SECOND port rather than two more members on CryptoProvider —
+ * deliberately: a provider that cannot do X25519 must still be able to satisfy
+ * CryptoProvider whole (Hermes-side AES/HKDF and X25519 come from DIFFERENT
+ * libraries — @noble/ciphers + @noble/hashes vs @noble/curves — and a merged
+ * contract would force every host to wire all of them before sealing its first
+ * item). It lives HERE with the other host-implemented contracts, not beside
+ * the seam that consumes it, because ports.ts is the one file that answers
+ * "what must a host supply" — the same reason CryptoProvider does not live in
+ * keyring.ts.
+ *
+ * Keys are RAW BYTES (32-byte scalars and u-coordinates), never engine
+ * handles, so a WebCrypto implementation and a future @noble/curves mobile
+ * implementation produce interchangeable material — the cross-platform parity
+ * the byte-shaped KeystoreAdapter below already committed this package to.
+ * Null-not-throw throughout: `deriveSharedSecret` returns null when the engine
+ * refuses — a malformed key, a missing algorithm, or the ALL-ZERO shared
+ * secret a low-order peer point produces, which a conforming WebCrypto engine
+ * rejects as an OperationError rather than handing to the caller.
+ * SOURCE: https://www.rfc-editor.org/rfc/rfc7748 (X25519; the public key is
+ * X25519(secret, 9)) [corpus: ietf/rfc7748-x25519] ·
+ * https://wicg.github.io/webcrypto-secure-curves/ (deriveBits MUST error on an
+ * all-zero result) [corpus: wicg/webcrypto-secure-curves]
+ */
+export interface X25519Provider {
+  /** A fresh key pair from the platform engine, or null when it refuses. */
+  generateKeyPair(): Promise<X25519KeyPair | null>
+  /** X25519(secretKey, publicKey) — 32 bytes, or null on ANY refusal. Never throws. */
+  deriveSharedSecret(args: {
+    secretKey: Uint8Array
+    publicKey: Uint8Array
   }): Promise<Uint8Array | null>
 }
 
@@ -74,8 +119,17 @@ export interface CryptoProvider {
  * read at all — which cannot satisfy a `Uint8Array` contract. So a web root key
  * under this port is extractable-by-JS by construction, and one XSS is a total
  * loss of every ciphertext that key protects. The mobile side does not have this
- * problem. Documented in docs/modules/e2ee/README.md; changing it means a
- * handle-shaped port, which is a breaking change nothing has yet paid for.
+ * problem. Documented in docs/modules/e2ee/README.md.
+ *
+ * The byte shape is now DECISIVE, not historical. Recovery and device sync
+ * (recovery.ts, device-sync.ts) both SEAL THE ROOT KEY ITSELF — escrowRootKey
+ * and exportForDevice take the raw 32 bytes as AEAD plaintext — and a
+ * non-extractable handle whose bytes JavaScript cannot read could never feed
+ * either one. A handle-shaped port would not be a hardening; it would be the
+ * quiet return of "lost device is lost data", because the key that cannot be
+ * read is also the key that cannot be escrowed or carried to a second device.
+ * The trade is recorded here so nobody "fixes" the web weakness by breaking
+ * both shipped seams.
  */
 export interface KeystoreAdapter {
   getRootKey(userId: string): Promise<Uint8Array | null>

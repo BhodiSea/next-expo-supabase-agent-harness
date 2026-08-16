@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AAD_ROLE_DEK, AAD_ROLE_ITEM, buildAad, decodeEnvelope } from './envelope.js'
-import { deriveKek, openItem, sealItem } from './keyring.js'
+import { deriveKek, openItem, rewrapItemKey, sealItem } from './keyring.js'
 import type { CryptoProvider } from './ports.js'
 import { createWebCryptoProvider } from './webcrypto-provider.js'
 
@@ -204,5 +204,132 @@ describe('deriveKek', () => {
 
   it('returns 32 bytes — the AES-256 key length the provider enforces', async () => {
     expect(await kekOrThrow()).toHaveLength(32)
+  })
+})
+
+describe('rewrapItemKey — rotation as a one-column rewrite', () => {
+  const newRoot = new Uint8Array(32).fill(3)
+
+  async function rewrapOrThrow(
+    oldKek: Uint8Array,
+    newKek: Uint8Array,
+    wrappedDek: Uint8Array,
+    c = ctx,
+  ): Promise<Uint8Array> {
+    const r = await rewrapItemKey(provider, oldKek, newKek, wrappedDek, c)
+    if (!r.ok) throw new Error(`rewrapItemKey refused: ${r.reason}`)
+    return r.value
+  }
+
+  it('the rewrapped column opens under the new KEK against the UNTOUCHED item envelope', async () => {
+    const oldKek = await kekOrThrow()
+    const newKek = await kekOrThrow(newRoot)
+    const sealed = await sealOrThrow(oldKek, text('the plaintext body'))
+    const rewrapped = await rewrapOrThrow(oldKek, newKek, sealed.wrappedDek)
+    // The item envelope is passed byte-identical — rotation never rewrites it
+    // and never sees the plaintext. That property is the API's shape: rewrap
+    // takes and returns ONLY the wrapped-DEK column.
+    const opened = await openItem(
+      provider,
+      newKek,
+      { envelope: sealed.envelope, wrappedDek: rewrapped },
+      ctx,
+    )
+    expect(opened.ok).toBe(true)
+    if (opened.ok) expect(new TextDecoder().decode(opened.value)).toBe('the plaintext body')
+  })
+
+  it('the old KEK no longer opens the rewrapped column', async () => {
+    const oldKek = await kekOrThrow()
+    const newKek = await kekOrThrow(newRoot)
+    const sealed = await sealOrThrow(oldKek, text('secret'))
+    const rewrapped = await rewrapOrThrow(oldKek, newKek, sealed.wrappedDek)
+    const r = await openItem(provider, oldKek, { ...sealed, wrappedDek: rewrapped }, ctx)
+    expect(r).toMatchObject({ ok: false, reason: 'aead_auth_failed' })
+  })
+
+  it('carries the SAME DEK across the rewrap — proven by unwrapping both columns', async () => {
+    // The fresh-DEK test's inverse: rotation must NOT mint a key, or the item
+    // envelope (sealed under the old DEK) becomes permanently unreadable while
+    // every test that only checks "it opens" stays green on freshly sealed
+    // fixtures. Recover both DEKs and compare them.
+    const oldKek = await kekOrThrow()
+    const newKek = await kekOrThrow(newRoot)
+    const sealed = await sealOrThrow(oldKek, text('same'))
+    const rewrapped = await rewrapOrThrow(oldKek, newKek, sealed.wrappedDek)
+    const unwrap = async (kek: Uint8Array, wrappedDek: Uint8Array) => {
+      const env = decodeEnvelope(wrappedDek)
+      if (!env.ok) throw new Error(`wrapped DEK did not decode: ${env.reason}`)
+      const dek = await provider.aeadOpen({
+        key: kek,
+        iv: env.value.iv,
+        ciphertext: env.value.ct,
+        aad: buildAad(AAD_ROLE_DEK, ctx),
+      })
+      if (dek === null) throw new Error('the wrapped DEK did not authenticate')
+      return [...dek]
+    }
+    expect(await unwrap(newKek, rewrapped)).toEqual(await unwrap(oldKek, sealed.wrappedDek))
+  })
+
+  it('rewraps under a FRESH IV even when old and new KEK are the same key', async () => {
+    // A same-key rewrap is the degenerate case an orchestrator's resume logic
+    // can produce (row already rotated, pass runs again). It must stay safe:
+    // new envelope bytes (fresh IV — GCM's cardinal rule), still opens.
+    const kek = await kekOrThrow()
+    const sealed = await sealOrThrow(kek, text('secret'))
+    const rewrapped = await rewrapOrThrow(kek, kek, sealed.wrappedDek)
+    expect([...rewrapped]).not.toEqual([...sealed.wrappedDek])
+    const opened = await openItem(provider, kek, { ...sealed, wrappedDek: rewrapped }, ctx)
+    expect(opened.ok).toBe(true)
+  })
+
+  it('the wrong old KEK is aead_auth_failed — a rotation cannot guess', async () => {
+    const kek = await kekOrThrow()
+    const wrongKek = await kekOrThrow(new Uint8Array(32).fill(9))
+    const sealed = await sealOrThrow(kek, text('secret'))
+    const r = await rewrapItemKey(
+      provider,
+      wrongKek,
+      await kekOrThrow(newRoot),
+      sealed.wrappedDek,
+      ctx,
+    )
+    expect(r).toMatchObject({ ok: false, reason: 'aead_auth_failed' })
+  })
+
+  it("a rewrap under another row's identity is aead_auth_failed — the AAD survives rotation", async () => {
+    const oldKek = await kekOrThrow()
+    const newKek = await kekOrThrow(newRoot)
+    const sealed = await sealOrThrow(oldKek, text('secret'))
+    const r = await rewrapItemKey(provider, oldKek, newKek, sealed.wrappedDek, {
+      ...ctx,
+      itemId: 'note-2',
+    })
+    expect(r).toMatchObject({ ok: false, reason: 'aead_auth_failed' })
+  })
+
+  it('a crypto-shred tombstone is key_missing — rotation SKIPS a shredded row', async () => {
+    const r = await rewrapItemKey(
+      provider,
+      await kekOrThrow(),
+      await kekOrThrow(newRoot),
+      new Uint8Array(0),
+      ctx,
+    )
+    expect(r).toMatchObject({ ok: false, reason: 'key_missing' })
+  })
+
+  it('a corrupted wrapped DEK is envelope_malformed, before any key touches it', async () => {
+    const oldKek = await kekOrThrow()
+    const sealed = await sealOrThrow(oldKek, text('secret'))
+    const r = await rewrapItemKey(
+      provider,
+      oldKek,
+      await kekOrThrow(newRoot),
+      sealed.wrappedDek.slice(0, 4),
+      ctx,
+    )
+    expect(r).toMatchObject({ ok: false, reason: 'envelope_malformed' })
   })
 })

@@ -49,7 +49,10 @@ const functions = existsSync('supabase/functions')
   : []
 
 if (!existsSync('pnpm-lock.yaml')) {
-  fail(GATE, 'no pnpm-lock.yaml in the deployed checkout — a manifest without the resolution set starves the patch-window judgement')
+  fail(
+    GATE,
+    'no pnpm-lock.yaml in the deployed checkout — a manifest without the resolution set starves the patch-window judgement',
+  )
 }
 const lockText = readFileSync('pnpm-lock.yaml', 'utf8')
 const resolutions = [...parseLockVersions(lockText).entries()].flatMap(([name, versions]) =>
@@ -69,7 +72,10 @@ const manifest = {
 
 const problems = deployManifestProblems(manifest)
 if (problems.length > 0) {
-  fail(GATE, `the deploy manifest does not pass its own judgement — nothing is emitted:\n  - ${problems.join('\n  - ')}`)
+  fail(
+    GATE,
+    `the deploy manifest does not pass its own judgement — nothing is emitted:\n  - ${problems.join('\n  - ')}`,
+  )
 }
 
 mkdirSync('artifacts', { recursive: true })

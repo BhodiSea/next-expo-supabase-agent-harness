@@ -21,7 +21,10 @@ const arg = (name, fallback) =>
 
 const manifestPath = arg('manifest', 'artifacts/deploy-manifest.json')
 if (!existsSync(manifestPath)) {
-  skipOrFail(GATE, `${manifestPath} not found — no deploy-record artifact to bind (has a deployment run the deploy-record job?)`)
+  skipOrFail(
+    GATE,
+    `${manifestPath} not found — no deploy-record artifact to bind (has a deployment run the deploy-record job?)`,
+  )
 }
 let manifest
 try {
@@ -33,7 +36,10 @@ try {
 const token = process.env.SUPABASE_ACCESS_TOKEN
 const ref = process.env.SUPABASE_PROJECT_REF
 if (!token || !ref) {
-  skipOrFail(GATE, 'SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set — the backup fact lives in the platform control plane (the backup-evidence posture, one job over)')
+  skipOrFail(
+    GATE,
+    'SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set — the backup fact lives in the platform control plane (the backup-evidence posture, one job over)',
+  )
 }
 
 // The same control-plane read backup-evidence performs: one HTTPS GET, judged.
@@ -41,7 +47,10 @@ const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/ba
   headers: { authorization: `Bearer ${token}` },
 })
 if (!res.ok) {
-  fail(GATE, `the backups endpoint answered ${String(res.status)} — a restore manifest cannot bind a backup fact it could not read`)
+  fail(
+    GATE,
+    `the backups endpoint answered ${String(res.status)} — a restore manifest cannot bind a backup fact it could not read`,
+  )
 }
 const body = await res.json()
 const completed = (body.backups ?? [])
@@ -53,7 +62,11 @@ const backup = body.pitr_enabled
   : { mechanism: 'daily-backup', latestAt: completed.at(-1) ?? null }
 
 const { problems, record } = judgeRestoreBinding({ manifest, backup })
-failures(GATE, problems, '\nRB-02 binds three asset classes to one point in time; a binding that fails its own judgement is not emitted.')
+failures(
+  GATE,
+  problems,
+  '\nRB-02 binds three asset classes to one point in time; a binding that fails its own judgement is not emitted.',
+)
 
 mkdirSync('artifacts', { recursive: true })
 writeFileSync('artifacts/restore-manifest.json', `${JSON.stringify(record, null, 2)}\n`)

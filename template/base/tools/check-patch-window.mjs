@@ -29,7 +29,10 @@ if (!existsSync(manifestPath)) {
   // No deployment has ever emitted a manifest: on a project that deploys, the
   // workflow downloads the latest one before this runs, so absence here means the
   // channel is not wired — loud skip locally, fail in CI (the toolchain asymmetry).
-  skipOrFail(GATE, `${manifestPath} not found — no deploy-record artifact to judge (has a deployment run the deploy-record job?)`)
+  skipOrFail(
+    GATE,
+    `${manifestPath} not found — no deploy-record artifact to judge (has a deployment run the deploy-record job?)`,
+  )
 }
 
 let manifest
@@ -63,7 +66,11 @@ async function queryOsv(resolutions) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ queries: queries.slice(i, i + 1000) }),
     })
-    if (!res.ok) fail(GATE, `OSV querybatch answered ${String(res.status)} — the judgement cannot run blind, and a network fault must never read as "no advisories"`)
+    if (!res.ok)
+      fail(
+        GATE,
+        `OSV querybatch answered ${String(res.status)} — the judgement cannot run blind, and a network fault must never read as "no advisories"`,
+      )
     const body = await res.json()
     for (const [j, r] of (body.results ?? []).entries()) {
       for (const v of r?.vulns ?? []) {
@@ -84,7 +91,8 @@ const hits = await queryOsv(manifest.resolutions)
 const vulns = []
 for (const { id, resolution } of hits) {
   const d = await vulnDetail(id)
-  const severity = JSON.stringify(d.database_specific?.severity ?? '') + JSON.stringify(d.severity ?? '')
+  const severity =
+    JSON.stringify(d.database_specific?.severity ?? '') + JSON.stringify(d.severity ?? '')
   vulns.push({
     id,
     package: resolution.name,
@@ -97,7 +105,11 @@ for (const { id, resolution } of hits) {
 }
 
 const { findings, judged } = judgePatchWindows({ manifest, vulns, now })
-failures(GATE, findings, '\nThe windows are ASD\'s verbatim numbers (PA-06/PA-07/PA-10). The remediation is a DEPLOY: the judgement measures the deployed resolution set, so merging a bump satisfies nothing until it ships.')
+failures(
+  GATE,
+  findings,
+  "\nThe windows are ASD's verbatim numbers (PA-06/PA-07/PA-10). The remediation is a DEPLOY: the judgement measures the deployed resolution set, so merging a bump satisfies nothing until it ships.",
+)
 ok(
   GATE,
   `${String(manifest.resolutions.length)} deployed resolution(s) joined against OSV — ${String(judged)} advisory hit(s), none outside ASD's windows (deployed ${manifest.deployedAt}, judged at ${now})`,

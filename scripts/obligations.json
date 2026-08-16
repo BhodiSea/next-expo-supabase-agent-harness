@@ -132,21 +132,21 @@
 			"evidence": "design/CONFORMANCE-FACTS.md"
 		},
 		{
-			"id": "e2ee-declared-ports-unimplemented",
+			"id": "e2ee-passphrase-kdf-consumer-decision",
 			"kind": "condition",
 			"target": null,
 			"sites": [
 				{
-					"file": "template/modules/e2ee/packages/platform/crypto/src/ports-declared.ts",
-					"mustContain": "RecipientWrapPort"
+					"file": "template/modules/e2ee/packages/platform/crypto/src/recovery.ts",
+					"mustContain": "Argon2id"
 				},
 				{
 					"file": "template/modules/e2ee/docs/modules/e2ee/README.md",
-					"mustContain": "What this deliberately does NOT solve"
+					"mustContain": "The passphrase refusal SURVIVES intact."
 				}
 			],
-			"reason": "The 0.9.5 e2ee rails DECLARE three ports with no implementations — RecipientWrapPort (org sharing: an org-mate's RLS-visible row is ciphertext they cannot open), RecoveryPort (a lost device is lost data; WebCrypto ships no Argon2 and PBKDF2-as-the-KDF would be a dishonest default), and DeviceSyncPort (a second device has no path to the root key). Condition, not a dated row: each needs a design decision the harness should not date on a consumer's behalf, and the honest state is a declaration plus a stated loss rather than a promise. This row anchors the declarations to the README section that states their cost, so an implementation cannot quietly turn a declared port into a claim without the register moving too. Also open by construction: the web KeystoreAdapter returns raw bytes, which forecloses a non-extractable CryptoKey handle, and the keyring exports no rewrap primitive so key rotation is a full client-side re-encryption pass.",
-			"reviewedOn": "2026-08-11",
+			"reason": "NARROWED AT 1.0.0 from e2ee-declared-ports-unimplemented, and the narrowing is the discharge of everything that row held except this. The three ports that row anchored as declarations are IMPLEMENTED with zero new dependencies: RecipientWrapPort as X25519 ECIES over WebCrypto's Secure Curves (fresh ephemeral per wrap, HKDF over shared ‖ eph_pk ‖ recipient_pk, AAD role 0x02 binding both points, RFC 7748 vectors against the real engine, a committed known-answer wire); RecoveryPort as a GENERATED 32-byte shown-once recovery code (Crockford base32, the invitations.token_digest custody precedent) with plain HKDF — full-entropy input needs no memory-hard KDF — and AAD role 0x03; DeviceSyncPort as an envelope over HKDF(channelKey) with AAD role 0x04, the pairing ceremony left to the consumer. The keyring ships rewrapItemKey, so rotation is a one-column rewrite and only its orchestration stays consumer-owned; the byte-shaped KeystoreAdapter is KEPT for a reason that is now decisive rather than historical — a non-extractable CryptoKey handle could never feed escrow or device export. WHAT SURVIVES, and why it is a condition rather than a date: a human-CHOSEN passphrase has guessable entropy and would demand Argon2id (RFC 9106); WebCrypto ships no Argon2, and shipping PBKDF2 while calling it 'the KDF' would be the dishonest default the original refusal named. A passphrase-derived escrow is therefore a documented consumer decision priced like the mobile provider — @noble/hashes or a native argon2 — and this row anchors that refusal to the code comment and the README sentence that state it, so a future default cannot land without the register moving. The upstream condition is a WebCrypto Argon2 primitive (none proposed as of 2026-08-16).",
+			"reviewedOn": "2026-08-16",
 			"evidence": "template/modules/e2ee/docs/modules/e2ee/README.md"
 		},
 		{

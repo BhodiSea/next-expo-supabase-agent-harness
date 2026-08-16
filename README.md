@@ -61,11 +61,16 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > is the consumer's act through the `authoring-e2ee-feature` skill. The mobile
 > AEAD provider is a documented consumer decision, not a default (a native crypto
 > dependency is a choice the harness refuses to make for you). Sharing, recovery
-> and multi-device are DECLARED ports with no implementations: a second device
-> sees ciphertext, and **a lost device is lost data**. Encryption hides content,
-> not shape — row counts, sizes and timestamps stay server-visible — and an
-> encrypted column cannot be searched, sorted or filtered by the database.
-> `docs/modules/e2ee/README.md` states each of these losses in full.
+> and multi-device ship as IMPLEMENTED ports since 1.0.0 — X25519 recipient
+> wrap, a generated shown-once recovery code, and a device-sync envelope — with
+> zero new dependencies, and each carries its residual: the public-key directory,
+> the recovery-code custody, and the pairing ceremony are yours, and **a lost
+> device AND a lost recovery code is still lost data**. A passphrase-derived
+> escrow stays a consumer decision (WebCrypto ships no Argon2id). Encryption
+> hides content, not shape — row counts, sizes and timestamps stay
+> server-visible — an encrypted column cannot be searched, sorted or filtered by
+> the database, and rotation ships the primitive (`rewrapItemKey`) but not the
+> orchestration. `docs/modules/e2ee/README.md` states each of these in full.
 >
 > **Honest limits.** The chain grew to 36 steps in this release, so the
 > wall-clock figures are UNPUBLISHED until the dispatched re-record lands: the

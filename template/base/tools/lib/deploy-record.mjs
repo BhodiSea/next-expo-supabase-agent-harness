@@ -24,29 +24,59 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
 
 // Scalar fields, each with the judgement its absence starves.
 const SCALARS = [
-  ['commit', (v) => typeof v === 'string' && GIT_SHA.test(v), '`commit` must be the deployed 40-hex git sha — without it the restore manifest cannot bind applications to a point in time'],
-  ['deployedAt', (v) => typeof v === 'string' && ISO.test(v), '`deployedAt` must be the ISO timestamp of the DEPLOYMENT EVENT (never a wall clock read at judgement time) — it is the anchor both windows are measured from'],
-  ['surface', (v) => typeof v === 'string' && v.trim() !== '', '`surface` must name the deployed environment — a manifest that does not say WHAT was deployed binds nothing'],
-  ['packageVersion', (v) => typeof v === 'string' && v.trim() !== '', '`packageVersion` must carry the deployed package.json version'],
-  ['lockfileSha', (v) => typeof v === 'string' && SHA_HEX.test(v), '`lockfileSha` must be sha256 of the deployed pnpm-lock.yaml — the identity of the resolution set the patch-window judgement runs against'],
+  [
+    'commit',
+    (v) => typeof v === 'string' && GIT_SHA.test(v),
+    '`commit` must be the deployed 40-hex git sha — without it the restore manifest cannot bind applications to a point in time',
+  ],
+  [
+    'deployedAt',
+    (v) => typeof v === 'string' && ISO.test(v),
+    '`deployedAt` must be the ISO timestamp of the DEPLOYMENT EVENT (never a wall clock read at judgement time) — it is the anchor both windows are measured from',
+  ],
+  [
+    'surface',
+    (v) => typeof v === 'string' && v.trim() !== '',
+    '`surface` must name the deployed environment — a manifest that does not say WHAT was deployed binds nothing',
+  ],
+  [
+    'packageVersion',
+    (v) => typeof v === 'string' && v.trim() !== '',
+    '`packageVersion` must carry the deployed package.json version',
+  ],
+  [
+    'lockfileSha',
+    (v) => typeof v === 'string' && SHA_HEX.test(v),
+    '`lockfileSha` must be sha256 of the deployed pnpm-lock.yaml — the identity of the resolution set the patch-window judgement runs against',
+  ],
 ]
 
 function hashedListProblems(m, key, what) {
   const list = m[key]
   if (!Array.isArray(list)) {
-    return [`\`${key}\` must be an array of {name, sha256} — ${what} is one of the three asset classes the restore manifest exists to bind`]
+    return [
+      `\`${key}\` must be an array of {name, sha256} — ${what} is one of the three asset classes the restore manifest exists to bind`,
+    ]
   }
-  const bad = (e) => typeof e?.name !== 'string' || typeof e?.sha256 !== 'string' || !SHA_HEX.test(e.sha256)
+  const bad = (e) =>
+    typeof e?.name !== 'string' || typeof e?.sha256 !== 'string' || !SHA_HEX.test(e.sha256)
   return [...list.entries()]
     .filter(([, e]) => bad(e))
-    .map(([i]) => `\`${key}[${i}]\` must be {name, sha256(hex64)} — an unhashed entry cannot prove what shipped`)
+    .map(
+      ([i]) =>
+        `\`${key}[${i}]\` must be {name, sha256(hex64)} — an unhashed entry cannot prove what shipped`,
+    )
 }
 
 function resolutionProblems(m) {
   if (!Array.isArray(m.resolutions) || m.resolutions.length === 0) {
-    return ['`resolutions` must be the non-empty [{name, version}] set resolved by the deployed lockfile — the patch-window judgement joins advisories against DEPLOYED versions, not against whatever main resolves today']
+    return [
+      '`resolutions` must be the non-empty [{name, version}] set resolved by the deployed lockfile — the patch-window judgement joins advisories against DEPLOYED versions, not against whatever main resolves today',
+    ]
   }
-  const i = m.resolutions.findIndex((r) => typeof r?.name !== 'string' || typeof r?.version !== 'string')
+  const i = m.resolutions.findIndex(
+    (r) => typeof r?.name !== 'string' || typeof r?.version !== 'string',
+  )
   return i === -1 ? [] : [`\`resolutions[${i}]\` must be {name, version}`]
 }
 
@@ -60,9 +90,17 @@ export function deployManifestProblems(m) {
   if (m === null || typeof m !== 'object') return ['the deploy manifest is not an object']
   const out = SCALARS.filter(([key, okay]) => !okay(m[key])).map(([, , message]) => message)
   out.push(...hashedListProblems(m, 'migrations', "the migration set (RB-02's settings class)"))
-  out.push(...hashedListProblems(m, 'functions', "the deployed Edge Functions (RB-02's applications class)"))
+  out.push(
+    ...hashedListProblems(
+      m,
+      'functions',
+      "the deployed Edge Functions (RB-02's applications class)",
+    ),
+  )
   if (Array.isArray(m.migrations) && m.migrations.length === 0) {
-    out.push('`migrations` is EMPTY — this stack always ships migrations, so an empty set means the emitter ran outside the deployed checkout (anti-vacuity)')
+    out.push(
+      '`migrations` is EMPTY — this stack always ships migrations, so an empty set means the emitter ran outside the deployed checkout (anti-vacuity)',
+    )
   }
   out.push(...resolutionProblems(m))
   return out

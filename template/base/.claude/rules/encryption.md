@@ -50,9 +50,14 @@ full statement of what the module does NOT solve, each loss with its cost, is
   constant); the mobile host-seam restricted import (`expo-secure-store` under
   `apps/mobile/src/host/**` and nowhere else, with depcruise holding the same
   wall on the resolved graph); the `boundaries` gate over
-  `tools/exports-walls.json`, which keeps the WebCrypto provider on the `.`
-  barrel out of a Metro bundle that cannot tree-shake it away; and the `secrets`
-  gate on `EXPO_PUBLIC_`/`NEXT_PUBLIC_` name shapes.*
+  `tools/exports-walls.json`, which keeps both WebCrypto providers (AEAD/HKDF and
+  X25519) on the `.` barrel out of a Metro bundle that cannot tree-shake them
+  away; and the `secrets` gate on `EXPO_PUBLIC_`/`NEXT_PUBLIC_` name shapes.*
+  The one key-shaped thing the server MAY hold is a recovery ESCROW — the root
+  key sealed under a key derived from a generated, shown-once recovery code the
+  user keeps — because it is ciphertext to everyone without the code; a
+  passphrase-derived escrow would need Argon2id, which WebCrypto lacks, and stays
+  a consumer decision rather than a shipped default.
 
 - **AEAD only, versioned envelope only, and the AAD binds row identity.** Never
   a bare cipher, never a static or reused IV, never an unauthenticated mode,
@@ -60,21 +65,32 @@ full statement of what the module does NOT solve, each loss with its cost, is
   alg | ivLen | iv | ct`, tag inside `ct` — so algorithm agility lives in one
   place and one decoder can refuse; the version byte lives INSIDE the bytes so
   no schema column can drift away from the format it claims. The AAD binds
-  version, algorithm, a ROLE byte, and then `userId`, `table`, `itemId` and
-  `field`, each preceded by its own 4-byte big-endian LENGTH — not joined by a
-  separator, because a separator is injective only while no field can contain
-  it, and an adversarial review broke both halves of that (an embedded NUL
-  re-split the identity; `TextEncoder` folds every unpaired surrogate to one
-  `U+FFFD`). So a ciphertext moved to another row, table, or user FAILS
-  AUTHENTICATION rather than decrypting in the wrong place. *Twins: the `@app/crypto` API SHAPE, which
-  offers no unauthenticated path — `CryptoProvider` has `aeadSeal`, `aeadOpen`,
-  `hkdfSha256` and `randomBytes` and nothing else, so a provider written against
-  it cannot be misused into a raw block operation; and its tests, which ride the
+  version, algorithm, a ROLE byte — five roles, `0x00` item, `0x01` wrapped DEK,
+  `0x02` recipient wrap, `0x03` recovery escrow, `0x04` device sync — and then
+  the identity the role truly has: for a row, `userId`, `table`, `itemId` and
+  `field`; for a recipient wrap, both X25519 public keys; for escrow and sync,
+  the account. Every field is preceded by its own 4-byte big-endian LENGTH — not
+  joined by a separator, because a separator is injective only while no field
+  can contain it, and an adversarial review broke both halves of that (an
+  embedded NUL re-split the identity; `TextEncoder` folds every unpaired
+  surrogate to one `U+FFFD`). So a ciphertext moved to another row, table, user,
+  account, or role SLOT FAILS AUTHENTICATION rather than decrypting in the wrong
+  place. *Twins: the `@app/crypto` API SHAPE, which offers no unauthenticated
+  path — `CryptoProvider` has `aeadSeal`, `aeadOpen`, `hkdfSha256` and
+  `randomBytes` and nothing else, `X25519Provider` has `generateKeyPair` and
+  `deriveSharedSecret` and nothing else, so a provider written against either
+  cannot be misused into a raw block operation; and its tests, which ride the
   `unit` Stop step: `webcrypto-provider.test.ts` holds seal to the published
-  vectors byte-exactly (a roundtrip test passes for the wrong cipher — a vector
-  test does not) and tampers ciphertext, AAD and tag; `keyring.test.ts` proves
-  the moved-row, moved-user, role-swap and wrong-key refusals; `envelope.test.ts`
-  gives every decode refusal its own distinct reason. And the
+  AES-GCM/HKDF vectors byte-exactly (a roundtrip test passes for the wrong
+  cipher — a vector test does not) and tampers ciphertext, AAD and tag;
+  `webcrypto-x25519.test.ts` holds the curve to the RFC 7748 vectors and the
+  all-zero contributory refusal; `keyring.test.ts` proves the moved-row,
+  moved-user, role-swap, wrong-key and rewrap-carries-the-same-DEK refusals;
+  `recipient-wrap.test.ts` freezes the wire in a committed known answer and
+  proves the moved-recipient, tampered-ephemeral and cross-role refusals;
+  `recovery.test.ts` and `device-sync.test.ts` prove the moved-account
+  refusals; `envelope.test.ts` gives every decode refusal its own distinct
+  reason and holds all five roles pairwise distinct. And the
   `weak-crypto-algorithm` write-guard rule, which denies the WRITE that reaches
   for a broken construction — ECB (it leaks plaintext structure block by block),
   the legacy `createCipher()` (it derives a key with a static IV), MD5, SHA-1,

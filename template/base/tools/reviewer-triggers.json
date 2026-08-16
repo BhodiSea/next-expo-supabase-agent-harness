@@ -46,7 +46,8 @@
         "tools/expo-plugins.json",
         "tools/expo-permissions.json",
         "tools/identity.lock.json",
-        "tools/store-policy.json"
+        "tools/store-policy.json",
+        "tools/store-tunables.json"
       ]
     },
     {

@@ -19,8 +19,8 @@ gate. This recipe is what that slice gains when a column must be unreadable to t
 and what it LOSES in exchange.
 
 Build in this strict order. Steps 1, 5, 6 and 7 are irreversible-ish in different ways: a
-column encrypted for a month cannot be retroactively indexed, and a user whose device is gone
-cannot be given their data back.
+column encrypted for a month cannot be retroactively indexed, and a user who loses the device
+AND the recovery code cannot be given their data back.
 
 ## Step 0 — preconditions, all three
 
@@ -29,14 +29,18 @@ Do not start until all of these are true:
 1. **The module is enabled** — `packages/platform/crypto/` exists (`@app/crypto`). If it does
    not, the module is opt-in and enabling it is a separate, reviewed act: read
    `docs/modules/e2ee/README.md` first, in particular "What this deliberately does NOT solve".
-2. **Host adapters are wired.** `createWebCryptoProvider()` covers web and Node and returns
-   `null` where there is no Web Crypto. The MOBILE `CryptoProvider` and BOTH surfaces'
+2. **Host adapters are wired.** `createWebCryptoProvider()` (and, if the feature shares,
+   `createWebCryptoX25519Provider()`) cover web and Node and return `null` where there is no
+   Web Crypto. The MOBILE `CryptoProvider` / `X25519Provider` and BOTH surfaces'
    `KeystoreAdapter` are consumer code — `docs/modules/e2ee/mobile-provider.patch.md` is the
    recipe. Hermes ships no Web Crypto, so on a device the whole feature computes nothing until
    the patch is applied. Check before writing a screen that assumes otherwise.
 3. **The decision is recorded in an ADR** (`/adr <slice>`), naming the columns, the losses
-   accepted from step 1, the sign-out policy for the root key, and the export stance from
-   step 6. This ADR is the one a reviewer reads instead of re-deriving your threat model.
+   accepted from step 1, the sign-out policy for the root key, WHEN the recovery code is
+   issued (before the first seal, or never — and if never, say "lost device is lost data" in
+   those words), whether the feature shares (and therefore needs the public-key directory),
+   and the export stance from step 6. This ADR is the one a reviewer reads instead of
+   re-deriving your threat model.
 
 ## The order
 
@@ -63,10 +67,15 @@ ADR must say so in words:
 - **No server-side derived data.** No excerpt, no word count, no embedding, no thumbnail, no
   notification body quoting the content. Anything the server computes from the plaintext is a
   plaintext leak with extra steps.
-- **Org-mates cannot read it.** `RecipientWrapPort` is declared and unimplemented, so a DEK is
-  wrapped to exactly one principal. In this org-scoped scaffold RLS admits the org-mate to the
-  row and they receive ciphertext they cannot open. If the column is meant to be shared, this
-  recipe is the wrong tool.
+- **Org-mates cannot read it UNLESS you build the share path.** A DEK is wrapped to the
+  author's KEK by default; in this org-scoped scaffold RLS admits the org-mate to the row and
+  they receive ciphertext they cannot open. `wrapDekFor` (`recipient-wrap.ts`) can wrap the
+  same DEK to an org-mate's X25519 public key — but that needs a public-key directory table
+  and a shares table the module does NOT ship (the DDL + RLS recipe is in the README's org-
+  sharing section), a `RecipientWrapPort` wired on both surfaces, and a trust story for the
+  directory (TOFU at minimum; fingerprint verification if the server is in your threat
+  model). If the column is meant to be shared, that is a second slice with its own ADR — do
+  not half-build it inside this one.
 
 ### 2. Schema — two columns, and the same RLS as any other table
 
@@ -142,16 +151,17 @@ The only change is what the DTO carries.
 The plaintext exists in exactly one place: the client, above the DAL.
 
 ```ts
-const ctx: KeyContext = { userId, table: 'notes', itemId: noteId }
+const ctx: KeyContext = { userId, table: 'notes', itemId: noteId, field: 'body' }
 const sealed = await sealItem(provider, kek, new TextEncoder().encode(body), ctx)
 // sealed.envelope   -> body_ciphertext
 // sealed.wrappedDek -> body_wrapped_dek
 ```
 
-- **The `KeyContext` is built from `{ userId, table, itemId }` and is the AAD.** A ciphertext
-  moved to another row, another table, or another user FAILS AUTHENTICATION. Build it from the
-  verified session's user id and the row's own id — never from a value the form supplied,
-  which would let a caller bind their ciphertext to somebody else's identity string.
+- **The `KeyContext` is built from `{ userId, table, itemId, field }` and is the AAD.** A
+  ciphertext moved to another row, another table, another user, or another COLUMN of the same
+  row FAILS AUTHENTICATION. Build it from the verified session's user id and the row's own id
+  — never from a value the form supplied, which would let a caller bind their ciphertext to
+  somebody else's identity string.
 - **`itemId` must be the WHOLE row identity.** `KeyContext` has no org field, so on a table
   keyed `(org_id, id)` the AAD binds only `id`. That is safe while ids are
   `gen_random_uuid()`; if your identity is composite or natural, encode all of it into
@@ -188,13 +198,14 @@ whichever you pick:
 
 ### 5. Flip the export-compliance declaration, in the SAME diff
 
-Shipping real cryptography is a store-review fact. In one commit: `tools/store-policy.json`
+Shipping real cryptography is a store-review fact. In one commit: `tools/store-tunables.json`
 `iosEncryption` to `{ "nonExemptAllowed": true, "reason": "<why, non-empty>" }`, and
 `ios.infoPlist.ITSAppUsesNonExemptEncryption: true` in `apps/mobile/app.config.ts`.
 `node tools/check-expo-policy.mjs` enforces both directions over the RESOLVED config — the
 declaration must be a boolean either way, `true` without the policy escape reds, and the
-escape without a reason reds. `tools/store-policy.json` is write-guard-protected: an agent
-cannot make this edit, a human does. Mechanics and the gate-integrity caveat are in
+escape without a reason reds. `tools/store-tunables.json` is write-guard-protected: an agent
+cannot make this edit, a human does — and since the 1.0.0 floor/tunable split it is YOUR seeded
+register, so the flip survives every harness upgrade. Mechanics are in
 `docs/modules/e2ee/mobile-provider.patch.md` §6.
 
 ### 6. The DSR work the feature MUST do
@@ -233,7 +244,7 @@ that is the design working, and it is what makes the runbook's other promises cr
 
 `security-reviewer` and `mobile-security-reviewer` MUST both return `VERDICT: PASS`. The
 migration, the DAL and the API paths already summon `security-reviewer`; the host adapters and
-`tools/store-policy.json` already summon `mobile-security-reviewer`. What no trigger covers is
+`tools/store-tunables.json` already summon `mobile-security-reviewer`. What no trigger covers is
 the crypto package itself, so add the row to `tools/reviewer-triggers.json`:
 
 ```json
@@ -254,8 +265,10 @@ The checklist those reviewers are running, and that you run first:
       that outlives the session. `detail` strings name row identities and are for developers,
       not for users or logs.
 - [ ] **The vectors are untouched.** The known-answer vectors in `src/webcrypto-provider.test.ts`
-      are published answers. A diff that edits a vector to make a test pass has inverted the
-      test: the vector is the oracle, the implementation is the subject.
+      and `src/webcrypto-x25519.test.ts` are published answers, and the committed wire in
+      `src/recipient-wrap.test.ts` is a frozen construction. A diff that edits any of them to
+      make a test pass has inverted the test: the vector is the oracle, the implementation is
+      the subject.
 - [ ] **The store policy is flipped**, with a non-empty reason, in this diff.
 - [ ] The DAL holds no key. The server holds no plaintext. Neither claim has an exception
       "just for the export path" or "just for the admin screen".
@@ -276,9 +289,12 @@ The checklist those reviewers are running, and that you run first:
   (the AEAD interface — the ciphertext carries the tag; decryption fails as a unit),
   `nist/sp800-38d-gcm` (the 96-bit IV recommendation and IV uniqueness per key),
   `ietf/rfc5869-hkdf` (extract-and-expand; `info` is the domain separator), `w3c/webcrypto`,
-  `ietf/rfc9106-argon2` and `libsodium/sealed-boxes`. Verify each resolves with the
-  `corpus_search` MCP tool mid-turn; if your decision needs an authority none of them
-  grounds, extend the corpus in the PR that first cites it.
+  `ietf/rfc9106-argon2`, `libsodium/sealed-boxes`, `ietf/rfc7748-x25519` (the curve and its
+  published vectors), `wicg/webcrypto-secure-curves` (X25519 in `crypto.subtle`; the
+  all-zero refusal), `ietf/rfc8410-x25519-pkcs8` (the fixed PKCS#8 prefix the raw-key
+  bridge relies on) and `owasp/key-management` (KEK/DEK separation — the rewrap argument).
+  Verify each resolves with the `corpus_search` MCP tool mid-turn; if your decision needs
+  an authority none of them grounds, extend the corpus in the PR that first cites it.
 - Emit the ADR via `/adr <slice>`; its **Sources** section mirrors every inline `// SOURCE:`,
   and its Consequences section carries the losses from step 1 in plain words. Run
   `/verify-citations` until it returns `CITATIONS: CLEAN`.
@@ -286,24 +302,29 @@ The checklist those reviewers are running, and that you run first:
   green, both security reviewers have answered `PASS`, and the `design-reviewer` has answered
   `PASS` on any UI the slice touched.
 
-## What this recipe will NOT let you do
+## What this recipe will NOT do for you
 
-Three ports in `packages/platform/crypto/src/ports-declared.ts` are declared and implemented
-nowhere, and no step above works around them:
+The three seams that used to be declared-only ports now ship as code
+(`recipient-wrap.ts`, `recovery.ts`, `device-sync.ts`), and each is a SEPARATE slice with its
+own ADR — this recipe encrypts one column and does not wire any of them:
 
-- **`RecipientWrapPort`** — you cannot share an encrypted row. An org-mate whose RLS policy
-  admits the row receives ciphertext they cannot open.
-- **`RecoveryPort`** — you cannot recover. Lost device is lost data, for the user and for
-  support, permanently. WebCrypto ships no Argon2 and shipping PBKDF2 as "the KDF" would be a
-  dishonest default, so the port refuses rather than pretends.
-- **`DeviceSyncPort`** — you cannot carry the key to a second device. A second sign-in sees
-  the rows and cannot read them.
+- **Sharing** (`RecipientWrapPort`) — ships the wrap; you build the public-key directory, the
+  shares table, and the trust story. Until you do, an org-mate whose RLS policy admits the
+  row receives ciphertext they cannot open.
+- **Recovery** (`RecoveryPort`) — ships a generated show-once code and an escrow the server
+  cannot open; you build the issue-the-code screen and store the escrow row. Until you do,
+  lost device is lost data. And even after: lost device AND lost code is still lost data.
+  Passphrase-derived escrow stays a consumer decision (Argon2id, priced like the mobile
+  provider) — WebCrypto ships no Argon2 and PBKDF2 as "the KDF" would be a dishonest default.
+- **Device sync** (`DeviceSyncPort`) — ships the transit envelope; you build the pairing
+  ceremony (QR, numeric comparison) that puts the channel key on both devices.
 
-And two things no port names: **rotation** (the keyring exports no rewrap primitive, so
-changing the root key is an `openItem`→`sealItem` pass over every row with nothing shipped to
-orchestrate, resume or verify it) and **metadata** (row counts, sizes to the byte, timestamps
-and who-has-how-many stay server-visible — encryption hides content, not shape).
+And two things no seam names: **rotation orchestration** (`rewrapItemKey` makes each row a
+one-column rewrite that never sees plaintext, but batching, resume, progress and the two-era
+serving strategy are yours) and **metadata** (row counts, sizes to the byte, timestamps,
+who-has-how-many, and — once you share — the sharing graph stay server-visible; encryption
+hides content, not shape).
 
 If the feature needs one of these, say so in the ADR and design it deliberately; do not
-half-build it inside a slice. The full statement of the losses, each with its cost, is
-`docs/modules/e2ee/README.md` under "What this deliberately does NOT solve".
+half-build it inside a slice. The full statement — what ships, each seam's residual, and what
+is still absent with its cost — is `docs/modules/e2ee/README.md`.

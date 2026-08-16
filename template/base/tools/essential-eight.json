@@ -39,27 +39,19 @@
     {
       "strategy": "Patch applications",
       "text": "Patches, updates or other vendor mitigations for vulnerabilities in office productivity suites, web browsers and their extensions, email clients, PDF software, and security products are applied within two weeks of release.",
-      "replacedBy": [
-        "PA-08",
-        "PA-09"
-      ],
+      "replacedBy": ["PA-08", "PA-09"],
       "note": "ML1/ML2 was a flat two weeks. ML3 splits into 48h (vendor-critical or working exploit) and two weeks. The two-week baseline does NOT tighten — the common vendor claim that ML3 moves this class 'from one month to two weeks' is wrong at both ends."
     },
     {
       "strategy": "Patch operating systems",
       "text": "Patches, updates or other vendor mitigations for vulnerabilities in operating systems of workstations, non-internet-facing servers and non-internet-facing network devices are applied within one month of release.",
-      "replacedBy": [
-        "POS-09",
-        "POS-10"
-      ],
+      "replacedBy": ["POS-09", "POS-10"],
       "note": "Unqualified one month becomes a 48h/one-month split."
     },
     {
       "strategy": "Multi-factor authentication",
       "text": "Multi-factor authentication used for authenticating customers of online customer services provides a phishing-resistant option.",
-      "replacedBy": [
-        "MFA-12"
-      ],
+      "replacedBy": ["MFA-12"],
       "note": "ML2 requires an option be OFFERED; ML3 requires it BE phishing-resistant. Letting a customer choose SMS passes ML2 and fails ML3."
     }
   ],
@@ -67,120 +59,64 @@
     {
       "id": "SPINE-LOG-PROTECT",
       "text": "Event logs are protected from unauthorised modification and deletion.",
-      "appearsIn": [
-        "MFA-16",
-        "RAP-22",
-        "AC-12",
-        "UAH-20"
-      ],
-      "ism": [
-        "ISM-1815"
-      ],
+      "appearsIn": ["MFA-16", "RAP-22", "AC-12", "UAH-20"],
+      "ism": ["ISM-1815"],
       "artefactClaimedBy": "RAP-22",
       "note": "The protection artefact (audit.events, append-only in four layers) is claimed ONCE, at RAP-22, whose subject stream actually exists. The other three instances have no subject stream in this tree and are graded not-implemented — identical text, different subject, so forcing identical grades would inflate three rows or deflate one."
     },
     {
       "id": "SPINE-ANALYSE-INTERNET",
       "text": "Event logs from internet-facing servers are analysed in a timely manner to detect cyber security events.",
-      "appearsIn": [
-        "MFA-17",
-        "RAP-23",
-        "AC-13",
-        "UAH-21"
-      ],
-      "ism": [
-        "ISM-1906"
-      ],
+      "appearsIn": ["MFA-17", "RAP-23", "AC-13", "UAH-21"],
+      "ism": ["ISM-1906"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-ANALYSE-NONINTERNET",
       "text": "Event logs from non-internet-facing servers are analysed in a timely manner to detect cyber security events.",
-      "appearsIn": [
-        "MFA-18",
-        "RAP-24",
-        "AC-14",
-        "UAH-22"
-      ],
-      "ism": [
-        "ISM-1907"
-      ],
+      "appearsIn": ["MFA-18", "RAP-24", "AC-14", "UAH-22"],
+      "ism": ["ISM-1907"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-ANALYSE-WORKSTATION",
       "text": "Event logs from workstations are analysed in a timely manner to detect cyber security events.",
-      "appearsIn": [
-        "MFA-19",
-        "RAP-25",
-        "AC-15",
-        "UAH-23"
-      ],
-      "ism": [
-        "ISM-0109"
-      ],
+      "appearsIn": ["MFA-19", "RAP-25", "AC-15", "UAH-23"],
+      "ism": ["ISM-0109"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-EVENTS-TO-INCIDENTS",
       "text": "Cyber security events are analysed in a timely manner to identify cyber security incidents.",
-      "appearsIn": [
-        "MFA-20",
-        "RAP-26",
-        "AC-16",
-        "UAH-24"
-      ],
-      "ism": [
-        "ISM-1228"
-      ],
+      "appearsIn": ["MFA-20", "RAP-26", "AC-16", "UAH-24"],
+      "ism": ["ISM-1228"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-REPORT-CISO",
       "text": "Cyber security incidents are reported to the chief information security officer, or one of their delegates, as soon as possible after they occur or are discovered.",
-      "appearsIn": [
-        "MFA-21",
-        "RAP-27",
-        "AC-17",
-        "UAH-25"
-      ],
-      "ism": [
-        "ISM-0123"
-      ],
+      "appearsIn": ["MFA-21", "RAP-27", "AC-17", "UAH-25"],
+      "ism": ["ISM-0123"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-REPORT-ASD",
       "text": "Cyber security incidents are reported to ASD as soon as possible after they occur or are discovered.",
-      "appearsIn": [
-        "MFA-22",
-        "RAP-28",
-        "AC-18",
-        "UAH-26"
-      ],
-      "ism": [
-        "ISM-0140"
-      ],
+      "appearsIn": ["MFA-22", "RAP-28", "AC-18", "UAH-26"],
+      "ism": ["ISM-0140"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     },
     {
       "id": "SPINE-IR-PLAN",
       "text": "Following the identification of a cyber security incident, the cyber security incident response plan is enacted.",
-      "appearsIn": [
-        "MFA-23",
-        "RAP-29",
-        "AC-19",
-        "UAH-27"
-      ],
-      "ism": [
-        "ISM-1819"
-      ],
+      "appearsIn": ["MFA-23", "RAP-29", "AC-19", "UAH-27"],
+      "ism": ["ISM-1819"],
       "artefactClaimedBy": null,
       "note": "Instances share this text across four strategies. Any artefact satisfying it is declared here and claimed by at most one row."
     }
@@ -201,9 +137,7 @@
       "proof": ".github/workflows/osv-scan.yml job `sbom-inventory` — `pnpm sbom --sbom-format cyclonedx --lockfile-only` emitted daily, then CONSUMED by tools/check-sbom.mjs, which closes the component set against pnpm-lock.yaml in BOTH directions; the artefact is uploaded only after it passes",
       "evidenceTier": "system-generated-artefact",
       "note": "ALTERNATE, NOT EFFECTIVE, and the frozen reachability is why: ASD's asset discovery means discovering ASSETS ACROSS AN ESTATE — hosts, endpoints, services someone stood up and forgot. A dependency inventory discovers no assets; it enumerates the software composition of one repository whose contents were never in doubt. What it genuinely does is the clause's stated PURPOSE — \"to support the detection of assets for subsequent vulnerability scanning activities\" — because it is the exact input scan-full is aimed at, and it is now proven COMPLETE rather than merely produced. That is the shape of an alternate control (rule 3), so it carries assessorMayRefuse and an assessor may well refuse it. Rule 4 applied: \"effective\" was defensible on the purpose clause alone, and where two grades are defensible the lower is taken. The job is (schedule-gated) on the daily cron. Emission ALONE would have been documentation-tier theatre — `pnpm sbom` is one line and cannot go red — so the grade rests entirely on the consumption half: an under-reporting inventory reds, an inventory of a DIFFERENT tree reds, and a zero-component emission is a hard failure rather than an empty set quietly matching an empty set.",
-      "ismControls": [
-        "ISM-1807"
-      ],
+      "ismControls": ["ISM-1807"],
       "reviewedOn": "2026-08-13"
     },
     {
@@ -219,9 +153,7 @@
       "proof": ".github/workflows/osv-scan.yml job `scan-full` (OSV.dev advisory database, resolved per run) + tools/check-framework-floor.mjs",
       "evidenceTier": "system-generated-artefact",
       "note": "Subject match is exact: a scanner with a current vulnerability database is used. The job is (schedule-gated) — DAILY cron since 0.10.0, plus push and dispatch — so it is proven periodically, not per-commit; the diff-aware `scan-pr` lane is the per-commit half. Residue: it scans the dependency graph, not a network estate. RULE 5 DISCLOSURE: this row, PA-03 and PA-05 all rest on the ONE `scan-full` job. That is not the double-counting rule 5 forbids — ASD splits three genuinely different questions about one scanner (does it have a current database; is it run daily against online services; is it run fortnightly against other applications) and one lane can honestly answer all three — but it is stated here rather than left to be noticed, because a reader who sees one row cannot tell how much weight the lane is carrying. They are deliberately NOT a sharedClause: the clause TEXTS differ, so the machine closure cannot see the overlap and this sentence is the only place it is recorded.",
-      "ismControls": [
-        "ISM-1808"
-      ],
+      "ismControls": ["ISM-1808"],
       "reviewedOn": "2026-08-13"
     },
     {
@@ -238,9 +170,7 @@
       "proof": ".github/workflows/osv-scan.yml `schedule: cron '47 3 * * *'` driving job `scan-full` over the full tree",
       "evidenceTier": "system-generated-artefact",
       "note": "The 0.10.0 discharge of a CADENCE GAP found by GRADING rather than by reading the file: ASD asks for at least DAILY against online services, this shipped WEEKLY for nine releases, and every control around it was green the whole time. The cron is now daily. The PR lane never closed it and still does not — `scan-pr` is diff-aware, so a tree carrying a vulnerable pin since BEFORE the advisory reds on no diff — which is exactly why the fix had to be the cadence and could not be another lane. The job is (schedule-gated), so this is proven periodically and not per-commit. Rule 5: see PA-02's disclosure — three rows, one lane, three different questions.",
-      "ismControls": [
-        "ISM-1698"
-      ],
+      "ismControls": ["ISM-1698"],
       "reviewedOn": "2026-08-13"
     },
     {
@@ -256,9 +186,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1699"
-      ],
+      "ismControls": ["ISM-1699"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -275,9 +203,7 @@
       "proof": ".github/workflows/osv-scan.yml job `scan-full` — the daily full-tree scan over pnpm-lock.yaml",
       "evidenceTier": "system-generated-artefact",
       "note": "Daily over-satisfies the fortnightly floor for applications other than the office/browser/PDF/security class — weekly did too, so the 0.10.0 cadence move was made for PA-03 and this row simply inherits it. (schedule-gated), so the cadence is the cron and not the commit. Rule 5: see PA-02's disclosure — three rows, one lane, three different questions.",
-      "ismControls": [
-        "ISM-1700"
-      ],
+      "ismControls": ["ISM-1700"],
       "reviewedOn": "2026-08-13"
     },
     {
@@ -291,9 +217,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "system-generated-artefact",
       "note": "ALTERNATE, NOT EFFECTIVE, and the residual is the channel's own honesty: the `patch-window` job is (schedule-gated) on the daily cron, so the window is judged periodically rather than per-commit; the judgement measures deployments that EMITTED a manifest (the deployment_status event, or a dispatch), and a deploy performed outside the channel — a console click, a CLI push — is invisible to it, which is exactly what assessorMayRefuse records. The window is ASD's verbatim 48 hours; the mapping is conservative (a dev-scoped advisory is judged at the tighter window, never the looser one), and the remediation the finding names is a DEPLOY — merging a bump satisfies nothing until it ships, because the subject is the deployed resolution set.",
-      "ismControls": [
-        "ISM-1876"
-      ],
+      "ismControls": ["ISM-1876"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "patch-window",
@@ -311,9 +235,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "system-generated-artefact",
       "note": "ALTERNATE, NOT EFFECTIVE, and the residual is the channel's own honesty: the `patch-window` job is (schedule-gated) on the daily cron, so the window is judged periodically rather than per-commit; the judgement measures deployments that EMITTED a manifest (the deployment_status event, or a dispatch), and a deploy performed outside the channel — a console click, a CLI push — is invisible to it, which is exactly what assessorMayRefuse records. The window is ASD's verbatim two weeks; the mapping is conservative (a dev-scoped advisory is judged at the tighter window, never the looser one), and the remediation the finding names is a DEPLOY — merging a bump satisfies nothing until it ships, because the subject is the deployed resolution set.",
-      "ismControls": [
-        "ISM-1690"
-      ],
+      "ismControls": ["ISM-1690"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "patch-window",
@@ -333,9 +255,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1692"
-      ],
+      "ismControls": ["ISM-1692"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -351,9 +271,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1901"
-      ],
+      "ismControls": ["ISM-1901"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -367,9 +285,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "system-generated-artefact",
       "note": "ALTERNATE, NOT EFFECTIVE, and the residual is the channel's own honesty: the `patch-window` job is (schedule-gated) on the daily cron, so the window is judged periodically rather than per-commit; the judgement measures deployments that EMITTED a manifest (the deployment_status event, or a dispatch), and a deploy performed outside the channel — a console click, a CLI push — is invisible to it, which is exactly what assessorMayRefuse records. The window is ASD's verbatim one month; the mapping is conservative (a dev-scoped advisory is judged at the tighter window, never the looser one), and the remediation the finding names is a DEPLOY — merging a bump satisfies nothing until it ships, because the subject is the deployed resolution set.",
-      "ismControls": [
-        "ISM-1693"
-      ],
+      "ismControls": ["ISM-1693"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "patch-window",
@@ -386,9 +302,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "documentation",
       "note": "ALTERNATE, NOT EFFECTIVE, twice over and both stated: a register DOCUMENTS vendor support — ASD's verb is REMOVED, and no repository artefact can decommission an online service; and none of the five services publishes a support lifecycle at all, so most rows are honest permanent ceilings (status 'ceiling') rather than support statements — recorded as facts precisely so absence cannot read as omission. Asking the vendors' APIs live is refused by the hermeticity rule. An assessor may refuse a documentation-tier register as not being the control, which is what assessorMayRefuse records.",
-      "ismControls": [
-        "ISM-1905"
-      ],
+      "ismControls": ["ISM-1905"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "version-sync",
@@ -407,9 +321,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1704"
-      ],
+      "ismControls": ["ISM-1704"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -422,9 +334,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "simulated-activity",
       "note": "The npm dependency graph IS the application inventory for this system, and pnpm records the npm registry’s own `deprecated` message on a package entry at resolve time — so the vendor’s support statement is a committed third-party artefact here rather than a claim anyone in this repo wrote, which is what lets the check ride the per-commit chain without violating the hermeticity rule. WHAT IT DOES NOT DO, and why assessorMayRefuse is set: it DISPOSITIONS rather than REMOVES. ASD’s verb is \"removed\". A fresh scaffold resolves six vendor-deprecated packages; five are development-only and one (uuid@7, reached through expo -> @expo/config-plugins -> xcode) is inside the PRODUCTION dependency closure and is ACCEPTED with a re-review at 0.11.0, not removed — an assessor may reasonably decline to accept \"dispositioned, scope-verified and expiring\" as \"removed\", and that refusal is the honest reading of the text. Two further limits stated rather than discovered: the census is only as current as the last RESOLUTION (pnpm copies the flag in at resolve time, so a tree that never reinstalls holds a stale census — hence the 31-day review window and the scheduled lapse check) — and the 0.10.0 re-review DEMONSTRATED that limit rather than merely restating it: a fresh sweep of all 1539 resolved versions against the registry returned EIGHT deprecations where this register carries six, both extras production-scope, because the committed census was resolved earlier than the sweep. Neither extra became a row (their successors are in-range, undeprecated, and published before the previous tag), but a control that can be shown to lag is one whose review window is doing work. Third limit, unchanged: \"in the production dependency closure\" is NOT \"in the shipped bundle\" (bundling follows imports, a lockfile records dependencies), so the production grade is a ceiling on exposure and not a measurement of it.",
-      "ismControls": [
-        "ISM-0304"
-      ],
+      "ismControls": ["ISM-0304"],
       "reviewedOn": "2026-08-13",
       "control": "version-sync",
       "proof": "tools/eol.json diffed BY VALUE against the RESOLVED pnpm-lock.yaml deprecation census in BOTH directions, with each row’s `scope` RECOMPUTED from the production dependency closure rather than believed — tools/lib/eol.mjs + tools/check-version-sync.mjs (step 12); freshness rides the scheduled floor-review job via tools/check-framework-floor.mjs",
@@ -443,9 +353,7 @@
       "owner": "organisation: hosting platform posture (Vercel, Supabase) and its provider attestations",
       "evidenceTier": "documentation",
       "note": "The generated system owns no operating systems: compute is managed serverless and the database is managed Postgres.",
-      "ismControls": [
-        "ISM-1807"
-      ],
+      "ismControls": ["ISM-1807"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -458,9 +366,7 @@
       "outcome": null,
       "owner": "organisation: hosting platform posture (Vercel, Supabase) and its provider attestations",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1808"
-      ],
+      "ismControls": ["ISM-1808"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -651,9 +557,7 @@
       "assessorMayRefuse": true,
       "evidenceTier": "system-generated-artefact",
       "note": "The analogue is RUNTIME and major-version currency (Node engines, Postgres major_version, Expo SDK), not operating-system release currency. An assessor may reasonably refuse it as out of asset class.",
-      "ismControls": [
-        "ISM-1407"
-      ],
+      "ismControls": ["ISM-1407"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -666,9 +570,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "documentation",
       "note": "ALTERNATE, NOT EFFECTIVE: the register documents that the pinned platforms are inside their vendors' support windows (Postgres and Node both publish real lifecycles — those rows are dated statements, not ceilings), but ASD's verb is REPLACED and a register replaces nothing. The double-count refusal that kept this row unbuilt is honoured, not waived: POS-15 keeps framework-floor.json + the currency half, and this row is graded on the NEW artefact alone. The serverless residue is stated where it lives: the runner image is a moving alias whose lifecycle is GitHub's, recorded as a ceiling row.",
-      "ismControls": [
-        "ISM-1501"
-      ],
+      "ismControls": ["ISM-1501"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "version-sync",
@@ -686,9 +588,7 @@
       "obligation": "e8-mfa-mandatory-enrolment",
       "evidenceTier": "documentation",
       "note": "THE RAIL AND THE SURFACE NOW BOTH EXIST AND THIS ROW STILL DOES NOT PASS — the honest gap has narrowed to one word: MANDATORY. The database rail (supabase/migrations/20260812000000_mfa_aal2.sql) refuses aal1 reads for any user holding a verified factor, on every surface including one nobody wrote; since 1.0.0 the enrolment surface ships on both platforms — the offered TOTP step in web and mobile sign-up, the challenge screens, the security page and screen managing factors, all driving the one ceremony in packages/platform/supabase/src/mfa-flow.ts — so a user can enrol, verify and satisfy the rail end to end, proven by the vitest/RNTL suites beside each surface. What remains missing is USE for everyone: GoTrue carries no `required` field anywhere in its MFA configuration, so a user who declines the offered step still authenticates with one factor, and ASD's sentence says MFA IS USED, not that it is available. Condition row e8-mfa-mandatory-enrolment owns that residue. (ADR: docs/adr/20260812-mfa-aal2.md.)",
-      "ismControls": [
-        "ISM-1504"
-      ],
+      "ismControls": ["ISM-1504"],
       "reviewedOn": "2026-08-16"
     },
     {
@@ -701,9 +601,7 @@
       "outcome": null,
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1679"
-      ],
+      "ismControls": ["ISM-1679"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -716,9 +614,7 @@
       "outcome": null,
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1680"
-      ],
+      "ismControls": ["ISM-1680"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -732,9 +628,7 @@
       "obligation": "e8-mfa-mandatory-enrolment",
       "evidenceTier": "documentation",
       "note": "THE RAIL AND THE SURFACE NOW BOTH EXIST AND THIS ROW STILL DOES NOT PASS — the honest gap has narrowed to one word: MANDATORY. The database rail (supabase/migrations/20260812000000_mfa_aal2.sql) refuses aal1 reads for any user holding a verified factor, on every surface including one nobody wrote; since 1.0.0 the enrolment surface ships on both platforms — the offered TOTP step in web and mobile sign-up, the challenge screens, the security page and screen managing factors, all driving the one ceremony in packages/platform/supabase/src/mfa-flow.ts — so a user can enrol, verify and satisfy the rail end to end, proven by the vitest/RNTL suites beside each surface. What remains missing is USE for everyone: GoTrue carries no `required` field anywhere in its MFA configuration, so a user who declines the offered step still authenticates with one factor, and ASD's sentence says MFA IS USED, not that it is available. Condition row e8-mfa-mandatory-enrolment owns that residue. (ADR: docs/adr/20260812-mfa-aal2.md.)",
-      "ismControls": [
-        "ISM-1892"
-      ],
+      "ismControls": ["ISM-1892"],
       "reviewedOn": "2026-08-16"
     },
     {
@@ -747,9 +641,7 @@
       "outcome": null,
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1893"
-      ],
+      "ismControls": ["ISM-1893"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -763,9 +655,7 @@
       "obligation": "e8-mfa-mandatory-enrolment",
       "evidenceTier": "documentation",
       "note": "THE RAIL AND THE SURFACE NOW BOTH EXIST AND THIS ROW STILL DOES NOT PASS — the honest gap has narrowed to one word: MANDATORY. The database rail (supabase/migrations/20260812000000_mfa_aal2.sql) refuses aal1 reads for any user holding a verified factor, on every surface including one nobody wrote; since 1.0.0 the enrolment surface ships on both platforms — the offered TOTP step in web and mobile sign-up, the challenge screens, the security page and screen managing factors, all driving the one ceremony in packages/platform/supabase/src/mfa-flow.ts — so a user can enrol, verify and satisfy the rail end to end, proven by the vitest/RNTL suites beside each surface. What remains missing is USE for everyone: GoTrue carries no `required` field anywhere in its MFA configuration, so a user who declines the offered step still authenticates with one factor, and ASD's sentence says MFA IS USED, not that it is available. Condition row e8-mfa-mandatory-enrolment owns that residue. (ADR: docs/adr/20260812-mfa-aal2.md.)",
-      "ismControls": [
-        "ISM-1681"
-      ],
+      "ismControls": ["ISM-1681"],
       "reviewedOn": "2026-08-16"
     },
     {
@@ -779,9 +669,7 @@
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
       "note": "Privileged users of the SYSTEMS behind the app (Supabase, Vercel, GitHub) authenticate to those platforms, not to this application.",
-      "ismControls": [
-        "ISM-1173"
-      ],
+      "ismControls": ["ISM-1173"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -794,9 +682,7 @@
       "outcome": null,
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0974"
-      ],
+      "ismControls": ["ISM-0974"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -810,9 +696,7 @@
       "owner": "organisation: which data repositories warrant a second factor, and therefore which tables carry the aal2 rail. The generated system ships the rail and applies it to the worked vertical; the coverage decision is the operator's and is evidenced by their own tools/rls-exempt.json-style review, not by anything this repository can assert on their behalf.",
       "evidenceTier": "documentation",
       "note": "0.10.0 TOOK THE DECISION BRANCH THE OBLIGATION ROW NAMED, and the branch was 'coverage stays the consumer's', so this moves to the organisation boundary and grades nothing. THE RAIL EXISTS AND IS NOT WHAT WAS MISSING: supabase/migrations/20260812000000_mfa_aal2.sql enforces aal2 at the database for every user holding a verified factor, on any surface including one nobody has written, proven against a live stack by supabase/tests/mfa_aal2.test.sql, which reds against the vendor-published policy. What is missing is COVERAGE — the rail is applied to public.notes, the worked vertical every slice is copied from, and not to every table — and coverage is not a fact about this generated system. Which data warrants a second factor is a product judgement about sensitivity: a low-sensitivity lookup table blocked at aal1 is a support ticket, not a control. A generator that shipped a per-table MFA register would be answering that question on the operator's behalf and getting it wrong for most of them. WHY THIS IS A BOUNDARY MOVE AND NOT A REGRADE: outcome goes to null, which is strictly LESS than the not-implemented it replaces — the register stops claiming anything here rather than claiming something better. The enrolment half is a separate and genuinely unreachable matter tracked at MFA-01/04/06 (GoTrue's MFAConfiguration carries no Required field); this row is only about which repositories the factor gates. tools/check-rls-manifest.mjs closes the rail's SHAPE wherever the operator applies it, never its coverage, and that is the correct division.",
-      "ismControls": [
-        "ISM-1505"
-      ],
+      "ismControls": ["ISM-1505"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -825,9 +709,7 @@
       "outcome": "effective",
       "evidenceTier": "system-generated-artefact",
       "note": "The enabled factor set is TOTP alone — something users HAVE (the enrolled secret) beside the password, which is something they KNOW. Phone MFA is off (an OTP typed into a form is phishable by construction and the number is a SIM-swap target) and WebAuthn is off (see MFA-11/12/14). GRADED NARROWLY ON PURPOSE: this row asks what MFA *uses*, not whether MFA is *used*. The second question is MFA-01/04/06/09 and those stay unbuilt, because enrolment cannot be made mandatory on this platform.",
-      "ismControls": [
-        "ISM-1401"
-      ],
+      "ismControls": ["ISM-1401"],
       "reviewedOn": "2026-08-12",
       "control": "auth-posture",
       "canary": "auth-posture",
@@ -844,9 +726,7 @@
       "obligation": "e8-phishing-resistant-mfa",
       "evidenceTier": "documentation",
       "note": "Undischargeable on this platform today — see MFA-12. As of this release the ceiling is recorded in the config itself rather than only in prose: [auth.mfa.web_authn] ships with both keys explicitly false and tools/auth-posture.json reviews them, so enabling WebAuthn is a reviewed diff and cannot arrive as a silent default. That does not discharge the row — an available factor is not a used one, and the CLI downgrades this factor to false without saying so when the cost is unconfirmed.",
-      "ismControls": [
-        "ISM-1872"
-      ],
+      "ismControls": ["ISM-1872"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -860,9 +740,7 @@
       "obligation": "e8-phishing-resistant-mfa",
       "evidenceTier": "documentation",
       "note": "CANNOT BE DISCHARGED, and the evidence is specific: Supabase WebAuthn MFA exists and genuinely produces aal2 (GoTrue IsAAL2Claim accepts `mfa/webauthn`), but it is undocumented, absent from the Dashboard, marked @experimental in auth-js, `challengeAndVerify` is TOTP-only, and it is a billable add-on the CLI silently downgrades to false when cost is not confirmed. TOTP is not phishing-resistant. Passkeys are a SEPARATE aal1 primary sign-in system and do not satisfy this. As of this release the ceiling is recorded in the config itself rather than only in prose: [auth.mfa.web_authn] ships with both keys explicitly false and tools/auth-posture.json reviews them, so enabling WebAuthn is a reviewed diff and cannot arrive as a silent default. That does not discharge the row — an available factor is not a used one, and the CLI downgrades this factor to false without saying so when the cost is unconfirmed.",
-      "ismControls": [
-        "ISM-1874"
-      ],
+      "ismControls": ["ISM-1874"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -875,9 +753,7 @@
       "outcome": null,
       "owner": "organisation: identity provider and third-party SaaS administration",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1682"
-      ],
+      "ismControls": ["ISM-1682"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -891,9 +767,7 @@
       "obligation": "e8-phishing-resistant-mfa",
       "evidenceTier": "documentation",
       "note": "Same platform ceiling as MFA-12, applied to database access. As of this release the ceiling is recorded in the config itself rather than only in prose: [auth.mfa.web_authn] ships with both keys explicitly false and tools/auth-posture.json reviews them, so enabling WebAuthn is a reviewed diff and cannot arrive as a silent default. That does not discharge the row — an available factor is not a used one, and the CLI downgrades this factor to false without saying so when the cost is unconfirmed.",
-      "ismControls": [
-        "ISM-1894"
-      ],
+      "ismControls": ["ISM-1894"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -906,9 +780,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "simulated-activity",
       "note": "ALTERNATE, NOT EFFECTIVE, on the word the row cannot claim: CENTRALLY. Both halves of the event stream now exist — the earlier gap (three failed sign-ins wrote nothing anywhere) is closed at the only seam that sees failures, GoTrue's own verification hooks — and the trail is append-only in the same four layers as audit.events. But it lives in the SAME database as the system it observes; central collection (a log store the observed system cannot reach) is the organisation's half, via the platform's log drains (docs/runbooks/log-forwarding.md). An assessor may refuse in-database logging as not 'centrally logged', which is exactly what assessorMayRefuse records. Ceilings stated in the ADR: unknown-email attempts fire nothing; hosted auth hooks are plan-gated.",
-      "ismControls": [
-        "ISM-1683"
-      ],
+      "ismControls": ["ISM-1683"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "auth-posture",
@@ -926,9 +798,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Moved to the organisation boundary at 1.0.0, completing the MFA-15 story one row up: the trail now EXISTS with both halves (auth_trail.events, four layers, proven live) and MFA-15 claims alternate-control for the logging itself; THIS row's subject is protection-from-modification for the whole MFA event class, which includes GoTrue's own auth.audit_log_entries — unprotectable in place because the schema is GoTrue's. The remedy is the same act as every row in this family: an off-platform copy, owned by the operator, per the runbook.",
-      "ismControls": [
-        "ISM-1815"
-      ],
+      "ismControls": ["ISM-1815"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -944,9 +814,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1906"
-      ],
+      "ismControls": ["ISM-1906"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -961,9 +829,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1907"
-      ],
+      "ismControls": ["ISM-1907"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -979,9 +845,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0109"
-      ],
+      "ismControls": ["ISM-0109"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -996,9 +860,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1228"
-      ],
+      "ismControls": ["ISM-1228"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1013,9 +875,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0123"
-      ],
+      "ismControls": ["ISM-0123"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1030,9 +890,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0140"
-      ],
+      "ismControls": ["ISM-0140"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1046,9 +904,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1819"
-      ],
+      "ismControls": ["ISM-1819"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1284,9 +1140,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1896"
-      ],
+      "ismControls": ["ISM-1896"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1300,9 +1154,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1861"
-      ],
+      "ismControls": ["ISM-1861"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1316,9 +1168,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1686"
-      ],
+      "ismControls": ["ISM-1686"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1332,9 +1182,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1897"
-      ],
+      "ismControls": ["ISM-1897"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1347,9 +1195,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Moved to the organisation boundary at 1.0.0, and the move is the honest reading of the word CENTRALLY: the PRODUCT half is built and proven — privileged acts land in audit.events (append-only in four layers, actor-verified, with the elevated-role ATTEMPT canaries rather than grant-lookup inference) and since 1.0.0 the elevate()/revalidate flows land there too via the admin_elevations audit trigger — but central logging means the record survives compromise of the system that produced it, and no in-database trail does. Forwarding is the operator's act in provider consoles this repository deliberately does not reach (hermeticity), so the boundary sits there, with the runbook as the recorded surface.",
-      "ismControls": [
-        "ISM-1509"
-      ],
+      "ismControls": ["ISM-1509"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -1363,9 +1209,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Same boundary and reasoning as RAP-20 one row up: seat and rank management events (set_member_role, remove_member, the invitation flow, elevations) are all captured in audit.events with the four layers — the security-group half of the sentence — and the CENTRAL half is the operator's drain/export into their own sink, per the runbook.",
-      "ismControls": [
-        "ISM-1650"
-      ],
+      "ismControls": ["ISM-1650"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -1383,9 +1227,7 @@
       "canary": "tenancy",
       "evidenceTier": "simulated-activity",
       "note": "The ONE shared-clause instance whose subject stream actually exists: audit.events records privileged-access mutations, and its protection is proven by a suite that attempts the mutation and asserts refusal. The artefact is declared once in sharedClauses[] and claimed once, here. WHICH LAYER OWNS WHICH PROPERTY was established by experiment in 0.9.9: granting service_role USAGE and full DML reds exactly the READ and the FORGED INSERT and leaves UPDATE, DELETE and TRUNCATE passing, because the triggers refuse those with every grant in place. So the grant is the sole control on reading and forging — which is why \"just let the Edge Function read the audit table\" is the single edit this suite exists to catch.",
-      "ismControls": [
-        "ISM-1815"
-      ],
+      "ismControls": ["ISM-1815"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1400,9 +1242,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1906"
-      ],
+      "ismControls": ["ISM-1906"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1417,9 +1257,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1907"
-      ],
+      "ismControls": ["ISM-1907"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1435,9 +1273,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0109"
-      ],
+      "ismControls": ["ISM-0109"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1452,9 +1288,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1228"
-      ],
+      "ismControls": ["ISM-1228"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1469,9 +1303,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0123"
-      ],
+      "ismControls": ["ISM-0123"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1486,9 +1318,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0140"
-      ],
+      "ismControls": ["ISM-0140"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1502,9 +1332,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1819"
-      ],
+      "ismControls": ["ISM-1819"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1518,9 +1346,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0843"
-      ],
+      "ismControls": ["ISM-0843"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1534,9 +1360,7 @@
       "owner": "organisation: hosting platform posture (Vercel, Supabase) and its provider attestations",
       "evidenceTier": "documentation",
       "note": "Execution on the serving tier is bounded by the platform’s immutable-deployment model, which is the provider’s control and the operator’s evidence.",
-      "ismControls": [
-        "ISM-1490"
-      ],
+      "ismControls": ["ISM-1490"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1549,9 +1373,7 @@
       "outcome": null,
       "owner": "organisation: hosting platform posture (Vercel, Supabase) and its provider attestations",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1656"
-      ],
+      "ismControls": ["ISM-1656"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1565,9 +1387,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1870"
-      ],
+      "ismControls": ["ISM-1870"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1581,9 +1401,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1871"
-      ],
+      "ismControls": ["ISM-1871"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1600,9 +1418,7 @@
       "assessorMayRefuse": true,
       "evidenceTier": "simulated-activity",
       "note": "A content security policy IS an execution allowlist for the one runtime this system controls: only nonce-carrying scripts execute, plugins and objects cannot, and eval is refused. An assessor may refuse it — ASD means Windows Defender Application Control — which is what assessorMayRefuse records.",
-      "ismControls": [
-        "ISM-1657"
-      ],
+      "ismControls": ["ISM-1657"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1616,9 +1432,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1658"
-      ],
+      "ismControls": ["ISM-1658"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1632,9 +1446,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1544"
-      ],
+      "ismControls": ["ISM-1544"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1648,9 +1460,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1659"
-      ],
+      "ismControls": ["ISM-1659"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1665,9 +1475,7 @@
       "owner": "organisation: annual validation of application control rulesets",
       "evidenceTier": "documentation",
       "note": "The nearest shipped mechanism is this register’s own reviewedOn plus the clockful freshness lane, which is a review cadence for the MAP and not for a ruleset.",
-      "ismControls": [
-        "ISM-1582"
-      ],
+      "ismControls": ["ISM-1582"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1680,9 +1488,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Moved to the organisation boundary at 1.0.0. The application-control events this stack can produce are the platform's function/deployment logs (allowed and blocked executions live in Vercel's and Supabase's pipelines, not in the product's tables), and their central collection is a drain configuration in the operator's consoles — the runbook records both drains and the asymmetry. The product contributes nothing here BY DESIGN: the application-control strategy itself is graded against the serverless reality elsewhere in this register.",
-      "ismControls": [
-        "ISM-1660"
-      ],
+      "ismControls": ["ISM-1660"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -1697,9 +1503,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Moved to the organisation boundary at 1.0.0. In-place protection of the product's own trails is built (the four append-only layers on audit.events and auth_trail.events, proven against the superuser), but this row's sentence covers EVENT LOGS as a class — including platform pipelines and GoTrue's auth.audit_log_entries, which carries no append-only layer and can be given none (GoTrue re-migrates its schema). The only protection for those streams is a copy in a sink the observed system cannot reach: forwarding, the operator's half, per the runbook.",
-      "ismControls": [
-        "ISM-1815"
-      ],
+      "ismControls": ["ISM-1815"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -1715,9 +1519,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1906"
-      ],
+      "ismControls": ["ISM-1906"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1732,9 +1534,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1907"
-      ],
+      "ismControls": ["ISM-1907"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1750,9 +1550,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0109"
-      ],
+      "ismControls": ["ISM-0109"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1767,9 +1565,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1228"
-      ],
+      "ismControls": ["ISM-1228"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1784,9 +1580,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0123"
-      ],
+      "ismControls": ["ISM-0123"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1801,9 +1595,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0140"
-      ],
+      "ismControls": ["ISM-0140"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1817,9 +1609,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1819"
-      ],
+      "ismControls": ["ISM-1819"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1834,9 +1624,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1671"
-      ],
+      "ismControls": ["ISM-1671"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1851,9 +1639,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1674"
-      ],
+      "ismControls": ["ISM-1674"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1868,9 +1654,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1890"
-      ],
+      "ismControls": ["ISM-1890"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1885,9 +1669,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1487"
-      ],
+      "ismControls": ["ISM-1487"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1902,9 +1684,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1675"
-      ],
+      "ismControls": ["ISM-1675"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1919,9 +1699,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1891"
-      ],
+      "ismControls": ["ISM-1891"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1937,9 +1715,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1676"
-      ],
+      "ismControls": ["ISM-1676"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1954,9 +1730,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1488"
-      ],
+      "ismControls": ["ISM-1488"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1971,9 +1745,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1672"
-      ],
+      "ismControls": ["ISM-1672"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -1988,9 +1760,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1673"
-      ],
+      "ismControls": ["ISM-1673"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2005,9 +1775,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1489"
-      ],
+      "ismControls": ["ISM-1489"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2021,9 +1789,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1654"
-      ],
+      "ismControls": ["ISM-1654"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2038,9 +1804,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
       "note": "The application’s own CSP does block plugin content, but that artefact is claimed once at AC-06; this row is about the organisation’s browser fleet configuration.",
-      "ismControls": [
-        "ISM-1486"
-      ],
+      "ismControls": ["ISM-1486"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2055,9 +1819,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
       "note": "Same reasoning as UAH-02 — the CSP artefact is not claimed twice.",
-      "ismControls": [
-        "ISM-1485"
-      ],
+      "ismControls": ["ISM-1485"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2071,9 +1833,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1412"
-      ],
+      "ismControls": ["ISM-1412"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2087,9 +1847,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1585"
-      ],
+      "ismControls": ["ISM-1585"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2104,9 +1862,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1667"
-      ],
+      "ismControls": ["ISM-1667"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2121,9 +1877,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1668"
-      ],
+      "ismControls": ["ISM-1668"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2138,9 +1892,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1669"
-      ],
+      "ismControls": ["ISM-1669"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2155,9 +1907,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1542"
-      ],
+      "ismControls": ["ISM-1542"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2172,9 +1922,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1859"
-      ],
+      "ismControls": ["ISM-1859"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2189,9 +1937,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1823"
-      ],
+      "ismControls": ["ISM-1823"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2206,9 +1952,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1670"
-      ],
+      "ismControls": ["ISM-1670"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2223,9 +1967,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1860"
-      ],
+      "ismControls": ["ISM-1860"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2240,9 +1982,7 @@
       "negativeProof": "The generated system has no document-parsing surface: `[storage] enabled = false` in supabase/config.toml, no upload route in apps/web/app/api or any tRPC router, and no Microsoft Office, PDF reader or browser-fleet component. The gate asserts the storage and upload-route halves. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "system-generated-artefact",
       "negativeCanary": "docs-sync",
-      "ismControls": [
-        "ISM-1824"
-      ],
+      "ismControls": ["ISM-1824"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2256,9 +1996,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1655"
-      ],
+      "ismControls": ["ISM-1655"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2272,9 +2010,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1621"
-      ],
+      "ismControls": ["ISM-1621"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2288,9 +2024,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1622"
-      ],
+      "ismControls": ["ISM-1622"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2304,9 +2038,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1623"
-      ],
+      "ismControls": ["ISM-1623"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2320,9 +2052,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1889"
-      ],
+      "ismControls": ["ISM-1889"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2336,9 +2066,7 @@
       "outcome": null,
       "evidenceTier": "documentation",
       "note": "Same boundary and reasoning as AC-12: the user-application-hardening event streams are platform pipelines, their protection is the off-platform copy, and the copy is the operator's drain configuration (docs/runbooks/log-forwarding.md).",
-      "ismControls": [
-        "ISM-1815"
-      ],
+      "ismControls": ["ISM-1815"],
       "reviewedOn": "2026-08-16",
       "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
@@ -2354,9 +2082,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1906"
-      ],
+      "ismControls": ["ISM-1906"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2371,9 +2097,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1907"
-      ],
+      "ismControls": ["ISM-1907"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2389,9 +2113,7 @@
       "owner": "organisation: workstation fleet and endpoint management",
       "negativeProof": "The generated system contains no Windows workstations, endpoints, operating environments, drivers or firmware: it is a Next.js application on managed serverless compute plus an Expo client on user-owned devices, over managed Postgres. The organisation’s own fleet carries this requirement.",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0109"
-      ],
+      "ismControls": ["ISM-0109"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2406,9 +2128,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1228"
-      ],
+      "ismControls": ["ISM-1228"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2423,9 +2143,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0123"
-      ],
+      "ismControls": ["ISM-0123"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2440,9 +2158,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-0140"
-      ],
+      "ismControls": ["ISM-0140"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2456,9 +2172,7 @@
       "outcome": null,
       "owner": "organisation: log analysis, detection and incident response",
       "evidenceTier": "documentation",
-      "ismControls": [
-        "ISM-1819"
-      ],
+      "ismControls": ["ISM-1819"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2473,9 +2187,7 @@
       "owner": "organisation: business continuity plan supplying RPO/RTO and criticality classification",
       "evidenceTier": "documentation",
       "note": "ASD deliberately REMOVED the prescriptive 'daily' frequency and 'three months or greater' retention in the 2023 model. Any checklist citing those numbers is pre-2023, and encoding them would gate a requirement ASD no longer makes. 0.9.9 SHIPPED THE EVIDENCE, not the determination. `tools/check-backup-posture.mjs` runs on a schedule (the `backup-evidence` job) and asks the platform whether this project actually has a recovery mechanism — Point-in-Time Recovery enabled, OR at least one completed daily backup. What it deliberately does NOT do is supply the number: tools/backup-posture.json ships `maxDailyBackupAgeHours` as NULL and reds when the lane is wired to a real project without it, because \"in accordance with business criticality\" is the operator's determination and a figure invented by a generator would be an obligation with no framework behind it. Two published facts to reason from, and no more: PITR carries a worst-case recovery point objective of two minutes, and NO RPO IS PUBLISHED FOR DAILY BACKUPS AT ALL — a blog sentence about losing \"up to 24 hours worth of data\" is a data-loss bound mentioned in passing, never a committed figure, and it does not appear in the documentation.",
-      "ismControls": [
-        "ISM-1511"
-      ],
+      "ismControls": ["ISM-1511"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2488,9 +2200,7 @@
       "outcome": "alternate-control",
       "evidenceTier": "system-generated-artefact",
       "note": "ALTERNATE, NOT EFFECTIVE, for the reason the old condition row recorded and the artefact now carries instead of hiding: the platform backup does NOT contain two of the three asset classes (Edge Function code, Auth/API/project settings, Storage objects, custom-role passwords, and the Vault root key all sit outside it — verified against the vendor's own pages), so the binding is a manifest that lets a restorer reassemble the common point in time, not a backup that contains it. The knownExclusions field travels IN the record so a real recovery reads them before discovering them. The `restore-manifest` job is (schedule-gated) on the daily cron. A deploy outside the channel emits no manifest — the same residual as the patch-window rows.",
-      "ismControls": [
-        "ISM-1810"
-      ],
+      "ismControls": ["ISM-1810"],
       "reviewedOn": "2026-08-16",
       "assessorMayRefuse": true,
       "control": "restore-manifest",
@@ -2508,9 +2218,7 @@
       "obligation": "e8-backup-store-posture",
       "evidenceTier": "documentation",
       "note": "Reachable and unbuilt. No backup object store, separate-account placement, envelope key or integrity check ships. installer/lib/rollback.mjs is HARNESS-INSTALL rollback (N=1, deleted by graduate) and is NOT application-data backup; counting it here would be the inflation this register exists to prevent. 0.9.9 recorded what the VENDOR attests, labelled as attestation rather than as anything this system demonstrates: backups are AES-256 encrypted at rest with keys protected by FIPS 140-2 validated HSMs, and are stored in S3 on infrastructure independent of the project's own resources. That is a contractual statement in the platform's data processing agreement, not an artefact any control here reads, so it cannot raise this grade — it is recorded so an assessor is told where the claim comes from and can weigh it. No storage region for backups is published. Whether daily backups aging past the plan retention window (7 / 14 / 30 days) are DELETED or merely made inaccessible is also unpublished: every statement is of the form \"can access the last N days\", which is an access statement and never a deletion one.",
-      "ismControls": [
-        "ISM-1811"
-      ],
+      "ismControls": ["ISM-1811"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2525,9 +2233,7 @@
       "owner": "organisation: scheduled disaster recovery exercise, participants and after-action review",
       "evidenceTier": "documentation",
       "note": "Restore-to-a-new-project (clone) is the non-destructive restore test and it is DASHBOARD-ONLY — all 115 paths of the live Supabase Management API OpenAPI spec were grepped for `clone` and returned zero.  ASD’s assessment process guide qualifies the interval as ‘regular (at least annually)’. TWO CORRECTIONS FROM 0.9.9's RE-VERIFICATION, both to claims this row previously made. FIRST, the clone finding is right but was stated imprecisely: the word `clone` DOES occur in the published schema — four times, every one of them a branch-pipeline step name (clone / pull / health / configure / migrate / seed / deploy) — and what is absent is a clone-to-a-new-project PATH. The absence is meaningful rather than merely unlisted, because the same schema publishes nine `x-internal` operations, so Supabase does expose endpoints it does not intend for general use. SECOND, \"branching does not substitute because branches carry no data\" IS WITHDRAWN AS A GRADED FACT. The branching guide does say new branches start with no data from the main project, but the CLI documents a `--with-data` flag (\"Whether to clone production data to the branch database\") and the Management API's own CreateBranchBody carries `with_data`. That is a contradiction between the vendor's own surfaces, and a register must not grade on either side of one. Also verified and worth stating: an in-place restore takes the project OFFLINE (\"The project is inaccessible during this process\") with no published downtime figure, and the vendor nowhere says a restore overwrites or destroys the existing database — so the case against a scheduled production restore drill is AVAILABILITY, which is quoted, not destruction, which is not. The `restore-point` endpoints are not a restore test either: they create a labelled rollback marker, BOTH operations are marked `x-internal`, and the only way to exercise one is the `undo` endpoint, which reverts the same project. Supabase publishes no disaster-recovery runbook and no RTO; the entire corpus offers one non-prescriptive sentence, on the clone page, recommending the operator \"perform any necessary tests\".",
-      "ismControls": [
-        "ISM-1515"
-      ],
+      "ismControls": ["ISM-1515"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2541,9 +2247,7 @@
       "obligation": "e8-backup-store-posture",
       "evidenceTier": "documentation",
       "note": "DOWNGRADED from alternate-control under the conservative rule. No client role can reach any backup — but only because this tree produces no backups at all. Absence is not a control, and grading it as one would be vacuous truth dressed as a mechanism.",
-      "ismControls": [
-        "ISM-1812"
-      ],
+      "ismControls": ["ISM-1812"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2557,9 +2261,7 @@
       "obligation": "e8-backup-store-posture",
       "evidenceTier": "documentation",
       "note": "RB-05 with the self-access carve-out removed; same vacuity, same grade.",
-      "ismControls": [
-        "ISM-1813"
-      ],
+      "ismControls": ["ISM-1813"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2573,9 +2275,7 @@
       "owner": "organisation: Supabase organisation role assignment",
       "evidenceTier": "documentation",
       "note": "RECORDED AS UNSATISFIABLE BY THE PLATFORM, not as a gap in this harness. Supabase provides NO backup-administrator separation: `Developer` can restore (destructive), the only non-restoring role (`Read-Only`) requires Team plan or above, and no role grants backup-restore without broad project powers. An operator needing this separation has a plan floor, not a config option. 0.9.9 re-verified this against the raw permissions table rather than a rendering of it, and the finding holds in a sharper form. Supabase publishes exactly FOUR roles — Owner, Administrator, Developer, Read-Only — and the table grants Scheduled Backups only View / Download / Restore and PITR only View / Restore. `Developer` holds Download and Restore while being described as unable to change project settings, and `Read-Only`, the only role narrow enough to resemble a backup custodian, is denied both AND is gated behind Team or Enterprise — as are project-scoped role assignments at all. So there is no backup-administrator role to separate FROM: the requirement's subject does not exist on this platform. (A methodological note worth carrying, because it nearly produced a wrong answer: fetching that page through a summarising reader invented section headings the source does not contain and dropped the footnotes that carry the plan-gating facts. When the table cells ARE the evidence, read the raw markdown.)",
-      "ismControls": [
-        "ISM-1705"
-      ],
+      "ismControls": ["ISM-1705"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2589,9 +2289,7 @@
       "owner": "organisation: Supabase organisation role assignment",
       "evidenceTier": "documentation",
       "note": "Same platform finding as RB-07, self-access carve-out removed. The 0.9.9 re-verification on RB-07 applies here unchanged.",
-      "ismControls": [
-        "ISM-1706"
-      ],
+      "ismControls": ["ISM-1706"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2605,9 +2303,7 @@
       "obligation": "e8-backup-store-posture",
       "evidenceTier": "documentation",
       "note": "The write half of RB-05, and vacuous for the same reason.",
-      "ismControls": [
-        "ISM-1814"
-      ],
+      "ismControls": ["ISM-1814"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2621,9 +2317,7 @@
       "owner": "organisation: Supabase organisation role assignment and any external backup store IAM policy",
       "evidenceTier": "documentation",
       "note": "Same platform finding as RB-07. Supabase also exposes no delete-backup permission at all — backups are destroyed only by destroying the project, which Owner and Administrator can do. 0.9.9 sharpened the delete finding and, in doing so, weakened it honestly. No Delete or Modify action for a backup appears anywhere — not as a row in the permissions table, and not as any method across all 115 published API paths. But THAT IS AN ABSENCE OF SURFACE, NOT A PUBLISHED CONTROL: Supabase nowhere states that backups cannot be deleted, it simply never offers the verb, and the register's own rule is that absence of a surface is never a control. The two documented pages also contradict each other on what deleting a PROJECT does to its backups — one says they are permanently removed from S3, the other that they become inaccessible.",
-      "ismControls": [
-        "ISM-1707"
-      ],
+      "ismControls": ["ISM-1707"],
       "reviewedOn": "2026-08-12"
     },
     {
@@ -2638,9 +2332,7 @@
       "obligation": "e8-backup-immutability",
       "evidenceTier": "documentation",
       "note": "Reachable ONLY for self-produced off-platform dumps under S3 Object Lock in COMPLIANCE mode, which binds every principal including the account root. NOT satisfiable for Supabase-managed PITR — and since every project on PG >= 15.8.1.079 uses physical backups there is no downloadable backup artefact, so the only off-site copy is one the operator produces. REINFORCED BY 0.9.9 rather than moved, and this row is where the register's second grading rule does its clearest work. It is tempting to read \"no role can delete a backup, and no API method exists to delete one\" as satisfying a requirement that backup administrators be PREVENTED from deleting backups — and that reading would be wrong. Prevention is a control; an unoffered verb is a gap in the interface. No page publishes an immutability, WORM or object-lock guarantee for the buckets holding Supabase backups (searched: the backups guide, product security, the SOC 2 and HIPAA pages, the shared-responsibility model and the PITR usage page), so nothing here is being prevented from anything — it is merely not currently possible through the surfaces on offer, which is a different and weaker fact. One live gap is recorded as explicitly UNVERIFIABLE and must not be graded in either direction: whether reducing the PITR recovery retention period, or removing the PITR add-on, destroys backup data already inside the previous window. The vendor documents the billing consequence of removal and says the recovery period \"can be changed if needed\", and publishes no data-lifecycle statement at all. That is the most plausible undocumented path by which a privileged account could destroy backups during their retention period, and it is precisely the thing this requirement asks about.",
-      "ismControls": [
-        "ISM-1708"
-      ],
+      "ismControls": ["ISM-1708"],
       "reviewedOn": "2026-08-12"
     }
   ]

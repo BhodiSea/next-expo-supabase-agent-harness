@@ -71,6 +71,7 @@ export function decodeEnvelope(bytes: Uint8Array): CryptoResult<Envelope> {
   }
   const ivLen = bytes.at(4) ?? 0
   if (ivLen !== GCM_IV_BYTES) {
+    // SOURCE: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf (96-bit iv) [corpus: nist/sp800-38d-gcm]
     return cryptoErr(
       'envelope_malformed',
       `iv length ${String(ivLen)} (AES-256-GCM envelopes carry a 12-byte iv)`,
@@ -92,9 +93,11 @@ export function decodeEnvelope(bytes: Uint8Array): CryptoResult<Envelope> {
 // table, or another user FAIL AUTHENTICATION instead of decrypting in the
 // wrong place — confidentiality alone does not stop a copy-paste attack
 // inside the same key's reach. The AAD binds: version byte, alg byte, a ROLE
-// byte (an item ciphertext and a wrapped DEK must never authenticate in each
-// other's slot), and the FULL identity — user, table, item and FIELD — each
-// length-prefixed, so no field's own content can be mistaken for a boundary.
+// byte (five roles, 0x00–0x04 — an item ciphertext, a wrapped DEK, a
+// recipient-wrapped DEK, a recovery escrow and a device-sync payload must
+// never authenticate in each other's slots), and then the identity the role
+// truly has — for a row, user, table, item and FIELD — each length-prefixed,
+// so no field's own content can be mistaken for a boundary.
 // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 §2.1 (associated data binds
 // context) [corpus: ietf/rfc5116-aead]
 
@@ -116,6 +119,12 @@ export interface KeyContext {
 
 export const AAD_ROLE_ITEM = 0x00
 export const AAD_ROLE_DEK = 0x01
+/** A DEK sealed to another principal's X25519 public key (recipient-wrap.ts). */
+export const AAD_ROLE_RECIPIENT_WRAP = 0x02
+/** A root key escrowed under a recovery-code-derived key (recovery.ts). */
+export const AAD_ROLE_RECOVERY = 0x03
+/** A root key in transit to a second device under a channel key (device-sync.ts). */
+export const AAD_ROLE_DEVICE_SYNC = 0x04
 
 // Declared locally and narrowly, the same call webcrypto-provider.ts makes about
 // `crypto` and @app/ratelimit makes about `fetch`: the package sets `types: []` so a
@@ -156,6 +165,43 @@ export function buildAad(
     out[at + 3] = part.length & 0xff
     out.set(part, at + 4)
     at += 4 + part.length
+  }
+  return out
+}
+
+/** The roles whose AAD binds BYTE-shaped identity fields, not a row's KeyContext. */
+export type ByteAadRole =
+  | typeof AAD_ROLE_RECIPIENT_WRAP
+  | typeof AAD_ROLE_RECOVERY
+  | typeof AAD_ROLE_DEVICE_SYNC
+
+// A SECOND builder beside buildAad, not an overload of it — deliberately. The
+// string builder's four-field KeyContext IS its contract: role 0x00/0x01 binds
+// a row identity, always all four fields, and a signature that also accepted
+// "any byte fields" would let a call site bind a partial identity by accident.
+// The roles above bind identities that are not rows at all — curve points
+// (recipient wrap), a user id (recovery escrow, device sync) — and some of
+// them (an X25519 public key) are bytes with no string form, so encoding them
+// through TextEncoder would corrupt them. Same prefix, same framing: the two
+// builders emit version | alg | role and then 4-byte-BE length-prefixed
+// fields, so cross-role separation rests on the role byte alone and the
+// length-prefix injectivity argument holds for byte fields exactly as it does
+// for encoded strings.
+// SOURCE: https://www.rfc-editor.org/rfc/rfc5116 §2.1 (associated data binds
+// context) [corpus: ietf/rfc5116-aead]
+export function buildAadBytes(role: ByteAadRole, fields: readonly Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(3 + fields.reduce((n, field) => n + 4 + field.length, 0))
+  out[0] = ENVELOPE_VERSION
+  out[1] = ALG_AES_256_GCM
+  out[2] = role
+  let at = 3
+  for (const field of fields) {
+    out[at] = (field.length >>> 24) & 0xff
+    out[at + 1] = (field.length >>> 16) & 0xff
+    out[at + 2] = (field.length >>> 8) & 0xff
+    out[at + 3] = field.length & 0xff
+    out.set(field, at + 4)
+    at += 4 + field.length
   }
   return out
 }

@@ -1,17 +1,23 @@
 # Module: e2ee
 
-Client-side encryption rails for one user's own rows: a versioned AEAD envelope,
-a local key hierarchy, and a closed failure vocabulary — all pure logic over
-INJECTED primitives, so the package imports nothing and the server never holds
-plaintext or a key that decrypts it. What ships is the half that is whole:
-`@app/crypto` at `packages/platform/crypto`, its WebCrypto provider, and the
-published-vector tests that prove the provider is the cipher it claims to be.
+Client-side encryption rails for a user's rows: a versioned AEAD envelope, a
+local key hierarchy, a closed failure vocabulary, and the three seams that make
+E2EE mean what users think it means — org sharing (X25519 recipient wrap),
+recovery (a generated code and an escrow the server cannot open), and
+multi-device (a channel-key transit envelope) — all pure logic over INJECTED
+primitives, so the package imports nothing and the server never holds plaintext
+or a key that decrypts it. What ships is `@app/crypto` at
+`packages/platform/crypto`, its two WebCrypto providers, and the
+published-vector tests that prove each provider is the primitive it claims to
+be.
 
-What does NOT ship is as much of the module as what does, and it is enumerated
-in "What this deliberately does NOT solve" below rather than left for a consumer
-to discover in production. Three ports are DECLARED with no implementation
-(`src/ports-declared.ts`) precisely so a future implementation cannot invent a
-second envelope or a second keyring, and so the gaps have names.
+Every shipped capability carries an honest RESIDUAL, and every residual is
+stated below beside the capability rather than left for a consumer to discover
+in production: a recovery code the user loses is still lost data, a recipient
+wrap needs a public-key directory the consumer builds, device sync ships the
+cryptography and deliberately not the ceremony. What the module still does NOT
+solve is enumerated in "What this deliberately does NOT solve" — shorter than
+it was, and honest about why each remaining loss remains.
 
 **E2EE is confidentiality ON TOP of the authorization boundary, never a
 replacement for it.** RLS keyed on `auth.uid()` still decides which rows a
@@ -23,40 +29,47 @@ with an intact cipher.
 
 | File | Purpose |
 | --- | --- |
-| `packages/platform/crypto/src/result.ts` | `CryptoResult<T>` + the CLOSED `CryptoFailureReason` union (`aead_auth_failed`, `envelope_malformed`, `unsupported_version`, `unsupported_algorithm`, `key_missing`, `keystore_unavailable`). The package never throws — a crypto refusal that arrives as a stack trace becomes a crash surface on a screen |
-| `packages/platform/crypto/src/envelope.ts` | The ONE ciphertext container (`encodeEnvelope`/`decodeEnvelope`) and the AAD builder (`buildAad`, `KeyContext`, `AAD_ROLE_ITEM`/`AAD_ROLE_DEK`) |
-| `packages/platform/crypto/src/keyring.ts` | `deriveKek` / `sealItem` / `openItem` — the rootKey → KEK → per-item DEK hierarchy |
-| `packages/platform/crypto/src/ports.ts` | `CryptoProvider` (AEAD-shaped, never cipher-shaped) and `KeystoreAdapter`. DECLARED here, implemented NOWHERE in the package — the `SessionStorageAdapter` precedent |
-| `packages/platform/crypto/src/ports-declared.ts` | `RecipientWrapPort` / `RecoveryPort` / `DeviceSyncPort` — declared, unimplemented, and each one names a loss stated below |
-| `packages/platform/crypto/src/webcrypto-provider.ts` | `createWebCryptoProvider()` — the ONE shipped provider (Node >= 22, every evergreen browser). Returns `null` where there is no Web Crypto rather than throwing |
-| `packages/platform/crypto/src/index.ts` | The `.` barrel: everything on `./client`, plus `createWebCryptoProvider` |
-| `packages/platform/crypto/src/client.ts` | The `./client` barrel: the Metro-safe surface — result vocabulary, envelope codec, keyring, and the port TYPES. Reaches for no runtime global |
-| `packages/platform/crypto/src/envelope.test.ts` | Roundtrip byte-faithfulness, one distinct reason per decode refusal, and the two AAD properties (role separation; length-prefix injectivity, including the embedded-NUL and unpaired-surrogate cases a separator join could not survive) |
-| `packages/platform/crypto/src/keyring.test.ts` | The hierarchy over the REAL provider: fresh DEK per seal, wrap/unwrap, and the four refusals — moved row, moved user, role swap, wrong root key |
-| `packages/platform/crypto/src/webcrypto-provider.test.ts` | VECTOR conformance (seal must reproduce the published `ct‖tag` byte-exactly), plus tamper cases on ciphertext, AAD and tag |
-| `packages/platform/crypto/src/webcrypto-provider.test.ts` | The published AES-256-GCM and RFC 5869 appendix-A vectors the provider is held to, inlined beside the assertions that use them |
-| `docs/modules/e2ee/mobile-provider.patch.md` | The documented patch for a MOBILE `CryptoProvider` + `KeystoreAdapter` — a primitive dependency is a decision made deliberately, not defaulted |
+| `packages/platform/crypto/src/result.ts` | `CryptoResult<T>` + the CLOSED `CryptoFailureReason` union (`aead_auth_failed`, `envelope_malformed`, `unsupported_version`, `unsupported_algorithm`, `key_missing`, `keystore_unavailable`, `recovery_code_malformed`). The package never throws — a crypto refusal that arrives as a stack trace becomes a crash surface on a screen |
+| `packages/platform/crypto/src/envelope.ts` | The ONE ciphertext container (`encodeEnvelope`/`decodeEnvelope`) and the two AAD builders: `buildAad` (row identity, roles `0x00`/`0x01`) and `buildAadBytes` (byte-shaped identities, roles `0x02`–`0x04`) |
+| `packages/platform/crypto/src/keyring.ts` | `deriveKek` / `sealItem` / `openItem` / `rewrapItemKey` — the rootKey → KEK → per-item DEK hierarchy, plus the one-column rotation primitive |
+| `packages/platform/crypto/src/ports.ts` | `CryptoProvider` (AEAD-shaped, never cipher-shaped), `X25519Provider` (byte-shaped curve keys), and `KeystoreAdapter`. DECLARED here, implemented NOWHERE in the package — the `SessionStorageAdapter` precedent |
+| `packages/platform/crypto/src/recipient-wrap.ts` | `wrapDekFor` / `unwrapDekWith` / `RecipientWrapPort` — X25519 sealed-box org sharing: fresh ephemeral per wrap, HKDF binding both public keys, AAD role `0x02` |
+| `packages/platform/crypto/src/recovery.ts` | `generateRecoveryCode` / `deriveRecoveryKey` / `escrowRootKey` / `recoverRootKey` / `RecoveryPort` — Crockford-encoded 256-bit code, escrow envelope under AAD role `0x03` |
+| `packages/platform/crypto/src/device-sync.ts` | `exportForDevice` / `importFromDevice` / `DeviceSyncPort` — the root key in transit under a channel-key-derived key, AAD role `0x04` |
+| `packages/platform/crypto/src/webcrypto-provider.ts` | `createWebCryptoProvider()` — the shipped AEAD/HKDF provider (Node >= 22, every evergreen browser). Returns `null` where there is no Web Crypto rather than throwing |
+| `packages/platform/crypto/src/webcrypto-x25519.ts` | `createWebCryptoX25519Provider()` — the shipped X25519 provider (the Secure Curves spec), bridging raw 32-byte keys to WebCrypto through the fixed RFC 8410 PKCS#8 prefix |
+| `packages/platform/crypto/src/index.ts` | The `.` barrel: everything on `./client`, plus both WebCrypto factories |
+| `packages/platform/crypto/src/client.ts` | The `./client` barrel: the Metro-safe surface — result vocabulary, envelope codec, keyring, the three seams, and the port TYPES. Reaches for no runtime global |
+| `packages/platform/crypto/src/envelope.test.ts` | Roundtrip byte-faithfulness, one distinct reason per decode refusal, the AAD injectivity properties, and the five-role pairwise-distinctness matrix |
+| `packages/platform/crypto/src/keyring.test.ts` | The hierarchy over the REAL provider: fresh DEK per seal, wrap/unwrap, the moved-row/user/table/column and role-swap refusals, and the rewrap suite (same DEK, untouched item envelope, old KEK refused) |
+| `packages/platform/crypto/src/webcrypto-provider.test.ts` | VECTOR conformance (seal must reproduce the published AES-256-GCM `ct‖tag` and RFC 5869 OKM byte-exactly), plus tamper cases on ciphertext, AAD and tag |
+| `packages/platform/crypto/src/webcrypto-x25519.test.ts` | The RFC 7748 §5.2 scalar-mult and §6.1 Diffie-Hellman vectors against the REAL engine, the base-point public-key identity, and the all-zero contributory refusal |
+| `packages/platform/crypto/src/recipient-wrap.test.ts` | Wrap/unwrap roundtrip, a COMMITTED known-answer wire (fixed ephemeral injected through a provider double), and the refusal set: moved recipient, tampered ephemeral, wire-version, role swap |
+| `packages/platform/crypto/src/recovery.test.ts` | Code format and confusable tolerance, a committed encoding answer, escrow/recover roundtrip, moved-escrow and malformed-code refusals |
+| `packages/platform/crypto/src/device-sync.test.ts` | Export/import roundtrip, wrong-channel-key and moved-account refusals, and the same-key role-byte cross-refusal against recovery |
+| `docs/modules/e2ee/mobile-provider.patch.md` | The documented patch for a MOBILE `CryptoProvider` + `X25519Provider` + `KeystoreAdapter` — a primitive dependency is a decision made deliberately, not defaulted |
 
 `@app/crypto` is a dual-barrel package and its census entry is already in
-`tools/exports-walls.json` with the reason: `.` carries a provider that reaches
+`tools/exports-walls.json` with the reason: `.` carries providers that reach
 for `crypto.subtle`, **Hermes ships no Web Crypto**, and Metro does not
-tree-shake — so a mobile import of `.` would put a factory reaching for an
+tree-shake — so a mobile import of `.` would put factories reaching for an
 absent global into the native binary. That is the whole reason for the split.
 
 ## Prerequisites
 
-- Node >= 22 (or any evergreen browser) for the shipped provider and for the
-  vitest lane. Nothing else: the package has no runtime dependency, only
-  `vitest` as a devDependency.
-- For a MOBILE surface: a provider and a keystore you supply, per
+- Node >= 22 (or any evergreen browser) for the shipped providers and for the
+  vitest lane — both AES-GCM/HKDF and X25519 (the Secure Curves spec). Nothing
+  else: the package has no runtime dependency, only `vitest` as a
+  devDependency.
+- For a MOBILE surface: providers and a keystore you supply, per
   `docs/modules/e2ee/mobile-provider.patch.md`. Nothing in this module works on
-  a device until you apply it — the module ships no native crypto dependency and
-  `createWebCryptoProvider()` returns `null` under Hermes.
+  a device until you apply it — the module ships no native crypto dependency
+  and both WebCrypto factories return `null` under Hermes.
 - Before any of it: a decision recorded in an ADR (`/adr <slice>`) about WHICH
-  columns are encrypted and which losses below you are accepting. The losses are
+  columns are encrypted and which residuals below you are accepting. Some are
   not recoverable after the fact — a column encrypted for a year cannot be
-  retroactively made searchable, and a user whose device is gone cannot be given
-  their data back.
+  retroactively made searchable, and a user who loses the device AND the
+  recovery code cannot be given their data back.
 
 ## How enabling works
 
@@ -64,10 +77,11 @@ absent global into the native binary. That is the whole reason for the split.
 npx next-expo-supabase-agent-harness enable e2ee
 ```
 
-copies `packages/platform/crypto/**` and these docs. The three test files join
-`pnpm test` — and therefore the Stop hook and CI — at once, with no wiring step:
-they prove the shipped code against published vectors, not against a mock. No
-`tools/harness.config.mjs` change; no gate is added.
+copies `packages/platform/crypto/**` and these docs. The seven test files join
+`pnpm test` — and therefore the Stop hook and CI — at once, with no wiring
+step: they prove the shipped code against published vectors and committed
+known answers, not against a mock. No `tools/harness.config.mjs` change; no
+gate is added.
 
 Nothing consumes the package until you write a feature that does. The authoring
 recipe is the `authoring-e2ee-feature` skill.
@@ -76,39 +90,50 @@ recipe is the `authoring-e2ee-feature` skill.
 
 ```
 rootKey — 32 bytes from the platform CSPRNG, lives in the platform keystore
-  └─ KEK = HKDF-SHA-256(rootKey, salt = 32 zero bytes, info = "app-e2ee/v1/item-wrap")
-       └─ per-item DEK — a FRESH 32 CSPRNG bytes on EVERY seal
-            ├─ item envelope    = AES-256-GCM(DEK, plaintext, AAD(role=item, ctx))
-            └─ wrapped-DEK env  = AES-256-GCM(KEK, DEK,       AAD(role=dek,  ctx))
+  ├─ KEK = HKDF-SHA-256(rootKey, salt = 32 zero bytes, info = "app-e2ee/v1/item-wrap")
+  │    └─ per-item DEK — a FRESH 32 CSPRNG bytes on EVERY seal
+  │         ├─ item envelope    = AES-256-GCM(DEK, plaintext, AAD role 0x00)
+  │         ├─ wrapped-DEK env  = AES-256-GCM(KEK, DEK,       AAD role 0x01)
+  │         └─ recipient wire   = 0x01 ‖ eph_pk ‖ AES-256-GCM(wrapKey, DEK, AAD role 0x02)
+  │              where wrapKey = HKDF(X25519(eph_sk, recipient_pk),
+  │                                   info = "app-e2ee/v1/recipient-wrap" ‖ eph_pk ‖ recipient_pk)
+  ├─ escrow envelope = AES-256-GCM(recoveryKey, rootKey, AAD role 0x03)
+  │    where recoveryKey = HKDF(recovery-code bytes, info = "app-e2ee/v1/recovery")
+  └─ sync envelope   = AES-256-GCM(syncKey, rootKey, AAD role 0x04)
+       where syncKey = HKDF(channelKey, info = "app-e2ee/v1/device-sync")
 ```
 
 Four choices carry the weight, and each buys something specific:
 
-- **The root key never encrypts anything.** It is HKDF input only. `info` is the
-  domain separator (`app-e2ee/v1/<purpose>`), the salt is 32 zero bytes because
+- **The root key never encrypts anything.** It is HKDF input — or, for escrow
+  and sync, AEAD *plaintext* — but never an AEAD key. `info` is the domain
+  separator (`app-e2ee/v1/<purpose>`), the salt is 32 zero bytes because
   RFC 5869 §3.1 defines absent salt exactly that way and the separation this
   hierarchy needs lives in `info` — a per-install salt would buy nothing and
   cost a second stored secret.
-- **A fresh DEK per seal.** No key ever encrypts twice, so a 96-bit random IV
-  never approaches the birthday bound that makes IV reuse under GCM
-  catastrophic. This is the same key-never-repeats argument `LargeSecureStore`
-  documents for its CTR counter, applied to AEAD. It is also why sealing the
-  same plaintext twice produces two different envelopes — a property
-  `keyring.test.ts` asserts.
+- **A fresh DEK per seal, a fresh ephemeral per wrap.** No key ever encrypts
+  twice, so a 96-bit random IV never approaches the birthday bound that makes
+  IV reuse under GCM catastrophic — and a reused X25519 ephemeral would link
+  every wrap it made, so `wrapDekFor` mints one per call and drops it. Sealing
+  the same plaintext twice produces different bytes on every seam; the tests
+  assert it.
 - **The DEK is WRAPPED, not derived.** A derived DEK would be recomputable from
   the root key forever. A wrapped DEK exists only in its column — which is what
   makes crypto-shredding real: **deleting a row's `*_wrapped_dek` column renders
   that row's ciphertext permanently unreadable, while the root key lives on for
-  every other row.** That is the erase lever, and it is the one deletion in this
-  design that is a cryptographic fact rather than a promise.
-- **AAD is mandatory and binds the row.** `buildAad` binds the version byte, the
-  alg byte, a ROLE byte, and then `userId`, `table`, `itemId` and `field` as
-  UTF-8, **each preceded by its own 4-byte big-endian length**. A ciphertext
-  copied into another row, another table, or another user's row **fails
-  authentication** — confidentiality alone does not stop a copy-paste attack
-  inside one key's reach. The role byte (`0x00` item, `0x01` wrapped DEK) means
-  an item ciphertext and a wrapped DEK can never authenticate in each other's
-  slot.
+  every other row.** It is also what makes both sharing and rotation possible:
+  the SAME DEK can be wrapped again — to an org-mate's public key
+  (`wrapDekFor`) or under a new KEK (`rewrapItemKey`) — without the item
+  ciphertext moving or the plaintext appearing.
+- **AAD is mandatory, and the ROLE BYTE spans the whole module.** Five roles:
+  `0x00` item, `0x01` wrapped DEK, `0x02` recipient wrap, `0x03` recovery
+  escrow, `0x04` device sync. `buildAad` binds a row's full identity
+  (`userId`, `table`, `itemId`, `field`); `buildAadBytes` binds each seam's
+  honest identity — both curve points for a recipient wrap, the account for
+  escrow and sync — with the same version/alg/role prefix and the same 4-byte
+  big-endian length framing. A ciphertext moved to another row, another user,
+  another account, or another SLOT **fails authentication** — the tests hold
+  all five roles pairwise distinct with everything else equal.
 
   **Length prefixes rather than a NUL join, and the difference is not
   cosmetic.** A separator is injective only while no field can contain it, and
@@ -120,7 +145,8 @@ Four choices carry the weight, and each buys something specific:
   ENCODING causes — UTF-8 has no representation for an unpaired surrogate — so
   that residual is asserted in `envelope.test.ts` rather than left as a
   footnote, and it is why `itemId` should come from real column values (a UUID
-  primary key is unaffected) rather than from anything user-supplied.
+  primary key is unaffected) rather than from anything user-supplied. Byte
+  fields (curve points) never meet TextEncoder and have no such residual.
 
 ### The envelope, byte by byte
 
@@ -139,28 +165,41 @@ The tag rides inside `ct` because that is the AEAD interface's own framing; the
 envelope never re-frames what the primitive already authenticates. Overhead is
 therefore exact and worth knowing before you choose columns: **an item envelope
 is `plaintext + 33` bytes** (5 header + 12 IV + 16 tag, and GCM is a stream mode
-so `|ct| == |pt|`), and **a wrapped DEK is a constant 65 bytes**.
+so `|ct| == |pt|`), **a wrapped DEK, an escrow envelope and a sync payload are a
+constant 65 bytes each**, and **a recipient wire is a constant 98 bytes** — one
+wire-version byte and the 32-byte ephemeral public key in front of a 65-byte
+envelope:
+
+```
+wireV u8 (0x01) | ephemeralPublicKey (32) | envelope
+```
+
+The recipient wire has its own version byte OUTSIDE the envelope because it
+frames what the envelope cannot — how many bytes precede it — and its own
+decoder refuses with the same discipline: too short and bad wire version get
+their own reasons, then the envelope decoder's refusals apply unchanged.
 
 ### The failure vocabulary
 
 `CryptoResult<T>` is `{ ok: true, value }` or `{ ok: false, reason, detail? }`.
-Six reasons, closed:
+Seven reasons, closed:
 
 | Reason | What it means | What a caller does |
 | --- | --- | --- |
-| `aead_auth_failed` | Authentication failed | Render an error state. **This covers BOTH tamper and wrong-key on purpose** — an AEAD cannot tell them apart, and a vocabulary that pretended to would be lying |
+| `aead_auth_failed` | Authentication failed | Render an error state. **This covers BOTH tamper and wrong-key on purpose** — an AEAD cannot tell them apart, and a vocabulary that pretended to would be lying. A wrong recovery code and a moved escrow land here too, for the same reason |
 | `envelope_malformed` | Not an envelope, or truncated | The data is broken, not the key. Fix the data |
-| `unsupported_version` | An envelope from a FUTURE fleet | Upgrade the client. Distinct from `envelope_malformed` because the remedies are opposite |
+| `unsupported_version` | An envelope — or a recipient wire — from a FUTURE fleet | Upgrade the client. Distinct from `envelope_malformed` because the remedies are opposite |
 | `unsupported_algorithm` | A reserved or unknown alg id | Same: a newer or foreign writer |
-| `key_missing` | No root key on this device | On this device, this data is unreadable — see recovery, below |
-| `keystore_unavailable` | The keystore could not be read | Possibly transient (a half-restored backup, a revoked entitlement) |
+| `key_missing` | No root key on this device, or a caller-supplied key the engine refused (a wrong-length KEK, a low-order recipient point) | On this device, this data is unreadable — see recovery, below |
+| `keystore_unavailable` | The keystore or engine could not perform | Possibly transient (a half-restored backup, a revoked entitlement) |
+| `recovery_code_malformed` | A recovery code that fails DECODING — wrong length, a symbol outside the Crockford alphabet, mangled padding | Ask the user to re-type the code. Distinct from `aead_auth_failed` because "fix your typing" is actionable and "wrong code" deliberately is not |
 
 The package NEVER throws. Mapping a reason onto `appError` codes is the caller's
 decision and happens at the boundary — the same split `@app/ratelimit` uses.
 
 ## Wiring a host
 
-The package sees no platform API. A host supplies two things.
+The package sees no platform API. A host supplies three things.
 
 ### `CryptoProvider`
 
@@ -173,7 +212,21 @@ The package sees no platform API. A host supplies two things.
   that adding detail here would undo.
 - **Mobile:** yours, per `docs/modules/e2ee/mobile-provider.patch.md`. Import
   `@app/crypto/client` in the mobile graph and inject the host-built provider —
-  **never `@app/crypto`**, whose `.` barrel is the WebCrypto factory.
+  **never `@app/crypto`**, whose `.` barrel carries the WebCrypto factories.
+
+### `X25519Provider` — only if the feature shares
+
+- **Web / Node:** `createWebCryptoX25519Provider()` from the `.` barrel.
+  Browsers and Node >= 22 ship X25519 in WebCrypto (the Secure Curves spec).
+  The port trades in RAW 32-byte keys; WebCrypto cannot export a raw X25519
+  private key, so the provider bridges through the fixed 16-byte RFC 8410
+  PKCS#8 prefix — byte concatenation one way, a VERIFIED strip the other, no
+  DER parser to get wrong. A low-order peer point yields an all-zero shared
+  secret, which the spec makes the engine reject — the provider answers `null`
+  and no all-zero key can reach the HKDF above it.
+- **Mobile:** `@noble/curves`, priced in the patch doc like every other
+  primitive dependency. A feature that never calls `wrapDekFor` needs no
+  X25519 provider on either surface.
 
 ### `KeystoreAdapter`
 
@@ -193,52 +246,138 @@ backup reads as no-key, never a boot crash — the `LargeSecureStore` contract).
 - **Web** — yours to create (a browser-only module beside the browser Supabase
   seam, e.g. `apps/web/lib/crypto/keystore.ts`). Read the weakness section
   below before you write it: this is the half of the module that is honestly
-  weaker on web, and the port's own shape is part of why.
+  weaker on web, and the port's byte shape is now load-bearing — see the
+  web-keystore section for why a "stronger" handle-shaped store would break
+  recovery and device sync outright.
+
+## The three seams, shipped — each with its honest residual
+
+These were declared, unimplemented ports through 0.x, and each README of that
+era stated the loss in full. They are implemented now, and each implementation
+retires its loss by CONVERTING it into a smaller, permanent residual — stated
+here with the same bluntness, because a shipped seam that hides its residual is
+worse than a declared gap.
+
+### Multi-device — crypto shipped, ceremony yours
+
+`exportForDevice` seals the root key under a key derived from a CHANNEL KEY;
+`importFromDevice` opens it on the second device; the envelope can transit any
+channel — the server included, which cannot open it. **The residual: the
+channel key's transport and ceremony are the consumer's,** because pairing UX
+is a threat-model decision (a QR code the new device scans assumes the screen
+is private; a numeric comparison assumes the user actually compares) that no
+shared package should default. The AAD binds the account, so a payload
+exported for user A refuses to import into user B's session even over the same
+channel key. Entropy in is entropy out: a 6-digit channel code is
+brute-forceable by anyone who captures the payload — write the ceremony down,
+in the ADR, with the entropy arithmetic.
+
+### Recovery — a generated code, shown once, and an escrow the server cannot open
+
+`generateRecoveryCode` mints 32 CSPRNG bytes and renders them as 13
+dash-separated groups of 4 Crockford base32 symbols (no I, L, O or U; case and
+confusables are forgiven on decode). `escrowRootKey` seals the root key under
+the code-derived key; the escrow envelope is safe to store server-side — it is
+ciphertext to everyone without the code, the same show-once discipline as
+`invitations.token_digest`. `deriveRecoveryKey` is PLAIN HKDF-SHA-256, and
+plain is the point: the input is full-entropy CSPRNG output, so there is no
+dictionary to walk and memory hardness would buy latency and nothing else.
+
+**The residual, in the old loss's own words: a lost device AND a lost code is
+still lost data** — permanently, for the user and for support, because the
+escrow opens with the code-derived key and nothing else. The code must be
+stored by the USER (a password manager, paper in a safe); a product that
+stores it server-side has reinvented a password reset and should say so.
+
+**The passphrase refusal SURVIVES intact.** A human-CHOSEN passphrase has
+guessable entropy and would demand a memory-hard KDF — Argon2id — and WebCrypto
+ships none. Shipping PBKDF2 while calling it "the KDF" would be a dishonest
+default (no memory hardness; a GPU farm treats it as a speed bump), so
+passphrase-derived escrow stays a CONSUMER decision, priced like the mobile
+provider prices its dependency: `@noble/hashes` (pure JS, audited) or a native
+argon2, wired against this same envelope and AAD role. If you build it, hold it
+to RFC 9106 test vectors the way this module holds its providers to theirs.
+
+### Org sharing — a DEK wrapped to a public key; the directory is yours to build
+
+`wrapDekFor` seals a row's DEK to an org-mate's X25519 public key — fresh
+ephemeral per wrap, HKDF info and AAD both binding BOTH public keys, sealed-box
+semantics: the sender cannot reopen its own output. `unwrapDekWith` needs only
+the recipient's secret key (the public half is recomputed from it via the base
+point). Deliberately NOT full RFC 9180 HPKE: its modes, PSKs and exporter are
+surface this one seam does not need — dead code behind an alg byte — though the
+construction is exactly HPKE's DHKEM(X25519)+HKDF+AES-GCM corner.
+
+**The residual: a recipient wrap requires the recipient to HAVE a key pair and
+you to FIND their public key — a directory this module does not ship,** because
+its trust model (who attests that this public key belongs to that org-mate?) is
+a product decision. The honest storage recipe:
+
+```sql
+-- The public-key directory: one X25519 public key per user. PUBLIC keys —
+-- never a secret key, never an escrow, never a wrapped DEK for someone else.
+CREATE TABLE public.user_public_keys (
+  user_id    uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
+  public_key bytea NOT NULL CHECK (octet_length(public_key) = 32),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.user_public_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_public_keys FORCE ROW LEVEL SECURITY;
+
+-- Anyone AUTHENTICATED may read any directory row: a public key is public,
+-- and sharing requires reading your org-mate's. Writes are self-only: a
+-- caller who could write another user's directory row could substitute their
+-- own key and receive every future wrap meant for the victim.
+CREATE POLICY user_public_keys_select ON public.user_public_keys
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY user_public_keys_insert ON public.user_public_keys
+  FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY user_public_keys_update ON public.user_public_keys
+  FOR UPDATE TO authenticated
+  USING ((SELECT auth.uid()) = user_id) WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY user_public_keys_delete ON public.user_public_keys
+  FOR DELETE TO authenticated USING ((SELECT auth.uid()) = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_public_keys TO authenticated;
+REVOKE ALL ON TABLE public.user_public_keys FROM service_role;
+```
+
+This is a RECIPE, not a shipped migration — it lands only when a feature
+actually shares, in that feature's own reviewed migration, with the usual
+company: the audit trigger, the `tools/data-flow.json` record (`user_public_keys`
+rows are subject data: `severed[]` on deletion via the CASCADE, and the
+projection should include the public key — it is the user's), and a
+`security-reviewer` verdict. A `*_shares` table holding the recipient wire
+bytes (`bytea`, 98 per share) follows the same pattern, keyed
+`(item_id, recipient_user_id)`.
+
+**The trust residual under the recipe: the directory is
+trust-on-first-use.** RLS stops a user overwriting someone ELSE's key, but a
+compromised server — the adversary this module exists to resist — could serve
+the wrong public key at wrap time, and the wrapper would seal to the attacker.
+Key fingerprint verification in the UI (or cross-signing) is the next rung on
+that ladder, and it is a product decision this README names rather than solves.
 
 ## What this deliberately does NOT solve
 
-Every item below is a real capability of "end-to-end encryption" as users
-understand the phrase, and this module does not have it. Each is stated with
-what it costs.
+Each remaining item is a real capability, absent, with its cost stated.
 
-### Multi-device — a second device sees ciphertext
+### Key rotation — the primitive ships; the ORCHESTRATION is yours
 
-The root key is minted on one device and lives in that device's keystore. There
-is **no path** by which a second sign-in obtains it: `DeviceSyncPort` is
-declared in `src/ports-declared.ts` and implemented nowhere. **A user who signs
-in on a second device sees their rows, and cannot read them** — RLS admits the
-rows, `openItem` returns `key_missing` or `aead_auth_failed`, and the screen
-renders an error state. That is the stated behaviour, not a bug. The honest
-shapes (a QR handoff, a recovery-escrow replay) both depend on the recovery port
-below, which is why device sync is declared last.
-
-### Recovery — **lost device is lost data**
-
-`RecoveryPort` is declared and unimplemented. If the keystore entry is gone —
-device lost, app uninstalled, keychain wiped, backup restored without it — the
-ciphertext is unreadable **by anyone, permanently, including you**. There is no
-escrow, no reset link, no support path. Every encrypted column is a column your
-support team cannot recover for a user who asks.
-
-The reason is a refusal, not an oversight: passphrase-derived escrow needs a
-memory-hard KDF, **WebCrypto ships no Argon2**, and shipping PBKDF2 while
-calling it "the KDF" would be a dishonest default — a recovery story that does
-not actually resist an offline attack on a human-chosen passphrase is worse than
-the stated loss, because users would rely on it. If you need recovery, implement
-`RecoveryPort` against a real Argon2id, and price the native dependency the way
-the mobile-provider patch prices its own.
-
-### Org sharing — an org-mate's readable row is unreadable content
-
-`RecipientWrapPort` (X25519 sealed-box shaped) is declared and unimplemented, so
-a DEK can be wrapped to exactly one principal: the author's own KEK. **In this
-B2B scaffold the tenant key is `org_id`, so RLS admits an org-mate to the row —
-and they get ciphertext they cannot open.** Sharing is the default expectation
-of a team product; encrypting a shared column removes it.
-
-The AAD makes this concrete rather than incidental: `KeyContext` binds `userId`,
-so a row sealed by user A authenticates only under A's identity. There is no
-configuration that changes this.
+`rewrapItemKey` makes rotation a one-column rewrite: open the wrapped DEK under
+the old KEK, re-seal the SAME DEK (fresh IV) under the new — the item
+ciphertext is never touched and no plaintext appears, so a rotation pass is
+`SELECT wrapped_dek` → `rewrapItemKey` → `UPDATE wrapped_dek`, per row, on a
+client that holds both KEKs. What still does not ship is everything AROUND that
+call: **no batch runner, no resume point, no progress record, no way to verify
+completion, no serving strategy for a table temporarily in two KEK eras.** A
+rotation interrupted at row 4,000 of 10,000 leaves rows under two keys with
+nothing recording which is which — design the orchestration as a reviewed data
+migration before you need it, not during the incident. (Recipient wraps
+reference the DEK, not the KEK, so rotating the root key does not invalidate
+shares; a SHARED row's rotation story — re-wrapping to every recipient — is
+part of the same orchestration design.)
 
 ### Metadata leakage — encryption hides content, not shape
 
@@ -246,12 +385,11 @@ Everything about the row except the plaintext bytes stays server-visible: which
 user has how many rows, when each was created and updated, who shares an org
 with whom, the access pattern, and **the exact size of every plaintext** — GCM
 is a stream mode, so a ciphertext column is `plaintext + 33` bytes and the
-length is readable to the byte. No padding ships. A server operator, a database
-backup, or anyone with the RLS-admitted read still learns the shape of the data
-and everything the surrounding columns say.
-
-If a size or a timestamp is itself the secret, this module does not address it,
-and padding or timing defences are yours to design.
+length is readable to the byte. The new seams ADD legible metadata of their
+own: a share row says WHO can open WHAT (the sharing graph is plaintext to the
+server), an escrow row says a recovery code exists, a directory row says the
+user can receive shares. No padding ships. If a size, a timestamp, or an edge
+in the sharing graph is itself the secret, this module does not address it.
 
 ### Searchability — gone, at the database
 
@@ -276,19 +414,6 @@ Deterministic encryption and order-preserving encryption would restore equality
 and range queries respectively, at the cost of leaking equality and order to the
 server. Neither is implemented here and neither should be added casually.
 
-### Key rotation — a full client-side re-encryption pass, unorchestrated
-
-The keyring exports `deriveKek`, `sealItem` and `openItem`. **It exports no
-rewrap primitive**, so the only shipped path from an old root key to a new one
-is `openItem` under the old KEK then `sealItem` under the new — which mints a
-fresh DEK and rewrites BOTH columns of every affected row. That is a full
-re-encryption pass, it runs on a client that can decrypt (there is no other
-kind), and **nothing ships to orchestrate it**: no batch runner, no resume
-point, no progress record, no way to verify it completed, no way to serve a row
-that is half-migrated. A compromised key therefore has no fast remedy, and a
-rotation interrupted at row 4,000 of 10,000 leaves a table in two key eras with
-nothing recording which is which.
-
 ### The web keystore — a browser has no hardware keychain
 
 On mobile, the root key sits in the iOS Keychain / Android Keystore: a different
@@ -300,12 +425,17 @@ XSS, one compromised dependency in the web bundle, one malicious extension with
 host access, and the root key leaves with the attacker; and because the key
 decrypts every row, that is a total loss, not a session loss.
 
-**The port's own shape forecloses the strongest available web option.**
-`KeystoreAdapter.getRootKey` returns `Uint8Array | null` — raw bytes. The
-strongest thing a browser offers is a NON-extractable `CryptoKey` handle stored
-in IndexedDB, whose raw bytes JavaScript cannot read at all; that handle cannot
-satisfy a `Uint8Array` contract. A web host that wants non-extractable key
-material must go around this port rather than through it.
+**The port's byte shape forecloses the strongest web option — and that is now a
+DECISION, not an accident.** `KeystoreAdapter.getRootKey` returns
+`Uint8Array | null`; a browser's strongest store is a NON-extractable
+`CryptoKey` handle in IndexedDB, whose bytes JavaScript cannot read. Those were
+always incompatible. What changed in 1.0.0 is that two shipped seams now
+REQUIRE readable bytes: `escrowRootKey` and `exportForDevice` take the root key
+as AEAD *plaintext*, and a handle whose bytes cannot be read is a root key that
+can never be escrowed or carried to a second device — the non-extractable
+"hardening" would quietly reinstate "lost device is lost data". The trade is
+recorded on the port itself (`ports.ts`); a web host that wants non-extractable
+key material must go around this port AND accept losing both seams, in writing.
 
 So: mobile E2EE here is meaningfully strong against sandbox-level compromise;
 web E2EE here defends against a **server-side** adversary (an operator, a
@@ -331,8 +461,10 @@ An encrypted feature must therefore pick one, in the ADR and in the
 - **Ship ciphertext plus wrapped keys, LABELLED honestly.** Legitimate when the
   subject can actually reconstruct the plaintext — which means the archive must
   also carry the envelope format, the algorithm, the AAD construction, and the
-  root key or an escrow of it. Without the key material this is not portability
-  and must not be described as such.
+  root key or an escrow of it. The recovery seam makes the second option less
+  hypothetical than it was — an archive can carry the escrow envelope and the
+  user's code can open it — but the labelling duty is unchanged. Without key
+  material this is not portability and must not be described as such.
 
 Whichever you choose, record it. The `data-flow` gate closes projection against
 the schema in both directions, but **it cannot tell ciphertext from plaintext**
@@ -347,29 +479,48 @@ are falsifiable:
 - Swap the provider's cipher, truncate the GCM tag, or drop the AAD from the
   WebCrypto calls → the vector tests fail, because sealing must reproduce the
   published `ct‖tag` byte-exactly. A roundtrip-only test would pass all three.
-- Remove the AAD from `sealItem`/`openItem`, or drop the role byte → the
-  moved-row, moved-user and role-swap cases in `keyring.test.ts` go green in the
+- Break the X25519 bridge — a wrong PKCS#8 prefix byte, a stripped-at-the-wrong-
+  offset scalar, a swapped argument order — and the RFC 7748 §5.2/§6.1 vectors
+  fail, because the engine receives a different scalar than the RFC published.
+- Change the recipient wire format, the HKDF info string, the AAD field order,
+  or the role byte → the COMMITTED known-answer wire in `recipient-wrap.test.ts`
+  changes byte-for-byte and the test fails. The fixed ephemeral it needs is
+  injected through a provider double — the production API carries no test seam.
+- Return the all-zero shared secret instead of refusing a low-order point → the
+  contributory-behaviour test fails (`deriveSharedSecret` must answer null).
+- Remove the AAD from `sealItem`/`openItem`, drop a role byte, or collapse two
+  roles to one value → the moved-row/user/table/column cases, the five-role
+  pairwise matrix, and the same-key cross-role refusals all go green in the
   wrong direction and fail.
-- Reuse a DEK across seals (derive instead of mint) → the fresh-DEK test fails,
-  because two seals of the same plaintext would produce identical bytes.
+- Make `rewrapItemKey` mint a fresh DEK instead of carrying the old one → the
+  same-DEK test fails (it unwraps both columns and compares the keys, not the
+  envelopes).
+- Change the recovery alphabet, bit order, or grouping → the committed encoding
+  answer fails; accept a mangled final symbol → the padding-bits refusal fails.
+- Reuse a DEK across seals (derive instead of mint) → the fresh-DEK test fails.
 - Add a version byte or alg id without a decode branch → the decode-refusal
   tests fail, each of which asserts its own distinct reason.
-- The vector file itself is checked before anything is asserted against it:
-  `|ciphertext| == |plaintext|` and a 16-byte tag per vector. That invariant
+- The vector data is checked before anything is asserted against it:
+  `|ciphertext| == |plaintext|` and a 16-byte tag per GCM vector. That invariant
   caught one vector's published answer transcribed under another's inputs during
   authoring — a typo that would otherwise have surfaced as an implementation-bug
   report.
 
 ## Honest limits of the shipped half
 
-- **`unsupported_version` has no upgrade path attached.** The version byte makes
-  a format change a decode branch; it does not write the branch, and nothing
-  ships that reads a v2 envelope.
-- **`KeyContext` carries no org.** It binds `userId`, `table`, `itemId`. On a
-  table whose primary key is `(org_id, id)` the AAD binds only `id`, which is
-  safe while ids are `gen_random_uuid()` and unsafe the moment a consumer uses a
-  composite or natural key. If your row identity needs more than one column,
-  encode the whole identity into `itemId` yourself.
+- **`unsupported_version` has no upgrade path attached.** The version bytes
+  (envelope and recipient wire) make a format change a decode branch; they do
+  not write the branch, and nothing ships that reads a v2 of either.
+- **`KeyContext` carries no org.** It binds `userId`, `table`, `itemId`,
+  `field`. On a table whose primary key is `(org_id, id)` the AAD binds only
+  `id`, which is safe while ids are `gen_random_uuid()` and unsafe the moment a
+  consumer uses a composite or natural key. If your row identity needs more
+  than one column, encode the whole identity into `itemId` yourself.
+- **The escrow and sync AADs bind the ACCOUNT and nothing else.** That is the
+  honest identity those ceremonies have — there is no row — so a moved escrow
+  fails only across accounts, not within one: a user's newest escrow envelope
+  and an old, superseded one are distinguishable only by your own storage
+  discipline (keep one escrow row per user, replace on re-issue).
 - **The `cryptography` provenance group keys on the construction CHOICE, not on
   the vocabulary.** `aeadSeal`/`aeadOpen`, an AEAD or KDF naming, and the
   wrapping structure owe a citation; `getRandomValues`, `randomUUID` and
@@ -377,6 +528,8 @@ are falsifiable:
   correct act at a dozen sites that are not cryptographic trade-offs. A
   hand-rolled construction that avoids all four patterns owes nothing to the
   gate and everything to the reviewer.
-- **`deriveKek` accepts exactly one purpose** (`'item-wrap'`). Adding a second
-  is a one-line union widening, but every purpose is a new domain-separated key
-  and therefore a new thing to rotate.
+- **`deriveKek` accepts exactly one purpose** (`'item-wrap'`). The three seams
+  derive their keys through their own fixed `info` strings, not through
+  `deriveKek` — adding a second KEK purpose is a one-line union widening, but
+  every purpose is a new domain-separated key and therefore a new thing to
+  rotate.

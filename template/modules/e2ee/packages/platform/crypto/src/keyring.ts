@@ -42,15 +42,18 @@ const KEY_BYTES = 32
 // zero-filled string, and the domain separation this hierarchy needs lives in
 // `info` — a per-install salt here would buy nothing and cost a second stored
 // secret.
+// SOURCE: https://www.rfc-editor.org/rfc/rfc5869 §3.1 (absent salt = HashLen zeros) [corpus: ietf/rfc5869-hkdf]
 const HKDF_ZERO_SALT = new Uint8Array(32)
 
 export type KekPurpose = 'item-wrap'
 
+// SOURCE: https://www.rfc-editor.org/rfc/rfc5869 (info is the domain separator) [corpus: ietf/rfc5869-hkdf]
 export async function deriveKek(
   provider: CryptoProvider,
   rootKey: Uint8Array,
   purpose: KekPurpose,
 ): Promise<CryptoResult<Uint8Array>> {
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5869 (extract-and-expand) [corpus: ietf/rfc5869-hkdf]
   const kek = await provider.hkdfSha256({
     ikm: rootKey,
     salt: HKDF_ZERO_SALT,
@@ -81,6 +84,8 @@ export async function sealItem(
 ): Promise<CryptoResult<SealedItem>> {
   const dek = provider.randomBytes(KEY_BYTES)
   const itemIv = provider.randomBytes(GCM_IV_BYTES)
+  // A fresh DEK and a fresh 96-bit IV per seal — no key ever encrypts twice.
+  // SOURCE: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf [corpus: nist/sp800-38d-gcm]
   const itemCt = await provider.aeadSeal({
     key: dek,
     iv: itemIv,
@@ -91,6 +96,8 @@ export async function sealItem(
     return cryptoErr('keystore_unavailable', 'the crypto engine refused to seal the item')
   }
   const wrapIv = provider.randomBytes(GCM_IV_BYTES)
+  // The DEK is WRAPPED under the KEK, never derived — the crypto-shred lever.
+  // SOURCE: https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html [corpus: owasp/key-management]
   const wrappedCt = await provider.aeadSeal({
     key: kek,
     iv: wrapIv,
@@ -137,6 +144,7 @@ export async function openItem(
   }
   const wrapped = decodeEnvelope(sealed.wrappedDek)
   if (!wrapped.ok) return wrapped
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 (AAD binds context; one failure output) [corpus: ietf/rfc5116-aead]
   const dek = await provider.aeadOpen({
     key: kek,
     iv: wrapped.value.iv,
@@ -151,6 +159,7 @@ export async function openItem(
   }
   const item = decodeEnvelope(sealed.envelope)
   if (!item.ok) return item
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 (AAD binds context; one failure output) [corpus: ietf/rfc5116-aead]
   const plaintext = await provider.aeadOpen({
     key: dek,
     iv: item.value.iv,
@@ -164,4 +173,72 @@ export async function openItem(
     )
   }
   return cryptoOk(plaintext)
+}
+
+/**
+ * Rotate ONE row's wrapped DEK from an old KEK to a new one: open the
+ * wrapped-DEK envelope under the old KEK, re-seal the SAME DEK — fresh IV —
+ * under the new. The item ciphertext is never touched and the item plaintext
+ * is never seen, so a root-key rotation becomes a rewrite of ONE column per
+ * row instead of an open→seal pass over every plaintext. This is exactly the
+ * property the KEK/DEK split was bought for: rotating the outer key must not
+ * require re-encrypting the data.
+ * SOURCE: https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html
+ * (separate KEKs from DEKs so rotating the outer key does not re-encrypt all
+ * data) [corpus: owasp/key-management]
+ *
+ * What this deliberately is NOT: an orchestrator. Batching rows, resuming an
+ * interrupted pass, recording progress, and serving a table that is
+ * temporarily in two KEK eras are the CONSUMER's — this function is the one
+ * cryptographic step, kept primitive so the orchestration above it stays an
+ * ordinary reviewed data migration rather than crypto code.
+ */
+export async function rewrapItemKey(
+  provider: CryptoProvider,
+  oldKek: Uint8Array,
+  newKek: Uint8Array,
+  wrappedDek: Uint8Array,
+  ctx: KeyContext,
+): Promise<CryptoResult<Uint8Array>> {
+  // The crypto-shred tombstone, read before the decoder for the same reason
+  // openItem reads it: a shredded row is deliberately unreadable, not damaged,
+  // and a rotation pass that meets one must SKIP it, never "repair" it.
+  if (wrappedDek.length === 0) {
+    return cryptoErr(
+      'key_missing',
+      'the wrapped DEK is a zero-length tombstone — this row was crypto-shredded and cannot be rewrapped',
+    )
+  }
+  const wrapped = decodeEnvelope(wrappedDek)
+  if (!wrapped.ok) return wrapped
+  // SOURCE: https://www.rfc-editor.org/rfc/rfc5116 (AAD binds context; one failure output) [corpus: ietf/rfc5116-aead]
+  const dek = await provider.aeadOpen({
+    key: oldKek,
+    iv: wrapped.value.iv,
+    ciphertext: wrapped.value.ct,
+    aad: buildAad(AAD_ROLE_DEK, ctx),
+  })
+  if (dek === null) {
+    return cryptoErr(
+      'aead_auth_failed',
+      'the wrapped DEK did not authenticate under the old KEK for this row identity',
+    )
+  }
+  // Fresh IV, same AAD role and identity: the rewrapped column still binds the
+  // SAME row, so a rewrap is invisible to openItem except through the new KEK.
+  const iv = provider.randomBytes(GCM_IV_BYTES)
+  // SOURCE: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf (fresh iv per seal) [corpus: nist/sp800-38d-gcm]
+  const rewrapped = await provider.aeadSeal({
+    key: newKek,
+    iv,
+    plaintext: dek,
+    aad: buildAad(AAD_ROLE_DEK, ctx),
+  })
+  if (rewrapped === null) {
+    return cryptoErr(
+      'key_missing',
+      'the crypto engine refused to rewrap the item key (is the new KEK 32 bytes?)',
+    )
+  }
+  return cryptoOk(encodeEnvelope({ v: ENVELOPE_VERSION, alg: ALG_AES_256_GCM, iv, ct: rewrapped }))
 }
