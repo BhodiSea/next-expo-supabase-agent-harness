@@ -14,7 +14,7 @@ import { meta } from './page.meta'
 // The signed-in check is the (protected) layout's; the page itself protects
 // nothing. What ENFORCES the second factor is the database rail — this page
 // only lets a user opt into it, and see what they have opted into.
-// SOURCE: supabase/migrations/20260812000000_mfa_aal2.sql (aal2 enforced at
+// SOURCE: docs/adr/20260812-mfa-aal2.md (aal2 enforced at
 // the database for every user holding a verified factor)
 
 // Title from the route's OWN meta — the registry and the browser tab read one

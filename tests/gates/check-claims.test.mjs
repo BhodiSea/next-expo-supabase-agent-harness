@@ -127,7 +127,7 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, coldWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, e8Register?: string | null, cmRegister?: string | null, config?: string, hooks?: string[] }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, coldWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, e8Register?: string | null, cmRegister?: string | null, config?: string, hooks?: string[], pkg?: string | null }} parts
  */
 function runFixture({
   readme,
@@ -158,6 +158,9 @@ function runFixture({
   cmRegister = null,
   config = FIXTURE_CONFIG,
   hooks = ['alpha.mjs', 'beta.mjs'],
+  // package.json is ABSENT by default (the 0.4.0 no-package.json case depends on it); the
+  // 1.0.0 status-word cases hand a version in so the word/major agreement can be judged.
+  pkg = null,
 }) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-claims-'))
   const files = {
@@ -225,6 +228,7 @@ function runFixture({
     files['template/base/tools/lib/conformance-map.mjs'] = CM_LIB_BYTES
     files['template/base/tools/lib/standards-claim.mjs'] = CM_CLAIM_LIB_BYTES
   }
+  if (pkg !== null) files['package.json'] = JSON.stringify({ version: pkg })
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), content)
@@ -364,6 +368,41 @@ test('RED (0.4.0): a status line with no package.json to check it against is unv
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no package\.json to check it against/)
   assert.doesNotMatch(r.out, /ENOENT/, `the script must judge the claim, not crash:\n${r.out}`)
+})
+
+test('RED/GREEN (1.0.0): the status WORD must agree with the major — pre-release is 0.x, stable is 1.x+ — and the line must exist', () => {
+  // The line flipped to "stable (1.0.x)" at 1.0.0. A README that said "stable" at 0.x
+  // would claim a maturity nobody earned; one that says "pre-release" at 1.x carries a
+  // warning the version retracted; and one that drops the line has stopped stating its
+  // status, which is not the same as being stable.
+  const stableAt1 = runFixture({
+    readme: '**Status: stable (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.0.0',
+  })
+  assert.equal(stableAt1.code, 0, stableAt1.out)
+  const stableAt0 = runFixture({
+    readme: '**Status: stable (0.9.x).** The chain runs all 3 gates.\n',
+    pkg: '0.9.0',
+  })
+  assert.equal(stableAt0.code, 1, stableAt0.out)
+  assert.match(stableAt0.out, /says "stable" but package\.json is 0\.9\.0/)
+  const preAt1 = runFixture({
+    readme: '**Status: pre-release (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.0.0',
+  })
+  assert.equal(preAt1.code, 1, preAt1.out)
+  assert.match(preAt1.out, /says "pre-release" but package\.json is 1\.0\.0/)
+  // The number is still held to package.json for BOTH words.
+  const staleStable = runFixture({
+    readme: '**Status: stable (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.1.0',
+  })
+  assert.equal(staleStable.code, 1, staleStable.out)
+  assert.match(staleStable.out, /says "stable \(1\.0\.x\)" but package\.json is 1\.1\.0/)
+  // And absence is a finding once there is a package.json to be silent about.
+  const missing = runFixture({ readme: 'The chain runs all 3 gates.\n', pkg: '1.0.0' })
+  assert.equal(missing.code, 1, missing.out)
+  assert.match(missing.out, /README carries no "\*\*Status: pre-release/)
 })
 
 test('RED (0.6.0): a published wall-clock figure with no COMMITTED measurement behind it', () => {

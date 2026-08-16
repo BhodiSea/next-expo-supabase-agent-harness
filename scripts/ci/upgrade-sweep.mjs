@@ -32,7 +32,15 @@
 // OUT, so adoption is a per-version judgement on the way back IN.
 //   usage: node scripts/ci/upgrade-sweep.mjs <installDir> <repoRoot> <baseVersion> <headVersion>
 // SOURCE: docs/runbooks/harness-upgrade.md (the sweep this executes)
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -243,6 +251,66 @@ const SWEEPS = {
       'apps/web/app/(protected)/layout.tsx',
     ],
   },
+  // 0.11.1 withholds nothing (its record is rampExtensions + rampExpiry only), so no entry
+  // is needed and computeSweepSet does not ask for one.
+  //
+  // 1.0.0 — the settlement release. Its posture was written by RUNNING leg E against the
+  // first draft, not by reading the record, and every line below is what that run demanded:
+  //
+  // (a) extraAdopt: the WEB MFA seams. The DERIVED seededSourceFixes pass copies HEAD's
+  //     apps/web/app/sign-in/page.tsx, sign-in/sign-in-form.tsx and packages/platform/
+  //     supabase/src/client.ts (the 0.6.0 auth-posture fix's own paths), and 0.6.0's
+  //     adoptSeedOnInitOnly copies HEAD's routes.generated.ts and the web i18n catalog — and at
+  //     1.0.0 those HEAD files import the MFA ceremony (ceremony-shell, credential-fields,
+  //     sign-in/mfa, mfa-actions, mfa-flow) and register the (protected)/security page. A
+  //     swept tree carrying the importers without the imported is a dead-code red
+  //     ("Unresolved imports") and a route-manifest red (the allowlist names sign-in/mfa and
+  //     sign-up pages that do not exist) — the 0.6.0 page-body trap and the 0.11.0 layout
+  //     trap, one release on: files that travel together or not at all. So the web half of
+  //     the withheld MFA surface is adopted with them; the MOBILE half is not (nothing
+  //     derived-copied imports it, and screens into a consumer's route registry and startup
+  //     budget are the record's own reason for withholding).
+  // (b) reconcileDataFlowExclusions: the 0.7.0 derived fix copies HEAD's tools/data-flow.json,
+  //     whose export.excluded now names admin_elevations — a table only the 1.0.0
+  //     privilege-lifecycle migration creates, and that migration is NOT adopted (it REPLACES
+  //     private.member_ranks and rewrites memberships policies; a tree that renamed or
+  //     re-scoped those takes a db push failure from a file it never asked for — the 0.9.9 MFA
+  //     reasoning). check-data-flow reds a stale exclusion as "a considered decision about a
+  //     table nobody has", and its own remedy is to remove it: the sweep drops every
+  //     export.excluded entry naming a table no migration in the install creates, and nothing
+  //     else. A real consumer applying the parked 0.7.0 fix meets the same line and does the
+  //     same thing.
+  // (c) NOT the [auth.hook.*] block, and NOT the trail migration. The first draft appended
+  //     the block (the 0.9.9 [auth.mfa] shape) and adopted the trail with it; leg E showed
+  //     the trail dragging three SEEDED wiring files behind it (rls-exempt rows, the pgTAP
+  //     rls_targets list, the client suite's ISOLATION_TARGETS) — the ambush the seedOnInitOnly
+  //     decision exists to avoid — and the block alone would enable hooks against functions
+  //     no migration creates, which fails every sign-in. So check-auth-posture.mjs holds the
+  //     PAIRED ACT instead: hook floors are demanded only where the trail is in the tree,
+  //     hooks enabled without it are a hard red, and neither present demands nothing. A swept
+  //     install therefore carries no auth-posture NOTE and no hook block, and adopts the trail
+  //     deliberately per the runbook.
+  // (d) suppressions needs no step: the 0.7.0 derived pass copies packages/contracts/src/
+  //     index.ts, the one seeded file whose directives post-date the oldest baselines, so
+  //     every crossing tree carries exactly the directives the planted register names.
+  // (e) docs-sync's gate list → the sweep's own §3 AGENTS.md rewrite (34 → 36), unchanged;
+  //     resilience / version-sync's support register / the module closure → OWNED or PLANTED
+  //     registers describing the seeded tree, quiet on a swept scaffold with zero drift; the
+  //     eol re-date rides the DERIVED pass. §7d judges all of it from the validate output.
+  '1.0.0': {
+    extraAdopt: [
+      'apps/web/app/sign-in/ceremony-shell.tsx',
+      'apps/web/app/sign-in/credential-fields.tsx',
+      'apps/web/app/sign-in/mfa/',
+      'apps/web/app/sign-up/',
+      'apps/web/app/(protected)/security/',
+      'packages/platform/supabase/src/mfa-actions.ts',
+      'packages/platform/supabase/src/mfa-actions.test.ts',
+      'packages/platform/supabase/src/mfa-flow.ts',
+      'packages/platform/supabase/src/mfa-flow.test.ts',
+    ],
+    reconcileDataFlowExclusions: true,
+  },
 }
 
 /**
@@ -273,10 +341,12 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
   const tomlSectionRenames = []
   /** @type {[string, string][]} */
   const tomlSectionAppends = []
+  let reconcileDataFlowExclusions = false
   for (const v of versionsBetween(migrations, baseVersion, headVersion)) {
     const record = migrations[v]
     const sweep = SWEEPS[v]
-    const withholds = (record.seedOnInitOnly ?? []).length > 0 || (record.seededSourceFixes ?? []).length > 0
+    const withholds =
+      (record.seedOnInitOnly ?? []).length > 0 || (record.seededSourceFixes ?? []).length > 0
     if (sweep === undefined && withholds) {
       throw new Error(
         `upgrade-sweep: version ${v} withholds files (seedOnInitOnly/seededSourceFixes) but has NO entry in the SWEEPS table — every crossed version's sweep posture must be a reviewed decision, even an empty one. Add '${v}' to SWEEPS in scripts/ci/upgrade-sweep.mjs with a written reason.`,
@@ -284,7 +354,9 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     }
     if (sweep?.adoptSeedOnInitOnly === true) adopt.push(...(record.seedOnInitOnly ?? []))
     adopt.push(...(sweep?.extraAdopt ?? []))
-    const fixPaths = (record.seededSourceFixes ?? []).flatMap((/** @type {any} */ f) => f.paths ?? [])
+    const fixPaths = (record.seededSourceFixes ?? []).flatMap(
+      (/** @type {any} */ f) => f.paths ?? [],
+    )
     for (const skipped of sweep?.skipDerivedAdopt ?? []) {
       if (!fixPaths.includes(skipped)) {
         throw new Error(
@@ -296,14 +368,73 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     adopt.push(...fixPaths.filter((/** @type {string} */ p) => !skip.has(p)))
     tomlSectionRenames.push(...(sweep?.tomlSectionRenames ?? []))
     tomlSectionAppends.push(...(sweep?.tomlSectionAppends ?? []))
+    if (sweep?.reconcileDataFlowExclusions === true) reconcileDataFlowExclusions = true
   }
-  return { adopt, tomlSectionRenames, tomlSectionAppends }
+  return { adopt, tomlSectionRenames, tomlSectionAppends, reconcileDataFlowExclusions }
+}
+
+/**
+ * The 1.0.0 data-flow reconciliation, PURE over its inputs so tests drive it without a
+ * scaffold: given the (derived-copied) tools/data-flow.json and the set of table names the
+ * install's migrations create, return the file with every export.excluded entry naming a
+ * table nobody creates removed — check-data-flow's own remedy for "a stale exclusion reads
+ * as a considered decision about a table nobody has". It removes and never adds: a subject
+ * table the register does not know is the consumer's to project or exclude, with a reason no
+ * script may invent.
+ * @param {any} dataFlow
+ * @param {Set<string>} createdTables  bare and schema-qualified names, as migrations spell them
+ * @returns {{ dataFlow: any, dropped: string[] }}
+ */
+export function reconcileDataFlowExclusions(dataFlow, createdTables) {
+  const excluded = Array.isArray(dataFlow?.export?.excluded) ? dataFlow.export.excluded : []
+  const dropped = []
+  const kept = excluded.filter((x) => {
+    const table = String(x?.table ?? '')
+    const bare = table.includes('.') ? table.slice(table.indexOf('.') + 1) : table
+    const exists =
+      createdTables.has(table) || createdTables.has(bare) || createdTables.has(`public.${table}`)
+    if (!exists) dropped.push(table)
+    return exists
+  })
+  if (dropped.length === 0) return { dataFlow, dropped }
+  return { dataFlow: { ...dataFlow, export: { ...dataFlow.export, excluded: kept } }, dropped }
+}
+
+/**
+ * Every table the install's migrations CREATE, as a name set (bare, and schema-qualified when
+ * the DDL qualifies it). Text-level on purpose — the same reading check-data-flow does when it
+ * asks whether a migration creates the table an exclusion names.
+ * @param {string} migrationsDir
+ * @returns {Set<string>}
+ */
+export function createdTablesIn(migrationsDir) {
+  const out = new Set()
+  if (!existsSync(migrationsDir)) return out
+  for (const f of readdirSync(migrationsDir).sort()) {
+    if (!f.endsWith('.sql')) continue
+    const sql = readFileSync(join(migrationsDir, f), 'utf8')
+    for (const m of sql.matchAll(
+      /create\s+table\s+(?:if\s+not\s+exists\s+)?("?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?/gi,
+    )) {
+      const schema = m[1] ? m[1].replace(/"/g, '').slice(0, -1) : null
+      out.add(m[2])
+      if (schema) out.add(`${schema}.${m[2]}`)
+    }
+  }
+  return out
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [installDir, repoRoot, baseVersion, headVersion] = process.argv.slice(2)
-  if (installDir === undefined || repoRoot === undefined || baseVersion === undefined || headVersion === undefined) {
-    process.stderr.write('usage: upgrade-sweep.mjs <installDir> <repoRoot> <baseVersion> <headVersion>\n')
+  if (
+    installDir === undefined ||
+    repoRoot === undefined ||
+    baseVersion === undefined ||
+    headVersion === undefined
+  ) {
+    process.stderr.write(
+      'usage: upgrade-sweep.mjs <installDir> <repoRoot> <baseVersion> <headVersion>\n',
+    )
     process.exit(2)
   }
 
@@ -338,7 +469,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       return
     }
     const walk = (dir, prefix) => {
-      for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      )) {
         if (e.isDirectory()) walk(join(dir, e.name), `${prefix}${e.name}/`)
         else adoptOne(`${prefix}${e.name}`)
       }
@@ -388,6 +521,35 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       if (before.includes(header)) continue
       writeFileSync(configPath, `${before.trimEnd()}\n${block}`)
       done.push(`supabase/config.toml (${header} appended)`)
+    }
+  }
+
+  // ── 2c. data-flow's export.excluded, reconciled to the migrations (1.0.0) ─────────
+  // The 0.7.0 derived fix copies HEAD's tools/data-flow.json, whose excluded set names a
+  // 1.0.0 table the sweep does not adopt. Drop what nothing creates; see
+  // reconcileDataFlowExclusions for why this narrows and never adds.
+  if (sweepSet.reconcileDataFlowExclusions) {
+    const dataFlowPath = join(installDir, 'tools/data-flow.json')
+    if (existsSync(dataFlowPath)) {
+      const before = JSON.parse(readFileSync(dataFlowPath, 'utf8'))
+      const created = createdTablesIn(join(installDir, 'supabase/migrations'))
+      const { dataFlow: next, dropped } = reconcileDataFlowExclusions(before, created)
+      if (dropped.length > 0) {
+        writeFileSync(dataFlowPath, `${JSON.stringify(next, null, 2)}\n`)
+        // Under the INSTALL's own biome, so the rewrite lands in the shape its `format`
+        // gate expects (JSON.stringify expands what biome folds); best-effort — an install
+        // without the binary yet is told by the format gate, not by a crash here.
+        const biome = join(installDir, 'node_modules/.bin/biome')
+        if (existsSync(biome)) {
+          spawnSync(biome, ['format', '--write', 'tools/data-flow.json'], {
+            cwd: installDir,
+            stdio: 'ignore',
+          })
+        }
+        done.push(
+          `tools/data-flow.json (export.excluded reconciled: dropped ${dropped.join(', ')} — no migration creates them)`,
+        )
+      }
     }
   }
 

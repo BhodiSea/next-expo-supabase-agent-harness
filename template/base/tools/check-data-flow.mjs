@@ -277,7 +277,9 @@ if (policy !== null && (erase === null || erase === undefined)) {
   }
 }
 
-// RAMPED to 0.12.0, and a THIRD block rather than a widening of either ramp above — the
+// RAMPED to 0.12.0 (a release never cut: every comparison is >=, so the deadline ARRIVED at
+// 1.0.0 for every install below 0.11.0 — the 1.0.0 migrations record's rampExpiry names them),
+// and a THIRD block rather than a widening of either ramp above — the
 // header at the 0.6.0 site records why: folding a new finding into an older ramp re-opens an
 // escape the deadline ratchet has already counted closed. tools/data-flow.json is SEEDED, so
 // `update` cannot write the erase record for an existing install, and the web surface it

@@ -120,15 +120,20 @@ if (!listMatch) {
   const additiveOnly =
     positions.every((p) => p !== undefined) &&
     positions.every((p, i) => i === 0 || p > positions[i - 1])
-  // THE RAMP IS RE-OPENED AT 0.8.0, for the second time and for the identical reason the
-  // 0.6.0 re-open records. The 0.6.0 ramp expired at 0.7.0, and 0.8.0 injects
-  // `observability` via configSteps — so on every existing install the chain grows to 34
-  // steps while AGENTS.md still says 33 (or fewer). AGENTS.md is SEEDED: `update` cannot
-  // rewrite a project's memory file, so the consumer is the only one who can fix it, and
-  // hard-redding them on an upgrade they did not ask for is precisely the ambush this
-  // mechanism exists to prevent. The NOTE below tells them exactly what to paste. Expires
-  // at 0.9.0; the move is excused by the byte-matched `rampExtensions` entry in
-  // template/migrations.json "0.8.0" — the deadline ratchet reds without it.
+  // THE RAMP IS RE-OPENED AT 1.0.0, for the THIRD time and for the identical reason the
+  // 0.6.0 and 0.8.0 re-opens record. The 0.8.0 ramp expired at 0.9.0, and 1.0.0 injects
+  // `suppressions` and `resilience` via configSteps — so on every existing install the
+  // chain grows to 36 steps while AGENTS.md still says 34 (or fewer). AGENTS.md is SEEDED:
+  // `update` cannot rewrite a project's memory file, so the consumer is the only one who
+  // can fix it, and hard-redding them on an upgrade they did not ask for is precisely the
+  // ambush this mechanism exists to prevent. The NOTE below tells them exactly what to
+  // paste. Expires at 1.1.0; the move is excused by the byte-matched `rampExtensions`
+  // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it —
+  // and its expiry is owed by the 1.1.0 record (obligations row docs-sync-gate-list-
+  // ramp-expiry). It opens at minVersion 1.0.0, NOT at the 0.8.0 the previous re-open
+  // used: an escape opened at or below the population it protects is inert for exactly
+  // that population (the 0.11.1 lesson), and every install below 1.0.0 receives the two
+  // steps.
   //
   // The comment lives HERE and not inside the condition: scripts/check-ramp-ledger.mjs reads the
   // line preceding `rampNote(` to decide whether the result is consumed, and a comment between
@@ -136,8 +141,8 @@ if (!listMatch) {
   if (listErrs.length > 0) {
     if (
       additiveOnly &&
-      rampNote(GATE, '0.8.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
-        until: '0.9.0',
+      rampNote(GATE, '1.0.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
+        until: '1.1.0',
       })
     ) {
       for (const e of listErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)

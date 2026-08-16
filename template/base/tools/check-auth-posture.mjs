@@ -415,6 +415,52 @@ if (
   errs.push(...mfaErrs)
 }
 
+// ── the trail's PAIRED ACT, machine-held (1.0.0) ────────────────────────────────────
+// The [auth.hook.*] floors bind GoTrue to functions the trail migration creates. config.toml
+// is seeded and supabase/migrations/ is the consumer's append-only history, so the two halves
+// reach an existing install separately or not at all — and the pairing is enforced HERE rather
+// than assumed, in three cases:
+//   (a) the trail schema is in the tree → the floors are demanded exactly as written (routed to
+//       the 1.0.0 ramp below for a pre-1.0.0 install, hard for everyone else);
+//   (b) the trail is NOT in the tree but a hook is ENABLED → a HARD red, never ramped: GoTrue
+//       will call a function no migration created and every password/MFA sign-in fails. This
+//       is the shape a naive "append the reviewed block" produces, and it is why the upgrade
+//       lane's sweep does not append it (scripts/ci/upgrade-sweep.mjs, SWEEPS['1.0.0']);
+//   (c) neither → nothing is demanded, and one plain line says so. An install that predates
+//       the trail owes the paired adoption docs/runbooks/harness-upgrade.md describes (migration
+//       + declarative twin + the two sections, together), not a config edit alone — and a NOTE
+//       here would be a ramp no sweep may clear without adopting a migration on the consumer's
+//       behalf, which the seedOnInitOnly decision refuses.
+// The presence test reads the migrations' TEXT for the two hook function names, so a renamed
+// migration file still counts and a copied ADR does not.
+const trailPresent =
+  existsSync('supabase/migrations') &&
+  readdirSync('supabase/migrations')
+    .sort()
+    .some(
+      (f) =>
+        f.endsWith('.sql') &&
+        /auth_trail\.(?:password|mfa)_verification_hook/.test(
+          readFileSync(join('supabase/migrations', f), 'utf8'),
+        ),
+    )
+const enabledHooks = [...values.entries()]
+  .filter(([k, v]) => /^auth\.hook\.[a-z_]+\.enabled$/.test(k) && v === true)
+  .map(([k]) => k)
+let hookFloorsWaived = 0
+if (!trailPresent) {
+  if (enabledHooks.length > 0) {
+    errs.push(
+      `${CONFIG} enables ${enabledHooks.join(', ')} but no migration under supabase/migrations creates the auth_trail hook functions — GoTrue will call a function that does not exist and EVERY password/MFA sign-in will fail. Adopt the trail (20260816000000_auth_event_trail.sql + supabase/schemas/45_auth_trail.sql, per docs/adr/20260816-auth-event-trail.md) BEFORE enabling the hooks, or set enabled = false.`,
+    )
+  }
+  hookFloorsWaived = Object.keys(policy.posture ?? {}).filter((k) => isHookName(k)).length
+  hookErrs.length = 0
+  console.log(
+    `${GATE}: the auth-event trail is not in this tree (no migration creates auth_trail's hook functions), so its ${String(hookFloorsWaived)} [auth.hook.*] floor(s) are not demanded here — adopt the migration and the two config sections TOGETHER (docs/runbooks/harness-upgrade.md, the 1.0.0 section); until then failed sign-ins leave no record on this install`,
+  )
+}
+
 if (
   hookErrs.length > 0 &&
   rampNote(
@@ -454,9 +500,10 @@ failures(
 // The count is the REVIEWED total minus anything a ramp withheld. An OK line claiming
 // nineteen values hold while ten of them are missing is the same class of untrue summary
 // this gate exists to catch, one layer up.
-const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length - hookErrs.length
+const held =
+  Object.keys(policy.posture ?? {}).length - mfaErrs.length - hookErrs.length - hookFloorsWaived
 ok(
   GATE,
-  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}${hookErrs.length > 0 ? ` (${String(hookErrs.length)} [auth.hook] finding(s) NOTE-only under the ${HOOK_RAMP} ramp — failed sign-ins leave no record here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
+  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}${hookErrs.length > 0 ? ` (${String(hookErrs.length)} [auth.hook] finding(s) NOTE-only under the ${HOOK_RAMP} ramp — failed sign-ins leave no record here)` : ''}${hookFloorsWaived > 0 ? ` (${String(hookFloorsWaived)} [auth.hook] floor(s) not demanded — the trail is not adopted here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
 )
 process.exitCode = 0

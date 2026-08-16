@@ -134,6 +134,7 @@ function countTableProblems(label, expected, actual, authority) {
 
 /** Count rows by a key, over a subset. @returns {Record<string, number>} */
 function tally(rows, key) {
+  /** @type {Record<string, number>} */
   const out = {}
   for (const r of rows) {
     const k = String(key(r))

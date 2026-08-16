@@ -61,7 +61,7 @@ export function SignInForm(): React.ReactNode {
     // ceremony, and Back honestly returns to the credential form. An AAL read
     // that itself fails yields null levels and proceeds: the rail still holds,
     // and a dead end here would lock out the un-enrolled majority on a blip.
-    // SOURCE: supabase/migrations/20260812000000_mfa_aal2.sql (the rail) ·
+    // SOURCE: docs/adr/20260812-mfa-aal2.md (the rail) ·
     // packages/platform/supabase/src/mfa-flow.ts (decideAfterSignIn)
     const { data: aal } = await client.auth.mfa.getAuthenticatorAssuranceLevel()
     if (

@@ -492,7 +492,17 @@ if (eolErrs.length > 0) {
 // The ramp over the ARRIVAL of a harness-authored removalTarget. EXTENDED at 0.11.1 — from
 // (minVersion 0.10.0, until 0.11.0) to (minVersion 0.11.0, until 0.12.0) — and recorded as
 // the lineage's third `rampExtensions` entry, because the first shape was live for exactly
-// the population it could not help.
+// the population it could not help. EXTENDED AGAIN AT 1.0.0 — to (minVersion 1.0.0, until
+// 1.1.0) — for the SAME defect one release on, and found the same way: upgrade-lane leg A
+// (v0.11.1 → 1.0.0) went red with no deadline met. The 0.11.x vintages hold a seeded
+// tools/eol.json whose removalTarget the harness wrote as "0.12.0"; 0.12.0 was never cut, so
+// at 1.0.0 that date ARRIVES on them, hard, and an escape opened at minVersion 0.11.0 is
+// inert for exactly them. The 0.11.1 record said "by 0.12.0 every install has had a release
+// in which to re-affirm its own uuid row" — true, and a v0.11.1 install that did not act
+// meets a hard red at 1.0.0 with no ramp between it and the finding. The re-date channel
+// (the 1.0.0 record's seededSourceFixes probe on '"removalTarget": "0.12.0"') delivers the
+// harness's own re-affirmation to those installs; this ramp is what makes the arrival a
+// dated NOTE while it does. The upstream discharge condition is stated in the row's reason.
 //
 // THE DEFECT IT FIXES, found by the upgrade lane on the v0.11.0 tag and not before it.
 // `rampNote` is INERT when baseVersion >= minVersion, so minVersion 0.10.0 meant a
@@ -510,8 +520,8 @@ if (eolErrs.length > 0) {
 // The comment lives HERE and not inside the condition, for the reason the 0.7.0 site records.
 if (arrivalErrs.length > 0) {
   if (
-    rampNote(GATE, '0.11.0', "the arrival of tools/eol.json's removalTarget dates", {
-      until: '0.12.0',
+    rampNote(GATE, '1.0.0', "the arrival of tools/eol.json's removalTarget dates", {
+      until: '1.1.0',
     })
   ) {
     for (const e of arrivalErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)

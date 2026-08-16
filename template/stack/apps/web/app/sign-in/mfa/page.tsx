@@ -16,8 +16,8 @@ import { MfaChallengeForm } from './mfa-challenge-form'
 // user's aal1 session reads nothing whether or not this page ever loads, which
 // is exactly why the sign-in form routes here rather than hoping the user
 // finds it.
-// SOURCE: supabase/migrations/20260812000000_mfa_aal2.sql (aal2 enforced at
-// the database for every user holding a verified factor)
+// SOURCE: docs/adr/20260812-mfa-aal2.md (aal2 enforced at the database for every
+// user holding a verified factor — the migration is the ADR's implementation)
 
 export const metadata = { title: t('route.mfa') }
 

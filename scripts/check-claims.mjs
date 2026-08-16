@@ -170,11 +170,23 @@ const problems = []
 // positional overrides, so its own fixture tests run a byte-identical COPY inside a
 // mirrored tree, and an unguarded read of a file the fixture does not model does not fail
 // the claim — it CRASHES the script, which reads as six unrelated red tests.
+//
+// 1.0.0: the WORD is judged too. "pre-release" is true of major 0 and false of anything else;
+// "stable" is the reverse. A status line that says stable at 0.x claims a maturity nobody
+// earned, and one that says pre-release at 1.x carries a warning the version retracted — both
+// are the first line a reader trusts. And the line must EXIST: a README that drops it after a
+// major bump has stopped stating its own status, which is not the same as being stable.
 const pkgPath = new URL('../package.json', import.meta.url)
-for (const [, claimed] of readme.matchAll(/\*\*Status: pre-release \((\d+\.\d+)\.x\)/g)) {
+const statusLines = [...readme.matchAll(/\*\*Status: (pre-release|stable) \((\d+\.\d+)\.x\)/g)]
+if (statusLines.length === 0 && existsSync(pkgPath)) {
+  problems.push(
+    'README carries no "**Status: pre-release (N.N.x)**" / "**Status: stable (N.N.x)**" line — the status line is the first claim a reader checks and its absence is a claim too',
+  )
+}
+for (const [, word, claimed] of statusLines) {
   if (!existsSync(pkgPath)) {
     problems.push(
-      `README claims "pre-release (${claimed}.x)" but there is no package.json to check it against — an unverifiable claim is not a passing one`,
+      `README claims "${word} (${claimed}.x)" but there is no package.json to check it against — an unverifiable claim is not a passing one`,
     )
     continue
   }
@@ -182,7 +194,13 @@ for (const [, claimed] of readme.matchAll(/\*\*Status: pre-release \((\d+\.\d+)\
   const majorMinor = pkgVersion.split('.').slice(0, 2).join('.')
   if (claimed !== majorMinor) {
     problems.push(
-      `README's status line says "pre-release (${claimed}.x)" but package.json is ${pkgVersion} — the first line a reader trusts`,
+      `README's status line says "${word} (${claimed}.x)" but package.json is ${pkgVersion} — the first line a reader trusts`,
+    )
+  }
+  const major = Number(pkgVersion.split('.')[0])
+  if ((word === 'pre-release') !== (major === 0)) {
+    problems.push(
+      `README's status line says "${word}" but package.json is ${pkgVersion} — "pre-release" is major 0 and "stable" is major >= 1; the word and the number must agree`,
     )
   }
 }

@@ -159,3 +159,13 @@ step 5 compresses):
   their first runs happen while the release context is warm, and re-record the
   chain-budget measurement only through the reviewed `workflow_dispatch` path
   (the 0.7.0/0.8.0 pattern — measure, commit, then publish, in that order).
+- **A release that GROWS the chain re-records BEFORE the tag** (1.0.0: 34 → 36).
+  `check-claims` refuses every wall-clock figure while the committed measurement's
+  step count differs from the live chain, so the figures are scrubbed in the
+  chain-growth commit, the chain is frozen, `selftest.yml` is dispatched by hand
+  ON THE RELEASE BRANCH after the bump commit (the node-22 leg records warm,
+  Stop-chain and — since 1.0.0 — the COLD path in one artifact), the reviewed
+  `scripts/chain-budget.json` is committed on the branch, and only then does the
+  figures commit land — all before merge, so the tag build ships figures that
+  count-match the chain it runs. Post-tag re-recording stays the pattern for a
+  release that leaves the chain length alone.

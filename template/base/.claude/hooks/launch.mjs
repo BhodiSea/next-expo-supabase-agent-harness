@@ -21,7 +21,7 @@
 // ONE tiny file with no imports, no parse-fragile content, under the write-guard deny
 // and the gate-integrity hash like its siblings, re-probed at every Claude Code pin
 // bump per CONTROL-PLANE-FACTS.
-export const HARNESS_HOOK_VERSION = '0.11.1'
+export const HARNESS_HOOK_VERSION = '1.0.0'
 
 const name = process.argv[2] ?? ''
 if (!/^[a-z][a-z-]*\.mjs$/.test(name) || name === 'launch.mjs') {

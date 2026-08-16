@@ -9,7 +9,7 @@ import process from 'node:process'
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, capHitBlockEligible, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
-export const HARNESS_HOOK_VERSION = '0.11.1'
+export const HARNESS_HOOK_VERSION = '1.0.0'
 
 const input = await readHookInput()
 const looping = input?.stop_hook_active === true
