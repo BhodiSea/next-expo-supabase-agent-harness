@@ -490,24 +490,46 @@ The instrument ASD designed to grade a *product* is the **ISM**, assessed via **
 harness already satisfies much of its *Guidelines for software development* and *Guidelines for
 database systems* — the same guidelines the Essential Eight tags `N/A` throughout. That is
 recorded here as a **disposition, not a target**, and it carries **no date** for the same reason
-the conformance map below carries none: dating it without intending to build it next is the
-commitment this file exists to prevent.
+the conformance map below carried none until 1.0.0 built it: dating it without intending to build
+it next is the commitment this file exists to prevent.
 
 ---
 
 ---
 
-## What this file deliberately does not contain
+## The conformance map — RESOLVED at 1.0.0, built whole
 
-A conformance **map** — `tools/conformance-map.json`, gates to ASVS/MASVS requirement ids with a
-claimed level. It is the artifact an enterprise buyer asks for by name, and it is the one thing
-in W5 that must not be shipped partially: a claimed level with an unmapped requirement is worse
-than no claim, and CRA's harmonised standards running late means there is no presumption of
-conformity to anchor it to either. It carries **no date** here, deliberately. When it is built it
-will be built whole, against Annex I directly rather than against a standard that has not landed.
+Through 0.11.1 this section was titled *What this file deliberately does not contain*, and the
+thing it did not contain was a conformance **map** — `tools/conformance-map.json`, gates to
+ASVS/MASVS requirement ids. It was the artifact an enterprise buyer asks for by name and the one
+thing in W5 that must not be shipped partially: a claimed level with an unmapped requirement is
+worse than no claim, and CRA's harmonised standards running late meant there was no presumption
+of conformity to anchor it to. It carried **no date** here, deliberately, with the condition
+that when built it would be built whole, against Annex I directly rather than against a
+standard that has not landed.
 
-**Section 9 is not that map arriving, and the distinction is worth keeping sharp.** 0.9.9 built
-the Essential Eight register whole, on this paragraph's own terms — all 149 rows, every one
-dispositioned, nothing partial. What it does **not** do is claim a level, because ASD's model
-does not offer one to a product. An ASVS/MASVS map would claim a level, which is exactly why it
-is the harder artifact and why it stays undated.
+**Disposition: RESOLVED at 1.0.0, on that paragraph's own terms — and with one correction.**
+`tools/conformance-map.json` ships whole: every requirement of OWASP ASVS 5.0.0, OWASP MASVS
+2.1 and CRA Annex I, text verbatim, each graded `covered | partial | not-covered |
+not-applicable` against the tree — 392 rows, nothing partial, nothing sampled. The correction is
+the ASVS count: the planning figure the 1.0.0 research pass started from was **369**, and the
+source at tag **v5.0.0 has 345** requirements across 17 chapters; the register's `expectedCounts` asserts
+345 by chapter AND by level, and its header records the wrong figure so nobody re-derives it.
+The CRA rows are mapped against Annex I directly, as this paragraph required, and carry a shelf
+life: no harmonised standard had been cited in the Official Journal as of the verified date
+(2026-08-16), tracked as the calendar row `conformance-cra-hens-citation`.
+
+**What was resolved is the MAP, not a LEVEL — and the distinction this section drew stays
+sharp.** The 0.9.9 Essential Eight register could not claim a maturity level because ASD's model
+offers none to a product; the 1.0.0 map claims no verification level for a stronger reason it
+enforces on itself: a level attaches to a verification *of an application* performed by an
+assessor, CRA conformity is a manufacturer's legal act no code tree performs, and the map's own
+gate (`tools/check-conformance-map.mjs`, third script of `docs-sync`) reds any note, negative
+proof or header line that says otherwise, through the same standards-claim judgement
+`scripts/hygiene.mjs` sweeps the shipped prose with. What the map states instead is the honest
+ledger — which live control bears on which requirement, how far it reaches (`covered` may not
+rest on documentation alone), what is left, which rows are conditional on an opt-in module (8),
+and which only the operating organisation can meet (39, enumerated rather than graded up). The
+two documents the earlier obligation described as *generatable* — the controls crosswalk and the
+threat model — are generated from it (`tools/gen-conformance-docs.mjs`) and regen-diffed by the
+same gate, so a hand edit to either is a claim nobody reviewed.

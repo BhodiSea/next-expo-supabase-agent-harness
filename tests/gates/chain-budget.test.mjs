@@ -11,10 +11,12 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  hasCommittedColdMeasurement,
   hasCommittedMeasurement,
   judgeBudget,
   judgeStopBudget,
   parseTimings,
+  recordColdMeasurement,
   recordMeasurement,
   recordStopMeasurement,
 } from '../../scripts/lib/chain-budget.mjs'
@@ -40,7 +42,10 @@ const stopUnion = stopResolution.steps.map(([n]) => n)
 const timingsFor = (overrides = {}, totalMs = 5000, notRun = 0) => ({
   totalMs,
   notRun,
-  steps: { ...Object.fromEntries(chainSteps.map((n) => [n, 100])), ...overrides },
+  steps: {
+    ...Object.fromEntries(chainSteps.map((n) => [n, 100])),
+    ...overrides,
+  },
 })
 
 test('parseTimings finds the line among real validate output', () => {
@@ -51,11 +56,19 @@ test('parseTimings finds the line among real validate output', () => {
     '  total 4211ms',
     'VALIDATE_TIMINGS {"totalMs":4211,"notRun":0,"steps":{"format":812}}',
   ].join('\n')
-  assert.deepEqual(parseTimings(out), { totalMs: 4211, notRun: 0, steps: { format: 812 } })
+  assert.deepEqual(parseTimings(out), {
+    totalMs: 4211,
+    notRun: 0,
+    steps: { format: 812 },
+  })
 })
 
 test('a missing VALIDATE_TIMINGS line is a problem, never a pass', () => {
-  const { problems } = judgeBudget({ budget, timings: parseTimings('nothing here'), chainSteps })
+  const { problems } = judgeBudget({
+    budget,
+    timings: parseTimings('nothing here'),
+    chainSteps,
+  })
   assert.equal(problems.length, 1)
   assert.match(problems[0], /A missing measurement is not a passing measurement/)
 })
@@ -86,7 +99,11 @@ test('parseTimings takes the LAST line — a nested member’s earlier line must
 })
 
 test('the shipped budget covers every shipped chain step — no unbudgeted step today', () => {
-  const { problems } = judgeBudget({ budget, timings: timingsFor(), chainSteps })
+  const { problems } = judgeBudget({
+    budget,
+    timings: timingsFor(),
+    chainSteps,
+  })
   assert.deepEqual(problems, [])
 })
 
@@ -135,9 +152,17 @@ test('a step over its class ceiling names THE STEP, not the wall', () => {
 
 test('toolchain steps get the larger ceiling — the classes are not decoration', () => {
   // 30s would red a `static` step and must not red a `toolchain` one.
-  const { problems } = judgeBudget({ budget, timings: timingsFor({ lint: 30000 }), chainSteps })
+  const { problems } = judgeBudget({
+    budget,
+    timings: timingsFor({ lint: 30000 }),
+    chainSteps,
+  })
   assert.deepEqual(problems, [])
-  const strict = judgeBudget({ budget, timings: timingsFor({ wiring: 30000 }), chainSteps })
+  const strict = judgeBudget({
+    budget,
+    timings: timingsFor({ wiring: 30000 }),
+    chainSteps,
+  })
   assert.equal(strict.problems.length, 1)
 })
 
@@ -149,10 +174,18 @@ test('a partial run is a problem — a prefix inside budget is not the chain ins
 })
 
 test('the wall warn band warns and the ceiling reds', () => {
-  const warn = judgeBudget({ budget, timings: timingsFor({}, 95000), chainSteps })
+  const warn = judgeBudget({
+    budget,
+    timings: timingsFor({}, 95000),
+    chainSteps,
+  })
   assert.deepEqual(warn.problems, [])
   assert.equal(warn.warnings.length, 1)
-  const red = judgeBudget({ budget, timings: timingsFor({}, 130000), chainSteps })
+  const red = judgeBudget({
+    budget,
+    timings: timingsFor({}, 130000),
+    chainSteps,
+  })
   assert.ok(red.problems.some((p) => /over the 120000ms ceiling/.test(p)))
 })
 
@@ -260,7 +293,10 @@ test('a measurement taken against a DIFFERENT chain no longer licenses prose (0.
 const stopTimingsFor = (overrides = {}, totalMs = 60000, notRun = 0) => ({
   totalMs,
   notRun,
-  steps: { ...Object.fromEntries(stopUnion.map((n) => [n, 100])), ...overrides },
+  steps: {
+    ...Object.fromEntries(stopUnion.map((n) => [n, 100])),
+    ...overrides,
+  },
 })
 
 test('a stop judge fed a VALIDATE-chain line reds instead of judging nothing — the incident pin', () => {
@@ -270,7 +306,11 @@ test('a stop judge fed a VALIDATE-chain line reds instead of judging nothing —
   // 27955ms "wall", and CI printed `CHAIN BUDGET (stop-chain): CLEAN (33 step(s) inside
   // ceiling)` — a stop verdict describing 33 steps. A judge handed the wrong chain's line
   // must say so, not judge nothing and call it CLEAN.
-  const { problems } = judgeStopBudget({ budget, timings: timingsFor(), unionSteps: stopUnion })
+  const { problems } = judgeStopBudget({
+    budget,
+    timings: timingsFor(),
+    unionSteps: stopUnion,
+  })
   assert.ok(
     problems.some((p) => /describes a different chain/.test(p)),
     `expected the wrong-chain refusal, got: ${JSON.stringify(problems)}`,
@@ -278,7 +318,11 @@ test('a stop judge fed a VALIDATE-chain line reds instead of judging nothing —
 })
 
 test('the mirror holds for the validate judge — a stop-chain line cannot be judged as the validate chain', () => {
-  const { problems } = judgeBudget({ budget, timings: stopTimingsFor(), chainSteps })
+  const { problems } = judgeBudget({
+    budget,
+    timings: stopTimingsFor(),
+    chainSteps,
+  })
   assert.ok(
     problems.some((p) => /describes a different chain/.test(p)),
     `expected the wrong-chain refusal, got: ${JSON.stringify(problems)}`,
@@ -298,7 +342,11 @@ test('the shipped stopSteps cover the union minus `validate` — no unbudgeted S
     unionSteps: stopUnion,
   })
   assert.deepEqual(problems, [])
-  assert.equal(budget.stopSteps.validate, undefined, 'validate must stay rowless — its cost IS the wall row')
+  assert.equal(
+    budget.stopSteps.validate,
+    undefined,
+    'validate must stay rowless — its cost IS the wall row',
+  )
   assert.equal(Object.keys(budget.stopSteps).length, stopUnion.length - 1)
 })
 
@@ -363,7 +411,10 @@ test('`validate` is exempt from stopSteps — its cost IS the wall row, and a ro
   // itself a problem, so the doctrine cannot silently rot into double-judging.
   const withRow = {
     ...budget,
-    stopSteps: { ...budget.stopSteps, validate: { ceilingMs: 1, measuredMs: null } },
+    stopSteps: {
+      ...budget.stopSteps,
+      validate: { ceilingMs: 1, measuredMs: null },
+    },
   }
   const { problems } = judgeStopBudget({
     budget: withRow,
@@ -374,17 +425,29 @@ test('`validate` is exempt from stopSteps — its cost IS the wall row, and a ro
 })
 
 test('the stopWall warn band warns and the ceiling reds', () => {
-  const warn = judgeStopBudget({ budget, timings: stopTimingsFor({}, 460000), unionSteps: stopUnion })
+  const warn = judgeStopBudget({
+    budget,
+    timings: stopTimingsFor({}, 460000),
+    unionSteps: stopUnion,
+  })
   assert.deepEqual(warn.problems, [])
   assert.equal(warn.warnings.length, 1)
-  const red = judgeStopBudget({ budget, timings: stopTimingsFor({}, 700000), unionSteps: stopUnion })
+  const red = judgeStopBudget({
+    budget,
+    timings: stopTimingsFor({}, 700000),
+    unionSteps: stopUnion,
+  })
   assert.ok(red.problems.some((p) => /over the 600000ms ceiling/.test(p)))
 })
 
 test('a partial Stop run is a problem — a prefix inside budget is not the chain inside budget', () => {
   const t = stopTimingsFor({}, 60000, 2)
   delete t.steps['reviewer-verdicts']
-  const { problems } = judgeStopBudget({ budget, timings: t, unionSteps: stopUnion })
+  const { problems } = judgeStopBudget({
+    budget,
+    timings: t,
+    unionSteps: stopUnion,
+  })
   assert.ok(problems.some((p) => /describe a prefix/.test(p)))
 })
 
@@ -408,9 +471,15 @@ test('the shipped stop measurement is REAL — every measuredMs sits under a pro
   assert.ok(budget.stopWall.measuredMs <= budget.stopWall.ceilingMs)
   for (const [name, row] of Object.entries(budget.stopSteps)) {
     assert.equal(typeof row.measuredMs, 'number', `${name} lost its measurement`)
-    assert.ok(row.measuredMs <= row.ceilingMs, `${name} committed a measuredMs over its own ceiling`)
+    assert.ok(
+      row.measuredMs <= row.ceilingMs,
+      `${name} committed a measuredMs over its own ceiling`,
+    )
   }
-  assert.ok(budget.stopMeasurement.runner.trim(), 'a stop measurement with no runner is unattributed')
+  assert.ok(
+    budget.stopMeasurement.runner.trim(),
+    'a stop measurement with no runner is unattributed',
+  )
   assert.match(budget.stopMeasurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
   assert.equal(budget.stopMeasurement.chainSteps, stopUnion.length)
   assert.equal(budget.stopMeasurement.stepsMeasured, stopUnion.length)
@@ -469,8 +538,124 @@ test('--record --stop-chain refuses to stamp outside Actions without --runner (C
     ],
     { encoding: 'utf8', env },
   )
-  assert.equal(r.status, 2, `expected the provenance refusal (exit 2), got ${String(r.status)}:\n${r.stdout}\n${r.stderr}`)
-  assert.match(r.stderr, /--record needs `--runner "<what you measured on>"` outside GitHub Actions/)
+  assert.equal(
+    r.status,
+    2,
+    `expected the provenance refusal (exit 2), got ${String(r.status)}:\n${r.stdout}\n${r.stderr}`,
+  )
+  assert.match(
+    r.stderr,
+    /--record needs `--runner "<what you measured on>"` outside GitHub Actions/,
+  )
   // And the shipped file was NOT touched on the way to the refusal.
   assert.equal(readFileSync(shippedPath, 'utf8'), shippedBefore)
+})
+
+// ---- the COLD writer (1.0.0) ----------------------------------------------------------
+test('the shipped file carries the cold surface UNRECORDED until a dispatch lands — no cold figure is licensed', () => {
+  // The state the 1.0.0 branch ships in: the writer exists, the placeholder is null, and
+  // the README may not say "cold ≈ N s". The dispatched selftest run flips this.
+  assert.equal(budget.coldWall.measuredMs, null)
+  assert.equal(budget.coldMeasurement, null)
+  assert.equal(hasCommittedColdMeasurement(budget, chainSteps), false)
+})
+
+test('recordColdMeasurement stamps coldWall + coldMeasurement with provenance, purely, and touches nothing else', () => {
+  const before = structuredClone(budget)
+  const next = recordColdMeasurement({
+    budget,
+    timings: timingsFor({}, 210000),
+    chainSteps,
+    runner: 'ubuntu-latest',
+    recordedOn: '2026-08-16',
+  })
+  assert.equal(next.coldWall.measuredMs, 210000)
+  assert.equal(next.coldMeasurement.runner, 'ubuntu-latest')
+  assert.equal(next.coldMeasurement.chainSteps, chainSteps.length)
+  assert.equal(next.coldMeasurement.stepsMeasured, chainSteps.length)
+  assert.match(next.coldMeasurement.path, /fresh clone/)
+  // PURE, and the warm + Stop surfaces are byte-untouched — the three writers compose.
+  assert.deepEqual(budget, before)
+  assert.equal(next.wall.measuredMs, budget.wall.measuredMs)
+  assert.deepEqual(next.measurement, budget.measurement)
+  assert.deepEqual(next.stopMeasurement, budget.stopMeasurement)
+  // The licence follows the count-match arithmetic, exactly like the warm one.
+  assert.equal(hasCommittedColdMeasurement(next, chainSteps), true)
+  assert.equal(hasCommittedColdMeasurement(next, [...chainSteps, 'a-new-step']), false)
+})
+
+test('recordColdMeasurement REFUSES a partial run and an unattributed one — a cold figure for a run that died at step 20 is not a cold figure', () => {
+  const partial = timingsFor({}, 9000)
+  delete partial.steps[chainSteps[chainSteps.length - 1]]
+  assert.throws(
+    () =>
+      recordColdMeasurement({
+        budget,
+        timings: partial,
+        chainSteps,
+        runner: 'ubuntu-latest',
+        recordedOn: '2026-08-16',
+      }),
+    /did not reach 1 chain step/,
+  )
+  for (const runner of [undefined, '', '   ']) {
+    assert.throws(
+      () =>
+        recordColdMeasurement({
+          budget,
+          timings: timingsFor(),
+          chainSteps,
+          runner,
+          recordedOn: '2026-08-16',
+        }),
+      /`runner` is required/,
+    )
+  }
+})
+
+test('--cold judges COVERAGE only (no ceiling), and --record --cold refuses outside Actions without --runner', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'chain-budget-cold-'))
+  const script = fileURLToPath(new URL('../../scripts/check-chain-budget.mjs', import.meta.url))
+  const env = { ...process.env }
+  delete env.GITHUB_ACTIONS
+  // A cold run whose steps ALL blow the warm ceilings is still CLEAN in cold mode: the cold
+  // path is measured, not budgeted, and this is the assertion that keeps that true.
+  const slow = timingsFor(Object.fromEntries(chainSteps.map((n) => [n, 900000])), 30000000)
+  const slowLog = join(dir, 'cold-slow.log')
+  writeFileSync(slowLog, `noise\nVALIDATE_TIMINGS ${JSON.stringify(slow)}\n`)
+  const clean = spawnSync(process.execPath, [script, slowLog, '--cold'], {
+    encoding: 'utf8',
+    env,
+  })
+  assert.equal(clean.status, 0, `${clean.stdout}\n${clean.stderr}`)
+  assert.match(clean.stdout, /CHAIN BUDGET \(cold\): CLEAN .*measured, not budgeted/)
+  // But a run that did not reach every step reds — coverage is the one thing cold holds.
+  const partial = timingsFor({}, 9000)
+  delete partial.steps[chainSteps[0]]
+  const partialLog = join(dir, 'cold-partial.log')
+  writeFileSync(partialLog, `VALIDATE_TIMINGS ${JSON.stringify(partial)}\n`)
+  const red = spawnSync(process.execPath, [script, partialLog, '--cold'], {
+    encoding: 'utf8',
+    env,
+  })
+  assert.equal(red.status, 1, `${red.stdout}\n${red.stderr}`)
+  assert.match(red.stderr, /did not reach 1 chain step/)
+  // And the provenance refusal holds for the third mode, with the shipped file untouched.
+  const shippedPath = fileURLToPath(new URL('../../scripts/chain-budget.json', import.meta.url))
+  const shippedBefore = readFileSync(shippedPath, 'utf8')
+  const okLog = join(dir, 'cold-ok.log')
+  writeFileSync(okLog, `VALIDATE_TIMINGS ${JSON.stringify(timingsFor({}, 210000))}\n`)
+  const refused = spawnSync(process.execPath, [script, okLog, '--cold', '--record'], {
+    encoding: 'utf8',
+    env,
+  })
+  assert.equal(refused.status, 2, `${refused.stdout}\n${refused.stderr}`)
+  assert.match(refused.stderr, /--record needs `--runner/)
+  assert.equal(readFileSync(shippedPath, 'utf8'), shippedBefore)
+  // --stop-chain and --cold together is a usage error, not a silent pick.
+  const both = spawnSync(process.execPath, [script, okLog, '--cold', '--stop-chain'], {
+    encoding: 'utf8',
+    env,
+  })
+  assert.equal(both.status, 2)
 })

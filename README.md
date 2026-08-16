@@ -92,7 +92,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (141 guard-rule ids: shell-command denials, write-protected harness paths,
+   (142 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -256,6 +256,25 @@ steady pressure to regrade generously to get a green build. Evidence carries ASD
 ranking, so a row backed only by a written statement is labelled `documentation` rather
 than borrowing its neighbours' credibility. The consumer-facing map is
 `docs/compliance/essential-eight.md`.
+
+The same discipline, one standard over, since 1.0.0: `tools/conformance-map.json` maps
+every requirement of OWASP ASVS 5.0.0, OWASP MASVS 2.1 and CRA Annex I — text verbatim —
+to the live control that bears on it, and the third `docs-sync` script
+(`tools/check-conformance-map.mjs`) judges the claims the same way: a named control must be
+one something runs, a `not-applicable` must carry a negative proof, every chain step is
+either mapped or carries a written reason why not, and the two documents generated from the
+map (`docs/compliance/controls-crosswalk.md`, `docs/security/threat-model.md`) must be
+byte-identical to a fresh generation. The standing, recomputed by `check-claims.mjs` as the
+whole partition: **392 mapped requirements: 11 covered, 149 partial, 105 not-covered, 127
+not-applicable — ASVS 5.0.0 (345), MASVS 2.1 (24), CRA Annex I (23).** A mapping is not a
+verification and no level is claimed: a verification level attaches to a verification *of
+an application* performed by an assessor, and CRA conformity is a manufacturer's legal act
+no code tree performs. Eight rows are conditional on an opt-in module and say so; 39 name
+what only the operating organisation can meet and are enumerated rather than graded up;
+and because no harmonised standard for the CRA had been cited in the Official Journal as of
+2026-08-16, the CRA rows carry a shelf life the calendar obligation
+`conformance-cra-hens-citation` tracks. `scripts/hygiene.mjs` sweeps the shipped prose and
+registers for the sentence that would claim otherwise.
 
 ## Install
 

@@ -86,6 +86,10 @@ const STEPS = [
   // from `not-implemented` to `effective` touches no security-relevant code and would
   // otherwise be caught only after the fact.
   ['essential-eight', ['scripts/check-essential-eight-evidence.mjs']],
+  // The conformance MAP's factory-side closure (1.0.0) — the ASVS/MASVS/CRA twin of the row
+  // above, same argument: pure-node, ~50ms, and the register is a reviewed file where a
+  // wrong edit is invisible to every other gate.
+  ['conformance-map', ['scripts/check-conformance-evidence.mjs']],
   // A template file added since the previous release that `update` would auto-plant into
   // every existing install must be registered seedOnInitOnly or reviewed as a deliberate
   // plant. Skips loudly when the previous tag is unreachable (shallow clone); red in CI —

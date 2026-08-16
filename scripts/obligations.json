@@ -87,8 +87,8 @@
 					"mustContain": "auth-posture-cli-census"
 				}
 			],
-			"reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together.",
-			"reviewedOn": "2026-08-13",
+			"reason": "The standing ask-the-CLI config census is blocked UPSTREAM, not on scheduling: no Supabase CLI subcommand parses config.toml without side effects (config push needs a project ref, functions list needs a token, status binds to whichever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). RE-CHECKED at the 0.10.0 arrival (2026-08-13) against the first real pin bump the standing rule has met — the catalog's `supabase: ^2.34.3` range now resolves to 2.114.0 (GA 2026-08-12) rather than the 2.113.0 both prior re-checks read. The CLI became a pnpm/nx monorepo and the Go CLI moved to apps/cli-go, but apps/cli-go/cmd/config.go AT TAG v2.114.0 still registers `push` alone, and supabase/cli#5894 is still open with no milestone and no linked PR. The consumer deferral entry carries the full re-check record and the standing per-arrival rule; this row is its census twin — it discharges only when the side-effect-free subcommand actually ships, by deleting both together. RE-CHECKED AT THE 1.0.0 CUT (2026-08-16), the settlement release that skips 0.12.0 entirely (every comparison is >=, so the 0.12.0 date arrives at this hop): supabase/cli#5894 is still OPEN, still no milestone, still zero comments, and its only cross-references are this harness's own PRs — the upstream condition is unmet, and npm latest is still 2.114.0, so no pin-bump clause fired. The standing rule moves the date ONE RELEASE (reworded from 'one minor' at 1.0.0: the lineage now cuts by release, and 1.1.0 is the next one) across every listed site.",
+			"reviewedOn": "2026-08-16",
 			"evidence": "https://github.com/supabase/cli/issues/5894"
 		},
 		{
@@ -122,14 +122,6 @@
 			"target": "0.12.0",
 			"reason": "The resilience closure (retry/timeout/backoff posture over the seams that call out) is the second chain step, paying the SAME priced injection inventory as suppressions-chain-step — one inventory, two steps, one chain-budget re-record after both land and before any published figure. RE-TARGETED TO 0.12.0 BY 0.11.0 ON A FACT 0.10.0 COULD NOT STATE, established by walking the seams this gate would judge: the shipped lint config (eslint.config.mjs) and the shipped documentation (docs/harness/README.md, docs/harness/gates-catalog.md) both describe an `apps/mobile/src/lib/api-client.ts` one-door and an `src/lib/sse.ts` streaming client, and NEITHER FILE EXISTS anywhere under template/. A gate whose whole subject is the posture of the outbound seams cannot be authored on top of a tree whose own configuration and prose disagree with it about which seams exist — the register would be written against files, the checker would scan a tree without them, and the closure would pass vacuously in precisely the way this repository deletes checks for. Reconciling that divergence is the prerequisite, it is a separate reviewed act from the step, and it is now the first half of this row. The 0.10.0 statement that 'the subject does not exist yet' was right in substance and understated the reason: the subject does not exist AND the tree claims it does.",
 			"reviewedOn": "2026-08-15"
-		},
-		{
-			"id": "controls-crosswalk-and-threat-model",
-			"kind": "condition",
-			"target": null,
-			"reason": "The enterprise-facing controls crosswalk + threat model is GENERATABLE — harness.config.mjs (the chain), the guard-rules tables (the hooks), and tests/canary/injections.json (the proofs) are the three machine-read inputs — but it is gated on the licensing/wholeness decision design/CONFORMANCE-FACTS.md records for the conformance map: built whole against Annex I directly, or not at all, because a claimed level with an unmapped requirement is worse than no claim.",
-			"reviewedOn": "2026-08-10",
-			"evidence": "design/CONFORMANCE-FACTS.md"
 		},
 		{
 			"id": "e2ee-passphrase-kdf-consumer-decision",
@@ -211,6 +203,20 @@
 			"reviewedOn": "2026-08-13"
 		},
 		{
+			"id": "conformance-cra-hens-citation",
+			"kind": "calendar",
+			"target": "2026-12-31",
+			"sites": [
+				{
+					"file": "template/base/tools/conformance-map.json",
+					"mustContain": "conformance-cra-hens-citation"
+				}
+			],
+			"reason": "The CRA rows of tools/conformance-map.json carry a SHELF LIFE, and this row is its clock: as of 2026-08-16 NO harmonised standard for Regulation (EU) 2024/2847 had been cited in the Official Journal — ETSI's CRA ENs (the EN 18031-series successors and the horizontal/vertical drafts under standardisation request M/606) were in approval, not cited — so every Annex I disposition in the map is written against the Regulation's own text and the register says so in its header, in the README paragraph, and in the generated crosswalk and threat model. When a harmonised standard IS cited, the map's dispositions acquire a presumption-of-conformity vocabulary they must NOT borrow before the citation exists, and its rows should be re-read against the cited EN's clause structure. Re-verify on 2026-12-31 (and at each cut before that): the OJ citation list for the CRA, the ETSI work-item status, and whether the map's CRA rows still describe the operative text. This is a re-verification date, not a deadline to build anything — a calendar row rides the clockful lane and never reds a PR.",
+			"reviewedOn": "2026-08-16",
+			"evidence": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202402847"
+		},
+		{
 			"id": "conformance-ai-act-transitional",
 			"kind": "calendar",
 			"target": "2026-12-02",
@@ -222,20 +228,6 @@
 			],
 			"reason": "EU AI Act Article 50 transparency: in force since 2026-08-02 with a 2026-12-02 transitional. The recorded disposition is a CONFIRMED NEGATIVE on the role split (Art. 50(2) binds the provider of the generative system, not the author of software written with one); this row is the dated re-verification of that negative when the transitional window closes, since the robust rationale must survive whatever guidance accretes by then.",
 			"reviewedOn": "2026-08-10"
-		},
-		{
-			"id": "conformance-map-whole-or-not-at-all",
-			"kind": "condition",
-			"target": null,
-			"sites": [
-				{
-					"file": "design/CONFORMANCE-FACTS.md",
-					"mustContain": "carries **no date** here, deliberately"
-				}
-			],
-			"reason": "tools/conformance-map.json (gates mapped to ASVS/MASVS requirement ids with a claimed level) is the artifact an enterprise buyer asks for by name and the one thing that must not ship partially: a claimed level with an unmapped requirement is worse than no claim, and with no harmonised standard cited in the OJ there is no presumption of conformity to anchor it to. Deliberately undated; built whole against Annex I directly, or not at all.",
-			"reviewedOn": "2026-08-10",
-			"evidence": "design/CONFORMANCE-FACTS.md"
 		},
 		{
 			"id": "cold-path-measurement-publication",

@@ -149,7 +149,15 @@ export const VALIDATE_STEPS = [
   // derivation (tools/lib/live-controls.mjs), and folding it in keeps the chain at 34, so
   // the committed chain-budget measurement stays count-matched and the two 0.10.0
   // chain-step obligations keep their arithmetic.
-  ['docs-sync', 'node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs'],
+  // THREE SCRIPTS since 1.0.0: check-conformance-map.mjs judges the ASVS/MASVS/CRA
+  // conformance MAP (tools/conformance-map.json) on the identical argument — a claim in a
+  // reviewed file must name a control something actually runs — and regen-diffs the two
+  // documents generated from it (docs/compliance/controls-crosswalk.md,
+  // docs/security/threat-model.md). ONE LINE, like `boundaries` above: injectConfigStep
+  // anchors on a single-line entry, so a wrapped one is a place a later injection lands inside
+  // — which is why the formatter is told to leave this entry alone rather than fold it.
+  // biome-ignore format: injectConfigStep anchors on a single-line entry, and three scripts exceed the width
+  ['docs-sync', 'node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs'],
 ]
 
 // What the Stop hook runs before a turn may end. These invoke the gate DIRECTLY —

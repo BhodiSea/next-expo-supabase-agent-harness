@@ -38,7 +38,7 @@ const STOP_DOCTRINE =
   'Stop hook runs the UNION of the local config and this floor: a step present here but ' +
   'missing from the config STILL RUNS, so deleting a turn-fatal check from the config ' +
   'buys nothing. Projects may APPEND steps to the config; they may not subtract. Living ' +
-  'under tools/ puts this file inside check-gate-integrity\'s hashed surface and the ' +
+  "under tools/ puts this file inside check-gate-integrity's hashed surface and the " +
   'write-guard table, which is how the Stop chain became tamper-evident without flipping ' +
   'harness.config.mjs from `config` to `owned`. Regenerate with ' +
   '`node scripts/generate-floor.mjs --write` in the harness repo. ' +
@@ -68,8 +68,21 @@ const FLOORS = [
 
 // Stable 2-space serialization with each [name, command] tuple on its own line
 // (matches the hand-authored snapshot; keeps diffs readable and --write idempotent).
+//
+// A tuple that would not fit the shipped biome.jsonc's lineWidth (100) is written the way
+// biome would fold it — one element per line — because these files land inside a scaffold
+// whose `format` step is `biome ci .`, and a --write that emits a line biome refuses is a
+// generator that reds every fresh install's first validate. 1.0.0's three-script docs-sync
+// entry is the first row to need it; --check compares data-to-data, so either shape passes.
+const LINE_WIDTH = 100
 function serialize(comment, steps) {
-  const rows = steps.map(([name, cmd]) => `    [${JSON.stringify(name)}, ${JSON.stringify(cmd)}]`)
+  const rows = steps.map(([name, cmd]) => {
+    const flat = `    [${JSON.stringify(name)}, ${JSON.stringify(cmd)}]`
+    // +1 for the trailing comma biome counts on every row but the last.
+    return flat.length + 1 > LINE_WIDTH
+      ? `    [\n      ${JSON.stringify(name)},\n      ${JSON.stringify(cmd)}\n    ]`
+      : flat
+  })
   return `{\n  "comment": ${JSON.stringify(comment)},\n  "steps": [\n${rows.join(',\n')}\n  ]\n}\n`
 }
 

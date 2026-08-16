@@ -951,7 +951,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.12.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 1.1.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -978,10 +978,12 @@ at 0.10.0 (2026-08-13) it fired against a REAL pin bump for the first time — l
 `--project-ref`, skip-vault-sync and stack persistence); #5894 remains open with no milestone,
 no linked PR and zero comments, so the date moved to 0.11.0. Re-checked again at the 0.11.0
 arrival (2026-08-15) against the issue itself: still open, still no milestone, still no
-linked PR, so the standing rule moved it to 0.12.0.
+linked PR, so the standing rule moved it to 0.12.0 — a release that was never cut, so the date
+arrived at the 1.0.0 cut and was re-checked there (2026-08-16): #5894 still open, still zero
+comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
-one-minor move in a reviewed diff — the discharge happens only when the side-effect-free
+one-release move in a reviewed diff — the discharge happens only when the side-effect-free
 subcommand actually ships. The third firing is the one that tested the rule's own premise: the
 re-check clause says "at every CLI pin bump", and this is the first bump it has actually met.
 
@@ -1645,7 +1647,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 36. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs`
+### 36. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -1775,6 +1777,68 @@ instance claim a control → FAIL naming the double-count; drop an `obligation` 
 a `negativeProof` → FAIL naming the row; set `[storage] enabled = true` → FAIL demanding
 the eleven macro grades be revisited; empty `requirements[]` → FAIL, because an empty
 conformance register is not a clean bill of health but a missing one.
+
+**The conformance MAP (1.0.0) — `check-conformance-map.mjs`.** The step's third script,
+folded here on the identical argument as the second: a claim in a reviewed file must name
+a control something actually runs, and it reuses the identical derivation
+(`tools/lib/live-controls.mjs`) widened by one class — a **write-guard rule id** from
+`.claude/hooks/lib/guard-rules.mjs` is a live control too, because it runs on every
+Edit/Write/Bash tool call. `tools/conformance-map.json` carries every requirement of OWASP
+**ASVS 5.0.0** (345 rows at tag v5.0.0, across 17 chapters — an earlier planning figure of
+369 was wrong and is recorded in the header so nobody re-derives it), OWASP **MASVS 2.1**
+(24 controls) and the EU Cyber Resilience Act **Annex I** (23 points), text verbatim, each
+graded `covered | partial | not-covered | not-applicable` against THIS tree.
+
+Read the register's own header before its numbers: **a mapping is not a verification and
+no level is claimed.** A verification level attaches to a verification *of an application*
+performed by an assessor; CRA conformity is a manufacturer's legal act no code tree
+performs; and no harmonised standard for the CRA had been cited in the Official Journal as
+of the register's verified date, so the CRA rows carry a shelf life. The map exists so an
+assessor starts from an honest ledger — which live control bears on which requirement, how
+far it reaches, and what is left — and so a consumer never mistakes a template for a
+verification.
+
+Five closures. **Census by count** — the total, each standard's total, ASVS by chapter AND
+by level (a row can change one without the other), MASVS by group, CRA by part; duplicate
+ids and non-verbatim texts are census defects too. **Live controls** — every `covered` or
+`partial` row names a chain step, a shipped CI job, a gate script a lane invokes, or a
+guard-rule id, and a CONDITIONAL one must say `(path-filtered)`, `(schedule-gated)` or
+`(event-gated)` (the third is the PR-only OSV diff scan, which neither of the first two
+describes honestly). Rows with `module` set are CONDITIONAL on an opt-in module — the
+marker is `docs/modules/<name>/README.md`, which every module ships — and are judged for
+liveness ONLY where the module is installed; on a tree without it they produce no finding,
+because nothing in that tree can decide them. **Row shape** — `covered` may not rest on
+the `documentation` tier; an organisation-boundary row may not be graded `covered` or
+`partial`; `not-covered` carries a note of substance; `not-applicable` carries a written
+negative proof and, above the documentation tier, a `negativeCanary`; a row that claims
+nothing names no control, canary or proof. **Unmapped controls** — every step of
+`VALIDATE_STEPS` ∪ `STOP_HOOK_STEPS` is either named as some row's control or keyed in
+`unmappedControls` with a written reason, never both and never neither, so a control the
+map forgot cannot hide. **Regen-diff** — `docs/compliance/controls-crosswalk.md` and
+`docs/security/threat-model.md` are generated from the register, the chain and the
+guard-rule tables by `tools/gen-conformance-docs.mjs`, and this script runs it in
+`--check` mode so a hand-edit to either reds. And through all of it, the **claim-sentence
+ban**: no note, negativeProof or header line may carry an affirmative ASVS/MASVS/CRA
+standing claim (`tools/lib/standards-claim.mjs`, the judgement `scripts/hygiene.mjs` sweeps
+the shipped prose with).
+
+What it deliberately does NOT do is red on `not-covered`. Those rows are honestly unbuilt
+or the consumer's to build and say what would be needed; redding on them would create
+steady pressure to grade generously to get green. What reds is a MALFORMED or INFLATED
+claim. The canary half — every claim names a registered can-fail proof for its OWN control,
+resolved against `steps ∪ lanes ∪ hookRules` — is judged factory-side by
+`scripts/check-conformance-evidence.mjs`, because `tests/canary/injections.json` never
+ships to an install.
+
+**Anti-vacuity:** delete a row → FAIL naming the count on every axis it moved; grade a
+`covered` row at the documentation tier → FAIL; point a row at a control nothing runs →
+FAIL naming it; strip a conditional lane's marker → FAIL; name a module `tools/modules.json`
+does not list → FAIL; empty a `negativeProof` → FAIL; give a `not-covered` row a control →
+FAIL; drop a chain step from both the rows and `unmappedControls` → FAIL naming the step;
+write "is ASVS Level 2 compliant" into a note → FAIL quoting it; hand-edit either generated
+document → FAIL naming the drifted file; empty `requirements[]` → FAIL, because an empty
+conformance map is not a clean bill of health but a missing one
+(`tests/gates/check-conformance-map.test.mjs`).
 
 ### the validate runner — serial by default, pooled under `--report-all`
 

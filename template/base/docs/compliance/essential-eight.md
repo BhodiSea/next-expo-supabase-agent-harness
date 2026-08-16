@@ -10,6 +10,14 @@ printed by the gate rather than written here on purpose: a number in prose is a 
 that can drift away from the file it describes, and this document would be the easiest
 place to start over-claiming.
 
+The same discipline governs the tree's other conformance register, one standard over:
+`tools/conformance-map.json` maps every requirement of OWASP ASVS 5.0.0, OWASP MASVS 2.1
+and CRA Annex I to the live control that bears on it, judged by the third `docs-sync`
+script (`node tools/check-conformance-map.mjs`), and generates
+`docs/compliance/controls-crosswalk.md` (control → requirements, per standard) and
+`docs/security/threat-model.md` (what the guards refuse, what the map leaves). It claims no
+verification level for the same reason this document claims no maturity level.
+
 ---
 
 ## What this map does not claim

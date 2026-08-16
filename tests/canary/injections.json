@@ -332,6 +332,11 @@
         "note": "0.11.0, and it closes a REGISTRY HOLE rather than adding a proof: the essential-eight half of docs-sync had no registered red-proof at all — this fixture was registered only under factoryGates{check-essential-eight-evidence.mjs}, so the CONSUMER-side closures it covers were proven by a file the step registry never named. It is also the proof the 24 not-applicable rows above the documentation floor now cite as their `negativeCanary`: negativeProofProblems reds when [storage] is ENABLED, when the setting is merely ABSENT (an unset value is not a proof), and when an upload surface appears on EITHER the web or the mobile half. Those four death tests are what makes 'the asset class is absent' a checked claim instead of a written one."
       },
       {
+        "kind": "fixture",
+        "ref": "tests/gates/check-conformance-map.test.mjs",
+        "note": "1.0.0: the docs-sync step's THIRD script — the ASVS/MASVS/CRA conformance MAP's consumer-side closures, registered here from the day the script shipped rather than after a registry-hole audit found the gap (the 0.11.0 lesson one entry up). Proven red against the SHIPPED 392-row register on the real tree: a deleted row reds the census naming the count (per standard, per ASVS chapter AND per ASVS level, per MASVS group, per CRA part — two axes because a row can change one without the other); a covered row at documentation tier reds; a control nothing runs reds; a CONDITIONAL control without its (path-filtered)/(schedule-gated)/(event-gated) marker reds; a module row naming an unknown module reds while an UNINSTALLED module row is skipped for liveness with no finding (the e2ee and eas-update rows are conditional on a tree that has the module); not-applicable without a negativeProof reds; not-covered carrying a control reds; an organisation-boundary row graded covered reds; the unmappedControls partition reds when a chain step is neither named nor listed AND when a listed step is also a control; a claim-shaped sentence in a note or the header reds through the shipped standards-claim judgement; and the two GENERATED documents are asserted byte-identical to a fresh generation, which is the regen-diff this script runs in --check mode. The factory half (canaryProblems against steps ∪ lanes ∪ hookRules, the own-control arm keyed through the guard-rule → hook map) is registered under factoryGates{check-conformance-evidence.mjs}."
+      },
+      {
         "kind": "selftest",
         "ref": "Canary 13: remove a numbered gates-catalog section → docs-sync must FAIL"
       }
@@ -799,6 +804,13 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-complexity-ratchet.test.mjs"
+      }
+    ],
+    "check-conformance-evidence.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-conformance-map.test.mjs",
+        "note": "1.0.0: the conformance MAP's factory-side death-tests — the ASVS/MASVS/CRA twin of check-essential-eight-evidence.mjs, and like it a gate family whose subject is a CLAIM rather than a control, so the injections are the regrade attempts. Covered here: a covered/partial row naming an UNREGISTERED canary reds; a simulated-activity row with no canary reds (the top tier is the hardest claim to make); a row citing another gate's real proof reds through the own-control arm — including the guard-rule case, where the proof is keyed by the HOOK that runs the rule (hookRules{}), so a weak-crypto-algorithm row must cite pretool-write-guard.mjs and nothing else; a non-claiming row carrying a canary reds; an above-floor not-applicable row without a registered negativeCanary reds; a module row may leave canary null (CONDITIONAL — its control's proof ships with the module and the registry keys only what the base tree runs) but a base row may not; and every shipped positive claim resolves against the real steps ∪ lanes ∪ hookRules registry with the subject-set size PINNED so a regrade sweep cannot pass it vacuously. The script's own anti-vacuity — three registries each non-empty, a non-empty register, a non-empty guard-rule map — is what stands between a truncated file and a green machinery block."
       }
     ],
     "check-corpus-fidelity.mjs": [

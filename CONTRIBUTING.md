@@ -87,6 +87,7 @@ node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry pop
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
 node scripts/check-obligations.mjs         # the obligations register: release rows clockless; census + ramp unions closed (--clockful is the hygiene schedule's)
 node scripts/check-essential-eight-evidence.mjs  # the E8 register's factory-side closures: simulated-activity claims name a registered can-fail proof; not-implemented rows name a real obligations row
+node scripts/check-conformance-evidence.mjs      # the ASVS/MASVS/CRA map's factory-side closure: every covered/partial row names a registered can-fail proof for its OWN control (steps ∪ lanes ∪ hookRules); above-floor not-applicable rows name a registered negativeCanary
 node scripts/check-ci-preconditions.mjs    # the shipped CI's entry path stays satisfiable; actions SHA-pinned
 node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
 node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe

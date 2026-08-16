@@ -14,6 +14,14 @@
 //   asked to hold the Stop chain must never hold a weakened one. `--record --stop-chain`
 //   stamps stopSteps/stopWall measuredMs the same reviewed-dispatch way as below.
 //
+// --cold (1.0.0): the FIRST validate of a fresh clone — bootstrap-linux's `--min-floor` CI
+//   run, teed to cold-validate.log. The cold path is MEASURED, not budgeted: no ceilings are
+//   judged (see recordColdMeasurement's header for why), only coverage — every chain step
+//   must appear in the timings — and `--record --cold` stamps coldWall/coldMeasurement the
+//   same reviewed-dispatch way. It exists because the README could publish a warm and a
+//   Stop figure but had to say "the cold path is unmeasured" for lack of exactly this writer
+//   (the obligations row cold-path-measurement-publication).
+//
 // FACTORY-SIDE ONLY. It is not a chain step and never will be: a consumer's hardware is
 // not the harness's runner, and scripts/check-claims.mjs:12 already carries the honest
 // version of this — "wall-clock timings are hardware-dependent, so no gate can assert
@@ -26,6 +34,7 @@ import {
   judgeBudget,
   judgeStopBudget,
   parseTimings,
+  recordColdMeasurement,
   recordMeasurement,
   recordStopMeasurement,
 } from './lib/chain-budget.mjs'
@@ -41,7 +50,16 @@ const { STOP_HOOK_STEPS, VALIDATE_STEPS } = await import(
 )
 
 const stopMode = process.argv.includes('--stop-chain')
-const label = stopMode ? 'CHAIN BUDGET (stop-chain)' : 'CHAIN BUDGET'
+const coldMode = process.argv.includes('--cold')
+if (stopMode && coldMode) {
+  console.error('check-chain-budget: --stop-chain and --cold name different chains; pick one')
+  process.exit(2)
+}
+const label = stopMode
+  ? 'CHAIN BUDGET (stop-chain)'
+  : coldMode
+    ? 'CHAIN BUDGET (cold)'
+    : 'CHAIN BUDGET'
 
 // A FILE PATH, deliberately not stdin. A synchronous read of fd 0 raises EAGAIN on macOS
 // whenever the writer has not finished, which would make this check flaky in exactly the
@@ -50,7 +68,7 @@ const label = stopMode ? 'CHAIN BUDGET (stop-chain)' : 'CHAIN BUDGET'
 const logPath = process.argv[2]
 if (logPath === undefined || logPath.startsWith('--')) {
   console.error(
-    'usage: node scripts/check-chain-budget.mjs <log-path> [--stop-chain] [--record [--runner "<desc>"]]\n  validate log:   node tools/validate.mjs --report-all | tee validate.log\n  stop-chain log: node tools/validate.mjs --stop-chain --report-all | tee stop-chain.log',
+    'usage: node scripts/check-chain-budget.mjs <log-path> [--stop-chain | --cold] [--record [--runner "<desc>"]]\n  validate log:   node tools/validate.mjs --report-all | tee validate.log\n  stop-chain log: node tools/validate.mjs --stop-chain --report-all | tee stop-chain.log\n  cold log:       env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor | tee cold-validate.log  (fresh clone, cold caches)',
   )
   process.exit(2)
 }
@@ -78,9 +96,34 @@ async function resolveChainSteps() {
 const chainSteps = await resolveChainSteps()
 
 const timings = parseTimings(stdout)
+// Cold mode judges COVERAGE only — the cold path carries no ceilings by design (a first-clone
+// figure is dominated by installs the chain does not own), so the only defect it can have is
+// a run that did not reach every step, and recordColdMeasurement refuses that one itself.
+const judgeCold = () => {
+  if (timings === null) {
+    return {
+      problems: [
+        'no VALIDATE_TIMINGS line in the cold validate output — tools/validate.mjs emits it unconditionally as its last line, so its absence means the cold run died before the summary. A missing measurement is not a cold measurement.',
+      ],
+      warnings: [],
+    }
+  }
+  const missing = chainSteps.filter((s) => !(s in (timings.steps ?? {})))
+  return {
+    problems:
+      missing.length === 0
+        ? []
+        : [
+            `the cold run did not reach ${String(missing.length)} chain step(s): ${missing.join(', ')}`,
+          ],
+    warnings: [],
+  }
+}
 const { problems, warnings } = stopMode
   ? judgeStopBudget({ budget, timings, unionSteps: chainSteps })
-  : judgeBudget({ budget, timings, chainSteps })
+  : coldMode
+    ? judgeCold()
+    : judgeBudget({ budget, timings, chainSteps })
 
 for (const w of warnings) console.log(`::warning::${label}: ${w}`)
 
@@ -128,16 +171,40 @@ if (process.argv.includes('--record')) {
   }
   const recordedOn = new Date().toISOString().slice(0, 10)
   const next = stopMode
-    ? recordStopMeasurement({ budget, timings, unionSteps: chainSteps, runner, recordedOn })
-    : recordMeasurement({ budget, timings, chainSteps, runner, recordedOn })
+    ? recordStopMeasurement({
+        budget,
+        timings,
+        unionSteps: chainSteps,
+        runner,
+        recordedOn,
+      })
+    : coldMode
+      ? recordColdMeasurement({
+          budget,
+          timings,
+          chainSteps,
+          runner,
+          recordedOn,
+        })
+      : recordMeasurement({ budget, timings, chainSteps, runner, recordedOn })
   writeFileSync(HERE('./chain-budget.json'), `${JSON.stringify(next, null, 2)}\n`)
-  const count = stopMode ? next.stopMeasurement.chainSteps : next.measurement.chainSteps
+  const count = stopMode
+    ? next.stopMeasurement.chainSteps
+    : coldMode
+      ? next.coldMeasurement.chainSteps
+      : next.measurement.chainSteps
   console.log(
     `${label}: RECORDED wall ${String(timings.totalMs)}ms over ${String(count)} step(s) on ${runner}. Commit scripts/chain-budget.json — the figure may be published only after that lands.`,
   )
 }
 
-const wallCeiling = stopMode ? budget.stopWall.ceilingMs : budget.wall.ceilingMs
-console.log(
-  `${label}: CLEAN (${String(Object.keys(timings.steps).length)} step(s) inside ceiling, wall ${String(timings.totalMs)}ms of ${String(wallCeiling)}ms)`,
-)
+if (coldMode) {
+  console.log(
+    `${label}: CLEAN (${String(Object.keys(timings.steps).length)} step(s) reached, wall ${String(timings.totalMs)}ms — the cold path is measured, not budgeted: no ceiling applies)`,
+  )
+} else {
+  const wallCeiling = stopMode ? budget.stopWall.ceilingMs : budget.wall.ceilingMs
+  console.log(
+    `${label}: CLEAN (${String(Object.keys(timings.steps).length)} step(s) inside ceiling, wall ${String(timings.totalMs)}ms of ${String(wallCeiling)}ms)`,
+  )
+}

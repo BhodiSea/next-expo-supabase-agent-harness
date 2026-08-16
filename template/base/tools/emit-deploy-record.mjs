@@ -14,9 +14,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path'
 import process from 'node:process'
 import { deployManifestProblems } from './lib/deploy-record.mjs'
-import { fail, ok } from './lib/gate.mjs'
 import { parseLockVersions } from './lib/framework-floor.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
+import { fail, ok } from './lib/gate.mjs'
 
 const GATE = 'deploy-record'
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex')

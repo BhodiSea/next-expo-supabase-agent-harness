@@ -836,7 +836,8 @@ At 0.11.0 they stop being advisory.
 
 ### What this release OPENS, recorded beside what it closes
 
-**The web account-deletion surface (gate: `data-flow`), advisory until 0.12.0.** The
+**The web account-deletion surface (gate: `data-flow`), advisory until 0.12.0 — which
+was never cut, so it arrives at 1.0.0 (every comparison is `>=`).** The
 `delete-account` Edge Function and the mobile command that calls it have shipped since
 0.7.0; `tools/data-flow.json` now carries an `erase` record whose `clients` closure names
 BOTH initiators, so the rule that holds export to a delivered surface holds erase to one
@@ -864,7 +865,8 @@ above every escape this release touches, and you meet nothing. This section is f
 install crossing 0.11.0 on its way to 0.11.1 or later.
 
 **One expiry is withdrawn.** `tools/eol.json`'s uuid acceptance — item 1 of the 0.11.0 list
-above — is a dated **NOTE** on 0.11.1, not a hard red, and it now falls due at 0.12.0. So
+above — is a dated **NOTE** on 0.11.1, not a hard red, and it now falls due at 0.12.0 (a
+release that was never cut: it arrives at 1.0.0). So
 you meet **four** expiring sites crossing this hop rather than five: `docs-sync` twice,
 `web-e2e` and `rate-limits`. Items 2 through 5 above are unchanged and still hard.
 
@@ -879,7 +881,8 @@ deadline of yours had been reached — and the upgrade lane refused the release 
 
 **You still owe the row.** Re-affirm the uuid acceptance and move `removalTarget` to a
 release you actually mean, recording what you re-checked in the diff. The deadline is 0.12.0
-and it will not move again: `check-eol-target` now reds any harness PR that would ship an
+— met at 1.0.0, since 0.12.0 was never cut — and the HARNESS will not move it in your file
+again (its own copy moved to 1.1.0 on fresh evidence, which reaches fresh scaffolds only): `check-eol-target` now reds any harness PR that would ship an
 arrived target, so the harness cannot re-author this date into your seeded file a fourth
 time.
 

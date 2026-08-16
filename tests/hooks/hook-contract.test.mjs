@@ -13,7 +13,15 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { before, test } from 'node:test'
@@ -45,8 +53,8 @@ before(() => {
  * HARNESS_ALLOW_SELF_EDIT=1 is the documented human escape hatch: every write rule honours
  * it and returns no deny. It is also how you work ON this repository — editing the
  * enforcement surface requires it exported — so a maintainer running the suite had it set,
- * and `{ ...process.env }` handed it to all 141 deny cases. They did not fail; they
- * PASSED THROUGH, asserting nothing, and the suite reported 141 reds that read as
+ * and `{ ...process.env }` handed it to all 142 deny cases. They did not fail; they
+ * PASSED THROUGH, asserting nothing, and the suite reported 142 reds that read as
  * environmental noise. Worse than either: it checks LESS locally than in CI, so the first
  * honest run is the one on the PR.
  *
@@ -528,6 +536,15 @@ const RULE_CANARIES = {
     pathDeny('tools/essential-eight.json'),
     pathAllow('docs/compliance/essential-eight.md'),
   ],
+  // 1.0.0: the ASVS/MASVS/CRA conformance map, the E8 register's twin one standard over
+  // and the file an enterprise buyer asks for by name — so the regrade pressure is the
+  // strongest in this block. The .md allow-cases keep the rule scoped to the register: the
+  // two GENERATED documents are regen-diffed by the gate, never hand-protected.
+  'conformance-map-register': [
+    pathDeny('tools/conformance-map.json'),
+    pathAllow('docs/compliance/controls-crosswalk.md'),
+    pathAllow('docs/security/threat-model.md'),
+  ],
   // 0.5.0, tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
   // CREATING this file is the widening, because it exempts a (file, rule) pair from the
   // append-only migration rule.
@@ -664,7 +681,10 @@ const RULE_CANARIES = {
   ],
   'renovate-config': [pathDeny('renovate.json'), pathAllow('docs/renovate-policy.md')],
   'stryker-config': [pathDeny('stryker.config.mjs'), pathAllow('apps/web/next.config.ts')],
-  'commitlint-config': [pathDeny('commitlint.config.mjs'), pathAllow('apps/web/postcss.config.mjs')],
+  'commitlint-config': [
+    pathDeny('commitlint.config.mjs'),
+    pathAllow('apps/web/postcss.config.mjs'),
+  ],
   'tools-ci': [
     pathDeny('tools/ci/device-lane.sh'),
     pathDeny('tools/ci/perf-lane.sh'),
@@ -762,10 +782,7 @@ const RULE_CANARIES = {
     contentAllow('apps/mobile/src/config.ts', 'const url = process.env.EXPO_PUBLIC_API_URL\n'),
   ],
   'weak-crypto-algorithm': [
-    contentDeny(
-      'apps/web/lib/legacy.ts',
-      "const c = createCipher('aes-256-cbc', pass)\n",
-    ),
+    contentDeny('apps/web/lib/legacy.ts', "const c = createCipher('aes-256-cbc', pass)\n"),
     contentDeny('packages/platform/crypto/src/bad.ts', "const alg = 'aes-256-ecb'\n"),
     contentDeny('apps/web/lib/hash.ts', "const h = createHash('md5')\n"),
     // Algorithm-ARGUMENT position only: prose, an identifier, and a column named
@@ -799,7 +816,10 @@ const RULE_CANARIES = {
     // Ordinary randomness is untouched — the rule keys on the key-shaped
     // ASSIGNMENT, not on Math.random itself.
     contentAllow('apps/web/lib/retry.ts', 'const jitterMs = Math.random() * 100\n'),
-    contentAllow('apps/mobile/src/features/x.ts', 'const pick = items[Math.floor(Math.random() * n)]\n'),
+    contentAllow(
+      'apps/mobile/src/features/x.ts',
+      'const pick = items[Math.floor(Math.random() * n)]\n',
+    ),
   ],
   'next-public-secret-name': [
     // NEXT_PUBLIC_ vars are inlined into the shipped WEB bundle at build time.
@@ -846,10 +866,13 @@ const RULE_CANARIES = {
       'packages/platform/supabase/src/pool.ts',
       "await sql`SET statement_timeout = '30s'`\n",
     ),
-    contentDeny('packages/platform/supabase/src/pool.ts', 'await sql`SET SESSION lock_timeout TO 0`\n'),
+    contentDeny(
+      'packages/platform/supabase/src/pool.ts',
+      'await sql`SET SESSION lock_timeout TO 0`\n',
+    ),
     contentDeny(
       'supabase/functions/report/index.ts',
-      "await client.query(\"SET idle_in_transaction_session_timeout = '10min'\")\n",
+      'await client.query("SET idle_in_transaction_session_timeout = \'10min\'")\n',
     ),
     // The safe spelling: reverted at transaction end, so the pooled backend goes
     // back to the reviewed per-role ceiling before the next tenant gets it.
@@ -871,7 +894,10 @@ const RULE_CANARIES = {
     ),
   ],
   'pg-advisory-session-lock': [
-    contentDeny('packages/platform/supabase/src/lock.ts', 'await sql`select pg_advisory_lock(${key})`\n'),
+    contentDeny(
+      'packages/platform/supabase/src/lock.ts',
+      'await sql`select pg_advisory_lock(${key})`\n',
+    ),
     contentDeny(
       'packages/platform/supabase/src/lock.ts',
       'await sql`select pg_advisory_unlock(${key})`\n',
@@ -888,7 +914,10 @@ const RULE_CANARIES = {
     ),
   ],
   'pg-prepared-statement': [
-    contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url, { max: 5 })\n'),
+    contentDeny(
+      'packages/platform/supabase/src/driver.ts',
+      'const sql = postgres(url, { max: 5 })\n',
+    ),
     contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url)\n'),
     contentAllow(
       'packages/platform/supabase/src/driver.ts',
@@ -967,7 +996,7 @@ const RULE_CANARIES = {
     // A non-empty search_path is still caller-influenced — only '' is pinned.
     contentDeny(
       'supabase/migrations/20260301000000_oops.sql',
-      "CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT 1 $$;\n",
+      'CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT 1 $$;\n',
     ),
     contentAllow(
       'supabase/migrations/20260301000000_fine.sql',
@@ -1508,7 +1537,10 @@ test('write-guard: an exempt-LOOKING link name cannot smuggle content into a che
     tool_name: 'Write',
     tool_input: { file_path: 'sneaky.test.ts', content: "import { sql } from 'postgres'\n" },
   })
-  assert.ok(denied(r), 'an exempt name must not buy an exemption for bytes landing in the mobile bundle')
+  assert.ok(
+    denied(r),
+    'an exempt name must not buy an exemption for bytes landing in the mobile bundle',
+  )
 })
 
 test('write-guard: a link out of the project tree is DENIED (path-scoped guards cannot see it)', (t) => {
@@ -1544,7 +1576,7 @@ test('write-guard: an ordinary file is still approved (the resolver must not ove
 // inherit the parent environment wholesale. HARNESS_ALLOW_SELF_EDIT=1 is the documented
 // human escape hatch that makes every write rule return no deny — and it is also how you
 // work ON this repository, since editing the enforcement surface requires it exported. So a
-// maintainer's own session silently disarmed 141 assertions: they did not detect a broken
+// maintainer's own session silently disarmed 142 assertions: they did not detect a broken
 // guard, they stopped asking. The suite checked LESS locally than in CI, which is the exact
 // shape of the porosity scripts/ci/upgrade-lane.sh unsets script-wide for.
 //
@@ -1623,7 +1655,11 @@ test('subagent-verdict REFUSAL: malformed stdin exits EXACTLY 2 via the installe
   // route Fact 12's torn-hook matrix leaves (a LOAD failure exits 1, fail-open).
   const dir = verdictFixture()
   const r = runHook('subagent-verdict.mjs', 'not-json{{', { cwd: dir })
-  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
   assert.match(r.stderr, /failing closed, action blocked/)
 })
 
@@ -1632,11 +1668,18 @@ test('subagent-verdict REFUSAL: a non-object payload exits EXACTLY 2 in-hook and
   // branch — the one that records into the shared turn ledger before blocking.
   const dir = verdictFixture()
   const r = runHook('subagent-verdict.mjs', 'null', { cwd: dir })
-  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
   assert.match(r.stderr, /fails CLOSED/)
   const [block] = verdictBlocks(dir)
   assert.equal(block.kind, 'block')
-  assert.ok(block.gates.includes('subagent-verdict/unparseable-payload'), JSON.stringify(block.gates))
+  assert.ok(
+    block.gates.includes('subagent-verdict/unparseable-payload'),
+    JSON.stringify(block.gates),
+  )
 })
 
 test('subagent-verdict REFUSAL: a reviewer ending without a verdict exits EXACTLY 2 and records the block', () => {
@@ -1646,7 +1689,11 @@ test('subagent-verdict REFUSAL: a reviewer ending without a verdict exits EXACTL
     verdictPayload({ last_assistant_message: 'looks broadly fine to me' }),
     { cwd: dir },
   )
-  assert.equal(r.code, 2, `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`)
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
   assert.match(r.stderr, /ended without a verdict/)
   assert.match(r.stderr, /VERDICT: PASS/)
   const [block] = verdictBlocks(dir)

@@ -1,293 +1,307 @@
 {
-  "comment": [
-    "The validate chain's cost, as data. FACTORY-SIDE ONLY — this file lives in scripts/ and",
-    "NO consumer gate reads it. That placement is the whole design: perf-baseline.json's own",
-    "header justifies its ratchet by saying 'Bytes are hardware-independent, so this check is",
-    "deterministic everywhere, agent time included'. Milliseconds are not. Shipping a",
-    "wall-clock ceiling into template/base/tools/ would put a machine-dependent verdict in a",
-    "consumer's turn, on hardware the harness has never seen.",
-    "",
-    "These are the harness's own GitHub-hosted runner's numbers and they are NOT portable.",
-    "",
-    "It replaces two inline shell literals in .github/workflows/selftest.yml ('-gt 120' with a",
-    "'-gt 90' warning). Those were not data, not versioned, not per-step, and not visible to",
-    "scripts/check-claims.mjs — so a chain that got slower produced an unattributed wall-clock",
-    "failure naming no step.",
-    "",
-    "ceilingMs is a CHOSEN policy value and may ship. measuredMs is a MEASUREMENT and may not",
-    "be invented: it stays null until a real selftest run records one in a reviewed commit.",
-    "Until then check-claims.mjs refuses any wall-clock figure in README.md, which is why that",
-    "file still carries none. Measure, commit the measurement, then publish — in that order.",
-    "",
-    "0.6.0 BUILT THE WRITER THE PARAGRAPH ABOVE ASSUMED. Until then nothing could record a",
-    "measurement at all: check-chain-budget.mjs judged the numbers against ceilings and threw",
-    "them away, so step one of that ordering had no implementation and measuredMs has been null",
-    "since this file was introduced. It is now `node scripts/check-chain-budget.mjs <log>",
-    "--record`, which stamps a `measurement` block alongside — recordedOn, the RUNNER it came",
-    "from, and the chain step COUNT. The runner string is required rather than inferred, because",
-    "a number with no provenance is worse than null: it licenses a published figure no CI run can",
-    "reproduce. The step count is what stops a figure measured against a 31-step chain from going",
-    "on licensing prose after the chain reached 33 — hasCommittedMeasurement compares it to the",
-    "live chain, which is arithmetic over two committed values and therefore clockless.",
-    "",
-    "And the ordering is enforced now, not merely prescribed: check-claims.mjs imports",
-    "hasCommittedMeasurement and reds on any wall-clock figure in README.md or the latest",
-    "CHANGELOG entry while this file carries none. That sentence was here before the control was.",
-    "",
-    "THE FIRST MEASUREMENT LANDED 2026-08-09, from selftest run 31307386944 (the post-0.7.0",
-    "reviewed dispatch). The validate half is the CI artifact verbatim. The stop half was",
-    "re-derived from the same run's log AFTER review rejected the artifact's: the first-match",
-    "timings parser had stamped stopWall from the nested validate member's line — 33 validate",
-    "step names, zero stop rows matched — and the stop judge passed it vacuously. Both defects",
-    "are pinned in tests/gates/chain-budget.test.mjs; recording from a downloaded CI log with",
-    "an explicit --runner is the blessed path check-chain-budget.mjs's own header describes."
-  ],
-  "wall": {
-    "ceilingMs": 120000,
-    "warnMs": 90000,
-    "measuredMs": 24337
-  },
-  "defaults": {
-    "comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
-    "staticCeilingMs": 5000,
-    "toolchainCeilingMs": 60000
-  },
-  "steps": {
-    "format": {
-      "class": "toolchain",
-      "measuredMs": 2820
-    },
-    "gate-integrity": {
-      "class": "static",
-      "measuredMs": 309
-    },
-    "wiring": {
-      "class": "static",
-      "measuredMs": 44
-    },
-    "secrets": {
-      "class": "static",
-      "measuredMs": 101
-    },
-    "types": {
-      "class": "toolchain",
-      "measuredMs": 5733
-    },
-    "lint": {
-      "class": "toolchain",
-      "measuredMs": 2063
-    },
-    "suppressions": {
-      "class": "static",
-      "measuredMs": null
-    },
-    "provenance": {
-      "class": "static",
-      "measuredMs": 107
-    },
-    "boundaries": {
-      "class": "static",
-      "measuredMs": 88
-    },
-    "resilience": {
-      "class": "static",
-      "measuredMs": null
-    },
-    "observability": {
-      "class": "static",
-      "measuredMs": 90
-    },
-    "expo-policy": {
-      "class": "static",
-      "measuredMs": 51
-    },
-    "native-deps": {
-      "class": "toolchain",
-      "measuredMs": 48
-    },
-    "version-sync": {
-      "class": "static",
-      "measuredMs": 42
-    },
-    "prompts": {
-      "class": "static",
-      "measuredMs": 45
-    },
-    "licenses": {
-      "class": "toolchain",
-      "measuredMs": 43
-    },
-    "schema-rls": {
-      "class": "static",
-      "measuredMs": 82
-    },
-    "tenancy": {
-      "class": "static",
-      "measuredMs": 45
-    },
-    "auth-posture": {
-      "class": "static",
-      "measuredMs": 59
-    },
-    "data-flow": {
-      "class": "static",
-      "measuredMs": 71
-    },
-    "types-drift": {
-      "class": "static",
-      "measuredMs": 1492
-    },
-    "migrations": {
-      "class": "static",
-      "measuredMs": 62
-    },
-    "db-limits": {
-      "class": "static",
-      "measuredMs": 118
-    },
-    "contracts": {
-      "class": "toolchain",
-      "measuredMs": 2534
-    },
-    "query-shapes": {
-      "class": "static",
-      "measuredMs": 44
-    },
-    "rate-limits": {
-      "class": "toolchain",
-      "measuredMs": 42
-    },
-    "parity": {
-      "class": "static",
-      "measuredMs": 40
-    },
-    "dead-code": {
-      "class": "toolchain",
-      "measuredMs": 2480
-    },
-    "architecture": {
-      "class": "toolchain",
-      "measuredMs": 1885
-    },
-    "build": {
-      "class": "toolchain",
-      "measuredMs": 48
-    },
-    "styleguide": {
-      "class": "toolchain",
-      "measuredMs": 699
-    },
-    "perf-budget": {
-      "class": "static",
-      "measuredMs": 2806
-    },
-    "route-manifest": {
-      "class": "static",
-      "measuredMs": 80
-    },
-    "security-headers": {
-      "class": "toolchain",
-      "measuredMs": 41
-    },
-    "e2e": {
-      "class": "toolchain",
-      "measuredMs": 43
-    },
-    "docs-sync": {
-      "class": "static",
-      "measuredMs": 77
-    }
-  },
-  "stopComment": [
-    "0.7.0 (W7): the STOP chain's cost, same doctrine as everything above. Nine rows — the",
-    "floor∪config Stop union minus `validate`, whose cost IS the `wall` row above (a",
-    "stopSteps row naming it is itself a red, so the same number is never judged twice).",
-    "The subject is the VALIDATE_TIMINGS line a `node tools/validate.mjs --stop-chain",
-    "--report-all` run emits — the emitter is shared — captured by the bootstrap-linux",
-    "selftest job with the Supabase stack live and stamps warm (the turn-end latency an",
-    "agent actually waits through, not the fail-closed CI shape) and judged by",
-    "`node scripts/check-chain-budget.mjs <log> --stop-chain`. The row closure covers the",
-    "union, so a future injected Stop step forces a budget row exactly like a validate",
-    "step does today; a stale row reds the same way.",
-    "",
-    "Ceilings are CHOSEN policy, per step, with NO class defaults: nine members whose",
-    "natures differ too much for two classes to be honest. The two coverage-instrumented",
-    "unit suites dominate turn latency — jest-expo's RN transform pipeline is the",
-    "documented slow tail, vitest next — and rls-isolation pays live database round-trips",
-    "(db reset + pgTAP + the SDK cross-tenant suite). The five static scans get tight",
-    "ceilings on purpose: a static Stop step that needs more than a handful of seconds has",
-    "stopped being the cheap half of its control, and 'a Stop gate that takes a minute is",
-    "a Stop gate people disable'. stopWall is the whole chain wall-to-wall INCLUDING the",
-    "nested validate member, ceiling 10 min with the warn band at 75% like the wall above.",
-    "",
-    "Every measuredMs SHIPPED NULL until 2026-08-09 for the same reason wall.measuredMs did:",
-    "a measurement may not be invented. `--record --stop-chain` (workflow_dispatch only, same",
-    "reviewed-dispatch path as the validate recording step) stamps them from a real run — the",
-    "committed numbers are run 31307386944's, re-derived post-review (see the header's last",
-    "paragraph for why the artifact's own stop half did not survive it)."
-  ],
-  "stopWall": {
-    "ceilingMs": 600000,
-    "warnMs": 450000,
-    "measuredMs": 50531
-  },
-  "stopSteps": {
-    "rls-isolation": {
-      "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
-      "ceilingMs": 90000,
-      "measuredMs": 6735
-    },
-    "unit": {
-      "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
-      "ceilingMs": 180000,
-      "measuredMs": 6819
-    },
-    "mobile-unit": {
-      "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
-      "ceilingMs": 240000,
-      "measuredMs": 9336
-    },
-    "diff-coverage": {
-      "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
-      "ceilingMs": 10000,
-      "measuredMs": 69
-    },
-    "duplication": {
-      "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
-      "ceilingMs": 15000,
-      "measuredMs": 282
-    },
-    "i18n": {
-      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
-      "ceilingMs": 10000,
-      "measuredMs": 92
-    },
-    "test-quality": {
-      "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
-      "ceilingMs": 10000,
-      "measuredMs": 78
-    },
-    "mobile-perf": {
-      "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
-      "ceilingMs": 5000,
-      "measuredMs": 42
-    },
-    "reviewer-verdicts": {
-      "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
-      "ceilingMs": 5000,
-      "measuredMs": 61
-    }
-  },
-  "measurement": {
-    "recordedOn": "2026-08-09",
-    "runner": "Linux/X64 (selftest)",
-    "chainSteps": 34,
-    "stepsMeasured": 34
-  },
-  "stopMeasurement": {
-    "recordedOn": "2026-08-09",
-    "runner": "Linux/X64 (selftest)",
-    "chainSteps": 10,
-    "stepsMeasured": 10
-  }
+	"comment": [
+		"The validate chain's cost, as data. FACTORY-SIDE ONLY — this file lives in scripts/ and",
+		"NO consumer gate reads it. That placement is the whole design: perf-baseline.json's own",
+		"header justifies its ratchet by saying 'Bytes are hardware-independent, so this check is",
+		"deterministic everywhere, agent time included'. Milliseconds are not. Shipping a",
+		"wall-clock ceiling into template/base/tools/ would put a machine-dependent verdict in a",
+		"consumer's turn, on hardware the harness has never seen.",
+		"",
+		"These are the harness's own GitHub-hosted runner's numbers and they are NOT portable.",
+		"",
+		"It replaces two inline shell literals in .github/workflows/selftest.yml ('-gt 120' with a",
+		"'-gt 90' warning). Those were not data, not versioned, not per-step, and not visible to",
+		"scripts/check-claims.mjs — so a chain that got slower produced an unattributed wall-clock",
+		"failure naming no step.",
+		"",
+		"ceilingMs is a CHOSEN policy value and may ship. measuredMs is a MEASUREMENT and may not",
+		"be invented: it stays null until a real selftest run records one in a reviewed commit.",
+		"Until then check-claims.mjs refuses any wall-clock figure in README.md, which is why that",
+		"file still carries none. Measure, commit the measurement, then publish — in that order.",
+		"",
+		"0.6.0 BUILT THE WRITER THE PARAGRAPH ABOVE ASSUMED. Until then nothing could record a",
+		"measurement at all: check-chain-budget.mjs judged the numbers against ceilings and threw",
+		"them away, so step one of that ordering had no implementation and measuredMs has been null",
+		"since this file was introduced. It is now `node scripts/check-chain-budget.mjs <log>",
+		"--record`, which stamps a `measurement` block alongside — recordedOn, the RUNNER it came",
+		"from, and the chain step COUNT. The runner string is required rather than inferred, because",
+		"a number with no provenance is worse than null: it licenses a published figure no CI run can",
+		"reproduce. The step count is what stops a figure measured against a 31-step chain from going",
+		"on licensing prose after the chain reached 33 — hasCommittedMeasurement compares it to the",
+		"live chain, which is arithmetic over two committed values and therefore clockless.",
+		"",
+		"And the ordering is enforced now, not merely prescribed: check-claims.mjs imports",
+		"hasCommittedMeasurement and reds on any wall-clock figure in README.md or the latest",
+		"CHANGELOG entry while this file carries none. That sentence was here before the control was.",
+		"",
+		"THE FIRST MEASUREMENT LANDED 2026-08-09, from selftest run 31307386944 (the post-0.7.0",
+		"reviewed dispatch). The validate half is the CI artifact verbatim. The stop half was",
+		"re-derived from the same run's log AFTER review rejected the artifact's: the first-match",
+		"timings parser had stamped stopWall from the nested validate member's line — 33 validate",
+		"step names, zero stop rows matched — and the stop judge passed it vacuously. Both defects",
+		"are pinned in tests/gates/chain-budget.test.mjs; recording from a downloaded CI log with",
+		"an explicit --runner is the blessed path check-chain-budget.mjs's own header describes."
+	],
+	"wall": {
+		"ceilingMs": 120000,
+		"warnMs": 90000,
+		"measuredMs": 24337
+	},
+	"defaults": {
+		"comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
+		"staticCeilingMs": 5000,
+		"toolchainCeilingMs": 60000
+	},
+	"steps": {
+		"format": {
+			"class": "toolchain",
+			"measuredMs": 2820
+		},
+		"gate-integrity": {
+			"class": "static",
+			"measuredMs": 309
+		},
+		"wiring": {
+			"class": "static",
+			"measuredMs": 44
+		},
+		"secrets": {
+			"class": "static",
+			"measuredMs": 101
+		},
+		"types": {
+			"class": "toolchain",
+			"measuredMs": 5733
+		},
+		"lint": {
+			"class": "toolchain",
+			"measuredMs": 2063
+		},
+		"suppressions": {
+			"class": "static",
+			"measuredMs": null
+		},
+		"provenance": {
+			"class": "static",
+			"measuredMs": 107
+		},
+		"boundaries": {
+			"class": "static",
+			"measuredMs": 88
+		},
+		"resilience": {
+			"class": "static",
+			"measuredMs": null
+		},
+		"observability": {
+			"class": "static",
+			"measuredMs": 90
+		},
+		"expo-policy": {
+			"class": "static",
+			"measuredMs": 51
+		},
+		"native-deps": {
+			"class": "toolchain",
+			"measuredMs": 48
+		},
+		"version-sync": {
+			"class": "static",
+			"measuredMs": 42
+		},
+		"prompts": {
+			"class": "static",
+			"measuredMs": 45
+		},
+		"licenses": {
+			"class": "toolchain",
+			"measuredMs": 43
+		},
+		"schema-rls": {
+			"class": "static",
+			"measuredMs": 82
+		},
+		"tenancy": {
+			"class": "static",
+			"measuredMs": 45
+		},
+		"auth-posture": {
+			"class": "static",
+			"measuredMs": 59
+		},
+		"data-flow": {
+			"class": "static",
+			"measuredMs": 71
+		},
+		"types-drift": {
+			"class": "static",
+			"measuredMs": 1492
+		},
+		"migrations": {
+			"class": "static",
+			"measuredMs": 62
+		},
+		"db-limits": {
+			"class": "static",
+			"measuredMs": 118
+		},
+		"contracts": {
+			"class": "toolchain",
+			"measuredMs": 2534
+		},
+		"query-shapes": {
+			"class": "static",
+			"measuredMs": 44
+		},
+		"rate-limits": {
+			"class": "toolchain",
+			"measuredMs": 42
+		},
+		"parity": {
+			"class": "static",
+			"measuredMs": 40
+		},
+		"dead-code": {
+			"class": "toolchain",
+			"measuredMs": 2480
+		},
+		"architecture": {
+			"class": "toolchain",
+			"measuredMs": 1885
+		},
+		"build": {
+			"class": "toolchain",
+			"measuredMs": 48
+		},
+		"styleguide": {
+			"class": "toolchain",
+			"measuredMs": 699
+		},
+		"perf-budget": {
+			"class": "static",
+			"measuredMs": 2806
+		},
+		"route-manifest": {
+			"class": "static",
+			"measuredMs": 80
+		},
+		"security-headers": {
+			"class": "toolchain",
+			"measuredMs": 41
+		},
+		"e2e": {
+			"class": "toolchain",
+			"measuredMs": 43
+		},
+		"docs-sync": {
+			"class": "static",
+			"measuredMs": 77
+		}
+	},
+	"stopComment": [
+		"0.7.0 (W7): the STOP chain's cost, same doctrine as everything above. Nine rows — the",
+		"floor∪config Stop union minus `validate`, whose cost IS the `wall` row above (a",
+		"stopSteps row naming it is itself a red, so the same number is never judged twice).",
+		"The subject is the VALIDATE_TIMINGS line a `node tools/validate.mjs --stop-chain",
+		"--report-all` run emits — the emitter is shared — captured by the bootstrap-linux",
+		"selftest job with the Supabase stack live and stamps warm (the turn-end latency an",
+		"agent actually waits through, not the fail-closed CI shape) and judged by",
+		"`node scripts/check-chain-budget.mjs <log> --stop-chain`. The row closure covers the",
+		"union, so a future injected Stop step forces a budget row exactly like a validate",
+		"step does today; a stale row reds the same way.",
+		"",
+		"Ceilings are CHOSEN policy, per step, with NO class defaults: nine members whose",
+		"natures differ too much for two classes to be honest. The two coverage-instrumented",
+		"unit suites dominate turn latency — jest-expo's RN transform pipeline is the",
+		"documented slow tail, vitest next — and rls-isolation pays live database round-trips",
+		"(db reset + pgTAP + the SDK cross-tenant suite). The five static scans get tight",
+		"ceilings on purpose: a static Stop step that needs more than a handful of seconds has",
+		"stopped being the cheap half of its control, and 'a Stop gate that takes a minute is",
+		"a Stop gate people disable'. stopWall is the whole chain wall-to-wall INCLUDING the",
+		"nested validate member, ceiling 10 min with the warn band at 75% like the wall above.",
+		"",
+		"Every measuredMs SHIPPED NULL until 2026-08-09 for the same reason wall.measuredMs did:",
+		"a measurement may not be invented. `--record --stop-chain` (workflow_dispatch only, same",
+		"reviewed-dispatch path as the validate recording step) stamps them from a real run — the",
+		"committed numbers are run 31307386944's, re-derived post-review (see the header's last",
+		"paragraph for why the artifact's own stop half did not survive it)."
+	],
+	"stopWall": {
+		"ceilingMs": 600000,
+		"warnMs": 450000,
+		"measuredMs": 50531
+	},
+	"stopSteps": {
+		"rls-isolation": {
+			"comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
+			"ceilingMs": 90000,
+			"measuredMs": 6735
+		},
+		"unit": {
+			"comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
+			"ceilingMs": 180000,
+			"measuredMs": 6819
+		},
+		"mobile-unit": {
+			"comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
+			"ceilingMs": 240000,
+			"measuredMs": 9336
+		},
+		"diff-coverage": {
+			"comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
+			"ceilingMs": 10000,
+			"measuredMs": 69
+		},
+		"duplication": {
+			"comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
+			"ceilingMs": 15000,
+			"measuredMs": 282
+		},
+		"i18n": {
+			"comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
+			"ceilingMs": 10000,
+			"measuredMs": 92
+		},
+		"test-quality": {
+			"comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
+			"ceilingMs": 10000,
+			"measuredMs": 78
+		},
+		"mobile-perf": {
+			"comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
+			"ceilingMs": 5000,
+			"measuredMs": 42
+		},
+		"reviewer-verdicts": {
+			"comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
+			"ceilingMs": 5000,
+			"measuredMs": 61
+		}
+	},
+	"measurement": {
+		"recordedOn": "2026-08-09",
+		"runner": "Linux/X64 (selftest)",
+		"chainSteps": 34,
+		"stepsMeasured": 34
+	},
+	"stopMeasurement": {
+		"recordedOn": "2026-08-09",
+		"runner": "Linux/X64 (selftest)",
+		"chainSteps": 10,
+		"stepsMeasured": 10
+	},
+	"coldComment": [
+		"The COLD path (1.0.0): the first validate of a fresh clone with cold caches — bootstrap-linux's",
+		"`--min-floor` CI run, teed to cold-validate.log. MEASURED, NEVER BUDGETED: there is no coldSteps",
+		"table and no ceiling, because a first-clone figure is dominated by installs and toolchain",
+		"resolution the chain does not own, and a ceiling there would red on the registry's afternoon",
+		"rather than on the chain. `--record --cold` stamps coldWall.measuredMs + coldMeasurement on the",
+		"same reviewed-dispatch path as the other two; hasCommittedColdMeasurement is what licenses a",
+		"published cold figure, count-matched to the live chain like the warm one. Until a dispatch",
+		"records one, coldWall.measuredMs is null and check-claims refuses any 'cold ≈ N s' figure."
+	],
+	"coldWall": {
+		"measuredMs": null
+	},
+	"coldMeasurement": null
 }

@@ -15,7 +15,9 @@ import process from 'node:process'
 
 // With a repo-root argument it judges THAT tree instead — the seam its red-proof
 // (tests/gates/check-release-lockstep.test.mjs) uses to present a skewed mini-tree.
-const root = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('..', import.meta.url))
+const root = process.argv[2]
+  ? resolve(process.argv[2])
+  : fileURLToPath(new URL('..', import.meta.url))
 const problems = []
 
 const pkgVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
@@ -52,8 +54,25 @@ if (!citation.includes(`version: ${pkgVersion}`)) {
   problems.push(`CITATION.cff carries no "version: ${pkgVersion}"`)
 }
 const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8')
-if (!new RegExp(`^## \\[${pkgVersion.replaceAll('.', '\\.')}\\]`, 'm').test(changelog)) {
+const heading = new RegExp(
+  `^## \\[${pkgVersion.replaceAll('.', '\\.')}\\](?:\\s*[—-]\\s*(\\d{4}-\\d{2}-\\d{2}))?`,
+  'm',
+).exec(changelog)
+if (heading === null) {
   problems.push(`CHANGELOG.md has no "## [${pkgVersion}]" section`)
+}
+// The DATE rides the lockstep too (1.0.0): CITATION.cff's date-released and the CHANGELOG
+// heading's date describe the same event, and until now nothing compared them — the
+// version was held in lockstep while the date beside it could drift by a day or a release
+// unnoticed. A version that lines up while the date drifts is stale metadata wearing a
+// fresh number, and a citation is exactly the artefact somebody copies without re-checking.
+const released = /^date-released:\s*'?(\d{4}-\d{2}-\d{2})'?/m.exec(citation)?.[1]
+if (released === undefined) {
+  problems.push('CITATION.cff carries no date-released')
+} else if (heading?.[1] !== undefined && heading[1] !== released) {
+  problems.push(
+    `CITATION.cff date-released ${released} != CHANGELOG.md "## [${pkgVersion}] — ${heading[1]}" — one release, one date`,
+  )
 }
 
 if (problems.length > 0) {

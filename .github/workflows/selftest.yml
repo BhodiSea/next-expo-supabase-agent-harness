@@ -765,7 +765,10 @@ jobs:
         # empty string never reaches the child (proven — the step env printed empty
         # while the gate still resolved `origin/main`). The canary job unsets it this
         # way per gate; this is the same rule for the whole chain.
-        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor
+        # TEED (1.0.0): this IS the cold path — a fresh clone, cold caches, the first
+        # validate of an install — and until now nothing kept its log, so the README had
+        # to say "the cold path is unmeasured". The record step below reads it on dispatch.
+        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor | tee cold-validate.log
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
         env:
@@ -939,6 +942,11 @@ jobs:
       - name: Record the Stop-chain measurement (workflow_dispatch only — same reviewed-dispatch path)
         if: github.event_name == 'workflow_dispatch' && matrix.node == 22
         run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --record --stop-chain
+      # The COLD half (1.0.0) rides the same path and the same artifact: THE GATE's own
+      # `--min-floor` log, teed above. Measured, never budgeted — see recordColdMeasurement.
+      - name: Record the cold-path measurement (workflow_dispatch only — the first validate of a fresh clone)
+        if: github.event_name == 'workflow_dispatch' && matrix.node == 22
+        run: node scripts/check-chain-budget.mjs .selftest/boot/cold-validate.log --record --cold
       - name: Upload the recorded chain budget for review
         if: github.event_name == 'workflow_dispatch' && matrix.node == 22
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

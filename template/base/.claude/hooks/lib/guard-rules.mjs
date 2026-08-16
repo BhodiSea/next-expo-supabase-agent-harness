@@ -452,6 +452,13 @@ export const WRITE_PROTECTED = [
   // security-relevant code — the cheapest possible way to fake conformance. Regrading is
   // a CODEOWNERS-reviewed act that lands in a PR diff where somebody can see it.
   { id: 'essential-eight-register', re: /^tools\/essential-eight\.json$/ },
+  // The ASVS/MASVS/CRA conformance MAP the `docs-sync` step's third script judges (1.0.0).
+  // Same class as the row above and the same hazard, one standard over: regrading a
+  // `not-covered` row to `covered`, or a `partial` to `covered`, turns an honest gap into a
+  // claim without touching a line of security-relevant code — and this is the register an
+  // enterprise buyer asks for by name, so the pressure to widen a grade is the strongest of
+  // any file in this block. Regrading is a CODEOWNERS-reviewed act that lands in a PR diff.
+  { id: 'conformance-map-register', re: /^tools\/conformance-map\.json$/ },
   // The applied-history acknowledgement (0.4.0), tolerated-absent. CREATING it is the
   // widening — it converts a hard `migrations` red into an exemption for a (file, rule)
   // pair — so it is exactly the class this block exists for, and it shipped without a

@@ -192,6 +192,13 @@ jobs:
       # strictly worse than an unowned one). The consumer-side closures ride docs-sync.
       - name: machinery-essential-eight (the conformance register's evidence closures)
         run: node scripts/check-essential-eight-evidence.mjs
+      # The ASVS/MASVS/CRA conformance MAP's factory-side closure (1.0.0), for the identical
+      # reason: every covered/partial row must name a registered can-fail proof for its OWN
+      # control — resolved against steps ∪ lanes ∪ hookRules, the third registry because a
+      # write-guard rule's proof is keyed by the hook that runs it — and every above-floor
+      # not-applicable row a registered negativeCanary. The consumer-side closures ride docs-sync.
+      - name: machinery-conformance-map (the conformance map's evidence closure)
+        run: node scripts/check-conformance-evidence.mjs
       # The shipped CI's entry path stays satisfiable (0.9.0): every `pnpm install` in a
       # shipped workflow spells its lockfile posture, setup-node's `cache: pnpm` demand is
       # backed by init's committed-lockfile next-steps note (the cross-file half), and every
