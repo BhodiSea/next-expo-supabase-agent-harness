@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   AAD_ROLE_DEK,
+  AAD_ROLE_DEVICE_SYNC,
   AAD_ROLE_ITEM,
+  AAD_ROLE_RECIPIENT_WRAP,
+  AAD_ROLE_RECOVERY,
   ALG_AES_256_GCM,
   buildAad,
+  buildAadBytes,
   decodeEnvelope,
   ENVELOPE_VERSION,
   encodeEnvelope,
@@ -12,6 +16,10 @@ import {
 // The decoder is the package's one input boundary for stored bytes — every
 // refusal below is a DISTINCT named reason, because "malformed" and "from the
 // future" call for different remedies (fix the data vs upgrade the client).
+
+// Declared locally: the package sets `types: []` so platform globals stay out
+// of the shared graph — see the note in envelope.ts.
+declare const TextEncoder: new () => { encode(input: string): Uint8Array }
 
 const iv = new Uint8Array(12).fill(7)
 const ct = new Uint8Array(20).fill(9) // >= 16: room for the notional tag
@@ -100,5 +108,44 @@ describe('buildAad', () => {
         ',',
       )
     expect(aad('\uD800')).toBe(aad('\uFFFD'))
+  })
+})
+
+describe('buildAadBytes', () => {
+  it('emits the same version | alg | role prefix as the string builder', () => {
+    const aad = buildAadBytes(AAD_ROLE_RECOVERY, [])
+    expect([...aad]).toEqual([ENVELOPE_VERSION, ALG_AES_256_GCM, AAD_ROLE_RECOVERY])
+  })
+
+  it('separates fields by LENGTH \u2014 a boundary shift changes the bytes', () => {
+    // The injectivity argument for byte fields, at its sharpest: the same six
+    // bytes split 2/4 and 4/2 must not collide, because a curve point's own
+    // content must never be mistaken for a field boundary.
+    const bytes = Uint8Array.of(1, 2, 3, 4, 5, 6)
+    const a = buildAadBytes(AAD_ROLE_RECIPIENT_WRAP, [bytes.slice(0, 2), bytes.slice(2)])
+    const b = buildAadBytes(AAD_ROLE_RECIPIENT_WRAP, [bytes.slice(0, 4), bytes.slice(4)])
+    expect([...a]).not.toEqual([...b])
+  })
+
+  it('all five roles are pairwise distinct over identical field bytes', () => {
+    // The string builder's four encoded fields fed through the byte builder
+    // reproduce its output past the prefix, so the five AADs below differ in
+    // exactly one byte \u2014 the role. Asserted pairwise, because the role byte is
+    // the ONLY thing standing between a blob and every other slot when key and
+    // fields align (recipient-wrap.test.ts proves the end-to-end half).
+    const enc = new TextEncoder()
+    const fields = [enc.encode('u1'), enc.encode('notes'), enc.encode('n1'), enc.encode('body')]
+    const aads = [
+      buildAad(AAD_ROLE_ITEM, { userId: 'u1', table: 'notes', itemId: 'n1', field: 'body' }),
+      buildAad(AAD_ROLE_DEK, { userId: 'u1', table: 'notes', itemId: 'n1', field: 'body' }),
+      buildAadBytes(AAD_ROLE_RECIPIENT_WRAP, fields),
+      buildAadBytes(AAD_ROLE_RECOVERY, fields),
+      buildAadBytes(AAD_ROLE_DEVICE_SYNC, fields),
+    ]
+    for (let a = 0; a < aads.length; a += 1) {
+      for (let b = a + 1; b < aads.length; b += 1) {
+        expect([...(aads.at(a) ?? [])]).not.toEqual([...(aads.at(b) ?? [])])
+      }
+    }
   })
 })

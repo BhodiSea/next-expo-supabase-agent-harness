@@ -284,7 +284,12 @@ test('an ABSENT baseline self-disables locally (adoption) and FAILS CLOSED in CI
 // scoper never selects (dead nightly coverage) or scopes files the config refuses to
 // mutate (a PR lane that silently skips). This pins the two encodings extensionally equal
 // over a corpus that exercises every rule and carve-out class in the module.
-import { isCritical, MUTATE_GLOBS } from '../../template/base/tools/lib/mutation-critical.mjs'
+import {
+  extraGlobs,
+  extraRootProblems,
+  isCritical,
+  MUTATE_GLOBS,
+} from '../../template/base/tools/lib/mutation-critical.mjs'
 
 /** Minimal glob→RegExp for the dialect MUTATE_GLOBS uses: `**` crosses segments (zero or
  *  more), `*` does not. Mirrors minimatch's globstar semantics for these patterns. */
@@ -346,4 +351,67 @@ test('MUTATE_GLOBS and isCritical agree on every rule and carve-out class (drift
       `${path}: isCritical=${String(isCritical(path))} but MUTATE_GLOBS say ${String(mutatedByGlobs(path))} — the two encodings of the critical surface have drifted (tools/lib/mutation-critical.mjs)`,
     )
   }
+})
+
+// ── the additive half (1.0.0): tools/mutation-scope-extra.json ─────────────────────────
+// The same two-encodings pin, applied to the extras: extraGlobs (handed to Stryker) and
+// isCritical's extraRoots parameter (handed to the scoper) must agree file-by-file, and
+// the union may only ever WIDEN the floor's answer.
+
+test('extras: the glob and predicate encodings agree, and the union only widens', () => {
+  const extras = [
+    { root: 'packages/billing/src/', why: 'x'.repeat(40) },
+    { root: 'packages/verticals/*/scripts/', why: 'x'.repeat(40) },
+  ]
+  const extraMatched = (path) =>
+    extraGlobs(extras).some((g) => globRe(g).test(path)) &&
+    !MUTATE_GLOBS.filter((g) => g.startsWith('!')).some((g) => globRe(g.slice(1)).test(path))
+  const corpus = [
+    'packages/billing/src/invoice.ts', // in an extra root
+    'packages/billing/src/invoice.test.ts', // test exclusion still applies
+    'packages/billing/src/types.d.ts', // decl exclusion still applies
+    'packages/billing/README.md', // not a .ts file
+    'packages/verticals/notes/scripts/gen.ts', // the starred extra root
+    'packages/other/src/thing.ts', // outside floor and extras
+  ]
+  for (const path of corpus) {
+    assert.equal(
+      isCritical(path, extras),
+      isCritical(path) || extraMatched(path),
+      `${path}: the extras' predicate and glob encodings have drifted`,
+    )
+    // union semantics: extras can never turn a floor-critical file OFF
+    if (isCritical(path)) assert.equal(isCritical(path, extras), true, path)
+  }
+  // and a floor carve-out stays carved out even under a covering extra root
+  const coveringApi = [{ root: 'packages/api/src/', why: 'x'.repeat(40) }]
+  assert.equal(
+    isCritical('packages/api/src/index.ts', coveringApi),
+    false,
+    'an extra root cannot resurrect a floor carve-out — the floor rules run first',
+  )
+})
+
+test('extras: the register shape fails loud in every malformed direction', () => {
+  assert.equal(extraRootProblems({ roots: [] }).length, 0, 'the shipped empty register is clean')
+  assert.equal(
+    extraRootProblems({
+      roots: [{ root: 'packages/billing/src/', why: 'the billing engine computes charges; a silent break here bills wrong' }],
+    }).length,
+    0,
+  )
+  assert.ok(extraRootProblems(null).length > 0, 'null doc')
+  assert.ok(extraRootProblems({}).length > 0, 'no roots array')
+  assert.ok(
+    extraRootProblems({ roots: [{ root: 'packages/billing/src', why: 'x'.repeat(40) }] }).length > 0,
+    'a root without the trailing slash is not a directory prefix',
+  )
+  assert.ok(
+    extraRootProblems({ roots: [{ root: '!packages/billing/src/', why: 'x'.repeat(40) }] }).length > 0,
+    'a negation cannot ride the additive half — union semantics are the contract',
+  )
+  assert.ok(
+    extraRootProblems({ roots: [{ root: 'packages/billing/src/', why: 'meh' }] }).length > 0,
+    'a thin why fails — an unreasoned surface is noise waiting to be deleted',
+  )
 })

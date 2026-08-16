@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { walkFiles } from '../installer/lib/fs-walk.mjs'
 import { maturityClaims } from './lib/maturity-claim.mjs'
+import { inStandardsClaimSurface, standardsClaims } from './lib/standards-claim.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const TEMPLATE = join(ROOT, 'template')
@@ -123,10 +124,12 @@ if (existsSync(registryPath)) {
     for (const m of text.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)) used.add(m[1])
   }
   for (const v of used) {
-    if (!registered.has(v)) failures.push(`template uses {{${v}}} but it is not in the placeholder registry`)
+    if (!registered.has(v))
+      failures.push(`template uses {{${v}}} but it is not in the placeholder registry`)
   }
   for (const v of registered) {
-    if (!used.has(v)) failures.push(`placeholder registry declares ${v} but no template file uses it`)
+    if (!used.has(v))
+      failures.push(`placeholder registry declares ${v} but no template file uses it`)
   }
 }
 
@@ -171,7 +174,8 @@ const DETERMINISM_ROOTS = [
 ]
 const READDIR = /\breaddir(?:Sync)?\s*\(/
 // The identifier a listing is bound to, so a sort a few statements later can be found.
-const BOUND_TO = /(?:^|[^\w$])([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:[\w$.]*\.)?readdir(?:Sync)?\s*\(/
+const BOUND_TO =
+  /(?:^|[^\w$])([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:[\w$.]*\.)?readdir(?:Sync)?\s*\(/
 let listingsChecked = 0
 for (const root of DETERMINISM_ROOTS) {
   const abs = join(ROOT, root)
@@ -197,7 +201,10 @@ for (const root of DETERMINISM_ROOTS) {
       if (/\.length\b/.test(line)) continue
       // deferred: the bound identifier is sorted shortly afterwards.
       const bound = BOUND_TO.exec(line)?.[1]
-      if (bound !== undefined && new RegExp(`\\b${bound}\\s*\\.\\s*sort\\s*\\(`).test(lines.slice(i, i + 10).join('\n'))) {
+      if (
+        bound !== undefined &&
+        new RegExp(`\\b${bound}\\s*\\.\\s*sort\\s*\\(`).test(lines.slice(i, i + 10).join('\n'))
+      ) {
         continue
       }
       failures.push(
@@ -290,10 +297,47 @@ const repoFiles = listing.split('\u0000').filter(Boolean).sort()
 // prose happens to be worded, which is a poor thing for a proof to depend on.
 const CLAIM_SWEEP_EXEMPT = new Map([
   ['scripts/lib/maturity-claim.mjs', 'the rule itself — it spells the claim shapes it denies'],
-  ['tests/gates/hygiene.test.mjs', 'the red-proof — it plants the claim and asserts this sweep bites'],
+  [
+    'tests/gates/hygiene.test.mjs',
+    'the red-proof — it plants the claim and asserts this sweep bites',
+  ],
+])
+
+// ---------------------------------------------------------------------------
+// 6. No unearned ASVS / MASVS / CRA standing claim (1.0.0) — same loop, scoped surface.
+// ---------------------------------------------------------------------------
+// The conformance map shipped in 1.0.0 grades every requirement of OWASP ASVS 5.0.0, OWASP
+// MASVS 2.1 and CRA Annex I against what the tree runs. What it must never become is the
+// sentence a reader would carry into a procurement conversation — "ASVS L2-compliant",
+// "MASVS-certified", "CRA-compliant" — because that sentence is wrong in the direction that
+// sells: a verification level attaches to a verification OF AN APPLICATION performed by an
+// assessor, and CRA conformity is a manufacturer's legal act no code tree performs. The
+// judgement is the SHIPPED one (template/base/tools/lib/standards-claim.mjs, re-exported by
+// scripts/lib/standards-claim.mjs) — the consumer gate applies the identical ban to the
+// register's own prose on every validate, so the factory and an install cannot disagree
+// about one sentence.
+//
+// Scope is NARROWER than the maturity sweep above, and deliberately: the root README and
+// CHANGELOG, every shipped markdown page under template/, and the shipped tools/*.json
+// registers — the places a standing claim would naturally land. Design notes and machinery
+// comments quote the sentence in order to reject it, which the negation window handles for
+// prose but a scoped surface handles for free. The exemptions are the maturity sweep's plus
+// the two files that spell the shapes: the shipped judgement (a rule may not contain the
+// thing it bans) and its red-proof (a proof that may not plant the violation proves nothing).
+const STANDARDS_CLAIM_EXEMPT = new Map([
+  ...CLAIM_SWEEP_EXEMPT,
+  [
+    'template/base/tools/lib/standards-claim.mjs',
+    'the rule itself — it spells the claim shapes it denies',
+  ],
+  [
+    'tests/gates/standards-claim.test.mjs',
+    'the red-proof — it plants the claim and asserts the judgement bites',
+  ],
 ])
 
 let textFilesScanned = 0
+let standardsSurfaceScanned = 0
 for (const relPath of repoFiles) {
   if (BINARY_EXT.test(relPath)) continue
   // `--cached` lists a path deleted from the working tree but still in the index; a file
@@ -304,10 +348,19 @@ for (const relPath of repoFiles) {
   const at = buf.indexOf(0)
   if (at === -1) {
     if (CLAIM_SWEEP_EXEMPT.has(relPath)) continue
-    for (const { line, claim } of maturityClaims(buf.toString('utf8'))) {
+    const text = buf.toString('utf8')
+    for (const { line, claim } of maturityClaims(text)) {
       failures.push(
         `${relPath}:${String(line)} claims "${claim}". Nothing this repository generates holds an Essential Eight maturity level: maturity attaches to an organisation's SYSTEM, ASD certifies no products, and a repo-scoped reading of the model yields Maturity Level ZERO, not Three (template/base/docs/compliance/essential-eight.md sets out why, with sources). Say the true thing instead — this project produces machine-checkable evidence for the portions of an ML3 assessment a codebase can carry, and hands the rest to the operator.`,
       )
+    }
+    if (inStandardsClaimSurface(relPath) && !STANDARDS_CLAIM_EXEMPT.has(relPath)) {
+      standardsSurfaceScanned += 1
+      for (const { line, claim } of standardsClaims(text)) {
+        failures.push(
+          `${relPath}:${String(line)} claims "${claim}". Nothing this repository generates IS ASVS Level 1, 2 or 3, MASVS-verified, or CRA-conformant: a verification level attaches to a verification OF AN APPLICATION performed by an assessor, and CRA conformity is a manufacturer's legal act no code tree performs (template/base/tools/conformance-map.json's header sets out why). Say the true thing instead — which live control bears on which requirement, how far it reaches, and what is left; docs/compliance/controls-crosswalk.md is that statement.`,
+        )
+      }
     }
     continue
   }
@@ -329,6 +382,15 @@ if (textFilesScanned === 0) {
   console.error('HYGIENE: FAIL — the NUL sweep scanned 0 files, so its green means nothing')
   process.exit(1)
 }
+// Same anti-vacuity for the scoped sweep: the surface predicate could drift to match
+// nothing (a renamed template dir, a moved README) and the sweep would report clean over
+// zero files. The register alone puts the floor above zero, so zero is always a defect.
+if (standardsSurfaceScanned === 0) {
+  console.error(
+    'HYGIENE: FAIL — the ASVS/MASVS/CRA claim sweep reached 0 files, so its green means nothing (README.md, template/**/*.md and template/base/tools/*.json are its surface)',
+  )
+  process.exit(1)
+}
 console.log(
-  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes and of unearned maturity claims)`,
+  `HYGIENE: CLEAN (${String(listingsChecked)} directory listing(s) sorted; ${String(textFilesScanned)} text file(s) free of NUL bytes and of unearned maturity claims; ${String(standardsSurfaceScanned)} shipped/prose file(s) free of ASVS/MASVS/CRA standing claims)`,
 )

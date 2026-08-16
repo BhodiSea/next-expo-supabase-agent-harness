@@ -1,16 +1,11 @@
 {
-  "comment": "The Supabase auth posture as reviewed policy. tools/check-auth-posture.mjs parses supabase/config.toml and diffs the [auth*] tree against this file BY VALUE and IN BOTH DIRECTIONS: a value changed in config without a reviewed diff reds, and a key present in config that is absent here reds too. The second direction is the one that earns the gate. The Supabase CLI parses config.toml LENIENTLY — an unknown key under [auth] produces no error and no warning, verified against 2.111.0 — so `enable_refresh_token_rotaton = true` (one letter short) reads to a reviewer as protection while GoTrue runs its default. A config file that can silently claim a posture it does not have is exactly the shape of control this release exists to eliminate. Widening anything here is a CODEOWNERS-reviewed act. On an INSTALL this file is harness-owned and sha-pinned by check-gate-integrity.mjs — a local edit reds as tampering and `update` parks the incoming version rather than adopt yours; the consumer-tunable posture split is a recorded harness obligation, and until it ships a deliberate posture change is a harness-release act, not a local edit.",
+  "comment": "The Supabase auth posture as reviewed policy — SPLIT SINCE 1.0.0 into the harness FLOOR (this file: owned, sha-pinned by check-gate-integrity.mjs, refreshed by `update`) and the consumer TUNABLES (tools/auth-tunables.json: seeded, write-guard-protected, the project's own reviewed values inside bounds THIS file declares). tools/check-auth-posture.mjs parses supabase/config.toml and diffs the [auth*] tree against BOTH registers BY VALUE and IN BOTH DIRECTIONS: a config value that drifts from its register reds, a key present in config that neither register names reds too, and a tunable value outside its declared bound reds even when config and register agree — retuning is the consumer's act, weakening the floor is nobody's. Before the split a consumer legitimately retuning jwt_expiry produced the same diff shape as weakening the rotation floor, and review carried the whole burden of telling them apart. The Supabase CLI parses config.toml LENIENTLY — an unknown key under [auth] produces no error and no warning, verified against 2.111.0 — so `enable_refresh_token_rotaton = true` (one letter short) reads to a reviewer as protection while GoTrue runs its default. Widening anything in THIS file is a harness-release, CODEOWNERS-reviewed act.",
   "posture": {
     "auth.enabled": true,
-    "auth.jwt_expiry": 3600,
     "auth.enable_refresh_token_rotation": true,
     "auth.refresh_token_reuse_interval": 10,
-    "auth.enable_signup": true,
     "auth.enable_anonymous_sign_ins": false,
-    "auth.email.enable_signup": true,
-    "auth.email.enable_confirmations": false,
     "auth.email.double_confirm_changes": true,
-    "auth.mfa.max_enrolled_factors": 10,
     "auth.mfa.totp.enroll_enabled": true,
     "auth.mfa.totp.verify_enabled": true,
     "auth.mfa.phone.enroll_enabled": false,
@@ -19,14 +14,43 @@
     "auth.mfa.phone.template": "Your code is {{ .Code }}",
     "auth.mfa.phone.max_frequency": "5s",
     "auth.mfa.web_authn.enroll_enabled": false,
-    "auth.mfa.web_authn.verify_enabled": false
+    "auth.mfa.web_authn.verify_enabled": false,
+    "auth.hook.password_verification_attempt.enabled": true,
+    "auth.hook.password_verification_attempt.uri": "pg-functions://postgres/auth_trail/password_verification_hook",
+    "auth.hook.mfa_verification_attempt.enabled": true,
+    "auth.hook.mfa_verification_attempt.uri": "pg-functions://postgres/auth_trail/mfa_verification_hook"
+  },
+  "tunables": {
+    "//": "The keys whose VALUE is legitimately the project's, each with the harness-declared BOUND a retune must stay inside. The consumer's actual values live in the seeded tools/auth-tunables.json — one row per key here, value equal to config.toml, value inside the bound, and a written why. A key in this block with no row there reds (an undeclared tunable is an unreviewed posture); a row there for a key not in this block reds too (a consumer cannot mint a tunable — widening the tunable SET is a harness act). Bounds are the floor's half of the bargain: `auth.jwt_expiry` may be tuned between five minutes and a day, never disabled into a week-long token; signup toggles are product decisions with no dangerous direction the floor must hold.",
+    "auth.jwt_expiry": {
+      "type": "number",
+      "min": 300,
+      "max": 86400,
+      "why": "Access-token life. Longer widens the window a stolen token is useful for; much shorter signs mobile users out mid-session, which is the pressure that gets rotation turned off. The bound refuses both cliffs: never under five minutes (a token that expires mid-request turns every slow network into a sign-out) and never over a day (a stolen token that outlives the working day is an incident, not an inconvenience)."
+    },
+    "auth.enable_signup": {
+      "type": "boolean",
+      "why": "Whether the project accepts self-service signups at all — an invite-only product legitimately turns this off. No dangerous direction for the floor to hold: both states are product decisions, and the register row is where the decision gets a written why."
+    },
+    "auth.email.enable_signup": {
+      "type": "boolean",
+      "why": "Whether email/password is a signup channel — a project that moves to OAuth-only legitimately turns this off. Same reasoning as auth.enable_signup: the value is the product's, the review record is the point."
+    },
+    "auth.email.enable_confirmations": {
+      "type": "boolean",
+      "why": "FALSE IS LOCAL-ONLY, and this is the one tunable where the seeded value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — the config's [remotes] blocks or the Dashboard own that, and this gate cannot see either. The row exists so the local-only trade is WRITTEN where the next reader meets it."
+    },
+    "auth.mfa.max_enrolled_factors": {
+      "type": "number",
+      "min": 1,
+      "max": 10,
+      "why": "How many factors one user may enrol. The floor holds the bound: never zero (a cap of zero disables enrolment while the totp.enroll_enabled floor claims it works — two keys asserting opposite postures), never above the CLI's own ceiling of ten."
+    }
   },
   "postureNotes": {
-    "auth.jwt_expiry": "One hour of access-token life. Pinned by VALUE rather than by a ceiling because both directions matter: a longer token widens the window a stolen one is useful for, and a much shorter one signs mobile users out mid-session, which is the pressure that gets rotation turned off.",
     "auth.enable_refresh_token_rotation": "Off means a leaked refresh token is valid until it expires and its use is indistinguishable from the real client's. On means reuse is detectable, which is what refresh_token_reuse_interval is calibrated against.",
     "auth.refresh_token_reuse_interval": "Ten seconds, and it is NOT slack for an attacker: it is the allowance for a mobile client that fires two refreshes concurrently (a cold start racing a resumed request), which without it invalidates the whole family and signs the user out at random. Raising it widens the replay window; removing it trades a security property for a support burden that ends with rotation disabled.",
     "auth.enable_anonymous_sign_ins": "An anonymous sign-in mints a real `authenticated` JWT with a real `sub`, so it satisfies EVERY auth.uid() policy in this tree. The RLS wall would still hold — it would be holding open a door for an identity nobody verified. Turning this on is a product decision that belongs in an ADR.",
-    "auth.email.enable_confirmations": "FALSE IS LOCAL-ONLY, and this is the one row where the reviewed value is not the value a deployed project should have: `supabase start` must give a usable account without a round trip through Mailpit. The deployed project must have confirmations ON — this file's [remotes] blocks, or the Dashboard, own that, and this gate cannot see either.",
     "auth.email.double_confirm_changes": "An email change with no confirmation on the OLD address is an account-takeover primitive: whoever holds the session for one minute owns the account forever.",
     "auth.mfa.totp.enroll_enabled": "ON, and it is the whole MFA rail. TOTP is something the user HAS (the enrolled secret in an authenticator app) beside the password, which is something they KNOW — the pairing ASD's Maturity Level Three asks a second factor to be. Enrolment being available is NOT the same as MFA being used: GoTrue's MFA configuration carries no `required` field anywhere, so mandatory enrolment is an application decision this file cannot express, and the register says so rather than claiming the requirement.",
     "auth.mfa.totp.verify_enabled": "ON. Enrol-without-verify would mint factors that can never raise a session to `aal2`, which reads as MFA in the dashboard and enforces nothing — and the restrictive `notes_mfa_aal2` policy would then lock every enrolled user out of their own data, since it refuses `aal1` for anyone holding a verified factor. The two keys are one decision.",
@@ -36,7 +60,11 @@
     "auth.mfa.phone.template": "The CLI's default SMS body. Pinned by value, and worth knowing that the published documentation OMITS this key entirely — it is real, it is in the CLI's own embedded config template, and a project that never writes it inherits a default nobody reviewed.",
     "auth.mfa.phone.max_frequency": "Five seconds — the CLI's default, verified against its own embedded config template. THE PUBLISHED DOCUMENTATION SAYS 10s AND IS WRONG. A gate that pinned the documented value would red on every untouched scaffold, which is how a correct control gets deleted for being noisy.",
     "auth.mfa.web_authn.enroll_enabled": "OFF, deliberately and with regret — this is the phishing-resistant factor and the only one here that would satisfy ASD's phishing-resistance requirements at ML3. It exists and it genuinely produces `aal2`, but it is undocumented, absent from the Dashboard, marked experimental in the client library, `challengeAndVerify` is TOTP-only, and it is a billable add-on the CLI SILENTLY DOWNGRADES to false when cost is not confirmed. A config line claiming a factor the platform quietly disabled is worse than no line at all: it is the exact defect this whole file exists to catch, wearing the badge of a security feature. Recorded as the obligations row `e8-phishing-resistant-mfa` instead of claimed.",
-    "auth.mfa.web_authn.verify_enabled": "OFF, with WebAuthn enrolment. See the enrol key for the full evidence; the CLI's own default config ships this whole section COMMENTED OUT, so writing it explicitly is what makes the posture assertable at all."
+    "auth.mfa.web_authn.verify_enabled": "OFF, with WebAuthn enrolment. See the enrol key for the full evidence; the CLI's own default config ships this whole section COMMENTED OUT, so writing it explicitly is what makes the posture assertable at all.",
+    "auth.hook.password_verification_attempt.enabled": "Disabling the hook silences the failed-attempt half of the auth-event trail — the half no client-side seam can see — while every green stays green.",
+    "auth.hook.password_verification_attempt.uri": "A different uri points GoTrue at a function this schema does not govern; the trail then records whatever that function decides, with none of the four append-only layers.",
+    "auth.hook.mfa_verification_attempt.enabled": "Disabling the hook silences MFA success/failure logging (Essential Eight MFA-15) with no other symptom.",
+    "auth.hook.mfa_verification_attempt.uri": "Same as the password hook: the uri IS the trail binding, and moving it is moving the trail."
   },
   "projectValued": {
     "//": "Keys whose VALUE is the project's, not the harness's — so they are reviewed for PRESENCE and SHAPE instead of equality. Pinning `site_url` to a literal would either red on every scaffold that filled in its own origin, or pin the template placeholder forever; both make the row a lie. The shape rule is the one that matters: this is the origin auth redirects resolve against, so a plaintext or non-URL value is an interception primitive rather than a typo.",
@@ -65,12 +93,14 @@
     "auth.mfa.totp",
     "auth.mfa.phone",
     "auth.mfa.web_authn",
+    "auth.hook.password_verification_attempt",
+    "auth.hook.mfa_verification_attempt",
     "realtime",
     "storage",
     "edge_runtime",
     "functions.delete-account"
   ],
-  "knownSectionsWhy": "Closed in BOTH directions over the config's section names. A section is a SURFACE, not a setting: [realtime] replays row changes through its own policy check and [storage] has a separate bucket policy model, so both ship `enabled = false` and flipping either is a change that must not land quietly. The absent direction matters too — `[local_smtp]` is here because the CLI RENAMED `[inbucket]` and merely warns about the old name, which is how the harness shipped a deprecated section with nothing reading the warning. Asking the CLI directly was built and rejected: at this pin no subcommand parses config.toml without side effects (`config push` needs a project ref, `functions list` needs an access token, and `status` binds to whatever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). Deferred to 0.12.0 (deferral ledger: auth-posture-cli-census — re-checked at 0.10.0 against a REAL pin bump, 2.113.0 -> 2.114.0: the CLI moved to a pnpm/nx monorepo and the Go CLI to apps/cli-go, but apps/cli-go/cmd/config.go at tag v2.114.0 still registers `push` alone, v2.114.0's config-adjacent changes are --project-ref/skip-vault-sync/stack-persistence, and the ask is still open as supabase/cli#5894 with no milestone and no linked PR, RE-CHECKED AGAIN AT THE 0.11.0 ARRIVAL (2026-08-15) directly against the issue and still open with no milestone and no linked PR; the upstream condition is a side-effect-free `config lint`-shaped subcommand, re-checked at every CLI pin bump; tools/check-docs-sync.mjs reds this date when it arrives, so it cannot roll silently again).",
+  "knownSectionsWhy": "Closed in BOTH directions over the config's section names. A section is a SURFACE, not a setting: [realtime] replays row changes through its own policy check and [storage] has a separate bucket policy model, so both ship `enabled = false` and flipping either is a change that must not land quietly. The absent direction matters too — `[local_smtp]` is here because the CLI RENAMED `[inbucket]` and merely warns about the old name, which is how the harness shipped a deprecated section with nothing reading the warning. Asking the CLI directly was built and rejected: at this pin no subcommand parses config.toml without side effects (`config push` needs a project ref, `functions list` needs an access token, and `status` binds to whatever stack holds the default ports and prints SECRET_KEY/JWT_SECRET). Deferred to 1.1.0 (deferral ledger: auth-posture-cli-census — re-checked at 0.10.0 against a REAL pin bump, 2.113.0 -> 2.114.0: the CLI moved to a pnpm/nx monorepo and the Go CLI to apps/cli-go, but apps/cli-go/cmd/config.go at tag v2.114.0 still registers `push` alone, v2.114.0's config-adjacent changes are --project-ref/skip-vault-sync/stack-persistence, and the ask is still open as supabase/cli#5894 with no milestone and no linked PR, RE-CHECKED AGAIN AT THE 0.11.0 ARRIVAL (2026-08-15) directly against the issue and still open with no milestone and no linked PR, AND AGAIN AT THE 1.0.0 CUT (2026-08-16) — still open, zero comments, no milestone, npm latest still 2.114.0, so the standing rule moved the date one release; the upstream condition is a side-effect-free `config lint`-shaped subcommand, re-checked at every CLI pin bump; tools/check-docs-sync.mjs reds this date when it arrives, so it cannot roll silently again).",
   "sessionTransport": {
     "//": "THE AUTH TRANSPORT, as reviewed data — where a browser-obtained session actually LANDS, and with which cookie attributes. The [auth] block above is the posture of the auth SERVER; this is the posture of the wire between browser and server. It exists because the seeded web app shipped a SIGN-IN LOOP for two releases: apps/web/lib/supabase/client.ts constructed the browser client with no `storage`, so @supabase/supabase-js persisted the session to localStorage (its documented default), while proxy.ts, lib/supabase/server.ts and the tRPC cookie branch all read the session out of the COOKIE JAR. Two disjoint stores — sign-in succeeded, every protected server render saw an anonymous caller, and the protected layout redirected straight back to /sign-in. WHY NOTHING SAW IT: `storage` is legitimately OPTIONAL (a pure SPA that never server-renders an identity needs none), so the type-checker was right to be silent; the unit suite tested the cookie CODEC with options passed in, never the WIRING that passes them; knip was told to ignore the one dependency whose missing import would have shouted; and every spec in the browser lane is anonymous, so no test in the repository ever completed a successful sign-in. An OPTIONAL seam between two halves that MUST agree is a seam that will eventually be left unwired, and it fails silently on both sides. Mobile is structurally immune — createNativeClient takes its storage as a REQUIRED positional — so this closes the same hole on the surface where the parameter has to stay optional. requiredCookieAttributes is asserted at EVERY writer, not once: createServerSupabaseClient REWRITES the session cookie, so an attribute one writer omits is one it STRIPS off the value another writer set — a silent downgrade on every request rather than a visible failure. unavailableCookieAttributes is the honest half. httpOnly here is not merely unset, it is UNAVAILABLE: this architecture signs in browser-side (so the password never crosses an extra hop) and a user agent IGNORES HttpOnly on a document.cookie write. It is listed so the gate can red a COMMENT that claims otherwise — four separate files asserted that apps/web set it while every executable control stayed green, and a comment is precisely the artifact no gate reads. What protects the cookie instead: Secure (derived from the scheme, never hard-coded — a user agent DROPS a Secure cookie set over plain http, which would break local development), SameSite=Lax, the CSRF guard on the ambient-credential path (packages/api/src/csrf.ts), and a short-lived rotating token. SOURCE: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies",
     "app": "apps/web",

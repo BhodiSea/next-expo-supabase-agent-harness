@@ -354,3 +354,70 @@ test('CANARY — a MISSING floor file reds rather than passing as "nothing to ch
   assert.equal(r.status, 1)
   assert.match(r.stderr, /does not exist/)
 })
+
+test('CANARY — the vendor-support register rides the lane: a lapsed review reds naming the subject', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-support-'))
+  const script = join(ROOT, 'template/base/tools/check-framework-floor.mjs')
+  const path = join(dir, 'support-register.json')
+  const shipped = JSON.parse(
+    readFileSync(join(ROOT, 'template/base/tools/support-register.json'), 'utf8'),
+  )
+  shipped.platforms[0].reviewedUntil = '2020-01-01'
+  writeFileSync(path, JSON.stringify(shipped))
+
+  const red = spawnSync(
+    process.execPath,
+    [script, `--floor=${SHIPPED_FLOOR}`, '--today=2026-08-06', `--support-register=${path}`],
+    { encoding: 'utf8' },
+  )
+  assert.equal(red.status, 1, `${red.stdout}${red.stderr}`)
+  assert.match(red.stderr, /'postgres-17' lapsed on 2020-01-01/)
+
+  // …and green on the SHIPPED register, so the red is the backdating.
+  const green = spawnSync(
+    process.execPath,
+    [
+      script,
+      `--floor=${SHIPPED_FLOOR}`,
+      '--today=2026-08-06',
+      `--support-register=${join(ROOT, 'template/base/tools/support-register.json')}`,
+    ],
+    { encoding: 'utf8' },
+  )
+  assert.equal(green.status, 0, `${green.stdout}${green.stderr}`)
+  assert.match(green.stdout, /vendor-support register/)
+})
+
+test('CANARY — the security.txt bound rides the lane: expired and too-distant red, live passes, absent NOTEs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-stxt-'))
+  const script = join(ROOT, 'template/base/tools/check-framework-floor.mjs')
+  const stxt = (name, expires) => {
+    const p = join(dir, `${name}.txt`)
+    writeFileSync(p, `Contact: mailto:security@example.com\nExpires: ${expires}\n`)
+    return p
+  }
+  const run = (path) =>
+    spawnSync(
+      process.execPath,
+      [script, `--floor=${SHIPPED_FLOOR}`, '--today=2026-08-06', `--security-txt=${path}`],
+      { encoding: 'utf8' },
+    )
+
+  const expired = run(stxt('expired', '2026-08-01T00:00:00.000Z'))
+  assert.equal(expired.status, 1, `${expired.stdout}${expired.stderr}`)
+  assert.match(expired.stderr, /EXPIRED at 2026-08-01/)
+
+  const distant = run(stxt('distant', '2028-01-01T00:00:00.000Z'))
+  assert.equal(distant.status, 1, `${distant.stdout}${distant.stderr}`)
+  assert.match(distant.stderr, /more than 366 days out/)
+
+  const live = run(stxt('live', '2026-12-31T23:59:59.000Z'))
+  assert.equal(live.status, 0, `${live.stdout}${live.stderr}`)
+  assert.match(live.stdout, /security\.txt bound/)
+
+  // Absent stays a NOTE, never a red: the file is seedOnInitOnly, so an existing
+  // install legitimately has no bound to have let lapse.
+  const absent = run(join(dir, 'nope.txt'))
+  assert.equal(absent.status, 0, `${absent.stdout}${absent.stderr}`)
+  assert.match(absent.stdout, /NOTE — .*absent/)
+})

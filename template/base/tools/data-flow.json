@@ -97,6 +97,10 @@
       {
         "table": "quota_defaults",
         "reason": "Static harness-authored reference data — the metric names and their default ceilings. Nothing about any person."
+      },
+      {
+        "table": "admin_elevations",
+        "reason": "Operational security posture, not subject content: an elevation row records that an administrator opened a one-hour JIT window (RAP-13) — system-minted state the subject did not provide and already knows (they performed the act). Exporting it would disclose the org's live administrative posture into a personal archive, and the rows are ephemeral by design: expired ones stop satisfying every predicate and die with the seat. The subject's RELATIONSHIP to the org — the seat itself, with its rank and revalidated_at lifecycle stamp — is exported via memberships in the projection above."
       }
     ]
   },

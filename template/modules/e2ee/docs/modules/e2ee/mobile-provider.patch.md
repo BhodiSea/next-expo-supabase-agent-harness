@@ -1,12 +1,13 @@
-# Patch: a mobile `CryptoProvider` + `KeystoreAdapter` (e2ee module)
+# Patch: a mobile `CryptoProvider` + `X25519Provider` + `KeystoreAdapter` (e2ee module)
 
 OPT-IN wiring — copy deliberately. `@app/crypto` ships the whole hierarchy and
-exactly one provider, and that provider is WebCrypto-backed:
-`createWebCryptoProvider()` lives on the `.` barrel and **returns `null` under
-Hermes**, which ships no Web Crypto. So on a device this module computes nothing
-until you supply the two host implementations below. Two decisions are yours
-before pasting anything: which primitive library provides AES-256-GCM and
-HKDF-SHA-256, and whether that choice is a native dependency.
+exactly two providers, and both are WebCrypto-backed:
+`createWebCryptoProvider()` and `createWebCryptoX25519Provider()` live on the
+`.` barrel and **return `null` under Hermes**, which ships no Web Crypto. So on
+a device this module computes nothing until you supply the host implementations
+below. Two decisions are yours before pasting anything: which primitive library
+provides AES-256-GCM and HKDF-SHA-256 (and X25519, if the feature shares), and
+whether that choice is a native dependency.
 
 ## Why no primitive dependency ships in base
 
@@ -83,11 +84,13 @@ costs:
 
 ### `react-native-libsodium` — ISC, native, batteries-included
 
-- A full libsodium binding: AEADs, X25519 sealed boxes, Argon2id. That last one
-  matters more than the speed — **it is the only option here that could
-  implement the declared-but-unimplemented `RecoveryPort` and
-  `RecipientWrapPort`** without a second dependency, and those two ports are
-  where this module's biggest stated losses live.
+- A full libsodium binding: AEADs, X25519 sealed boxes, Argon2id. The last one
+  is its remaining edge — **Argon2id is what a passphrase-derived escrow would
+  need**, and that construction stays a consumer decision (the shipped
+  `RecoveryPort` uses a GENERATED full-entropy code precisely so it needs no
+  memory-hard KDF; see the README's recovery section). If your product insists
+  on a human-chosen passphrase, this binding or `@noble/hashes` is where the
+  Argon2id comes from — priced, reviewed, and held to RFC 9106 vectors.
 - Same native costs as `react-native-quick-crypto`, plus one shape mismatch:
   libsodium's marquee AEAD is XChaCha20-Poly1305, and this envelope's `alg 0x02`
   is RESERVED and unimplemented — a `0x02` envelope decodes to
@@ -96,24 +99,27 @@ costs:
   exposes an availability check you must honour before calling it.
 - ISC is on the licenses allowlist; no exception entry needed.
 
-**Default recommendation: `@noble/ciphers` + `@noble/hashes`.** It is the only
-option that adds zero native surface, and the one whose downside (JS-engine
-timing) is orthogonal to the adversary this module actually defends against.
-Move to a native binding when a profile says so, or when you are implementing
-recovery/sharing and need Argon2id and X25519 anyway — and land that move as its
-own reviewed diff with the plugin entry and the reviewer verdict.
+**Default recommendation: `@noble/ciphers` + `@noble/hashes`, plus
+`@noble/curves` if the feature shares.** The noble stack is the only option
+that adds zero native surface, and the one whose downside (JS-engine timing) is
+orthogonal to the adversary this module actually defends against. Move to a
+native binding when a profile says so, or when a product decision demands
+Argon2id for a passphrase-derived escrow — and land that move as its own
+reviewed diff with the plugin entry and the reviewer verdict.
 
 ## 2. Install and pin
 
 Versions live ONLY in the `pnpm-workspace.yaml` catalog — add the entries there
 first, then take them as `catalog:` from the mobile app, and add the workspace
-dependency on `@app/crypto`:
+dependency on `@app/crypto` (add `@noble/curves` only if the feature calls
+`wrapDekFor` — an X25519 provider nothing shares through is dead weight in the
+bundle):
 
 ```
 pnpm --filter mobile add @noble/ciphers @noble/hashes @app/crypto
 ```
 
-Then edit `apps/mobile/package.json` so the two external deps read `catalog:`
+Then edit `apps/mobile/package.json` so the external deps read `catalog:`
 and `@app/crypto` reads `workspace:*`, and add the pinned versions to the
 catalog. `pnpm validate` runs the `licenses` gate over the production tree: MIT
 and ISC are both inside the allowlist, so a green `licenses` line is the proof
@@ -214,6 +220,55 @@ exactly what a wrong cipher also does. Then keep the three tamper cases
 (ciphertext byte, AAD byte, tag byte), because they are what prove `aeadOpen`
 returns `null` on the path that matters.
 
+## 3b. The `X25519Provider` — only if the feature shares (`apps/mobile/src/host/x25519-provider.ts`)
+
+The recipient-wrap seam (`wrapDekFor`/`unwrapDekWith`) is built over a SECOND
+port, deliberately separate from `CryptoProvider` so a host that never shares
+never wires it. On web it is free (WebCrypto's Secure Curves); on Hermes the
+priced consumer decision is **`@noble/curves`** — MIT, pure JS, audited, same
+zero-native cost profile as `@noble/ciphers`, and the same caveat about
+JS-engine timing, which is again orthogonal to this module's server-side
+adversary. The port trades in raw 32-byte keys, which is exactly the shape
+`@noble/curves` speaks natively — no PKCS#8 bridge needed on this side (that
+bridge exists in `webcrypto-x25519.ts` only because WebCrypto refuses raw
+private keys; cross-platform parity of the BYTES is the point of the port).
+
+```ts
+import { x25519 } from '@noble/curves/ed25519'
+import type { X25519Provider } from '@app/crypto/client'
+import * as Crypto from 'expo-crypto'
+
+/** The mobile half of @app/crypto's X25519 port — raw 32-byte keys, null-not-throw. */
+export const nativeX25519Provider: X25519Provider = {
+  generateKeyPair() {
+    // expo-crypto for the scalar, NOT the library's randomPrivateKey helper,
+    // for the same reason nativeCryptoProvider avoids @noble's randomBytes:
+    // Hermes has no crypto.getRandomValues, and the platform CSPRNG is the
+    // only key source this repo accepts.
+    const secretKey = Crypto.getRandomBytes(32)
+    return Promise.resolve({ secretKey, publicKey: x25519.getPublicKey(secretKey) })
+  },
+  deriveSharedSecret({ secretKey, publicKey }) {
+    try {
+      const shared = x25519.getSharedSecret(secretKey, publicKey)
+      // CONTRIBUTORY-BEHAVIOUR CHECK, by hand: WebCrypto engines refuse an
+      // all-zero shared secret per the Secure Curves spec, but @noble/curves
+      // returns it (RFC 7748 permits either). The port's contract is the
+      // stricter one, so the check lives here — without it, a low-order
+      // recipient point would silently derive a wrap key every attacker knows.
+      return Promise.resolve(shared.every((b) => b === 0) ? null : shared)
+    } catch {
+      return Promise.resolve(null) // malformed key — a refusal, never a throw
+    }
+  },
+}
+```
+
+Prove it the same way: point the RFC 7748 §5.2 and §6.1 vectors from
+`src/webcrypto-x25519.test.ts` at this provider in a jest-expo test, and KEEP
+the all-zero refusal case — it is the one behaviour the library does not give
+you for free.
+
 ## 4. The `KeystoreAdapter` (`apps/mobile/src/host/crypto-keystore.ts`)
 
 It goes in `apps/mobile/src/host/` and nowhere else: ESLint's
@@ -291,9 +346,13 @@ export const secureRootKeyStore: KeystoreAdapter = {
 
 **The keystore is per user id, and sign-out is a decision, not a default.**
 `deleteRootKey` on sign-out makes every encrypted row on that device unreadable
-forever unless the same key returns — and it cannot, because nothing escrows it
-(`RecoveryPort` is unimplemented). Keeping the key across sign-out leaves
-decryptable material on a shared device. Pick one, in the ADR, and say which.
+until the key RETURNS — which it now can, but only through a path you built:
+a recovery escrow the user's code opens (`recoverRootKey`) or a device-sync
+import from another signed-in device (`importFromDevice`). A user with neither
+— no escrow issued, or the code lost — is permanently locked out of their own
+rows by your sign-out. Keeping the key across sign-out leaves decryptable
+material on a shared device. Pick one, in the ADR, and say which — and if you
+pick deletion, issue the recovery code BEFORE the first seal, not at sign-out.
 
 Minting the key is the caller's job and belongs wherever your session becomes
 known:
@@ -318,10 +377,11 @@ key.
 ## 5. Import the Metro-safe barrel, always
 
 The mobile graph imports `@app/crypto/client`. **Never `@app/crypto`** — the `.`
-barrel carries `createWebCryptoProvider`, which reaches for `crypto.subtle`, and
-Metro does not tree-shake, so an unreachable-in-practice import is still a
-shipped one. The census reason is already recorded in `tools/exports-walls.json`
-and the `boundaries` gate holds the wall.
+barrel carries `createWebCryptoProvider` and `createWebCryptoX25519Provider`,
+both of which reach for `crypto.subtle`, and Metro does not tree-shake, so an
+unreachable-in-practice import is still a shipped one. The census reason is
+already recorded in `tools/exports-walls.json` and the `boundaries` gate holds
+the wall.
 
 ## 6. Flip the export-compliance declaration — in the SAME diff
 
@@ -339,7 +399,7 @@ ios: {
 }
 ```
 
-`tools/store-policy.json`:
+`tools/store-tunables.json`:
 
 ```json
 "iosEncryption": {
@@ -360,23 +420,21 @@ config, and each direction has its own message:
 
 Two operational facts before you make the edit:
 
-- **`tools/store-policy.json` is write-guard-protected.** An agent cannot write
+- **`tools/store-tunables.json` is write-guard-protected.** An agent cannot write
   it; a human makes this edit, in a reviewed commit, and it lands under
   CODEOWNERS with the dependency and the provider in one PR.
-- **It is classified harness-`owned` rather than seeded**, unlike
-  `tools/expo-plugins.json` and `tools/pii-columns.json`. So
-  `check-gate-integrity` hashes it against what the installer wrote, and a
-  harness `update` re-plants it. Expect to re-apply the flip after an upgrade
-  and to diff the file when `gate-integrity` complains, rather than reverting
-  your own reviewed decision. This is a known defect with a recorded remedy, not
-  a design: the file holds a harness FLOOR the harness must keep shipping
-  (`iosToolchain`'s Xcode floor) and a consumer TUNABLE (`iosEncryption`) in one
-  file, so neither classification is right. 0.9.5 tried flipping it to seeded
-  and the upgrade lane caught the other half of the trap within one run — an old
-  install stops receiving the floor. The fix is the split, tracked as
-  `store-policy-consumer-tunable-split` in `scripts/obligations.json`.
+- **It is YOURS — seeded, never re-planted.** Since the 1.0.0 floor/tunable
+  split, the harness FLOOR (`tools/store-policy.json`: the Xcode floor,
+  `androidTargetSdk`, the usage-description key map) stays owned and keeps
+  arriving on `update`, while the consumer TUNABLES (`tools/store-tunables.json`:
+  `iosEncryption`, the account-deletion surface, privacy-manifest rows, icon
+  policy) are seeded once at `init` and never rewritten. So the flip you make
+  here survives every harness upgrade, and `gate-integrity` never reads it as
+  tampering — the two-halves-in-one-file trap 0.9.5 fell into is closed, and the
+  obligations row that tracked it (`store-policy-consumer-tunable-split`) is
+  discharged.
 
-`tools/store-policy.json` is also a `mobile-security-reviewer` trigger path, so
+`tools/store-tunables.json` is also a `mobile-security-reviewer` trigger path, so
 this diff owes that reviewer a `VERDICT: PASS` before the turn can end.
 
 ## Anti-vacuity
@@ -387,4 +445,7 @@ Replace the `catch` in `aeadOpen` with a rethrow → the three tamper cases fail
 and `openItem` stops returning `aead_auth_failed`. Swap `Crypto.getRandomBytes`
 for anything that is not the platform CSPRNG → the fresh-DEK test in
 `keyring.test.ts` is the only thing standing between you and repeated keys, and
-it only catches an RNG that repeats outright.
+it only catches an RNG that repeats outright. With the X25519 provider wired:
+drop the all-zero check → the copied contributory-refusal case fails; feed
+`getSharedSecret` a wrong argument order → the §5.2 vectors fail, because
+X25519 is not symmetric in scalar and point.

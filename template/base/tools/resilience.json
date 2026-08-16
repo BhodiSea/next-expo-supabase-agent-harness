@@ -1,0 +1,61 @@
+{
+  "comment": "The reviewed outbound-seam posture register — tools/check-resilience.mjs closes it BOTH WAYS against the product tree: every outbound-transport construction site (tRPC client, server-side fetch, supabase-js factory, Edge Function) needs a row, no row may outlive its site, and a row's posture claims must be backed by the symbols that implement them (a non-null timeoutMs requires AbortSignal.timeout in the file). `{timeoutMs: null, retries: 0, backoffMs: null}` is a DECLARED absence and is legal with a written why — the gate refuses undeclared and false, never modest. This file is SEEDED (the consumer's seams are theirs to grow) and write-guard-protected: adding a row is a reviewed act. The shipped rows declare the scaffold's own eight seam files exactly, which is what keeps a fresh install green with zero edits.",
+  "seams": [
+    {
+      "id": "mobile-trpc-client",
+      "file": "apps/mobile/src/lib/trpc/client.ts",
+      "kind": "trpc-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "The one mobile door. No automatic retry BY DESIGN: procedures include mutations, and a retried mutation is a duplicate write unless every procedure is idempotent, which the contract does not promise. No client-side deadline: the OS network stack owns socket timeouts on device, and the version-skew guard already turns a stale client into a typed CONFLICT rather than a hang. Declared, not defaulted."
+    },
+    {
+      "id": "upstash-ratelimit-pipeline",
+      "file": "packages/platform/ratelimit/src/index.ts",
+      "kind": "server-fetch",
+      "posture": { "timeoutMs": 1000, "retries": 0, "backoffMs": null },
+      "why": "The limiter's REST call carries its own 1s deadline via AbortSignal.timeout — a limiter that HANGS is worse than one that errors, because it adds latency to every request it protects and fail-open never fires (docs/adr/20260204-rate-limiting.md). No retry: the degrade ladder (fail-open to the in-process limiter) is the recorded strategy, and retrying a rate-limit check spends the latency budget the timeout exists to protect."
+    },
+    {
+      "id": "supabase-factory-browser",
+      "file": "packages/platform/supabase/src/browser.ts",
+      "kind": "supabase-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "supabase-js's own transport defaults, declared rather than assumed: the browser client's requests ride the user's session and PostgREST's server-side statement timeouts bound duration (tools/db-limits.json); a client-side retry would double-submit writes the envelope already reports."
+    },
+    {
+      "id": "supabase-factory-native",
+      "file": "packages/platform/supabase/src/native.ts",
+      "kind": "supabase-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "Same declared-default posture as the browser factory, on the mobile client whose session lives in LargeSecureStore — duration is bounded server-side by the per-role statement timeouts, and retry-on-failure belongs to the feature's optimistic-write reconcile, never to the transport."
+    },
+    {
+      "id": "supabase-factory-cookie-server",
+      "file": "packages/platform/supabase/src/cookie-server.ts",
+      "kind": "supabase-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "The request-scoped server factory: it lives inside a request whose own platform deadline (serverless function timeout) is the operative ceiling, and the per-role statement timeouts bound the database half; a nested client deadline would race the platform's without adding a bound."
+    },
+    {
+      "id": "supabase-factory-access-token",
+      "file": "packages/platform/supabase/src/access-token.ts",
+      "kind": "supabase-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "The bearer-mode server factory (mobile-originated requests through the web API): same ceiling analysis as cookie-server — the platform request deadline and the per-role statement timeouts are the bounds, declared here so the absence of a client-side one is a reviewed fact."
+    },
+    {
+      "id": "supabase-factory-service-role",
+      "file": "packages/platform/supabase/src/service-role.ts",
+      "kind": "supabase-client",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "The warrant-gated BYPASSES_RLS factory, Edge-Function-only by doctrine: its calls run inside a function whose platform deadline is the ceiling, and an automatic retry on a bypass-privileged client is a write-amplifier on the most dangerous path in the system — declared zero on purpose."
+    },
+    {
+      "id": "edge-fn-delete-account",
+      "file": "supabase/functions/delete-account/index.ts",
+      "kind": "edge-function",
+      "posture": { "timeoutMs": null, "retries": 0, "backoffMs": null },
+      "why": "The erase choreography is deliberately NOT retryable: the file's own header records that after the auth user is deleted no retry could even authenticate, so a mid-flight failure is surfaced to the caller as the explicit partial-state error rather than re-driven — ordering, not retries, is the correctness mechanism."
+    }
+  ]
+}

@@ -264,16 +264,17 @@ is one line and cannot go red, so a lane that only emitted would have been a gre
 inventory that had silently lost half the tree. This is what regrades **PA-01**, and only to
 `alternate-control`: it is a software inventory, not estate asset discovery.
 
-**Still deferred, now dated — and it is a DIFFERENT sense of the word.** The control this
-paragraph originally meant is the *release-over-release diff*: compare this tree's SBOM against
-the previous release tag's and red on an **added** component that is not allowlisted. The
-lockfile closure above consumes the SBOM against the *same* tree, which catches an incomplete
-inventory and catches nothing about supply-chain drift. Naming both "consumption" is how the
-0.11.0 row would come to be treated as already discharged, so: the register row
-`sbom-consumption` targets **0.11.0** and its subject is the tag diff. Its precondition is met
-by construction at this bump — the `version-sync` committed-lockfile ramp expires at 0.10.0, so
-every install now carries the input the diff needs, and a met condition left undated is the
-shelf this file refuses.
+**DISCHARGED AT 0.11.0 — and the two senses of "consumption" stayed distinct to the end.**
+The control this paragraph originally meant is the *release-over-release diff*: compare this
+tree's SBOM against the previous release tag's and red on an **added** component that is not
+allowlisted. The lockfile closure above consumes the SBOM against the *same* tree, which
+catches an incomplete inventory and catches nothing about supply-chain drift. The register row
+`sbom-consumption` (target 0.11.0) carried the tag-diff half, and 0.11.0 shipped it as
+`scripts/check-sbom-drift.mjs`: the resolved closure diffed against the previous release tag,
+an ADDED component red unless a reviewed row in `scripts/sbom-additions.json` names it — the
+half a catalog diff structurally cannot see, because a transitive arrival changes no key. The
+row is deleted; this paragraph is its record. (Through 0.11.1 this paragraph still described
+the row as open — stale prose no machine read, corrected in the 1.0.0 pass.)
 
 ## 9. ASD Essential Eight Maturity Model — **SHIPPED whole, and the claim is bounded**
 
@@ -434,13 +435,18 @@ release row asserts somebody can schedule the work, and for these five nobody ca
 discharge is a decision about where the product/organisation boundary sits.
 
 - **CEILING (RAP-20/21, AC-11/12, UAH-20, MFA-16): forwarding is not a build this repository
-  can schedule.** Central logging means the record survives compromise of the system that
-  produced it, and no in-database trail does. The drains are asymmetric (above) and a gate
-  resolving either from a live endpoint is refused outright by the hermeticity rule. MFA-16
-  joins this ceiling rather than the auth-trail one, and the reason is that the *remedy* is the
-  same: `auth.audit_log_entries` carries no append-only layer and none can be added, because
-  the schema is GoTrue's and it re-migrates it — so the only way to protect that stream is to
-  get a copy off the platform, which is forwarding.
+  can schedule — RESOLVED AT 1.0.0 AS A BOUNDARY, NOT A BUILD.** Central logging means the
+  record survives compromise of the system that produced it, and no in-database trail does.
+  The drains are asymmetric (above) and a gate resolving either from a live endpoint is
+  refused outright by the hermeticity rule. MFA-16 rides the same remedy because
+  `auth.audit_log_entries` carries no append-only layer and none can be added (GoTrue
+  re-migrates its schema) — protecting that stream IS forwarding. 1.0.0 records the decision
+  the old condition row said someone had to make: the six requirements moved to the
+  ORGANISATION boundary with `docs/runbooks/log-forwarding.md` as the owner's recorded
+  surface (what to forward per stream, where each platform's drains are, what the sink must
+  guarantee), and the register's own organisation-row rules (`outcome: null`, a named owner)
+  keep the move honest — nothing was regraded upward, ownership was placed where the
+  consoles are.
 - **CEILING (RB-02): the manifest needs a deploy-time artefact channel that does not exist.**
   Binding a database backup to the commit, the migration set and the deployed function versions
   requires something emitted at deploy time, and this repository has no deploy-time channel to
@@ -454,13 +460,20 @@ discharge is a decision about where the product/organisation boundary sits.
   no Delete or Modify action for a backup exists anywhere in the surface, and no immutability,
   WORM or object-lock guarantee is published. Reading an unoffered verb as prevention is the
   inflation this register exists to refuse.
-- **CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains.** PA-13
-  discharged because npm publishes `deprecated` into the lockfile. The online services
-  (Supabase, Vercel, GitHub Actions, npm, EAS) and the platforms (runner image, Node major,
-  Postgres major, mobile target SDKs) publish no equivalent, and asking their APIs is refused by
-  the hermeticity rule. The obvious shortcut is refused too: POS-15 already claims
-  `framework-floor.json` and the `version-sync` step, so grading POS-16 on the same artefact
-  would be rule 5 double-counting.
+- **CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains —
+  RESOLVED AT 1.0.0 AS A REVIEWED REGISTER, NOT A PROBE.** PA-13 discharged because npm
+  publishes `deprecated` into the lockfile. The online services (Supabase, Vercel, GitHub
+  Actions, npm, EAS) and the platforms (runner image, Node major, Postgres major, mobile
+  target SDKs) publish no equivalent, and asking their APIs is refused by the hermeticity
+  rule. 1.0.0 records the decision the old condition row said someone had to make:
+  `tools/support-register.json` carries each subject's disposition as the VENDOR'S OWN dated
+  statement (url + quote + fetchedOn) or an honest permanent ceiling — the fact that a
+  vendor publishes no lifecycle, recorded so it cannot read as an omission. The clockless
+  half (shape + the platform-fact closure against the tree's own Postgres/Node pins) rides
+  `version-sync`; the reviewedUntil lapse rides the scheduled `floor-review` job. The
+  double-count refusal survives: POS-15 keeps `framework-floor.json`, and PA-11/POS-16 are
+  graded on the NEW artefact alone (alternate-control, assessorMayRefuse — a register
+  documents support, it cannot perform ASD's "removed/replaced").
 
 ### Shelf life — **the deadline row this section owes**
 
@@ -477,24 +490,46 @@ The instrument ASD designed to grade a *product* is the **ISM**, assessed via **
 harness already satisfies much of its *Guidelines for software development* and *Guidelines for
 database systems* — the same guidelines the Essential Eight tags `N/A` throughout. That is
 recorded here as a **disposition, not a target**, and it carries **no date** for the same reason
-the conformance map below carries none: dating it without intending to build it next is the
-commitment this file exists to prevent.
+the conformance map below carried none until 1.0.0 built it: dating it without intending to build
+it next is the commitment this file exists to prevent.
 
 ---
 
 ---
 
-## What this file deliberately does not contain
+## The conformance map — RESOLVED at 1.0.0, built whole
 
-A conformance **map** — `tools/conformance-map.json`, gates to ASVS/MASVS requirement ids with a
-claimed level. It is the artifact an enterprise buyer asks for by name, and it is the one thing
-in W5 that must not be shipped partially: a claimed level with an unmapped requirement is worse
-than no claim, and CRA's harmonised standards running late means there is no presumption of
-conformity to anchor it to either. It carries **no date** here, deliberately. When it is built it
-will be built whole, against Annex I directly rather than against a standard that has not landed.
+Through 0.11.1 this section was titled *What this file deliberately does not contain*, and the
+thing it did not contain was a conformance **map** — `tools/conformance-map.json`, gates to
+ASVS/MASVS requirement ids. It was the artifact an enterprise buyer asks for by name and the one
+thing in W5 that must not be shipped partially: a claimed level with an unmapped requirement is
+worse than no claim, and CRA's harmonised standards running late meant there was no presumption
+of conformity to anchor it to. It carried **no date** here, deliberately, with the condition
+that when built it would be built whole, against Annex I directly rather than against a
+standard that has not landed.
 
-**Section 9 is not that map arriving, and the distinction is worth keeping sharp.** 0.9.9 built
-the Essential Eight register whole, on this paragraph's own terms — all 149 rows, every one
-dispositioned, nothing partial. What it does **not** do is claim a level, because ASD's model
-does not offer one to a product. An ASVS/MASVS map would claim a level, which is exactly why it
-is the harder artifact and why it stays undated.
+**Disposition: RESOLVED at 1.0.0, on that paragraph's own terms — and with one correction.**
+`tools/conformance-map.json` ships whole: every requirement of OWASP ASVS 5.0.0, OWASP MASVS
+2.1 and CRA Annex I, text verbatim, each graded `covered | partial | not-covered |
+not-applicable` against the tree — 392 rows, nothing partial, nothing sampled. The correction is
+the ASVS count: the planning figure the 1.0.0 research pass started from was **369**, and the
+source at tag **v5.0.0 has 345** requirements across 17 chapters; the register's `expectedCounts` asserts
+345 by chapter AND by level, and its header records the wrong figure so nobody re-derives it.
+The CRA rows are mapped against Annex I directly, as this paragraph required, and carry a shelf
+life: no harmonised standard had been cited in the Official Journal as of the verified date
+(2026-08-16), tracked as the calendar row `conformance-cra-hens-citation`.
+
+**What was resolved is the MAP, not a LEVEL — and the distinction this section drew stays
+sharp.** The 0.9.9 Essential Eight register could not claim a maturity level because ASD's model
+offers none to a product; the 1.0.0 map claims no verification level for a stronger reason it
+enforces on itself: a level attaches to a verification *of an application* performed by an
+assessor, CRA conformity is a manufacturer's legal act no code tree performs, and the map's own
+gate (`tools/check-conformance-map.mjs`, third script of `docs-sync`) reds any note, negative
+proof or header line that says otherwise, through the same standards-claim judgement
+`scripts/hygiene.mjs` sweeps the shipped prose with. What the map states instead is the honest
+ledger — which live control bears on which requirement, how far it reaches (`covered` may not
+rest on documentation alone), what is left, which rows are conditional on an opt-in module (8),
+and which only the operating organisation can meet (39, enumerated rather than graded up). The
+two documents the earlier obligation described as *generatable* — the controls crosswalk and the
+threat model — are generated from it (`tools/gen-conformance-docs.mjs`) and regen-diffed by the
+same gate, so a hand edit to either is a claim nobody reviewed.

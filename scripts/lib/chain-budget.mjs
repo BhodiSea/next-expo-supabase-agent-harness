@@ -46,7 +46,11 @@ export function judgeBudget({ budget, timings, chainSteps }) {
     return { problems, warnings }
   }
 
-  pushForeignStepsProblem(timings, new Set([...chainSteps, ...Object.keys(budget.steps ?? {})]), problems)
+  pushForeignStepsProblem(
+    timings,
+    new Set([...chainSteps, ...Object.keys(budget.steps ?? {})]),
+    problems,
+  )
 
   const ceilingFor = (name) => {
     const row = budget.steps?.[name]
@@ -305,6 +309,55 @@ export function recordStopMeasurement({ budget, timings, unionSteps, runner, rec
   }
 }
 
+/**
+ * The COLD writer (1.0.0): the first validate of a fresh clone with cold caches — the
+ * `--min-floor` CI run bootstrap-linux performs before anything is warm. It stamps ONLY
+ * `coldWall` and a `coldMeasurement` provenance block, leaving the warm and Stop surfaces
+ * byte-untouched, so the three recordings compose in any order on the same file.
+ *
+ * The cold path is MEASURED, never BUDGETED: it has no per-step ceilings and no coldSteps
+ * table, because a first-clone figure is dominated by installs and toolchain resolution the
+ * chain does not own, and a ceiling there would red on the registry's afternoon rather than
+ * on the chain. What the record must still hold is COVERAGE — every chain step present in
+ * the timings — because a cold figure for a run that died at step 20 is not a cold figure.
+ * @param {{ budget: any, timings: any, chainSteps: string[], runner: string, recordedOn: string }} input
+ */
+export function recordColdMeasurement({ budget, timings, chainSteps, runner, recordedOn }) {
+  assertRecordable('recordColdMeasurement', timings, runner)
+  const measured = Object.keys(timings.steps ?? {})
+  const missing = chainSteps.filter((s) => !measured.includes(s))
+  if (missing.length > 0) {
+    throw new TypeError(
+      `recordColdMeasurement: the cold run did not reach ${String(missing.length)} chain step(s) (${missing.join(', ')}) — a partial run is not a cold measurement`,
+    )
+  }
+  return {
+    ...budget,
+    coldWall: { ...(budget.coldWall ?? {}), measuredMs: timings.totalMs },
+    coldMeasurement: {
+      recordedOn,
+      runner,
+      chainSteps: chainSteps.length,
+      stepsMeasured: measured.length,
+      path: 'validate --min-floor under CI=true + HARNESS_REQUIRE_TOOLCHAINS=1 on a fresh clone with cold caches — the first validate of an install',
+    },
+  }
+}
+
+/**
+ * The cold-figure licence: `coldWall.measuredMs` is a number AND the recorded step count
+ * matches the live chain — the same count-match arithmetic hasCommittedMeasurement uses,
+ * applied to the cold block, so a cold figure measured against 34 steps licenses nothing
+ * once the chain is 36.
+ * @param {any} budget
+ * @param {string[] | undefined} chainSteps
+ */
+export function hasCommittedColdMeasurement(budget, chainSteps) {
+  if (typeof budget?.coldWall?.measuredMs !== 'number') return false
+  if (chainSteps === undefined) return true
+  return budget?.coldMeasurement?.chainSteps === chainSteps.length
+}
+
 /** The shared provenance refusal — enforced at the seam so a second caller inherits it. */
 function assertRecordable(fnName, timings, runner) {
   if (timings === null) throw new TypeError(`${fnName}: no timings to record`)
@@ -325,7 +378,10 @@ function stampRows(rows, timings) {
   const out = {}
   for (const [name, row] of Object.entries(rows ?? {})) {
     const ms = timings.steps?.[name]
-    out[name] = { ...row, measuredMs: typeof ms === 'number' ? ms : (row.measuredMs ?? null) }
+    out[name] = {
+      ...row,
+      measuredMs: typeof ms === 'number' ? ms : (row.measuredMs ?? null),
+    }
   }
   return out
 }

@@ -288,6 +288,42 @@
     "sha256": "557f1cf7bcb33873082c9446f4a904800d6aee0c679fcce7ee5aff956da9fe56"
   },
   {
+    "groups": ["cryptography"],
+    "id": "ietf/rfc7748-x25519",
+    "title": "Elliptic Curves for Security (X25519 / X448)",
+    "url": "https://www.rfc-editor.org/rfc/rfc7748",
+    "version": "RFC 7748 (2016)",
+    "text": "X25519 is a Diffie-Hellman function over Curve25519: a 32-byte scalar and a 32-byte u-coordinate in, a 32-byte u-coordinate out, with the scalar clamped on decode. The public key is X25519(secret, 9), where 9 is the base point's u-coordinate. Section 5.2 publishes scalar-multiplication test vectors and section 6.1 a full Diffie-Hellman exchange with both key pairs and the shared secret K. The function does not enforce contributory behaviour: inputs of low order yield an all-zero output, and implementations MAY reject it by checking for the all-zero result.",
+    "sha256": "51a3aef17363119079a7a22e9d8c1c5afe13ea147866450d00485a95dac18ae0"
+  },
+  {
+    "groups": ["cryptography"],
+    "id": "wicg/webcrypto-secure-curves",
+    "title": "Secure Curves in the Web Cryptography API (X25519 / Ed25519)",
+    "url": "https://wicg.github.io/webcrypto-secure-curves/",
+    "version": "WICG Draft Community Group Report",
+    "text": "Adds X25519 and Ed25519 to the Web Cryptography API. X25519 keys support generateKey, importKey, exportKey and deriveBits; the raw format applies to PUBLIC keys only — a private key is imported and exported as PKCS#8 or JWK, never raw. deriveBits performs the X25519 function against a peer public key and MUST throw an OperationError when the result is the all-zero value, so a conforming engine refuses a low-order peer point instead of returning a shared secret every attacker knows.",
+    "sha256": "b6d6827716d883a1083276f9fc2f02a5003d63d510a6878c2cead936151588da"
+  },
+  {
+    "groups": ["cryptography"],
+    "id": "ietf/rfc8410-x25519-pkcs8",
+    "title": "Algorithm Identifiers for Ed25519, Ed448, X25519, and X448 (PKCS#8 encoding)",
+    "url": "https://www.rfc-editor.org/rfc/rfc8410",
+    "version": "RFC 8410 (2018)",
+    "text": "Defines algorithm identifiers and key encodings for the Curve25519/448 family: id-X25519 is OID 1.3.101.110, and a private key travels as a PKCS#8/OneAsymmetricKey structure whose privateKey OCTET STRING wraps a CurvePrivateKey — itself an OCTET STRING holding the raw 32-byte scalar. For X25519 with version 0 and no attributes the DER is therefore a constant 48 bytes: the fixed 16-byte prefix 302e020100300506032b656e04220420 followed by the raw key, which makes a byte-exact bridge between raw scalars and PKCS#8 sound in both directions.",
+    "sha256": "22cca433dadabe7e8d48fcebd2991c8e0327f7179dbdc876c80c14591c997c36"
+  },
+  {
+    "groups": [],
+    "id": "crockford/base32",
+    "title": "Crockford Base32 (human-transcribable encoding)",
+    "url": "https://www.crockford.com/base32.html",
+    "version": "Douglas Crockford, 2019 revision",
+    "text": "Crockford base32 encodes binary data 5 bits per symbol over a 32-symbol alphabet that excludes I, L, O and U — the letters most confused with digits or each other in handwriting and speech — so a code survives transcription. Decoding is case-insensitive and maps I and L to 1 and O to 0. Hyphens may be inserted for readability and are ignored on decode. It is a display encoding for identifiers humans copy, not a cryptographic primitive.",
+    "sha256": "3170e29bd7770d078633080aa5afaa06b5e29cc801ddd95b7ccd003ba7e8f48f"
+  },
+  {
     "groups": ["cryptography", "mobile-security"],
     "id": "apple/export-compliance",
     "title": "Complying with Encryption Export Regulations",

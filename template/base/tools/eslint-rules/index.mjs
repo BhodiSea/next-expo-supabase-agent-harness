@@ -319,6 +319,20 @@ const rules = {
   // invitation-token digest is the codebase's own precedent). What reds is the
   // AEAD/KDF/cipher surface, where a second implementation means a second
   // envelope format nobody reviewed.
+  //
+  // BINDING-TRACKED since 1.0.0 (the discharged register row
+  // crypto-one-door-namespace-imports): the rule records which LOCAL names alias
+  // the node:crypto module (namespace, default, `require` into an identifier) and
+  // which alias its `webcrypto` export (named import, destructured require, either
+  // renamed), then judges member reaches at Program:exit so declaration order
+  // cannot hide a route. `webcrypto.subtle.*`, `nodeCrypto.createCipheriv(...)`,
+  // `c.webcrypto.subtle` and `require('crypto').scrypt(...)` all red; judging the
+  // IMPORTED NAME rather than the statement text also un-reds the false positive
+  // where a harmless binding (`const scryptLike = require('crypto')`) merely
+  // CONTAINS a cipher word. Its stated limit is one hop: aliases-of-aliases
+  // (`const c2 = c`, `const wc = c.webcrypto` used later) are not followed —
+  // that second hop is the security reviewers' half, and a half-tracked deeper
+  // version would red honest code.
   // SOURCE: .claude/rules/encryption.md (the server never holds a key; primitives
   // arrive through the port)
   'crypto-primitives-one-door': {
@@ -340,43 +354,104 @@ const rules = {
       const CIPHER_API =
         /\b(createCipher|createCipheriv|createDecipher|createDecipheriv|createSecretKey|createDiffieHellman|generateKey|generateKeyPair|scrypt|pbkdf2|hkdf|createSign|createVerify|privateDecrypt|publicEncrypt)/
       const NODE_CRYPTO = new Set(['crypto', 'node:crypto'])
-      const reportModule = (node, source, name) => {
-        if (!NODE_CRYPTO.has(source)) return
-        // Only the cipher/KDF surface — a bare `node:crypto` import for hashing
-        // is legitimate everywhere (see the header).
-        if (!CIPHER_API.test(context.sourceCode.getText(node))) return
-        context.report({ node, messageId: 'cipherImport', data: { name } })
+      const moduleAliases = new Set()
+      const webcryptoAliases = new Set()
+      /** @type {any[]} */
+      const candidates = []
+
+      const isCryptoRequire = (node) =>
+        node?.type === 'CallExpression' &&
+        node.callee.type === 'Identifier' &&
+        node.callee.name === 'require' &&
+        node.arguments[0]?.type === 'Literal' &&
+        NODE_CRYPTO.has(node.arguments[0].value)
+
+      // A reference to the node:crypto MODULE itself: a tracked alias, or the
+      // require call used inline (`require('crypto').scrypt(...)`).
+      const isModuleRef = (obj) =>
+        (obj.type === 'Identifier' && moduleAliases.has(obj.name)) || isCryptoRequire(obj)
+
+      // `crypto.subtle` / `globalThis.crypto.subtle` — the global heuristic the
+      // rule always had: a `crypto`-named base is credibly the platform object.
+      const isGlobalCryptoRef = (obj) =>
+        (obj.type === 'Identifier' && obj.name === 'crypto') ||
+        (obj.type === 'MemberExpression' &&
+          !obj.computed &&
+          obj.property.type === 'Identifier' &&
+          obj.property.name === 'crypto')
+
+      // `webcrypto.subtle` through a tracked alias, or `nodeCrypto.webcrypto.subtle`.
+      const isWebcryptoRef = (obj) =>
+        (obj.type === 'Identifier' && webcryptoAliases.has(obj.name)) ||
+        (obj.type === 'MemberExpression' &&
+          !obj.computed &&
+          obj.property.type === 'Identifier' &&
+          obj.property.name === 'webcrypto' &&
+          isModuleRef(obj.object))
+
+      const judge = (node) => {
+        if (node.property.name === 'subtle') {
+          if (isGlobalCryptoRef(node.object) || isWebcryptoRef(node.object)) {
+            context.report({ node, messageId: 'subtleReach' })
+          }
+          return
+        }
+        if (CIPHER_API.test(node.property.name) && isModuleRef(node.object)) {
+          context.report({ node, messageId: 'cipherImport', data: { name: node.property.name } })
+        }
       }
+
+      const trackDestructured = (pattern) => {
+        for (const p of pattern.properties) {
+          if (p.type !== 'Property' || p.key.type !== 'Identifier') continue
+          if (p.key.name === 'webcrypto' && p.value.type === 'Identifier') {
+            webcryptoAliases.add(p.value.name)
+          } else if (CIPHER_API.test(p.key.name)) {
+            context.report({ node: p, messageId: 'cipherImport', data: { name: p.key.name } })
+          }
+        }
+      }
+
       return {
-        MemberExpression(node) {
-          if (
-            node.computed ||
-            node.property.type !== 'Identifier' ||
-            node.property.name !== 'subtle'
-          ) {
-            return
-          }
-          const obj = node.object
-          const isCryptoRef =
-            (obj.type === 'Identifier' && obj.name === 'crypto') ||
-            (obj.type === 'MemberExpression' &&
-              !obj.computed &&
-              obj.property.type === 'Identifier' &&
-              obj.property.name === 'crypto')
-          if (isCryptoRef) context.report({ node, messageId: 'subtleReach' })
-        },
         ImportDeclaration(node) {
-          reportModule(node, node.source.value, node.source.value)
-        },
-        CallExpression(node) {
-          if (
-            node.callee.type === 'Identifier' &&
-            node.callee.name === 'require' &&
-            node.arguments[0]?.type === 'Literal' &&
-            typeof node.arguments[0].value === 'string'
-          ) {
-            reportModule(node.parent ?? node, node.arguments[0].value, node.arguments[0].value)
+          if (!NODE_CRYPTO.has(String(node.source.value))) return
+          for (const s of node.specifiers) {
+            if (s.type === 'ImportNamespaceSpecifier' || s.type === 'ImportDefaultSpecifier') {
+              moduleAliases.add(s.local.name)
+            } else if (s.type === 'ImportSpecifier') {
+              const name = String(
+                s.imported.type === 'Identifier' ? s.imported.name : s.imported.value,
+              )
+              if (name === 'webcrypto') webcryptoAliases.add(s.local.name)
+              else if (CIPHER_API.test(name)) {
+                context.report({ node: s, messageId: 'cipherImport', data: { name } })
+              }
+            }
           }
+        },
+        ExportNamedDeclaration(node) {
+          // A re-export is a door too: `export { createCipheriv } from 'node:crypto'`.
+          if (node.source === null || !NODE_CRYPTO.has(String(node.source.value))) return
+          for (const s of node.specifiers) {
+            const name = String(s.local.type === 'Identifier' ? s.local.name : s.local.value)
+            if (CIPHER_API.test(name)) {
+              context.report({ node: s, messageId: 'cipherImport', data: { name } })
+            }
+          }
+        },
+        VariableDeclarator(node) {
+          if (!isCryptoRequire(node.init)) return
+          if (node.id.type === 'Identifier') moduleAliases.add(node.id.name)
+          else if (node.id.type === 'ObjectPattern') trackDestructured(node.id)
+        },
+        MemberExpression(node) {
+          if (node.computed || node.property.type !== 'Identifier') return
+          candidates.push(node)
+        },
+        // Judged after the whole file is read, so a require BELOW its use (a
+        // hoisted function reaching `c.createCipheriv`) cannot hide the route.
+        'Program:exit'() {
+          for (const node of candidates) judge(node)
         },
       }
     },
@@ -464,7 +539,7 @@ const rules = {
             // before it surfaces (proven against the real Linter — the case
             // produced zero errors). A check cannot police the directive that
             // switches the checker off; that needs a scanner outside ESLint, which
-            // is the suppressions census the register schedules for 0.11.0.
+            // is the `suppressions` chain step (tools/check-suppressions.mjs, 1.0.0).
             const named = comment.value.slice(directive[0].length).trim()
             if (named.includes('no-suppressed-complexity')) {
               context.report({ loc: comment.loc, messageId: 'stacked' })

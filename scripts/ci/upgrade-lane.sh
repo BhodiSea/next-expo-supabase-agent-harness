@@ -469,20 +469,47 @@ while IFS= read -r g; do
   fi
 done < "$WORK/stop-expiry-gates.txt"
 if [ -n "$DROPPED_EXPIRED" ]; then
-  say "stop-side expiries — every deadline this lane cannot execute must name its proof"
+  say "stop-side expiries — every deadline this lane cannot execute must name its proof, PER RAMP"
+  # PER-SITE since 1.0.0: the registry keys each proof on a substring of the ramp's own
+  # detail (the identity the obligations ramp union adopted at 0.11.0), and the proof
+  # file must carry BOTH 'RAMP EXPIRED' and that substring — the banner names ITS ramp.
+  # The 0.11.0 near-miss this closes: one file held four RAMP EXPIRED mentions, all
+  # driving the 0.6.0 web-e2e ramp, so the 0.10.0 axe expiry would have been excused by
+  # a proof of an unrelated deadline. The node judge re-derives the dropped sites from
+  # scripts/lib/ramp-sites.mjs, so the binding can never drift from the shipped fleet.
   for g in $DROPPED_EXPIRED; do
-    PROOF="$(node -e '
-      const m = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
-      const e = m[process.argv[2]]
-      if (e === undefined || typeof e.proof !== "string" || typeof e.note !== "string") process.exit(1)
-      process.stdout.write(e.proof)
-    ' "$STOP_EXPIRIES" "$g")" ||
-      die "gate \`$g\` meets its deadline at baseVersion $BASE_AFTER and this lane cannot execute it (not a chain step) — its RAMP EXPIRED branch fires in NO lane. Register the compensating unit proof in scripts/ci/stop-side-expiries.json: { \"$g\": { \"proof\": \"tests/gates/<file>\", \"note\": \"<why the lane cannot execute it>\" } }"
-    [ -f "$ROOT/$PROOF" ] ||
-      die "scripts/ci/stop-side-expiries.json points \`$g\` at $PROOF, which does not exist — a proof that is not in the tree proves nothing"
-    grep -qF 'RAMP EXPIRED' "$ROOT/$PROOF" ||
-      die "$PROOF never mentions RAMP EXPIRED — it is registered as the proof that \`$g\`'s expiry actually fires, and a proof that does not execute the expiry branch is decorative coverage"
-    echo "  dropped:   $g (deadline met; expiry executed by $PROOF)"
+    node --input-type=module -e '
+      const [registryPath, gate, base, root] = process.argv.slice(1)
+      const { readFileSync, existsSync } = await import("node:fs")
+      const { cmpDotted, shippedRampSites } = await import(`file://${root}/scripts/lib/ramp-sites.mjs`)
+      const live = JSON.parse(readFileSync(`${root}/package.json`, "utf8")).version
+      const m = JSON.parse(readFileSync(registryPath, "utf8"))
+      const entries = Array.isArray(m[gate]) ? m[gate] : []
+      const sites = shippedRampSites().filter((s) => s.gate === gate)
+      const expired = sites.filter(
+        (s) =>
+          s.until !== null &&
+          cmpDotted(base, s.minVersion) < 0 &&
+          cmpDotted(live, s.until) >= 0,
+      )
+      const fail = (msg) => { console.error(msg); process.exit(1) }
+      if (expired.length === 0) fail(`gate ${gate} was reported dropped-expired but no shipped site computes as expired at base ${base} / live ${live} — the expectation set and the fleet disagree, which is itself the finding`)
+      for (const e of entries) {
+        if (typeof e.detail !== "string" || typeof e.proof !== "string" || typeof e.note !== "string") fail(`scripts/ci/stop-side-expiries.json ${gate}: every entry needs {detail, proof, note}`)
+        if (!sites.some((s) => s.detail.includes(e.detail))) fail(`scripts/ci/stop-side-expiries.json ${gate}: detail ${JSON.stringify(e.detail)} matches NO shipped ramp site of that gate — a stale entry excuses nothing`)
+      }
+      for (const site of expired) {
+        const matches = entries.filter((e) => site.detail.includes(e.detail))
+        if (matches.length !== 1) fail(`gate ${gate} meets the deadline of the ramp whose detail is ${site.detail} at baseVersion ${base}, and scripts/ci/stop-side-expiries.json carries ${String(matches.length)} matching entr${matches.length === 1 ? "y" : "ies"} for it — register exactly one {detail, proof, note}, keyed on a substring of THAT detail`)
+        const [entry] = matches
+        if (!existsSync(`${root}/${entry.proof}`)) fail(`scripts/ci/stop-side-expiries.json points the ${gate} ramp ${JSON.stringify(entry.detail)} at ${entry.proof}, which does not exist — a proof that is not in the tree proves nothing`)
+        const text = readFileSync(`${root}/${entry.proof}`, "utf8")
+        if (!text.includes("RAMP EXPIRED")) fail(`${entry.proof} never mentions RAMP EXPIRED — it is registered as the proof that this expiry fires, and a proof that does not execute the expiry branch is decorative coverage`)
+        if (!text.includes(entry.detail)) fail(`${entry.proof} never mentions ${JSON.stringify(entry.detail)} — the proof must name ITS ramp, or a proof of an unrelated deadline excuses this one (the 0.11.0 axe near-miss)`)
+        console.log(`  dropped:   ${gate} — ${entry.detail} (deadline met; expiry executed by ${entry.proof})`)
+      }
+    ' "$STOP_EXPIRIES" "$g" "$BASE_AFTER" "$ROOT" ||
+      die "stop-side expiry judgement failed for \`$g\` — see the finding above"
   done
 fi
 

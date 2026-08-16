@@ -145,7 +145,8 @@ import { setLogSink } from '../lib/log'
 import { redactCrashEvent, redactText } from './redact'
 
 // Metro inlines EXPO_PUBLIC_ vars by rewriting the literal DOT member access,
-// so the read below stays dot-form (same rule as src/lib/api-client.ts).
+// so the read below stays dot-form (same rule as the tRPC client's
+// EXPO_PUBLIC_WEB_ORIGIN read in src/lib/trpc/client.ts).
 declare const process: {
   readonly env: {
     readonly EXPO_PUBLIC_SENTRY_DSN?: string
@@ -169,7 +170,7 @@ export function redactEvent<E extends Sentry.ErrorEvent>(event: E): E {
 }
 
 export function initCrashReporting(): void {
-  // '' must read as unset, same as api-client's origin read.
+  // '' must read as unset, same as the tRPC client's origin read.
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN || ''
   if (dsn === '') return // unset DSN = crash reporting OFF (the default state)
@@ -243,7 +244,7 @@ profiling instrumentation) — imported from the one registered sink file, so th
 layout never carries a vendor import of its own and needs no sinks[] row.
 Unhandled JS errors and promise rejections are captured globally by
 `Sentry.init` itself, so no extra funnel is wired — API-layer errors keep
-flowing through `src/lib/api-client.ts`'s envelope decoding and reach the
+flowing through the tRPC client's envelope decoding and reach the
 transport only if a feature lets them escape as exceptions.
 
 ## 6. Unit-prove the wiring seam

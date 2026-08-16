@@ -363,6 +363,27 @@ SELECT m.user_id, m.org_id
  ORDER BY m.org_id
  LIMIT 1;
 
+-- The privilege lifecycle (1.0.0): the audit read floor is judged against the
+-- EFFECTIVE rank, which for rank >= 30 exists only while an unexpired elevation
+-- does — so the probe's owner elevates first, as themselves, exactly the way a
+-- real caller would. The probe values are read into locals BEFORE the role
+-- switch, because the temp table belongs to the harness role.
+DO $probe_elevate$
+DECLARE
+  v_user uuid;
+  v_org uuid;
+BEGIN
+  SELECT user_id, org_id INTO v_user, v_org FROM rank_probe;
+  -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  PERFORM set_config('role', 'authenticated', true);
+  PERFORM public.elevate(v_org);
+  -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
+  PERFORM set_config('role', 'none', true);
+END;
+$probe_elevate$;
+
 SELECT cmp_ok(
   (SELECT count(*)::int FROM (
      -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]

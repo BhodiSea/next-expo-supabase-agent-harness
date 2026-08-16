@@ -136,6 +136,15 @@ export async function bootstrapTenant(
   if (team.error || !team.data) {
     throw new Error(`create_org failed for ${label}: ${team.error?.message}`)
   }
+  // The privilege lifecycle (1.0.0): the invitation mint below is an admin act
+  // judged against the EFFECTIVE rank, which for rank >= 30 exists only while an
+  // unexpired elevation does — so the founder elevates first. This is also what
+  // provisions the admin_elevations isolation target's row, making the JIT door
+  // one more RPC this bootstrap is a positive control for.
+  const lift = await client.rpc('elevate', { p_org_id: team.data })
+  if (lift.error) {
+    throw new Error(`elevate failed for ${label}: ${lift.error.message}`)
+  }
   // One pending invitation, so the invitations target has a row of its own to
   // isolate. Rank 20 is strictly below the founder's 40, which is what makes it
   // legal — an admin may not mint a seat at or above their own rank.
@@ -210,6 +219,18 @@ export const ISOLATION_TARGETS: IsolationTarget[] = [
     provision: 'rpc',
     scopeValue: (ctx) => ctx.userId,
     row: (ctx) => ({ user_id: ctx.userId, org_id: ctx.teamOrgId, role_rank: 40 }),
+  },
+  {
+    // The JIT elevation (1.0.0). Read-only to authenticated — the row arrives from
+    // the elevate() call in the bootstrap, never from a client write. Self-scoped
+    // like the seat table and for the same recursion reason; the cross-tenant read
+    // that matters here discloses WHO is currently administering an org, which is
+    // operational posture another tenant has no business seeing.
+    table: 'admin_elevations',
+    ownerColumn: 'user_id',
+    provision: 'rpc',
+    scopeValue: (ctx) => ctx.userId,
+    row: (ctx) => ({ user_id: ctx.userId, org_id: ctx.teamOrgId }),
   },
   {
     table: 'invitations',

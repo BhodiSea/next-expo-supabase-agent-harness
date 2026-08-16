@@ -82,7 +82,10 @@ test('the 152-vs-149 trap: the three superseded requirements are RECORDED, not d
 
 test('a superseded requirement that ALSO appears as a live row reds — it must not be counted', () => {
   const reg = clone()
-  reg.requirements[0] = { ...reg.requirements[0], text: reg.supersededAtML3[0].text }
+  reg.requirements[0] = {
+    ...reg.requirements[0],
+    text: reg.supersededAtML3[0].text,
+  }
   assert.ok(supersessionProblems(reg).some((p) => /recorded, never counted/.test(p)))
 })
 
@@ -109,8 +112,9 @@ test('`alternate-control` without assessorMayRefuse reds — it is never pre-ear
 })
 
 test('`not-implemented` with no obligation reds — the register cannot hide a gap', () => {
+  // RB-03 since 1.0.0: the deploy-record channel regraded RB-02 (the old fixture) positive.
   const reg = clone()
-  delete reg.requirements.find((r) => r.id === 'RB-02').obligation
+  delete reg.requirements.find((r) => r.id === 'RB-03').obligation
   assert.ok(rowProblems(reg, CONTROLS).some((p) => /must name an 'obligation'/.test(p)))
 })
 
@@ -132,9 +136,12 @@ test('an organisation-boundary row may not carry an outcome, and must name an ow
 })
 
 test('an unbuilt requirement cannot claim the top evidence tier', () => {
+  // RB-03 since 1.0.0, for the same reason as the obligation fixture above.
   const reg = clone()
-  reg.requirements.find((r) => r.id === 'RB-02').evidenceTier = 'simulated-activity'
-  assert.ok(rowProblems(reg, CONTROLS).some((p) => /cannot be evidenced by simulated activity/.test(p)))
+  reg.requirements.find((r) => r.id === 'RB-03').evidenceTier = 'simulated-activity'
+  assert.ok(
+    rowProblems(reg, CONTROLS).some((p) => /cannot be evidenced by simulated activity/.test(p)),
+  )
 })
 
 test('reachability is FROZEN research, not a grade — an invalid value reds', () => {
@@ -151,7 +158,9 @@ test('one artefact, one claim — a second shared-clause instance claiming a con
   row.control = 'tenancy'
   row.proof = 'supabase/tests/audit_immutability.test.sql'
   delete row.obligation
-  assert.ok(sharedClauseProblems(reg).some((p) => /counting it twice is compliance inflation/.test(p)))
+  assert.ok(
+    sharedClauseProblems(reg).some((p) => /counting it twice is compliance inflation/.test(p)),
+  )
 })
 
 test('shared-clause instances may DIFFER in outcome — identical text, different subject stream', () => {
@@ -161,7 +170,9 @@ test('shared-clause instances may DIFFER in outcome — identical text, differen
   // application-control events to protect (AC-12, not-implemented). Forcing equal grades
   // would inflate three rows or deflate one, so divergence must NOT red.
   const spine = SHIPPED.sharedClauses.find((c) => c.id === 'SPINE-LOG-PROTECT')
-  const outcomes = spine.appearsIn.map((id) => SHIPPED.requirements.find((r) => r.id === id).outcome)
+  const outcomes = spine.appearsIn.map(
+    (id) => SHIPPED.requirements.find((r) => r.id === id).outcome,
+  )
   assert.ok(new Set(outcomes).size > 1, 'the shipped register must exercise the divergent case')
   assert.deepEqual(sharedClauseProblems(clone()), [])
 })
@@ -189,9 +200,10 @@ test('enabling [storage] reds — eleven macro grades rest on there being no doc
 
 test('an absent [storage] setting is not a proof either', () => {
   assert.ok(
-    negativeProofProblems({ configToml: '[auth]\nenabled = true\n', uploadRoutes: [] }).some((p) =>
-      /an absent setting is not a proof/.test(p),
-    ),
+    negativeProofProblems({
+      configToml: '[auth]\nenabled = true\n',
+      uploadRoutes: [],
+    }).some((p) => /an absent setting is not a proof/.test(p)),
   )
 })
 
@@ -248,7 +260,11 @@ test('WIDENED (0.10.0): an `effective` row with no canary reds even at a LOWER t
   const reg = clone()
   const row = reg.requirements.find((r) => r.id === 'PA-02')
   assert.equal(row.outcome, 'effective')
-  assert.equal(row.evidenceTier, 'system-generated-artefact', 'not the top tier — that is the point')
+  assert.equal(
+    row.evidenceTier,
+    'system-generated-artefact',
+    'not the top tier — that is the point',
+  )
   delete row.canary
   const problems = canaryProblems(reg, realKeys())
   assert.equal(problems.length, 1)
@@ -276,7 +292,7 @@ test('a row that grades NOTHING may not cite a red-proof', () => {
   // The inverse direction. A not-implemented row carrying a canary reads as evidence for a
   // claim nobody made — and MFA-09 is exactly the row a reader would expect one on.
   const reg = clone()
-  reg.requirements.find((r) => r.id === 'MFA-15').canary = 'auth-posture'
+  reg.requirements.find((r) => r.id === 'MFA-01').canary = 'auth-posture'
   assert.ok(canaryProblems(reg, realKeys()).some((p) => /claims no control/.test(p)))
 })
 
@@ -289,7 +305,10 @@ test('LANE-BACKED claims resolve: three rows cite a CI job, not a chain step', (
   const problems = canaryProblems(clone(), stepsOnly)
   assert.ok(problems.length >= 4, 'the narrow set must fail the lane-backed rows')
   for (const id of ['PA-01', 'PA-02', 'PA-03', 'PA-05']) {
-    assert.ok(problems.some((p) => p.includes(id)), `${id} must red against steps{} alone`)
+    assert.ok(
+      problems.some((p) => p.includes(id)),
+      `${id} must red against steps{} alone`,
+    )
   }
   // ...and the union clears every one of them.
   assert.deepEqual(canaryProblems(clone(), realKeys()), [])
@@ -315,7 +334,11 @@ test('a not-applicable row above the documentation floor must name a negativeCan
 test('a negativeCanary that resolves nowhere reds — the absence rests on an unregistered proof', () => {
   const reg = clone()
   reg.requirements.find((r) => r.id === 'MACRO-01').negativeCanary = 'no-such-proof'
-  assert.ok(canaryProblems(reg, realKeys()).some((p) => /has no entry in tests\/canary\/injections\.json/.test(p)))
+  assert.ok(
+    canaryProblems(reg, realKeys()).some((p) =>
+      /has no entry in tests\/canary\/injections\.json/.test(p),
+    ),
+  )
 })
 
 test('THE FLOOR IS A REAL FLOOR: a documentation-tier not-applicable row needs no negativeCanary', () => {
@@ -362,7 +385,12 @@ test('every shipped POSITIVE claim resolves against the real canary registry', (
   const positive = reg.requirements.filter(
     (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
   )
-  assert.equal(positive.length, 11, 'the closure is worthless if its subject set silently shrinks')
+  // 21 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03/RAP-13 to
+  // effective and RAP-02 to alternate-control (rls-isolation canary), the auth-event
+  // trail regraded MFA-15 (auth-posture canary), the vendor-support register
+  // regraded PA-11 and POS-16 (version-sync canary), and the deploy-record channel
+  // regraded PA-06/PA-07/PA-10 (patch-window lane) and RB-02 (restore-manifest lane).
+  assert.equal(positive.length, 21, 'the closure is worthless if its subject set silently shrinks')
   assert.deepEqual(canaryProblems(reg, realKeys()), [])
 })
 

@@ -17,7 +17,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { hasCommittedMeasurement } from './lib/chain-budget.mjs'
+import { hasCommittedColdMeasurement, hasCommittedMeasurement } from './lib/chain-budget.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8')
@@ -122,9 +122,7 @@ const shippedHooks = existsSync(hooksDirUrl)
 // checks came to be red at once. Guarded like every other input: the fixture tests run a
 // byte-identical copy in a mirrored tree that need not model this file.
 const contributingPath = new URL('../CONTRIBUTING.md', import.meta.url)
-const contributingText = existsSync(contributingPath)
-  ? readFileSync(contributingPath, 'utf8')
-  : ''
+const contributingText = existsSync(contributingPath) ? readFileSync(contributingPath, 'utf8') : ''
 const contributing = unwrap(contributingText)
 // The "Local development" section, cut from the RAW text (unwrap erases the heading
 // structure the boundaries live on; a command in a code block never soft-wraps mid-token).
@@ -172,11 +170,23 @@ const problems = []
 // positional overrides, so its own fixture tests run a byte-identical COPY inside a
 // mirrored tree, and an unguarded read of a file the fixture does not model does not fail
 // the claim — it CRASHES the script, which reads as six unrelated red tests.
+//
+// 1.0.0: the WORD is judged too. "pre-release" is true of major 0 and false of anything else;
+// "stable" is the reverse. A status line that says stable at 0.x claims a maturity nobody
+// earned, and one that says pre-release at 1.x carries a warning the version retracted — both
+// are the first line a reader trusts. And the line must EXIST: a README that drops it after a
+// major bump has stopped stating its own status, which is not the same as being stable.
 const pkgPath = new URL('../package.json', import.meta.url)
-for (const [, claimed] of readme.matchAll(/\*\*Status: pre-release \((\d+\.\d+)\.x\)/g)) {
+const statusLines = [...readme.matchAll(/\*\*Status: (pre-release|stable) \((\d+\.\d+)\.x\)/g)]
+if (statusLines.length === 0 && existsSync(pkgPath)) {
+  problems.push(
+    'README carries no "**Status: pre-release (N.N.x)**" / "**Status: stable (N.N.x)**" line — the status line is the first claim a reader checks and its absence is a claim too',
+  )
+}
+for (const [, word, claimed] of statusLines) {
   if (!existsSync(pkgPath)) {
     problems.push(
-      `README claims "pre-release (${claimed}.x)" but there is no package.json to check it against — an unverifiable claim is not a passing one`,
+      `README claims "${word} (${claimed}.x)" but there is no package.json to check it against — an unverifiable claim is not a passing one`,
     )
     continue
   }
@@ -184,7 +194,13 @@ for (const [, claimed] of readme.matchAll(/\*\*Status: pre-release \((\d+\.\d+)\
   const majorMinor = pkgVersion.split('.').slice(0, 2).join('.')
   if (claimed !== majorMinor) {
     problems.push(
-      `README's status line says "pre-release (${claimed}.x)" but package.json is ${pkgVersion} — the first line a reader trusts`,
+      `README's status line says "${word} (${claimed}.x)" but package.json is ${pkgVersion} — the first line a reader trusts`,
+    )
+  }
+  const major = Number(pkgVersion.split('.')[0])
+  if ((word === 'pre-release') !== (major === 0)) {
+    problems.push(
+      `README's status line says "${word}" but package.json is ${pkgVersion} — "pre-release" is major 0 and "stable" is major >= 1; the word and the number must agree`,
     )
   }
 }
@@ -215,7 +231,15 @@ for (const [file, text] of [
 // drift that prompted this check. CHANGELOG is deliberately NOT scanned: "all six hooks
 // wired" inside the 0.2.1 entry is a true statement about 0.2.1, and rewriting history to
 // satisfy a present-tense claim is the opposite of what this file is for.
-const NUM_WORDS = { four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
+const NUM_WORDS = {
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+}
 for (const [file, text] of [
   ['README.md', readme],
   ['template/base/docs/harness/README.md', unwrap(doctrineText)],
@@ -444,9 +468,7 @@ if (!existsSync(e8RegisterUrl) || !existsSync(e8LibUrl)) {
   let statedInReadme = 0
   for (const [file, text] of [
     /** @type {[string, string]} */ (['README.md', readme]),
-    ...proseSurfaces.map(
-      ([f, t]) => /** @type {[string, string]} */ ([f, unwrap(t)]),
-    ),
+    ...proseSurfaces.map(([f, t]) => /** @type {[string, string]} */ ([f, unwrap(t)])),
   ]) {
     for (const m of text.matchAll(E8_FIGURES)) {
       if (file === 'README.md') statedInReadme += 1
@@ -464,6 +486,68 @@ if (!existsSync(e8RegisterUrl) || !existsSync(e8LibUrl)) {
     problems.push(
       'README.md publishes no Essential Eight standing, but template/base/tools/essential-eight.json ships one. Deleting the sentence is not a way past a wrong number: state the whole partition — ' +
         `"${String(s.total)} ML3 requirements: ${String(s.effective)} effective, ${String(s.alternateControl)} alternate-control, ${String(s.notImplemented)} not-implemented, ${String(s.notApplicable)} not-applicable, ${String(s.organisation)} organisation-boundary; ${String(s.sharedClauses)} shared clauses" — so a reader cannot be shown only the flattering half.`,
+    )
+  }
+}
+
+// ── 1e. DERIVED (1.0.0): the conformance MAP's published standing ───────────────────
+// The ASVS/MASVS/CRA twin of 1d, and the same three properties for the same reasons: it is
+// derived from the register through the SHIPPED summarise() (never re-implemented here);
+// it is matched as ONE PARTITION — four outcomes plus the three per-standard totals in
+// one phrase — because publishing the flattering half is the cheapest inflation; and it is
+// judged for ABSENCE in the README, because a standing that quietly vanishes is a product
+// nobody can audit. The phrase is the sentence the generated crosswalk states and the gate
+// prints, so the README quotes the machine rather than paraphrasing it. What the sentence
+// may never say is a LEVEL — scripts/hygiene.mjs's standards-claim sweep owns that half.
+const cmRegisterUrl = new URL('../template/base/tools/conformance-map.json', import.meta.url)
+const cmLibUrl = new URL('../template/base/tools/lib/conformance-map.mjs', import.meta.url)
+const CONFORMANCE_FIGURES =
+  /(\d+) mapped requirements?: (\d+) covered, (\d+) partial, (\d+) not-covered, (\d+) not-applicable — ASVS 5\.0\.0 \((\d+)\), MASVS 2\.1 \((\d+)\), CRA Annex I \((\d+)\)/g
+/** What the OK line reports for this class. */
+let cmStanding = 'conformance map absent'
+if (!existsSync(cmRegisterUrl) || !existsSync(cmLibUrl)) {
+  console.log(
+    'CLAIMS: NOTE — template/base/tools/conformance-map.json is not in this tree; the ' +
+      'conformance-map-figure class is SKIPPED, not passed. Any published ASVS/MASVS/CRA ' +
+      'standing is unverified without the register it is derived from.',
+  )
+} else {
+  const { summarise: summariseMap } = await import(cmLibUrl.href)
+  const s = summariseMap(JSON.parse(readFileSync(cmRegisterUrl, 'utf8')))
+  cmStanding = `map ${String(s.total)} rows / ${String(s.covered)} covered`
+  /** @type {Array<[string, number]>} the partition, in the order the sentence states it */
+  const parts = [
+    ['mapped requirements', s.total],
+    ['covered', s.covered],
+    ['partial', s.partial],
+    ['not-covered', s.notCovered],
+    ['not-applicable', s.notApplicable],
+    ['ASVS 5.0.0', s.byStandard.asvs],
+    ['MASVS 2.1', s.byStandard.masvs],
+    ['CRA Annex I', s.byStandard.cra],
+  ]
+  const expectedSentence = `${String(s.total)} mapped requirements: ${String(s.covered)} covered, ${String(s.partial)} partial, ${String(s.notCovered)} not-covered, ${String(s.notApplicable)} not-applicable — ASVS 5.0.0 (${String(s.byStandard.asvs)}), MASVS 2.1 (${String(s.byStandard.masvs)}), CRA Annex I (${String(s.byStandard.cra)})`
+  let statedInReadme = 0
+  for (const [file, text] of [
+    /** @type {[string, string]} */ (['README.md', readme]),
+    ...proseSurfaces.map(([f, t]) => /** @type {[string, string]} */ ([f, unwrap(t)])),
+  ]) {
+    for (const m of text.matchAll(CONFORMANCE_FIGURES)) {
+      if (file === 'README.md') statedInReadme += 1
+      parts.forEach(([label, expected], i) => {
+        const claimed = Number(m[i + 1])
+        if (claimed !== expected) {
+          problems.push(
+            `${file} publishes "${String(claimed)} ${label}" for the conformance map but template/base/tools/conformance-map.json grades ${String(expected)} — the register is the source of truth, and \`node tools/check-conformance-map.mjs\` prints this partition`,
+          )
+        }
+      })
+    }
+  }
+  if (statedInReadme === 0) {
+    problems.push(
+      'README.md publishes no conformance-map standing, but template/base/tools/conformance-map.json ships one. Deleting the sentence is not a way past a wrong number: state the whole partition — ' +
+        `"${expectedSentence}" — so a reader cannot be shown only the flattering half.`,
     )
   }
 }
@@ -510,20 +594,29 @@ for (const kind of ['cold', 'warm']) {
 // rule that is not enforced. Two documents agreeing about a number neither of them measured
 // is the failure mode the consistency check above cannot see: it compares the figures to each
 // other, never to a measurement.
-if (
-  !hasCommittedMeasurement(
-    chainBudget,
-    VALIDATE_STEPS.map(([name]) => name),
+//
+// TWO LICENCES, ONE PER KIND (1.0.0). "warm ≈ N s" is licensed by the warm measurement and
+// "cold ≈ N s" by the COLD one — they are different runs (the stamped local experience versus
+// a fresh clone's first validate), recorded by different `--record` modes, and through 0.11.x
+// the cold figure was refused only because the warm licence happened to be missing too. A
+// warm re-record must not unlock a cold figure nobody measured.
+const chainStepNames = VALIDATE_STEPS.map(([name]) => name)
+const licensed = {
+  warm: hasCommittedMeasurement(chainBudget, chainStepNames),
+  cold: hasCommittedColdMeasurement(chainBudget, chainStepNames),
+}
+for (const [label, value, kind] of [
+  ...Object.entries(rTimes).map(([k, v]) => [`README ${k}`, v, k]),
+  ...Object.entries(cTimes).map(([k, v]) => [`the latest CHANGELOG entry's ${k}`, v, k]),
+]) {
+  if (licensed[kind === 'cold' ? 'cold' : 'warm']) continue
+  const which =
+    kind === 'cold'
+      ? 'coldWall.measuredMs is null — record with `--record --cold` from the teed cold-validate.log'
+      : 'wall.measuredMs is null'
+  problems.push(
+    `${String(label)} ≈ ${String(value)} s is published, but scripts/chain-budget.json carries no committed measurement matching the live chain (${which}) — so the figure rests on nothing a reader can check. Record one from a selftest run (\`node scripts/check-chain-budget.mjs <log> --record\`, which only writes in CI because the numbers are that runner's and are not portable), commit it, and then publish.`,
   )
-) {
-  for (const [kind, value] of [
-    ...Object.entries(rTimes).map(([k, v]) => [`README ${k}`, v]),
-    ...Object.entries(cTimes).map(([k, v]) => [`the latest CHANGELOG entry's ${k}`, v]),
-  ]) {
-    problems.push(
-      `${kind} ≈ ${String(value)} s is published, but scripts/chain-budget.json carries no committed measurement (wall.measuredMs is null) — so the figure rests on nothing a reader can check. Record one from a selftest run (\`node scripts/check-chain-budget.mjs <log> --record\`, which only writes in CI because the numbers are that runner's and are not portable), commit it, and then publish.`,
-    )
-  }
 }
 
 // ── 2b. CONSISTENT (0.9.0): every "~Ns" / "N-second" CHAIN-COST phrase ───────────
@@ -545,12 +638,7 @@ const costConfigSurfaces = [
 ].flatMap((rel) => {
   const url = new URL(rel, import.meta.url)
   return existsSync(url)
-    ? [
-        /** @type {[string, string]} */ ([
-          rel.replace(/^\.\.\//, ''),
-          readFileSync(url, 'utf8'),
-        ]),
-      ]
+    ? [/** @type {[string, string]} */ ([rel.replace(/^\.\.\//, ''), readFileSync(url, 'utf8')])]
     : []
 })
 const costSurfaces = [
@@ -620,6 +708,6 @@ console.log(
       ? 'canary registry pending (W5b), '
       : `canary ${String(truth.canarySteps)} steps, `) +
     `${String(truth.guardRuleIds)} guard-rule ids, ${String(truth.canaryLegs)} executed canary legs, ` +
-    `${e8Standing}, ` +
+    `${e8Standing}, ${cmStanding}, ` +
     'gates-catalog chain count in lockstep; README/CHANGELOG timings agree)',
 )

@@ -12,12 +12,12 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-fast-check.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" posttool-fast-check.mjs",
             "timeout": 60,
             "type": "command"
           },
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/posttool-source-check.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" posttool-source-check.mjs",
             "timeout": 30,
             "type": "command"
           }
@@ -29,7 +29,7 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-bash-guard.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" pretool-bash-guard.mjs",
             "timeout": 10,
             "type": "command"
           }
@@ -39,7 +39,7 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-write-guard.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" pretool-write-guard.mjs",
             "timeout": 10,
             "type": "command"
           }
@@ -49,7 +49,7 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pretool-mcp-guard.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" pretool-mcp-guard.mjs",
             "timeout": 10,
             "type": "command"
           }
@@ -61,7 +61,7 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-validate-gate.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" stop-validate-gate.mjs",
             "timeout": 600,
             "type": "command"
           }
@@ -73,7 +73,7 @@
       {
         "hooks": [
           {
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/subagent-verdict.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" subagent-verdict.mjs",
             "timeout": 10,
             "type": "command"
           }

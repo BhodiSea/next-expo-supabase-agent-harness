@@ -53,6 +53,30 @@ export const ESCAPE_LISTS = [
   // vendorSpecifiers is the benign direction only because narrowing it is refused by the
   // gate's floor check; the row itself is the widening a reviewer must see.
   'tools/observability.json',
+  // 1.0.0. A suppressions-allow row licenses an inline directive that switches a lint
+  // rule off at one site, and a resilience row is the reviewed posture (including a
+  // declared do-nothing) of a seam that calls out of the system — both are escapes in
+  // the exact rls-exempt sense: the row is the widening a reviewer must see.
+  'tools/suppressions-allow.json',
+  'tools/resilience.json',
+  // 1.0.0. A support row LICENSES a dependency-on-a-service posture the same way an
+  // eol row licenses an abandoned package: a 'ceiling' status is a reviewed acceptance,
+  // and moving reviewedUntil is the one edit the lapse control cannot distinguish from
+  // a review — so every widening must land as a committed, human-reviewed diff.
+  'tools/support-register.json',
+  // 1.0.0. The additive mutation surface. Union semantics mean a row can never weaken
+  // the FLOOR — but deleting a row un-mutates code a human chose to protect, which is
+  // exactly the quiet widening the commit-not-dirty rule exists to surface: either
+  // direction of edit must be a committed, reviewable act.
+  'tools/mutation-scope-extra.json',
+  // 1.0.0. A tunables row is a reviewed auth-posture value (jwt lifetime, signup
+  // toggles) and additionalSections licenses a whole config SURFACE — both are the
+  // rls-exempt shape: the row is the widening a reviewer must see.
+  'tools/auth-tunables.json',
+  // 1.0.0. Flipping iosEncryption.nonExemptAllowed, adding a privacy-manifest row, or
+  // re-shaping the account-deletion surface are store-review decisions — the same
+  // reviewed-widening class as every escape above.
+  'tools/store-tunables.json',
   'tools/duplication-allow.json', // accepting a code clone
   'tools/vertical-anatomy-allow.json', // accepting a deviation from the vertical anatomy laws
   'tools/i18n-allow.json', // letting a user-facing string bypass the catalog

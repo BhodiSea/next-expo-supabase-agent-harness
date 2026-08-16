@@ -1,0 +1,18 @@
+{
+  "//": "The opt-in module names this harness release ships — the shipped copy of the installer's canonical MODULES list, which a consumer tree cannot import (the register row this file discharged: exports-walls-module-name-validation). OWNED and refreshed by `update`, never consumer-edited (write-guarded): check-exports-walls.mjs closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. `retired` names modules earlier releases shipped and this one no longer does — a census entry naming one is told the module is gone, not that the name never existed. A factory lockstep test holds both arrays set-equal to installer/lib/layout.mjs.",
+  "modules": [
+    "ci-mobile-release",
+    "ci-provenance",
+    "ci-web-deploy",
+    "crash-reporting",
+    "device-e2e",
+    "e2ee",
+    "eas-update",
+    "eval-live",
+    "gate-a11y-deep",
+    "observability",
+    "push-notifications",
+    "store-metadata"
+  ],
+  "retired": []
+}

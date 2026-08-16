@@ -338,6 +338,9 @@ test('CANARY — the 0.6.0 ramp EXPIRES at harness 0.7.0: the banner fires and t
   const r = runStep(dir)
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED/)
+  // The banner names ITS ramp — the roster closure, not the 0.7.0 path_state binding —
+  // per the per-detail keying in scripts/ci/stop-side-expiries.json.
+  assert.match(r.out, /closure over the reviewer roster/)
   assert.match(r.out, /deadline of 0\.7\.0/)
   assert.match(r.out, /does not exist — no reviewer ran at all this turn/)
 })

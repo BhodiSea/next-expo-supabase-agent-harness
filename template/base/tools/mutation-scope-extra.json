@@ -1,0 +1,4 @@
+{
+  "//": "YOUR half of the mutation surface — additive roots the nightly lane mutates and the PR diff-scoper selects, UNION'd onto the harness floor (tools/lib/mutation-critical.mjs). Union semantics by construction: a row here can only ADD a directory to the mutated surface; nothing in this file can subtract from the floor, so the worst a bad edit can do is mutate more. Each root is a directory prefix ending '/' whose segments are plain names or a single '*' spanning one level (e.g. 'packages/billing/src/' or 'packages/verticals/*/scripts/'), with a why (>= 40 chars) recording what lives there and why a silent break matters. The scoper reds any root matching zero files — a stale row mutates nothing while claiming to. Ships empty: the floor already covers every seeded auth/data path, so rows belong here the day YOUR tree grows a critical surface outside it.",
+  "roots": []
+}

@@ -48,9 +48,17 @@ adb shell run-as {{APP_IDENTIFIER}} mkdir -p files/SQLite
 adb shell run-as {{APP_IDENTIFIER}} cp /data/local/tmp/kv-seed.db files/SQLite/ExpoSQLiteStorage
 node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/i18n-rtl.yaml --out-dir artifacts/maestro/i18n
 
-# Mutation flow: stub sign-in -> create note -> relaunch -> persists
+# Mutation flow: REAL sign-in -> create note -> relaunch -> persists
 # (clearState inside the flow resets the seeded locale first — order matters).
-node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation
+# The identity is minted here, against the job's Supabase stack, with its personal
+# org (tools/ci/mint-device-user.mjs — admin createUser + ensure_personal_org as
+# that user), and handed to Maestro as flow variables; the workflow publishes
+# SUPABASE_SERVICE_ROLE_KEY for exactly this step. Fixed address, idempotent minter.
+DEVICE_EMAIL="device-mutation@example.com"
+DEVICE_PASSWORD="device-mutation-pw-1"
+node tools/ci/mint-device-user.mjs "$DEVICE_EMAIL" "$DEVICE_PASSWORD"
+node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation \
+  --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
 
 # Interaction budgets: the dev perf-harness screen self-measures against
 # tools/interaction-budget.json and the flow asserts its perf-pass marker.

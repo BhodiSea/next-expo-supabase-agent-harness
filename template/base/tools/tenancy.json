@@ -46,8 +46,8 @@
     {
       "name": "self-row",
       "sql": "user_id = (SELECT auth.uid())",
-      "tables": ["memberships"],
-      "reason": "The recursion terminator. memberships' own SELECT policy must not call the scope helpers — they read memberships, so a helper-bearing SELECT policy re-enters itself (54001 stack depth exceeded). A self-only scalar is what makes SECURITY INVOKER helpers safe, and it is why no seat table needs a definer read."
+      "tables": ["memberships", "admin_elevations"],
+      "reason": "The recursion terminator. memberships' own SELECT policy must not call the scope helpers — they read memberships, so a helper-bearing SELECT policy re-enters itself (54001 stack depth exceeded). A self-only scalar is what makes SECURITY INVOKER helpers safe, and it is why no seat table needs a definer read. Widened to admin_elevations at 1.0.0 for the same recursion fact one table over: the effective-rank fold makes member_ranks() read the elevation table too, so its policies must be helper-free self-only scalars or the helper re-enters them."
     },
     {
       "name": "rank-below-caller",
@@ -70,12 +70,12 @@
     {
       "name": "rpc-admin-scope",
       "sql": "org_id = ANY((SELECT private.rpc_admin_org_ids())::uuid[])",
-      "tables": ["memberships"],
-      "reason": "The admin arm of the seat table's rpc-role SELECT policy, and the only place readerScopeHelper may appear. It is what lets set_member_role and remove_member reach a colleague's seat at all: PostgreSQL AND-s this SELECT policy onto their UPDATE/DELETE WHERE clauses, so without it every promotion matches zero rows and raises. Narrowed to the seat table because nothing else needs it — every other tenant table scopes through the ordinary member_org_ids form."
+      "tables": ["memberships", "admin_elevations"],
+      "reason": "The admin arm of the seat table's rpc-role SELECT policy, and the only place readerScopeHelper may appear. It is what lets set_member_role and remove_member reach a colleague's seat at all: PostgreSQL AND-s this SELECT policy onto their UPDATE/DELETE WHERE clauses, so without it every promotion matches zero rows and raises. Narrowed to the seat table because nothing else needs it — every other tenant table scopes through the ordinary member_org_ids form. Widened to admin_elevations at 1.0.0: set_member_role's demote path DELETEs the TARGET's elevation, and PostgreSQL AND-s the elevation table's SELECT policies onto that DELETE's WHERE clause — without the admin arm the delete matches zero rows and reports success, the exact defect this form was born from."
     }
   ],
   "knownPureFunctions": ["coalesce", "nullif", "now", "lower"],
-  "nonPublicSchemas": ["private", "audit"],
+  "nonPublicSchemas": ["private", "audit", "auth_trail"],
   "exemptTables": [],
   "untenantedTablesComment": "TABLES WITH NO TENANT KEY AT ALL, which is a different escape from exemptTables (that one is for tables that DO carry the column but sit outside the predicate rules). Every other check in this gate is discovered BY the tenant column, so without this list the way to pass is to omit the column entirely. A per-user table in a B2B product is a design regression that no isolation test can catch, because per-user isolation is strictly TIGHTER than per-org: every cross-tenant assertion passes while the colleagues who are supposed to share the data cannot see it.",
   "untenantedTables": [
@@ -86,6 +86,10 @@
     {
       "table": "quota_defaults",
       "reason": "The global ceiling per metric, applying to any org with no negotiated override. Giving it an org_id would mean one row per org per metric holding the same value everywhere, and the first org created without those rows would silently have no limit. It is read-only to clients (four policies: SELECT true, deny-all writes) and changing a default is a migration."
+    },
+    {
+      "table": "auth_trail.events",
+      "reason": "The authentication-event trail is ORG-LESS BY SUBJECT: a failed password attempt belongs to somebody who may hold seats in six orgs or none, and the attempt happens before any org context exists — there is no tenant to key on. It is also outside the tenant model's whole reach on purpose: schema auth_trail is in nonPublicSchemas (no client role holds USAGE, PostgREST never serves it), the only writer is the GoTrue hook pair running as app_auth_trail_writer, and there is no read path at all. Enforcement lives in migration 20260816000000_auth_event_trail.sql's four append-only layers and supabase/tests/auth_trail.test.sql, not in org-scoped policies this census would otherwise demand."
     }
   ],
   "dualScopedTablesComment": "THE ONLY ESCAPE THAT EXPIRES BY ITSELF, and the only one that may exist on a table whose tenant key is still NULLable. An install already in production cannot adopt org scope atomically: org_id has to arrive nullable on a table full of pre-tenancy rows, get backfilled out of band, and only then take NOT NULL — and throughout that window the OLD owner-scoped policies must keep working alongside the new org-scoped ones (permissive policies OR, so nothing breaks for anyone mid-flight). An entry here licenses exactly that state on exactly that table: the arm `<ownerColumn> = (SELECT auth.uid())` becomes a legal form FOR THIS TABLE ONLY, and the NOT NULL requirement on the tenant key is suspended. `until` is a harness version compared against the install's harnessVersion (the field that advances on every `installer update`, NOT baseVersion, which the same human who wrote the escape controls) — when the install passes it the entry reds and the transition can no longer be forgotten. Empty for a fresh scaffold: it ships NOT NULL from the first migration and is never in this state for a single statement. Runbook: docs/runbooks/tenancy-adoption.md.",

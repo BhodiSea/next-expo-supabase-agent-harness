@@ -32,6 +32,7 @@ import {
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
+import { parseSecurityTxt } from './lib/security-txt.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'security-headers'
@@ -227,6 +228,18 @@ for (const part of policy.authenticatedCache.varyMustInclude) {
   }
 }
 
+// ---- RFC 9116 security.txt (1.0.0): present ⇒ parses ------------------------------
+// The clockless half of the split described in lib/security-txt.mjs: the file is
+// seedOnInitOnly (its mandatory Expires is the consumer's reviewed bound, supplied at
+// init), so ABSENCE is a legitimate state this gate says nothing about — an install
+// without it has no machine-readable disclosure channel to judge, and the calendar
+// half (lapse, the 366-day recommendation) rides the scheduled floor-review job.
+const SECURITY_TXT = 'apps/web/public/.well-known/security.txt'
+if (existsSync(SECURITY_TXT)) {
+  const parsed = parseSecurityTxt(readFileSync(SECURITY_TXT, 'utf8'))
+  errs.push(...parsed.problems.map((p) => `${SECURITY_TXT}: ${p}`))
+}
+
 // ---- report ----------------------------------------------------------------------
 // Unramped by construction — see the adoption-vs-correctness note at the top.
 failures(GATE, errs, `Policy lives in ${POLICY}; widening it is a CODEOWNERS-reviewed diff.`)
@@ -234,5 +247,5 @@ failures(GATE, errs, `Policy lives in ${POLICY}; widening it is a CODEOWNERS-rev
 recordGreen()
 ok(
   GATE,
-  `${headerMap.size} static header(s) + ${directives.size} CSP directive(s) match ${POLICY} by value; framing controls agree; report-only twin reports`,
+  `${headerMap.size} static header(s) + ${directives.size} CSP directive(s) match ${POLICY} by value; framing controls agree; report-only twin reports${existsSync(SECURITY_TXT) ? '; security.txt parses (RFC 9116)' : ''}`,
 )

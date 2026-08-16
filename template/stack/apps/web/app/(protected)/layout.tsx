@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { t } from '../../lib/i18n'
 import { getVerifiedUser } from '../../lib/supabase/server'
 import { DeleteAccountButton } from './delete-account-button'
 import { SignOutButton } from './sign-out-button'
@@ -32,6 +34,11 @@ export default async function ProtectedLayout({
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <span className="text-sm text-ink-muted">{user.email ?? user.id}</span>
           <div className="flex items-center gap-2">
+            {/* The MFA surface's front door — in the shell so an enrolled factor is
+                always one click from wherever the user is standing. */}
+            <Link href="/security" className="text-sm text-ink-muted underline">
+              {t('route.security')}
+            </Link>
             {/* DSR erase reaches the WEB surface from 0.11.0. It sits in the signed-in
                 shell rather than behind a new route so no page.meta.ts, route-manifest
                 entry or state-testid triple is owed for a two-button control. */}

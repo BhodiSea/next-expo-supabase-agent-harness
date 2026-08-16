@@ -8,6 +8,7 @@
 // page that no longer exists fails too.
 import { meta as notesMeta } from '../app/(protected)/o/[orgSlug]/notes/page.meta'
 import { meta as orgsMeta } from '../app/(protected)/o/page.meta'
+import { meta as securityMeta } from '../app/(protected)/security/page.meta'
 import type { WebRouteEntry } from './routes'
 
 export const WEB_ROUTES = [
@@ -20,5 +21,10 @@ export const WEB_ROUTES = [
     ...notesMeta,
     file: '(protected)/o/[orgSlug]/notes/page',
     path: '/o/:orgSlug/notes',
+  },
+  {
+    ...securityMeta,
+    file: '(protected)/security/page',
+    path: '/security',
   },
 ] as const satisfies readonly WebRouteEntry[]

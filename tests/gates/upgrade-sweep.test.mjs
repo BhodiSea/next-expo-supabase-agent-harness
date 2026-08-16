@@ -25,10 +25,17 @@
 // in both directions, because a second copy of a register is a second copy that drifts.
 // SOURCE: scripts/ci/upgrade-sweep.mjs (computeSweepSet + SWEEPS) · template/migrations.json
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
-import { AUTH_MFA_BLOCK, computeSweepSet } from '../../scripts/ci/upgrade-sweep.mjs'
+import { fileURLToPath } from 'node:url'
+import {
+  AUTH_MFA_BLOCK,
+  computeSweepSet,
+  createdTablesIn,
+  reconcileDataFlowExclusions,
+} from '../../scripts/ci/upgrade-sweep.mjs'
 
 const MIGRATIONS = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../template/migrations.json', import.meta.url)), 'utf8'),
@@ -76,7 +83,11 @@ test('backward pin — (0.3.0, 0.6.0) is byte-identical to the single-version sw
 
 test('head 0.7.0 — the 0.6.0 seams survive, and every 0.4.0 withheld path stays OUT', () => {
   const { adopt, tomlSectionRenames } = computeSweepSet(AT_0_7_0, '0.3.0', '0.7.0')
-  assert.deepEqual(adopt, SWEEP_0_6_0, 'the hop crosses 0.4.0/0.5.0/0.6.0/0.7.0 and only 0.6.0 contributes')
+  assert.deepEqual(
+    adopt,
+    SWEEP_0_6_0,
+    'the hop crosses 0.4.0/0.5.0/0.6.0/0.7.0 and only 0.6.0 contributes',
+  )
   assert.deepEqual(tomlSectionRenames, RENAMES_0_6_0)
   // The dead-code regression pin: a blind union of seedOnInitOnly across crossed versions
   // would include these nine and replant the 0.4.0 record's own documented orphan.
@@ -105,6 +116,7 @@ test('the 0.6.0 -> 0.7.0 hop sweeps NOTHING — the expiry release withholds no 
     adopt: [],
     tomlSectionRenames: [],
     tomlSectionAppends: [],
+    reconcileDataFlowExclusions: false,
   })
 })
 
@@ -155,7 +167,9 @@ test("0.9.9 — the MFA migration and its proof are NOT adopted, by the record's
     assert.ok(!adopt.includes(rel), `0.9.9 withheld path swept back in: ${rel}`)
   }
   assert.ok(
-    MIGRATIONS['0.9.9'].seedOnInitOnly.some((/** @type {string} */ p) => p.endsWith('_mfa_aal2.sql')),
+    MIGRATIONS['0.9.9'].seedOnInitOnly.some((/** @type {string} */ p) =>
+      p.endsWith('_mfa_aal2.sql'),
+    ),
     'the exclusion above still covers the migration it was written for',
   )
 })
@@ -211,24 +225,42 @@ test('the appended [auth.mfa] block IS the reviewed posture, in both directions'
   // block with the same value, and the block must introduce no key the posture does not
   // review — which is the same both-ways discipline check-auth-posture.mjs applies to the
   // consumer's own config.toml, applied here to the text the sweep writes into it.
+  // Since the 1.0.0 floor/tunable split the reviewed [auth.mfa] tree spans BOTH
+  // registers: nine floor keys in auth-posture.json plus max_enrolled_factors, whose
+  // seeded value lives in auth-tunables.json — the merged view is exactly what
+  // check-auth-posture.mjs judges the consumer's config against.
   const posture = JSON.parse(
     readFileSync(
       fileURLToPath(new URL('../../template/base/tools/auth-posture.json', import.meta.url)),
       'utf8',
     ),
   ).posture
+  const tunableValues = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../template/base/tools/auth-tunables.json', import.meta.url)),
+      'utf8',
+    ),
+  ).values
+  const merged = {
+    ...posture,
+    ...Object.fromEntries(Object.entries(tunableValues).map(([k, row]) => [k, row.value])),
+  }
 
   const seen = dottedKeys(AUTH_MFA_BLOCK)
-  const reviewed = Object.entries(posture).filter(([k]) => k.startsWith('auth.mfa'))
-  assert.equal(reviewed.length, 10, 'the [auth.mfa] tree is exactly ten reviewed keys')
+  const reviewed = Object.entries(merged).filter(([k]) => k.startsWith('auth.mfa'))
+  assert.equal(
+    reviewed.length,
+    10,
+    'the [auth.mfa] tree is exactly ten reviewed keys across the two registers',
+  )
   for (const [key, value] of reviewed) {
-    assert.ok(seen.has(key), `the posture reviews ${key} and the swept block never writes it`)
-    assert.deepEqual(seen.get(key), value, `${key}: the swept block disagrees with the register`)
+    assert.ok(seen.has(key), `the registers review ${key} and the swept block never writes it`)
+    assert.deepEqual(seen.get(key), value, `${key}: the swept block disagrees with the registers`)
   }
   for (const key of seen.keys()) {
     assert.ok(
-      Object.hasOwn(posture, key),
-      `the swept block writes ${key}, which tools/auth-posture.json does not review — an unreviewed key in a file the gate reads BOTH ways reds the install the sweep was meant to clear`,
+      Object.hasOwn(merged, key),
+      `the swept block writes ${key}, which neither tools/auth-posture.json nor tools/auth-tunables.json reviews — an unreviewed key in a file the gate reads BOTH ways reds the install the sweep was meant to clear`,
     )
   }
 })
@@ -268,4 +300,93 @@ test('0.11.0 withholds files, so its posture may never go missing again', () => 
   // computeSweepSet throws when a crossed version withholds with no entry, so a hop that
   // spans 0.11.0 completing at all IS the assertion that the entry is present.
   assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '0.9.9', '0.11.1'))
+})
+
+// ── 1.0.0: the settlement sweep — written by running leg E, not by reading the record ──
+test('1.0.0 — the web MFA seams travel WITH the derived-copied files that import them; mobile, the migrations and security.txt do NOT', () => {
+  const { adopt, tomlSectionAppends, reconcileDataFlowExclusions } = computeSweepSet(
+    MIGRATIONS,
+    '0.11.1',
+    '1.0.0',
+  )
+  // The importers arrive through the 0.6.0 derived fix on any hop that crosses it; on THIS
+  // hop they are already the install's own, but the seams still travel because
+  // computeSweepSet is per-version and the entry is what the runbook prescribes.
+  for (const rel of [
+    'apps/web/app/sign-in/ceremony-shell.tsx',
+    'apps/web/app/sign-in/credential-fields.tsx',
+    'apps/web/app/sign-in/mfa/',
+    'apps/web/app/sign-up/',
+    'apps/web/app/(protected)/security/',
+    'packages/platform/supabase/src/mfa-actions.ts',
+    'packages/platform/supabase/src/mfa-flow.ts',
+  ]) {
+    assert.ok(adopt.includes(rel), `the web MFA seam ${rel} must travel with its importers`)
+  }
+  // NOT the hook block: check-auth-posture holds the paired act instead (hooks enabled
+  // against a function no migration creates fail every sign-in), so a swept install carries
+  // neither the block nor the trail and adopts both deliberately.
+  assert.deepEqual(tomlSectionAppends, [])
+  // NOT the mobile screens, the two migrations, the trail's twins, or security.txt.
+  for (const rel of MIGRATIONS['1.0.0'].seedOnInitOnly) {
+    if (adopt.includes(rel)) {
+      assert.ok(
+        /^apps\/web\/app\/sign-up\/$|^packages\/platform\/supabase\/src\/mfa-/.test(rel),
+        `1.0.0 withheld path swept back in: ${rel}`,
+      )
+    }
+  }
+  assert.ok(!adopt.includes('supabase/migrations/20260815000000_privilege_lifecycle_jit.sql'))
+  assert.ok(!adopt.includes('supabase/migrations/20260816000000_auth_event_trail.sql'))
+  assert.ok(!adopt.includes('apps/mobile/app/security.tsx'))
+  assert.ok(!adopt.includes('apps/web/public/.well-known/'))
+  // The eol re-date rides the DERIVED pass, unconditionally.
+  assert.ok(adopt.includes('tools/eol.json'))
+  assert.equal(reconcileDataFlowExclusions, true)
+  assert.equal(computeSweepSet(MIGRATIONS, '0.3.0', '1.0.0').reconcileDataFlowExclusions, true)
+  assert.equal(computeSweepSet(MIGRATIONS, '0.10.0', '0.11.1').reconcileDataFlowExclusions, false)
+})
+
+test('reconcileDataFlowExclusions only ever REMOVES: a stale exclusion goes, a real one stays, nothing is added', () => {
+  const dataFlow = {
+    export: {
+      projection: [{ table: 'notes' }],
+      excluded: [
+        { table: 'orgs', reason: 'x'.repeat(40) },
+        { table: 'audit.events', reason: 'x'.repeat(40) },
+        { table: 'admin_elevations', reason: 'x'.repeat(40) },
+      ],
+    },
+  }
+  const created = new Set(['notes', 'orgs', 'events', 'audit.events'])
+  const { dataFlow: next, dropped } = reconcileDataFlowExclusions(dataFlow, created)
+  assert.deepEqual(dropped, ['admin_elevations'])
+  assert.deepEqual(
+    next.export.excluded.map((x) => x.table),
+    ['orgs', 'audit.events'],
+  )
+  assert.deepEqual(next.export.projection, dataFlow.export.projection)
+  // Nothing stale → the same object back, nothing dropped.
+  const same = reconcileDataFlowExclusions(dataFlow, new Set([...created, 'admin_elevations']))
+  assert.equal(same.dataFlow, dataFlow)
+  assert.deepEqual(same.dropped, [])
+})
+
+test('createdTablesIn reads CREATE TABLE across a migrations dir, bare and schema-qualified', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-sweep-created-'))
+  mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
+  writeFileSync(
+    join(dir, 'supabase/migrations/1_a.sql'),
+    'create table public.notes (id uuid);\nCREATE TABLE IF NOT EXISTS "orgs" (id uuid);\ncreate table audit.events (id bigint) partition by range (at);\n',
+  )
+  const created = createdTablesIn(join(dir, 'supabase/migrations'))
+  for (const t of ['notes', 'public.notes', 'orgs', 'events', 'audit.events']) {
+    assert.ok(created.has(t), `missing ${t} in ${[...created].join(', ')}`)
+  }
+  assert.equal(createdTablesIn(join(dir, 'nowhere')).size, 0)
+  // And the SHIPPED template creates admin_elevations — the exclusion is real on a fresh tree.
+  const shipped = createdTablesIn(
+    fileURLToPath(new URL('../../template/stack/supabase/migrations', import.meta.url)),
+  )
+  assert.ok(shipped.has('admin_elevations'))
 })

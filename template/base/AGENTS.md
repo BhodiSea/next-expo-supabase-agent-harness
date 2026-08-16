@@ -51,7 +51,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 
 ## Commands
 
-- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 34-step chain
+- `pnpm validate` — **THE GATE**: `node tools/validate.mjs`, the 36-step chain
   from `tools/harness.config.mjs` (see below). Must be green before a turn ends.
 - `pnpm typecheck` (`tsc -b`) · `pnpm lint` / `pnpm lint:fix` · `pnpm format`
   (`biome check --write .`) · `pnpm knip` · `pnpm arch` (depcruise).
@@ -77,9 +77,9 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Maestro flow AND a startup-budget row) and exits 2 until everything passes.
 - **Prove, don't claim.** Show passing gate output; never assert "it works".
 - Do NOT edit a test in the same turn as the fix it covers (reward-hacking).
-- The 34 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
-  `types`, `lint`,
-  `provenance`, `boundaries`, `observability`, `expo-policy`, `native-deps`, `version-sync`,
+- The 36 gates, in order: `format`, `gate-integrity`, `wiring`, `secrets`,
+  `types`, `lint`, `suppressions`,
+  `provenance`, `boundaries`, `resilience`, `observability`, `expo-policy`, `native-deps`, `version-sync`,
   `prompts`, `licenses`, `schema-rls`, `tenancy`, `auth-posture`, `data-flow`, `types-drift`, `migrations`,
   `db-limits`, `contracts`, `query-shapes`, `rate-limits`,
   `parity`, `dead-code`, `architecture`, `build`, `styleguide`, `perf-budget`,
@@ -173,11 +173,14 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   `ios.buildNumber`, `android.versionCode` are DERIVED from package.json in
   `app.config.ts`; `eas.json` keeps `appVersionSource: "local"`,
   `autoIncrement: false`; `runtimeVersion.policy` stays `appVersion`.
-- **Store readiness is gate data** (`tools/store-policy.json`, reviewed):
-  export compliance stays DECLARED (`ITSAppUsesNonExemptEncryption`), every
-  iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`, the
-  targetSdk floor holds, and an auth surface requires the account-deletion
-  surface (a `session.deleteAccount` procedure — Apple 5.1.1(v)).
+- **Store readiness is gate data**, split since 1.0.0: the harness FLOOR
+  (`tools/store-policy.json` — targetSdk, the Xcode floor, plugin key map) is
+  owned; YOUR store decisions (`tools/store-tunables.json` — export compliance
+  stays DECLARED via `ITSAppUsesNonExemptEncryption`, privacy-manifest rows,
+  the account-deletion surface, icon policy) are seeded and write-guarded.
+  Every iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`,
+  and an auth surface requires the account-deletion surface (a
+  `session.deleteAccount` procedure — Apple 5.1.1(v)).
 - **`WITH RECURSIVE` requires a `CYCLE` clause or visited guard** — graph data
   loops forever otherwise.
 - **Prompt lock discipline:** every LLM prompt file is versioned in its name
@@ -209,7 +212,10 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   declarations; the mutation lane (`pnpm mutation`, CI-blocking) changes the
   code and asks whether a test goes red — a SET-based ratchet against
   `tools/mutation-baseline.json`, never a score. Accepting a survivor is a
-  reviewed human act (empty reasons FAIL).
+  reviewed human act (empty reasons FAIL). The mutated surface is the owned
+  floor (`tools/lib/mutation-critical.mjs`) plus YOUR additive
+  `tools/mutation-scope-extra.json` roots — union semantics; a root matching
+  zero files reds the scoper.
 - **Styling is tokens-only, in BOTH themes.** `@app/design-tokens` (the TS
   modules in `packages/design-tokens/src`, OKLCH) is the single source;
   `packages/design-tokens/scripts/gen.mjs` compiles them — fail-closed on gamut +

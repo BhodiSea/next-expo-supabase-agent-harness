@@ -87,8 +87,9 @@ jobs:
         with:
           node-version-file: .node-version
 
-      # No install: the check reads one JSON file and compares ISO dates. Keeping it
-      # dependency-free is what lets it run weekly at no cost and never flake.
+      # No install: the check reads a few committed files (the floor, the cc/eol
+      # registers, security.txt) and compares ISO dates. Keeping it dependency-free
+      # is what lets it run weekly at no cost and never flake.
       - name: Every floored package carries an unlapsed review
         run: node tools/check-framework-floor.mjs
 

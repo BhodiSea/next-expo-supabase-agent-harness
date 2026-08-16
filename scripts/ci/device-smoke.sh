@@ -74,8 +74,19 @@ adb shell run-as "$appid" mkdir -p files/SQLite
 adb shell run-as "$appid" cp /data/local/tmp/kv-seed.db files/SQLite/ExpoSQLiteStorage
 node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/i18n-rtl.yaml --out-dir artifacts/maestro/i18n
 
-# The mutation flow: stub sign-in -> create -> relaunch -> persists.
-node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation
+# The mutation flow: REAL sign-in -> create -> relaunch -> persists (1.0.0: the
+# inherited stub authority is gone; the journey used to tap an empty form and every
+# nightly lane stopped at "Enter an email address."). Mint the identity + its personal
+# org against the job's Supabase stack the way tests/rls does — through the SHIPPED
+# minter (tools/ci/mint-device-user.mjs, the same file the consumer's device lane
+# runs, so this dispatch proves it) — then hand the credentials to Maestro as flow
+# variables. Fixed address, unique to this lane: the stack is fresh per job, and the
+# minter is idempotent for a warm local re-run.
+DEVICE_EMAIL="device-mutation@example.com"
+DEVICE_PASSWORD="device-mutation-pw-1"
+node tools/ci/mint-device-user.mjs "$DEVICE_EMAIL" "$DEVICE_PASSWORD"
+node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation \
+  --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
 
 # Baseline perf marker: green before the canary may claim red means anything.
 node tools/check-e2e-device.mjs --phase perf-harness --out-dir artifacts/maestro/perf

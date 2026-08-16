@@ -836,7 +836,8 @@ At 0.11.0 they stop being advisory.
 
 ### What this release OPENS, recorded beside what it closes
 
-**The web account-deletion surface (gate: `data-flow`), advisory until 0.12.0.** The
+**The web account-deletion surface (gate: `data-flow`), advisory until 0.12.0 — which
+was never cut, so it arrives at 1.0.0 (every comparison is `>=`).** The
 `delete-account` Edge Function and the mobile command that calls it have shipped since
 0.7.0; `tools/data-flow.json` now carries an `erase` record whose `clients` closure names
 BOTH initiators, so the rule that holds export to a delivered surface holds erase to one
@@ -864,7 +865,8 @@ above every escape this release touches, and you meet nothing. This section is f
 install crossing 0.11.0 on its way to 0.11.1 or later.
 
 **One expiry is withdrawn.** `tools/eol.json`'s uuid acceptance — item 1 of the 0.11.0 list
-above — is a dated **NOTE** on 0.11.1, not a hard red, and it now falls due at 0.12.0. So
+above — is a dated **NOTE** on 0.11.1, not a hard red, and it now falls due at 0.12.0 (a
+release that was never cut: it arrives at 1.0.0). So
 you meet **four** expiring sites crossing this hop rather than five: `docs-sync` twice,
 `web-e2e` and `rate-limits`. Items 2 through 5 above are unchanged and still hard.
 
@@ -879,9 +881,107 @@ deadline of yours had been reached — and the upgrade lane refused the release 
 
 **You still owe the row.** Re-affirm the uuid acceptance and move `removalTarget` to a
 release you actually mean, recording what you re-checked in the diff. The deadline is 0.12.0
-and it will not move again: `check-eol-target` now reds any harness PR that would ship an
+— met at 1.0.0, since 0.12.0 was never cut — and the HARNESS will not move it in your file
+again (its own copy moved to 1.1.0 on fresh evidence, which reaches fresh scaffolds only): `check-eol-target` now reds any harness PR that would ship an
 arrived target, so the harness cannot re-author this date into your seeded file a fourth
 time.
+
+## 1.0.0 — THE SETTLEMENT RELEASE: 0.11.1 to 1.0.0 direct, no 0.12.0 ever cut
+
+Every comparison in the fleet is `>=`, so the deadlines the 0.11.x releases wrote as
+`0.12.0` arrive at THIS hop exactly as they would have at a 0.12.0. Read the count that
+applies to YOUR `baseVersion` off `pnpm validate 2>&1 | grep 'NOTE — (ramp)'` and, for the
+expiries, off `node scripts/ci/ramp-expectations.mjs <your base> 1.0.0` in a harness
+checkout — never off this page. What the page owes you is the SHAPE, and the sweep.
+
+**One release at a time.** 1.0.0 is a major bump and a large one; if you are more than
+one release behind, hop to 0.11.1 first (its section is above) and let its expiries settle
+before crossing this one. `update` will happily hop further — the ramps compose — but the
+list below is written for an install arriving from 0.11.x, and an install arriving from
+0.9.x meets this list PLUS everything the sections above owe it.
+
+### What ARRIVES (hard) — for installs below 0.11.0
+
+- **The web account-deletion surface (gate: `data-flow`).** The 0.11.0 NOTE falls due.
+  Add the web erase half (the shape is `apps/web/lib/account/delete-account.ts` and the
+  `(protected)` button + layout in a fresh scaffold) or the record in `tools/data-flow.json`
+  stays a promise the gate reds. A `baseVersion` of 0.11.0 or later meets nothing here.
+
+### What OPENS (dated NOTEs, until 1.1.0) — for EVERY install below 1.0.0
+
+Six gates, each ramped at `minVersion 1.0.0`, so `graduate` refuses until each is swept:
+
+1. **`suppressions` (NEW chain step, 35 of 36)** — the inline-directive census over
+   `apps/`, `packages/`, `supabase/`. `update` PLANTS `tools/suppressions-allow.json` with
+   rows describing the 1.0.0 seeded tree; a tree of yours that carries a directive the
+   register does not name NOTEs until you add its row (with a `why` — a reviewed sentence),
+   and a planted row naming a directive your tree lacks NOTEs as a stale acceptance until you
+   drop it. Reconcile the register to YOUR tree; the gate never invents a `why` and neither
+   should you.
+2. **`resilience` (NEW chain step, 10 of 36)** — the outbound-seam posture register.
+   `update` PLANTS `tools/resilience.json` describing the seeded seams; a seam you added
+   NOTEs until it has a row.
+3. **`docs-sync`'s gate list** — your seeded `AGENTS.md` says "34 gates"; the chain now
+   runs 36. Paste the 36 names the NOTE prints (the same edit 0.6.0 and 0.8.0 asked for).
+4. **`boundaries`' anatomy widening** — the DAL laws are behaviour-keyed now (a client
+   value-import anywhere under `src/**`; PostgREST callers owe a resolving `port.ts`
+   import). Findings carry a `vintage`; the widened ones NOTE until 1.1.0.
+5. **`version-sync`** — two things: the seeded **vendor-support register**
+   (`tools/support-register.json`, planted) with its platform-fact closure, and the
+   **uuid arrival**: your seeded `tools/eol.json` says `removalTarget: 0.12.0`, that date
+   arrives at 1.0.0, and the harness re-dated its OWN copy to 1.1.0 on fresh registry
+   evidence (a caret-range correction; `scripts/sweep-registry-deprecations.mjs` is the
+   review method). The re-date reaches you as a PARKED fix under `.harness/pending/`
+   (`seededSourceFixes` probe on the old literal) — apply it, or re-affirm the row under a
+   target you mean, or remove the dependency. The 0.11.1 section said "the deadline will
+   not move again" and meant the HARNESS would not re-author your file; it did not, and the
+   NOTE is the runway to apply the parked fix rather than a hard red on your first validate.
+6. **`auth-posture`'s `[auth.hook.*]` floors — ONLY IF you adopt the auth-event trail.**
+   The trail is a migration (`20260816000000_auth_event_trail.sql` + the declarative twin
+   `45_auth_trail.sql`, its pgTAP suite and its live wiring test) and two config sections
+   that bind GoTrue's password/MFA verification hooks to it. `update` writes neither: the
+   migration is your append-only history and `config.toml` is yours. **The two halves are
+   ONE act**, and the gate holds it: with the migration in your tree the four hook floors are
+   demanded (NOTE until 1.1.0 for a pre-1.0.0 base); with a hook `enabled = true` and NO
+   migration, the gate is a HARD red — GoTrue would call a function nothing created and every
+   sign-in would fail; with neither, nothing is demanded and one plain line says so. Adopt
+   both together (`docs/adr/20260816-auth-event-trail.md` shows both), and restart the auth
+   container (`supabase stop && supabase start` — `db reset` does not reload hook config).
+
+### What is WITHHELD, and what the sweep adopts for you
+
+`seedOnInitOnly` in the 1.0.0 record: the MFA enrolment surface (web `sign-up`,
+`sign-in/mfa`, `(protected)/security`; mobile `sign-up`, `mfa-challenge`, `security` with
+their suites), the privilege-lifecycle + JIT migration, the auth-event trail, and
+`security.txt`. The documented sweep (`scripts/ci/upgrade-sweep.mjs`, `SWEEPS['1.0.0']`) is
+what upgrade-lane leg E executes and what proved this list SUFFICIENT — and it was written by
+running that leg, not by reading the record:
+
+- It ADOPTS the **web** MFA seams — because the 0.6.0 parked fixes copy HEAD's
+  `sign-in/page.tsx`, `sign-in-form.tsx` and `@app/supabase`'s `client.ts`, and at 1.0.0
+  those import the MFA ceremony; the importers without the imported is a `dead-code`
+  "unresolved imports" red and a `route-manifest` red for allowlisted pages that do not
+  exist. If you applied those parked fixes, adopt the web MFA files with them
+  (`update --refresh-seeded apps/web/app/sign-in/ apps/web/app/sign-up/ "apps/web/app/(protected)/security/" packages/platform/supabase/src/mfa-actions.ts packages/platform/supabase/src/mfa-flow.ts`).
+  The mobile screens are yours to adopt deliberately (route registry, i18n catalog,
+  startup budget).
+- It RECONCILES `tools/data-flow.json`'s `export.excluded` to your migrations — the 0.7.0
+  parked fix copies HEAD's file, whose excluded set names `admin_elevations`, a table only
+  the (withheld) JIT migration creates; `check-data-flow` reds a stale exclusion and its
+  own remedy is to remove it. Drop the entry, or adopt the JIT migration deliberately (it
+  REPLACES `private.member_ranks` and rewrites `memberships` policies — read it first).
+- It does NOT append the `[auth.hook.*]` block and does NOT adopt the trail (item 6 above
+  says why: the two halves travel together or not at all, and the trail drags three seeded
+  wiring files behind it — `tools/rls-exempt.json` rows, the pgTAP `rls_targets` list, the
+  client suite's `ISOLATION_TARGETS`).
+
+### After this release
+
+Every ramp opened before 1.0.0 is inert or expired. The advisory column is exactly the
+six-gate 1.0.0 fleet, all dated 1.1.0, and each has an obligations row that owes the 1.1.0
+record its expiry. `graduate` refuses while any of them NOTEs; the sweep above clears the
+ones a script may clear, and the rest (registers naming YOUR code, the paired trail
+adoption) are yours.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
@@ -915,9 +1015,16 @@ by symptom:
    atomic): the parked copy is the harness's CORRECT version and the in-tree
    file may be torn. Compare them; if the in-tree file is truncated, take the
    parked copy (`mv .harness/pending/<path> <path>`), then re-run `update`.
-   A torn file under `.claude/hooks/` is the urgent case — a hook that cannot
-   parse FAILS OPEN (Claude Code treats its exit 1 as non-blocking), so the
-   agent-time layer is silently disarmed until the file is whole again.
+   A torn file under `.claude/hooks/` is still the case to treat first, and
+   since 1.0.0 it BLOCKS instead of disarming: every hook is invoked through
+   the fail-closed launcher (`launch.mjs`), so a hook or library file that
+   cannot LOAD exits 2 and refuses the action rather than failing open (the
+   pre-1.0.0 behaviour, where Claude Code read the load-failure exit 1 as
+   non-blocking and the agent-time layer was silently gone). The honest
+   residual: a torn `launch.mjs` ITSELF still fails open — the class cannot be
+   closed from inside the process it disarms; what shipped is a shrink of the
+   fail-open surface from every hook and library file to one tiny import-free
+   file, re-probed at every Claude Code pin bump per CONTROL-PLANE-FACTS.
 
 ## How to graduate
 

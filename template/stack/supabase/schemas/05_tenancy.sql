@@ -75,10 +75,35 @@ CREATE TABLE public.memberships (
   -- question ("at least admin"). viewer 10, member 20, admin 30, owner 40 — the scale
   -- lives in tools/tenancy.json and the gate rejects a floor that is off it.
   role_rank smallint NOT NULL,
+  -- The privilege lifecycle (Essential Eight RAP-02): a rank >= 30 counts as
+  -- privileged only while this stamp is within 12 months — the effective-rank fold
+  -- in private.member_ranks() / private.rpc_admin_org_ids() otherwise reports
+  -- LEAST(rank, 20). Written by revalidate_member(), by set_member_role() on any
+  -- rank change, and by elevate()'s aal2-gated owner self-revalidation branch.
+  revalidated_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, org_id),
   CONSTRAINT memberships_rank_known CHECK (role_rank IN (10, 20, 30, 40))
+);
+
+-- Just-in-time administration (Essential Eight RAP-13): a privileged seat SATISFIES
+-- admin predicates only while it holds an unexpired row here, minted by
+-- public.elevate() for one hour at a time (a session-shaped bound — deliberately not
+-- an ASD number; the 12-month/45-day windows are the only ASD verbatim numbers).
+-- No composite FK onto the seat on purpose — the tenant key carries exactly one
+-- referential story (the org reference); the elevation-dies-with-the-seat invariant
+-- is closed procedurally in remove_member()/set_member_role() plus the user/org
+-- cascades. The forward step and the whole design argument live in
+-- supabase/migrations/20260815000000_privilege_lifecycle_jit.sql.
+CREATE TABLE public.admin_elevations (
+  user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  last_privileged_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '1 hour'),
+  session_id uuid,
+  PRIMARY KEY (user_id, org_id)
 );
 
 CREATE TABLE public.invitations (

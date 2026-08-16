@@ -2,7 +2,7 @@
 // Gate: e2e — the agent-time fast lane. Runs the WHOLE react-native suite in
 // apps/mobile (jest-expo + React Native Testing Library: the states sweep over
 // every ROUTES entry, screen flows, boot/layout, primitives a11y) — the shipped
-// screens, expo-router navigation, api-client and error translation run for
+// screens, expo-router navigation, the tRPC client and error translation run for
 // real against the in-process mock server. Seconds and laptop-complete, exactly
 // what the quality-gate e2e job runs in CI, so an agent turn cannot end green
 // while the screen suite is red. The ON-DEVICE proof (Maestro on an emulator)

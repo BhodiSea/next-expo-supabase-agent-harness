@@ -25,9 +25,9 @@ const MODULE_SRC = join(ROOT, 'template/stack/apps/web/lib/security-headers.ts')
  * `mutate` rewrites the shipped security-headers MODULE text; `policy` edits the reviewed
  * JSON it is judged against. The two halves are separate on purpose: a canary must be able
  * to move one without the other, which is what proves the gate compares them.
- * @param {{ mutate?: (src: string) => string, policy?: (base: any) => any }} [opts]
+ * @param {{ mutate?: (src: string) => string, policy?: (base: any) => any, securityTxt?: string }} [opts]
  */
-function fixture({ mutate, policy } = {}) {
+function fixture({ mutate, policy, securityTxt } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-sechdr-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   mkdirSync(join(dir, 'apps/web/lib'), { recursive: true })
@@ -46,6 +46,10 @@ function fixture({ mutate, policy } = {}) {
   // person would go looking in the gate. Fail here, where the fault is.
   if (mutate) assert.notEqual(out, src, 'the mutation matched nothing — the module text moved')
   writeFileSync(join(dir, 'apps/web/lib/security-headers.ts'), out)
+  if (securityTxt !== undefined) {
+    mkdirSync(join(dir, 'apps/web/public/.well-known'), { recursive: true })
+    writeFileSync(join(dir, 'apps/web/public/.well-known/security.txt'), securityTxt)
+  }
   return dir
 }
 
@@ -199,4 +203,39 @@ test('a missing module SKIPS locally and FAILS in CI', () => {
   })
   assert.equal(local.status, 0, `${local.stdout}${local.stderr}`)
   assert.ok(`${local.stdout}`.includes('SKIPPED'), local.stdout)
+})
+
+// ── RFC 9116 security.txt (1.0.0): present ⇒ parses ────────────────────────────────
+// The clockless half of the split in tools/lib/security-txt.mjs — the calendar half
+// (lapse, the 366-day recommendation) is proven in framework-floor.test.mjs, which is
+// the floor-review lane's registered red-proof. Absence never reds here: the file is
+// seedOnInitOnly, so an install without it has no channel to judge (every OTHER test
+// in this file runs without one, which is that case exercised constantly).
+
+test('security.txt: the seeded shape parses; each mandatory-field fault reds', () => {
+  const VALID =
+    '# comment\nContact: https://github.com/acme/app/security/advisories/new\nExpires: 2027-02-11T23:59:59.000Z\nPolicy: https://github.com/acme/app/blob/main/SECURITY.md\nPreferred-Languages: en\n'
+  const green = runGate(fixture({ securityTxt: VALID }))
+  assert.equal(green.code, 0, green.out)
+  assert.ok(green.out.includes('security.txt parses'), green.out)
+
+  const cases = /** @type {[string, RegExp][]} */ ([
+    ['Contact: https://x.example/report\n', /no Expires field/],
+    ['Expires: 2027-02-11T23:59:59.000Z\n', /no Contact field/],
+    [
+      'Contact: http://x.example/report\nExpires: 2027-02-11T23:59:59.000Z\n',
+      /not an https/,
+    ],
+    ['Contact: mailto:s@x.example\nExpires: 2027-02-11\n', /RFC 3339/],
+    [
+      'Contact: mailto:s@x.example\nExpires: 2027-02-11T23:59:59.000Z\nExpires: 2027-03-11T23:59:59.000Z\n',
+      /more than once/,
+    ],
+    ['Contact mailto:s@x.example\nExpires: 2027-02-11T23:59:59.000Z\n', /neither a comment/],
+  ])
+  for (const [text, re] of cases) {
+    const r = runGate(fixture({ securityTxt: text }))
+    assert.equal(r.code, 1, `${JSON.stringify(text)}: ${r.out}`)
+    assert.match(r.out, re, JSON.stringify(text))
+  }
 })

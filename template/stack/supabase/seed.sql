@@ -207,6 +207,20 @@ BEGIN
       'create_org() or the orgs SELECT policy is broken';
   END IF;
 
+  -- The privilege lifecycle (1.0.0): minting an invitation is an admin act judged
+  -- against the EFFECTIVE rank, and effective rank >= 30 exists only while an
+  -- unexpired elevation does (RAP-13 — the JIT fold in private.member_ranks()).
+  -- Alice elevates once for the whole loop, which makes the seed the first
+  -- consumer of the JIT door and therefore a positive control: an elevate() that
+  -- stopped minting elevations would break the seed, not merely a test.
+  -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+  PERFORM set_config('request.jwt.claims',
+    '{"sub": "a11ce000-0000-4000-8000-000000000001", "role": "authenticated"}', true);
+  PERFORM set_config('role', 'authenticated', true);
+  PERFORM public.elevate(v_org_id);
+  -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
+  PERFORM set_config('role', 'none', true);
+
   FOR v_invitee IN
     SELECT * FROM (VALUES
       (1, 'b0b00000-0000-4000-8000-000000000002'::uuid, 'bob@example.com', 30::smallint),

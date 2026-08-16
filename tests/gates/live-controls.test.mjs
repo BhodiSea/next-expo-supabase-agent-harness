@@ -51,7 +51,10 @@ jobs:
       - run: echo hi
 `,
   })
-  const { live, conditional, workflows } = liveControls({ steps: ['format'], workflowDir: dir })
+  const { live, conditional, workflows } = liveControls({
+    steps: ['format'],
+    workflowDir: dir,
+  })
   assert.equal(workflows, 1)
   assert.deepEqual([...live].sort(), ['always', 'filtered', 'format'])
   assert.deepEqual([...conditional], ['filtered'])
@@ -115,7 +118,10 @@ jobs:
       - run: node tools/check-e2e.mjs
 `,
   })
-  const { conditional, workflows } = liveControls({ steps: [], workflowDir: dir })
+  const { conditional, workflows } = liveControls({
+    steps: [],
+    workflowDir: dir,
+  })
   assert.equal(workflows, 2, 'ALL workflows are read — the 0.3.0 correction, applied here')
   assert.equal(conditional.has('check-e2e.mjs'), false)
 })
@@ -132,7 +138,7 @@ test('a missing workflow directory yields no jobs rather than throwing', () => {
   assert.equal(workflows, 0)
 })
 
-test('the SHIPPED workflows: eight of them, and the path-filtered lanes are marked', () => {
+test('the SHIPPED workflows: nine of them, and the path-filtered lanes are marked', () => {
   // The claim docs/harness/enforcement-tiers.md now makes in writing. If a lane stops being
   // path-filtered this reds, and the table's `(path-filtered)` qualifiers become overstated
   // in the other direction — which is a finding either way.
@@ -140,7 +146,7 @@ test('the SHIPPED workflows: eight of them, and the path-filtered lanes are mark
     steps: [],
     workflowDir: SHIPPED_WORKFLOWS,
   })
-  assert.equal(workflows, 8)
+  assert.equal(workflows, 9)
   for (const lane of ['web-e2e', 'perf-lane', 'mobile-e2e']) {
     assert.ok(conditional.has(lane), `${lane} is path-filtered and must be marked conditional`)
   }
@@ -182,7 +188,11 @@ test('ANTI-VACUITY: the DISCHARGED gates are not single-surface, and that is wha
     ['build-check.mjs', 'scans both apps/mobile and apps/web'],
     ['check-i18n.mjs', 'is surface-parameterised over mobile AND web'],
   ]) {
-    assert.equal(gates.some((g) => g.file === file), false, `${file} ${why}`)
+    assert.equal(
+      gates.some((g) => g.file === file),
+      false,
+      `${file} ${why}`,
+    )
   }
   assert.ok(
     gates.some((g) => g.file === 'check-perf-budget.mjs'),
@@ -208,7 +218,11 @@ test('THE STEP FOLD: two single-surface scripts under one step are not a single-
     'the STEP reaches both surfaces, so neither of its scripts is reported',
   )
   for (const file of ['check-route-manifest.mjs', 'check-web-routes.mjs']) {
-    assert.equal(gates.some((g) => g.file === file), false, `${file} folds into its step`)
+    assert.equal(
+      gates.some((g) => g.file === file),
+      false,
+      `${file} folds into its step`,
+    )
   }
 })
 

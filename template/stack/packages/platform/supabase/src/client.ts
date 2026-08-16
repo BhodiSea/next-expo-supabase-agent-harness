@@ -68,6 +68,34 @@ export {
   type PostgresFailure,
   readMiss,
 } from './errors.js'
+// The MFA ceremony machine — pure data over string literals, no client, no
+// import, so it is Metro-safe by construction. It lives HERE so both surfaces
+// drive their enrol/challenge screens from ONE set of transitions (the `.`
+// barrel re-exports this file in full, which is how the server surface gets
+// the same declarations without a second export list to drift). The actions
+// module beside it is the one I/O bracket over those transitions — structural
+// client type, no factory import, so it stays Metro-safe too.
+export { type MfaCeremonyApi, verifyEnrolmentCode } from './mfa-actions.js'
+export {
+  type AalSnapshot,
+  type AuthenticatorAssuranceLevel,
+  type ChallengeState,
+  challengeCeremony,
+  challengeCodeSubmitted,
+  challengeFaulted,
+  challengeIssued,
+  challengeVerified,
+  decideAfterSignIn,
+  type EnrolmentState,
+  enrolmentCodeSubmitted,
+  enrolmentIdle,
+  enrolmentVerified,
+  factorEnrolled,
+  isTotpCode,
+  TOTP_CODE_LENGTH,
+  type TotpEnrolment,
+  totpEnrolmentOf,
+} from './mfa-flow.js'
 export { createNativeClient } from './native.js'
 export type { SessionStorageAdapter } from './session-storage.js'
 // `SupabaseServiceRoleClient` is deliberately NOT re-exported here even though

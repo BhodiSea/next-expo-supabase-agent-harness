@@ -9,6 +9,41 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_elevations: {
+        Row: {
+          expires_at: string
+          granted_at: string
+          last_privileged_at: string
+          org_id: string
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string
+          granted_at?: string
+          last_privileged_at?: string
+          org_id: string
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          granted_at?: string
+          last_privileged_at?: string
+          org_id?: string
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_elevations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string
@@ -54,6 +89,7 @@ export type Database = {
         Row: {
           created_at: string
           org_id: string
+          revalidated_at: string
           role_rank: number
           updated_at: string
           user_id: string
@@ -61,6 +97,7 @@ export type Database = {
         Insert: {
           created_at?: string
           org_id: string
+          revalidated_at?: string
           role_rank: number
           updated_at?: string
           user_id: string
@@ -68,6 +105,7 @@ export type Database = {
         Update: {
           created_at?: string
           org_id?: string
+          revalidated_at?: string
           role_rank?: number
           updated_at?: string
           user_id?: string
@@ -273,6 +311,7 @@ export type Database = {
       }
       create_org: { Args: { p_name: string; p_slug: string }; Returns: string }
       effective_limits: { Args: never; Returns: Json }
+      elevate: { Args: { p_org_id: string }; Returns: string }
       ensure_personal_org: { Args: never; Returns: string }
       org_audit_events: {
         Args: { _before?: string; _limit?: number; _org: string }
@@ -295,6 +334,10 @@ export type Database = {
         }[]
       }
       remove_member: {
+        Args: { p_org_id: string; p_target_user_id: string }
+        Returns: undefined
+      }
+      revalidate_member: {
         Args: { p_org_id: string; p_target_user_id: string }
         Returns: undefined
       }

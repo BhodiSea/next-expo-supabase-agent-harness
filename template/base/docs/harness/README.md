@@ -30,7 +30,7 @@ gate could enforce deterministically.
 ## One gate config, three enforcement layers
 
 `tools/harness.config.mjs` is the single source of truth for what "done" means:
-`VALIDATE_STEPS` (the 34-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
+`VALIDATE_STEPS` (the 36-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
 Stop hook runs — validate plus the runtime suites). Three enforcement layers consume it
 and can therefore never disagree:
 
@@ -42,7 +42,7 @@ and can therefore never disagree:
    `validate` to `true` in package.json (an auto-accepted, unguarded edit) and pass a
    hollow gate. **The Stop gate defines done** locally.
 3. **CI** → re-runs `node tools/validate.mjs --min-floor`, which reads the FROZEN
-   snapshot `tools/validate.floor.json` — a verbatim copy of all 34 canonical steps that
+   snapshot `tools/validate.floor.json` — a verbatim copy of all 36 canonical steps that
    the runner trusts OVER the local config, and **FAILS CLOSED** (missing/corrupt
    snapshot → exit 1) rather than degrade to a possibly-weakened config. **The CI floor**
    means editing the config can ADD steps but can never weaken the non-negotiable ones
@@ -76,7 +76,12 @@ Exit-code semantics (the crux of the design):
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
 | SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts` |
 
-Seven hooks, and **every command is `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
+Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
+`node "$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs" <hook>.mjs` — a hook that cannot
+LOAD exits 2 and blocks, instead of the exit-1 fail-open a torn `lib/hookio.mjs`
+produced, which disarmed every guard at once; a torn `launch.mjs` itself is the stated
+residual, one tiny import-free file wide), and **every command is
+`node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
 the commands were bare paths relying on the executable bit, and `check-gate-integrity`
 hashes CONTENT and never MODE — so `chmod -x` on the Stop hook silently disarmed the turn
 gate while every sha256 still matched. The fix deletes the vulnerability rather than
@@ -234,11 +239,17 @@ Doctrine notes for the citations:
   (rows enter as `unknown`; the compiler is never trusted for row shapes). Normal
   requests run as `authenticated` (the RLS-subject role); `service_role` BYPASSES RLS and
   is Edge-Function-only, ADR-governed.
-- **the api-client one-door** — every request goes through
-  `apps/mobile/src/lib/api-client.ts` (origin, bearer, envelope decode, the single
-  401-refresh-retry). In the source harness, features once called the network directly
+- **the api-client one-door** — every mobile request goes through the tRPC client
+  (`apps/mobile/src/lib/trpc/client.ts`): `createApiClient`'s `httpBatchLink`
+  attaches the bearer token and the `x-client-version` header per request in
+  `headers()`, and responses ride the tRPC envelope. There is no 401-refresh-retry
+  in the client — session rotation is supabase-js's `startAutoRefresh`, on the
+  provider. In the source harness, features once called the network directly
   with no auth header and every mocked lane stayed green; the one-door plus the
-  live-api proof is the answer. The token lives behind `src/host/**`
+  live-api proof is the answer. (Through 0.11.1 this bullet named an
+  `apps/mobile/src/lib/api-client.ts` that never shipped in this lineage —
+  ancestor-port residue; the enforcement always pointed at the true door.) The
+  session lives behind `LargeSecureStore` via `src/host/**`
   (expo-secure-store — iOS Keychain / Android Keystore), never in JS-visible app
   storage and never behind an `EXPO_PUBLIC_` name (inlined into the shipped bundle).
 - **GUC discipline** — production identity rides the request-scoped supabase-js client's

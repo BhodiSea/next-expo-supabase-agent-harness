@@ -673,5 +673,103 @@
       ],
       "why": "0.11.1 opens no escape and closes none. The population below is 0.11.0's, restated because a direct hop from any of these vintages crosses 0.11.0's record. What 0.11.1 CHANGES is that one of the five escapes 0.11.0 closed is re-opened as a dated NOTE by the reviewed rampExtensions entry above, so these installs now meet FOUR expiring sites rather than five: docs-sync twice, web-e2e and rate-limits still fall due, and version-sync's arrival of a harness-authored eol.json removalTarget does not. At 0.11.0 that arrival was a hard red for a value the consumer did not author, on a seeded file update may never rewrite, with NO deadline met at baseVersion 0.10.0 — the upgrade lane called it a regression rather than an expiry and it was right. Older vintages still meet version-sync expiries from its OTHER sites; at baseVersion 0.9.9 the arrival was version-sync's only one, which is why that vintage drops from four gate names to three. The sweep is otherwise unchanged and docs/runbooks/harness-upgrade.md carries it under 0.11.0; upgrading one minor at a time remains the mitigation."
     }
+  },
+  "1.0.0": {
+    "//": [
+      "THE SETTLEMENT RELEASE — 0.11.1 to 1.0.0 direct, with no 0.12.0 ever cut. Every comparison in the fleet is >=, so the deadlines the 0.11.x records wrote as '0.12.0' arrive at this hop exactly as they would have at a 0.12.0: nothing strands, and the two advisory sites (data-flow's erase record, version-sync's eol arrival) fall due here. This record is authored INCREMENTALLY on the release branch and reconciled at the bump commit — rampExpiry.affects is copied from check-ramp-ledger's output at the version this record names, never typed early.",
+      "TWO INJECTED STEPS, the first since 0.8.0, and the first release to inject two at once — which is the point of batching them: one chain-budget re-record pays for both. `suppressions` (after `lint`) is the inline-directive census — the scanner OUTSIDE ESLint that polices the rule-less disable no in-ESLint rule can see. `resilience` (after `boundaries`) is the outbound-seam posture register, closed both ways with symbol-backed claims. Both anchors are 0.1.x-vintage single-line entries, per the injection contract. Both steps ship RAMPED for pre-1.0.0 installs (NOTE until 1.1.0), and their registers are PLANTED (see check-seeded-migrations DELIBERATE_PLANT), green-by-construction: the shipped rows describe the harness-seeded tree, so the only NOTE an upgraded install meets is about code its own tree added. Neither step owes an enforcement-tiers row — both scan every product surface (apps/, packages/, supabase/), and the tiers table binds single-surface scan roots only.",
+      "PLANTED — tools/suppressions-allow.json and tools/resilience.json (the two new seeded registers; reasons in scripts/check-seeded-migrations.mjs DELIBERATE_PLANT). Registering a row in either is a reviewed act: both are write-guard-protected and in ESCAPE_LISTS. This is the seeded-register shape the 0.11.0 auth-posture deferral refused to plant on an expiry-wave hop — the difference argued here rather than assumed: these plants are green-by-construction acceptance records of the tree the harness itself seeded, not demand-bearing registers that red until the consumer answers them.",
+      "SEEDED AT INIT ONLY — apps/web/public/.well-known/security.txt (RFC 9116). Its mandatory `Expires` is a reviewer-supplied bound, an init answer ({{SECURITY_TXT_EXPIRES}}, default init+180d) — which is why this is seedOnInitOnly and never a plant: `update` planting a bound into an existing install would stamp a date nobody reviewed, the off-switch shape 0.6.0 removed from framework-floor.json. An existing install adopts by writing the file with its own reviewed bound; the shape rides the security-headers step (present ⇒ parses, so absence never reds) and the lapse rides the scheduled floor-review job.",
+      "SEEDED AT INIT ONLY, the migration: supabase/migrations/20260815000000_privilege_lifecycle_jit.sql (the privilege lifecycle + JIT). Migrations are the consumer's append-only history — `update` never writes into supabase/migrations/ (the audit trail set this precedent) — so an existing install adopts the lifecycle by copying the migration deliberately, with its ADR (docs/adr/20260815-privilege-lifecycle-jit.md) and the elevate-before-admin flow that comes with it. The tenancy gate stays green either way: the widened predicate forms are permissions, not demands, and the old helper shapes remain legal.",
+      "SEEDED AT INIT ONLY, the MFA enrolment surface: the web sign-up pages, the mobile sign-up/mfa-challenge/security screens with their RNTL suites and the security feature dir, and the shared mfa-flow/mfa-actions ceremony in @app/supabase. Auto-planting screens into an existing install would red THEIR route registries, i18n catalog and startup budget on the next validate (the startup-budget reasoning, one surface wider) — an existing install adopts the surface deliberately, screens plus registry rows plus catalog keys in one reviewed act. The web (protected)/security page and sign-in/mfa rows ride the existing apps/web/app/(protected)/ and apps/web/app/sign-in/ subtree patterns from 0.2.0.",
+      "SEEDED AT INIT ONLY, the auth-event trail: the 20260816 migration, its declarative twin (45_auth_trail.sql), the pgTAP suite and the live wiring test. Same reasoning as the privilege-lifecycle migration — update never writes a consumer's append-only migrations dir — sharpened by the config coupling: the trail only works with the [auth.hook.*] sections beside it, so adoption is the paired act the auth-posture NOTE (the 1.0.0 hook ramp) and the ADR both describe."
+    ],
+    "configSteps": [
+      {
+        "name": "suppressions",
+        "cmd": "node tools/check-suppressions.mjs",
+        "after": "lint"
+      },
+      {
+        "name": "resilience",
+        "cmd": "node tools/check-resilience.mjs",
+        "after": "boundaries"
+      }
+    ],
+    "seedOnInitOnly": [
+      "apps/mobile/__tests__/mfa-challenge.test.tsx",
+      "apps/mobile/__tests__/security-screen.test.tsx",
+      "apps/mobile/__tests__/sign-up.test.tsx",
+      "apps/mobile/app/mfa-challenge.tsx",
+      "apps/mobile/app/security.tsx",
+      "apps/mobile/app/sign-up.tsx",
+      "apps/mobile/src/features/security/",
+      "apps/web/app/sign-up/",
+      "apps/web/public/.well-known/",
+      "packages/platform/supabase/src/mfa-actions.test.ts",
+      "packages/platform/supabase/src/mfa-actions.ts",
+      "packages/platform/supabase/src/mfa-flow.test.ts",
+      "packages/platform/supabase/src/mfa-flow.ts",
+      "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql",
+      "supabase/migrations/20260816000000_auth_event_trail.sql",
+      "supabase/schemas/45_auth_trail.sql",
+      "supabase/tests/auth_trail.test.sql",
+      "tests/rls/auth-trail.test.ts"
+    ],
+    "seededSourceFixes": [
+      {
+        "//": "The uuid re-date's channel to EXISTING installs, for the third release running — and the last time it should be needed in this shape. contains-shaped on the value the fix replaces, so an install that re-dated the row under any target of its own stops matching and the parked artifact self-clears; scripts/check-eol-target.mjs is what demanded this entry exist (it reds a moved removalTarget with no probe), which is the gate the 0.11.0 record promised would stop this recurring by planning-pass.",
+        "gate": "version-sync",
+        "why": "THE uuid ACCEPTANCE ARRIVES A THIRD TIME, AND THE HARNESS RE-DATED ITS OWN COPY TO 1.1.0 ON FRESH EVIDENCE: a committed registry sweep (scripts/sweep-registry-deprecations.mjs — 1556 pairs, six deprecations, all six already rows) and a manifest read that corrects the earlier reviews' 'exact pin' to what xcode@3.0.1 actually declares (`uuid: ^7.0.3`, a caret over a wholly-deprecated line, resolved to its last release). tools/eol.json is SEEDED — `update` may never rewrite it — so an existing install still holds `removalTarget: 0.12.0`, and at harness 1.0.0 (every comparison is >=, and 0.12.0 was never cut) that date ARRIVES HARD. Re-affirm your own acceptance and move `removalTarget` to a release you actually mean, recording what you re-checked (the sweep output, the xcode manifest range, the production closure), or remove the dependency. The discharge condition, so you can check it in one command: `npm view xcode dependencies.uuid` naming a range whose lowest satisfying release is not deprecated, with @expo/config-plugins depending on that xcode.",
+        "paths": [
+          "tools/eol.json"
+        ],
+        "probes": [
+          {
+            "path": "tools/eol.json",
+            "brokenWhen": {
+              "contains": "\"removalTarget\": \"0.12.0\""
+            }
+          }
+        ]
+      }
+    ],
+    "rampExtensions": [
+      {
+        "//": "THE FOURTH ENTRY OF THIS KIND IN THE LINEAGE, and the third on this one site: check-docs-sync.mjs's AGENTS.md gate-list ramp expired at 0.9.0, and 1.0.0 injects TWO steps (`suppressions`, `resilience`) through configSteps — the chain grows to 36 on every existing install while their seeded AGENTS.md documents 34 (or fewer), and only they can edit it. The 0.6.0 and 0.8.0 entries' reasoning applies verbatim; what is NEW is the minVersion: it opens at 1.0.0 rather than being left at 0.8.0, because rampNote is inert at or above minVersion and an escape opened below the population it protects is inert for exactly that population — the 0.11.1 lesson, applied before the lane has to find it.",
+        "file": "check-docs-sync.mjs",
+        "detail": "'AGENTS.md gate-list lockstep after an injected chain step'",
+        "from": "0.9.0",
+        "to": "1.1.0",
+        "why": "The escape must outlive the injection that reopens the drift. `suppressions` and `resilience` reach existing installs through configSteps, which grows their chain to 36 steps; their AGENTS.md is seeded and documents 34, so the lockstep check would hard-red every upgraded install on a drift the UPDATE caused. Ramping it to a NOTE — with the exact paste in the message — for one release is the ambush-free order; the upgrade lane's sweep leg performs that paste (§3 AGENTS.md rewrite) and REQUIRES graduate to succeed afterwards, which is what proves the runbook sufficient. The 1.1.0 record owes this expiry (obligations row docs-sync-gate-list-ramp-expiry)."
+      },
+      {
+        "//": "THE FIFTH ENTRY OF THIS KIND, and the second on this site — the same defect 0.11.1 fixed, one release on, found the same way: upgrade-lane leg A (v0.11.1 → 1.0.0) red with NO deadline met at that baseVersion, which the lane correctly calls a regression. The 0.11.x vintages hold a seeded tools/eol.json whose removalTarget the harness itself wrote as \"0.12.0\"; 0.12.0 was never cut, so the date arrives at 1.0.0 (>=), and an escape opened at minVersion 0.11.0 is inert for exactly those installs. Moving the opening to 1.0.0 covers them and carries the deadline to 1.1.0 with it — rampNote throws on until <= minVersion, so the pair is not a choice.",
+        "file": "check-version-sync.mjs",
+        "detail": "\"the arrival of tools/eol.json's removalTarget dates\"",
+        "from": "0.12.0",
+        "to": "1.1.0",
+        "why": "The escape must cover the population holding the arrived date, and at every release since 0.10.0 that population has been 'the previous release's own installs' — the one vintage an escape opened at the previous minVersion cannot reach. This is not a re-date of an unmet obligation: the harness re-affirmed its own uuid row on fresh registry evidence at 1.0.0 (tools/eol.json), and the 1.0.0 record's seededSourceFixes probe carries that re-affirmation to existing installs as a parked fix. What the ramp adds is the RUNWAY to apply it — one release of dated NOTE instead of a hard red on the first validate after update. The pattern is now written into the row rather than left to recur: every release that moves the template's removalTarget owes (i) the seededSourceFixes probe on the OLD literal and (ii) an arrival ramp opened AT the new release's own minVersion, until the next — and scripts/check-eol-target.mjs demands the first; the second is this entry and the obligations row version-sync-eol-arrival-ramp-expiry."
+      }
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 1.0.0 and copied from its output, never typed — the discipline the 0.11.0 record states. THIRTEEN vintages, one more than 0.11.x's twelve: the 0.10.0 vintage joins because data-flow's 0.12.0-dated erase ramp (opened at minVersion 0.11.0) falls due at this hop for every install below 0.11.0, and 0.12.0 was never cut, so this is where '>=' delivers it. The OTHER 0.12.0-dated ramp — version-sync's eol arrival — does NOT expire here: it is re-opened at (1.0.0, 1.1.0) by this record's second rampExtensions entry, because upgrade-lane leg A showed the 0.11.x vintages meeting the arrived date hard with the old escape inert for them. baseVersion 0.11.0 and 0.11.1 meet NOTHING here: EXPIRED is empty for both, and what they receive is the six-gate NOTE fleet this release opens (auth-posture's hook sections where the trail is adopted, boundaries' anatomy widening, docs-sync's gate list, resilience, suppressions, version-sync's support register and eol arrival), each until 1.1.0.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0"
+      ],
+      "why": "The whole inherited advisory backlog falls due, PLUS data-flow's 0.12.0-dated erase ramp. A v0.10.0 install meets exactly ONE expiring site (data-flow) — the smallest non-zero wave at 1.0.0 and the reason upgrade-lane leg L exists; a v0.9.9 install meets five gates (data-flow, docs-sync, rate-limits, version-sync, web-e2e); a v0.3.0 install meets thirteen; a v0.1.3 install meets twenty. Every one of them then carries the SAME six-gate NOTE fleet the 0.11.x vintages carry — the six ramps this release opens at minVersion 1.0.0 — so `graduate` refuses on every un-swept leg and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.0`, never off this paragraph."
+    }
   }
 }

@@ -1,0 +1,35 @@
+# maestro/flows/security.yaml — device flow for ROUTES id `security` (path `/security`).
+#
+# W5 SEED: launch, reach the route, and prove the route surface is on screen.
+# Security sits outside the tab bar (its in-app path is the actions palette's
+# Go-to-Security command), so the deep link is the deterministic reach here —
+# the same door the cold-start timing lane uses. One flow per ROUTES id —
+# tools/check-mobile-perf.mjs --closure reds a route without one.
+#
+# THE ROUTER MUST BE LIVE BEFORE THE DEEP LINK FIRES. launchApp returns when the
+# activity is resumed, not when the JS navigator has mounted, and a VIEW intent
+# delivered in that gap is dropped on the floor — the 1.0.0 release-branch
+# dispatch proved it on THIS flow (openLink reported COMPLETED, the hierarchy
+# showed Home for the whole 30 s wait), exactly as the first mutation-journey
+# dispatch had proved it on sign-in. `open-actions` is the home header leaf that
+# exists in every data state, signed-out included — it appearing IS "the router
+# is live". The generated route sweep gets the same guard from its builder.
+#
+# `security-screen` is the Screen container's testID — a STYLED SafeAreaView,
+# so the New Architecture does not flatten it away (only unstyled wrapper Views
+# lose their testIDs). Asserting the container rather than a data-state leaf is
+# deliberate: a freshly-installed app is signed out, so the factor read lands
+# on whatever state the missing session produces, and the container exists in
+# every one of them.
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+        id: "open-actions"
+    timeout: 90000
+- openLink: "{{APP_SCHEME}}://security"
+- extendedWaitUntil:
+    visible:
+        id: "security-screen"
+    timeout: 30000

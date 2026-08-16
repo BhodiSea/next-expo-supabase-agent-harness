@@ -4,7 +4,7 @@
 // workspace, run the real gate with cwd inside it, assert the exact red/green.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -74,13 +74,23 @@ const COMPLIANT_BARRELS = (rel) => [
  * make one wall red — so they are typed loosely on purpose. `files` are extra
  * [repoRelPath, content] pairs written verbatim AFTER the default vertical barrels,
  * so a test can overwrite a barrel with a violating body.
- * @param {{ census?: any, packages?: [string, any][], mobile?: any, web?: any, files?: [string, string][] }} [opts]
+ * @param {{ census?: any, packages?: [string, any][], mobile?: any, web?: any, files?: [string, string][], modules?: any }} [opts]
  */
-function fixture({ census = CENSUS, packages = PACKAGES, mobile = MOBILE, web = WEB, files = [] } = {}) {
+function fixture({
+  census = CENSUS,
+  packages = PACKAGES,
+  mobile = MOBILE,
+  web = WEB,
+  files = [],
+  modules = { modules: ['e2ee'], retired: [] },
+} = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-bounds-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   mkdirSync(join(dir, '.harness'), { recursive: true })
   writeFileSync(join(dir, 'tools/exports-walls.json'), JSON.stringify(census, null, 2))
+  // The owned module list (1.0.0) — staged by default because a real tree always
+  // has it (it ships with the release); `modules: null` simulates the broken tree.
+  if (modules !== null) writeFileSync(join(dir, 'tools/modules.json'), JSON.stringify(modules, null, 2))
   for (const [rel, manifest] of packages) {
     const p = join(dir, 'packages', rel, 'package.json')
     mkdirSync(dirname(p), { recursive: true })
@@ -222,6 +232,78 @@ test('GREEN: a sanctioned package that ships only "." is fine (MAY, not MUST)', 
   ])
   const r = run(EXPORTS_WALLS, fixture({ census, packages }))
   assert.equal(r.code, 0, r.out)
+})
+
+// ── the module-name closure (1.0.0, the exports-walls-module-name-validation discharge) ──
+
+test('RED: a sanction naming a module no release ships — the typo can no longer park the stale arm', () => {
+  const census = {
+    comment: 'x',
+    sanctioned: [
+      ...CENSUS.sanctioned,
+      { package: '@app/ghost', module: 'e2e', reason: R('a typo of e2ee — the defect the closure exists for') },
+    ],
+  }
+  const r = run(EXPORTS_WALLS, fixture({ census }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("'e2e'") && r.out.includes('no release of this harness ships'), r.out)
+})
+
+test('RED: a sanction naming a RETIRED module is told the module is gone, not that it never existed', () => {
+  const census = {
+    comment: 'x',
+    sanctioned: [...CENSUS.sanctioned, { package: '@app/old', module: 'legacy-sync', reason: R() }],
+  }
+  const r = run(
+    EXPORTS_WALLS,
+    fixture({ census, modules: { modules: ['e2ee'], retired: ['legacy-sync'] } }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('RETIRED'), r.out)
+})
+
+test('NOTE: an unknown module name ramps for a pre-1.0.0 install until 1.1.0', () => {
+  const census = {
+    comment: 'x',
+    sanctioned: [...CENSUS.sanctioned, { package: '@app/ghost', module: 'e2e', reason: R() }],
+  }
+  const dir = fixture({ census })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '0.11.1', harnessVersion: '0.11.1', modules: [] }),
+  )
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('NOTE') && r.out.includes("'e2e'"), r.out)
+})
+
+test('RED: a missing tools/modules.json is a broken tree — the owned list fails closed naming update', () => {
+  const r = run(EXPORTS_WALLS, fixture({ modules: null }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('tools/modules.json') && r.out.includes('update'), r.out)
+})
+
+test('RED: a malformed module list cannot close the census', () => {
+  const r = run(EXPORTS_WALLS, fixture({ modules: { modules: 'e2ee', retired: [] } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('non-empty strings'), r.out)
+})
+
+test('LOCKSTEP: the shipped tools/modules.json is set-equal to the installer MODULES list', async () => {
+  const layout = await import('../../installer/lib/layout.mjs')
+  const shipped = JSON.parse(
+    readFileSync(new URL('../../template/base/tools/modules.json', import.meta.url), 'utf8'),
+  )
+  assert.deepEqual(
+    [...shipped.modules].sort(),
+    [...layout.MODULES].sort(),
+    'tools/modules.json is the shipped copy of installer/lib/layout.mjs MODULES — they move in one diff',
+  )
+  assert.deepEqual(
+    [...shipped.retired].sort(),
+    [...layout.RETIRED_MODULES.keys()].sort(),
+    'the retired list mirrors RETIRED_MODULES the same way',
+  )
 })
 
 // ── check-workspace-deps (the declared-dependency allow-matrix) ──────────────────
@@ -371,11 +453,21 @@ test('RED anatomy: a DAL file value-importing @app/supabase; import type stays c
   assert.equal(green.code, 0, green.out)
 })
 
-test('RED anatomy: src/data without a port (port presence)', () => {
-  const files = /** @type {[string, string][]} */ ([[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']])
+test('RED anatomy: a PostgREST caller with no port import (port discipline); a call-free data file owes nothing', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [`packages/${N}/src/data/notes.ts`, "export const list = (db) => db.from('notes').select('id')\n"],
+  ])
   const r = run(WORKSPACE_DEPS, fixture({ files }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('port-presence'), r.out)
+
+  // The 1.0.0 correction of the directory keying's inversion: a src/data/ file that
+  // never speaks PostgREST owes no port — it has nothing to receive through one.
+  const callFree = fixture({
+    files: /** @type {[string, string][]} */ ([[`packages/${N}/src/data/notes.ts`, 'export const q = 1\n']]),
+  })
+  const green = run(WORKSPACE_DEPS, callFree)
+  assert.equal(green.code, 0, green.out)
 })
 
 test('RED anatomy: a vertical missing the ./client export key (dual barrel)', () => {
@@ -412,7 +504,10 @@ test("RED anatomy: select('*') in a DAL file; the same text in a COMMENT stays c
     fixture({
       files: [
         [`packages/${N}/src/data/port.ts`, 'export interface Db { x: 1 }\n'],
-        [`packages/${N}/src/data/notes.ts`, "export const q = db.from(T).select('*')\n"],
+        [
+          `packages/${N}/src/data/notes.ts`,
+          "import type { Db } from './port.js'\nexport const q = (db) => db.from(T).select('*')\n",
+        ],
       ],
     }),
   )
@@ -429,6 +524,64 @@ test("RED anatomy: select('*') in a DAL file; the same text in a COMMENT stays c
     }),
   )
   assert.equal(green.code, 0, green.out)
+})
+
+// ── the 1.0.0 behavior keying (the folder-name-coupling discharge) ───────────────
+
+test('RED anatomy: a module-scope service-role client in src/repo/ — the folder-name escape, closed', () => {
+  // The adversarial fixture from the discharged register row, verbatim in spirit: the
+  // 0.9.5 directory keying reported ZERO findings on this tree.
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/db.ts`,
+      "import { createServiceRoleClient_BYPASSES_RLS } from '@app/supabase'\nconst db = createServiceRoleClient_BYPASSES_RLS('w')\nexport const q = db.from('notes').select('id')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('dal-client-value-import') && r.out.includes('src/repo/db.ts'), r.out)
+  assert.ok(r.out.includes('port-presence'), r.out)
+})
+
+test('GREEN anatomy: a DAL living outside src/data/ with its port beside it (behavior, not names)', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [`packages/${N}/src/repo/port.ts`, 'export interface Db { from(t: string): unknown }\n'],
+    [
+      `packages/${N}/src/repo/notes.ts`,
+      "import type { Db } from './port.js'\nexport const list = (db) => db.from('notes')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED anatomy: a PostgREST caller whose port import resolves to no file', () => {
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/notes.ts`,
+      "import type { Db } from './port.js'\nexport const list = (db) => db.from('notes')\n",
+    ],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('port-presence'), r.out)
+})
+
+test('the vintage partition: widened findings NOTE for a 0.9.5-vintage install while armed laws stay hard', () => {
+  // baseVersion 0.10.0: at or above the 0.9.5 ramp (inert — domain-purity reds hard),
+  // below the 1.0.0 widening (harness 0.11.1 < until 1.1.0 — the src/repo reach NOTEs).
+  const files = /** @type {[string, string][]} */ ([
+    [
+      `packages/${N}/src/repo/db.ts`,
+      "import { createBrowserSupabaseClient } from '@app/supabase/client'\nexport const q = 1\n",
+    ],
+    [`packages/${N}/src/domain/note.ts`, "import { readFileSync } from 'node:fs'\nexport const x = 1\n"],
+    ['.harness/manifest.json', JSON.stringify({ baseVersion: '0.10.0', harnessVersion: '0.11.1' })],
+  ])
+  const r = run(WORKSPACE_DEPS, fixture({ files }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('NOTE — anatomy: @app/notes [dal-client-value-import]'), r.out)
+  assert.ok(r.out.includes('domain-purity'), r.out)
 })
 
 test('GREEN anatomy: a reviewed allow entry suppresses exactly its finding', () => {

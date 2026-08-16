@@ -1,9 +1,14 @@
 # CONTROL-PLANE-FACTS — what Claude Code actually hands a hook
 
-**Observed 2026-08-07** against Claude Code in the VS Code extension
-(`CLAUDE_AGENT_SDK_VERSION=0.3.222`, `CLAUDE_CODE_ENTRYPOINT=claude-vscode`).
-**Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and
-`CI-LANE-FACTS.md`: dated, sourced, re-verify-on-bump.
+**Observed 2026-08-07, re-verified 2026-08-15** against Claude Code in the VS Code
+extension (originally `CLAUDE_AGENT_SDK_VERSION=0.3.222`; the re-verification ran
+against **Claude Code 2.1.232 / SDK 0.3.232**, `CLAUDE_CODE_ENTRYPOINT=claude-vscode`,
+same probe method — a probe hook in `.claude/settings.local.json` capturing raw stdin,
+plus the empirical exit-code matrix for Fact 12 and the advisory re-query for Fact 10).
+Facts 1, 2, 3, 5, 6, 10 and 12 were re-verified by execution; Facts 7, 8, 9, 11 and 13
+are documentation-sourced and were re-read, not re-probed. **Re-verify on any Claude
+Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
+sourced, re-verify-on-bump.
 
 ## Why this file exists
 
@@ -24,6 +29,10 @@ this one cheap, and it is what makes `disableAllHooks` in a local settings file 
 single point of failure rather than a next-session one.
 
 ## Fact 2 — `SubagentStop` fires and carries everything W4 needs
+
+Re-observed 2026-08-15 (2.1.232): the payload key list below is **key-for-key
+identical**, `last_assistant_message` again arrived untruncated with the verdict as
+its last non-empty line, and `agent_type` again matched the roster name.
 
 Payload keys, verbatim:
 
@@ -50,6 +59,8 @@ last non-empty line: "VERDICT: PASS"
 
 ## Fact 3 — `SubagentStart` fires too, with a narrower payload
 
+Re-observed 2026-08-15 (2.1.232): identical seven-key payload.
+
 ```
 agent_id  agent_type  cwd  hook_event_name  prompt_id  session_id  transcript_path
 ```
@@ -58,6 +69,12 @@ No `last_assistant_message` (nothing has been said yet). Usable for an "expected
 started" record, not for a verdict.
 
 ## Fact 4 — the `Stop` payload, and `stop_hook_active` is REAL
+
+2026-08-15 re-verification status: the `Stop` payload was re-captured (2.1.232) and is
+**key-for-key identical** to the list below — `stop_hook_active: false` on an ordinary
+turn, no `agent_*` fields, `last_assistant_message` present and untruncated. The
+one-shot `true` transition was not re-run (it requires deliberately blocking a turn);
+the 2026-08-07 observation stands for that half, at the original version.
 
 `stop-validate-gate.mjs` reads `input?.stop_hook_active === true`, and
 `docs/harness/README.md` states that it "escalates the message on repeat blocks". The current
@@ -170,13 +187,15 @@ re-loaded after a compaction. **Which** file classes emit it is not documented, 
 that watched for it and concluded "my scoped rule came back" would be resting on undocumented
 behaviour.
 
-## Fact 10 — the published advisory surface, queried 2026-08-07
+## Fact 10 — the published advisory surface, queried 2026-08-07, re-queried 2026-08-15
 
 `gh api "/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code"` returns **28**
 advisories. The maximum `first_patched_version` across all of them is **2.1.163**, which is
 also the earliest version outside every published vulnerable range. That number, not a
 round one, is the floor — see `template/base/tools/cc-floor.json` for the per-advisory
-citations.
+citations. The 2026-08-15 re-query returned the SAME 28 advisories and the same maximum
+`first_patched_version`: no new advisory has published since 2026-07-24 (CVE-2026-55607),
+so the floor is unchanged and only `checkedOn` moves.
 
 Ten land on the harness's own enforcement surface: settings-file config injection
 (CVE-2026-25725, patched 2.1.2), repo-controlled settings trust bypass (CVE-2026-33068,
@@ -227,7 +246,7 @@ Deployment paths, the drop-in directory semantics, the minimal correct policy, a
 hook needs a dispatcher (it fires in *every* project on the machine, including ones with no
 harness installed) are in `template/base/docs/security/managed-settings.md`.
 
-## Fact 12 — a hook file that cannot PARSE fails OPEN (probed 2026-08-10, node v26)
+## Fact 12 — a hook file that cannot PARSE fails OPEN (probed 2026-08-10, node v26; re-probed 2026-08-15, node v26.4.0 — matrix identical)
 
 The fail-closed guarantee lives *inside* `hooks/lib/hookio.mjs` — its
 `uncaughtException`/`unhandledRejection` → `exit(2)` handlers — and those install only after
@@ -247,8 +266,11 @@ gate-integrity (which would name the sha mismatch) never runs locally; first det
 The 0.9.0 mitigations: the installer's write primitive stages to a dot-tmp and renames (a
 destination is old bytes or new bytes, never a truncation), `update --rollback` restores the
 recorded pre-update tree, and the upgrade runbook's RECOVERY section names the torn-hook case
-as the urgent one. A fail-closed *launcher* (a wrapper whose only job is to exit 2 when the
-real hook cannot load) is a recorded obligation, not shipped.
+as the urgent one. The fail-closed *launcher* SHIPPED at 1.0.0
+(`.claude/hooks/launch.mjs` — every hook command routes through it, and a hook that cannot
+load exits 2 and blocks; proven by the launcher block in tests/hooks/hook-contract.test.mjs
+against exactly this matrix). The residual is the launcher itself: one import-free file
+whose own tearing still fails open, re-probed at every Claude Code pin bump.
 
 ## Fact 13 — a bare tool name in `permissions.allow` retires every scoped rule for that tool
 
@@ -264,7 +286,8 @@ any scope are evaluated before allow rules"). The shipped scaffold settings carr
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
 Searched `.github/workflows/` and `template/base/github/workflows/` for `claude -p`,
-`claude --print` and `anthropics/claude-code`: **no matches**.
+`claude --print` and `anthropics/claude-code`: **no matches** (re-run 2026-08-15,
+still zero).
 
 This settles an open W4 risk. Since v2.1.198 subagents run in the background by default, and in
 non-interactive mode a tool call is denied when no `PermissionRequest` hook returns a decision —
@@ -274,15 +297,25 @@ someone adds one, which is the reason this is written down rather than concluded
 
 ## Fact 6 — the hook environment
 
-Variables a hook can see (`CLAUDE*` / `HARNESS*` only):
+Variables a hook can see (`CLAUDE*` / `HARNESS*` only), re-captured 2026-08-15
+(2.1.232 / SDK 0.3.232):
 
 ```
 CLAUDECODE=1                       CLAUDE_CODE_ENTRYPOINT=claude-vscode
 CLAUDE_PROJECT_DIR=<repo root>     CLAUDE_CODE_SESSION_ID=<uuid>
 CLAUDE_PID=<pid>                   CLAUDE_CODE_CHILD_SESSION=1
-CLAUDE_AGENT_SDK_VERSION=0.3.222   CLAUDE_EFFORT=xhigh        (SubagentStop only)
+CLAUDE_AGENT_SDK_VERSION=0.3.232   CLAUDE_EFFORT=xhigh        (SubagentStop only)
 CLAUDE_CODE_ENABLE_TASKS=0         CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true
+CLAUDE_CODE_MESSAGING_SOCKET=<path>   CLAUDE_CODE_MESSAGING_TOKEN=<hex>   (new at 2.1.232)
 ```
+
+Two deltas since 2026-08-07, both additive: `CLAUDE_CODE_MESSAGING_SOCKET` and
+`CLAUDE_CODE_MESSAGING_TOKEN` now reach hooks — treat the token as a secret (a hook
+that logs its environment now logs a credential). A `CLAUDE_CODE_EXECPATH` variable was
+observed in the **Bash-tool subprocess** environment but NOT in the hook environment;
+the two channels are not the same set, which is one more reason a hook must read the
+payload, not the ambient env. `CLAUDE_CODE_CHILD_SESSION=1` was again observed in a
+MAIN VS Code session — re-confirming that a control keyed on it would misfire.
 
 `CLAUDE_CODE_SESSION_ID` duplicates the payload's `session_id`; prefer the payload, which is
 the documented channel and is present for every event.

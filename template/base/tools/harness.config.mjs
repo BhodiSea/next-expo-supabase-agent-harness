@@ -35,12 +35,30 @@ export const VALIDATE_STEPS = [
   // symbol; see apps/*/tsconfig.json). One command, whole workspace. SOURCE: design/W1-STACK-SPEC.md §3
   ['types', 'pnpm exec tsc -b . apps/web apps/mobile'],
   ['lint', 'pnpm exec eslint . --max-warnings 0 --cache'],
+  // The inline-directive census (1.0.0): the scanner OUTSIDE ESLint that polices the
+  // off-switch ESLint cannot see (a rule-less `eslint-disable` filters every rule's
+  // report, including the rule that would report it — tools/eslint-rules/index.mjs
+  // records the proven attempt). It sits right after `lint` because its subject is
+  // lint's escape hatch, and it is a <100ms pure-node text scan. `lint` is a
+  // 0.1.x-vintage single-line anchor present in every consumer chain, which is what
+  // makes this the safe injection point (template/migrations.json "1.0.0" configSteps).
+  ['suppressions', 'node tools/check-suppressions.mjs'],
   ['provenance', 'node tools/check-sources.mjs'],
   // The boundary TRIAD, part 1: the two census consumers (check-exports-walls +
   // check-workspace-deps) that derive from the ONE tools/exports-walls.json. Cheap,
   // pure-node, static. The import-GRAPH half of the triad (the census-derived
   // dependency-cruiser layering) is enforced by the later `architecture` step.
   ['boundaries', 'node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs'],
+  // The outbound-seam posture register (1.0.0): every transport construction site
+  // (tRPC client, server fetch, supabase-js factory, Edge Function) must have a
+  // reviewed tools/resilience.json row, no row may outlive its site, and posture
+  // claims must be backed by the symbols that implement them. It sits with its
+  // family: `boundaries` above and `observability` below are the same shape —
+  // import/egress walls with reviewed escapes — and like them it is a <100ms
+  // pure-node scan. `boundaries` is the 0.1.x-vintage single-line anchor
+  // (template/migrations.json "1.0.0" configSteps), exactly as it was for the
+  // 0.8.0 observability injection below.
+  ['resilience', 'node tools/check-resilience.mjs'],
   // The observability seam's containment half (0.8.0): no vendor telemetry SDK import
   // outside the reviewed tools/observability.json sinks[] register, and every declared sink
   // behind the redaction pass — the seam header's own invariant ("NO VENDOR SDK, on
@@ -131,7 +149,15 @@ export const VALIDATE_STEPS = [
   // derivation (tools/lib/live-controls.mjs), and folding it in keeps the chain at 34, so
   // the committed chain-budget measurement stays count-matched and the two 0.10.0
   // chain-step obligations keep their arithmetic.
-  ['docs-sync', 'node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs'],
+  // THREE SCRIPTS since 1.0.0: check-conformance-map.mjs judges the ASVS/MASVS/CRA
+  // conformance MAP (tools/conformance-map.json) on the identical argument — a claim in a
+  // reviewed file must name a control something actually runs — and regen-diffs the two
+  // documents generated from it (docs/compliance/controls-crosswalk.md,
+  // docs/security/threat-model.md). ONE LINE, like `boundaries` above: injectConfigStep
+  // anchors on a single-line entry, so a wrapped one is a place a later injection lands inside
+  // — which is why the formatter is told to leave this entry alone rather than fold it.
+  // biome-ignore format: injectConfigStep anchors on a single-line entry, and three scripts exceed the width
+  ['docs-sync', 'node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs'],
 ]
 
 // What the Stop hook runs before a turn may end. These invoke the gate DIRECTLY —
@@ -174,7 +200,8 @@ export const STOP_HOOK_STEPS = [
   // no `expect`, or that a committed `.only` has silently disabled every other test in the
   // suite. ~50ms, so it belongs here. What it CANNOT do is prove a test would notice the
   // code breaking — that is the mutation lane (tools/check-mutation-ratchet.mjs), which runs
-  // in CI because it takes minutes against a warm validate chain measured at ~24s wall.
+  // in CI because it takes minutes against a warm validate chain measured in seconds
+  // (the committed figure lives in the factory's chain-budget, never in this comment).
   ['test-quality', 'node tools/check-test-quality.mjs'],
   // CLOSURE half of the mobile perf floor: every route in src/routes.ts must have a
   // Maestro flow file AND a committed row in tools/startup-budget.json (and stale

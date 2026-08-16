@@ -25,7 +25,7 @@ That is not a gap in the field. It follows from four things, each sufficient on 
 
 Every public benchmark materialises **its own** repository into a sandbox — Django, sympy, Babel,
 Redis. This harness is a scaffold generator for one shape: a pnpm monorepo with Next.js 16 web and
-Expo 57 mobile over Supabase. Of the 34 gates in `template/base/tools/harness.config.mjs`, roughly
+Expo 57 mobile over Supabase. Of the 36 gates in `template/base/tools/harness.config.mjs`, roughly
 31 are stack-bound (`expo-policy`, `schema-rls`, `tenancy`, `migrations`, `query-shapes`,
 `route-manifest`, `security-headers`, `styleguide`, `mobile-perf`, …). Dropped into `sympy` they
 are inert or vacuous — and this repo's own doctrine already rules that vacuous truth is never

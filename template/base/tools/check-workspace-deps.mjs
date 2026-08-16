@@ -155,13 +155,18 @@ for (const [name, { tier, deps }] of pkgs) {
   }
 }
 
-// 5. (0.9.5) Vertical anatomy + intra-vertical layering — the worked pattern as law.
-// The laws and their rationale live in lib/vertical-anatomy.mjs; the escape is the
-// reviewed tools/vertical-anatomy-allow.json (seeded, closed both ways — a stale entry
-// reds). Ramped for pre-0.9.5 installs until 0.10.0 (register row
-// boundaries-vertical-anatomy-ramp-expiry); the allow-file shape/staleness problems and
-// the anti-vacuity floor are NEVER ramped — a broken reviewed file or an empty scan is
-// not a debt an old install grows out of.
+// 5. (0.9.5; behavior-keyed since 1.0.0) Vertical anatomy + intra-vertical layering —
+// the worked pattern as law. The laws and their rationale live in
+// lib/vertical-anatomy.mjs; the escape is the reviewed tools/vertical-anatomy-allow.json
+// (seeded, closed both ways — a stale entry reds). TWO ramps, partitioned by the
+// finding's vintage: what the 0.9.5 directory keying already produced stays on the
+// armed 0.9.5 ramp (register row boundaries-vertical-anatomy-ramp-expiry — expired, so
+// hard for every real install), and what only the 1.0.0 behavior keying sees rides its
+// own ramp until 1.1.0 (register row boundaries-anatomy-widening-ramp-expiry) — a
+// vertical that satisfied the directory keying must get one release of dated NOTEs on
+// the widened demand, never a hard red on the update that delivered it. The allow-file
+// shape/staleness problems and the anti-vacuity floor are NEVER ramped — a broken
+// reviewed file or an empty scan is not a debt an old install grows out of.
 const ANATOMY_ALLOW = 'tools/vertical-anatomy-allow.json'
 const anatomy = scanVerticalAnatomy()
 if (anatomy.verticals === 0) {
@@ -192,10 +197,11 @@ for (const e of anatomyVerdict.stale) {
     `${ANATOMY_ALLOW} entry (${e.package} ${e.law}${e.path ? ` ${e.path}` : ''}) matches NO live finding — a stale escape is a standing hole nobody reviews; delete the entry`,
   )
 }
-if (anatomyVerdict.remaining.length > 0) {
-  const msgs = anatomyVerdict.remaining.map(
-    (f) => `anatomy: ${f.package} [${f.law}] ${f.path} — ${f.detail}`,
-  )
+const anatomyMsg = (f) => `anatomy: ${f.package} [${f.law}] ${f.path} — ${f.detail}`
+const legacyFindings = anatomyVerdict.remaining.filter((f) => f.vintage !== '1.0.0')
+const widenedFindings = anatomyVerdict.remaining.filter((f) => f.vintage === '1.0.0')
+if (legacyFindings.length > 0) {
+  const msgs = legacyFindings.map(anatomyMsg)
   if (
     rampNote(GATE, '0.9.5', `${String(msgs.length)} vertical-anatomy finding(s)`, {
       until: '0.10.0',
@@ -204,6 +210,17 @@ if (anatomyVerdict.remaining.length > 0) {
     for (const m of msgs) console.log(`${GATE}: NOTE — ${m}`)
   } else {
     errs.push(...msgs)
+  }
+}
+if (widenedFindings.length > 0) {
+  if (
+    rampNote(GATE, '1.0.0', 'the behavior-keyed widening of the vertical-anatomy DAL laws', {
+      until: '1.1.0',
+    })
+  ) {
+    for (const f of widenedFindings) console.log(`${GATE}: NOTE — ${anatomyMsg(f)}`)
+  } else {
+    errs.push(...widenedFindings.map(anatomyMsg))
   }
 }
 

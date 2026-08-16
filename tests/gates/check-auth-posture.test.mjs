@@ -17,24 +17,50 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const GATE = fileURLToPath(new URL('../../template/base/tools/check-auth-posture.mjs', import.meta.url))
+const GATE = fileURLToPath(
+  new URL('../../template/base/tools/check-auth-posture.mjs', import.meta.url),
+)
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
-const CONFIG_SRC = fileURLToPath(new URL('../../template/stack/supabase/config.toml', import.meta.url))
+const CONFIG_SRC = fileURLToPath(
+  new URL('../../template/stack/supabase/config.toml', import.meta.url),
+)
 const SHIPPED_CONFIG = readFileSync(CONFIG_SRC, 'utf8')
 const SHIPPED_POLICY = readFileSync(join(TOOLS, 'auth-posture.json'), 'utf8')
+const SHIPPED_TUNABLES = readFileSync(join(TOOLS, 'auth-tunables.json'), 'utf8')
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
-/** @param {{ config?: string|null, policy?: any, edit?: (s: string) => string }} [opts] */
-function fixture({ config = SHIPPED_CONFIG, policy = SHIPPED_POLICY, edit } = {}) {
+// The trail's presence, as the gate reads it: the migration TEXT naming the two hook
+// functions. The shipped config enables both hooks, so a fixture modelling the shipped tree
+// must carry the trail too — the paired act the 1.0.0 gate holds — and a fixture modelling a
+// pre-trail install passes `trail: false`.
+const TRAIL_MARKER =
+  '-- fixture: the auth-event trail\ncreate function auth_trail.password_verification_hook(event jsonb) returns jsonb language sql as $$ select $1 $$;\ncreate function auth_trail.mfa_verification_hook(event jsonb) returns jsonb language sql as $$ select $1 $$;\n'
+
+/** @param {{ config?: string|null, policy?: any, tunables?: any, edit?: (s: string) => string, trail?: boolean }} [opts] */
+function fixture({
+  config = SHIPPED_CONFIG,
+  policy = SHIPPED_POLICY,
+  tunables = SHIPPED_TUNABLES,
+  edit,
+  trail = true,
+} = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-authposture-'))
   mkdirSync(join(dir, 'supabase'), { recursive: true })
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
+  if (trail) {
+    mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
+    writeFileSync(
+      join(dir, 'supabase/migrations/20260816000000_auth_event_trail.sql'),
+      TRAIL_MARKER,
+    )
+  }
   if (config !== null) {
     writeFileSync(join(dir, 'supabase/config.toml'), edit ? edit(config) : config)
   }
   if (policy !== null) writeFileSync(join(dir, 'tools/auth-posture.json'), asText(policy))
+  if (tunables !== null) writeFileSync(join(dir, 'tools/auth-tunables.json'), asText(tunables))
   return dir
 }
 
@@ -56,11 +82,74 @@ test('GREEN: the shipped config satisfies the shipped policy', () => {
   assert.match(r.out, /no unreviewed \[auth\*\] key/)
 })
 
-test('RED: a widened jwt_expiry names both values and the reviewed reason', () => {
+test('RED: a config-side jwt_expiry change without its register half is drift, not a retune', () => {
+  // jwt_expiry is TUNABLE since the 1.0.0 split — but a retune is a TWO-place act, and
+  // this fixture performs only the config half. The finding names both values and the
+  // seeded register the other half lives in.
   const r = runGate(fixture({ edit: sub('jwt_expiry = 3600', 'jwt_expiry = 86400') }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /`auth\.jwt_expiry` is 86400, reviewed as 3600/)
-  assert.match(r.out, /widens the window a stolen one is useful for/)
+  assert.match(
+    r.out,
+    /`auth\.jwt_expiry` is 86400 but this project's tools\/auth-tunables\.json row says 3600/,
+  )
+  assert.match(r.out, /half the act is drift, not a decision/)
+})
+
+test('GREEN: a legitimate retune — both places edited, inside the bound', () => {
+  const retuned = JSON.parse(SHIPPED_TUNABLES)
+  retuned.values['auth.jwt_expiry'].value = 7200
+  retuned.values['auth.jwt_expiry'].why =
+    'Two hours: this deployment serves long-lived kiosk sessions and the rotation floor still holds; reviewed here per the split.'
+  const r = runGate(
+    fixture({ tunables: retuned, edit: sub('jwt_expiry = 3600', 'jwt_expiry = 7200') }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: a register value outside the owned bound reds even when config agrees', () => {
+  // The bound is the FLOOR's half of the bargain: the consumer may retune, never stretch
+  // past what the owned policy declares — agreement between the two consumer-editable
+  // files is not review.
+  const stretched = JSON.parse(SHIPPED_TUNABLES)
+  stretched.values['auth.jwt_expiry'].value = 172800
+  stretched.values['auth.jwt_expiry'].why =
+    'Two days, because sign-in friction was annoying somebody — exactly the retune the bound exists to refuse.'
+  const r = runGate(
+    fixture({ tunables: stretched, edit: sub('jwt_expiry = 3600', 'jwt_expiry = 172800') }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /outside the owned bound 300\.\.86400/)
+})
+
+test('RED: a minted tunable — a register row the owned policy never declared', () => {
+  const minted = JSON.parse(SHIPPED_TUNABLES)
+  minted.values['auth.enable_anonymous_sign_ins'] = {
+    value: true,
+    why: 'Trying to license anonymous sign-ins from the seeded side — the floor key must stay the floor’s.',
+  }
+  const r = runGate(fixture({ tunables: minted }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /a consumer cannot mint a tunable/)
+})
+
+test('RED: a missing tunables register FAILS CLOSED naming the refresh-seeded pull', () => {
+  const r = runGate(fixture({ tunables: null }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /--refresh-seeded tools\/auth-tunables\.json/)
+})
+
+test('additionalSections: a consumer-enabled surface section is recorded, or it reds', () => {
+  // The census split: [functions.report] appears in config — red while unrecorded, green
+  // once additionalSections carries it. The owned core still owns the shipped sections.
+  const withSection = (s) => `${s}\n[functions.report]\nenabled = true\n`
+  const unrecorded = runGate(fixture({ edit: withSection }))
+  assert.equal(unrecorded.code, 1, unrecorded.out)
+  assert.match(unrecorded.out, /\[functions\.report\]` is present but in neither/)
+
+  const recorded = JSON.parse(SHIPPED_TUNABLES)
+  recorded.additionalSections = ['functions.report']
+  const green = runGate(fixture({ tunables: recorded, edit: withSection }))
+  assert.equal(green.code, 0, green.out)
 })
 
 test('RED: a MISSPELLED key reds TWICE — the case the CLI silently ignores', () => {
@@ -93,7 +182,10 @@ test('RED: anonymous sign-ins turned on', () => {
 test('RED: a wildcard entry in the redirect allowlist', () => {
   const r = runGate(
     fixture({
-      edit: sub('"{{APP_SCHEME}}://auth/callback",', '"{{APP_SCHEME}}://auth/callback", "{{WEB_ORIGIN}}/**",'),
+      edit: sub(
+        '"{{APP_SCHEME}}://auth/callback",',
+        '"{{APP_SCHEME}}://auth/callback", "{{WEB_ORIGIN}}/**",',
+      ),
     }),
   )
   assert.equal(r.code, 1, r.out)
@@ -103,11 +195,15 @@ test('RED: a wildcard entry in the redirect allowlist', () => {
 test('RED: site_url on a plaintext host — shape, not equality', () => {
   // Project-valued: the harness cannot pin the VALUE (every scaffold fills in its own origin),
   // so it pins the shape. A filled-in https origin must stay green.
-  const bad = runGate(fixture({ edit: sub('site_url = "{{WEB_ORIGIN}}"', 'site_url = "http://evil.example.com"') }))
+  const bad = runGate(
+    fixture({ edit: sub('site_url = "{{WEB_ORIGIN}}"', 'site_url = "http://evil.example.com"') }),
+  )
   assert.equal(bad.code, 1, bad.out)
   assert.match(bad.out, /does not match the reviewed shape/)
 
-  const good = runGate(fixture({ edit: sub('site_url = "{{WEB_ORIGIN}}"', 'site_url = "https://app.example.com"') }))
+  const good = runGate(
+    fixture({ edit: sub('site_url = "{{WEB_ORIGIN}}"', 'site_url = "https://app.example.com"') }),
+  )
   assert.equal(good.code, 0, good.out)
 })
 
@@ -120,14 +216,14 @@ test('RED: a RENAMED section reds in BOTH directions', () => {
   // asserted nothing for exactly that reason.
   const r = runGate(fixture({ edit: sub(/^\[local_smtp\]$/m, '[inbucket]') }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /section `\[inbucket\]` is present but not in/)
+  assert.match(r.out, /section `\[inbucket\]` is present but in neither/)
   assert.match(r.out, /section `\[local_smtp\]` is reviewed .* but ABSENT/)
 })
 
 test('RED: a new config SECTION is a surface, not a setting', () => {
   const r = runGate(fixture({ edit: (s) => `${s}\n[storage.buckets.avatars]\npublic = true\n` }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /\[storage\.buckets\.avatars\]` is present but not in/)
+  assert.match(r.out, /\[storage\.buckets\.avatars\]` is present but in neither/)
 })
 
 test('RED: a missing policy file FAILS CLOSED — an absent policy is not an empty one', () => {
@@ -216,7 +312,10 @@ const withVersion = (base, opts) => {
   return dir
 }
 const stripMfa = (s) =>
-  s.replace(/# ─+\n# Multi-factor authentication[\s\S]*?\n(?=# Realtime and Storage are OFF at seed\.)/, '')
+  s.replace(
+    /# ─+\n# Multi-factor authentication[\s\S]*?\n(?=# Realtime and Storage are OFF at seed\.)/,
+    '',
+  )
 
 test('the [auth.mfa] RAMP: a pre-0.9.9 install takes NOTES for the whole absent section', () => {
   const r = runGate(withVersion('0.9.0', { edit: stripMfa }))
@@ -238,7 +337,9 @@ test('the [auth.mfa] RAMP: a fresh 0.9.9 install enforces the whole section', ()
 test('the [auth.mfa] RAMP is SCOPED: a pre-0.9.9 install still reds on a non-MFA finding', () => {
   // The assertion that makes the ramp a scoped one rather than a gate switched off.
   const r = runGate(
-    withVersion('0.9.0', { edit: (s) => stripMfa(sub('jwt_expiry = 3600', 'jwt_expiry = 86400')(s)) }),
+    withVersion('0.9.0', {
+      edit: (s) => stripMfa(sub('jwt_expiry = 3600', 'jwt_expiry = 86400')(s)),
+    }),
   )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /jwt_expiry/)
@@ -267,4 +368,56 @@ test('RED: enabling WebAuthn without review — the factor the CLI silently down
   )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /web_authn\.enroll_enabled` is true, reviewed as false/)
+})
+
+// ── 1.0.0: the trail's PAIRED ACT ─────────────────────────────────────────────────────
+test('PAIRED ACT: hooks ENABLED with no trail migration is a HARD red — every sign-in would fail', () => {
+  // The shape a naive "append the reviewed [auth.hook.*] block" produces on an install that
+  // never adopted the migration: GoTrue calls a function nothing created. Never ramped.
+  const dir = fixture({ trail: false })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /enables auth\.hook\.password_verification_attempt\.enabled.*no migration under supabase\/migrations creates the auth_trail hook functions/,
+  )
+  assert.match(r.out, /EVERY password\/MFA sign-in will fail/)
+})
+
+test('PAIRED ACT: no trail and no hook sections — the four floors are NOT demanded, one plain line says so, and it is not a NOTE', () => {
+  // A pre-1.0.0 install that has not adopted the trail owes the paired adoption the runbook
+  // describes, not a config edit alone — so nothing is demanded and nothing NOTEs (a NOTE here
+  // would be a ramp no sweep may clear without adopting a migration on the consumer's behalf).
+  const dir = fixture({
+    trail: false,
+    edit: (c) =>
+      c.replace(
+        /\[auth\.hook\.password_verification_attempt\][\s\S]*?\n\n\[auth\.hook\.mfa_verification_attempt\][\s\S]*?\n\n/,
+        '',
+      ),
+  })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(
+    r.out,
+    /the auth-event trail is not in this tree .* 4 \[auth\.hook\.\*\] floor\(s\) are not demanded here/,
+  )
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\)/)
+  assert.match(
+    r.out,
+    /auth-posture: OK — 14 floor value\(s\).*\(4 \[auth\.hook\] floor\(s\) not demanded — the trail is not adopted here\)/,
+  )
+})
+
+test('PAIRED ACT: trail present, sections missing — the floors ARE demanded (hard at base >= 1.0.0)', () => {
+  const dir = fixture({
+    edit: (c) =>
+      c.replace(
+        /\[auth\.hook\.password_verification_attempt\][\s\S]*?\n\n\[auth\.hook\.mfa_verification_attempt\][\s\S]*?\n\n/,
+        '',
+      ),
+  })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /auth\.hook\.password_verification_attempt\.enabled/)
 })

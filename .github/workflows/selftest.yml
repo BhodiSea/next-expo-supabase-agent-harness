@@ -765,7 +765,10 @@ jobs:
         # empty string never reaches the child (proven — the step env printed empty
         # while the gate still resolved `origin/main`). The canary job unsets it this
         # way per gate; this is the same rule for the whole chain.
-        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor
+        # TEED (1.0.0): this IS the cold path — a fresh clone, cold caches, the first
+        # validate of an install — and until now nothing kept its log, so the README had
+        # to say "the cold path is unmeasured". The record step below reads it on dispatch.
+        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor | tee cold-validate.log
       - name: Warm validate wall-time budget (stamped local experience — fail >120s, warn >90s)
         working-directory: .selftest/boot
         env:
@@ -939,6 +942,11 @@ jobs:
       - name: Record the Stop-chain measurement (workflow_dispatch only — same reviewed-dispatch path)
         if: github.event_name == 'workflow_dispatch' && matrix.node == 22
         run: node scripts/check-chain-budget.mjs .selftest/boot/stop-chain.log --record --stop-chain
+      # The COLD half (1.0.0) rides the same path and the same artifact: THE GATE's own
+      # `--min-floor` log, teed above. Measured, never budgeted — see recordColdMeasurement.
+      - name: Record the cold-path measurement (workflow_dispatch only — the first validate of a fresh clone)
+        if: github.event_name == 'workflow_dispatch' && matrix.node == 22
+        run: node scripts/check-chain-budget.mjs .selftest/boot/cold-validate.log --record --cold
       - name: Upload the recorded chain budget for review
         if: github.event_name == 'workflow_dispatch' && matrix.node == 22
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1532,6 +1540,35 @@ jobs:
             baseline: v0.9.5
             dir: upgrade-0-9-5
             why: the vintage leg A vacated — the 0.9.9-opened pair in isolation, and the smallest non-zero wave
+          # LEG L — v0.10.0, the vintage NO leg covered between 0.11.1 and 1.0.0: leg A was
+          # v0.10.0 at 0.11.0, slid to v0.11.0 at 0.11.1 with no replacement written, and by
+          # the leg J/K rule ("the version leg A leaves behind is a released population no
+          # lane executes until one is written for it") that gap should not have opened.
+          # 1.0.0 closes it, and v0.10.0 is ALSO the smallest non-zero wave at 1.0.0: it meets
+          # exactly ONE expiring site — data-flow's erase record, opened at minVersion 0.11.0
+          # and dated 0.12.0, arriving here because 0.12.0 was never cut and every comparison
+          # is >= — while every 0.11.x vintage meets none and every older one meets more.
+          # The OTHER 0.12.0-dated ramp (version-sync's eol arrival) does NOT expire on it:
+          # 1.0.0 re-opened that one at (1.0.0, 1.1.0) after leg A showed the 0.11.x
+          # vintages meeting the arrived date hard, so here it is a NOTE like the rest of
+          # the 1.0.0 fleet. Counts verified against `ramp-expectations.mjs 0.10.0 1.0.0`.
+          - leg: L
+            baseline: v0.10.0
+            dir: upgrade-0-10-0
+            why: the vintage no leg covered since 0.11.1 — data-flow's erase expiry in isolation, the smallest non-zero wave at 1.0.0
+          # LEG M — v0.11.0, the vintage leg A vacated at 1.0.0 (leg A slides to v0.11.1).
+          # ZERO expiries and the WHOLE 1.0.0 NOTE fleet — six gates opened at minVersion
+          # 1.0.0 (auth-posture where the trail is adopted, boundaries' anatomy widening,
+          # docs-sync's gate list, resilience, suppressions, version-sync's support register
+          # and re-opened eol arrival) — which makes it leg A's twin in shape and the leg
+          # that proves the fleet is dated rather than blanket: same install family as leg
+          # L one release apart, one expiry there and none here. `graduate` REFUSES on
+          # NOTEs alone, un-swept, exactly as leg I did at 0.9.9. Verified against
+          # `ramp-expectations.mjs 0.11.0 1.0.0`.
+          - leg: M
+            baseline: v0.11.0
+            dir: upgrade-0-11-0
+            why: the vintage leg A vacated at 1.0.0 — zero expiries, the whole 1.0.0 NOTE fleet, graduate refuses on NOTEs alone
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

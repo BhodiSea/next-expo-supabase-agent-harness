@@ -57,12 +57,15 @@ const clean = () => ({
     "const HARNESS_HOOK_VERSION = '1.2.3'\nexport default HARNESS_HOOK_VERSION\n",
   'template/base/.claude/hooks/beta.mjs':
     "const HARNESS_HOOK_VERSION = '1.2.3'\nexport default HARNESS_HOOK_VERSION\n",
-  'CITATION.cff': 'title: fixture\nversion: 1.2.3\n',
+  'CITATION.cff': "title: fixture\nversion: 1.2.3\ndate-released: '2026-08-08'\n",
   'CHANGELOG.md': '# Changelog\n\n## [1.2.3] - 2026-08-08\n\n- everything in lockstep\n',
 })
 
 function run(dir, envExtra = {}) {
-  const r = spawnSync(process.execPath, [SCRIPT, dir], { encoding: 'utf8', env: cleanEnv(envExtra) })
+  const r = spawnSync(process.execPath, [SCRIPT, dir], {
+    encoding: 'utf8',
+    env: cleanEnv(envExtra),
+  })
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
 }
 
@@ -114,4 +117,34 @@ test('RED: one hook stamp a release behind is enough — the doctor diagnosis th
   assert.equal(code, 1, out)
   assert.match(out, /hooks\/beta\.mjs stamp 1\.2\.2 != package\.json 1\.2\.3/)
   assert.ok(!out.includes('hooks/alpha.mjs'), `only the skewed hook is named:\n${out}`)
+})
+
+test('RED (1.0.0): the DATE rides the lockstep — a citation date that disagrees with the CHANGELOG heading is named', () => {
+  const dir = writeTree({
+    ...clean(),
+    'CITATION.cff': "title: fixture\nversion: 1.2.3\ndate-released: '2026-08-09'\n",
+  })
+  const { code, out } = run(dir)
+  assert.equal(code, 1, `a drifted date must red:\n${out}`)
+  assert.match(
+    out,
+    /CITATION\.cff date-released 2026-08-09 != CHANGELOG\.md "## \[1\.2\.3\] — 2026-08-08"/,
+  )
+  // And a citation with no date at all is its own finding, not a silent pass.
+  const undated = run(
+    writeTree({
+      ...clean(),
+      'CITATION.cff': 'title: fixture\nversion: 1.2.3\n',
+    }),
+  )
+  assert.equal(undated.code, 1)
+  assert.match(undated.out, /CITATION\.cff carries no date-released/)
+  // The em-dash heading form the real CHANGELOG uses is read the same as the hyphen form.
+  const emdash = run(
+    writeTree({
+      ...clean(),
+      'CHANGELOG.md': '# Changelog\n\n## [1.2.3] — 2026-08-08\n\n- everything in lockstep\n',
+    }),
+  )
+  assert.equal(emdash.code, 0, emdash.out)
 })

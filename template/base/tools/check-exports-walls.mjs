@@ -16,14 +16,40 @@
 // SOURCE: docs/harness/README.md (boundaries gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
+import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 
 const GATE = 'boundaries'
 const CENSUS = 'tools/exports-walls.json'
+const MODULES_FILE = 'tools/modules.json'
 const PACKAGES_DIR = 'packages'
 
 if (!existsSync(CENSUS)) skipOrFail(GATE, `${CENSUS} not found (no census surface yet)`)
 if (!existsSync(PACKAGES_DIR)) skipOrFail(GATE, `${PACKAGES_DIR}/ not found (no workspace yet)`)
+
+// The shipped module list (1.0.0) — OWNED, so it arrives in the same release as
+// this line and its absence is a broken tree, not a consumer choice: fail closed
+// naming the fix. A census entry's `module` value is closed against it below;
+// until this file existed the value was validated only as a non-empty string, so
+// a typo'd name parked the stale arm permanently dormant (the discharged
+// register row exports-walls-module-name-validation).
+let moduleRegister = null
+try {
+  moduleRegister = JSON.parse(readFileSync(MODULES_FILE, 'utf8'))
+} catch (e) {
+  fail(
+    GATE,
+    `${MODULES_FILE} is missing or not valid JSON (${e.message}) — it is harness-OWNED and ships with this release; restore it with \`npx next-expo-supabase-agent-harness update\` (or from git history), never by hand`,
+  )
+}
+const isNameArray = (a) => Array.isArray(a) && a.every((m) => typeof m === 'string' && m !== '')
+if (!isNameArray(moduleRegister.modules) || !isNameArray(moduleRegister.retired)) {
+  fail(
+    GATE,
+    `${MODULES_FILE} must carry "modules" and "retired" arrays of non-empty strings — a malformed module list cannot close the census`,
+  )
+}
+const knownModules = new Set(moduleRegister.modules)
+const retiredModules = new Set(moduleRegister.retired)
 
 // The census — the ONE file that can DISABLE this wall, so its parse fails LOUD.
 let census
@@ -65,6 +91,20 @@ for (const entry of census.sanctioned) {
   sanctioned.set(entry.package, entry)
 }
 
+// The module-name closure (1.0.0): a `module` value must name a module this
+// release actually ships. The census is SEEDED, so a pre-1.0.0 tree may carry a
+// typo'd name it was never told about — those findings ramp; a fresh or 1.0.0+
+// tree reds hard.
+const moduleNameProblems = []
+for (const entry of census.sanctioned) {
+  if (typeof entry.module !== 'string' || knownModules.has(entry.module)) continue
+  moduleNameProblems.push(
+    retiredModules.has(entry.module)
+      ? `${CENSUS}: sanction for ${entry.package} names module '${entry.module}', which this release RETIRED — the module is gone, so the entry can never leave dormancy; remove the sanction or migrate the package`
+      : `${CENSUS}: sanction for ${entry.package} names module '${entry.module}', which no release of this harness ships (${MODULES_FILE}) — a name the module-state check can never match parks the stale arm dormant forever, which is the silent widening it exists to prevent; fix the name or remove the sanction`,
+  )
+}
+
 // Every package manifest under packages/, its name and whether it ships a `./client` key.
 const declared = new Map() // package name -> { hasClient: boolean }
 for (const rel of walkFiles(PACKAGES_DIR, { filter: (p) => /(^|\/)package\.json$/.test(p) })) {
@@ -82,6 +122,18 @@ for (const rel of walkFiles(PACKAGES_DIR, { filter: (p) => /(^|\/)package\.json$
 }
 
 const errs = []
+
+if (moduleNameProblems.length > 0) {
+  if (
+    rampNote(GATE, '1.0.0', 'the census module-name closure over the shipped module list', {
+      until: '1.1.0',
+    })
+  ) {
+    for (const m of moduleNameProblems) console.log(`${GATE}: NOTE — ${m}`)
+  } else {
+    errs.push(...moduleNameProblems)
+  }
+}
 
 // 1. Every package shipping `./client` must be sanctioned.
 for (const [name, { hasClient }] of declared) {

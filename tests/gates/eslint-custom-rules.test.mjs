@@ -233,6 +233,14 @@ if (RuleTester === null) {
         // An unrelated `subtle` member on some other object.
         'const s = theme.subtle',
         "import { createHash } from 'node:crypto'",
+        // A digest through a tracked alias is still a digest, not a key operation.
+        "import * as nodeCrypto from 'node:crypto'\nconst h = nodeCrypto.createHash('sha256')",
+        "import { webcrypto } from 'node:crypto'\nconst r = webcrypto.getRandomValues(new Uint8Array(16))",
+        // The false red the 1.0.0 binding tracking removed: judged by the imported
+        // NAME, a binding that merely CONTAINS a cipher word is not a reach.
+        "const scryptLike = require('crypto')",
+        // An alias of a DIFFERENT module never reds however it is used.
+        "const fs = require('node:fs')\nconst s = fs.createReadStream('f')",
       ],
       invalid: [
         { code: 'const k = await crypto.subtle.importKey("raw", b, a, false, [])', errors: [{ messageId: 'subtleReach' }] },
@@ -244,6 +252,46 @@ if (RuleTester === null) {
         },
         {
           code: "const { createDecipheriv } = require('crypto')",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        // The three routes the discharged row crypto-one-door-namespace-imports named,
+        // each through the binding rather than the single node.
+        {
+          code: "import { webcrypto } from 'node:crypto'\nconst k = await webcrypto.subtle.importKey('raw', b, a, false, [])",
+          errors: [{ messageId: 'subtleReach' }],
+        },
+        {
+          code: "import * as nodeCrypto from 'node:crypto'\nconst c = nodeCrypto.createCipheriv('aes-256-gcm', k, iv)",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        {
+          code: "const c = require('node:crypto')\nconst d = c.createCipheriv('aes-256-gcm', k, iv)",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        // The renamed and chained spellings of the same routes.
+        {
+          code: "import { webcrypto as wc } from 'node:crypto'\nconst s = wc.subtle",
+          errors: [{ messageId: 'subtleReach' }],
+        },
+        {
+          code: "import nodeCrypto from 'node:crypto'\nconst s = nodeCrypto.webcrypto.subtle",
+          errors: [{ messageId: 'subtleReach' }],
+        },
+        {
+          code: "const { createCipheriv: cc } = require('crypto')",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        {
+          code: "const s = require('node:crypto').scrypt(pw, salt, 32, cb)",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        {
+          code: "export { createCipheriv } from 'node:crypto'",
+          errors: [{ messageId: 'cipherImport' }],
+        },
+        // Declaration order cannot hide the route: the judgment runs at Program:exit.
+        {
+          code: "function f(k, iv) { return c.createCipheriv('aes-256-gcm', k, iv) }\nconst c = require('node:crypto')",
           errors: [{ messageId: 'cipherImport' }],
         },
       ],

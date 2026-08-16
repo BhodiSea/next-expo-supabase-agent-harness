@@ -7,8 +7,10 @@
     ["secrets", "node tools/check-secrets.mjs"],
     ["types", "pnpm exec tsc -b . apps/web apps/mobile"],
     ["lint", "pnpm exec eslint . --max-warnings 0 --cache"],
+    ["suppressions", "node tools/check-suppressions.mjs"],
     ["provenance", "node tools/check-sources.mjs"],
     ["boundaries", "node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs"],
+    ["resilience", "node tools/check-resilience.mjs"],
     ["observability", "node tools/check-observability.mjs"],
     ["expo-policy", "node tools/check-expo-policy.mjs"],
     ["native-deps", "node tools/check-native-deps.mjs"],
@@ -34,6 +36,9 @@
     ["route-manifest", "node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs"],
     ["security-headers", "node tools/check-security-headers.mjs"],
     ["e2e", "node tools/check-e2e.mjs"],
-    ["docs-sync", "node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs"]
+    [
+      "docs-sync",
+      "node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs"
+    ]
   ]
 }

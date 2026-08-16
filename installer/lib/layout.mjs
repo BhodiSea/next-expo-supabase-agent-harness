@@ -125,6 +125,34 @@ export const SEEDED_FILES = new Set([
   // determinations, and sha-pinning a file whose own text tells the consumer to fill it in
   // would call that edit tampering.
   'tools/backup-posture.json',
+  // 1.0.0. The inline-suppression census and the outbound-seam posture register. Seeded
+  // rather than owned for the reason eol.json gives above: the rows are decisions about
+  // THIS project's tree — a consumer whose code grows a new reasoned directive or a new
+  // outbound seam must be able to record the review, and `update` must never clobber
+  // those rows to re-plant the harness's own. Both are write-guard-protected and in
+  // ESCAPE_LISTS, so adding a row is a reviewed human act, exactly like rls-exempt.json.
+  'tools/suppressions-allow.json',
+  'tools/resilience.json',
+  // 1.0.0. The consumer's auth tunables — the project's own values for the keys
+  // tools/auth-posture.json declares tunable (the floor/tunable split). Seeded because a
+  // retune is the CONSUMER's reviewed act; the bounds stay owned so a retune can never
+  // become a floor weakening.
+  'tools/auth-tunables.json',
+  // 1.0.0. The consumer's store tunables — export compliance, privacy-manifest rows,
+  // the account-deletion surface, icon policy (the store half of the same split; the
+  // floors stay owned in tools/store-policy.json, which check-version-sync depends on
+  // being update-restorable).
+  'tools/store-tunables.json',
+  // 1.0.0. The vendor-support register — PA-11/POS-16's reviewed dispositions. Seeded
+  // for eol.json's reason: the platform rows describe THIS install's pins (a consumer
+  // on Postgres 15 reviews their own row) and `update` must never clobber a review.
+  'tools/support-register.json',
+  // 1.0.0. The consumer's ADDITIVE mutation surface — {root, why} rows union'd onto
+  // the owned floor (tools/lib/mutation-critical.mjs). Seeded because widening the
+  // mutated surface onto THEIR code is the consumer's reviewed act; union semantics
+  // mean nothing here can subtract from the floor, so plant-when-absent is safe by
+  // construction.
+  'tools/mutation-scope-extra.json',
   'tools/identity.lock.json',
   'tools/prompts.lock.json',
   // Human-tuned budget/design data: write-guard-protected against agents, but a

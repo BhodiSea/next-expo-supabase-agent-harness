@@ -43,7 +43,12 @@ const FIXTURE_E8 = JSON.stringify({
   requirements: [
     { id: 'A', boundary: 'product', outcome: 'effective' },
     { id: 'B', boundary: 'product', outcome: 'alternate-control' },
-    { id: 'C', boundary: 'product', outcome: 'not-implemented', obligation: 'e8-fixture' },
+    {
+      id: 'C',
+      boundary: 'product',
+      outcome: 'not-implemented',
+      obligation: 'e8-fixture',
+    },
     { id: 'D', boundary: 'product', outcome: 'not-applicable' },
     { id: 'E', boundary: 'organisation', outcome: null },
   ],
@@ -51,6 +56,53 @@ const FIXTURE_E8 = JSON.stringify({
 })
 const FIXTURE_E8_SENTENCE =
   '5 ML3 requirements: 1 effective, 1 alternate-control, 1 not-implemented, 1 not-applicable, 1 organisation-boundary; 2 shared clauses'
+// The conformance MAP judgement (1.0.0), byte-identical for the same reason: the fixture
+// must partition through the shipping summarise(). Four rows, one per outcome, across the
+// three standards — so the published sentence is "4 mapped requirements: 1 covered,
+// 1 partial, 1 not-covered, 1 not-applicable — ASVS 5.0.0 (2), MASVS 2.1 (1), CRA Annex I (1)".
+// The judgement lib imports its sibling standards-claim.mjs, so both are planted.
+const CM_LIB_BYTES = readFileSync(
+  fileURLToPath(new URL('../../template/base/tools/lib/conformance-map.mjs', import.meta.url)),
+  'utf8',
+)
+const CM_CLAIM_LIB_BYTES = readFileSync(
+  fileURLToPath(new URL('../../template/base/tools/lib/standards-claim.mjs', import.meta.url)),
+  'utf8',
+)
+const FIXTURE_CM = JSON.stringify({
+  requirements: [
+    {
+      id: '1.1.1',
+      standard: 'asvs',
+      level: 1,
+      boundary: 'shared',
+      outcome: 'covered',
+    },
+    {
+      id: '2.1.1',
+      standard: 'asvs',
+      level: 2,
+      boundary: 'shared',
+      outcome: 'partial',
+    },
+    {
+      id: 'MASVS-X-1',
+      standard: 'masvs',
+      level: null,
+      boundary: 'consumer',
+      outcome: 'not-covered',
+    },
+    {
+      id: 'CRA-I.1',
+      standard: 'cra',
+      level: null,
+      boundary: 'organisation',
+      outcome: 'not-applicable',
+    },
+  ],
+})
+const FIXTURE_CM_SENTENCE =
+  '4 mapped requirements: 1 covered, 1 partial, 1 not-covered, 1 not-applicable — ASVS 5.0.0 (2), MASVS 2.1 (1), CRA Annex I (1)'
 
 function cleanEnv() {
   const env = { ...process.env }
@@ -75,7 +127,7 @@ const FIXTURE_REGISTRY = JSON.stringify({ steps: { a: [], b: [], c: [] } })
 /**
  * Mirror the repo layout the script's import.meta.url-relative reads expect,
  * then run the copied script from inside it.
- * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, e8Register?: string | null, config?: string, hooks?: string[] }} parts
+ * @param {{ readme: string, changelog?: string, registry?: string | null, measuredWallMs?: number | null, stopWallMs?: number | null, coldWallMs?: number | null, docs?: Record<string, string>, contributing?: string | null, lintYml?: string | null, e8Register?: string | null, cmRegister?: string | null, config?: string, hooks?: string[], pkg?: string | null }} parts
  */
 function runFixture({
   readme,
@@ -86,6 +138,9 @@ function runFixture({
   // carries no measurement, exactly like the live tree.
   measuredWallMs = null,
   stopWallMs = null,
+  // The COLD half (1.0.0) — absent by default, like the others: every earlier fixture that
+  // published "cold ≈" against a WARM measurement now needs to say which run it means.
+  coldWallMs = null,
   // Extra prose surfaces (template/base/docs/**, design/**, template/base/AGENTS.md) for
   // the 0.9.0 chain-length/chain-cost classes — absent by default, so every pre-0.9.0
   // fixture above stays byte-identical in intent.
@@ -98,8 +153,14 @@ function runFixture({
   // register existing, so every pre-0.9.9 fixture above stays byte-identical in intent
   // and takes the loud SKIP rather than a silent pass.
   e8Register = null,
+  // The conformance map is absent by default for the same reason — its class is guarded
+  // on the register existing, so every earlier fixture takes the loud SKIP.
+  cmRegister = null,
   config = FIXTURE_CONFIG,
   hooks = ['alpha.mjs', 'beta.mjs'],
+  // package.json is ABSENT by default (the 0.4.0 no-package.json case depends on it); the
+  // 1.0.0 status-word cases hand a version in so the word/major agreement can be judged.
+  pkg = null,
 }) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-claims-'))
   const files = {
@@ -113,7 +174,25 @@ function runFixture({
       steps: {},
       ...(stopWallMs === null
         ? {}
-        : { stopWall: { ceilingMs: 600000, warnMs: 450000, measuredMs: stopWallMs } }),
+        : {
+            stopWall: {
+              ceilingMs: 600000,
+              warnMs: 450000,
+              measuredMs: stopWallMs,
+            },
+          }),
+      ...(coldWallMs === null
+        ? {}
+        : {
+            coldWall: { measuredMs: coldWallMs },
+            coldMeasurement: {
+              recordedOn: '2026-08-16',
+              runner: 'fixture',
+              chainSteps: 3,
+              stepsMeasured: 3,
+              path: 'fixture cold run',
+            },
+          }),
       // A measured budget carries its provenance, and `chainSteps` must equal the fixture
       // chain's length (3, from FIXTURE_CONFIG) or the staleness half correctly refuses it:
       // a figure measured against a different chain is wrong, not merely old.
@@ -144,6 +223,12 @@ function runFixture({
     files['template/base/tools/essential-eight.json'] = e8Register
     files['template/base/tools/lib/essential-eight.mjs'] = E8_LIB_BYTES
   }
+  if (cmRegister !== null) {
+    files['template/base/tools/conformance-map.json'] = cmRegister
+    files['template/base/tools/lib/conformance-map.mjs'] = CM_LIB_BYTES
+    files['template/base/tools/lib/standards-claim.mjs'] = CM_CLAIM_LIB_BYTES
+  }
+  if (pkg !== null) files['package.json'] = JSON.stringify({ version: pkg })
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), content)
@@ -175,11 +260,13 @@ test('GREEN: a fixture whose every claim is true is CLEAN — and only the LATES
     // must have a committed measurement behind it. This fixture publishes four figures, so
     // without this it is asserting that an unbacked claim is a true one.
     measuredWallMs: 70123,
+    // 1.0.0: the fixture publishes a cold figure too, so it carries the cold record as well.
+    coldWallMs: 70123,
   })
   assert.equal(r.code, 0, r.out)
   assert.match(
     r.out,
-    /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, conformance register absent, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/,
+    /CLAIMS: CLEAN \(chain 3 steps, canary 3 steps, 4 guard-rule ids, \d+ executed canary legs, conformance register absent, conformance map absent, gates-catalog chain count in lockstep; README\/CHANGELOG timings agree\)/,
   )
   // The register is absent here, so the conformance class must announce the skip rather
   // than let a green line imply it looked.
@@ -212,7 +299,9 @@ test('RED (DERIVABLE): a drifted canary-registry claim fails against the real re
 // hooks" as a derived number until it is wrong. The WORD form is what shipped, so the word
 // form is what the matcher has to catch.
 test('RED (0.6.0): a hook count spelled as a WORD reds against the shipped hooks directory', () => {
-  const r = runFixture({ readme: 'Six hooks are wired, each invoked as `node "<path>"`.\n' })
+  const r = runFixture({
+    readme: 'Six hooks are wired, each invoked as `node "<path>"`.\n',
+  })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /claims "Six hooks" but template\/base\/\.claude\/hooks\/ ships 2/)
   assert.match(r.out, /alpha\.mjs, beta\.mjs/, 'it must name what it counted')
@@ -233,13 +322,17 @@ test('RED (DERIVABLE): a drifted guard-rule-id count fails against the exported 
 // directions are pinned, because a normaliser that swallowed the phrase entirely would make
 // the RED case pass for the wrong reason.
 test('RED (0.6.0): a stale claim SOFT-WRAPPED across a blockquote line break still reds', () => {
-  const r = runFixture({ readme: '> There are 9 guard-rule\n> ids in the table.\n' })
+  const r = runFixture({
+    readme: '> There are 9 guard-rule\n> ids in the table.\n',
+  })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /README claims 9 guard-rule ids but guard-rules\.mjs exports 4/)
 })
 
 test('GREEN (0.6.0): a TRUE claim soft-wrapped the same way is still clean', () => {
-  const r = runFixture({ readme: '> There are 4 guard-rule\n> ids in the table.\n' })
+  const r = runFixture({
+    readme: '> There are 4 guard-rule\n> ids in the table.\n',
+  })
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /CLAIMS: CLEAN/)
 })
@@ -269,10 +362,47 @@ test('RED (0.4.0): a status line with no package.json to check it against is unv
   // reader trusts. It reads package.json, which the fixture tree deliberately does not
   // model, so the read must FAIL THE CLAIM rather than crash the script: an unguarded
   // readFileSync here took six unrelated cases red with an ENOENT stack.
-  const r = runFixture({ readme: '**Status: pre-release (0.1.x).** The chain runs all 3 gates.\n' })
+  const r = runFixture({
+    readme: '**Status: pre-release (0.1.x).** The chain runs all 3 gates.\n',
+  })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /no package\.json to check it against/)
   assert.doesNotMatch(r.out, /ENOENT/, `the script must judge the claim, not crash:\n${r.out}`)
+})
+
+test('RED/GREEN (1.0.0): the status WORD must agree with the major — pre-release is 0.x, stable is 1.x+ — and the line must exist', () => {
+  // The line flipped to "stable (1.0.x)" at 1.0.0. A README that said "stable" at 0.x
+  // would claim a maturity nobody earned; one that says "pre-release" at 1.x carries a
+  // warning the version retracted; and one that drops the line has stopped stating its
+  // status, which is not the same as being stable.
+  const stableAt1 = runFixture({
+    readme: '**Status: stable (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.0.0',
+  })
+  assert.equal(stableAt1.code, 0, stableAt1.out)
+  const stableAt0 = runFixture({
+    readme: '**Status: stable (0.9.x).** The chain runs all 3 gates.\n',
+    pkg: '0.9.0',
+  })
+  assert.equal(stableAt0.code, 1, stableAt0.out)
+  assert.match(stableAt0.out, /says "stable" but package\.json is 0\.9\.0/)
+  const preAt1 = runFixture({
+    readme: '**Status: pre-release (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.0.0',
+  })
+  assert.equal(preAt1.code, 1, preAt1.out)
+  assert.match(preAt1.out, /says "pre-release" but package\.json is 1\.0\.0/)
+  // The number is still held to package.json for BOTH words.
+  const staleStable = runFixture({
+    readme: '**Status: stable (1.0.x).** The chain runs all 3 gates.\n',
+    pkg: '1.1.0',
+  })
+  assert.equal(staleStable.code, 1, staleStable.out)
+  assert.match(staleStable.out, /says "stable \(1\.0\.x\)" but package\.json is 1\.1\.0/)
+  // And absence is a finding once there is a package.json to be silent about.
+  const missing = runFixture({ readme: 'The chain runs all 3 gates.\n', pkg: '1.0.0' })
+  assert.equal(missing.code, 1, missing.out)
+  assert.match(missing.out, /README carries no "\*\*Status: pre-release/)
 })
 
 test('RED (0.6.0): a published wall-clock figure with no COMMITTED measurement behind it', () => {
@@ -300,13 +430,48 @@ test('RED (0.6.0): a published wall-clock figure with no COMMITTED measurement b
 test('GREEN (0.6.0): the SAME figure is fine once a measurement is committed', () => {
   // The rule is about the ORDER, not about the number. Nothing here asserts 70 s is true —
   // no gate can, on someone else's hardware. What it asserts is that a run happened and was
-  // recorded before the prose went out.
+  // recorded before the prose went out. (1.0.0: the figure is now the WARM one, because the
+  // warm measurement is what this fixture commits — see the cold-licence test below.)
   const r = runFixture({
-    readme: 'the chain runs cold ≈ 70 s\n',
-    changelog: '## [0.1.0]\ncold ≈ 70 s\n',
+    readme: 'the chain runs warm ≈ 70 s\n',
+    changelog: '## [0.1.0]\nwarm ≈ 70 s\n',
     measuredWallMs: 70123,
   })
   assert.equal(r.code, 0, r.out)
+})
+
+test('RED/GREEN (1.0.0): "cold ≈" is licensed by the COLD measurement only — a warm re-record unlocks no cold figure', () => {
+  // Through 0.11.x the cold figure was refused only because the warm licence happened to be
+  // missing too; once a warm re-record landed, "cold ≈ N s" would have been publishable
+  // against a run nobody made. The two kinds now carry their own licences.
+  const warmOnly = runFixture({
+    readme: 'the chain runs cold ≈ 200 s\n',
+    changelog: '## [0.1.0]\ncold ≈ 200 s\n',
+    measuredWallMs: 70123,
+  })
+  assert.equal(warmOnly.code, 1, warmOnly.out)
+  assert.match(
+    warmOnly.out,
+    /README cold ≈ 200 s is published, but scripts\/chain-budget\.json carries no committed measurement matching the live chain \(coldWall\.measuredMs is null/,
+  )
+  const both = runFixture({
+    readme: 'the chain runs cold ≈ 200 s and warm ≈ 70 s\n',
+    changelog: '## [0.1.0]\ncold ≈ 200 s, warm ≈ 70 s\n',
+    measuredWallMs: 70123,
+    coldWallMs: 200456,
+  })
+  assert.equal(both.code, 0, both.out)
+  // And the cold licence count-matches the live chain like the warm one: a cold record
+  // stamped against a different chain length licenses nothing.
+  const staleCold = runFixture({
+    readme: 'the chain runs cold ≈ 200 s\n',
+    changelog: '## [0.1.0]\ncold ≈ 200 s\n',
+    measuredWallMs: 70123,
+    coldWallMs: 200456,
+    config:
+      "export const VALIDATE_STEPS = [['a', 'x'], ['b', 'x'], ['c', 'x'], ['d', 'x']]\nexport const STOP_HOOK_STEPS = []\n",
+  })
+  assert.equal(staleCold.code, 1, staleCold.out)
 })
 
 test('GREEN (0.6.0): an unmeasured budget is silent while nobody publishes a figure', () => {
@@ -330,7 +495,12 @@ test('RED (0.6.0): a measurement taken against a DIFFERENT chain stops licensing
       wall: { ceilingMs: 120000, warnMs: 90000, measuredMs: 70123 },
       defaults: { staticCeilingMs: 5000, toolchainCeilingMs: 60000 },
       steps: {},
-      measurement: { recordedOn: '2026-08-08', runner: 'fixture', chainSteps: 2, stepsMeasured: 2 },
+      measurement: {
+        recordedOn: '2026-08-08',
+        runner: 'fixture',
+        chainSteps: 2,
+        stepsMeasured: 2,
+      },
     }),
     'template/base/tools/harness.config.mjs': FIXTURE_CONFIG,
     'template/base/.claude/hooks/lib/guard-rules.mjs': FIXTURE_GUARDS,
@@ -457,7 +627,9 @@ test('RED (0.9.0): a shipped docs file claiming "the N gates" reds against the d
 test('RED (0.9.0): a design doc claiming an "N-step chain" reds — soft-wrapped, like real prose', () => {
   const r = runFixture({
     readme: 'nothing claimed here\n',
-    docs: { 'design/PORT-SPEC.md': 'the runner executes the 31-step\nchain before anything else.\n' },
+    docs: {
+      'design/PORT-SPEC.md': 'the runner executes the 31-step\nchain before anything else.\n',
+    },
   })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /design\/PORT-SPEC\.md claims "31-step chain"/)
@@ -466,7 +638,9 @@ test('RED (0.9.0): a design doc claiming an "N-step chain" reds — soft-wrapped
 test('RED (0.9.0): the shipped AGENTS.md claiming "The N gates, in order" reds factory-side too', () => {
   const r = runFixture({
     readme: 'nothing claimed here\n',
-    docs: { 'template/base/AGENTS.md': 'The 31 gates, in order: `a`, `b`, `c`.\n' },
+    docs: {
+      'template/base/AGENTS.md': 'The 31 gates, in order: `a`, `b`, `c`.\n',
+    },
   })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /AGENTS\.md claims "the 31 gates"/i)
@@ -521,7 +695,9 @@ test('GREEN (0.9.0): a chain-cost figure consistent with the committed wall meas
 test('GREEN (0.9.0): a Stop-chain figure consistent with the committed stopWall measurement is clean', () => {
   const r = runFixture({
     readme: 'nothing claimed here\n',
-    docs: { 'design/NOTES.md': 'the Stop chain turn-end is ~50s wall on the selftest runner.\n' },
+    docs: {
+      'design/NOTES.md': 'the Stop chain turn-end is ~50s wall on the selftest runner.\n',
+    },
     measuredWallMs: 24337,
     stopWallMs: 50531,
   })
@@ -541,7 +717,9 @@ test('RED (0.9.0): a "~Ns" chain-cost figure with NO committed measurement is un
 test('GREEN (0.9.0): a "~Ns" figure with no chain context nearby is not a chain-cost claim', () => {
   const r = runFixture({
     readme: 'nothing claimed here\n',
-    docs: { 'design/NOTES.md': 'the splash animation lasts ~2s before the content lands.\n' },
+    docs: {
+      'design/NOTES.md': 'the splash animation lasts ~2s before the content lands.\n',
+    },
     measuredWallMs: 24337,
   })
   assert.equal(r.code, 0, r.out)
@@ -597,7 +775,10 @@ test('RED (0.9.9): a generous conformance figure fails, naming the register as t
 })
 
 test('RED (0.9.9): deleting the sentence is not a way past a wrong number', () => {
-  const r = runFixture({ readme: 'nothing claimed here\n', e8Register: FIXTURE_E8 })
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    e8Register: FIXTURE_E8,
+  })
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /README\.md publishes no Essential Eight standing/)
   // The remediation must hand back the whole partition, not just say "add a number".
@@ -630,4 +811,67 @@ test('GREEN (0.9.9): the register is judged from the SHIPPED lib, so the live tr
   })
   assert.equal(r.code, 0, r.out)
   assert.doesNotMatch(r.out, /conformance-figure class is SKIPPED/)
+})
+
+// ── THE CONFORMANCE MAP FIGURES (1.0.0) ───────────────────────────────────────────
+// The ASVS/MASVS/CRA twin of the block above, with the identical three properties: one
+// PARTITION matched as a single phrase (four outcomes plus the three per-standard totals),
+// judged for drift on every live prose surface, and judged for ABSENCE in the README.
+
+test('GREEN (1.0.0): a README stating the whole conformance-map partition, matching the register, is CLEAN', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_CM_SENTENCE}.\n`,
+    cmRegister: FIXTURE_CM,
+  })
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /map 4 rows \/ 1 covered/)
+  assert.doesNotMatch(r.out, /conformance-map-figure class is SKIPPED/)
+})
+
+test('RED (1.0.0): a generous `covered` figure fails, naming the register as the truth', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_CM_SENTENCE.replace('1 covered', '3 covered')}.\n`,
+    cmRegister: FIXTURE_CM,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README\.md publishes "3 covered" for the conformance map.*grades 1/s)
+})
+
+test('RED (1.0.0): a per-standard total that drifts fails too — the partition is the whole phrase', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_CM_SENTENCE.replace('ASVS 5.0.0 (2)', 'ASVS 5.0.0 (3)')}.\n`,
+    cmRegister: FIXTURE_CM,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README\.md publishes "3 ASVS 5\.0\.0".*grades 2/s)
+})
+
+test('RED (1.0.0): deleting the conformance-map sentence is not a way past a wrong number', () => {
+  const r = runFixture({
+    readme: 'nothing claimed here\n',
+    cmRegister: FIXTURE_CM,
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /README\.md publishes no conformance-map standing/)
+  assert.match(r.out, /1 covered, 1 partial, 1 not-covered, 1 not-applicable/)
+})
+
+test('RED (1.0.0): the map figures are judged on EVERY live prose surface — the generated crosswalk included', () => {
+  const r = runFixture({
+    readme: `The standing: ${FIXTURE_CM_SENTENCE}.\n`,
+    cmRegister: FIXTURE_CM,
+    docs: {
+      'template/base/docs/compliance/controls-crosswalk.md': `Standing: ${FIXTURE_CM_SENTENCE.replace(
+        '1 not-covered',
+        '0 not-covered',
+      )}.\n`,
+    },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /controls-crosswalk\.md publishes "0 not-covered".*grades 1/s)
+})
+
+test('SKIP (1.0.0): a tree with no conformance map takes a loud NOTE, never a silent pass', () => {
+  const r = runFixture({ readme: 'nothing claimed here\n' })
+  assert.match(r.out, /conformance-map-figure class is SKIPPED, not passed/)
 })

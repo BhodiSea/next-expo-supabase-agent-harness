@@ -1,7 +1,7 @@
 {
   "comment": "THE CLAUDE CODE VERSION FLOOR — the harness's enforcement layer IS `.claude/settings.json` plus hooks, which makes Claude Code its most load-bearing dependency and the only one whose own security history it never consulted. Through 0.5.0 this file did not exist: the harness held every framework it ships to a cited floor (tools/framework-floor.json) and held the tool it RUNS INSIDE to nothing. THE CITATIONS ARE THE POINT, not the number. A bare `\"floor\": \"2.1.163\"` is a number the next maintainer lowers when a teammate's CLI is old, because nothing in the file says what it costs; a floor whose every digit is attached to a published advisory is a number nobody lowers by accident. `advisories` is a SNAPSHOT of `gh api /advisories?ecosystem=npm&affects=@anthropic-ai/claude-code`, taken on `checkedOn`, reduced to the advisories that set the floor plus every one that lands on this harness's own surface — it is evidence, not a vulnerability database, and the gate re-derives the floor FROM it rather than trusting the scalar. TWO GATES READ THIS FILE, SPLIT ON THE CLOCK, and no third one exists: the CLOCKLESS arithmetic (does the scalar equal the evidence beside it?) rides `version-sync` in the chain, because `pnpm validate` must give the same verdict on the same tree forever; the CLOCKFUL question (has anyone re-queried lately?) rides the scheduled `floor-review` job, where a lapsed review blocks a maintainer rather than a contributor. SOURCE: design/CONTROL-PLANE-FACTS.md (Fact 10)",
 
-  "checkedOn": "2026-08-07",
+  "checkedOn": "2026-08-15",
   "advisoryCount": 28,
   "advisorySource": "gh api \"/advisories?ecosystem=npm&affects=@anthropic-ai/claude-code&per_page=100\"",
 

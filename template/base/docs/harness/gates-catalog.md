@@ -1,7 +1,7 @@
 # Gates catalog
 
 Companion to [the harness doctrine](./README.md). One section per default-on gate (the
-34-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
+36-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
 suites, the CI-only lanes, every opt-in module, and the gates we considered and rejected.
 
 Every section carries an **anti-vacuity proof**: how to inject a violation and watch the
@@ -37,7 +37,7 @@ here deliberately rather than papered over:
 
 - **The Stop chain contains no on-device proof.** The `e2e` gate and the `mobile-unit`
   suite run jest-expo + React Native Testing Library under Node — the shipped screens,
-  expo-router navigation, api-client and i18n run for real, but Hermes bytecode load,
+  expo-router navigation, the tRPC client and i18n run for real, but Hermes bytecode load,
   native module init, Fabric layout, and the OS keychain do not. The on-device half is
   the Maestro emulator lane plus the startup-budget measurement, and those are CI-ONLY
   (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly; `mobile-perf
@@ -164,7 +164,7 @@ Type-aware rules (strictTypeChecked + stylisticTypeChecked via projectService),
 react-hooks (including the React Compiler rule set) on the Expo app,
 eslint-plugin-react-native + eslint-plugin-react-native-a11y with EVERY rule at
 error, sonarjs cognitive-complexity ≤ 15, plus the boundary bans: global `fetch`
-outside `src/lib/api-client.ts`, `expo-secure-store` outside `src/host/**` +
+outside the tRPC client (`src/lib/trpc/client.ts`), `expo-secure-store` outside `src/host/**` +
 `src/auth/**`, chart libraries in the dense features, raw text outside AppText,
 bare `console` outside `src/lib/log.ts`.
 **0.9.5 adds two custom rules.** `env-through-register` (the env-register-gate
@@ -191,7 +191,33 @@ keep reporting it (observed live: a `jest.setup.ts` include fix stayed red until
 the cache was dropped). If lint contradicts a fix you just made, `rm
 .eslintcache` and re-run before debugging further.
 
-### 7. provenance — `node tools/check-sources.mjs`
+### 7. suppressions — `node tools/check-suppressions.mjs`
+
+The inline-directive census over the product tree (apps/, packages/, supabase/), and
+the scanner OUTSIDE ESLint that polices the off-switch ESLint cannot see: a rule-less
+`eslint-disable` applies to every rule id INCLUDING the rule that would report it, so
+the report is filtered before it surfaces — `tools/eslint-rules/index.mjs` records the
+proven in-Linter attempt, and this step is the answer it names. Three shapes are hard
+reds with no escape: the rule-less disable, `@ts-ignore`, and `@ts-nocheck` (the
+self-expiring `@ts-expect-error` is the sanctioned form). Every surviving directive
+must name its rule AND carry an inline reason of substance (eslint's native
+` -- <reason>` suffix, biome-ignore's `: <explanation>`, `@ts-expect-error
+<description>` — >= 20 chars), and the census closes BOTH WAYS against the seeded
+`tools/suppressions-allow.json`: a directive-carrying file with no register row is a
+suppression nobody reviewed, a row whose directives went away is a stale acceptance
+(the `tools/eol.json` direction), and counts are exact, so a second site cannot ride a
+one-site review. Harness-owned `tools/**` is deliberately out of scope — the factory
+ratchet (`scripts/check-complexity-ratchet.mjs`, which re-lints with
+`--no-inline-config`) owns that half — and `-- harness-allow-dml:` markers are
+censused, not re-policed (`check-migrations.mjs` owns their reason rule). The
+register's dating is release-clockless by design: the ASD expiring-exception intent is
+carried by the both-ways closure (a suppression cannot outlive its site, and adding
+one is a two-place, write-guard-reviewed act), never by a calendar date a chain step
+must not consult. Findings ramp for pre-1.0.0 installs (NOTE until 1.1.0). Not
+covered: whether a reason is TRUE — that is the reviewer's half, exactly as it is for
+every other reviewed register.
+
+### 8. provenance — `node tools/check-sources.mjs`
 
 Tree-wide scan for decision-site keywords (RLS SQL, `set_config`/`SET LOCAL`,
 `jwtVerify`/JWKS/`clockTolerance`, vector index choices, sampling/retry/timeout
@@ -205,7 +231,7 @@ Consumer-added decision classes live in `tools/decision-groups.json`.
 file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
 naming the mismatch.
 
-### 8. boundaries — `node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs`
+### 9. boundaries — `node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs`
 
 The boundary triad, part 1 (part 2 — the import-graph layering — is the later
 `architecture` step). Both consumers derive from the ONE census
@@ -214,37 +240,81 @@ package that ships a `./client` subpath export must carry a sanctioned `{package
 reason}` entry (Metro does not tree-shake, so a `./client` on a package holding a
 server graph puts it one import from the native binary); two-way, so a sanction naming
 a missing package reds too. `sanctioned` is MAY not MUST — a listed package shipping
-only `.` is fine. **check-workspace-deps** (the declared-dependency allow-matrix):
+only `.` is fine. An entry's `module` value (the opt-in-module dormancy arm) is closed
+against the OWNED `tools/modules.json` since 1.0.0 — the shipped copy of the
+installer's module list, write-guarded and refreshed by `update`, with a factory
+lockstep test holding the two set-equal — so a typo'd module name can no longer park
+the stale arm permanently dormant; unknown or retired names red (ramped for pre-1.0.0
+installs until 1.1.0, register row `exports-walls-module-closure-ramp-expiry`), and a
+missing or malformed module list fails closed unramped naming `update`.
+**check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
 system); `@app/api` must be an import-type-only devDependency; verticals never depend on
 each other; shared never depends on a vertical; apps/web never carries the RN-only design
 system.
-**Vertical anatomy + intra-vertical layering (0.9.5, part 3 of the same step —
-`tools/lib/vertical-anatomy.mjs`).** The worked `packages/verticals/notes` pattern as
-law, scoped to what is mechanically checkable: every vertical ships BOTH barrels (`.` +
-`./client`, declared and present) and the barrels are PURE (export statements only — a
-barrel with logic breaks the Metro-safe claim); `src/domain/**` imports only sibling
-domain files, `@app/contracts` and `zod` (no I/O, no clock, no error kernel — domain
-returns values, data returns outcomes); `src/data/**` never VALUE-imports
-`@app/supabase`/`@supabase/*` (the database arrives through the structural
-`src/data/port.ts`, whose presence is itself a law; `import type` of the port shapes is
-sanctioned); `src/events.ts` speaks only `@app/events` + `@app/contracts`; and
-`select('*')` is banned across vertical src (the explicit projection is the wire
-contract). Deliberately NOT law: the presence of `domain/` or `events.ts` at all — a
-thin read-only vertical legitimately has neither, and a directory-shaped mandate would
-be the max-lines mistake in another form. Escape: reviewed
+**Vertical anatomy + intra-vertical layering (0.9.5, behavior-keyed since 1.0.0; part 3
+of the same step — `tools/lib/vertical-anatomy.mjs`).** The worked
+`packages/verticals/notes` pattern as law, scoped to what is mechanically checkable:
+every vertical ships BOTH barrels (`.` + `./client`, declared and present) and the
+barrels are PURE (export statements only — a barrel with logic breaks the Metro-safe
+claim); `src/domain/**` imports only sibling domain files, `@app/contracts` and `zod`
+(no I/O, no clock, no error kernel — domain returns values, data returns outcomes); the
+DAL laws key on BEHAVIOR, not directory names — a value-import of
+`@app/supabase`/`@supabase/*` reds ANYWHERE under src/** (`import type` of the port
+shapes is sanctioned), and any file that speaks PostgREST (`.from(`/`.rpc(`/`.select(`
+in call position) is the DAL wherever it lives and must import a `port.ts` that exists
+(the witness: `src/data/port.ts`; single-hop, stated — the import must be in the
+calling file). Until 1.0.0 both laws read the `src/data/` directory name, which a
+vertical naming its data layer `src/repo/` escaped by construction — the discharged
+row `vertical-anatomy-folder-name-coupling`; the re-keying also corrects that shape's
+inversion, so a data directory that never speaks PostgREST owes no port.
+`src/events.ts` speaks only `@app/events` + `@app/contracts`; and `select('*')` is
+banned across vertical src (the explicit projection is the wire contract).
+Deliberately NOT law: the presence of `domain/` or `events.ts` at all — a thin
+read-only vertical legitimately has neither, and a directory-shaped mandate would be
+the max-lines mistake in another form; a vertical that names those two differently
+escapes their convention-keyed laws and owes the architecture-reviewer's judgment,
+while the tree-wide laws above hold whatever it is called. Escape: reviewed
 `tools/vertical-anatomy-allow.json` (seeded, `{package, law, path?, reason ≥ 40,
-reviewedOn}`), closed BOTH ways — a stale entry reds. Ramped for pre-0.9.5 installs
-until 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`); the allow-file shape problems
-and the zero-files-scanned floor are never ramped.
+reviewedOn}`), closed BOTH ways — a stale entry reds. Two ramps, partitioned by the
+finding's vintage: the directory keying's findings ramped for pre-0.9.5 installs until
+0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`, expired — hard for every real
+install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs until
+1.1.0 (`boundaries-anatomy-widening-ramp-expiry`). The allow-file shape problems and
+the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
 import in a domain file → FAIL naming file and law; hollow out every vertical's src →
 FAIL "scanned ZERO files".
 
-### 9. observability — `node tools/check-observability.mjs`
+### 10. resilience — `node tools/check-resilience.mjs`
+
+The outbound-seam posture register, closed both ways. Every seam that calls OUT of
+this system — the tRPC client, a server-side `fetch`, a supabase-js factory, an Edge
+Function — has a retry/timeout/backoff posture whether anyone chose one or not: an
+undeclared posture is "hang forever, retry never", decided by whichever runtime
+default happens to apply. This step makes the posture REVIEWED DATA
+(`tools/resilience.json`): an outbound-transport construction site
+(`createTRPCClient`/`httpBatchLink`, a non-comment `fetch(`, `new WebSocket(`/`new
+EventSource(`, a supabase-js `createClient` in an `@supabase/`-importing file) with no
+row reds; a row naming a missing file, or a file whose seam went away, reds the other
+direction; and a row's CLAIMS must be true of its file — a non-null `timeoutMs`
+requires `AbortSignal.timeout` in the file, `retries > 0` requires a retry symbol,
+`backoffMs` requires a backoff symbol and a non-zero retry count to pace. A declared
+`{timeoutMs: null, retries: 0}` with a written why is LEGAL: the gate refuses
+undeclared and false, never modest — the shipped register's eight rows include exactly
+that shape where it is the reviewed choice (the tRPC client's no-auto-retry stance,
+the delete-account function's ordering-not-retries correctness argument), and the one
+non-null posture it ships (the rate limiter's 1s `AbortSignal.timeout`) is the
+register agreeing with the code that already carried it. Posture constants are
+provenance decision sites (`SOURCE:` on the line). Findings ramp for pre-1.0.0
+installs (NOTE until 1.1.0). Not covered: runtime behaviour (the unit/e2e lanes'
+half) and transports reached through a dependency's own internals — stated per the
+Covers / Does NOT cover discipline.
+
+### 11. observability — `node tools/check-observability.mjs`
 
 Vendor telemetry containment: the seam header's invariant
 (`packages/platform/observability/src/index.ts` — "NO VENDOR SDK, on purpose. A crash
@@ -279,7 +349,7 @@ the file and both moves; register a sink whose file never references its redacti
 symbol → FAIL quoting the ordering; narrow `vendorSpecifiers` below the shipped floor →
 FAIL; a zero-file scan → FAIL rather than a vacuous green.
 
-### 10. expo-policy — `node tools/check-expo-policy.mjs`
+### 12. expo-policy — `node tools/check-expo-policy.mjs`
 
 Asserts over the RESOLVED Expo config (`expo config --json --type public` — dynamic
 config executed, plugins expanded), the store/security surface the app actually
@@ -297,8 +367,12 @@ the splash/adaptive-icon background hex equals the generated dark `canvas` token
 untracked and ignored. Needs `apps/mobile/node_modules` — loud SKIP locally
 without it, FAIL CLOSED in CI; unchanged inputs ride a content stamp.
 
-The STORE-READINESS floor (0.1.2), driven by `tools/store-policy.json`
-(reviewed data, write-guard-protected; malformed fails CLOSED — the checks can
+The STORE-READINESS floor (0.1.2; SPLIT at 1.0.0 into the owned floor
+`tools/store-policy.json` and the consumer's seeded `tools/store-tunables.json` —
+export compliance, privacy-manifest rows, the account-deletion surface and icon
+policy are the PROJECT's decisions, and the old single owned register made the
+exact edit this gate's failure text demanded read as tampering; both halves are
+write-guard-protected and malformed fails CLOSED — the checks can
 never silently disarm): iOS `*UsageDescription` strings reviewed bidirectionally
 against the `ios[]` list in `tools/expo-permissions.json`, never empty or
 placeholder-shaped, and every plugin-implied key present (pre-prebuild honesty:
@@ -332,7 +406,7 @@ declare a usage string as "TODO" → FAIL; empty the deletion registry entry
 while sign-in ships → FAIL citing 5.1.1(v); swap the marketing icon for a
 512×512 or alpha-carrying PNG → FAIL with the measured dimensions.
 
-### 11. native-deps — `node tools/check-native-deps.mjs`
+### 13. native-deps — `node tools/check-native-deps.mjs`
 
 The native dependency floor for a CNG app: (1) `expo install --check` exits clean —
 every Expo-managed package at the SDK-blessed version (an Expo package's MAJOR
@@ -346,7 +420,7 @@ native lane, not here. Loud SKIP without the toolchain; FAIL CLOSED in CI.
 **Anti-vacuity:** pin an expo-* package one patch off the SDK set → FAIL with
 expo's own fix list; commit a file under `apps/mobile/android/` → FAIL CNG purity.
 
-### 12. version-sync — `node tools/check-version-sync.mjs`
+### 14. version-sync — `node tools/check-version-sync.mjs`
 
 Root and `apps/mobile` move in LOCKSTEP AND the RESOLVED Expo config equals the
 app.config.ts derivation formulas (`ios.buildNumber` = version; `android.versionCode`
@@ -509,7 +583,7 @@ product onto a line its vendor no longer supports → FAIL quoting the vendor an
 strip a `products[]` row's policy quote or source → FAIL; and delete `tools/eol.json`
 outright on an installed tree → FAIL, because absence must never read as nothing-to-check.
 
-### 13. prompts — `node tools/check-prompts-lock.mjs`
+### 15. prompts — `node tools/check-prompts-lock.mjs`
 
 Two surfaces, locked for the same reason and judged with different strictness.
 
@@ -553,7 +627,7 @@ every vintage; delete a locked reviewer → FAIL (removing an agent is a reviewe
 cleanup); `node tools/gen-agents-lock.mjs --write` without the env var → the generator
 refuses, and the bash-guard denies the invocation before it runs.
 
-### 14. licenses — `node tools/check-licenses.mjs`
+### 16. licenses — `node tools/check-licenses.mjs`
 
 The production npm dependency tree stays inside a permissive allowlist
 (MIT/ISC/Apache-2.0/BSD/MPL-2.0 etc.); exceptions are reviewable data in
@@ -561,7 +635,7 @@ The production npm dependency tree stays inside a permissive allowlist
 dependency the moment an agent adds one.
 **Anti-vacuity:** `pnpm add` any GPL-3.0-only package as a prod dep → FAIL naming it.
 
-### 15. schema-rls — `node tools/check-rls-manifest.mjs`
+### 17. schema-rls — `node tools/check-rls-manifest.mjs`
 
 Static <100ms cross-reference over the SQL, not substring vibes. Every table declared
 in `supabase/schemas/*.sql` has ENABLE + FORCE ROW LEVEL SECURITY and per-operation
@@ -673,7 +747,7 @@ table's only `SELECT` policy `RESTRICTIVE` → FAIL "no PERMISSIVE policy FOR SE
 the shipped rail, red on the vendor policy with the two rows an enrolled `aal1` session
 should never have seen.
 
-### 16. tenancy — `node tools/check-tenancy.mjs`
+### 18. tenancy — `node tools/check-tenancy.mjs`
 
 The multi-tenant contract as reviewed data. schema-rls proves a predicate is REAL;
 this proves it scopes by TENANT — `org_id = (SELECT auth.uid())` (a tenant column
@@ -841,7 +915,7 @@ forging are held by the grant alone. "Just grant the Edge Function read access t
 table" is a reasonable-sounding request, it is the single likeliest edit to this design,
 and those two assertions are the only thing in the suite that catches it.
 
-### 17. auth-posture — `node tools/check-auth-posture.mjs`
+### 19. auth-posture — `node tools/check-auth-posture.mjs`
 
 The Supabase auth configuration matches the reviewed policy in
 `tools/auth-posture.json`, BY VALUE and IN BOTH DIRECTIONS. It is the deferral CHANGELOG
@@ -877,7 +951,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 0.12.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 1.1.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -904,10 +978,12 @@ at 0.10.0 (2026-08-13) it fired against a REAL pin bump for the first time — l
 `--project-ref`, skip-vault-sync and stack persistence); #5894 remains open with no milestone,
 no linked PR and zero comments, so the date moved to 0.11.0. Re-checked again at the 0.11.0
 arrival (2026-08-15) against the issue itself: still open, still no milestone, still no
-linked PR, so the standing rule moved it to 0.12.0.
+linked PR, so the standing rule moved it to 0.12.0 — a release that was never cut, so the date
+arrived at the 1.0.0 cut and was re-checked there (2026-08-16): #5894 still open, still zero
+comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
-one-minor move in a reviewed diff — the discharge happens only when the side-effect-free
+one-release move in a reviewed diff — the discharge happens only when the side-effect-free
 subcommand actually ships. The third firing is the one that tested the rule's own premise: the
 re-check clause says "at every CLI pin bump", and this is the first bump it has actually met.
 
@@ -992,7 +1068,7 @@ optional.
 a comment without disclaiming it → FAIL quoting the comment. The factory's own *definition*
 must not read as a call site, and that is pinned too.
 
-### 18. data-flow — `node tools/check-data-flow.mjs`
+### 20. data-flow — `node tools/check-data-flow.mjs`
 
 What happens to a person's data when they ask to be forgotten, and what a portability
 request has to hand back. Both are decided from files this repository already commits: a
@@ -1023,7 +1099,7 @@ Every link out of the subject lands in exactly one bucket:
 The portability half closes `export.projection` against the schema both ways, and every table
 carrying subject data is either projected or excluded **with a reason**. `export.surface`
 declares how the export is delivered, or states its absence with a dated `target` — the same
-shape `store-policy.json` uses for `accountDeletion`.
+shape `store-tunables.json` uses for `accountDeletion`.
 
 It also does the one thing nothing else in the repo does: it compares `supabase/schemas/`
 against `supabase/migrations/` on the referential actions. `check-migrations.mjs` used to
@@ -1036,7 +1112,7 @@ about whether a note dies with its author.
 Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced). Procedure:
 `docs/runbooks/data-subject-requests.md`. Ramped at `minVersion 0.6.0`, expiring **0.7.0**.
 
-### 19. types-drift — `node tools/check-types-drift.mjs`
+### 21. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
 running local stack and byte-diffs it against the committed
@@ -1052,7 +1128,7 @@ compile-time licence to skip validation.
 FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
 while the stack is up".
 
-### 20. migrations — `node tools/check-migrations.mjs`
+### 22. migrations — `node tools/check-migrations.mjs`
 
 Append-only (no committed migration modified/deleted vs HEAD, or vs the PR base in
 CI); no DML without `-- harness-allow-dml: <reason>`; destructive DDL requires
@@ -1075,7 +1151,7 @@ file; the migration **must already exist at the diff base**, so one written toda
 be exempted at all; and a **stale entry reds**. Absent by default — creating it is a
 widening, so it is in `ESCAPE_LISTS` and must be committed.
 
-### 21. db-limits — `node tools/check-db-limits.mjs`
+### 23. db-limits — `node tools/check-db-limits.mjs`
 
 The per-role resource ceilings and the per-org quota machinery, judged as data
 (`tools/db-limits.json`). Runs right after `migrations` because it reads the same
@@ -1153,7 +1229,7 @@ pg_db_role_setting + quota block in `supabase/tests/rls_structure.test.sql` and
 `tests/rls/resource-limits.test.ts`, which proves the ceilings are in FORCE through
 PostgREST rather than merely present in the catalog.
 
-### 22. contracts — `node tools/check-contract-drift.mjs`
+### 24. contracts — `node tools/check-contract-drift.mjs`
 
 (1) Contract-inventory regen-diff: regenerate the three committed inventories —
 `tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
@@ -1172,7 +1248,7 @@ memory-amplification vector.
 `references` entry from a package tsconfig → FAIL naming the missing ref; add an
 unbounded `z.string()` to a wire DTO → FAIL naming the site.
 
-### 23. query-shapes — `node tools/check-query-shapes.mjs`
+### 25. query-shapes — `node tools/check-query-shapes.mjs`
 
 Every statement the DALs actually issue is BOUNDED and SERVED BY AN INDEX — judged
 against `tools/generated/query-shapes.json`, which is written by executing the DALs
@@ -1215,7 +1291,7 @@ FAIL unbounded; add `.range(0, 20)` → FAIL naming `.range()`; add a DAL functi
 no probe → `pnpm gen` FAILS and `contracts` reds; empty the manifest → FAIL (an empty
 manifest passes every rule above without judging anything).
 
-### 24. rate-limits — `node tools/check-rate-limits.mjs`
+### 26. rate-limits — `node tools/check-rate-limits.mjs`
 
 The rate-limit budget as reviewed data (`tools/rate-limit-budget.json`), closed against
 the router the deployment actually exposes. Runs right after `contracts`, and the order is
@@ -1277,7 +1353,7 @@ limiter, so the budget is multiplied by the instance count rather than removed �
 serverless platform that discards the process, still effectively removed. A degraded
 decision may now be a DENIAL, and `counted` says whether anything counted.
 
-### 25. parity — `node tools/check-mobile-parity.mjs`
+### 27. parity — `node tools/check-mobile-parity.mjs`
 
 Two-way surface parity: every action in the contracts-verified inventory
 (`tools/generated/action-inventory.json`) maps to EXACTLY ONE row in the seeded
@@ -1294,7 +1370,7 @@ forces strict anywhere.
 the action; leave a row for a removed action → FAIL naming the stale row; set a
 surface cell to `—` with an empty Notes cell → FAIL demanding the reason.
 
-### 26. dead-code — `pnpm exec knip --strict`
+### 28. dead-code — `pnpm exec knip --strict`
 
 Unused files, exports, and dependencies, in production mode (test-only reachability
 does not keep production code alive). Wire everything you add or delete it.
@@ -1317,7 +1393,7 @@ closure live over it.
 
 **Anti-vacuity:** add an exported-but-unimported function → FAIL.
 
-### 27. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
+### 29. architecture — `pnpm exec depcruise apps packages --config .dependency-cruiser.cjs`
 
 The dependency law: no cycles; `verticals ⊥ verticals`; `shared ↛ verticals`;
 `platform/* → {errors,events}` only; `packages/api ↛ next/*` (the reversibility wall);
@@ -1328,7 +1404,7 @@ graph; `expo-secure-store` only under `src/lib/supabase/**`; LLM SDKs only from
 **Anti-vacuity:** import a server module from a mobile file (editor — the write
 guard also denies it in-session) → FAIL with the violation path.
 
-### 28. build — `node tools/build-check.mjs`
+### 30. build — `node tools/build-check.mjs`
 
 The app must actually export (`expo export --platform android` — one canonical
 platform keeps the byte accounting deterministic and laptop-fast; the CI device
@@ -1345,7 +1421,7 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 29. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 31. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
 (the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
@@ -1384,7 +1460,7 @@ naming the literal; call `Animated.timing` from a screen → FAIL pointing at th
 spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
 home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
-### 30. perf-budget — `node tools/check-perf-budget.mjs`
+### 32. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -1411,7 +1487,7 @@ UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
 subject that does not exist → FAIL naming it.
 
-### 31. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
+### 33. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 
 Every screen and every page is REGISTERED. Two scripts, one step — the shape
 `boundaries` has used since 0.1.x — because the two routers share no rule: expo-router
@@ -1488,7 +1564,7 @@ test id nothing in the segment renders → FAIL; delete `app/not-found.tsx` → 
 meta's `id` without regenerating → FAIL ("stale"); allowlist a page that no longer exists
 → FAIL; declare `error: null` with no reviewed reason → FAIL.
 
-### 32. security-headers — `node tools/check-security-headers.mjs`
+### 34. security-headers — `node tools/check-security-headers.mjs`
 
 The web response posture, asserted BY VALUE. The gate EVALUATES
 `apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
@@ -1521,6 +1597,19 @@ preload list takes months) and `coep` (ships UNSET, because `require-corp` break
 every third-party embed that does not send its own CORP header, and a gate that
 produces a broken app is a gate everyone exempts).
 
+**RFC 9116 security.txt (1.0.0).** `apps/web/public/.well-known/security.txt` seeds
+at init — its mandatory `Expires` is YOUR reviewed bound, the `{{SECURITY_TXT_EXPIRES}}`
+init answer (default init+180d), which is why it is seedOnInitOnly and never planted
+into an existing install (a planted bound is a date nobody reviewed — the off-switch
+shape 0.6.0 removed from framework-floor.json). This gate holds the CLOCKLESS half:
+present ⇒ parses against the RFC line grammar, Contact present as an
+https/mailto/tel URI (cleartext http reds), Expires present exactly once as an
+RFC 3339 date-time. Absence never reds — an install without the file has no
+machine-readable disclosure channel to judge, and SECURITY.md still carries the
+human-readable policy. The CALENDAR half — an expired bound, or one past the RFC's
+one-year recommendation — rides the scheduled `floor-review` job
+(`tools/lib/security-txt.mjs` is the shared parser; the cc-floor/eol clock split).
+
 **Honest limit.** It cannot prove the DEPLOYED response carries these headers. A
 correct config behind a header-stripping CDN, or a nonce that never reaches Next's
 inline bootstrap, is invisible from here. That half is the `web-e2e` lane's
@@ -1539,13 +1628,13 @@ shorten the HSTS `max-age` → FAIL; drop `camera=()` → FAIL; drop `x-org-id` 
 missing a section FAILS rather than silently skipping the checks that section governed,
 and a `decisions.coep` reason shorter than 20 characters FAILS.
 
-### 33. e2e — `node tools/check-e2e.mjs`
+### 35. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
 (loading/empty/error via the mock network seam), screen flows (notes optimistic
 write, matrix pagination, actions modal), boot/layout wiring, primitives a11y —
-with the shipped screens, expo-router navigation, api-client and error
+with the shipped screens, expo-router navigation, the tRPC client and error
 translation running for real against the in-process mock server. Seconds,
 laptop-complete, and exactly what the CI e2e job runs. Runner detection is module
 resolution (jest-expo resolved FROM apps/mobile), never subprocess vibes: absent →
@@ -1558,7 +1647,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 34. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs`
+### 36. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must
@@ -1689,6 +1778,68 @@ a `negativeProof` → FAIL naming the row; set `[storage] enabled = true` → FA
 the eleven macro grades be revisited; empty `requirements[]` → FAIL, because an empty
 conformance register is not a clean bill of health but a missing one.
 
+**The conformance MAP (1.0.0) — `check-conformance-map.mjs`.** The step's third script,
+folded here on the identical argument as the second: a claim in a reviewed file must name
+a control something actually runs, and it reuses the identical derivation
+(`tools/lib/live-controls.mjs`) widened by one class — a **write-guard rule id** from
+`.claude/hooks/lib/guard-rules.mjs` is a live control too, because it runs on every
+Edit/Write/Bash tool call. `tools/conformance-map.json` carries every requirement of OWASP
+**ASVS 5.0.0** (345 rows at tag v5.0.0, across 17 chapters — an earlier planning figure of
+369 was wrong and is recorded in the header so nobody re-derives it), OWASP **MASVS 2.1**
+(24 controls) and the EU Cyber Resilience Act **Annex I** (23 points), text verbatim, each
+graded `covered | partial | not-covered | not-applicable` against THIS tree.
+
+Read the register's own header before its numbers: **a mapping is not a verification and
+no level is claimed.** A verification level attaches to a verification *of an application*
+performed by an assessor; CRA conformity is a manufacturer's legal act no code tree
+performs; and no harmonised standard for the CRA had been cited in the Official Journal as
+of the register's verified date, so the CRA rows carry a shelf life. The map exists so an
+assessor starts from an honest ledger — which live control bears on which requirement, how
+far it reaches, and what is left — and so a consumer never mistakes a template for a
+verification.
+
+Five closures. **Census by count** — the total, each standard's total, ASVS by chapter AND
+by level (a row can change one without the other), MASVS by group, CRA by part; duplicate
+ids and non-verbatim texts are census defects too. **Live controls** — every `covered` or
+`partial` row names a chain step, a shipped CI job, a gate script a lane invokes, or a
+guard-rule id, and a CONDITIONAL one must say `(path-filtered)`, `(schedule-gated)` or
+`(event-gated)` (the third is the PR-only OSV diff scan, which neither of the first two
+describes honestly). Rows with `module` set are CONDITIONAL on an opt-in module — the
+marker is `docs/modules/<name>/README.md`, which every module ships — and are judged for
+liveness ONLY where the module is installed; on a tree without it they produce no finding,
+because nothing in that tree can decide them. **Row shape** — `covered` may not rest on
+the `documentation` tier; an organisation-boundary row may not be graded `covered` or
+`partial`; `not-covered` carries a note of substance; `not-applicable` carries a written
+negative proof and, above the documentation tier, a `negativeCanary`; a row that claims
+nothing names no control, canary or proof. **Unmapped controls** — every step of
+`VALIDATE_STEPS` ∪ `STOP_HOOK_STEPS` is either named as some row's control or keyed in
+`unmappedControls` with a written reason, never both and never neither, so a control the
+map forgot cannot hide. **Regen-diff** — `docs/compliance/controls-crosswalk.md` and
+`docs/security/threat-model.md` are generated from the register, the chain and the
+guard-rule tables by `tools/gen-conformance-docs.mjs`, and this script runs it in
+`--check` mode so a hand-edit to either reds. And through all of it, the **claim-sentence
+ban**: no note, negativeProof or header line may carry an affirmative ASVS/MASVS/CRA
+standing claim (`tools/lib/standards-claim.mjs`, the judgement `scripts/hygiene.mjs` sweeps
+the shipped prose with).
+
+What it deliberately does NOT do is red on `not-covered`. Those rows are honestly unbuilt
+or the consumer's to build and say what would be needed; redding on them would create
+steady pressure to grade generously to get green. What reds is a MALFORMED or INFLATED
+claim. The canary half — every claim names a registered can-fail proof for its OWN control,
+resolved against `steps ∪ lanes ∪ hookRules` — is judged factory-side by
+`scripts/check-conformance-evidence.mjs`, because `tests/canary/injections.json` never
+ships to an install.
+
+**Anti-vacuity:** delete a row → FAIL naming the count on every axis it moved; grade a
+`covered` row at the documentation tier → FAIL; point a row at a control nothing runs →
+FAIL naming it; strip a conditional lane's marker → FAIL; name a module `tools/modules.json`
+does not list → FAIL; empty a `negativeProof` → FAIL; give a `not-covered` row a control →
+FAIL; drop a chain step from both the rows and `unmappedControls` → FAIL naming the step;
+write "is ASVS Level 2 compliant" into a note → FAIL quoting it; hand-edit either generated
+document → FAIL naming the drifted file; empty `requirements[]` → FAIL, because an empty
+conformance map is not a clean bill of health but a missing one
+(`tests/gates/check-conformance-map.test.mjs`).
+
 ### the validate runner — serial by default, pooled under `--report-all`
 
 `node tools/validate.mjs` runs the chain strictly serially with streamed output,
@@ -1729,10 +1880,10 @@ the suite cannot green vacuously.
 ### unit — `pnpm exec vitest run --coverage --silent`
 
 The node-side behavioral net: server (auth clock-skew, envelope bounds,
-production+stub boot-fatal, skew middleware, SSE abort), packages (contracts
+production+stub boot-fatal, skew middleware, csrf), packages (contracts
 drift, importer property tests, eval fixture scorer), and the PURE mobile modules
 (i18n incl. the pseudo-locale derivation and RTL direction table, routes closure,
-kv, the SSE parser, the fuzzy scorer, recents) — pure meaning zero react-native in
+kv, the fuzzy scorer, recents) — pure meaning zero react-native in
 the import closure, so Node's runner is honest for them. `--coverage` enforces the
 aggregate thresholds in `vitest.config.ts` and writes the istanbul map the
 diff-coverage step reads.
@@ -1921,8 +2072,12 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   Fabric view flattening actually bites) runs the sweeps signed-out; the DEV
   binary (Metro on the runner) runs what release cannot — the kv-pre-seeded
   ar-XB/RTL boot (`maestro/journeys/i18n-rtl.yaml`), the mutation flow
-  (stub sign-in → create note → relaunch → persists, against the real server +
-  Postgres), and the perf-harness journey (the dev screen self-measures against
+  (REAL sign-in as an identity the lane mints with its personal org through
+  `tools/ci/mint-device-user.mjs`, handed to Maestro as flow variables via
+  `check-e2e-device.mjs --env` → create note → relaunch → persists, against the
+  real server + Postgres — since 1.0.0; the inherited stub-authority tap of an
+  empty form had been failing nightly, invisibly, since Supabase Auth replaced
+  it), and the perf-harness journey (the dev screen self-measures against
   `tools/interaction-budget.json` and the flow asserts its `perf-pass` leaf).
   Path-filtered + nightly (emulator cost); anti-vacuity: a phase that executed
   zero flows exits red, and evidence (Maestro debug output, screenshot, logcat
@@ -1984,8 +2139,18 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   authorization and transport boundary code), a SET-based ratchet against
   `tools/mutation-baseline.json`: a NEW surviving mutant reds; accepting one is a
   reviewed human act (empty reason FAILS; the file is write-guard-protected and
-  gate-integrity-hashed). Never in the Stop chain — minutes vs the chain's
-  seconds budget.
+  gate-integrity-hashed). The surface is split since 1.0.0: the FLOOR
+  (`tools/lib/mutation-critical.mjs`) stays owned and sha-pinned, and YOUR
+  additive roots live in the seeded `tools/mutation-scope-extra.json`
+  (`{root, why ≥ 40}`, union semantics — a row can only ADD surface, never
+  subtract; write-guarded). Deriving the surface from the consumer's inventories
+  was considered and refused — an inventory-derived surface shrinks when a
+  registry row is deleted, and the ratchet's set semantics need a definition only
+  a reviewed diff can change. The scoper's zero-match alarm is the drift
+  tripwire instead: a concrete floor root or ANY extra root matching zero .ts
+  files is a hard red (anti-vacuity, never ramped) — a tree whose structure
+  diverged from the exemplar paths used to silently mutate less than the lane
+  claimed. Never in the Stop chain — minutes vs the chain's seconds budget.
 - **osv-scan** (`osv-scan.yml`, its own workflow) — known-vulnerability SCA over
   every discovered `pnpm-lock.yaml` against the OSV database. The PR job is
   DIFF-AWARE (only newly introduced vulns red a PR — the deterministic form of a
@@ -2016,12 +2181,12 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   passes, so a broken inventory is never the file someone downloads later.
 - **live-api proof** — `__tests__/live-api-proof.test.ts` (jest, self-skipping
   unless `LIVE_PROOF=1` + a running `AUTH_MODE=stub` server): the one place the
-  mobile client's real api-client talks to the real server over real Postgres
+  mobile client's real tRPC client talks to the real server over real Postgres
   under FORCE RLS. Every other lane mocks the network — which is exactly how the
   desktop original once shipped requests with no Authorization header at all
   while every gate stayed green. Its negative control (an unauthenticated call
   must fail) keeps it falsifiable, and the harness selftest proves the lane
-  end-to-end (Canary C01: strip the api-client's one bearer-attaching line →
+  end-to-end (Canary C01: strip the tRPC client's one bearer-attaching line →
   the suite reds, restore → green).
 
 - **backup-evidence** (scheduled, in `osv-scan.yml`) — `node
@@ -2108,9 +2273,14 @@ in the design record; the enduring ones repeat here):
 - **Maestro-in-the-chain** — an emulator boot ahead of every validate would turn
   a seconds gate into a minutes gate; the closure check keeps the floor while the
   device lane pays the cost in CI.
-- **A second SSE dependency** — an XHR-based client would bypass the api-client
-  one-door; the SSE client is a hand-rolled pure parser driven through injected
-  streaming fetch, unit-tested at every chunk boundary.
+- **An SSE dependency (`react-native-sse`)** — rejected in the ancestor's port
+  spec, and the hand-rolled parser that spec designed as the alternative NEVER
+  SHIPPED in this lineage: no SSE client of any kind exists in the scaffold, and
+  no shipped surface streams. (Through 0.11.1 this entry claimed the parser
+  shipped and was "unit-tested at every chunk boundary" — ancestor-port residue,
+  corrected at 1.0.0.) If a streaming seam is ever added it belongs inside the
+  tRPC-client one-door, with its retry/timeout posture declared in
+  `tools/resilience.json` like every other outbound seam.
 - ~~**pgTAP**~~ — **ADOPTED, and this entry was stale ancestor text.** The claim
   it made ("plain-SQL catalog assertions check the same facts without a second
   toolchain") is false in this tree and had been for some time: pgTAP is shipped

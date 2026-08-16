@@ -34,6 +34,7 @@ export const en = {
   'route.home': 'Home',
   'route.matrix': 'Matrix',
   'route.actions': 'Actions',
+  'route.security': 'Security',
 
   // ---- common -----------------------------------------------------------------
   'common.reload': 'Try again',
@@ -103,6 +104,7 @@ export const en = {
   'actions.group.session': 'Session',
   'command.goHome': 'Go to Home',
   'command.goMatrix': 'Go to Matrix',
+  'command.goSecurity': 'Go to Security',
   'command.createNote': 'Create a note',
   'command.signOut': 'Sign out',
   'command.deleteAccount': 'Delete account…',
@@ -134,6 +136,62 @@ export const en = {
   // enumeration oracle. The provider's own message stays available as the quiet
   // technical detail underneath.
   'signin.failed': 'That email and password did not match an account.',
+  'signin.createAccount': 'Create account',
+
+  // ---- sign-up ----------------------------------------------------------------
+  // Account creation, then the OFFERED authenticator step. The email/password
+  // labels are the sign-in keys — the two forms ask for the same two facts.
+  'signup.title': 'Create account',
+  'signup.body':
+    'An account is an email and a password. You can add an authenticator app right after — or later, from Security.',
+  'signup.submit': 'Create account',
+  'signup.pending': 'Creating account…',
+  // Same non-enumerating discipline as signin.failed: "already registered"
+  // tells an attacker which addresses have accounts.
+  'signup.failed': 'An account could not be created with that email and password.',
+  // Deployed projects confirm email before minting a session (local dev does
+  // not — supabase/config.toml), so sign-up may legitimately end session-less.
+  'signup.confirmSent': 'Check your email to confirm the account, then sign in.',
+  'signup.haveAccount': 'Sign in instead',
+
+  // ---- MFA ceremonies ----------------------------------------------------------
+  // Enrolment is an OFFERED step, never mandated — GoTrue's MFA configuration
+  // carries no `required` field, so mandatory enrolment cannot be built on this
+  // platform; what a verified factor buys is the database rail refusing aal1.
+  'mfa.enrol.title': 'Set up an authenticator app',
+  'mfa.enrol.body':
+    'Add this setup key to an authenticator app, then confirm with the six-digit code the app shows.',
+  'mfa.enrol.secret': 'Setup key',
+  'mfa.enrol.verify': 'Verify code',
+  'mfa.enrol.skip': 'Skip for now',
+  'mfa.enrol.cancel': 'Cancel',
+  'mfa.verify.pending': 'Verifying…',
+  'mfa.code.label': 'Six-digit code',
+  'mfa.code.placeholder': '123456',
+  'mfa.code.invalid': 'Enter the six-digit code from your authenticator app.',
+  // Codes rotate; the most common "wrong code" is a stale one, so the copy
+  // points at the fix instead of restating the failure.
+  'mfa.code.failed':
+    'That code did not verify. Codes rotate every thirty seconds — try the current one.',
+  'mfa.challenge.title': 'Two-factor check',
+  'mfa.challenge.body':
+    'Enter the six-digit code from your authenticator app to finish signing in.',
+  'mfa.challenge.verify': 'Verify',
+  'mfa.challenge.unavailable': 'The two-factor check could not start. Sign in again to retry.',
+  'mfa.challenge.back': 'Back to sign in',
+
+  // ---- security (enrolled factors) ---------------------------------------------
+  'security.body':
+    'Second factors on this account. While one is enrolled, a password alone can no longer reach your data.',
+  'security.empty.title': 'No authenticator enrolled',
+  'security.empty.description': 'Add an authenticator app to require a six-digit code at sign-in.',
+  'security.enrol': 'Add authenticator',
+  'security.enrol.failed': 'The authenticator step could not start. Try again.',
+  'security.error.title': 'Could not load your authenticators.',
+  'security.factor.unnamed': 'Authenticator',
+  'security.unenroll': 'Remove',
+  'security.unenroll.hint': 'Removes this authenticator from your account.',
+  'security.unenroll.failed': 'The authenticator was not removed.',
 
   // ---- perf harness (dev chrome — app/perf-harness.tsx) ------------------------
   'perf.title': 'Performance harness',

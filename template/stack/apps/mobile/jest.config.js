@@ -32,6 +32,18 @@ const PER_FILE_FLOORS = {
 
 module.exports = {
   preset: 'jest-expo',
+  // @app/supabase ships TS SOURCE with NodeNext `.js` relative specifiers
+  // (`import ... from './mfa-flow.js'`). tsc, Metro and Vitest all map that
+  // back to the .ts file; jest's resolver does not, and the screens now import
+  // the package's `./client` barrel directly (the mfa-flow machine), so the
+  // suite dies at `Cannot find module './access-token.js'` without this.
+  // Scoped to RELATIVE specifiers: a bare package name never matches, and a
+  // node_modules file that really is `./x.js` still resolves because `js` is
+  // in moduleFileExtensions. Merged WITH the jest-expo preset's own map, not
+  // replacing it — jest gives config entries precedence per key.
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
   // Jest's 5000ms default is calibrated for unit tests on developer hardware.
   // The heavy RNTL flow tests (matrix pagination, notes optimistic-create)
   // legitimately cross 5s on 2-core CI runners under coverage instrumentation

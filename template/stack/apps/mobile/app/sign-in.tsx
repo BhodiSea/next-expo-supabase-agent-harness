@@ -1,4 +1,5 @@
 import { EMAIL_MAX } from '@app/contracts'
+import { decideAfterSignIn } from '@app/supabase/client'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import { AppText } from '../src/components/AppText'
@@ -80,6 +81,25 @@ export default function SignInScreen() {
       setFailure(t('signin.failed'))
       return
     }
+    // THE AAL BRANCH. The password minted an aal1 session; whether that session
+    // is FINISHED is the mfa-flow machine's decision, not this screen's: an
+    // enrolled user's aal1 token reads nothing (the database rail refuses it on
+    // every surface), so the challenge screen is the only route that ends
+    // anywhere. An AAL read that itself fails yields null levels and proceeds —
+    // the rail still holds, and a dead end here would lock out the un-enrolled
+    // majority on a network blip.
+    // SOURCE: docs/adr/20260812-mfa-aal2.md (the rail) ·
+    // packages/platform/supabase/src/mfa-flow.ts (decideAfterSignIn)
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (
+      decideAfterSignIn({
+        currentLevel: aal?.currentLevel ?? null,
+        nextLevel: aal?.nextLevel ?? null,
+      }) === 'challenge'
+    ) {
+      router.replace('/mfa-challenge')
+      return
+    }
     // The client persisted the session to the keychain-backed store before this
     // resolved, so Home's first query already carries the new bearer token.
     router.replace('/')
@@ -146,6 +166,14 @@ export default function SignInScreen() {
           void signIn()
         }}
         testID="sign-in-submit"
+      />
+      <Button
+        label={t('signin.createAccount')}
+        variant="ghost"
+        onPress={() => {
+          router.replace('/sign-up')
+        }}
+        testID="sign-in-to-sign-up"
       />
     </Screen>
   )

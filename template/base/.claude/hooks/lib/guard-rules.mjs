@@ -411,6 +411,23 @@ export const WRITE_PROTECTED = [
   // register its own bypass of the redaction seam mid-turn and stay green.
   { id: 'observability-sinks', re: /^tools\/observability\.json$/ },
 
+  // WHAT LINT MAY NOT SEE, AND WHAT CALLS OUT (1.0.0). A suppressions-allow row
+  // licenses an inline directive that switches a rule off at one site — an agent that
+  // could edit it could license its own suppression mid-turn, which is the exact
+  // self-review the census exists to route through a human. A resilience row is the
+  // reviewed posture of an outbound seam; an agent that could edit it could declare a
+  // paper timeout for a transport it just added and stay green.
+  { id: 'suppressions-allow', re: /^tools\/suppressions-allow\.json$/ },
+  { id: 'resilience-register', re: /^tools\/resilience\.json$/ },
+  // The consumer's auth tunables (1.0.0 split): an agent that could edit this file
+  // could stretch jwt_expiry to its bound or enable a config surface section mid-turn
+  // — a retune is a human's two-place reviewed act (this register + config.toml).
+  { id: 'auth-tunables', re: /^tools\/auth-tunables\.json$/ },
+  // The consumer's store tunables (1.0.0 split): an agent that could edit this file
+  // could flip export compliance, invent a privacy-manifest row, or reshape the
+  // account-deletion surface mid-turn — all store-review decisions a human signs.
+  { id: 'store-tunables', re: /^tools\/store-tunables\.json$/ },
+
   // WHO OWES A REVIEW. Narrowing a pattern here is how a reviewer stops being summoned by
   // the diff it exists for, and it is a one-word edit in a file that reads like config.
   { id: 'reviewer-triggers', re: /^tools\/reviewer-triggers\.json$/ },
@@ -435,6 +452,13 @@ export const WRITE_PROTECTED = [
   // security-relevant code — the cheapest possible way to fake conformance. Regrading is
   // a CODEOWNERS-reviewed act that lands in a PR diff where somebody can see it.
   { id: 'essential-eight-register', re: /^tools\/essential-eight\.json$/ },
+  // The ASVS/MASVS/CRA conformance MAP the `docs-sync` step's third script judges (1.0.0).
+  // Same class as the row above and the same hazard, one standard over: regrading a
+  // `not-covered` row to `covered`, or a `partial` to `covered`, turns an honest gap into a
+  // claim without touching a line of security-relevant code — and this is the register an
+  // enterprise buyer asks for by name, so the pressure to widen a grade is the strongest of
+  // any file in this block. Regrading is a CODEOWNERS-reviewed act that lands in a PR diff.
+  { id: 'conformance-map-register', re: /^tools\/conformance-map\.json$/ },
   // The applied-history acknowledgement (0.4.0), tolerated-absent. CREATING it is the
   // widening — it converts a hard `migrations` red into an exemption for a (file, rule)
   // pair — so it is exactly the class this block exists for, and it shipped without a
@@ -499,6 +523,12 @@ export const WRITE_PROTECTED = [
   // the cheapest way past a red here is to append a row, so the file an agent would reach
   // for is exactly the one it must not be able to write.
   { id: 'eol-register', re: /^tools\/eol\.json$/ },
+  // The vendor-support register (1.0.0) — eol's sibling one register up the stack:
+  // accepting that a SERVICE or PLATFORM has no support lifecycle (a 'ceiling' row),
+  // or re-dating a review, is a human decision for the same reason an eol row is,
+  // and moving reviewedUntil is the one edit the lapse control cannot distinguish
+  // from a real review.
+  { id: 'support-register', re: /^tools\/support-register\.json$/ },
   // The backup posture (0.9.9). Its `maxDailyBackupAgeHours` is a recovery-point tolerance
   // and `restorationTesting.lastTestedOn` is an attestation that a human performed a drill —
   // an agent must be able to write neither, because widening the first silences the lane and
@@ -512,6 +542,12 @@ export const WRITE_PROTECTED = [
   // tracking signals, privacy-manifest lockstep, the account-deletion closure —
   // every value is a store-review posture, so widening it is a human decision.
   { id: 'store-policy', re: /^tools\/store-policy\.json$/ },
+  // The shipped module list (1.0.0): OWNED, machine-derived from the installer, and
+  // read by check-exports-walls.mjs to close census `module` values. An agent that
+  // could append a fictional name could park a stale census sanction dormant forever
+  // — the exact silent widening the closure was built to end — so the file has no
+  // legitimate in-tree author at all: `update` refreshes it, nothing else writes it.
+  { id: 'modules-register', re: /^tools\/modules\.json$/ },
   { id: 'bundle-budget', re: /^tools\/bundle-budget\.json$/ },
   // The committed gzip-ratchet baseline: regenerated ONLY by `pnpm perf:baseline`
   // in a reviewed commit — an agent editing it would re-baseline its own regression.
@@ -526,6 +562,11 @@ export const WRITE_PROTECTED = [
   { id: 'startup-budget', re: /^tools\/startup-budget\.json$/ },
   { id: 'styleguide-manifest', re: /^tools\/styleguide\.manifest\.json$/ },
   { id: 'mutation-baseline', re: /^tools\/mutation-baseline\.json$/ }, // accepting a surviving mutant is a human decision
+  // The consumer's ADDITIVE mutation surface (1.0.0). Union semantics mean an edit can
+  // never weaken the floor — but deleting a row un-mutates a surface a human chose to
+  // protect, which is licensing an escape from the added coverage; adding one is a
+  // reviewed widening. Either direction is a human act.
+  { id: 'mutation-scope-extra', re: /^tools\/mutation-scope-extra\.json$/ },
   { id: 'route-allowlist', re: /^tools\/route-allowlist\.json$/ }, // exempting a screen from ROUTES is a human decision
   { id: 'web-route-allowlist', re: /^tools\/web-route-allowlist\.json$/ }, // exempting a web PAGE from the registry is the same decision on the other surface
   { id: 'dto-bounds-allow', re: /^tools\/dto-bounds-allow\.json$/ }, // exempting a wire string from the .max() bound is a human decision

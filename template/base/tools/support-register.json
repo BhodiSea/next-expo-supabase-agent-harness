@@ -1,0 +1,97 @@
+{
+  "comment": "The vendor-support register (1.0.0) — the reviewed answer to Essential Eight PA-11 (online services no longer supported by vendors are removed) and POS-16 (operating systems no longer supported by vendors are replaced), on the eol/cc-floor pattern: the CLOCKLESS half (shape + the platform-fact closure against the tree's own Postgres/Node pins) rides the version-sync chain step; the CLOCKFUL half (reviewedUntil lapse) rides the scheduled floor-review job. Each row is the VENDOR'S OWN statement, dated, or an honest permanent ceiling: none of the online services publishes a support flag in any artefact this tree contains, and asking their APIs live is refused by the hermeticity rule — so status 'ceiling' records that fact AS the finding rather than letting it read as an omission. Re-reviewing a row means re-reading the vendor's page and moving quote, fetchedOn and reviewedUntil in one human-reviewed commit.",
+  "services": [
+    {
+      "subject": "supabase-hosted",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://supabase.com/terms",
+        "quote": "Supabase publishes service terms and a status page, but no per-service support-lifecycle or end-of-support schedule an artefact in this tree could carry.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "vercel",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://vercel.com/docs/limits",
+        "quote": "Vercel documents platform limits and runtime deprecations (Node runtimes have dated EOLs) but publishes no support lifecycle for the platform itself; runtime deprecations surface at build time.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "github-actions",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://docs.github.com/en/actions",
+        "quote": "GitHub Actions is a generally-available product with runner-image deprecations announced on the runner-images repository, not a support-lifecycle artefact a tree can pin.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "npm-registry",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://docs.npmjs.com/policies/terms",
+        "quote": "The npm public registry publishes terms and per-package deprecation flags (which tools/eol.json dispositions) but no registry-level support lifecycle.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "eas",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://docs.expo.dev/eas/",
+        "quote": "Expo Application Services documents SDK-version support windows for builds (old SDKs stop being buildable), announced per SDK release rather than as a service lifecycle; the SDK currency half is already held by tools/framework-floor.json.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    }
+  ],
+  "platforms": [
+    {
+      "subject": "postgres-17",
+      "status": "supported",
+      "vendorStatement": {
+        "url": "https://www.postgresql.org/support/versioning/",
+        "quote": "PostgreSQL 17 is a supported major version; the project supports each major release for five years from its initial release (17.0 released September 2024, final release targeted November 2029).",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "node-22",
+      "status": "supported",
+      "vendorStatement": {
+        "url": "https://nodejs.org/en/about/previous-releases",
+        "quote": "Node.js 22 is an LTS release line; per the release schedule its maintenance window runs until April 2027, after which the tree's engines floor must move.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "ubuntu-latest-runner",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://github.com/actions/runner-images",
+        "quote": "The workflows pin the moving alias ubuntu-latest, so the operative image is GitHub's current choice and its lifecycle is GitHub's runner-image deprecation schedule — a ceiling this register records rather than a version this tree controls.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    },
+    {
+      "subject": "android-targetsdk",
+      "status": "ceiling",
+      "vendorStatement": {
+        "url": "https://developer.android.com/google/play/requirements/target-sdk",
+        "quote": "Google Play enforces a minimum targetSdk per calendar year rather than publishing OS support lifecycles; the currency floor lives in tools/store-policy.json and moves with the store requirement, which is the operative constraint for a store-distributed app.",
+        "fetchedOn": "2026-08-16"
+      },
+      "reviewedUntil": "2027-02-16"
+    }
+  ]
+}

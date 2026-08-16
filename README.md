@@ -9,7 +9,9 @@ Its single purpose is the two-surface shape: one schema, one contract package,
 one token source, one authorization boundary (Postgres row-level security),
 two clients. The cross-surface seams are enforced by gates, not by discipline.
 
-> **Status: pre-release (0.11.x).** This repo was forked from
+> **Status: stable (1.0.x).** Stable means the obligations register is honest, not that
+> it is empty — the platform ceilings it still carries are enumerated in the CHANGELOG's
+> "What stays open" and re-verified each release. This repo was forked from
 > [`expo-postgres-agent-harness`](https://github.com/BhodiSea/expo-postgres-agent-harness)
 > (itself descended from
 > [`tauri-postgres-agent-harness`](https://github.com/BhodiSea/tauri-postgres-agent-harness));
@@ -19,7 +21,7 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > vocabulary is a hard red anywhere under `template/`.
 >
 > **What is proven:** `init` → `pnpm install` → `pnpm validate` is green on a
-> fresh scaffold with zero edits — all 34 gates — and the selftest matrix proves
+> fresh scaffold with zero edits — all 36 gates — and the selftest matrix proves
 > it on every push, including the live-Supabase RLS suite and the 29 can-fail
 > canaries (counted from the matrix itself, not hand-authored). The execution
 > proofs — the chain, the hooks, the upgrade ladder — run on **Linux**, plus a
@@ -61,24 +63,32 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > is the consumer's act through the `authoring-e2ee-feature` skill. The mobile
 > AEAD provider is a documented consumer decision, not a default (a native crypto
 > dependency is a choice the harness refuses to make for you). Sharing, recovery
-> and multi-device are DECLARED ports with no implementations: a second device
-> sees ciphertext, and **a lost device is lost data**. Encryption hides content,
-> not shape — row counts, sizes and timestamps stay server-visible — and an
-> encrypted column cannot be searched, sorted or filtered by the database.
-> `docs/modules/e2ee/README.md` states each of these losses in full.
+> and multi-device ship as IMPLEMENTED ports since 1.0.0 — X25519 recipient
+> wrap, a generated shown-once recovery code, and a device-sync envelope — with
+> zero new dependencies, and each carries its residual: the public-key directory,
+> the recovery-code custody, and the pairing ceremony are yours, and **a lost
+> device AND a lost recovery code is still lost data**. A passphrase-derived
+> escrow stays a consumer decision (WebCrypto ships no Argon2id). Encryption
+> hides content, not shape — row counts, sizes and timestamps stay
+> server-visible — an encrypted column cannot be searched, sorted or filtered by
+> the database, and rotation ships the primitive (`rewrapItemKey`) but not the
+> orchestration. `docs/modules/e2ee/README.md` states each of these in full.
 >
 > **Honest limits.** The wall-clock figures are measured, committed, and
-> qualified: warm validate is ~24.3 s wall (24337 ms — the serial reference
-> capture; no agent turn runs serial mode) and the Stop chain's turn-end is
-> ~50.5 s wall (50531 ms, including the nested validate member), recorded
-> 2026-08-09 on Linux/X64 (selftest) and count-matched to the 34/10
-> chain-and-Stop measurement in `scripts/chain-budget.json`. They are that
-> runner's numbers, not a promise about yours. The cold path is unmeasured and
-> carries no figure: unmeasured numbers do not ship — `check-claims` reds on a
-> published figure with no committed measurement behind it, and
-> `check-chain-budget --record` is the thing that can produce one (dispatch the
-> selftest lane, review the artifact, commit it). The order is measure, commit,
-> then publish. The device lanes (Android emulator + Maestro) are schedule- and
+> qualified: validate is warm ≈ 23 s wall (23030 ms — the serial reference
+> capture; no agent turn runs serial mode), the Stop chain's turn-end is
+> ~52.7 s wall (52665 ms, including the nested validate member), and the first
+> validate of a fresh clone with cold caches is cold ≈ 110 s wall (110224 ms —
+> measured, never budgeted: installs and toolchain resolution the chain does
+> not own dominate it), all recorded 2026-08-16 on Linux/X64
+> (selftest) and count-matched to the 36/10 chain-and-Stop measurement in
+> `scripts/chain-budget.json`. They are that runner's numbers, not a promise
+> about yours. Unmeasured numbers do not ship — `check-claims` reds on a
+> published figure with no committed measurement behind it (warm and cold are
+> licensed SEPARATELY, by their own recordings), and `check-chain-budget
+> --record` is the thing that can produce one (dispatch the selftest lane,
+> review the artifact, commit it). The order is measure, commit, then publish.
+> The device lanes (Android emulator + Maestro) are schedule- and
 > dispatch-gated, so a PR does not pay for them — which also means they are
 > proven nightly, not per-commit. The gate chain contains no on-device proof at
 > agent time.
@@ -89,12 +99,14 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (134 guard-rule ids: shell-command denials, write-protected harness paths,
+   (142 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
    until the validation chain, RLS isolation tests, and both unit suites pass.
-   Seven hooks are wired, each invoked as `node "<path>"` so a hook's executable
+   Eight hooks are wired — seven guards plus the fail-closed launcher that
+   invokes each of them (1.0.0: a hook that cannot LOAD becomes exit 2 instead
+   of a silent fail-open) — each as `node "<path>"` so a hook's executable
    bit is not in the trust path.
 2. **Commit-time checks** — lefthook + commitlint + gitleaks.
 3. **CI** — the same validation chain, fail-closed, plus device lanes
@@ -106,12 +118,12 @@ installs three enforcement layers into it:
 `pnpm validate` in a scaffolded project runs `tools/validate.mjs`, driven by a
 single config (`tools/harness.config.mjs`) shared by the Stop hook and CI so
 the three layers can never disagree about what "done" means. The chain is
-34 gates, cheap → expensive:
+36 gates, cheap → expensive:
 
 format (biome) → gate-integrity (manifest sha over the gate scripts/hooks, the
 `node "<path>"` shape of every hook command, and `STOP_HOOK_STEPS ⊇` the frozen
 `tools/stop.floor.json` — tampering is turn-fatal) → **wiring** (the enforcement
-layers are actually CONNECTED: seven hooks wired, the permission posture,
+layers are actually CONNECTED: eight hooks wired, the permission posture,
 `pnpm validate` still running the gate, `CLAUDE.md` a pure include, and CODEOWNERS
 covering every escape list and enforcement-surface prefix — the invariants `doctor`
 was the only check for, and nothing ran `doctor`) → **secrets** (a hermetic,
@@ -241,8 +253,8 @@ incident-response portions back to the organisation.
 
 The standing below is recomputed from the register by `check-claims.mjs` and printed
 verbatim by the gate, as the whole partition rather than the flattering half of it:
-**149 ML3 requirements: 6 effective, 5 alternate-control, 27 not-implemented, 61
-not-applicable, 50 organisation-boundary; 8 shared clauses.** Grades are conservative by
+**149 ML3 requirements: 8 effective, 13 alternate-control, 11 not-implemented, 61
+not-applicable, 56 organisation-boundary; 8 shared clauses.** Grades are conservative by
 rule — absence of a surface is never a control, where two grades are defensible the lower
 one is taken, and an artefact another row already claims is not claimed again. Rows
 graded `not-implemented` are honestly unbuilt and each names the obligations row that owns
@@ -251,6 +263,25 @@ steady pressure to regrade generously to get a green build. Evidence carries ASD
 ranking, so a row backed only by a written statement is labelled `documentation` rather
 than borrowing its neighbours' credibility. The consumer-facing map is
 `docs/compliance/essential-eight.md`.
+
+The same discipline, one standard over, since 1.0.0: `tools/conformance-map.json` maps
+every requirement of OWASP ASVS 5.0.0, OWASP MASVS 2.1 and CRA Annex I — text verbatim —
+to the live control that bears on it, and the third `docs-sync` script
+(`tools/check-conformance-map.mjs`) judges the claims the same way: a named control must be
+one something runs, a `not-applicable` must carry a negative proof, every chain step is
+either mapped or carries a written reason why not, and the two documents generated from the
+map (`docs/compliance/controls-crosswalk.md`, `docs/security/threat-model.md`) must be
+byte-identical to a fresh generation. The standing, recomputed by `check-claims.mjs` as the
+whole partition: **392 mapped requirements: 11 covered, 149 partial, 105 not-covered, 127
+not-applicable — ASVS 5.0.0 (345), MASVS 2.1 (24), CRA Annex I (23).** A mapping is not a
+verification and no level is claimed: a verification level attaches to a verification *of
+an application* performed by an assessor, and CRA conformity is a manufacturer's legal act
+no code tree performs. Eight rows are conditional on an opt-in module and say so; 39 name
+what only the operating organisation can meet and are enumerated rather than graded up;
+and because no harmonised standard for the CRA had been cited in the Official Journal as of
+2026-08-16, the CRA rows carry a shelf life the calendar obligation
+`conformance-cra-hens-citation` tracks. `scripts/hygiene.mjs` sweeps the shipped prose and
+registers for the sentence that would claim otherwise.
 
 ## Install
 

@@ -60,6 +60,7 @@ function walkSources(dir) {
 const GATE = 'auth-posture'
 const CONFIG = 'supabase/config.toml'
 const POLICY = 'tools/auth-posture.json'
+const TUNABLES = 'tools/auth-tunables.json'
 const RAMP = '0.6.0'
 
 if (!existsSync(CONFIG)) {
@@ -80,6 +81,25 @@ try {
   policy = JSON.parse(readFileSync(POLICY, 'utf8'))
 } catch (e) {
   fail(GATE, `${POLICY} is not valid JSON (${e.message}) — the policy must be reviewable data`)
+}
+
+// The tunables register (1.0.0 split): the consumer's own values for the keys the owned
+// policy declares tunable. SEEDED — a retune is the consumer's reviewed commit — and
+// planted-when-absent, so a missing file is a deleted file, not an unshipped one.
+if (!existsSync(TUNABLES)) {
+  fail(
+    GATE,
+    `${TUNABLES} is missing — it is the seeded register holding this project's OWN values for the tunable auth keys (${POLICY} holds the floor and the bounds). Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${TUNABLES}\`.`,
+  )
+}
+let tunables
+try {
+  tunables = JSON.parse(readFileSync(TUNABLES, 'utf8'))
+} catch (e) {
+  fail(
+    GATE,
+    `${TUNABLES} is not valid JSON (${e.message}) — an unreadable tunables register fails CLOSED rather than un-reviewing every retune; restore it from git history`,
+  )
 }
 
 const { values, sections, errors: tomlErrs } = parseToml(readFileSync(CONFIG, 'utf8'))
@@ -112,8 +132,16 @@ const AUTH_KEY = /^auth(\.|$)/
 const mfaErrs = []
 const MFA_RAMP = '0.9.9'
 const isMfaName = (name) => /^auth\.mfa(\.|$)/.test(name)
+// The same seam, one release later (1.0.0): the auth-event trail's hook posture.
+// config.toml is SEEDED and the hook sections arrive with the 1.0.0 trail migration,
+// so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite —
+// the identical ambush the [auth.mfa] routing above exists for, resolved the same way.
+const hookErrs = []
+const HOOK_RAMP = '1.0.0'
+const isHookName = (name) => /^auth\.hook(\.|$)/.test(name)
 /** Route a finding by the config name it is about. @param {string} name @param {string} msg */
-const push = (name, msg) => (isMfaName(name) ? mfaErrs : errs).push(msg)
+const push = (name, msg) =>
+  (isMfaName(name) ? mfaErrs : isHookName(name) ? hookErrs : errs).push(msg)
 
 // ── 1. forward: the reviewed posture holds ───────────────────────────────────────────
 for (const [key, want] of Object.entries(policy.posture ?? {})) {
@@ -130,6 +158,66 @@ for (const [key, want] of Object.entries(policy.posture ?? {})) {
     push(
       key,
       `${CONFIG}: \`${key}\` is ${JSON.stringify(got)}, reviewed as ${JSON.stringify(want)} in ${POLICY}.${note ? ` ${note}` : ''}`,
+    )
+  }
+}
+
+// ── 1a. the TUNABLES closure (1.0.0 split), three ways ───────────────────────────────
+// The owned policy declares WHICH keys are tunable and the bound each must stay inside;
+// the seeded register holds the project's VALUE and why. Three closures, each with its
+// own failure: a declared tunable with no row (an unreviewed posture), a row outside its
+// bound (a retune the floor refuses), and a config value that disagrees with the row
+// (the two-place act half-done). The reverse census — a row for a key the policy never
+// declared — reds too: a consumer cannot mint a tunable, because widening the tunable
+// SET is a harness-release act exactly like widening the floor.
+/** @param {string} key @param {any} bound @param {any} row */
+function tunableRowProblems(key, bound, row) {
+  const out = []
+  if (row === undefined || row === null || typeof row !== 'object') {
+    out.push(
+      `${TUNABLES}: no row for \`${key}\` — ${POLICY} declares it tunable, so this project owes a reviewed value and why here (the seeded exemplar carries the template defaults).`,
+    )
+    return out
+  }
+  const v = row.value
+  const typeOk = bound.type === 'number' ? typeof v === 'number' : typeof v === 'boolean'
+  if (!typeOk) {
+    out.push(
+      `${TUNABLES}: \`${key}\` value ${JSON.stringify(v)} is not a ${bound.type} — the bound in ${POLICY} types the key, and a mistyped value is a posture the CLI would silently ignore.`,
+    )
+    return out
+  }
+  if (typeof v === 'number' && (v < (bound.min ?? -Infinity) || v > (bound.max ?? Infinity))) {
+    out.push(
+      `${TUNABLES}: \`${key}\` is ${String(v)}, outside the owned bound ${String(bound.min)}..${String(bound.max)} declared in ${POLICY} — retuning is yours, the bound is the floor's. ${bound.why ?? ''}`,
+    )
+  }
+  if (String(row.why ?? '').trim().length < 40) {
+    out.push(
+      `${TUNABLES}: \`${key}\` has a \`why\` under 40 characters — the row IS the review record of this project's value; a bare number reviews nothing.`,
+    )
+  }
+  const got = values.get(key)
+  if (got === undefined) {
+    out.push(
+      `${CONFIG}: \`${key}\` is MISSING — ${TUNABLES} reviews it as ${JSON.stringify(v)}. The CLI ignores an absent key silently and applies its own default, so a deleted line is a posture change nobody sees.`,
+    )
+  } else if (got !== v) {
+    out.push(
+      `${CONFIG}: \`${key}\` is ${JSON.stringify(got)} but this project's ${TUNABLES} row says ${JSON.stringify(v)} — retuning is editing BOTH in one diff; half the act is drift, not a decision.`,
+    )
+  }
+  return out
+}
+
+const tunableBounds = Object.entries(policy.tunables ?? {}).filter(([k]) => !k.startsWith('//'))
+for (const [key, bound] of tunableBounds) {
+  for (const msg of tunableRowProblems(key, bound, tunables.values?.[key])) push(key, msg)
+}
+for (const key of Object.keys(tunables.values ?? {})) {
+  if (policy.tunables?.[key] === undefined) {
+    errs.push(
+      `${TUNABLES} carries a row for \`${key}\`, which ${POLICY} does not declare tunable — a consumer cannot mint a tunable; if this key genuinely belongs to the project, widening the tunable set is a harness-release act with a bound.`,
     )
   }
 }
@@ -162,6 +250,7 @@ for (const [key, rule] of Object.entries(policy.projectValued ?? {})) {
 const reviewed = new Set(
   [
     ...Object.keys(policy.posture ?? {}),
+    ...tunableBounds.map(([k]) => k),
     ...Object.keys(policy.projectValued ?? {}).filter((k) => !k.startsWith('//')),
     policy.redirectAllowlist?.key,
   ].filter(Boolean),
@@ -227,7 +316,7 @@ for (const name of policy.requiredSections ?? []) {
 // containers during this spike) and prints `SECRET_KEY` and `JWT_SECRET` into the output a
 // gate would then be handling. A control that reads a neighbour's stack and handles their
 // credentials is not a control. The `[inbucket]` defect itself IS fixed; the standing check is
-// deferred to 0.12.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.11.0
+// deferred to 1.1.0 (deferral ledger: auth-posture-cli-census) — RE-CHECKED AT 0.11.0
 // (2026-08-13), the FIRST firing against a real pin bump: npm latest moved 2.113.0 -> 2.114.0
 // (GA 2026-08-12), so the 're-check at every CLI pin bump' clause fired on its own terms. The
 // CLI is now a pnpm/nx monorepo and the Go CLI moved to apps/cli-go — the path changed, the
@@ -239,13 +328,26 @@ for (const name of policy.requiredSections ?? []) {
 // condition is a side-effect-free `config lint`-shaped subcommand, re-checked at every CLI
 // pin bump, and the docs-sync deferral scan reds this sentence the release the date arrives —
 // the standing rule (written at 0.9.0, the second scheduled firing) is that each such arrival
-// moves the date one minor in a reviewed diff until the upstream subcommand actually ships.
-const known = policy.knownSections ?? []
+// moves the date one release in a reviewed diff until the upstream subcommand actually ships
+// (re-checked again at the 1.0.0 cut, 2026-08-16: #5894 still open, no milestone, no PR).
+// The census unions the owned core with the seeded additionalSections (the 1.0.0 split
+// applied to sections): a consumer who enables [realtime] records it in the tunables
+// register with the same two-place discipline as a key retune. A malformed addition reds
+// rather than silently widening the census.
+const additional = Array.isArray(tunables.additionalSections) ? tunables.additionalSections : []
+for (const name of additional) {
+  if (typeof name !== 'string' || name.trim() === '') {
+    errs.push(
+      `${TUNABLES}: additionalSections carries a non-string entry — a section the census cannot name is a section it cannot watch.`,
+    )
+  }
+}
+const known = [...(policy.knownSections ?? []), ...additional.filter((n) => typeof n === 'string')]
 for (const name of sections) {
   if (!known.includes(name)) {
     push(
       name,
-      `${CONFIG}: section \`[${name}]\` is present but not in ${POLICY} knownSections — a Supabase config section is a SURFACE (realtime replays row changes through its own policy check; storage has a separate bucket policy model), so one appearing without review is a door in the wall that no test in this repo watches.`,
+      `${CONFIG}: section \`[${name}]\` is present but in neither ${POLICY} knownSections nor ${TUNABLES} additionalSections — a Supabase config section is a SURFACE (realtime replays row changes through its own policy check; storage has a separate bucket policy model), so one appearing without review is a door in the wall that no test in this repo watches. Enabling a surface is the consumer's act: record it in ${TUNABLES} additionalSections.`,
     )
   }
 }
@@ -253,7 +355,7 @@ for (const name of known) {
   if (!sections.includes(name)) {
     push(
       name,
-      `${CONFIG}: section \`[${name}]\` is reviewed in ${POLICY} knownSections but ABSENT from the config — either it was removed without review, or upstream renamed it (the CLI renames sections and warns rather than erroring, which is how the shipped \`[inbucket]\` sat deprecated with nothing reading the warning).`,
+      `${CONFIG}: section \`[${name}]\` is reviewed (${POLICY} knownSections or ${TUNABLES} additionalSections) but ABSENT from the config — either it was removed without review, or upstream renamed it (the CLI renames sections and warns rather than erroring, which is how the shipped \`[inbucket]\` sat deprecated with nothing reading the warning).`,
     )
   }
 }
@@ -313,6 +415,71 @@ if (
   errs.push(...mfaErrs)
 }
 
+// ── the trail's PAIRED ACT, machine-held (1.0.0) ────────────────────────────────────
+// The [auth.hook.*] floors bind GoTrue to functions the trail migration creates. config.toml
+// is seeded and supabase/migrations/ is the consumer's append-only history, so the two halves
+// reach an existing install separately or not at all — and the pairing is enforced HERE rather
+// than assumed, in three cases:
+//   (a) the trail schema is in the tree → the floors are demanded exactly as written (routed to
+//       the 1.0.0 ramp below for a pre-1.0.0 install, hard for everyone else);
+//   (b) the trail is NOT in the tree but a hook is ENABLED → a HARD red, never ramped: GoTrue
+//       will call a function no migration created and every password/MFA sign-in fails. This
+//       is the shape a naive "append the reviewed block" produces, and it is why the upgrade
+//       lane's sweep does not append it (scripts/ci/upgrade-sweep.mjs, SWEEPS['1.0.0']);
+//   (c) neither → nothing is demanded, and one plain line says so. An install that predates
+//       the trail owes the paired adoption docs/runbooks/harness-upgrade.md describes (migration
+//       + declarative twin + the two sections, together), not a config edit alone — and a NOTE
+//       here would be a ramp no sweep may clear without adopting a migration on the consumer's
+//       behalf, which the seedOnInitOnly decision refuses.
+// The presence test reads the migrations' TEXT for the two hook function names, so a renamed
+// migration file still counts and a copied ADR does not.
+const trailPresent =
+  existsSync('supabase/migrations') &&
+  readdirSync('supabase/migrations')
+    .sort()
+    .some(
+      (f) =>
+        f.endsWith('.sql') &&
+        /auth_trail\.(?:password|mfa)_verification_hook/.test(
+          readFileSync(join('supabase/migrations', f), 'utf8'),
+        ),
+    )
+const enabledHooks = [...values.entries()]
+  .filter(([k, v]) => /^auth\.hook\.[a-z_]+\.enabled$/.test(k) && v === true)
+  .map(([k]) => k)
+let hookFloorsWaived = 0
+if (!trailPresent) {
+  if (enabledHooks.length > 0) {
+    errs.push(
+      `${CONFIG} enables ${enabledHooks.join(', ')} but no migration under supabase/migrations creates the auth_trail hook functions — GoTrue will call a function that does not exist and EVERY password/MFA sign-in will fail. Adopt the trail (20260816000000_auth_event_trail.sql + supabase/schemas/45_auth_trail.sql, per docs/adr/20260816-auth-event-trail.md) BEFORE enabling the hooks, or set enabled = false.`,
+    )
+  }
+  hookFloorsWaived = Object.keys(policy.posture ?? {}).filter((k) => isHookName(k)).length
+  hookErrs.length = 0
+  console.log(
+    `${GATE}: the auth-event trail is not in this tree (no migration creates auth_trail's hook functions), so its ${String(hookFloorsWaived)} [auth.hook.*] floor(s) are not demanded here — adopt the migration and the two config sections TOGETHER (docs/runbooks/harness-upgrade.md, the 1.0.0 section); until then failed sign-ins leave no record on this install`,
+  )
+}
+
+if (
+  hookErrs.length > 0 &&
+  rampNote(
+    GATE,
+    HOOK_RAMP,
+    `the [auth.hook] trail posture (the auth-event trail, new in ${HOOK_RAMP})`,
+    {
+      until: '1.1.0',
+    },
+  )
+) {
+  console.log(
+    `${GATE}: NOTE — ${String(hookErrs.length)} [auth.hook] finding(s) withheld by the ${HOOK_RAMP} ramp. The hooks bind GoTrue to the auth-event trail (migration 20260816000000_auth_event_trail.sql) — adopt the migration AND the two config sections together (docs/adr/20260816-auth-event-trail.md shows both); until then failed sign-ins leave no record on this install:`,
+  )
+  for (const e of hookErrs) console.log(`  - ${e}`)
+} else {
+  errs.push(...hookErrs)
+}
+
 // ── the ramp ─────────────────────────────────────────────────────────────────────────
 // A gate whose subject is a file the HARNESS ships, applied to an install that has its own
 // supabase/config.toml (it is seeded, so `update` never rewrites it). Projects grow into gates.
@@ -328,14 +495,15 @@ if (
 failures(
   GATE,
   errs,
-  `Change ${CONFIG} back — the reviewed posture is ${POLICY}, and the diff between them is the finding. (${POLICY} is harness-owned and sha-pinned by check-gate-integrity.mjs on an install: a local edit reds as tampering and \`update\` parks the incoming version, so recording a genuinely new posture is a harness-release act today; the consumer-tunable split is a recorded harness obligation.)`,
+  `The reviewed posture is split since 1.0.0: the FLOOR and the bounds live in ${POLICY} (harness-owned, sha-pinned — weakening it is a harness-release act), the project's TUNABLE values live in ${TUNABLES} (seeded, write-guard-protected — a retune edits that register and ${CONFIG} in ONE reviewed diff). The diff between config and register is the finding.`,
 )
 // The count is the REVIEWED total minus anything a ramp withheld. An OK line claiming
 // nineteen values hold while ten of them are missing is the same class of untrue summary
 // this gate exists to catch, one layer up.
-const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length
+const held =
+  Object.keys(policy.posture ?? {}).length - mfaErrs.length - hookErrs.length - hookFloorsWaived
 ok(
   GATE,
-  `${String(Math.max(held, 0))} reviewed value(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
+  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}${hookErrs.length > 0 ? ` (${String(hookErrs.length)} [auth.hook] finding(s) NOTE-only under the ${HOOK_RAMP} ramp — failed sign-ins leave no record here)` : ''}${hookFloorsWaived > 0 ? ` (${String(hookFloorsWaived)} [auth.hook] floor(s) not demanded — the trail is not adopted here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
 )
 process.exitCode = 0

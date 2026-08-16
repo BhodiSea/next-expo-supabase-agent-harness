@@ -74,7 +74,7 @@ GRANT EXECUTE ON FUNCTION public.iso(text) TO authenticated;
 
 -- Count checked against the assertion calls below; pgTAP fails a plan mismatch,
 -- so an assertion deleted in a hurry cannot pass as a smaller suite.
-SELECT plan(50);
+SELECT plan(61);
 
 -- ── identities, as the migration role ───────────────────────────────────────
 -- auth.users belongs to the Auth service and `authenticated` holds no grant on
@@ -115,6 +115,12 @@ BEGIN
     '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}', true);
   PERFORM set_config('role', 'authenticated', true);
   v_org_a := public.create_org('Org A', 'iso-org-a');
+  -- The privilege lifecycle (1.0.0): minting invitations is judged against the
+  -- EFFECTIVE rank, which for rank >= 30 exists only while an unexpired elevation
+  -- does (the JIT fold in private.member_ranks()). The owner elevates once for
+  -- the whole bootstrap — making this block a positive control for the JIT door
+  -- exactly as it already is for the definer write path.
+  PERFORM public.elevate(v_org_a);
   -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
   PERFORM set_config('role', 'none', true);
 
@@ -404,6 +410,16 @@ RESET ROLE;
 -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
 SET LOCAL "request.jwt.claims" TO '{"sub": "22222222-2222-4222-8222-222222222222", "role": "authenticated"}';
 SET LOCAL ROLE authenticated;
+
+-- The privilege lifecycle (1.0.0): rank 30 is EFFECTIVE only while elevated (the
+-- JIT fold), so the admin elevates before administering. One elevation carries
+-- this whole transaction — now() is frozen at transaction start, so the one-hour
+-- bound cannot lapse mid-suite. Asserted rather than performed silently: this is
+-- the positive control for the JIT door on the admin rank.
+SELECT lives_ok(
+  $$ SELECT public.elevate(public.iso('org_a')::uuid) $$,
+  'a rank-30 admin elevates before administering — the JIT door (RAP-13)'
+);
 
 DELETE FROM public.notes WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid;
 SELECT is_empty(
@@ -829,6 +845,130 @@ SELECT throws_ok(
   NULL::text,
   'org -> NULL is refused too - un-scoping a row would hide it from everyone including its author'
 );
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- the privilege lifecycle + JIT, behaviourally (1.0.0)
+-- ════════════════════════════════════════════════════════════════════════════
+-- The register rows this section discharges (e8-privilege-lifecycle, e8-jit-admin)
+-- demanded WINDOW PROOFS: an aged fixture must actually demote, an expired
+-- elevation must actually stop satisfying the predicate, and the recovery paths
+-- must actually recover. Fixture AGING is performed as the superuser on purpose —
+-- FORCE RLS subjects every in-model role to policy, so only the harness itself
+-- can move a clock — and every assertion then runs as the SUBJECT, like the rest
+-- of this file. now() is frozen per transaction, so the arithmetic is exact.
+
+-- (1) Expiry is CONSULTED, not recorded. Age the owner's elevation past its bound…
+UPDATE public.admin_elevations SET expires_at = now() - interval '1 minute'
+ WHERE user_id = '11111111-1111-4111-8111-111111111111'::uuid
+   AND org_id = public.iso('org_a')::uuid;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}';
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$ SELECT public.set_member_role(public.iso('org_a')::uuid,
+       '22222222-2222-4222-8222-222222222222'::uuid, 20::smallint) $$,
+  '42501'::char(5),
+  NULL::text,
+  'an EXPIRED elevation stops satisfying the admin predicate — the fold consults expires_at, it does not merely record it (RAP-13)'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.elevate(public.iso('org_a')::uuid) $$,
+  're-elevation mints a fresh one-hour bound'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.set_member_role(public.iso('org_a')::uuid,
+       '22222222-2222-4222-8222-222222222222'::uuid, 20::smallint) $$,
+  'the SAME statement succeeds under the fresh elevation — demoting the admin below the privilege floor'
+);
+
+RESET ROLE;
+
+-- …and the demotion cleaned up after itself: a seat that is no longer privileged
+-- has nothing to be elevated about, and a leftover row would re-arm the moment
+-- someone re-promoted them without a fresh elevate().
+SELECT is_empty(
+  $$ SELECT user_id FROM public.admin_elevations
+      WHERE user_id = '22222222-2222-4222-8222-222222222222'::uuid
+        AND org_id = public.iso('org_a')::uuid $$,
+  'demotion below the privilege floor DELETED the target elevation'
+);
+
+-- (2) RAP-02: the 12-month revalidation window, consulted by every predicate.
+UPDATE public.memberships SET revalidated_at = now() - interval '13 months'
+ WHERE user_id = '11111111-1111-4111-8111-111111111111'::uuid
+   AND org_id = public.iso('org_a')::uuid;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}';
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$ SELECT public.create_invitation(public.iso('org_a')::uuid,
+       'lapsed-owner-probe@example.com', 10::smallint) $$,
+  '42501'::char(5),
+  NULL::text,
+  'a seat outside the 12-month revalidation window reads as rank 20 EVERYWHERE — RAP-02 folds into the rank map, live elevation or not'
+);
+
+SELECT lives_ok(
+  $$ SELECT public.elevate(public.iso('org_a')::uuid) $$,
+  'the lapsed owner re-enters through elevate()''s self-revalidation branch — aal2-gated, vacuously satisfied for this unenrolled fixture user; the ENROLLED-at-aal1 refusal is proven in mfa_aal2.test.sql'
+);
+
+-- (3) RAP-03: the 45-day inactivity window, at the door. Restore the admin seat…
+SELECT lives_ok(
+  $$ SELECT public.set_member_role(public.iso('org_a')::uuid,
+       '22222222-2222-4222-8222-222222222222'::uuid, 30::smallint) $$,
+  'the revalidated owner re-promotes the admin — a rank change is itself a revalidation'
+);
+
+RESET ROLE;
+
+-- …age the seat past the activity window (within 12 months, past 45 days; the
+-- demotion in (1) deleted their elevation, so revalidated_at IS the last activity):
+UPDATE public.memberships SET revalidated_at = now() - interval '50 days'
+ WHERE user_id = '22222222-2222-4222-8222-222222222222'::uuid
+   AND org_id = public.iso('org_a')::uuid;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "22222222-2222-4222-8222-222222222222", "role": "authenticated"}';
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$ SELECT public.elevate(public.iso('org_a')::uuid) $$,
+  '42501'::char(5),
+  NULL::text,
+  'a 45-day-inactive privileged seat cannot elevate — RAP-03 at the door, and rank 30 has no self-service escape'
+);
+
+RESET ROLE;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}';
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$ SELECT public.revalidate_member(public.iso('org_a')::uuid,
+       '22222222-2222-4222-8222-222222222222'::uuid) $$,
+  'an ELEVATED owner revalidates the inactive seat — the human half of RAP-02, taking the same door as every admin act'
+);
+
+RESET ROLE;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "22222222-2222-4222-8222-222222222222", "role": "authenticated"}';
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$ SELECT public.elevate(public.iso('org_a')::uuid) $$,
+  'the revalidated seat elevates again — the lifecycle round-trips'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 

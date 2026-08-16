@@ -50,7 +50,7 @@ GRANT EXECUTE ON FUNCTION public.mfa_fixture(text) TO authenticated;
 
 -- Counted by hand against the assertions below. pgTAP fails a plan mismatch, so an
 -- assertion deleted in a hurry cannot pass as a smaller suite.
-SELECT plan(23);
+SELECT plan(25);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Shape: the rail is built the way the migration claims
@@ -149,6 +149,9 @@ BEGIN
     '{"sub": "77777777-7777-4777-8777-777777777777", "role": "authenticated", "aal": "aal2"}', true);
   PERFORM set_config('role', 'authenticated', true);
   v_org := public.create_org('MFA Org', 'mfa-org');
+  -- The privilege lifecycle (1.0.0): the invitation mint below is judged against
+  -- the EFFECTIVE rank, which requires an unexpired elevation (the JIT fold).
+  PERFORM public.elevate(v_org);
   v_token := public.create_invitation(v_org, 'unenrolled@example.com', 20::smallint);
   -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
   PERFORM set_config('role', 'none', true);
@@ -318,6 +321,47 @@ SELECT is(
   (SELECT private.caller_aal()),
   'aal1',
   'private.caller_aal() reads the aal claim out of the request.jwt.claims blob'
+);
+
+RESET ROLE;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- The lifecycle's aal2 gate, for the ENROLLED owner (1.0.0)
+-- ════════════════════════════════════════════════════════════════════════════
+-- elevate()'s lapsed-owner self-revalidation branch is gated on
+-- private.mfa_satisfied(). rls_isolation.test.sql proves the branch WORKS for an
+-- unenrolled fixture (vacuously satisfied); this is the half only THIS suite can
+-- prove, because only this suite stages a verified factor: an enrolled owner at
+-- aal1 is REFUSED, and the same owner at aal2 passes. The enrolled user founded
+-- this suite's org, so they are its rank-40 owner. Fixture aging runs as the
+-- superuser — FORCE RLS bars every in-model role from moving a clock.
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+UPDATE public.memberships SET revalidated_at = now() - interval '13 months'
+ WHERE user_id = '77777777-7777-4777-8777-777777777777'::uuid
+   AND org_id = current_setting('mfa.org')::uuid;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "77777777-7777-4777-8777-777777777777", "role": "authenticated", "aal": "aal1"}';
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+  $$ SELECT public.elevate(current_setting('mfa.org')::uuid) $$,
+  '42501'::char(5),
+  NULL::text,
+  'a lapsed ENROLLED owner at aal1 cannot self-revalidate — the branch demands the second factor it exists to demand'
+);
+
+RESET ROLE;
+
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SET LOCAL "request.jwt.claims" TO '{"sub": "77777777-7777-4777-8777-777777777777", "role": "authenticated", "aal": "aal2"}';
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+  $$ SELECT public.elevate(current_setting('mfa.org')::uuid) $$,
+  'the SAME owner at aal2 self-revalidates and elevates — the gate asks for the factor, not for a support ticket'
 );
 
 RESET ROLE;

@@ -18,10 +18,14 @@
 //                         launch, every route deep-linked and container-asserted. The
 //                         theme / font-scale phases re-run this after the workflow flips
 //                         device state.
-//   --phase journey --file <yaml>
+//   --phase journey --file <yaml> [--env KEY=VALUE ...]
 //                         One hand-authored journey (maestro/journeys/*.yaml): the i18n
 //                         pseudo-locale/RTL sweep over a pre-seeded kv store, the
 //                         mutation flow (sign in -> create -> relaunch -> persists).
+//                         `--env` (repeatable) forwards a Maestro flow variable
+//                         (`${KEY}` in the YAML) as `maestro test -e KEY=VALUE` — how the
+//                         lane hands the mutation journey the credentials it minted
+//                         (1.0.0: the stub authority is gone; the sign-in is real).
 //   --phase perf-harness  Generates the perf-harness journey from
 //                         tools/interaction-budget.json and runs it — the flow asserts
 //                         the screen's self-measured `perf-pass` leaf marker, so the
@@ -64,6 +68,11 @@ const valueOf = (name) => {
 }
 const phase = valueOf('--phase')
 const outDir = valueOf('--out-dir') ?? 'artifacts/maestro'
+// `--env KEY=VALUE`, repeatable. Values reach Maestro as `-e KEY=VALUE`; a malformed
+// pair (no KEY, no `=`) is a usage error, not a silently-empty variable.
+const flowEnv = args.flatMap((arg, at) =>
+  arg === '--env' && at + 1 < args.length ? [args[at + 1]] : [],
+)
 
 // Every external tool runs through a SHELL command string (never bare spawnSync of a
 // name): maestro and the test suite's stub tools are .cmd shims on Windows, which only
@@ -113,8 +122,9 @@ function captureEvidence(name) {
 function runFlow(maestroBin, flowFile) {
   const name = basename(flowFile).replace(/\.ya?ml$/, '')
   console.log(`${GATE}: running ${flowFile}`)
+  const envArgs = flowEnv.map((pair) => `-e ${quoted(pair)}`).join(' ')
   const res = sh(
-    `${maestroBin} test --debug-output ${quoted(join(outDir, name))} ${quoted(flowFile)}`,
+    `${maestroBin} test ${envArgs}${envArgs === '' ? '' : ' '}--debug-output ${quoted(join(outDir, name))} ${quoted(flowFile)}`,
     { timeout: FLOW_TIMEOUT_MS, killSignal: 'SIGKILL' },
   )
   const out = `${res.stdout ?? ''}${res.stderr ?? ''}`
@@ -147,6 +157,12 @@ try {
   identity = readAppIdentity(IDENTITY_LOCK)
 } catch (e) {
   fail(GATE, e instanceof Error ? e.message : String(e))
+}
+
+for (const pair of flowEnv) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*=/.test(pair)) {
+    fail(GATE, `--env expects KEY=VALUE (KEY an identifier); got '${pair}'`)
+  }
 }
 
 const maestroBin = resolveMaestro()

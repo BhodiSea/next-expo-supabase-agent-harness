@@ -10,6 +10,14 @@
       "reason": "auth chrome, not content — the same call the mobile side makes for apps/mobile/app/sign-in: the sign-in surface has no canonical data states (its pending/failure handling is form state, covered by the sign-in form's own suite) and it must stay reachable to the SIGNED-OUT visitor whose existence a data-state contract presumes away"
     },
     {
+      "name": "sign-up",
+      "reason": "auth chrome, not content — the same call the mobile side makes for apps/mobile/app/sign-up: account creation plus the OFFERED TOTP enrol step is a credential ceremony with no canonical data states (its pending/failure/skip handling is form state driven by @app/supabase's mfa-flow machine), and it must stay reachable to the SIGNED-OUT visitor a data-state contract presumes away"
+    },
+    {
+      "name": "sign-in/mfa",
+      "reason": "auth chrome, not content — the second half of sign-in for an enrolled user (the same call the mobile side makes for apps/mobile/app/mfa-challenge): the TOTP challenge is a step INSIDE the credential ceremony, its pending/failure handling is form state driven by the mfa-flow machine, and the enforcement it satisfies lives in the database rail (supabase/migrations/20260812000000_mfa_aal2.sql), not on this page"
+    },
+    {
       "name": "(protected)/invite/[token]",
       "reason": "single-action chrome: the page renders NOTHING about the invitation before it is redeemed — no org name, no inviter, no role — because the acceptor holds no seat yet and every policy that could describe the org returns them nothing. There is no query, so there is no loading, empty or error state to declare. Showing a preview would require a definer RPC that answers questions about an org to anyone holding a guessable token, which is the token oracle the invitation design exists to avoid"
     }

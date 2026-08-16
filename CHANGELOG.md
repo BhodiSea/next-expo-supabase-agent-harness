@@ -11,6 +11,257 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [1.0.0] — 2026-08-16
+
+**The settlement release: 0.11.1 → 1.0.0 directly, no 0.12.0 ever cut, every deferred item
+either shipped or narrowed to the platform ceiling that owns it.** The obligations register
+went in with 11 release rows, 5 calendar rows and 19 condition rows and comes out with 8
+release rows (all of them the 1.1.0-dated ramp expiries this release itself opens or
+re-opens), 6 calendar rows, and 9 condition rows reduced to platform ceilings re-verified
+on the day. Every comparison in the fleet is `>=`, so the deadlines the 0.11.x
+records wrote as `0.12.0` arrive at this hop exactly as they would have at a 0.12.0: nothing
+strands. **Stable means the register is honest, not that it is empty** — the "What stays
+open" list at the end of this entry is the same list the release was cut against.
+
+### Added
+
+- **The `suppressions` and `resilience` chain steps — 34 → 36.** `tools/check-suppressions.mjs`
+  censuses every inline directive over the product tree (a rule-less `eslint-disable`,
+  `@ts-ignore` and `@ts-nocheck` are hard reds; every survivor names its rule and carries a
+  reason of substance; the census closes both ways against the seeded
+  `tools/suppressions-allow.json`). `tools/check-resilience.mjs` holds the outbound-seam
+  posture as reviewed data in the seeded `tools/resilience.json` — an undeclared transport
+  site reds, a stale row reds, a declared `{retries: 0, timeoutMs: null}` with a `why` is
+  legal. Both are ramped one release for existing installs (`until 1.1.0`) and both paid the
+  priced injection inventory in one commit: configSteps, chain-budget rows, canaries,
+  enforcement-tiers rows, floor regen, the AGENTS.md gate-list escape re-opened at
+  `('1.0.0', …, {until: '1.1.0'})`, and a chain-budget re-record before any figure. The
+  `resilience` step's prerequisite was a **reconciliation**: the shipped lint config and docs
+  described an `apps/mobile/src/lib/api-client.ts` one-door and an `src/lib/sse.ts` client
+  that existed nowhere; both now name the real one-door, `apps/mobile/src/lib/trpc/client.ts`.
+- **The floor/tunable splits.** `tools/auth-posture.json` and `tools/store-policy.json` stay
+  owned FLOORS; the consumer's VALUES move to the seeded, write-guarded
+  `tools/auth-tunables.json` and `tools/store-tunables.json`. The 0.9.5 trap — one file
+  holding a harness floor and a consumer decision, so neither classification was right — is
+  closed, and the e2ee module's `iosEncryption` flip now survives every upgrade.
+- **The fail-closed hook launcher.** `.claude/hooks/launch.mjs` wraps all seven hooks and
+  exits 2 with a block when a hook fails to load: the fail-open surface shrinks from ten files
+  to one, and the residual — a torn `launch.mjs` itself still fails open — is stated in the
+  runbook rather than hidden. Hook stamps 7 → 8.
+- **Privilege lifecycle + just-in-time administration** (`20260815000000_privilege_lifecycle_jit.sql`).
+  `memberships.revalidated_at`; `public.admin_elevations` (PK `(user_id, org_id)`, one-hour
+  expiry — a token lifetime, cited as NOT an ASD number); the effective-rank fold in
+  `private.member_ranks()`/`rpc_admin_org_ids()` — rank ≥ 30 counts only while
+  `revalidated_at` is within ASD's verbatim **12 months** and an unexpired elevation exists,
+  else `LEAST(rank, 20)`; `public.elevate()` with the **45-day** check at the door and an
+  MFA-gated revalidating branch for the owner; `revalidate_member`. The owner-self-demotion
+  hole found on the way — permissive policies OR **per clause** across the set, so a naive
+  owner-self policy let self-demotion pass USING via one policy and WITH CHECK via another —
+  is closed by re-declaring `memberships_update_rpc` OTHERS-ONLY in both clauses and recorded
+  in the ADR. Proven live: pgTAP structure 34, isolation 61 (aged-fixture window proofs), MFA
+  25, plus the client suite. RAP-03/RAP-13 → effective; RAP-02 → alternate-control.
+- **The MFA enrolment surface**, both apps: `mfa-flow.ts` (a pure state machine) +
+  `mfa-actions.ts` on both barrels of `@app/supabase`; web `sign-up`, `sign-in/mfa` and the
+  `(protected)/security` page; mobile `sign-up`, `mfa-challenge` and the `security` screen with
+  its Maestro flow and startup-budget row; ~75 catalog keys. GoTrue cannot MANDATE enrolment,
+  so MFA-01/04/06 stay `not-implemented` under a new condition row rather than being graded
+  up on a surface that exists but cannot be required.
+- **The authentication-event trail, at GoTrue's own hooks.** A new `auth_trail` schema
+  mirroring the audit trail's four append-only layers; two SECURITY DEFINER hook functions
+  (`password_verification_hook`, `mfa_verification_hook`) that INSERT and **always return
+  `continue`**, exception-wrapped so a trail fault never locks anyone out; EXECUTE to
+  `supabase_auth_admin` only; **no reader at all** — pgTAP asserts the SELECT-policy absence.
+  `supabase/config.toml` gains `[auth.hook.password_verification_attempt]` and
+  `[auth.hook.mfa_verification_attempt]`, pinned as `auth-posture` floors with a routed NOTE
+  ramp for existing installs. Proven with a REAL failed `signInWithPassword` producing a row
+  (the auth container must restart to pick up hook config; `db reset` is not enough). Ceilings
+  recorded: hosted auth hooks are paid-plan gated; unknown-email attempts are silent; only the
+  password grant traverses it. MFA-15 → alternate-control. **The two halves are ONE act, and
+  `auth-posture` holds it** (found by upgrade-lane leg E on the first draft of the sweep):
+  the four `[auth.hook.*]` floors are demanded only where the trail migration is in the
+  tree; a hook `enabled = true` with no migration is a HARD red — GoTrue would call a
+  function nothing created and every sign-in would fail; neither present demands nothing
+  and says so in one plain line.
+- **The deploy-time artefact channel** — `deploy-record.yml`, the ninth shipped workflow, three
+  jobs on one clock: `deploy-record` emits and judges the manifest of WHAT SHIPPED on the
+  `deployment_status` event itself; `patch-window` joins the DEPLOYED resolution set against
+  OSV publication dates at ASD's verbatim **48 hours / two weeks / one month** (PA-06/07/10)
+  and no invented ones; `restore-manifest` binds the platform's backup fact to the deploy
+  manifest — the RB-02 shape — with the verified platform exclusions (the Vault/pgsodium root
+  key above all) carried IN the artefact so a restore drill reads them before discovering
+  them. All four rows → alternate-control with `assessorMayRefuse`, for the channel's honest
+  residual stated in the workflow header: a deploy performed outside it emits nothing.
+- **The log-forwarding boundary decision** (`docs/runbooks/log-forwarding.md`): forwarding is
+  operator-owned — the drain surfaces, their asymmetry (Supabase Dashboard-only, Vercel API/
+  Terraform), retention ceilings and sink guarantees are written down, and RAP-20/21,
+  AC-11/12, UAH-20 and MFA-16 move to the organisation boundary with an owner naming the
+  runbook (count-invariant).
+- **The vendor-support register** (`tools/support-register.json`, seeded, + `tools/lib/support-register.mjs`):
+  the eol clock-split applied to support status — the clockless shape and platform-fact
+  closure ride `version-sync`; the clockful lapse rides the scheduled floor-review lane.
+  PA-11 and POS-16 → alternate-control.
+- **The three e2ee ports are IMPLEMENTED, with zero new dependencies.** RecipientWrap is
+  X25519 ECIES with sealed-box semantics over WebCrypto's Secure Curves (fresh ephemeral per
+  wrap; HKDF over `shared ‖ eph_pk ‖ recipient_pk`; AAD role `0x02` binding both points via a
+  new byte-field builder; wire `0x01 ‖ eph_pk ‖ envelope`; the RFC 7748 vectors run against
+  the real engine and a committed known-answer freezes the wire); Recovery is a GENERATED
+  32-byte code (Crockford base32, shown once — the `invitations.token_digest` custody
+  precedent) with plain HKDF because full-entropy input needs no memory-hard KDF, role `0x03`,
+  a new closed reason `recovery_code_malformed`; DeviceSync is an envelope over
+  `HKDF(channelKey)`, role `0x04`, with the pairing ceremony left to the consumer and the
+  entropy arithmetic written down. The keyring ships `rewrapItemKey`, so rotation is a
+  one-column rewrite and only its orchestration stays consumer-owned. `ports-declared.ts` is
+  deleted; each interface sits beside its implementation. The passphrase-KDF refusal
+  **survives** as the narrowed condition row `e2ee-passphrase-kdf-consumer-decision`.
+- **The conformance map, built whole** — `tools/conformance-map.json`: 392 verbatim rows,
+  ASVS 5.0.0 (**345** — the planning figure of 369 was wrong and is recorded in the header so
+  nobody re-derives it), MASVS 2.1 (24) and CRA Annex I (23), each graded covered / partial /
+  not-covered / not-applicable against a LIVE control with a stated residual, module rows
+  conditional, and **no sentence claiming a verification level** — levels attach to
+  verifications of applications, and the new `standards-claim` hygiene sweep reds any
+  affirmative "ASVS L2-compliant"/"MASVS-certified"/"CRA-compliant" shape anywhere in the
+  prose. `tools/check-conformance-map.mjs` judges it as the THIRD script of `docs-sync` (no
+  chain growth); `scripts/check-conformance-evidence.mjs` resolves every positive claim's
+  canary factory-side; `tools/gen-conformance-docs.mjs` regen-diffs
+  `docs/compliance/controls-crosswalk.md` and `docs/security/threat-model.md`. Every one of the
+  36 gates and 10 Stop steps either appears in the crosswalk or sits in `unmappedControls`
+  with a reason. Shelf life stated: no harmonised standard for the CRA had been cited in the
+  Official Journal as of 2026-08-16 — the new calendar row `conformance-cra-hens-citation`
+  re-verifies that on 2026-12-31.
+- **The cold-path measurement channel.** THE GATE's own `--min-floor` run in bootstrap-linux
+  is the cold path — a fresh clone, cold caches, the first validate — and it is now teed and
+  recordable: `check-chain-budget --record --cold` stamps `coldWall`/`coldMeasurement` on the
+  same reviewed-dispatch path as the warm and Stop halves. Measured, never budgeted (no
+  ceiling: a first-clone figure is dominated by installs the chain does not own). The first
+  cold recording landed from the release branch's dispatch: cold ≈ 110 s wall (110224 ms,
+  36/36 steps reached, 2026-08-16, Linux/X64), beside the re-recorded warm ≈ 23 s
+  (23030 ms, 36/36) and Stop turn-end ~52.7 s (52665 ms, 10/10). `check-claims` licenses
+  the warm and cold figures separately, each by its own recording. Row
+  `cold-path-measurement-publication` discharged.
+- **`scripts/sweep-registry-deprecations.mjs`** — `tools/eol.json`'s review method as a tool:
+  asks the registry about every resolved `package@version` in a rendered scaffold. The 1.0.0
+  review swept 1556 pairs, found six deprecations, and the register carries exactly those six.
+- **The seeded `security.txt`** (RFC 9116) with a `SECURITY_TXT_EXPIRES` init answer; the
+  clockless shape rides `security-headers`, the lapse rides floor-review.
+- **`tools/modules.json`** (owned) — the shipped module list, lockstepped to the installer's;
+  `check-exports-walls` closes census module names against it. **`tools/mutation-scope-extra.json`**
+  (seeded, additive) beside the owned mutation floor, with a zero-match alarm in the scoper.
+- **`check-release-lockstep` holds the DATE too**: `CITATION.cff`'s `date-released` must equal
+  the CHANGELOG heading's date.
+
+### Changed
+
+- **The vertical-anatomy DAL laws are behaviour-keyed**: a client value-import anywhere in
+  `src/**` reds, and PostgREST callers (`.from(`/`.rpc(`/`.select(`) owe a resolving `port.ts`
+  import — findings carry a `vintage`, the legacy ones on the expired 0.9.5 ramp and the
+  widening on a new 1.0.0 → 1.1.0 ramp.
+- **`crypto-primitives-one-door` is binding-tracked** (namespace/default/`{webcrypto}`/require
+  aliases judged at `Program:exit`), which also fixes the old false-red on an unrelated
+  `.subtle` member.
+- **The Essential Eight standing** recomputes to **8 effective, 13 alternate-control,
+  11 not-implemented, 61 not-applicable, 56 organisation-boundary** (149 invariant).
+- **The provenance gate had never scanned `@app/crypto`**: it enumerates via `git ls-files`
+  and the render lane never `git add`s, so the module's 58 uncited decision sites (JSDoc
+  ` * SOURCE:` does not match the CITED shape; `HKDF_ZERO_SALT` and barrel re-exports trip the
+  heuristic) were invisible until this release brought them to the `//` form.
+- **`tools/store-tunables.json` joins the `mobile-security-reviewer` triggers** — the split had
+  moved `iosEncryption` there while the trigger still named the floor file.
+- **The web `KeystoreAdapter` stays byte-shaped, and the reason is now decisive**: a
+  non-extractable `CryptoKey` handle could never feed escrow or device export.
+- **README status: `stable (1.0.x)`**, with `check-claims` holding the word/major agreement.
+
+### Fixed
+
+- **The 0.11.0 record's false claim** that the suppressions subject "ships here folded into
+  `boundaries`" — it did not; the step ships here as its own gate. And the discharged
+  0.10.0-era row's "no expiry wave" argument, which every release since has disproved.
+- **The uuid acceptance's evidence**: two reviews recorded `xcode@3.0.1` as an EXACT
+  `uuid: 7.0.3` pin from a lockfile line; the manifest declares `^7.0.3`, a caret over a
+  wholly-deprecated line resolved to its last release. Same disposition, corrected record,
+  `removalTarget` → 1.1.0 with the discharge condition stated as one command.
+- **The `chain-budget` scrub and re-record**: the committed 34/10 measurement was history
+  for a chain this tree no longer runs, so every wall-clock figure was withdrawn at the chain
+  growth and re-published only after the dispatched 36/10 (+cold) re-record landed and was
+  committed (selftest run 31932626790 on the release branch, the CI artifact verbatim) — the
+  order is measure, commit, then publish, and it held for the whole release.
+- **The device lane, made true again — found by running it on the release branch.** The
+  README says the emulator lanes are proven nightly; the nightly `maestro-smoke` had been
+  RED since Supabase Auth replaced the inherited stub authority (invisible at agent time —
+  the journeys run only on a device), and 1.0.0's own dispatch added a second red. Three
+  corrections, all shipped to consumers as owned files: (1) `maestro/journeys/mutation.yaml`
+  tapped an EMPTY sign-in form and expected a dev user to be minted; it now signs in for
+  real as an identity the lane mints WITH its personal org (`tools/ci/mint-device-user.mjs`
+  — admin createUser + `ensure_personal_org` as that user, the `tests/rls` precedent, pure
+  fetch; a mobile-only sign-up holds no seat, so without the org `notes.create` resolves no
+  acting org), handed in as Maestro flow variables through the new
+  `check-e2e-device.mjs --env KEY=VALUE`; the consumer `quality-gate.yml` publishes the
+  local stack's service-role key for that one step, as its web-e2e job already did.
+  (2) `maestro/flows/security.yaml` (new in this release) fired its deep link straight after
+  `launchApp` — a VIEW intent delivered while the navigator is still mounting is dropped on
+  the floor (Maestro reported the openLink COMPLETED while the hierarchy showed Home for the
+  whole 30 s wait) — the exact lesson the mutation journey had already recorded; the flow now
+  waits for the router-live sentinel first. (3) The generated flow scaffold and route sweep
+  (`tools/lib/maestro-flows.mjs`) emit that guard themselves — the sweep had been green by
+  ACCIDENT (its first link was the initial route, so a dropped intent was invisible), and
+  the next scaffolded flow would have repeated the defect. Canaries 19/20 and the
+  perf-harness journey, which the stale mutation journey had blocked every night, run again.
+
+### Ledger
+
+- **Ramp expiries at this hop** — data-flow's 0.12.0-dated erase record plus everything
+  older: the affected population is `baseVersion 0.1.3 … 0.10.0` (thirteen vintages), stated
+  in the 1.0.0 migrations record and computed by `check-ramp-ledger`. **The other
+  0.12.0-dated ramp — version-sync's eol arrival — is RE-OPENED at (1.0.0 → 1.1.0)** rather
+  than expired: upgrade-lane leg A (v0.11.1 → 1.0.0) went red with no deadline met, because
+  the 0.11.x vintages hold a seeded `tools/eol.json` saying `0.12.0`, that date arrives at
+  1.0.0 (`>=`), and an escape opened at `minVersion 0.11.0` is inert for exactly them — the
+  0.11.1 defect one release on. The standing rule is now written into the row: every release
+  that moves the template's `removalTarget` owes BOTH the `seededSourceFixes` probe on the old
+  literal AND an arrival ramp opened at its own `minVersion`. **New ramps opened, all until
+  1.1.0**: suppressions, resilience, docs-sync's gate list (a `rampExtensions` move from
+  0.9.0), boundaries' anatomy widening, exports-walls' module closure, auth-posture's hook
+  sections, version-sync's support register — each with its own release row so the 1.1.0
+  record owes the expiry.
+- **Register**: release rows discharged — control-plane-facts-currency (re-verified and
+  KEPT), suppressions-chain-step, resilience-chain-step, auth-posture-consumer-tunable-split,
+  store-policy-consumer-tunable-split, canary-registry-hook-subagent-verdict,
+  compensating-proof-names-its-ramp, hook-fail-closed-launcher, vertical-anatomy-folder-name-
+  coupling, crypto-one-door-namespace-imports, exports-walls-module-name-validation,
+  mutation-scope-seeded-split, security-txt-rfc9116, e8-privilege-lifecycle, e8-jit-admin,
+  e8-mfa-enrolment-surface, e8-auth-event-trail, e8-central-log-forwarding, e8-eol-closure,
+  e8-patch-window-evidence, e8-restore-manifest, e2ee-declared-ports-unimplemented (narrowed),
+  conformance-map-whole-or-not-at-all, controls-crosswalk-and-threat-model, data-flow-erase-
+  ramp-expiry, version-sync-eol-arrival-ramp-expiry. Rows added: e8-mfa-mandatory-enrolment,
+  e2ee-passphrase-kdf-consumer-decision, conformance-cra-hens-citation, and the seven 1.1.0
+  ramp-expiry rows (docs-sync gate list, suppressions, resilience, boundaries' anatomy
+  widening, exports-walls' module closure, auth-posture's hook sections, version-sync's
+  support register). Row `cold-path-measurement-publication` discharged by the committed
+  cold recording (its condition, met through the channel it named).
+- **Upgrade lane**: `VINTAGES` += 0.11.1; leg L (v0.10.0 — the vintage no leg covered since
+  0.11.1, and the smallest non-zero wave at 1.0.0) and leg M (v0.11.0 — the vacated vintage,
+  zero expiries and the whole 1.0.0 NOTE fleet) join A–K. **`SWEEPS['1.0.0']` was written by
+  RUNNING leg E**, three drafts deep: the derived seeded-source fixes copy HEAD's
+  `sign-in/page.tsx`, `sign-in-form.tsx`, `@app/supabase`'s `client.ts` and
+  `tools/data-flow.json` into old installs, and at 1.0.0 those import the MFA ceremony and
+  exclude `admin_elevations` — so the sweep adopts the WEB MFA seams beside their importers
+  (dead-code's "unresolved imports" and route-manifest's stale allowlist otherwise), and
+  reconciles `export.excluded` to the migrations the install actually has (a new pure
+  primitive with its red-proof). It does NOT append the hook block or adopt the trail (the
+  first draft did, and the trail dragged three seeded wiring files behind it — the ambush
+  `seedOnInitOnly` exists to avoid). Two MFA pages cited the 0.9.9 MFA migration by path,
+  which a swept install does not have; they cite its ADR now.
+
+### What stays open, honestly
+
+Platform ceilings, each a re-verified condition row: phishing-resistant MFA (Supabase
+WebAuthn undocumented), the CLI config census (supabase/cli#5894 still open, 0 comments —
+re-dated to 1.1.0 across every site, "one minor" reworded to "one release"), backup store
+posture and immutability, the off-Linux Stop chain, mandatory MFA enrolment, the e2ee
+passphrase KDF, control-plane currency (recurring), the architecture-reviewer widening
+(evidence-gated, re-affirmed). Calendar rows: Play target-API 2026-08-31, CRA Art. 14
+2026-09-11, Supabase grants 2026-10-30, AI Act 2026-12-02, CRA hENs 2026-12-31, E8 retirement
+2027-06-15.
+
 ## [0.11.1] — 2026-08-15
 
 **The correction release, and the correction is to the release before it.** v0.11.0 was

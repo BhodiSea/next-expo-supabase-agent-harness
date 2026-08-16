@@ -19,10 +19,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  parseFrontmatter,
-  splitList,
-} from '../../template/base/tools/lib/agent-roster.mjs'
+import { parseFrontmatter, splitList } from '../../template/base/tools/lib/agent-roster.mjs'
 
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
 const AGENTS_TEMPLATE = fileURLToPath(new URL('../../template/base/AGENTS.md', import.meta.url))
@@ -36,8 +33,10 @@ const ROSTER_TEMPLATE = fileURLToPath(
 // The REAL shipped scripts (placeholders neutralized) — the GREEN case must
 // prove the shipped AGENTS.md against the shipped package surface.
 const SHIPPED_SCRIPTS = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../../template/base/package.json.tmpl', import.meta.url)), 'utf8')
-    .replace(/\{\{[A-Z0-9_]+\}\}/g, 'x'),
+  readFileSync(
+    fileURLToPath(new URL('../../template/base/package.json.tmpl', import.meta.url)),
+    'utf8',
+  ).replace(/\{\{[A-Z0-9_]+\}\}/g, 'x'),
 ).scripts
 
 // The shipped catalog is the canonical fixture for the catalog-lockstep check,
@@ -47,7 +46,15 @@ const SHIPPED_SCRIPTS = JSON.parse(
 // default (the GREEN case proves the real shipped agents against the real gate);
 // `roster` overlays it — filename -> content plants/overwrites a file, null deletes.
 /** @param {{ agents?: any, claude?: any, scripts?: any, catalog?: any, manifest?: any, roster?: any, files?: Record<string, string> }} parts */
-function fixture({ agents, claude = '@AGENTS.md\n', scripts = SHIPPED_SCRIPTS, catalog = shippedCatalog, manifest, roster, files }) {
+function fixture({
+  agents,
+  claude = '@AGENTS.md\n',
+  scripts = SHIPPED_SCRIPTS,
+  catalog = shippedCatalog,
+  manifest,
+  roster,
+  files,
+}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-docs-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
@@ -121,7 +128,11 @@ function* walkBodies(root) {
 const shippedCatalog = readFileSync(CATALOG_TEMPLATE, 'utf8')
 
 function runGate(dir) {
-  const res = spawnSync('node', ['tools/check-docs-sync.mjs'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CI: 'true' } })
+  const res = spawnSync('node', ['tools/check-docs-sync.mjs'], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CI: 'true' },
+  })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
 
@@ -149,16 +160,18 @@ test('RED: a drifted gate list names the documented vs actual chains', () => {
 // hard red there is a gate ambushing an update. The distinction has to be decidable, or
 // the fix is just "ramp everything", which retires the check.
 
-test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 install', () => {
+test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-1.0.0 install', () => {
   // Every documented gate still exists, in order — so the difference is steps something
   // else added, and the only thing that adds steps to a seeded config is `update`.
   //
-  // THE RAMP MOVED AGAIN IN 0.8.0 and these two tests moved with it, in the same diff —
-  // exactly as the 0.6.0 move before it. The 0.6.0 ramp expired at 0.7.0; 0.8.0 injects
-  // `observability` via configSteps, so the same ambush is live again for every install
-  // whose AGENTS.md still says 33 (or fewer). A ramp's tests are pinned to its version by
-  // construction — leaving them on the old one is how a re-opened escape ends up asserting
-  // the previous release's deadline.
+  // THE RAMP MOVED A THIRD TIME IN 1.0.0 and these tests moved with it, in the same diff —
+  // exactly as the 0.6.0 and 0.8.0 moves before it. The 0.8.0 ramp expired at 0.9.0; 1.0.0
+  // injects `suppressions` and `resilience` via configSteps, so the same ambush is live
+  // again for every install whose AGENTS.md still says 34 (or fewer) — and this time the
+  // escape opens at minVersion 1.0.0, ABOVE the whole population it protects (the 0.11.1
+  // lesson: an escape opened at or below its population is inert for exactly them). A
+  // ramp's tests are pinned to its version by construction — leaving them on the old one is
+  // how a re-opened escape ends up asserting the previous release's deadline.
   const r = runGate(
     fixture({
       agents: shippedAgents
@@ -166,19 +179,19 @@ test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-0.6.0 instal
         .replace(/the (\d+)-step chain/, 'the 29-step chain')
         .replace(' `wiring`,\n  `secrets`,', '')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.8.0', baseVersion: '0.7.0', files: {} },
+      manifest: { harnessVersion: '1.0.0', baseVersion: '0.11.1', files: {} },
     }),
   )
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('expires in 0.9.0'), `the NOTE must carry its deadline:\n${r.out}`)
+  assert.ok(r.out.includes('expires in 1.1.0'), `the NOTE must carry its deadline:\n${r.out}`)
   assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
 })
 
-test('the re-opened gate-list ramp EXPIRES at harness 0.9.0 — the branch EXECUTED', () => {
+test('the re-opened gate-list ramp EXPIRES at harness 1.1.0 — the branch EXECUTED', () => {
   // The registered proof for the release the deadline arrives, written beside the ramp it
   // proves (the check-observability.test.mjs twin at its own 0.9.0 expiry): the same
-  // additive drift that NOTEs above hard-fails once the harness reads 0.9.0, because the
-  // 0.8.0→0.9.0 extension was the deadline's LAST move — the injected step's escape must
+  // additive drift that NOTEs above hard-fails once the harness reads 1.1.0, because the
+  // 0.9.0→1.1.0 extension was the deadline's LAST move — the injected steps' escape must
   // die on schedule or the lockstep check it escapes never returns.
   const r = runGate(
     fixture({
@@ -187,12 +200,12 @@ test('the re-opened gate-list ramp EXPIRES at harness 0.9.0 — the branch EXECU
         .replace(/the (\d+)-step chain/, 'the 29-step chain')
         .replace(' `wiring`,\n  `secrets`,', '')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.9.0', baseVersion: '0.7.0', files: {} },
+      manifest: { harnessVersion: '1.1.0', baseVersion: '0.11.1', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /docs-sync: RAMP EXPIRED/)
-  assert.match(r.out, /deadline of 0\.9\.0/)
+  assert.match(r.out, /deadline of 1\.1\.0/)
 })
 
 test('RED: the same additive drift is LIVE on a fresh install — no legacy, no ramp', () => {
@@ -201,14 +214,14 @@ test('RED: the same additive drift is LIVE on a fresh install — no legacy, no 
       agents: shippedAgents
         .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '0.8.0', baseVersion: '0.8.0', files: {} },
+      manifest: { harnessVersion: '1.0.0', baseVersion: '1.0.0', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
 })
 
-test('RED: a documented gate that NO LONGER EXISTS is the project\'s drift — never ramped', () => {
+test("RED: a documented gate that NO LONGER EXISTS is the project's drift — never ramped", () => {
   // The sharp half. An invented or deleted step is not something `update` did, so it stays
   // a hard red at every vintage — otherwise the ramp would swallow the case the check is
   // actually for.
@@ -222,10 +235,16 @@ test('RED: a documented gate that NO LONGER EXISTS is the project\'s drift — n
   assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
 })
 
-test('RED: REORDERED gates are the project\'s drift too — the chain order is the contract', () => {
-  const swapped = shippedAgents.replace('`format`, `gate-integrity`,', '`gate-integrity`, `format`,')
+test("RED: REORDERED gates are the project's drift too — the chain order is the contract", () => {
+  const swapped = shippedAgents.replace(
+    '`format`, `gate-integrity`,',
+    '`gate-integrity`, `format`,',
+  )
   const r = runGate(
-    fixture({ agents: swapped, manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} } }),
+    fixture({
+      agents: swapped,
+      manifest: { harnessVersion: '0.3.0', baseVersion: '0.2.1', files: {} },
+    }),
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('drifted from VALIDATE_STEPS'), r.out)
@@ -239,7 +258,9 @@ test('RED: a wrong gate COUNT fails even when the names parse', () => {
 })
 
 test('RED: impure CLAUDE.md and an advertised script that does not exist', () => {
-  const impure = runGate(fixture({ agents: shippedAgents, claude: '@AGENTS.md\nextra doctrine here\n' }))
+  const impure = runGate(
+    fixture({ agents: shippedAgents, claude: '@AGENTS.md\nextra doctrine here\n' }),
+  )
   assert.equal(impure.code, 1, impure.out)
   assert.ok(impure.out.includes('pure'), impure.out)
 
@@ -307,10 +328,7 @@ test('NOTE: Stop-list drift is advisory on a pre-0.10.0 install until 0.11.0', (
 // the check ships in 0.1.0, so it is live on every fresh install. ──
 
 test('RED: renaming a numbered catalog section reds the catalog-lockstep sub-check', () => {
-  const renamed = shippedCatalog.replace(
-    /^### (\d+)\. perf-budget — /m,
-    '### $1. perf-fudget — ',
-  )
+  const renamed = shippedCatalog.replace(/^### (\d+)\. perf-budget — /m, '### $1. perf-fudget — ')
   assert.notEqual(renamed, shippedCatalog, 'fixture must actually rename a section')
   const r = runGate(fixture({ agents: shippedAgents, catalog: renamed }))
   assert.equal(r.code, 1, r.out)
@@ -326,15 +344,15 @@ test('RED: renaming a numbered catalog section reds the catalog-lockstep sub-che
 // author one against the tree it is meant to judge. ──
 
 test('RED: a catalog ordinal that disagrees with the chain index reds, naming both numbers', () => {
-  // `boundaries` is chain step 8. Renumber its heading to 9 and nothing else:
-  // membership still passes (the NAME is intact), so this can only be caught by
-  // the ordinal check — which is the point of the fixture.
-  const misnumbered = shippedCatalog.replace(/^### 8\. boundaries — /m, '### 9. boundaries — ')
+  // `boundaries` is chain step 9 (since the 1.0.0 injections). Renumber its heading to
+  // 10 and nothing else: membership still passes (the NAME is intact), so this can only
+  // be caught by the ordinal check — which is the point of the fixture.
+  const misnumbered = shippedCatalog.replace(/^### 9\. boundaries — /m, '### 10. boundaries — ')
   assert.notEqual(misnumbered, shippedCatalog, 'fixture must actually renumber a section')
   const r = runGate(fixture({ agents: shippedAgents, catalog: misnumbered }))
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes("numbers 'boundaries' as section 9"), r.out)
-  assert.ok(r.out.includes('chain step 8'), r.out)
+  assert.ok(r.out.includes("numbers 'boundaries' as section 10"), r.out)
+  assert.ok(r.out.includes('chain step 9'), r.out)
   // And it is NOT the membership error — proving the two sub-checks are distinct.
   assert.ok(!r.out.includes("gate 'boundaries' has no section"), r.out)
 })
@@ -375,7 +393,11 @@ test('a catalog miss reds on ANY vintage — the gates-catalog lockstep is uncon
   // A hypothetical pre-lineage consumer (no baseVersion field — harnessVersion is the
   // fallback). It used to ride a NOTE; it is held now.
   const ramped = runGate(
-    fixture({ agents: shippedAgents, catalog: renamed, manifest: { harnessVersion: '0.0.9', files: {} } }),
+    fixture({
+      agents: shippedAgents,
+      catalog: renamed,
+      manifest: { harnessVersion: '0.0.9', files: {} },
+    }),
   )
   assert.equal(ramped.code, 1, ramped.out)
   assert.ok(ramped.out.includes("gate 'perf-budget' has no section"), ramped.out)
@@ -627,9 +649,7 @@ const shippedTiers = readFileSync(TIERS_TEMPLATE, 'utf8')
 const WORKFLOW_TEMPLATE = fileURLToPath(
   new URL('../../template/base/github/workflows/quality-gate.yml', import.meta.url),
 )
-const WORKFLOW_DIR = fileURLToPath(
-  new URL('../../template/base/github/workflows', import.meta.url),
-)
+const WORKFLOW_DIR = fileURLToPath(new URL('../../template/base/github/workflows', import.meta.url))
 const SECURITY_DOCS = fileURLToPath(new URL('../../template/base/docs/security', import.meta.url))
 
 /**
@@ -672,7 +692,10 @@ test('TIERS GREEN: the SHIPPED table parses and every compensating control is li
   // parser have drifted apart again — and the symptom is "declares nothing", not a diff.
   const r = runGate(tiersFixture(shippedTiers))
   assert.equal(r.code, 0, r.out)
-  assert.match(r.out, /enforcement tier\(s\) declared over \d+ workflow\(s\); every compensating control live/)
+  assert.match(
+    r.out,
+    /enforcement tier\(s\) declared over \d+ workflow\(s\); every compensating control live/,
+  )
   assert.doesNotMatch(r.out, /no parseable tier rows/, r.out)
 })
 
@@ -728,7 +751,9 @@ test('TIERS RED: an empty cell is a tier declared without one of its facts', () 
 test('TIERS: the shipped table is GREEN at 0.5.0 — the deferred rows are not yet due', () => {
   // The other half of the deferral being honest: moving i18n and route-manifest to 0.6.0
   // buys exactly one release, and this pins that it buys only one.
-  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  const r = runGate(
+    tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.5.0' }),
+  )
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /every arrived Target discharged/)
 })
@@ -745,7 +770,9 @@ test('TIERS: BOTH 0.6.0 commitments are discharged — the shipped table is gree
   // control itself is unchanged and still proven, by the two tests below: one re-dates a
   // discharged row and watches it red, the other holds a genuinely single-surface gate to an
   // arrived date. What is gone is only the harness's own outstanding debt.
-  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
+  const r = runGate(
+    tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: '0.6.0' }),
+  )
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /every arrived Target discharged/)
   assert.doesNotMatch(r.out, /gate `i18n`/)
@@ -790,10 +817,17 @@ test('TIERS RED: an ARRIVED Target on a still-single-surface gate reds', () => {
   // paid. `perf-budget` scans apps/mobile only and says so with `Target —`; re-dating it to
   // a release that has arrived must red.
   const due = shippedTiers.replace(/^(\| `perf-budget` \|.*)\| — \|$/m, '$1| 0.6.0 |')
-  assert.notEqual(due, shippedTiers, 'the perf-budget row must be found for this test to mean anything')
+  assert.notEqual(
+    due,
+    shippedTiers,
+    'the perf-budget row must be found for this test to mean anything',
+  )
   const r = runGate(tiersFixture(due, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /committed to closing its gap in 0\.6\.0 and this install runs harness 0\.6\.0/)
+  assert.match(
+    r.out,
+    /committed to closing its gap in 0\.6\.0 and this install runs harness 0\.6\.0/,
+  )
   assert.match(r.out, /gate `perf-budget`/)
   // The rows that carry `Target —` mean "no other half is owed" and must NOT red: a draft of
   // this check treated the em dash as a missing commitment and reddened all of them.
@@ -808,7 +842,11 @@ test('TIERS: the TWIN-SCRIPT step discharges — a fold over the step, not the s
   // script would have kept it in the single-surface set forever — a control demanding a
   // change that no change could satisfy.
   const due = shippedTiers.replace(/^(\| `route-manifest` \|.*)\| — \|$/m, '$1| 0.6.0 |')
-  assert.notEqual(due, shippedTiers, 'the route-manifest row must be found for this test to mean anything')
+  assert.notEqual(
+    due,
+    shippedTiers,
+    'the route-manifest row must be found for this test to mean anything',
+  )
   const r = runGate(tiersFixture(due, { allTools: true, allWorkflows: true, harness: '0.6.0' }))
   assert.equal(r.code, 0, r.out)
   assert.doesNotMatch(r.out, /gate `route-manifest`/)
@@ -837,7 +875,9 @@ test('TIERS: with NO manifest the Target check SAYS it is not judging, rather th
   // is no installed release to measure a date against. Defined rather than inherited: a
   // silent pass would leave Targets unenforced in exactly the tree the harness's own
   // maintainers work in, which is where the three stale ones were written.
-  const r = runGate(tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: null }))
+  const r = runGate(
+    tiersFixture(shippedTiers, { allTools: true, allWorkflows: true, harness: null }),
+  )
   assert.match(r.out, /no \.harness\/manifest\.json, so `Target` dates .* are not judged/)
 })
 
@@ -865,15 +905,22 @@ const PROBE_REF = "\nconst PROBE_POLICY_KEY = 'probeDischargeKey'\nvoid PROBE_PO
  */
 function probeFixture({ cell = PROBE_CELL, record, reference } = {}) {
   const probed = shippedTiers.replace(/^(\| `perf-budget` \|.*)\| — \|$/m, `$1| ${cell} |`)
-  assert.notEqual(probed, shippedTiers, 'the perf-budget row must be found for the probe fixtures to mean anything')
+  assert.notEqual(
+    probed,
+    shippedTiers,
+    'the perf-budget row must be found for the probe fixtures to mean anything',
+  )
   const dir = tiersFixture(probed, { allTools: true, allWorkflows: true, harness: '0.6.0' })
-  if (record !== undefined) writeFileSync(join(dir, 'tools/probe-policy.json'), JSON.stringify(record))
+  if (record !== undefined)
+    writeFileSync(join(dir, 'tools/probe-policy.json'), JSON.stringify(record))
   if (reference !== undefined) appendFileSync(join(dir, 'tools/check-perf-budget.mjs'), reference)
   return dir
 }
 
 test('TIERS PROBE: an arrived, SATISFIED probe discharges a still-single-surface gate', () => {
-  const r = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } }, reference: PROBE_REF }))
+  const r = runGate(
+    probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } }, reference: PROBE_REF }),
+  )
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /every arrived Target discharged/)
   // The sharp half: perf-budget still hard-codes one surface, so the surface form would
@@ -895,7 +942,10 @@ test('TIERS PROBE RED: a key NO step script reads cannot discharge — comment m
   // The record is present and non-empty; nothing under tools/ references the key.
   const unread = runGate(probeFixture({ record: { probeDischargeKey: { xcodeFloor: 26 } } }))
   assert.equal(unread.code, 1, unread.out)
-  assert.match(unread.out, /no script implementing the row's step .* references 'probeDischargeKey' on a non-comment line/)
+  assert.match(
+    unread.out,
+    /no script implementing the row's step .* references 'probeDischargeKey' on a non-comment line/,
+  )
 
   // A comment-only mention is not a reference — a key a gate merely talks about is a
   // record nothing enforces, which is the self-certification the reference check exists
@@ -914,7 +964,9 @@ test('TIERS PROBE: before the date arrives the probe is NOT judged — the deadl
   // No record, no reference: the probe is UNSATISFIED, and still green — the probe is
   // the arrived-discharge question, not a standing lint. The date is what arms it, the
   // same way the surface form leaves an undue row alone.
-  const r = runGate(probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json#probeDischargeKey`' }))
+  const r = runGate(
+    probeFixture({ cell: '0.9.0 — closes: `tools/probe-policy.json#probeDischargeKey`' }),
+  )
   assert.equal(r.code, 0, r.out)
   assert.match(r.out, /every arrived Target discharged/)
 })
@@ -922,7 +974,9 @@ test('TIERS PROBE: before the date arrives the probe is NOT judged — the deadl
 test('TIERS PROBE RED: a malformed `closes:` annotation reds even before the date arrives', () => {
   // No backticked path — nothing can evaluate this, and waiting for the date would let a
   // typo sleep until the deadline and then fail the discharge for a clerical reason.
-  const bare = runGate(probeFixture({ cell: '0.9.0 — closes: tools/probe-policy.json#probeDischargeKey' }))
+  const bare = runGate(
+    probeFixture({ cell: '0.9.0 — closes: tools/probe-policy.json#probeDischargeKey' }),
+  )
   assert.equal(bare.code, 1, bare.out)
   assert.match(bare.out, /`closes:` annotation does not parse/)
 
@@ -942,7 +996,9 @@ test('TIERS RED: an only-conditional compensating control must admit it is path-
     '$1| `web-e2e` | — |',
   )
   assert.notEqual(overstated, shippedTiers, 'the perf-budget row must be found')
-  const r = runGate(tiersFixture(overstated, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  const r = runGate(
+    tiersFixture(overstated, { allTools: true, allWorkflows: true, harness: '0.5.0' }),
+  )
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /are CONDITIONAL jobs \(path- or event-filtered\)/)
   assert.match(r.out, /summarize-gate\.mjs greens over a skipped lane/)
@@ -958,7 +1014,9 @@ test('TIERS: a control living in a NON-quality-gate workflow now resolves', () =
   )
   assert.notEqual(elsewhere, shippedTiers, 'the duplication row must be found')
 
-  const all = runGate(tiersFixture(elsewhere, { allTools: true, allWorkflows: true, harness: '0.5.0' }))
+  const all = runGate(
+    tiersFixture(elsewhere, { allTools: true, allWorkflows: true, harness: '0.5.0' }),
+  )
   assert.equal(all.code, 0, all.out)
 
   // ...and the proof that the fixture is not simply lenient: with only quality-gate.yml
@@ -1009,9 +1067,7 @@ test('SANDBOX RED: a --web mode the doc never mentions understates a real contro
 // consumer's prose is not the harness's to red), and an ARRIVED target reds until the
 // author ships the check or moves the date in a reviewed diff.
 
-const shippedLedger = JSON.parse(
-  readFileSync(join(TOOLS, 'deferrals.json'), 'utf8'),
-)
+const shippedLedger = JSON.parse(readFileSync(join(TOOLS, 'deferrals.json'), 'utf8'))
 const LONG_REASON =
   'A test-fixture deferral reason comfortably past the forty-character review floor.'
 
@@ -1059,7 +1115,10 @@ test('DEFERRAL RED: an ARRIVED target reds naming the entry, both versions, and 
     }),
   )
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /entry 'custom-scale-census' committed to 0\.6\.0 and this install runs harness 0\.7\.0/)
+  assert.match(
+    r.out,
+    /entry 'custom-scale-census' committed to 0\.6\.0 and this install runs harness 0\.7\.0/,
+  )
   assert.match(r.out, /has ARRIVED/)
   assert.match(r.out, /move the date to a release you mean in a reviewed diff/)
 })
@@ -1113,7 +1172,10 @@ test('DEFERRAL RED: a ledger entry whose file dropped the sentence is a second s
     }),
   )
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /entry 'custom-scale-census' says tools\/check-custom-lane\.mjs defers to 0\.9\.0/)
+  assert.match(
+    r.out,
+    /entry 'custom-scale-census' says tools\/check-custom-lane\.mjs defers to 0\.9\.0/,
+  )
   assert.match(r.out, /no longer carries that dated sentence/)
 })
 
@@ -1174,7 +1236,10 @@ test('DEFERRAL RAMP: findings are dated NOTEs on a pre-0.7.0 install, and the es
     }),
   )
   assert.equal(noted.code, 0, noted.out)
-  assert.ok(noted.out.includes('expires in 0.8.0'), `the NOTE must carry its deadline:\n${noted.out}`)
+  assert.ok(
+    noted.out.includes('expires in 0.8.0'),
+    `the NOTE must carry its deadline:\n${noted.out}`,
+  )
   assert.match(noted.out, /NOTE — \(ramp\).*has no entry for this file at that target/)
 
   // At harness 0.8.0 the escape is over: the same planted finding is a hard failure under
@@ -1210,7 +1275,10 @@ test('DEFERRAL ARRIVAL: the shipped census target is a live tripwire, derived �
     deferralFixture({ manifest: { harnessVersion: target, baseVersion: target, files: {} } }),
   )
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, new RegExp(`entry 'auth-posture-cli-census' committed to ${target.replaceAll('.', '\\.')}`))
+  assert.match(
+    r.out,
+    new RegExp(`entry 'auth-posture-cli-census' committed to ${target.replaceAll('.', '\\.')}`),
+  )
   assert.match(r.out, /has ARRIVED/)
 })
 

@@ -44,6 +44,36 @@ const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).ver
 // reject. Example: { file: 'template/stack/tools/new-budget.json', reason: '…' }
 const DELIBERATE_PLANT = [
   {
+    file: 'template/base/tools/suppressions-allow.json',
+    reason:
+      'ABSENT, tools/check-suppressions.mjs still scans but then FAILS asking for the register (after the 1.0.0 ramp), so a pre-1.0.0 install would trade its dated NOTE for a hard red the moment the ramp expires — the observability.json shape exactly. Planting costs an existing install nothing: the census closes over THEIR tree, and the shipped rows describe the harness-seeded files their tree already carries (a consumer who edited a seeded file away simply deletes the stale row the gate names). The content is a review record of the scaffold’s own directives; it names no consumer-specific site.',
+  },
+  {
+    file: 'template/base/tools/resilience.json',
+    reason:
+      'Identical reasoning to suppressions-allow.json one line up: tools/check-resilience.mjs fails closed on a missing register after its ramp, so withholding would convert a dated NOTE into a hard red on the exact install that cannot receive the file. The shipped rows declare the scaffold’s own eight seam files (tRPC client, rate-limiter fetch, five supabase-js factories, the delete-account Edge Function) — universal exemplar content, no consumer-specific seam.',
+  },
+  {
+    file: 'template/base/tools/auth-tunables.json',
+    reason:
+      'ABSENT, tools/check-auth-posture.mjs fails closed asking for it — the 1.0.0 floor/tunable split moved five posture values out of the owned register into this seeded one, so an upgraded install with no planted copy would red on values it never chose to move. Planting is green-by-construction: the seeded rows carry the exact values the owned register pinned before the split, so config.toml agrees with them on every vintage, and the only future finding is a retune the consumer performs half-way (register without config, or config without register) — which is the two-place act the split exists to make visible. The content is the template defaults with written whys; it names nothing project-specific.',
+  },
+  {
+    file: 'template/base/tools/store-tunables.json',
+    reason:
+      'ABSENT, tools/check-expo-policy.mjs fails closed asking for it — the 1.0.0 split moved the four consumer store decisions (iosEncryption, privacyAccessedApiTypes, accountDeletion, icons) out of the owned store-policy.json into this seeded register, because the old single owned file made the exact edit the gate’s failure text demanded (set nonExemptAllowed with a reason) read as tampering. 0.9.5 tried the seeded flip on the WHOLE file and upgrade-lane leg E caught it — a v0.3.0 install kept its pre-0.7.0 copy and redded both version-sync and docs-sync — which is why the FLOORS stay owned and only these four move. Planting is green-by-construction: the seeded values are the exact ones the owned register carried before the split, so every vintage’s resolved config already satisfies them. Template defaults only; nothing project-specific.',
+  },
+  {
+    file: 'template/base/tools/support-register.json',
+    reason:
+      "ABSENT, check-version-sync.mjs's support section reds asking for the file (after the 1.0.0 ramp), so withholding would convert a dated NOTE into a hard red on the exact install that cannot receive it — the eol.json shape again. Planting costs an existing install nothing that is not already true: the platform rows describe the TEMPLATE's pins (postgres-17, node-22), and an install on a different major gets the platform-fact closure's NOTE naming exactly the row THEIR review must replace — which is the adoption act the ramp exists to give them a release to perform. The services rows are honest permanent ceilings (no vendor publishes a support lifecycle) and are install-independent facts.",
+  },
+  {
+    file: 'template/base/tools/mutation-scope-extra.json',
+    reason:
+      'ABSENT, tools/mutation-scope.mjs and stryker.config.mjs both fail closed asking for it — the 1.0.0 mutation-scope split keeps the floor owned and gives the consumer this ADDITIVE half, so an upgraded install with no planted copy would red the mutation lane on a register it never chose. Planting is green-by-construction in the strongest sense available: the file ships with an EMPTY roots array (union semantics — an empty union adds nothing, and nothing in the file can subtract from the floor), so every vintage mutates exactly what it mutated before the split. Rows belong here the day THEIR tree grows a critical surface outside the floor; the shipped content is a contract and names nothing project-specific.',
+  },
+  {
     file: 'template/base/tools/backup-posture.json',
     reason:
       "ABSENT, `tools/check-backup-posture.mjs` skips loudly and produces no backup evidence at all — and the scheduled `backup-evidence` job that runs it arrives on the SAME `update` that would withhold this file, so seedOnInitOnly would ship the job and hold back its one input, guaranteeing a lane that can never do anything on an upgraded install. Planting it costs an existing install NOTHING: the file ships deliberately incomplete (maxDailyBackupAgeHours null, restorationTesting.lastTestedOn null) and the script never reaches the shape check without credentials, so an install that has not wired SUPABASE_ACCESS_TOKEN sees exactly one loud SKIP on a weekly cron and no red anywhere. The content is a posture contract plus the vendor ceilings — it names no consumer table, project or number, exactly like tenancy.json above.",
@@ -116,7 +146,7 @@ const DELIBERATE_PLANT = [
   {
     file: 'template/base/SECURITY.md',
     reason:
-      "PLANT, and the reasoning is the inverse of every entry above it: no gate reads this file, so there is no fail-closed argument — the argument is that an existing install has nothing to lose and something to gain. `update` plants a seeded file only when it is ABSENT, so a project that already wrote its own coordinated-disclosure policy keeps it untouched, and a project with none gets one with its placeholders already rendered from the manifest. Withholding it instead would leave the CRA Art. 14 enablement (from 2026-09-11, and the obligation is the CONSUMER'S — this repo is out of scope as unmonetised FOSS; see design/CONFORMANCE-FACTS.md §4) reaching only new scaffolds, which is the population least likely to be shipping commercially yet. It carries no dated field of its own on purpose: security.txt's mandatory RFC 9116 `Expires` is a reviewer-supplied date in a seeded file, which is exactly the off-switch shape 0.6.0 removed from framework-floor.json, and it is deferred until it ships with a bound.",
+      "PLANT, and the reasoning is the inverse of every entry above it: no gate reads this file, so there is no fail-closed argument — the argument is that an existing install has nothing to lose and something to gain. `update` plants a seeded file only when it is ABSENT, so a project that already wrote its own coordinated-disclosure policy keeps it untouched, and a project with none gets one with its placeholders already rendered from the manifest. Withholding it instead would leave the CRA Art. 14 enablement (from 2026-09-11, and the obligation is the CONSUMER'S — this repo is out of scope as unmonetised FOSS; see design/CONFORMANCE-FACTS.md §4) reaching only new scaffolds, which is the population least likely to be shipping commercially yet. It carries no dated field of its own on purpose. Its machine-readable RFC 9116 twin (apps/web/public/.well-known/security.txt) SHIPS since 1.0.0, but as seedOnInitOnly and never as a plant: its mandatory `Expires` is a reviewer-supplied bound ({{SECURITY_TXT_EXPIRES}}, an init answer defaulting to init+180d), and planting a bound into an existing install would stamp a date nobody reviewed — the off-switch shape 0.6.0 removed from framework-floor.json. The shape rides the security-headers step (present ⇒ parses); the lapse rides the scheduled floor-review job.",
   },
   {
     file: 'template/modules/eval-live/packages/eval/package.json.tmpl',

@@ -13,7 +13,15 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { before, test } from 'node:test'
@@ -45,8 +53,8 @@ before(() => {
  * HARNESS_ALLOW_SELF_EDIT=1 is the documented human escape hatch: every write rule honours
  * it and returns no deny. It is also how you work ON this repository — editing the
  * enforcement surface requires it exported — so a maintainer running the suite had it set,
- * and `{ ...process.env }` handed it to all 138 deny cases. They did not fail; they
- * PASSED THROUGH, asserting nothing, and the suite reported 138 reds that read as
+ * and `{ ...process.env }` handed it to all 142 deny cases. They did not fail; they
+ * PASSED THROUGH, asserting nothing, and the suite reported 142 reds that read as
  * environmental noise. Worse than either: it checks LESS locally than in CI, so the first
  * honest run is the one on the PR.
  *
@@ -490,6 +498,24 @@ const RULE_CANARIES = {
   'data-flow': [pathDeny('tools/data-flow.json')],
   // 0.8.0. A sinks[] row licenses a telemetry egress path; a narrowed detector unsees one.
   'observability-sinks': [pathDeny('tools/observability.json')],
+  // 1.0.0. The two seeded registers the injected chain steps close over: a
+  // suppressions-allow row licenses an inline lint suppression, a resilience row is the
+  // reviewed posture of an outbound seam — an agent that could edit either could
+  // license its own escape mid-turn and stay green.
+  'suppressions-allow': [pathDeny('tools/suppressions-allow.json')],
+  'resilience-register': [pathDeny('tools/resilience.json')],
+  'auth-tunables': [pathDeny('tools/auth-tunables.json')],
+  'store-tunables': [pathDeny('tools/store-tunables.json')],
+  // The OWNED module list check-exports-walls closes the census against — no
+  // in-tree author at all; a fictional appended name would park a stale
+  // sanction dormant forever.
+  'modules-register': [pathDeny('tools/modules.json')],
+  // The consumer's additive mutation surface — deleting a row un-mutates code a
+  // human chose to protect, so either direction is a reviewed human act.
+  'mutation-scope-extra': [pathDeny('tools/mutation-scope-extra.json')],
+  // The vendor-support register — a 'ceiling' acceptance or a reviewedUntil move is
+  // a human decision, exactly like its eol sibling.
+  'support-register': [pathDeny('tools/support-register.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
@@ -509,6 +535,15 @@ const RULE_CANARIES = {
   'essential-eight-register': [
     pathDeny('tools/essential-eight.json'),
     pathAllow('docs/compliance/essential-eight.md'),
+  ],
+  // 1.0.0: the ASVS/MASVS/CRA conformance map, the E8 register's twin one standard over
+  // and the file an enterprise buyer asks for by name — so the regrade pressure is the
+  // strongest in this block. The .md allow-cases keep the rule scoped to the register: the
+  // two GENERATED documents are regen-diffed by the gate, never hand-protected.
+  'conformance-map-register': [
+    pathDeny('tools/conformance-map.json'),
+    pathAllow('docs/compliance/controls-crosswalk.md'),
+    pathAllow('docs/security/threat-model.md'),
   ],
   // 0.5.0, tolerated-absent (grounded in check-canary-coverage.mjs#GROUNDED_ELSEWHERE):
   // CREATING this file is the widening, because it exempts a (file, rule) pair from the
@@ -646,7 +681,10 @@ const RULE_CANARIES = {
   ],
   'renovate-config': [pathDeny('renovate.json'), pathAllow('docs/renovate-policy.md')],
   'stryker-config': [pathDeny('stryker.config.mjs'), pathAllow('apps/web/next.config.ts')],
-  'commitlint-config': [pathDeny('commitlint.config.mjs'), pathAllow('apps/web/postcss.config.mjs')],
+  'commitlint-config': [
+    pathDeny('commitlint.config.mjs'),
+    pathAllow('apps/web/postcss.config.mjs'),
+  ],
   'tools-ci': [
     pathDeny('tools/ci/device-lane.sh'),
     pathDeny('tools/ci/perf-lane.sh'),
@@ -744,10 +782,7 @@ const RULE_CANARIES = {
     contentAllow('apps/mobile/src/config.ts', 'const url = process.env.EXPO_PUBLIC_API_URL\n'),
   ],
   'weak-crypto-algorithm': [
-    contentDeny(
-      'apps/web/lib/legacy.ts',
-      "const c = createCipher('aes-256-cbc', pass)\n",
-    ),
+    contentDeny('apps/web/lib/legacy.ts', "const c = createCipher('aes-256-cbc', pass)\n"),
     contentDeny('packages/platform/crypto/src/bad.ts', "const alg = 'aes-256-ecb'\n"),
     contentDeny('apps/web/lib/hash.ts', "const h = createHash('md5')\n"),
     // Algorithm-ARGUMENT position only: prose, an identifier, and a column named
@@ -781,7 +816,10 @@ const RULE_CANARIES = {
     // Ordinary randomness is untouched — the rule keys on the key-shaped
     // ASSIGNMENT, not on Math.random itself.
     contentAllow('apps/web/lib/retry.ts', 'const jitterMs = Math.random() * 100\n'),
-    contentAllow('apps/mobile/src/features/x.ts', 'const pick = items[Math.floor(Math.random() * n)]\n'),
+    contentAllow(
+      'apps/mobile/src/features/x.ts',
+      'const pick = items[Math.floor(Math.random() * n)]\n',
+    ),
   ],
   'next-public-secret-name': [
     // NEXT_PUBLIC_ vars are inlined into the shipped WEB bundle at build time.
@@ -828,10 +866,13 @@ const RULE_CANARIES = {
       'packages/platform/supabase/src/pool.ts',
       "await sql`SET statement_timeout = '30s'`\n",
     ),
-    contentDeny('packages/platform/supabase/src/pool.ts', 'await sql`SET SESSION lock_timeout TO 0`\n'),
+    contentDeny(
+      'packages/platform/supabase/src/pool.ts',
+      'await sql`SET SESSION lock_timeout TO 0`\n',
+    ),
     contentDeny(
       'supabase/functions/report/index.ts',
-      "await client.query(\"SET idle_in_transaction_session_timeout = '10min'\")\n",
+      'await client.query("SET idle_in_transaction_session_timeout = \'10min\'")\n',
     ),
     // The safe spelling: reverted at transaction end, so the pooled backend goes
     // back to the reviewed per-role ceiling before the next tenant gets it.
@@ -853,7 +894,10 @@ const RULE_CANARIES = {
     ),
   ],
   'pg-advisory-session-lock': [
-    contentDeny('packages/platform/supabase/src/lock.ts', 'await sql`select pg_advisory_lock(${key})`\n'),
+    contentDeny(
+      'packages/platform/supabase/src/lock.ts',
+      'await sql`select pg_advisory_lock(${key})`\n',
+    ),
     contentDeny(
       'packages/platform/supabase/src/lock.ts',
       'await sql`select pg_advisory_unlock(${key})`\n',
@@ -870,7 +914,10 @@ const RULE_CANARIES = {
     ),
   ],
   'pg-prepared-statement': [
-    contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url, { max: 5 })\n'),
+    contentDeny(
+      'packages/platform/supabase/src/driver.ts',
+      'const sql = postgres(url, { max: 5 })\n',
+    ),
     contentDeny('packages/platform/supabase/src/driver.ts', 'const sql = postgres(url)\n'),
     contentAllow(
       'packages/platform/supabase/src/driver.ts',
@@ -949,7 +996,7 @@ const RULE_CANARIES = {
     // A non-empty search_path is still caller-influenced — only '' is pinned.
     contentDeny(
       'supabase/migrations/20260301000000_oops.sql',
-      "CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT 1 $$;\n",
+      'CREATE FUNCTION private.f() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT 1 $$;\n',
     ),
     contentAllow(
       'supabase/migrations/20260301000000_fine.sql',
@@ -1490,7 +1537,10 @@ test('write-guard: an exempt-LOOKING link name cannot smuggle content into a che
     tool_name: 'Write',
     tool_input: { file_path: 'sneaky.test.ts', content: "import { sql } from 'postgres'\n" },
   })
-  assert.ok(denied(r), 'an exempt name must not buy an exemption for bytes landing in the mobile bundle')
+  assert.ok(
+    denied(r),
+    'an exempt name must not buy an exemption for bytes landing in the mobile bundle',
+  )
 })
 
 test('write-guard: a link out of the project tree is DENIED (path-scoped guards cannot see it)', (t) => {
@@ -1526,7 +1576,7 @@ test('write-guard: an ordinary file is still approved (the resolver must not ove
 // inherit the parent environment wholesale. HARNESS_ALLOW_SELF_EDIT=1 is the documented
 // human escape hatch that makes every write rule return no deny — and it is also how you
 // work ON this repository, since editing the enforcement surface requires it exported. So a
-// maintainer's own session silently disarmed 138 assertions: they did not detect a broken
+// maintainer's own session silently disarmed 142 assertions: they did not detect a broken
 // guard, they stopped asking. The suite checked LESS locally than in CI, which is the exact
 // shape of the porosity scripts/ci/upgrade-lane.sh unsets script-wide for.
 //
@@ -1563,4 +1613,199 @@ test('ENV HYGIENE: the escape hatch still WORKS when a case passes it deliberate
     !denied(r),
     `${HATCH}=1 passed explicitly must still open the guard:\n${r.stdout}${r.stderr}`,
   )
+})
+
+// ── subagent-verdict: the TURN-subject hook's refusal pair (1.0.0) ──────────────────
+// The registry pins denyToolCallSites at 0 because this hook's mechanism is EXIT 2 on
+// SubagentStop — blocking the SUBAGENT, never a tool call — and these are the executed
+// proofs behind its two denyExamples: a reviewer reply ending without a "VERDICT: PASS|BLOCK" line,
+// and an empty or unparseable SubagentStop payload. The exit code is asserted EXACTLY 2
+// on every refusal path, because under Claude Code's exit-code contract any OTHER
+// nonzero is non-blocking (the fail-open hazard CONTROL-PLANE-FACTS Fact 12 documents,
+// re-probed 2026-08-15) — and each in-hook refusal must land a blocked-kind entry in
+// the shared turn ledger so the consecutive-block cap counts hook blocks and Stop
+// blocks as one budget. Path-state RECORDING stays proven by
+// tests/hooks/subagent-verdict-pathstate.test.mjs; this block owns REFUSAL.
+
+function verdictFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-verdict-refusal-'))
+  cpSync(join(TEMPLATE, '.claude/agents'), join(dir, '.claude/agents'), { recursive: true })
+  return dir
+}
+
+const verdictPayload = (over = {}) => ({
+  hook_event_name: 'SubagentStop',
+  agent_type: 'security-reviewer',
+  agent_id: 'a1',
+  session_id: 's1',
+  prompt_id: 'p1',
+  last_assistant_message: 'checked it\n\nVERDICT: PASS',
+  ...over,
+})
+
+const verdictBlocks = (dir) =>
+  readFileSync(join(dir, '.harness/turn-outcomes.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l))
+
+test('subagent-verdict REFUSAL: malformed stdin exits EXACTLY 2 via the installed fail-closed handler', () => {
+  // Non-empty unparseable input THROWS in readHookInput by design, and hookio's
+  // uncaughtException handler converts the crash into a block — the only fail-closed
+  // route Fact 12's torn-hook matrix leaves (a LOAD failure exits 1, fail-open).
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', 'not-json{{', { cwd: dir })
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /failing closed, action blocked/)
+})
+
+test('subagent-verdict REFUSAL: a non-object payload exits EXACTLY 2 in-hook and records the block', () => {
+  // JSON `null` parses cleanly, so it reaches the hook's own unrecognizable-payload
+  // branch — the one that records into the shared turn ledger before blocking.
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', 'null', { cwd: dir })
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /fails CLOSED/)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(
+    block.gates.includes('subagent-verdict/unparseable-payload'),
+    JSON.stringify(block.gates),
+  )
+})
+
+test('subagent-verdict REFUSAL: a reviewer ending without a verdict exits EXACTLY 2 and records the block', () => {
+  const dir = verdictFixture()
+  const r = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ last_assistant_message: 'looks broadly fine to me' }),
+    { cwd: dir },
+  )
+  assert.equal(
+    r.code,
+    2,
+    `exit must be exactly 2 — any other nonzero is non-blocking:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /ended without a verdict/)
+  assert.match(r.stderr, /VERDICT: PASS/)
+  const [block] = verdictBlocks(dir)
+  assert.equal(block.kind, 'block')
+  assert.ok(block.gates.includes('subagent-verdict/security-reviewer'), JSON.stringify(block.gates))
+})
+
+test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (refusal is not the default)', () => {
+  const dir = verdictFixture()
+  const r = runHook('subagent-verdict.mjs', verdictPayload(), { cwd: dir })
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+})
+
+test('subagent-verdict CONTROL: a non-reviewer agent is not this hook’s business — exit 0', () => {
+  const dir = verdictFixture()
+  const r = runHook(
+    'subagent-verdict.mjs',
+    verdictPayload({ agent_type: 'dal-author', last_assistant_message: 'done' }),
+    { cwd: dir },
+  )
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+})
+
+// ── launch.mjs: the fail-closed LAUNCHER (1.0.0) ────────────────────────────────────
+// Fact 12's torn-hook matrix (probed 2026-08-10, re-probed 2026-08-15, identical): a
+// hook whose LOAD fails exits 1, which the exit-code contract reads as non-blocking —
+// a torn lib/hookio.mjs disarmed every guard at once, silently. The launcher converts
+// load failure into exit 2, and these are the executed proofs behind its registry
+// entry's denyExamples: a torn .claude/hooks/lib/hookio.mjs, and a deleted hook module.
+// The passthrough controls prove the launcher adds NO judgement of its own — an intact
+// hook's deny still denies and its allow still allows, byte-identically.
+
+function launcherFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-launcher-'))
+  cpSync(join(TEMPLATE, '.claude'), join(dir, '.claude'), { recursive: true })
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/lib'), join(dir, 'tools/lib'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/approved-tools.json'), join(dir, 'tools/approved-tools.json'))
+  return dir
+}
+
+function runLauncher(dir, hookName, input) {
+  const res = spawnSync('node', [join(dir, '.claude/hooks/launch.mjs'), hookName], {
+    input: typeof input === 'string' ? input : JSON.stringify(input),
+    encoding: 'utf8',
+    cwd: dir,
+    env: { ...cleanEnv(), CLAUDE_PROJECT_DIR: dir },
+  })
+  return { code: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' }
+}
+
+const LAUNCH_WRITE = {
+  tool_name: 'Write',
+  tool_input: { file_path: 'tools/validate.floor.json', content: '{}' },
+}
+
+test('launch.mjs REFUSAL: a torn .claude/hooks/lib/hookio.mjs exits EXACTLY 2 (the Fact 12 hole, closed)', () => {
+  const dir = launcherFixture()
+  const lib = join(dir, '.claude/hooks/lib/hookio.mjs')
+  const bytes = readFileSync(lib, 'utf8')
+  writeFileSync(lib, bytes.slice(0, Math.floor(bytes.length * 0.6)))
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.equal(
+    r.code,
+    2,
+    `a load failure must BLOCK now — exit 1 is the fail-open this exists to close:\n${r.stdout}${r.stderr}`,
+  )
+  assert.match(r.stderr, /FAILED TO LOAD/)
+  assert.match(r.stderr, /RECOVERY/)
+})
+
+test('launch.mjs REFUSAL: a deleted hook module exits EXACTLY 2', () => {
+  const dir = launcherFixture()
+  rmSync(join(dir, '.claude/hooks/pretool-write-guard.mjs'))
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.equal(r.code, 2, `${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /FAILED TO LOAD/)
+})
+
+test('launch.mjs REFUSAL: a path-shaped argument is refused — the launcher is not an import primitive', () => {
+  const dir = launcherFixture()
+  for (const evil of ['../../evil.mjs', '/tmp/evil.mjs', 'lib/hookio.mjs', 'launch.mjs', '']) {
+    const r = runLauncher(dir, evil, LAUNCH_WRITE)
+    assert.equal(r.code, 2, `${JSON.stringify(evil)} must be refused:\n${r.stdout}${r.stderr}`)
+  }
+})
+
+test('launch.mjs PASSTHROUGH: an intact hook still denies what it denied — the launcher adds no judgement', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', LAUNCH_WRITE)
+  assert.ok(
+    r.stdout.includes('"deny"'),
+    `the write-guard's protected-path deny must survive the launcher:\n${r.stdout}${r.stderr}`,
+  )
+})
+
+test('launch.mjs PASSTHROUGH: an intact hook still allows what it allowed', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', {
+    tool_name: 'Write',
+    tool_input: { file_path: 'apps/web/lib/notes.ts', content: 'export const x = 1\n' },
+  })
+  assert.equal(
+    r.code,
+    0,
+    `an ordinary product write must pass through the launcher untouched:\n${r.stdout}${r.stderr}`,
+  )
+  assert.ok(!r.stdout.includes('"deny"'), r.stdout)
+})
+
+test('launch.mjs PASSTHROUGH: malformed stdin still reaches the hook’s own fail-closed handler (exit 2)', () => {
+  const dir = launcherFixture()
+  const r = runLauncher(dir, 'pretool-write-guard.mjs', 'not-json{{')
+  assert.equal(r.code, 2, `${r.stdout}${r.stderr}`)
 })

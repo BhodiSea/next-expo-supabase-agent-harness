@@ -45,7 +45,7 @@
   "wall": {
     "ceilingMs": 120000,
     "warnMs": 90000,
-    "measuredMs": 24337
+    "measuredMs": 23030
   },
   "defaults": {
     "comment": "A step with no row below is judged against its class ceiling. Class is decided by whether the step shells out to a toolchain (pnpm exec / tsc / next) or is pure node over the tree.",
@@ -55,43 +55,51 @@
   "steps": {
     "format": {
       "class": "toolchain",
-      "measuredMs": 2820
+      "measuredMs": 3007
     },
     "gate-integrity": {
       "class": "static",
-      "measuredMs": 309
+      "measuredMs": 336
     },
     "wiring": {
       "class": "static",
-      "measuredMs": 44
+      "measuredMs": 43
     },
     "secrets": {
       "class": "static",
-      "measuredMs": 101
+      "measuredMs": 109
     },
     "types": {
       "class": "toolchain",
-      "measuredMs": 5733
+      "measuredMs": 6221
     },
     "lint": {
       "class": "toolchain",
-      "measuredMs": 2063
+      "measuredMs": 2145
+    },
+    "suppressions": {
+      "class": "static",
+      "measuredMs": 55
     },
     "provenance": {
       "class": "static",
-      "measuredMs": 107
+      "measuredMs": 120
     },
     "boundaries": {
       "class": "static",
-      "measuredMs": 88
+      "measuredMs": 93
+    },
+    "resilience": {
+      "class": "static",
+      "measuredMs": 52
     },
     "observability": {
       "class": "static",
-      "measuredMs": 90
+      "measuredMs": 93
     },
     "expo-policy": {
       "class": "static",
-      "measuredMs": 51
+      "measuredMs": 49
     },
     "native-deps": {
       "class": "toolchain",
@@ -99,67 +107,67 @@
     },
     "version-sync": {
       "class": "static",
-      "measuredMs": 42
+      "measuredMs": 44
     },
     "prompts": {
       "class": "static",
-      "measuredMs": 45
+      "measuredMs": 40
     },
     "licenses": {
       "class": "toolchain",
-      "measuredMs": 43
+      "measuredMs": 41
     },
     "schema-rls": {
       "class": "static",
-      "measuredMs": 82
+      "measuredMs": 87
     },
     "tenancy": {
       "class": "static",
-      "measuredMs": 45
+      "measuredMs": 43
     },
     "auth-posture": {
       "class": "static",
-      "measuredMs": 59
+      "measuredMs": 58
     },
     "data-flow": {
       "class": "static",
-      "measuredMs": 71
+      "measuredMs": 75
     },
     "types-drift": {
       "class": "static",
-      "measuredMs": 1492
+      "measuredMs": 1523
     },
     "migrations": {
       "class": "static",
-      "measuredMs": 62
+      "measuredMs": 58
     },
     "db-limits": {
       "class": "static",
-      "measuredMs": 118
+      "measuredMs": 58
     },
     "contracts": {
       "class": "toolchain",
-      "measuredMs": 2534
+      "measuredMs": 51
     },
     "query-shapes": {
       "class": "static",
-      "measuredMs": 44
+      "measuredMs": 42
     },
     "rate-limits": {
       "class": "toolchain",
-      "measuredMs": 42
+      "measuredMs": 39
     },
     "parity": {
       "class": "static",
-      "measuredMs": 40
+      "measuredMs": 38
     },
     "dead-code": {
       "class": "toolchain",
-      "measuredMs": 2480
+      "measuredMs": 2504
     },
     "architecture": {
       "class": "toolchain",
-      "measuredMs": 1885
+      "measuredMs": 1989
     },
     "build": {
       "class": "toolchain",
@@ -167,11 +175,11 @@
     },
     "styleguide": {
       "class": "toolchain",
-      "measuredMs": 699
+      "measuredMs": 705
     },
     "perf-budget": {
       "class": "static",
-      "measuredMs": 2806
+      "measuredMs": 2802
     },
     "route-manifest": {
       "class": "static",
@@ -179,15 +187,15 @@
     },
     "security-headers": {
       "class": "toolchain",
-      "measuredMs": 41
+      "measuredMs": 39
     },
     "e2e": {
       "class": "toolchain",
-      "measuredMs": 43
+      "measuredMs": 42
     },
     "docs-sync": {
       "class": "static",
-      "measuredMs": 77
+      "measuredMs": 248
     }
   },
   "stopComment": [
@@ -221,65 +229,85 @@
   "stopWall": {
     "ceilingMs": 600000,
     "warnMs": 450000,
-    "measuredMs": 50531
+    "measuredMs": 52665
   },
   "stopSteps": {
     "rls-isolation": {
       "comment": "live Supabase round-trips: db reset + the pgTAP structure suite + the supabase-js cross-tenant suite",
       "ceilingMs": 90000,
-      "measuredMs": 6735
+      "measuredMs": 7131
     },
     "unit": {
       "comment": "coverage-instrumented vitest across the workspace — the first of the two dominant suites",
       "ceilingMs": 180000,
-      "measuredMs": 6819
+      "measuredMs": 7634
     },
     "mobile-unit": {
       "comment": "jest-expo with coverage — the RN transform pipeline is the chain's documented slow tail; the largest single ceiling in this file",
       "ceilingMs": 240000,
-      "measuredMs": 9336
+      "measuredMs": 11324
     },
     "diff-coverage": {
       "comment": "reads the two merged istanbul maps the unit steps just wrote plus a git diff — no toolchain",
       "ceilingMs": 10000,
-      "measuredMs": 69
+      "measuredMs": 65
     },
     "duplication": {
       "comment": "token-clone scan over apps/*/src + packages/*/src — pure node but O(source tokens), so it gets the widest static ceiling",
       "ceilingMs": 15000,
-      "measuredMs": 282
+      "measuredMs": 310
     },
     "i18n": {
       "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
       "ceilingMs": 10000,
-      "measuredMs": 92
+      "measuredMs": 106
     },
     "test-quality": {
       "comment": "static test scan (~50ms today: assertion presence, .only, dead .skip) — room to grow, never to shell out",
       "ceilingMs": 10000,
-      "measuredMs": 78
+      "measuredMs": 76
     },
     "mobile-perf": {
       "comment": "closure half only — reads three files (routes, Maestro flows, startup budget); the measurement half lives in the CI perf lane",
       "ceilingMs": 5000,
-      "measuredMs": 42
+      "measuredMs": 44
     },
     "reviewer-verdicts": {
       "comment": "reads reviewer triggers + the turn ledger tail — the turn-scoped step, never a toolchain",
       "ceilingMs": 5000,
-      "measuredMs": 61
+      "measuredMs": 64
     }
   },
   "measurement": {
-    "recordedOn": "2026-08-09",
+    "recordedOn": "2026-08-16",
     "runner": "Linux/X64 (selftest)",
-    "chainSteps": 34,
-    "stepsMeasured": 34
+    "chainSteps": 36,
+    "stepsMeasured": 36
   },
   "stopMeasurement": {
-    "recordedOn": "2026-08-09",
+    "recordedOn": "2026-08-16",
     "runner": "Linux/X64 (selftest)",
     "chainSteps": 10,
     "stepsMeasured": 10
+  },
+  "coldComment": [
+    "The COLD path (1.0.0): the first validate of a fresh clone with cold caches — bootstrap-linux's",
+    "`--min-floor` CI run, teed to cold-validate.log. MEASURED, NEVER BUDGETED: there is no coldSteps",
+    "table and no ceiling, because a first-clone figure is dominated by installs and toolchain",
+    "resolution the chain does not own, and a ceiling there would red on the registry's afternoon",
+    "rather than on the chain. `--record --cold` stamps coldWall.measuredMs + coldMeasurement on the",
+    "same reviewed-dispatch path as the other two; hasCommittedColdMeasurement is what licenses a",
+    "published cold figure, count-matched to the live chain like the warm one. Until a dispatch",
+    "records one, coldWall.measuredMs is null and check-claims refuses any 'cold ≈ N s' figure."
+  ],
+  "coldWall": {
+    "measuredMs": 110224
+  },
+  "coldMeasurement": {
+    "recordedOn": "2026-08-16",
+    "runner": "Linux/X64 (selftest)",
+    "chainSteps": 36,
+    "stepsMeasured": 36,
+    "path": "validate --min-floor under CI=true + HARNESS_REQUIRE_TOOLCHAINS=1 on a fresh clone with cold caches — the first validate of an install"
   }
 }
