@@ -4,10 +4,21 @@
 # Supabase session, the tRPC client path, Postgres under FORCE RLS — where every sweep
 # flow tolerates the signed-out error states.
 #
-# PRECONDITIONS (the workflow's job): the DEV build is installed (the stub sign-in is
-# __DEV__-only by design — a release binary must never mint dev tokens), Metro serves
-# the bundle, and the API server + database are up with `adb reverse` mapping the
-# app's 127.0.0.1 ports to the runner. clearState makes the sign-in deterministic.
+# PRECONDITIONS (the workflow's job): the DEV build is installed, Metro serves the
+# bundle, the API server + Supabase stack are up with `adb reverse` mapping the app's
+# 127.0.0.1 ports to the runner, and the identity this journey signs in as EXISTS with
+# a personal org — minted by scripts/ci/mint-device-user.mjs (admin createUser +
+# ensure_personal_org as that user, the tests/rls/db-context.ts precedent) and handed
+# in as the Maestro flow variables DEVICE_EMAIL / DEVICE_PASSWORD
+# (`check-e2e-device.mjs --env`). clearState makes the sign-in deterministic.
+#
+# 1.0.0 CORRECTION: this journey used to tap an EMPTY sign-in form and expect the
+# inherited harness's __DEV__ stub authority to mint a user. Supabase Auth replaced
+# that authority, the form became a real email/password sign-in, and every nightly
+# device lane since stopped here at "Enter an email address." — invisible at agent
+# time because the journey runs only on the emulator. The sign-in is real now, so
+# what follows (create → relaunch → persists) is finally proven against the actual
+# session, tRPC path and FORCE RLS it was written to exercise.
 #
 # The persistence assertion is the RELAUNCH half: stopApp drops every in-memory cache,
 # so the second `note-row` sighting can only come from the server round-trip with the
@@ -31,13 +42,22 @@ appId: {{APP_IDENTIFIER}}
     visible:
         id: "sign-in-submit"
     timeout: 60000
-# Blank subject: the stub authority mints a fresh dev user for this run.
+# The real form: the minted identity's credentials, typed into the real fields, the
+# real submit handler run — a planted session would prove the server reads a token
+# and nothing about what the app writes (the web e2e's rule, applied on device).
+- tapOn:
+    id: "sign-in-email"
+- inputText: ${DEVICE_EMAIL}
+- tapOn:
+    id: "sign-in-password"
+- inputText: ${DEVICE_PASSWORD}
+- hideKeyboard
 - tapOn:
     id: "sign-in-submit"
 - extendedWaitUntil:
     visible:
         id: "home-screen"
-    timeout: 30000
+    timeout: 60000
 - tapOn:
     id: "note-composer-input"
 - inputText: "Device mutation flow note"

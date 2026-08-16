@@ -94,7 +94,10 @@ function fixture({ behavior = {}, flows = ['home', 'matrix'], files = {} } = {})
   writeFileSync(join(dir, 'tools/identity.lock.json'), IDENTITY_JSON)
   writeFileSync(join(dir, 'tools/interaction-budget.json'), BUDGET_JSON)
   for (const id of flows) {
-    writeFileSync(join(dir, `maestro/flows/${id}.yaml`), `appId: com.example.stub\n---\n- launchApp\n`)
+    writeFileSync(
+      join(dir, `maestro/flows/${id}.yaml`),
+      `appId: com.example.stub\n---\n- launchApp\n`,
+    )
   }
   for (const [rel, content] of Object.entries(files)) {
     const abs = join(dir, rel)
@@ -184,6 +187,42 @@ test('--phase journey runs exactly the named file; a missing file reds', () => {
   const red = run(dir, ['--phase', 'journey', '--file', 'maestro/journeys/ghost.yaml'])
   assert.equal(red.code, 1, red.out)
   assert.ok(red.out.includes('--phase journey needs --file'), red.out)
+})
+
+test('--env KEY=VALUE (repeatable) reaches maestro as -e pairs; a malformed pair reds before any tool runs', () => {
+  // 1.0.0: the mutation journey signs in for real, so the lane hands it the credentials
+  // it minted — through Maestro's own flow-variable channel, never baked into the YAML.
+  const dir = fixture({
+    files: { 'maestro/journeys/mutation.yaml': 'appId: com.example.stub\n---\n- launchApp\n' },
+  })
+  const green = run(dir, [
+    '--phase',
+    'journey',
+    '--file',
+    'maestro/journeys/mutation.yaml',
+    '--env',
+    'DEVICE_EMAIL=device@example.com',
+    '--env',
+    'DEVICE_PASSWORD=pw with spaces',
+  ])
+  assert.equal(green.code, 0, green.out)
+  const log = invocations(dir)
+  assert.ok(log.includes('-e DEVICE_EMAIL=device@example.com'), log)
+  assert.ok(log.includes('-e DEVICE_PASSWORD=pw with spaces'), log)
+  // The pairs precede the flow file (maestro's grammar: options, then the flow).
+  const line = log.split('\n').find((l) => l.startsWith('maestro test')) ?? ''
+  assert.ok(line.indexOf('-e DEVICE_EMAIL') < line.indexOf('mutation.yaml'), line)
+  const red = run(dir, [
+    '--phase',
+    'journey',
+    '--file',
+    'maestro/journeys/mutation.yaml',
+    '--env',
+    'no-equals',
+  ])
+  assert.equal(red.code, 1, red.out)
+  assert.ok(red.out.includes('--env expects KEY=VALUE'), red.out)
+  assert.ok(!invocations(dir).includes('no-equals'), 'a malformed pair must never reach maestro')
 })
 
 test('--phase perf-harness: assert-only journey; the FULL query-string link is delivered via adb am start', () => {

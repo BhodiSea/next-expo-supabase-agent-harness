@@ -834,13 +834,19 @@ jobs:
       # must point at loopback. `supabase status -o env` is the source for the local
       # stack's URL and publishable key — never a committed literal (the hygiene gate
       # rejects JWT-shaped strings in the template, and these rotate per `supabase start`).
-      - name: Publish the local Supabase env for the bundle
+      # SUPABASE_SERVICE_ROLE_KEY rides along for ONE step: tools/ci/mint-device-user.mjs
+      # mints the identity the mutation journey signs in as (admin createUser + its
+      # personal org) — the local stack's key, rotated per `supabase start`, never a
+      # deployed project's, and it reaches no bundle (EXPO_PUBLIC_ is the only prefix
+      # Metro inlines).
+      - name: Publish the local Supabase env for the bundle (and the minter)
         run: |
           eval "$(supabase status -o env)"
           {
             echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
             echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
             echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
           } >> "$GITHUB_ENV"
 
       # Both binaries up front (the emulator step below only installs + drives).

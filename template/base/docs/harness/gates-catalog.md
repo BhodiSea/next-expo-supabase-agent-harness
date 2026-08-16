@@ -2072,8 +2072,12 @@ is tests/hooks/subagent-verdict-pathstate.test.mjs.
   Fabric view flattening actually bites) runs the sweeps signed-out; the DEV
   binary (Metro on the runner) runs what release cannot — the kv-pre-seeded
   ar-XB/RTL boot (`maestro/journeys/i18n-rtl.yaml`), the mutation flow
-  (stub sign-in → create note → relaunch → persists, against the real server +
-  Postgres), and the perf-harness journey (the dev screen self-measures against
+  (REAL sign-in as an identity the lane mints with its personal org through
+  `tools/ci/mint-device-user.mjs`, handed to Maestro as flow variables via
+  `check-e2e-device.mjs --env` → create note → relaunch → persists, against the
+  real server + Postgres — since 1.0.0; the inherited stub-authority tap of an
+  empty form had been failing nightly, invisibly, since Supabase Auth replaced
+  it), and the perf-harness journey (the dev screen self-measures against
   `tools/interaction-budget.json` and the flow asserts its `perf-pass` leaf).
   Path-filtered + nightly (emulator cost); anti-vacuity: a phase that executed
   zero flows exits red, and evidence (Maestro debug output, screenshot, logcat

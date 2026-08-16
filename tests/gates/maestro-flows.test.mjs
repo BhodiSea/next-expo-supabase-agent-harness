@@ -120,11 +120,46 @@ test('buildSweepYaml: appId header, one deep-link + container assert per route, 
   assert.ok(!yaml.includes('clearState'), yaml)
 })
 
-test('buildRouteFlowYaml scaffolds a closure-satisfying per-route flow', () => {
+// THE ROUTER-LIVE GUARD (1.0.0). A VIEW intent delivered while the navigator is still
+// mounting is dropped on the floor — proven on the emulator lane twice (the first
+// mutation-journey dispatch on sign-in, the 1.0.0 release-branch dispatch on the
+// hand-authored security flow). Both builders must therefore wait for the INITIAL
+// route's container before the first deep link, and the guard must sit BETWEEN
+// launchApp and that link — a guard after the link is decoration.
+test('buildSweepYaml waits for the initial route (path "/") to be live BEFORE the first deep link', () => {
+  const yaml = buildSweepYaml(ROUTES, IDENTITY)
+  const launch = yaml.indexOf('- launchApp')
+  const guard = yaml.indexOf('id: "home-screen"\n    timeout: 90000')
+  const firstLink = yaml.indexOf('- openLink:')
+  assert.ok(launch !== -1 && guard !== -1 && firstLink !== -1, yaml)
+  assert.ok(
+    launch < guard && guard < firstLink,
+    `guard must sit between launchApp and the first openLink:\n${yaml}`,
+  )
+  // The sentinel is the route at path '/', wherever it sits in the table — not
+  // whichever entry happens to be first.
+  const reordered = buildSweepYaml([...ROUTES].reverse(), IDENTITY)
+  const guardR = reordered.indexOf('id: "home-screen"\n    timeout: 90000')
+  assert.ok(guardR !== -1 && guardR < reordered.indexOf('- openLink:'), reordered)
+})
+
+test('buildRouteFlowYaml scaffolds a closure-satisfying per-route flow — guarded', () => {
   const yaml = buildRouteFlowYaml({ id: 'reports', path: '/reports' }, IDENTITY)
   assert.ok(yaml.includes('maestro/flows/reports.yaml'), yaml)
   assert.ok(yaml.includes('- openLink: "canaryapp://reports"'), yaml)
   assert.ok(yaml.includes('id: "reports-screen"'), yaml)
+  // Default sentinel: the shipped ROUTES' initial route id 'home'.
+  const guard = yaml.indexOf('id: "home-screen"\n    timeout: 90000')
+  assert.ok(
+    guard !== -1 && yaml.indexOf('- launchApp') < guard && guard < yaml.indexOf('- openLink:'),
+    yaml,
+  )
+  // A caller holding the real table names its own initial route.
+  const custom = buildRouteFlowYaml({ id: 'reports', path: '/reports' }, IDENTITY, {
+    initialRoute: { id: 'landing', path: '/' },
+  })
+  assert.ok(custom.includes('id: "landing-screen"\n    timeout: 90000'), custom)
+  assert.ok(!custom.includes('id: "home-screen"'), custom)
 })
 
 test('perf-harness journey asserts the markers and carries NO openLink — the runner delivers the link', () => {
@@ -139,7 +174,12 @@ test('perf-harness journey asserts the markers and carries NO openLink — the r
 })
 
 test('perfHarnessUrl carries every budget cap as a query param on the app scheme', () => {
-  const url = perfHarnessUrl(IDENTITY, { tabSwitchMs: 400, actionsOpenMs: 600, frameDropMax: 12, runs: 7 })
+  const url = perfHarnessUrl(IDENTITY, {
+    tabSwitchMs: 400,
+    actionsOpenMs: 600,
+    frameDropMax: 12,
+    runs: 7,
+  })
   assert.equal(
     url,
     'canaryapp://perf-harness?tabSwitchMs=400&actionsOpenMs=600&frameDropMax=12&runs=7',
@@ -212,7 +252,9 @@ test('gen-maestro-flows --flow scaffolds a missing flow and REFUSES to overwrite
   const scaffold = run('--flow', 'home')
   assert.equal(scaffold.status, 0, scaffold.stderr)
   assert.ok(existsSync(join(dir, 'maestro/flows/home.yaml')))
-  assert.ok(readFileSync(join(dir, 'maestro/flows/home.yaml'), 'utf8').includes('id: "home-screen"'))
+  assert.ok(
+    readFileSync(join(dir, 'maestro/flows/home.yaml'), 'utf8').includes('id: "home-screen"'),
+  )
   const clobber = run('--flow', 'home')
   assert.equal(clobber.status, 1)
   assert.ok(clobber.stderr.includes('already exists'), clobber.stderr)

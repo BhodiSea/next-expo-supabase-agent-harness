@@ -184,6 +184,27 @@ open" list at the end of this entry is the same list the release was cut against
   growth and re-published only after the dispatched 36/10 (+cold) re-record landed and was
   committed (selftest run 31932626790 on the release branch, the CI artifact verbatim) — the
   order is measure, commit, then publish, and it held for the whole release.
+- **The device lane, made true again — found by running it on the release branch.** The
+  README says the emulator lanes are proven nightly; the nightly `maestro-smoke` had been
+  RED since Supabase Auth replaced the inherited stub authority (invisible at agent time —
+  the journeys run only on a device), and 1.0.0's own dispatch added a second red. Three
+  corrections, all shipped to consumers as owned files: (1) `maestro/journeys/mutation.yaml`
+  tapped an EMPTY sign-in form and expected a dev user to be minted; it now signs in for
+  real as an identity the lane mints WITH its personal org (`tools/ci/mint-device-user.mjs`
+  — admin createUser + `ensure_personal_org` as that user, the `tests/rls` precedent, pure
+  fetch; a mobile-only sign-up holds no seat, so without the org `notes.create` resolves no
+  acting org), handed in as Maestro flow variables through the new
+  `check-e2e-device.mjs --env KEY=VALUE`; the consumer `quality-gate.yml` publishes the
+  local stack's service-role key for that one step, as its web-e2e job already did.
+  (2) `maestro/flows/security.yaml` (new in this release) fired its deep link straight after
+  `launchApp` — a VIEW intent delivered while the navigator is still mounting is dropped on
+  the floor (Maestro reported the openLink COMPLETED while the hierarchy showed Home for the
+  whole 30 s wait) — the exact lesson the mutation journey had already recorded; the flow now
+  waits for the router-live sentinel first. (3) The generated flow scaffold and route sweep
+  (`tools/lib/maestro-flows.mjs`) emit that guard themselves — the sweep had been green by
+  ACCIDENT (its first link was the initial route, so a dropped intent was invisible), and
+  the next scaffolded flow would have repeated the defect. Canaries 19/20 and the
+  perf-harness journey, which the stale mutation journey had blocked every night, run again.
 
 ### Ledger
 

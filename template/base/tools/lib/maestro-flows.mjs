@@ -17,9 +17,37 @@ import { deepLink } from './mobile-app-meta.mjs'
 const q = (s) => JSON.stringify(String(s))
 
 /**
- * The route sweep: one launch, then every ROUTES entry opened by deep link and its
- * container asserted. Deliberately does NOT clearState — the i18n/theme phases re-run
- * this sweep over PRE-SEEDED app state, and a clear here would silently undo the seed.
+ * THE ROUTER MUST BE LIVE BEFORE THE FIRST DEEP LINK FIRES. `launchApp` returns when
+ * the activity is resumed, not when the JS navigator has mounted, and a VIEW intent
+ * delivered in that gap is dropped on the floor — proven twice on the emulator lane
+ * (the first mutation-journey dispatch on sign-in; the 1.0.0 release-branch dispatch
+ * on the hand-authored security flow, whose openLink reported COMPLETED while the
+ * hierarchy showed Home for the whole wait). The sentinel is the INITIAL route's own
+ * container testID (path '/', falling back to the first ROUTES entry): it appearing IS
+ * "the router is live", in every data state, signed-out included. The sweep was green
+ * by accident before this — its first link happened to be the initial route, so a
+ * dropped intent was invisible — which is why the guard is emitted, not left to luck.
+ * @param {{ id: string, path: string }[]} routes
+ * @returns {string[]} the YAML lines of the guard
+ */
+function routerLiveGuard(routes) {
+  const initial = routes.find((route) => route.path === '/') ?? routes[0]
+  if (initial === undefined) return []
+  return [
+    '# the router must be live before a deep link can be delivered (a VIEW intent that',
+    '# lands while the navigator is still mounting is dropped — proven on the device lane)',
+    '- extendedWaitUntil:',
+    '    visible:',
+    `        id: ${q(`${initial.id}-screen`)}`,
+    '    timeout: 90000',
+  ]
+}
+
+/**
+ * The route sweep: one launch, the router-live guard, then every ROUTES entry opened by
+ * deep link and its container asserted. Deliberately does NOT clearState — the
+ * i18n/theme phases re-run this sweep over PRE-SEEDED app state, and a clear here would
+ * silently undo the seed.
  * @param {{ id: string, path: string }[]} routes
  * @param {{ appId: string, scheme: string }} identity
  * @returns {string}
@@ -43,6 +71,7 @@ export function buildSweepYaml(routes, { appId, scheme }) {
     `appId: ${q(appId)}`,
     '---',
     '- launchApp',
+    ...routerLiveGuard(routes),
     steps,
     '',
   ].join('\n')
@@ -50,13 +79,21 @@ export function buildSweepYaml(routes, { appId, scheme }) {
 
 /**
  * A per-route flow scaffold for maestro/flows/<id>.yaml — the committed file the
- * mobile-perf closure demands for every ROUTES id. Deep-link launch + container
- * assert; the comment invites replacing the deep link with the real user path.
+ * mobile-perf closure demands for every ROUTES id. Launch, the router-live guard (see
+ * routerLiveGuard — a deep link fired before the navigator mounts is dropped), deep
+ * link + container assert; the comment invites replacing the deep link with the real
+ * user path. `initialRoute` is the guard's sentinel — the route at path '/' (id 'home'
+ * in the shipped ROUTES); the caller passes the real one when it has the table.
  * @param {{ id: string, path: string }} route
  * @param {{ appId: string, scheme: string }} identity
+ * @param {{ initialRoute?: { id: string, path: string } }} [options]
  * @returns {string}
  */
-export function buildRouteFlowYaml(route, { appId, scheme }) {
+export function buildRouteFlowYaml(
+  route,
+  { appId, scheme },
+  { initialRoute = { id: 'home', path: '/' } } = {},
+) {
   return [
     `# maestro/flows/${route.id}.yaml — device flow for ROUTES id '${route.id}' (path '${route.path}').`,
     '#',
@@ -68,6 +105,7 @@ export function buildRouteFlowYaml(route, { appId, scheme }) {
     `appId: ${q(appId)}`,
     '---',
     '- launchApp',
+    ...routerLiveGuard([initialRoute]),
     `- openLink: ${q(deepLink(scheme, route.path))}`,
     '- extendedWaitUntil:',
     '    visible:',

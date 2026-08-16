@@ -89,7 +89,14 @@ if (flag('--sweep')) {
       `${out} already exists — flows are hand-tuned after scaffolding; edit it instead of regenerating over it`,
     )
   }
-  emit(out, buildRouteFlowYaml(route, identity), `flow scaffold for route '${route.id}'`)
+  // The router-live guard's sentinel is the REAL initial route from the table (path
+  // '/'), not the builder's default — the one caller that has the table passes it.
+  const initialRoute = routes.find((r) => r.path === '/') ?? routes[0]
+  emit(
+    out,
+    buildRouteFlowYaml(route, identity, initialRoute === undefined ? {} : { initialRoute }),
+    `flow scaffold for route '${route.id}'`,
+  )
 } else {
   die(
     'usage: gen-maestro-flows --sweep [--out <file>] | --perf-harness [--out <file>] | --flow <route-id>',
