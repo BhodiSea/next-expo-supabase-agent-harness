@@ -20,7 +20,8 @@
 //   must appear in the timings — and `--record --cold` stamps coldWall/coldMeasurement the
 //   same reviewed-dispatch way. It exists because the README could publish a warm and a
 //   Stop figure but had to say "the cold path is unmeasured" for lack of exactly this writer
-//   (the obligations row cold-path-measurement-publication).
+//   (the obligations row cold-path-measurement-publication, discharged by the first cold
+//   recording — selftest run 31932626790 on the 1.0.0 release branch).
 //
 // FACTORY-SIDE ONLY. It is not a chain step and never will be: a consumer's hardware is
 // not the harness's runner, and scripts/check-claims.mjs:12 already carries the honest

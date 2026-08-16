@@ -17,7 +17,7 @@ This lineage's own history starts at 0.1.3.
 either shipped or narrowed to the platform ceiling that owns it.** The obligations register
 went in with 11 release rows, 5 calendar rows and 19 condition rows and comes out with 8
 release rows (all of them the 1.1.0-dated ramp expiries this release itself opens or
-re-opens), 6 calendar rows, and 10 condition rows reduced to platform ceilings re-verified
+re-opens), 6 calendar rows, and 9 condition rows reduced to platform ceilings re-verified
 on the day. Every comparison in the fleet is `>=`, so the deadlines the 0.11.x
 records wrote as `0.12.0` arrive at this hop exactly as they would have at a 0.12.0: nothing
 strands. **Stable means the register is honest, not that it is empty** — the "What stays
@@ -132,7 +132,12 @@ open" list at the end of this entry is the same list the release was cut against
   is the cold path — a fresh clone, cold caches, the first validate — and it is now teed and
   recordable: `check-chain-budget --record --cold` stamps `coldWall`/`coldMeasurement` on the
   same reviewed-dispatch path as the warm and Stop halves. Measured, never budgeted (no
-  ceiling: a first-clone figure is dominated by installs the chain does not own).
+  ceiling: a first-clone figure is dominated by installs the chain does not own). The first
+  cold recording landed from the release branch's dispatch: cold ≈ 110 s wall (110224 ms,
+  36/36 steps reached, 2026-08-16, Linux/X64), beside the re-recorded warm ≈ 23 s
+  (23030 ms, 36/36) and Stop turn-end ~52.7 s (52665 ms, 10/10). `check-claims` licenses
+  the warm and cold figures separately, each by its own recording. Row
+  `cold-path-measurement-publication` discharged.
 - **`scripts/sweep-registry-deprecations.mjs`** — `tools/eol.json`'s review method as a tool:
   asks the registry about every resolved `package@version` in a rendered scaffold. The 1.0.0
   review swept 1556 pairs, found six deprecations, and the register carries exactly those six.
@@ -174,9 +179,11 @@ open" list at the end of this entry is the same list the release was cut against
   `uuid: 7.0.3` pin from a lockfile line; the manifest declares `^7.0.3`, a caret over a
   wholly-deprecated line resolved to its last release. Same disposition, corrected record,
   `removalTarget` → 1.1.0 with the discharge condition stated as one command.
-- **The `chain-budget` scrub**: the committed 34/10 measurement is history for a chain this
-  tree no longer runs; every wall-clock figure was withdrawn until the dispatched 36/10 (+cold)
-  re-record lands and is committed — the order is measure, commit, then publish.
+- **The `chain-budget` scrub and re-record**: the committed 34/10 measurement was history
+  for a chain this tree no longer runs, so every wall-clock figure was withdrawn at the chain
+  growth and re-published only after the dispatched 36/10 (+cold) re-record landed and was
+  committed (selftest run 31932626790 on the release branch, the CI artifact verbatim) — the
+  order is measure, commit, then publish, and it held for the whole release.
 
 ### Ledger
 
@@ -207,8 +214,8 @@ open" list at the end of this entry is the same list the release was cut against
   e2ee-passphrase-kdf-consumer-decision, conformance-cra-hens-citation, and the seven 1.1.0
   ramp-expiry rows (docs-sync gate list, suppressions, resilience, boundaries' anatomy
   widening, exports-walls' module closure, auth-posture's hook sections, version-sync's
-  support register). Kept, re-verified: the cold-path row rides until the dispatched
-  measurement is committed.
+  support register). Row `cold-path-measurement-publication` discharged by the committed
+  cold recording (its condition, met through the channel it named).
 - **Upgrade lane**: `VINTAGES` += 0.11.1; leg L (v0.10.0 — the vintage no leg covered since
   0.11.1, and the smallest non-zero wave at 1.0.0) and leg M (v0.11.0 — the vacated vintage,
   zero expiries and the whole 1.0.0 NOTE fleet) join A–K. **`SWEEPS['1.0.0']` was written by

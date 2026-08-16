@@ -74,16 +74,21 @@ two clients. The cross-surface seams are enforced by gates, not by discipline.
 > the database, and rotation ships the primitive (`rewrapItemKey`) but not the
 > orchestration. `docs/modules/e2ee/README.md` states each of these in full.
 >
-> **Honest limits.** The chain grew to 36 steps in this release, so the
-> wall-clock figures are UNPUBLISHED until the dispatched re-record lands: the
-> committed 34/10 measurements in `scripts/chain-budget.json` (recorded
-> 2026-08-09, Linux/X64) are history for a chain this tree no longer runs, and a
-> figure whose measurement does not count-match the live chain licenses nothing —
-> `check-claims` reds on a published figure with no committed measurement behind
-> it, and `check-chain-budget --record` is the thing that can produce one
-> (dispatch the selftest lane, review the artifact, commit it). The cold path is
-> unmeasured and carries no figure for the same reason. The order is measure,
-> commit, then publish. The device lanes (Android emulator + Maestro) are schedule- and
+> **Honest limits.** The wall-clock figures are measured, committed, and
+> qualified: validate is warm ≈ 23 s wall (23030 ms — the serial reference
+> capture; no agent turn runs serial mode), the Stop chain's turn-end is
+> ~52.7 s wall (52665 ms, including the nested validate member), and the first
+> validate of a fresh clone with cold caches is cold ≈ 110 s wall (110224 ms —
+> measured, never budgeted: installs and toolchain resolution the chain does
+> not own dominate it), all recorded 2026-08-16 on Linux/X64
+> (selftest) and count-matched to the 36/10 chain-and-Stop measurement in
+> `scripts/chain-budget.json`. They are that runner's numbers, not a promise
+> about yours. Unmeasured numbers do not ship — `check-claims` reds on a
+> published figure with no committed measurement behind it (warm and cold are
+> licensed SEPARATELY, by their own recordings), and `check-chain-budget
+> --record` is the thing that can produce one (dispatch the selftest lane,
+> review the artifact, commit it). The order is measure, commit, then publish.
+> The device lanes (Android emulator + Maestro) are schedule- and
 > dispatch-gated, so a PR does not pay for them — which also means they are
 > proven nightly, not per-commit. The gate chain contains no on-device proof at
 > agent time.

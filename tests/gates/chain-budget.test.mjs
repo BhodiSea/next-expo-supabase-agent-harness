@@ -190,38 +190,38 @@ test('the wall warn band warns and the ceiling reds', () => {
 })
 
 test('the committed measurement describes THIS chain — and the published figures ARE the committed ones', () => {
-  // This pin has now flipped FOUR times, and the round-trip is the doctrine working. The
+  // This pin has now flipped FIVE times, and the round-trip is the doctrine working. The
   // 0.7.0 recording (selftest run 31307386944) satisfied it; 0.8.0 grew the chain to 34
   // (`observability`) and the release deliberately shipped in the interim state — count
   // mismatch, hasCommittedMeasurement false, no figure licensed — until the post-release
   // dispatch (selftest run 31342080611) re-measured all 34 steps and both Stop halves in
   // one artifact, committed verbatim. 0.9.0 then PUBLISHED the licensed figures, and
-  // this test pinned them. 1.0.0 grows the chain to 36 (`suppressions`, `resilience`),
-  // so the pin flips BACK to the interim state — the 34-step measurement is committed
-  // history for a chain this tree no longer runs, hasCommittedMeasurement is false,
-  // check-claims refuses any ~Ns figure, and the README says so in prose instead of
-  // publishing one. The dispatched 36/10 re-record on the release branch flips this
-  // test forward again in the same commit that republishes the figures — measure,
-  // commit, then publish, with this pin as the sentinel on both edges.
-  assert.equal(
-    hasCommittedMeasurement(budget, chainSteps),
-    false,
-    'the 34-step measurement must not count-match the 36-step chain — if this fails, the re-record landed and this pin must flip forward to the published state',
-  )
-  // The interim state keeps the HISTORY intact — the measurement block is evidence of
-  // the last recording, never deleted, only outgrown.
+  // this test pinned them. 1.0.0 grew the chain to 36 (`suppressions`, `resilience`),
+  // so the pin flipped BACK to the interim state for the branch's middle — the 34-step
+  // measurement was committed history for a chain the tree no longer ran, and the README
+  // said so in prose instead of publishing a figure — and then FORWARD again in the same
+  // commit that republished the figures, once the dispatched 36/10 (+cold) re-record on
+  // the release branch (selftest run 31932626790, PRE-tag this time) landed and was
+  // committed verbatim. Measure, commit, then publish, with this pin as the sentinel on
+  // both edges. The invariant is the same as ever: a measuredMs may exist only under a
+  // count-matched provenance stamp, and never over its own ceiling.
+  assert.equal(hasCommittedMeasurement(budget, chainSteps), true)
   assert.ok(budget.measurement.runner.trim(), 'a measurement with no runner is unattributed')
   assert.match(budget.measurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(budget.measurement.stepsMeasured, chainSteps.length)
+  assert.ok(budget.wall.measuredMs <= budget.wall.ceilingMs, 'a committed wall over its own ceiling')
   const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
   assert.ok(
-    !readme.includes(`(${budget.wall.measuredMs} ms`) &&
-      !readme.includes(`(${budget.stopWall.measuredMs} ms`),
-    'no stale millisecond figure may survive in the README while the measurement does not count-match the live chain',
+    readme.includes(`(${budget.wall.measuredMs} ms`),
+    'the README wall figure must be the committed measurement, verbatim in milliseconds',
   )
-  assert.match(
-    readme,
-    /UNPUBLISHED until the dispatched re-record lands/,
-    'the README must state the unmeasured interim plainly rather than silently dropping the paragraph',
+  assert.ok(
+    readme.includes(`(${budget.stopWall.measuredMs} ms`),
+    'the README Stop turn-end figure must be the committed stopWall measurement, verbatim',
+  )
+  assert.ok(
+    !/UNPUBLISHED until the dispatched re-record lands/.test(readme),
+    'the interim sentence must not outlive the recording it was waiting for',
   )
 })
 
@@ -552,12 +552,23 @@ test('--record --stop-chain refuses to stamp outside Actions without --runner (C
 })
 
 // ---- the COLD writer (1.0.0) ----------------------------------------------------------
-test('the shipped file carries the cold surface UNRECORDED until a dispatch lands — no cold figure is licensed', () => {
-  // The state the 1.0.0 branch ships in: the writer exists, the placeholder is null, and
-  // the README may not say "cold ≈ N s". The dispatched selftest run flips this.
-  assert.equal(budget.coldWall.measuredMs, null)
-  assert.equal(budget.coldMeasurement, null)
-  assert.equal(hasCommittedColdMeasurement(budget, chainSteps), false)
+test('the shipped file carries the cold surface RECORDED — and the published cold figure IS the committed one', () => {
+  // The state the 1.0.0 branch shipped in for its middle: the writer existed, the
+  // placeholder was null, and the README could not say "cold ≈ N s". The dispatched
+  // selftest run on the release branch (31932626790) flipped it: coldWall/coldMeasurement
+  // are stamped with provenance, count-matched to the live chain, and the README's cold
+  // figure is that measurement's own millisecond value — the same sentinel discipline as
+  // the warm half, judged by its own licence (a warm re-record never unlocks a cold figure).
+  assert.equal(hasCommittedColdMeasurement(budget, chainSteps), true)
+  assert.ok(budget.coldMeasurement.runner.trim(), 'a cold measurement with no runner is unattributed')
+  assert.match(budget.coldMeasurement.recordedOn, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(budget.coldMeasurement.stepsMeasured, chainSteps.length)
+  assert.ok(budget.coldMeasurement.path.trim(), 'a cold measurement must say WHICH path it timed')
+  const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
+  assert.ok(
+    readme.includes(`(${budget.coldWall.measuredMs} ms`),
+    'the README cold figure must be the committed coldWall measurement, verbatim in milliseconds',
+  )
 })
 
 test('recordColdMeasurement stamps coldWall + coldMeasurement with provenance, purely, and touches nothing else', () => {

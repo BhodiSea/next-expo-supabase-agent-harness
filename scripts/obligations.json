@@ -216,14 +216,6 @@
       "reviewedOn": "2026-08-10"
     },
     {
-      "id": "cold-path-measurement-publication",
-      "kind": "condition",
-      "target": null,
-      "reason": "The COLD path (fresh clone, cold caches, first validate) is unmeasured — the committed measurements cover the warm chain and the Stop turn-end only — so no cold figure may be published, and the README says so. Condition, not a date: the discharge is a reviewed cold-run recording through the same `check-chain-budget --record` channel, which exists only when a runner and a reviewed dispatch produce one.",
-      "reviewedOn": "2026-08-10",
-      "evidence": "scripts/chain-budget.json"
-    },
-    {
       "id": "docs-sync-gate-list-ramp-expiry",
       "kind": "release",
       "target": "1.1.0",
