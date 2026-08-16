@@ -1,0 +1,22 @@
+# maestro/flows/security.yaml — device flow for ROUTES id `security` (path `/security`).
+#
+# W5 SEED: launch, reach the route, and prove the route surface is on screen.
+# Security sits outside the tab bar (its in-app path is the actions palette's
+# Go-to-Security command), so the deep link is the deterministic reach here —
+# the same door the cold-start timing lane uses. One flow per ROUTES id —
+# tools/check-mobile-perf.mjs --closure reds a route without one.
+#
+# `security-screen` is the Screen container's testID — a STYLED SafeAreaView,
+# so the New Architecture does not flatten it away (only unstyled wrapper Views
+# lose their testIDs). Asserting the container rather than a data-state leaf is
+# deliberate: a freshly-installed app is signed out, so the factor read lands
+# on whatever state the missing session produces, and the container exists in
+# every one of them.
+appId: {{APP_IDENTIFIER}}
+---
+- launchApp
+- openLink: "{{APP_SCHEME}}://security"
+- extendedWaitUntil:
+    visible:
+        id: "security-screen"
+    timeout: 30000

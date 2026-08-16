@@ -79,6 +79,7 @@ describe('actions modal sections + ranking', () => {
     expect(optionTitles()).toEqual([
       en['command.goHome'],
       en['command.goMatrix'],
+      en['command.goSecurity'],
       en['command.createNote'],
       en['command.signOut'],
       en['command.deleteAccount'],

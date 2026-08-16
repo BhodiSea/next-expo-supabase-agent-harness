@@ -36,7 +36,7 @@ const SHIPPED_FLOW = (id) =>
   )
 
 // The shipped scaffold's route ids — flows are seeded one per id.
-const SCAFFOLD_IDS = ['home', 'matrix', 'actions']
+const SCAFFOLD_IDS = ['home', 'matrix', 'actions', 'security']
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
@@ -116,7 +116,7 @@ test('GREEN --closure: the shipped triangle (routes + flows + budget rows) passe
   const r = runGate(fixture(), { closure: true })
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('mobile-perf: OK'), r.out)
-  assert.ok(r.out.includes('closure OK — 3 route(s)'), r.out)
+  assert.ok(r.out.includes('closure OK — 4 route(s)'), r.out)
 })
 
 test('RED --closure: a new route with no Maestro flow AND no budget row reds naming both gaps', () => {
@@ -319,6 +319,7 @@ const GREEN_RESULTS = {
     home: { totalTimeMs: 900 },
     matrix: { totalTimeMs: 1100 },
     actions: { totalTimeMs: 800 },
+    security: { totalTimeMs: 850 },
   },
 }
 
@@ -326,7 +327,7 @@ test('GREEN measurement: results within every budget pass, printing the measured
   const r = runGate(fixture({ results: GREEN_RESULTS }))
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('measured (am start -W'), r.out)
-  assert.ok(r.out.includes('3 screen(s) within startup budget'), r.out)
+  assert.ok(r.out.includes('4 screen(s) within startup budget'), r.out)
 })
 
 test('RED measurement: a cold-start over its cap fails naming the screen and both numbers', () => {

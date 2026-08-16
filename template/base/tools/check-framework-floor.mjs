@@ -110,7 +110,9 @@ if (existsSync(eolPath)) {
 const stxtPath = arg('security-txt', 'apps/web/public/.well-known/security.txt')
 const stxtProblems = []
 if (existsSync(stxtPath)) {
-  stxtProblems.push(...staleSecurityTxt({ text: readFileSync(stxtPath, 'utf8'), today, path: stxtPath }))
+  stxtProblems.push(
+    ...staleSecurityTxt({ text: readFileSync(stxtPath, 'utf8'), today, path: stxtPath }),
+  )
 } else {
   console.log(
     `${GATE}: NOTE — ${stxtPath} is absent, so no machine-readable disclosure channel is being reviewed. It seeds at init since 1.0.0; adopt it by writing the file with a reviewed RFC 9116 Expires bound.`,

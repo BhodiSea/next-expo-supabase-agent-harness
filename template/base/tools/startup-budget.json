@@ -3,6 +3,7 @@
   "screens": {
     "home": { "maxTotalTimeMs": 15000 },
     "matrix": { "maxTotalTimeMs": 15000 },
-    "actions": { "maxTotalTimeMs": 15000 }
+    "actions": { "maxTotalTimeMs": 15000 },
+    "security": { "maxTotalTimeMs": 15000 }
   }
 }

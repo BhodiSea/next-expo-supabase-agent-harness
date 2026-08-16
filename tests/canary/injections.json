@@ -286,7 +286,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-route-manifest.test.mjs",
-        "note": "expo-router derivation: an app/ route file claimed by no ROUTES entry reds; a manifest path disagreeing with the derived URL ((group) elision, index→parent, [param]→:param, [...param]→*param) reds; missing states.loading/empty/error test ids red; stale manifest/allowlist entries naming missing files red; +not-found is required; an empty ROUTES array reds"
+        "note": "expo-router derivation: an app/ route file claimed by no ROUTES entry reds; a manifest path disagreeing with the derived URL ((group) elision, index→parent, [param]→:param, [...param]→*param) reds; missing states.loading/empty/error test ids red; stale manifest/allowlist entries naming missing files red; +not-found is required; an empty ROUTES array reds The web half's states-rendered proof now also covers a client-island content page — (protected)/security renders every declared id as data-testid={meta.states.*}, the drift-proof form."
       },
       {
         "kind": "selftest",
@@ -422,7 +422,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-mobile-perf.test.mjs",
-        "note": "CLOSURE half: a src/routes.ts id with no maestro/flows/<id>.yaml AND no tools/startup-budget.json row reds turn-fatally; stale flows/rows naming a dead route id red; measurement mode reds on a budget overrun in artifacts/perf-results.json and FAILS CLOSED when the perf lane env is set but the artifact is absent. The MEASUREMENT half needs the W6 emulator lane (see the registry-level PORT NOTE)."
+        "note": "CLOSURE half: a src/routes.ts id with no maestro/flows/<id>.yaml AND no tools/startup-budget.json row reds turn-fatally; stale flows/rows naming a dead route id red; measurement mode reds on a budget overrun in artifacts/perf-results.json and FAILS CLOSED when the perf lane env is set but the artifact is absent. The MEASUREMENT half needs the W6 emulator lane (see the registry-level PORT NOTE). The security route (1.0.0, the MFA enrolment surface) rides the same closure: deleting maestro/flows/security.yaml or its startup-budget row reds --closure in the Stop chain."
       },
       {
         "kind": "selftest",

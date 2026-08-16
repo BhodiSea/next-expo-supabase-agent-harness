@@ -72,8 +72,9 @@ whose `WITH CHECK` pins `role_rank = 40` so the row cannot change rank through i
 
 ## Sources
 
-- ASD Essential Eight Maturity Model (RAP-02, RAP-03, RAP-13) —
-  https://www.cyber.gov.au/resources-business-and-government/essential-cybersecurity/essential-eight/essential-eight-maturity-model
+- ASD Essential Eight Maturity Model (RAP-02, RAP-03, RAP-13) — graded in
+  tools/essential-eight.json, whose `source` block pins the maturity-model URL and
+  the verbatim 12-month / 45-day timeframes this decision transcribes
 - PostgreSQL row security: FORCE applies to the table owner; permissive policies
   are combined with OR; a SECURITY DEFINER function's reads are judged against the
   owner's policies [corpus: postgres/rls-force]

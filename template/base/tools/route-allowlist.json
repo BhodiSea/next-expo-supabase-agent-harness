@@ -6,6 +6,14 @@
       "reason": "auth chrome, not content: the mode-aware sign-in surface (stub or PKCE) has no canonical data states — its pending/failure handling is covered by the sign-in RNTL suite, and it must stay reachable to the SIGNED-OUT user the route manifest's data-state contract presumes away"
     },
     {
+      "name": "sign-up",
+      "reason": "auth chrome, not content: account creation plus the OFFERED TOTP enrol step is a credential ceremony with no canonical data states — its pending/failure/skip handling is form state driven by @app/supabase's mfa-flow machine and covered by the sign-up RNTL suite, and it must stay reachable to the SIGNED-OUT user the route manifest's data-state contract presumes away"
+    },
+    {
+      "name": "mfa-challenge",
+      "reason": "auth chrome, not content: the TOTP challenge is the second half of sign-in for an enrolled user — a step INSIDE the credential ceremony with no canonical data states, its pending/failure handling driven by the mfa-flow machine and covered by the mfa-challenge RNTL suite; the enforcement it satisfies lives in the database rail (supabase/migrations/20260812000000_mfa_aal2.sql), not on this screen"
+    },
+    {
       "name": "perf-harness",
       "reason": "dev-only measurement chrome, not content: the CI device lane deep-links here with budget params from tools/interaction-budget.json and asserts the self-measured perf-pass/perf-fail leaf marker (tools/check-e2e-device.mjs). No canonical data states — the probes run against the in-process actions registry, never a query — and outside __DEV__ the screen renders only its unavailability note"
     },

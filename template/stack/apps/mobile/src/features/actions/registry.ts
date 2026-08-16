@@ -69,6 +69,16 @@ export const ACTION_COMMANDS: readonly ActionCommand[] = [
     },
   },
   {
+    // The security route's front door — a content screen outside the tab bar
+    // needs an in-app path to it, and the command palette is that path.
+    id: 'nav.security',
+    titleKey: 'command.goSecurity',
+    group: 'navigation',
+    run: (context) => {
+      context.navigate('/security')
+    },
+  },
+  {
     id: 'notes.create',
     titleKey: 'command.createNote',
     group: 'notes',

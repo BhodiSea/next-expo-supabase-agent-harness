@@ -1,10 +1,13 @@
 'use client'
 
-import { Button, Field, Input } from '@app/design-system'
+import { Button } from '@app/design-system'
+import { decideAfterSignIn } from '@app/supabase/client'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { t } from '../../lib/i18n'
 import { getBrowserClient } from '../../lib/supabase/client'
+import { CredentialFields } from './credential-fields'
 
 // The credential form. A CLIENT component, and it has to be: signing in must happen in the
 // browser so the browser client writes the session cookie the whole app then reads. Posting
@@ -39,14 +42,35 @@ export function SignInForm(): React.ReactNode {
     event.preventDefault()
     setBusy(true)
     setError(null)
-    const { error: failure } = await getBrowserClient().auth.signInWithPassword({ email, password })
+    const client = getBrowserClient()
+    const { error: failure } = await client.auth.signInWithPassword({ email, password })
     setBusy(false)
     if (failure !== null) {
       // ONE message for every failure mode. Distinguishing "no such account" from "wrong
       // password" turns this form into an account-existence oracle: an attacker enumerates a
       // customer list by watching which addresses answer differently. The provider's own
       // message is deliberately not forwarded for the same reason.
-      setError('That email and password did not match an account.')
+      setError(t('auth.signIn.failed'))
+      return
+    }
+    // THE AAL BRANCH. The password minted an aal1 session; whether that session
+    // is FINISHED is the machine's decision, not this form's: an enrolled user's
+    // aal1 token reads nothing (the database rail refuses it on every surface),
+    // so routing them to the challenge is the only path that ends anywhere.
+    // push(), not replace() — the challenge is a step FORWARD in the same
+    // ceremony, and Back honestly returns to the credential form. An AAL read
+    // that itself fails yields null levels and proceeds: the rail still holds,
+    // and a dead end here would lock out the un-enrolled majority on a blip.
+    // SOURCE: supabase/migrations/20260812000000_mfa_aal2.sql (the rail) ·
+    // packages/platform/supabase/src/mfa-flow.ts (decideAfterSignIn)
+    const { data: aal } = await client.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (
+      decideAfterSignIn({
+        currentLevel: aal?.currentLevel ?? null,
+        nextLevel: aal?.nextLevel ?? null,
+      }) === 'challenge'
+    ) {
+      router.push('/sign-in/mfa')
       return
     }
     // `refresh()` after `replace()`, and both are needed. replace() moves the route;
@@ -65,23 +89,20 @@ export function SignInForm(): React.ReactNode {
       className="flex flex-col gap-4"
       noValidate
     >
-      <Field label={t('auth.email')}>
-        <Input value={email} onChangeText={setEmail} keyboard="email" testID="sign-in-email" />
-      </Field>
-      <Field label={t('auth.password')}>
-        <Input value={password} onChangeText={setPassword} secure testID="sign-in-password" />
-      </Field>
-      {/* A FORM-level alert, not a Field error, because the failure is about the PAIR: the
-          server will not say which half was wrong, so pinning the message to one input would
-          claim knowledge nobody has. role="alert" announces it without the user going looking;
-          rendered only when present, since a permanently-mounted empty live region is
-          announced as a change on every render by some engines. */}
-      {error !== null && (
-        <p role="alert" className="text-sm text-danger" data-testid="sign-in-error">
-          {error}
-        </p>
-      )}
+      {/* The shared email/password pair + PAIR-level alert (see
+          credential-fields.tsx for the non-enumeration rationale). */}
+      <CredentialFields
+        idPrefix="sign-in"
+        email={email}
+        password={password}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        error={error}
+      />
       <Button label={t('auth.signIn')} type="submit" busy={busy} testID="sign-in-submit" />
+      <Link href="/sign-up" className="text-sm text-ink-muted underline">
+        {t('auth.signIn.needAccount')}
+      </Link>
     </form>
   )
 }

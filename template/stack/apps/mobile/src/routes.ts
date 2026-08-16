@@ -77,4 +77,15 @@ export const ROUTES = [
       error: 'actions-error',
     },
   },
+  {
+    id: 'security',
+    titleKey: 'route.security',
+    path: '/security',
+    file: 'security',
+    states: {
+      loading: 'security-loading',
+      empty: 'security-empty',
+      error: 'security-error',
+    },
+  },
 ] as const satisfies readonly RouteEntry[]

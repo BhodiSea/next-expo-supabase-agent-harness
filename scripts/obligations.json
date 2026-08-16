@@ -36,11 +36,18 @@
       "evidence": "https://supabase.com/docs/guides/auth/auth-mfa"
     },
     {
-      "id": "e8-mfa-enrolment-surface",
-      "kind": "release",
-      "target": "1.0.0",
-      "reason": "Essential Eight MFA-01, MFA-04 and MFA-06 all say MFA \"is used to authenticate\" users or customers — a claim about ALL of them — and mandatory enrolment is NOT expressible in GoTrue: MFAConfiguration carries no Required field and there is no project-level require-MFA switch for end users. 0.9.9 shipped the enforcement half (the aal2 rail makes enrolment MEAN something: an enrolled user cannot reach the data with a password alone, on any surface) and deliberately not the enrolment surface, which needs a signup state machine and a challenge flow on both product surfaces. Until it exists, a user who never enrols authenticates with one factor and these rows stay not-implemented rather than being softened to alternate-control. Same shape as dsr-web-erase-surface: the rail exists, the surface is owed. ADR: docs/adr/20260812-mfa-aal2.md. RE-DATED TO 1.0.0 BY 0.10.0 on a CAPABILITY CEILING rather than on scope, and the distinction matters because a 0.11.0 date would be a promise nobody can keep: GoTrue’s MFAConfiguration carries no Required field and there is no project-level require-MFA switch for end users, so mandatory enrolment is not expressible on this platform at any date. What a release CAN build is the signup state machine and challenge flow on both surfaces, which is real work and does not by itself make the claim true — a user who never enrols still authenticates with one factor. It rides to 1.0.0 with the rest of the outcome-oracle work rather than being re-dated a minor at a time.",
-      "reviewedOn": "2026-08-14"
+      "id": "e8-mfa-mandatory-enrolment",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "template/base/tools/essential-eight.json",
+          "mustContain": "e8-mfa-mandatory-enrolment"
+        }
+      ],
+      "reason": "MFA-01/04/06 ask that multi-factor authentication IS USED, and after 1.0.0 the only missing ingredient is compulsion: the aal2 rail enforces the second factor for every ENROLLED user on every surface, and the 1.0.0 enrolment surface (the offered TOTP step in both sign-ups, the challenge screens, the security page and screen, the shared mfa-flow ceremony) lets any user enrol end to end — but GoTrue carries no `required` field, so enrolment stays an offer and a user who declines authenticates with one factor. Condition rather than dated because the discharge is a design decision with two shapes, neither of which the harness may default: adopt an upstream mandatory-enrolment control if GoTrue ever ships one, or impose an application-level wall (refuse session bootstrap without a verified factor) — a posture that locks every casual project out of its own scaffold, so it belongs to the consumer, stated here rather than defaulted. The three rows stay not-implemented until one of those lands.",
+      "reviewedOn": "2026-08-16",
+      "evidence": "template/base/tools/essential-eight.json"
     },
     {
       "id": "e8-auth-event-trail",

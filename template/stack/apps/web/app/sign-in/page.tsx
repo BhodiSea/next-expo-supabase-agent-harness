@@ -1,8 +1,8 @@
-import { Text } from '@app/design-system'
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { t } from '../../lib/i18n'
 import { getVerifiedUser } from '../../lib/supabase/server'
+import { CeremonyShell } from './ceremony-shell'
 import { SignInForm } from './sign-in-form'
 
 // The credential route. A SERVER component wrapping one client island — the smallest
@@ -19,12 +19,8 @@ export default async function SignInPage(): Promise<ReactNode> {
   if ((await getVerifiedUser()) !== null) redirect('/o')
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6 py-16">
-      <Text as="h1" size="2xl" weight="semibold">
-        {t('route.signIn')}
-      </Text>
-      <Text tone="muted">{t('auth.signIn.lede')}</Text>
+    <CeremonyShell title={t('route.signIn')} lede={t('auth.signIn.lede')}>
       <SignInForm />
-    </main>
+    </CeremonyShell>
   )
 }

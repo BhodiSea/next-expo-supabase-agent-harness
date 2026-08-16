@@ -44,8 +44,11 @@ const SCAFFOLD_APP_FILES = [
   '+not-found.tsx',
   'actions.tsx',
   'api/health+api.ts',
+  'mfa-challenge.tsx',
   'perf-harness.tsx',
+  'security.tsx',
   'sign-in.tsx',
+  'sign-up.tsx',
 ]
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
@@ -183,7 +186,7 @@ test('GREEN: the expo-router derivation accepts [param]→:param and [...param]�
     fixture({ routes, appFiles: [...SCAFFOLD_APP_FILES, 'notes/[id].tsx', 'docs/[...slug].tsx'] }),
   )
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('5 route(s)'), r.out)
+  assert.ok(r.out.includes('6 route(s)'), r.out)
 })
 
 test('RED: a manifest path disagreeing with the derived URL reds — the manifest is lying', () => {
