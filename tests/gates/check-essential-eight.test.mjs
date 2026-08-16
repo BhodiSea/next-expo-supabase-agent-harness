@@ -276,7 +276,7 @@ test('a row that grades NOTHING may not cite a red-proof', () => {
   // The inverse direction. A not-implemented row carrying a canary reads as evidence for a
   // claim nobody made — and MFA-09 is exactly the row a reader would expect one on.
   const reg = clone()
-  reg.requirements.find((r) => r.id === 'MFA-15').canary = 'auth-posture'
+  reg.requirements.find((r) => r.id === 'MFA-01').canary = 'auth-posture'
   assert.ok(canaryProblems(reg, realKeys()).some((p) => /claims no control/.test(p)))
 })
 
@@ -362,9 +362,10 @@ test('every shipped POSITIVE claim resolves against the real canary registry', (
   const positive = reg.requirements.filter(
     (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
   )
-  // 14 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03 and RAP-13
-  // to effective and RAP-02 to alternate-control, each on the rls-isolation canary.
-  assert.equal(positive.length, 14, 'the closure is worthless if its subject set silently shrinks')
+  // 15 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03 and RAP-13 to
+  // effective and RAP-02 to alternate-control (rls-isolation canary), and the
+  // auth-event trail regraded MFA-15 to alternate-control (auth-posture canary).
+  assert.equal(positive.length, 15, 'the closure is worthless if its subject set silently shrinks')
   assert.deepEqual(canaryProblems(reg, realKeys()), [])
 })
 

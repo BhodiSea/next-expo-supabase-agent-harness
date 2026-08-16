@@ -241,7 +241,7 @@ incident-response portions back to the organisation.
 
 The standing below is recomputed from the register by `check-claims.mjs` and printed
 verbatim by the gate, as the whole partition rather than the flattering half of it:
-**149 ML3 requirements: 8 effective, 6 alternate-control, 24 not-implemented, 61
+**149 ML3 requirements: 8 effective, 7 alternate-control, 23 not-implemented, 61
 not-applicable, 50 organisation-boundary; 8 shared clauses.** Grades are conservative by
 rule — absence of a surface is never a control, where two grades are defensible the lower
 one is taken, and an artefact another row already claims is not claimed again. Rows

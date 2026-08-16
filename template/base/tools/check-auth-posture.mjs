@@ -132,8 +132,16 @@ const AUTH_KEY = /^auth(\.|$)/
 const mfaErrs = []
 const MFA_RAMP = '0.9.9'
 const isMfaName = (name) => /^auth\.mfa(\.|$)/.test(name)
+// The same seam, one release later (1.0.0): the auth-event trail's hook posture.
+// config.toml is SEEDED and the hook sections arrive with the 1.0.0 trail migration,
+// so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite —
+// the identical ambush the [auth.mfa] routing above exists for, resolved the same way.
+const hookErrs = []
+const HOOK_RAMP = '1.0.0'
+const isHookName = (name) => /^auth\.hook(\.|$)/.test(name)
 /** Route a finding by the config name it is about. @param {string} name @param {string} msg */
-const push = (name, msg) => (isMfaName(name) ? mfaErrs : errs).push(msg)
+const push = (name, msg) =>
+  (isMfaName(name) ? mfaErrs : isHookName(name) ? hookErrs : errs).push(msg)
 
 // ── 1. forward: the reviewed posture holds ───────────────────────────────────────────
 for (const [key, want] of Object.entries(policy.posture ?? {})) {
@@ -406,6 +414,25 @@ if (
   errs.push(...mfaErrs)
 }
 
+if (
+  hookErrs.length > 0 &&
+  rampNote(
+    GATE,
+    HOOK_RAMP,
+    `the [auth.hook] trail posture (the auth-event trail, new in ${HOOK_RAMP})`,
+    {
+      until: '1.1.0',
+    },
+  )
+) {
+  console.log(
+    `${GATE}: NOTE — ${String(hookErrs.length)} [auth.hook] finding(s) withheld by the ${HOOK_RAMP} ramp. The hooks bind GoTrue to the auth-event trail (migration 20260816000000_auth_event_trail.sql) — adopt the migration AND the two config sections together (docs/adr/20260816-auth-event-trail.md shows both); until then failed sign-ins leave no record on this install:`,
+  )
+  for (const e of hookErrs) console.log(`  - ${e}`)
+} else {
+  errs.push(...hookErrs)
+}
+
 // ── the ramp ─────────────────────────────────────────────────────────────────────────
 // A gate whose subject is a file the HARNESS ships, applied to an install that has its own
 // supabase/config.toml (it is seeded, so `update` never rewrites it). Projects grow into gates.
@@ -426,9 +453,9 @@ failures(
 // The count is the REVIEWED total minus anything a ramp withheld. An OK line claiming
 // nineteen values hold while ten of them are missing is the same class of untrue summary
 // this gate exists to catch, one layer up.
-const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length
+const held = Object.keys(policy.posture ?? {}).length - mfaErrs.length - hookErrs.length
 ok(
   GATE,
-  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
+  `${String(Math.max(held, 0))} floor value(s) and ${String(tunableBounds.length)} bounded tunable(s) hold${mfaErrs.length > 0 ? ` (${String(mfaErrs.length)} [auth.mfa] finding(s) NOTE-only under the ${MFA_RAMP} ramp — the rail is inert here)` : ''}${hookErrs.length > 0 ? ` (${String(hookErrs.length)} [auth.hook] finding(s) NOTE-only under the ${HOOK_RAMP} ramp — failed sign-ins leave no record here)` : ''}, no unreviewed [auth*] key, redirect allowlist unwidened; ${cliSummary}`,
 )
 process.exitCode = 0

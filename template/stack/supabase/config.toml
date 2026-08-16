@@ -181,6 +181,28 @@ verify_enabled = false
 # separate bucket policy model), and shipping them enabled-but-unpoliced would
 # put two doors in the wall that no test in this repo watches. Enable either one
 # in the same change that adds its policies and its tests.
+# ─────────────────────────────────────────────────────────────────────────────
+# The authentication-event trail's hooks (1.0.0)
+# ─────────────────────────────────────────────────────────────────────────────
+# GoTrue calls these synchronously during every password / MFA verification —
+# including the FAILED attempts no client-side seam can ever see (a
+# credential-stuffing run against the token endpoint never renders a form) —
+# and the functions append to auth_trail.events (migration
+# 20260816000000_auth_event_trail.sql: append-only in four layers, org-less, no
+# client read path at all). Both hooks ALWAYS answer continue: the trail
+# observes, it never decides, and the functions are exception-wrapped so a
+# trail fault can never lock anyone out. Ceilings, stated here because this is
+# where a reader meets the wiring: hosted auth hooks are plan-gated; an attempt
+# against an email with no user row fires nothing; the password hook covers the
+# password grant only (OAuth and magic links do not traverse it).
+[auth.hook.password_verification_attempt]
+enabled = true
+uri = "pg-functions://postgres/auth_trail/password_verification_hook"
+
+[auth.hook.mfa_verification_attempt]
+enabled = true
+uri = "pg-functions://postgres/auth_trail/mfa_verification_hook"
+
 [realtime]
 enabled = false
 

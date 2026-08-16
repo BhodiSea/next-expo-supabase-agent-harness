@@ -50,19 +50,6 @@
       "evidence": "template/base/tools/essential-eight.json"
     },
     {
-      "id": "e8-auth-event-trail",
-      "kind": "release",
-      "target": "1.0.0",
-      "sites": [
-        {
-          "file": "template/base/tools/essential-eight.json",
-          "mustContain": "e8-auth-event-trail"
-        }
-      ],
-      "reason": "THE SCHEDULABLE HALF OF THE RETIRED e8-auth-event-logging. MFA-15 wants successful AND unsuccessful multi-factor authentication events centrally logged; verified against a running stack, a signup writes `user_signedup` and a sign-in writes `login`, but THREE FAILED SIGN-INS WRITE NOTHING AT ALL. RE-TARGETED FROM 0.11.0 TO 1.0.0, and the move is a correction of the 0.10.0 split rather than a slip: that row called this half 'BUILDABLE because the gap is in THIS repository rather than the platform', and walking the actual surfaces for 0.11.0 established that it is not buildable in the shape described. FOUR BLOCKERS, none previously recorded. (a) THE SCHEMA REFUSES THE ROW: audit.events carries `CONSTRAINT events_action_known CHECK (action IN ('INSERT','UPDATE','DELETE'))` in both the declarative schema and its migration, plus a NOT NULL org_id and table_name and an actor pinned to auth.uid() — a failed sign-in has no org, no table, and no uid, so 'write it into audit.events' is not a small addition but a change to the shape of the trail. (b) THERE IS NO SERVER-SIDE SIGN-IN SEAM to instrument on either surface; the web sign-in is deliberately client-side and its own source comments record why. (c) EVERY ANON-REACHABLE WRITER SHAPE IS ALREADY REFUSED by the rls-manifest closure and the security-definer allowlist — an unauthenticated endpoint that appends to the audit trail is also a write-amplification surface, and the limiter does not bind sign-in at all because that path goes to GoTrue. (d) MFA-15 IS ITS ONLY CITING ROW and cannot move regardless until e8-mfa-enrolment-surface, which is dated 1.0.0. A date this release could keep would have been a promise about a design nobody has. SHIPPED NOW INSTEAD, because it was actively misleading: docs/compliance/essential-eight.md told consumers to do the thing that the schema refuses.",
-      "reviewedOn": "2026-08-15"
-    },
-    {
       "id": "e8-central-log-forwarding",
       "kind": "condition",
       "target": null,
@@ -384,6 +371,19 @@
       ],
       "reason": "1.0.0 ships tools/modules.json (OWNED — the installer MODULES list finally has a shipped home a consumer gate can read, discharging exports-walls-module-name-validation) and closes every census entry's `module` value against it, so a typo'd module name can no longer park the stale arm permanently dormant while the entry still pre-authorises a ./client barrel. The census is SEEDED, so per the ramp doctrine the closure's findings ship NOTE-only for pre-1.0.0 installs until 1.1.0: a tree that wrote a module name before any list existed to check it against gets one release of dated NOTEs to fix the name or remove the sanction, never a hard red on the update that delivered the list. The register file itself fails closed unramped when absent or malformed — it is owned and arrives with the same release as the check, so its absence is a broken tree, not a consumer choice. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
       "reviewedOn": "2026-08-15"
+    },
+    {
+      "id": "auth-posture-hook-ramp-expiry",
+      "kind": "release",
+      "target": "1.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-auth-posture.mjs",
+          "mustContain": "the [auth.hook] trail posture (the auth-event trail, new in"
+        }
+      ],
+      "reason": "1.0.0 pins the auth-event trail's hook wiring as auth-posture floors (the [auth.hook.*] enabled/uri keys) and adds the two sections to the census. supabase/config.toml is SEEDED and the sections arrive with the 1.0.0 trail migration, so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite — the identical ambush the 0.9.9 [auth.mfa] routing resolved, resolved the same way: hook findings ride their own NOTE ramp until 1.1.0, every other auth-posture finding stays hard, and the NOTE names the paired adoption (the migration AND the config sections together, per the ADR). The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-16"
     }
   ]
 }

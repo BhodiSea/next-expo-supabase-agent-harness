@@ -681,7 +681,8 @@
       "PLANTED — tools/suppressions-allow.json and tools/resilience.json (the two new seeded registers; reasons in scripts/check-seeded-migrations.mjs DELIBERATE_PLANT). Registering a row in either is a reviewed act: both are write-guard-protected and in ESCAPE_LISTS. This is the seeded-register shape the 0.11.0 auth-posture deferral refused to plant on an expiry-wave hop — the difference argued here rather than assumed: these plants are green-by-construction acceptance records of the tree the harness itself seeded, not demand-bearing registers that red until the consumer answers them.",
       "SEEDED AT INIT ONLY — apps/web/public/.well-known/security.txt (RFC 9116). Its mandatory `Expires` is a reviewer-supplied bound, an init answer ({{SECURITY_TXT_EXPIRES}}, default init+180d) — which is why this is seedOnInitOnly and never a plant: `update` planting a bound into an existing install would stamp a date nobody reviewed, the off-switch shape 0.6.0 removed from framework-floor.json. An existing install adopts by writing the file with its own reviewed bound; the shape rides the security-headers step (present ⇒ parses, so absence never reds) and the lapse rides the scheduled floor-review job.",
       "SEEDED AT INIT ONLY, the migration: supabase/migrations/20260815000000_privilege_lifecycle_jit.sql (the privilege lifecycle + JIT). Migrations are the consumer's append-only history — `update` never writes into supabase/migrations/ (the audit trail set this precedent) — so an existing install adopts the lifecycle by copying the migration deliberately, with its ADR (docs/adr/20260815-privilege-lifecycle-jit.md) and the elevate-before-admin flow that comes with it. The tenancy gate stays green either way: the widened predicate forms are permissions, not demands, and the old helper shapes remain legal.",
-      "SEEDED AT INIT ONLY, the MFA enrolment surface: the web sign-up pages, the mobile sign-up/mfa-challenge/security screens with their RNTL suites and the security feature dir, and the shared mfa-flow/mfa-actions ceremony in @app/supabase. Auto-planting screens into an existing install would red THEIR route registries, i18n catalog and startup budget on the next validate (the startup-budget reasoning, one surface wider) — an existing install adopts the surface deliberately, screens plus registry rows plus catalog keys in one reviewed act. The web (protected)/security page and sign-in/mfa rows ride the existing apps/web/app/(protected)/ and apps/web/app/sign-in/ subtree patterns from 0.2.0."
+      "SEEDED AT INIT ONLY, the MFA enrolment surface: the web sign-up pages, the mobile sign-up/mfa-challenge/security screens with their RNTL suites and the security feature dir, and the shared mfa-flow/mfa-actions ceremony in @app/supabase. Auto-planting screens into an existing install would red THEIR route registries, i18n catalog and startup budget on the next validate (the startup-budget reasoning, one surface wider) — an existing install adopts the surface deliberately, screens plus registry rows plus catalog keys in one reviewed act. The web (protected)/security page and sign-in/mfa rows ride the existing apps/web/app/(protected)/ and apps/web/app/sign-in/ subtree patterns from 0.2.0.",
+      "SEEDED AT INIT ONLY, the auth-event trail: the 20260816 migration, its declarative twin (45_auth_trail.sql), the pgTAP suite and the live wiring test. Same reasoning as the privilege-lifecycle migration — update never writes a consumer's append-only migrations dir — sharpened by the config coupling: the trail only works with the [auth.hook.*] sections beside it, so adoption is the paired act the auth-posture NOTE (the 1.0.0 hook ramp) and the ADR both describe."
     ],
     "configSteps": [
       {
@@ -709,7 +710,11 @@
       "packages/platform/supabase/src/mfa-actions.ts",
       "packages/platform/supabase/src/mfa-flow.test.ts",
       "packages/platform/supabase/src/mfa-flow.ts",
-      "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql"
+      "supabase/migrations/20260815000000_privilege_lifecycle_jit.sql",
+      "supabase/migrations/20260816000000_auth_event_trail.sql",
+      "supabase/schemas/45_auth_trail.sql",
+      "supabase/tests/auth_trail.test.sql",
+      "tests/rls/auth-trail.test.ts"
     ]
   }
 }

@@ -193,15 +193,23 @@ fails is a malformed or inflated claim.
   and establishing that Supabase, Vercel or a CI runner image is still supported means asking
   them — which a gate here may not do, because a check that resolves its answers from a live
   third-party endpoint turns an untouched commit red overnight.
-- **Authentication events are logged, but not the failures.** The auth service records
-  successful events (`auth.audit_log_entries`); verified on a running stack, three failed
-  sign-ins wrote nothing at all. Essential Eight asks for successful **and unsuccessful**,
-  so this row is unbuilt rather than partial. That table also carries none of the
-  append-only protection the application's own audit trail has — no triggers, and the
-  superuser holds full `UPDATE`/`DELETE`/`TRUNCATE` — and it cannot be given any, because
-  the schema belongs to the auth service and is re-migrated on upgrade. If you need this,
-  write auth events into `audit.events` at your own sign-in seam, where the four
-  immutability layers already apply.
+- **Authentication events — successes AND failures — are logged since 1.0.0, at the
+  only seam that can see them.** The vendor's `auth.audit_log_entries` records
+  successes only (verified on a running stack: three failed sign-ins wrote nothing),
+  and no client-side seam can do better — a failed attempt belongs to somebody who
+  never got a session, and a credential-stuffing run against the token endpoint never
+  renders your form. The seam that sees every attempt is GoTrue itself, so the trail
+  binds there: the `[auth.hook.password_verification_attempt]` and
+  `[auth.hook.mfa_verification_attempt]` hooks append to `auth_trail.events`
+  (migration `20260816000000_auth_event_trail.sql`) — append-only in the same four
+  layers as `audit.events`, org-less, with NO client read path at all (the operator's
+  own database access is the read posture, recorded in the migration). The hooks are
+  exception-wrapped and always answer continue, so a trail fault can never lock a
+  user out. Ceilings, honestly: an attempt against an unknown email fires nothing;
+  the password hook covers the password grant only; hosted auth hooks are
+  plan-gated. Earlier releases of this document advised writing auth events into
+  `audit.events` "at your own sign-in seam" — withdrawn as misleading, for the
+  failed-attempt reason above. (ADR: docs/adr/20260816-auth-event-trail.md.)
 
 ## Shelf life
 

@@ -16,6 +16,14 @@
     {
       "table": "org_quota",
       "reason": "Holds only NEGOTIATED OVERRIDES, so it is empty in every fresh database and in every CI run — which means the isolation matrix has no row to prove anything with, and its positive control ('A must see its own row') could never pass. It is fully policied (ENABLE + FORCE, member-scoped SELECT, deny-all INSERT/UPDATE/DELETE to authenticated) and clients hold SELECT only; the counter it caps, public.org_usage, IS in the matrix and shares the identical scope predicate, so the read boundary is proven on the table that actually has rows."
+    },
+    {
+      "table": "auth_trail.events",
+      "reason": "Append-only by design like audit.events two entries up, and one notch stricter: it has an INSERT policy (for app_auth_trail_writer, the hook functions' owner), DELIBERATELY NO UPDATE OR DELETE POLICY (layer 1 of the same four), and — unlike the audit trail — NO SELECT POLICY FOR ANY ROLE: the read posture is the operator's own database access, recorded in migration 20260816000000_auth_event_trail.sql, and the pgTAP suite asserts the ABSENCE of a read policy structurally so one appearing is a finding. Unreachable by the client suite by construction (schema auth_trail is absent from [api].schemas), so it cannot be an ISOLATION_TARGETS row. Enforcement lives in the migration's four layers and supabase/tests/auth_trail.test.sql, which proves immutability against the superuser and client denial at the schema wall against a live database. See docs/adr/20260816-auth-event-trail.md."
+    },
+    {
+      "table": "auth_trail.events_default",
+      "reason": "The DEFAULT partition of auth_trail.events — same reasoning as audit.events_default one entry up: a partition is never its own surface, and this one exists so a write can land when partition maintenance has stopped. It carries its own ENABLE + FORCE (RLS is not inherited), zero policies (deny-all for direct access), and its own BEFORE TRUNCATE twin, all asserted by the pgTAP suite."
     }
   ]
 }

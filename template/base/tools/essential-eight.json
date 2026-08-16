@@ -760,14 +760,17 @@
       "strategy": "Multi-factor authentication",
       "text": "Successful and unsuccessful multi-factor authentication events are centrally logged.",
       "cumulativeFrom": "ML2",
-      "reachability": "direct",
+      "reachability": "alternate",
       "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-auth-event-trail",
-      "evidenceTier": "documentation",
-      "note": "Not for the reason this row first gave. GoTrue DOES record auth events — auth.audit_log_entries ships in every Supabase project — and the earlier note claiming nothing captures them was wrong. Verified against a running stack: a signup wrote `user_signedup`, a sign-in wrote `login`, and THREE failed sign-ins wrote NOTHING. The requirement says \"successful AND unsuccessful\", so the unsuccessful half has no record to forward, which is what fails it. Two further gaps, both verified: the table is not \"central\" (it lives in the same database as the system it records, so a database compromise takes the log with it), and reaching an off-platform sink needs a log drain, which is Dashboard-only on this platform. 0.10.0 SPLIT THE OWNER, because the two gaps are not the same kind of thing and one row could not be honest about both: the BUILDABLE half — the unsuccessful events that are written nowhere — is e8-auth-event-trail at 0.11.0, since an application-level trail into audit.events at the sign-in seam would capture what the platform drops, and audit.events already has the append-only discipline auth.audit_log_entries cannot be given. The CEILING half — 'centrally' — is e8-central-log-forwarding, and is not schedulable. This row names the buildable owner because that is the one a release can act on; building it alone does NOT pass this row, and that is the point of the split rather than a defect in it.",
+      "outcome": "alternate-control",
+      "evidenceTier": "simulated-activity",
+      "note": "ALTERNATE, NOT EFFECTIVE, on the word the row cannot claim: CENTRALLY. Both halves of the event stream now exist — the earlier gap (three failed sign-ins wrote nothing anywhere) is closed at the only seam that sees failures, GoTrue's own verification hooks — and the trail is append-only in the same four layers as audit.events. But it lives in the SAME database as the system it observes; central collection (a log store the observed system cannot reach) is the organisation's half, via the platform's log drains (docs/runbooks/log-forwarding.md). An assessor may refuse in-database logging as not 'centrally logged', which is exactly what assessorMayRefuse records. Ceilings stated in the ADR: unknown-email attempts fire nothing; hosted auth hooks are plan-gated.",
       "ismControls": ["ISM-1683"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "assessorMayRefuse": true,
+      "control": "auth-posture",
+      "canary": "auth-posture",
+      "proof": "supabase/migrations/20260816000000_auth_event_trail.sql — the [auth.hook.mfa_verification_attempt] hook appends every MFA verification, successful AND unsuccessful, to auth_trail.events (four append-only layers, no client read path); the hook wiring is pinned as auth-posture floors (tools/auth-posture.json auth.hook.* keys — the auth-posture canary is the registered red-proof for exactly those pins), the privilege path and vocabulary are proven by supabase/tests/auth_trail.test.sql as supabase_auth_admin, and tests/rls/auth-trail.test.ts proves the WIRING with a real failed attempt over HTTP."
     },
     {
       "id": "MFA-16",

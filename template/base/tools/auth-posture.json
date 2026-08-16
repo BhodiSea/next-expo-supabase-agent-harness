@@ -14,7 +14,11 @@
     "auth.mfa.phone.template": "Your code is {{ .Code }}",
     "auth.mfa.phone.max_frequency": "5s",
     "auth.mfa.web_authn.enroll_enabled": false,
-    "auth.mfa.web_authn.verify_enabled": false
+    "auth.mfa.web_authn.verify_enabled": false,
+    "auth.hook.password_verification_attempt.enabled": true,
+    "auth.hook.password_verification_attempt.uri": "pg-functions://postgres/auth_trail/password_verification_hook",
+    "auth.hook.mfa_verification_attempt.enabled": true,
+    "auth.hook.mfa_verification_attempt.uri": "pg-functions://postgres/auth_trail/mfa_verification_hook"
   },
   "tunables": {
     "//": "The keys whose VALUE is legitimately the project's, each with the harness-declared BOUND a retune must stay inside. The consumer's actual values live in the seeded tools/auth-tunables.json — one row per key here, value equal to config.toml, value inside the bound, and a written why. A key in this block with no row there reds (an undeclared tunable is an unreviewed posture); a row there for a key not in this block reds too (a consumer cannot mint a tunable — widening the tunable SET is a harness act). Bounds are the floor's half of the bargain: `auth.jwt_expiry` may be tuned between five minutes and a day, never disabled into a week-long token; signup toggles are product decisions with no dangerous direction the floor must hold.",
@@ -56,7 +60,11 @@
     "auth.mfa.phone.template": "The CLI's default SMS body. Pinned by value, and worth knowing that the published documentation OMITS this key entirely — it is real, it is in the CLI's own embedded config template, and a project that never writes it inherits a default nobody reviewed.",
     "auth.mfa.phone.max_frequency": "Five seconds — the CLI's default, verified against its own embedded config template. THE PUBLISHED DOCUMENTATION SAYS 10s AND IS WRONG. A gate that pinned the documented value would red on every untouched scaffold, which is how a correct control gets deleted for being noisy.",
     "auth.mfa.web_authn.enroll_enabled": "OFF, deliberately and with regret — this is the phishing-resistant factor and the only one here that would satisfy ASD's phishing-resistance requirements at ML3. It exists and it genuinely produces `aal2`, but it is undocumented, absent from the Dashboard, marked experimental in the client library, `challengeAndVerify` is TOTP-only, and it is a billable add-on the CLI SILENTLY DOWNGRADES to false when cost is not confirmed. A config line claiming a factor the platform quietly disabled is worse than no line at all: it is the exact defect this whole file exists to catch, wearing the badge of a security feature. Recorded as the obligations row `e8-phishing-resistant-mfa` instead of claimed.",
-    "auth.mfa.web_authn.verify_enabled": "OFF, with WebAuthn enrolment. See the enrol key for the full evidence; the CLI's own default config ships this whole section COMMENTED OUT, so writing it explicitly is what makes the posture assertable at all."
+    "auth.mfa.web_authn.verify_enabled": "OFF, with WebAuthn enrolment. See the enrol key for the full evidence; the CLI's own default config ships this whole section COMMENTED OUT, so writing it explicitly is what makes the posture assertable at all.",
+    "auth.hook.password_verification_attempt.enabled": "Disabling the hook silences the failed-attempt half of the auth-event trail — the half no client-side seam can see — while every green stays green.",
+    "auth.hook.password_verification_attempt.uri": "A different uri points GoTrue at a function this schema does not govern; the trail then records whatever that function decides, with none of the four append-only layers.",
+    "auth.hook.mfa_verification_attempt.enabled": "Disabling the hook silences MFA success/failure logging (Essential Eight MFA-15) with no other symptom.",
+    "auth.hook.mfa_verification_attempt.uri": "Same as the password hook: the uri IS the trail binding, and moving it is moving the trail."
   },
   "projectValued": {
     "//": "Keys whose VALUE is the project's, not the harness's — so they are reviewed for PRESENCE and SHAPE instead of equality. Pinning `site_url` to a literal would either red on every scaffold that filled in its own origin, or pin the template placeholder forever; both make the row a lie. The shape rule is the one that matters: this is the origin auth redirects resolve against, so a plaintext or non-URL value is an interception primitive rather than a typo.",
@@ -85,6 +93,8 @@
     "auth.mfa.totp",
     "auth.mfa.phone",
     "auth.mfa.web_authn",
+    "auth.hook.password_verification_attempt",
+    "auth.hook.mfa_verification_attempt",
     "realtime",
     "storage",
     "edge_runtime",

@@ -60,6 +60,14 @@
     {
       "function": "public.revalidate_member",
       "reason": "The human half of RAP-02: an ELEVATED owner re-affirms a colleague's privileged seat by re-stamping revalidated_at. Definer for the same reason as set_member_role — seat writes run as app_tenancy_rpc — and it rides the identical rank-below-caller policy, so the caller must hold effective (elevated) rank strictly above the target; IF NOT FOUND converts a policy miss into a loud 42501."
+    },
+    {
+      "function": "auth_trail.password_verification_hook",
+      "reason": "The auth-event trail's password seam: GoTrue calls it synchronously on every password verification — the FAILED attempts no client seam can see — and it appends to auth_trail.events as its owner app_auth_trail_writer (FORCE RLS + the insert policy bind even the definer). EXECUTE goes to supabase_auth_admin ALONE, never authenticated: this is the one definer in the schema whose caller is the auth server itself, and the entry records that posture rather than authorizing a client grant. Exception-wrapped so a trail fault can never fail a sign-in; always returns decision continue — it observes, it never decides."
+    },
+    {
+      "function": "auth_trail.mfa_verification_hook",
+      "reason": "The MFA twin of the password hook one entry up, identical posture: supabase_auth_admin-only EXECUTE, owner-bound insert through the four append-only layers, exception-wrapped, always continue. Records which factor was exercised (Essential Eight MFA-15's success/failure halves)."
     }
   ]
 }
