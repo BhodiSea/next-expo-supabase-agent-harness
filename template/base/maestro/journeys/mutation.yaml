@@ -51,7 +51,14 @@ appId: {{APP_IDENTIFIER}}
 - tapOn:
     id: "sign-in-password"
 - inputText: ${DEVICE_PASSWORD}
-- hideKeyboard
+# Enter, NOT hideKeyboard: Maestro's Android hideKeyboard is `input keyevent 4` —
+# BACK — and when no IME is up (UiAutomator typed the text without one) that key
+# reaches NAVIGATION and pops sign-in back to Home, which is exactly what the
+# second 1.0.0 dispatch showed (submit "not found"; hierarchy = Home, "You are
+# not signed in."). Enter on the focused single-line password field submits the
+# edit and blurs it — the IME closes if it was open, and nothing navigates — so
+# the submit button below the fields is on screen for the tap.
+- pressKey: Enter
 - tapOn:
     id: "sign-in-submit"
 - extendedWaitUntil:
