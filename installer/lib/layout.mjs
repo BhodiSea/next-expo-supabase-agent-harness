@@ -143,6 +143,10 @@ export const SEEDED_FILES = new Set([
   // floors stay owned in tools/store-policy.json, which check-version-sync depends on
   // being update-restorable).
   'tools/store-tunables.json',
+  // 1.0.0. The vendor-support register — PA-11/POS-16's reviewed dispositions. Seeded
+  // for eol.json's reason: the platform rows describe THIS install's pins (a consumer
+  // on Postgres 15 reviews their own row) and `update` must never clobber a review.
+  'tools/support-register.json',
   // 1.0.0. The consumer's ADDITIVE mutation surface — {root, why} rows union'd onto
   // the owned floor (tools/lib/mutation-critical.mjs). Seeded because widening the
   // mutated surface onto THEIR code is the consumer's reviewed act; union semantics

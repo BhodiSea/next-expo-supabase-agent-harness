@@ -288,14 +288,17 @@
       "strategy": "Patch applications",
       "text": "Online services that are no longer supported by vendors are removed.",
       "cumulativeFrom": "ML1",
-      "reachability": "direct",
+      "reachability": "alternate",
       "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-eol-closure",
+      "outcome": "alternate-control",
       "evidenceTier": "documentation",
-      "note": "STILL UNBUILT, and the note this replaces was wrong about why. 0.9.9 built the end-of-life closure and it does NOT reach this row: a deprecation flag is registry metadata about a PACKAGE, and an online service has no such flag in any artefact this tree contains. The online services this system depends on are Supabase, Vercel, GitHub Actions, the npm registry and EAS; establishing that any of them still supports what it sells means asking them, and a gate that resolves its expectations from a live third-party endpoint is refused outright by this repo’s hermeticity rule — an untouched commit must never red overnight because somebody else changed an answer. THE EARLIER NOTE ALSO CLAIMED THIS ROW SHARES ONE ARTEFACT WITH POS-16, \"counted once, there\". That claim is withdrawn: it was written in anticipation of a closure that turned out to reach neither row, and two rows resting on no artefact share nothing. PA-13 holds the artefact; this row and POS-16 hold none, and both say so.",
+      "note": "ALTERNATE, NOT EFFECTIVE, twice over and both stated: a register DOCUMENTS vendor support — ASD's verb is REMOVED, and no repository artefact can decommission an online service; and none of the five services publishes a support lifecycle at all, so most rows are honest permanent ceilings (status 'ceiling') rather than support statements — recorded as facts precisely so absence cannot read as omission. Asking the vendors' APIs live is refused by the hermeticity rule. An assessor may refuse a documentation-tier register as not being the control, which is what assessorMayRefuse records.",
       "ismControls": ["ISM-1905"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "assessorMayRefuse": true,
+      "control": "version-sync",
+      "canary": "version-sync",
+      "proof": "tools/support-register.json services[] (Supabase, Vercel, GitHub Actions, npm, EAS — each row the vendor's own dated statement, or the honest ceiling that no support lifecycle is published) judged clocklessly by the version-sync step via tools/lib/support-register.mjs, with the reviewedUntil lapse riding the scheduled floor-review job."
     },
     {
       "id": "PA-12",
@@ -555,12 +558,15 @@
       "cumulativeFrom": "ML1",
       "reachability": "alternate",
       "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-eol-closure",
+      "outcome": "alternate-control",
       "evidenceTier": "documentation",
-      "note": "STILL UNBUILT. The end-of-life census does not reach it: an npm deprecation flag describes a package, not a platform, and the platforms this system actually runs on are the CI runner image, the Node major, the Postgres major and the two mobile target SDKs. tools/store-policy.json holds a targetSdk floor and an Xcode-major floor, but a CURRENCY floor is not a support check — it asserts you are recent, never that the vendor still supports you. AND THE OBVIOUS SHORTCUT IS REFUSED HERE ON PURPOSE: POS-15 already claims tools/framework-floor.json plus this same `version-sync` step as its runtime-currency alternate control, so grading this row on the same artefact would be double-counting one control across two requirements — the commonest form of compliance inflation and the thing the register’s sharedClauses rule exists to prevent. An honest alternate control would be a reviewed per-platform support register with its own freshness window; that is not built, so this reads not-implemented. The earlier \"PA-11 and this row share one artefact\" framing is withdrawn for the reason recorded on PA-11.",
+      "note": "ALTERNATE, NOT EFFECTIVE: the register documents that the pinned platforms are inside their vendors' support windows (Postgres and Node both publish real lifecycles — those rows are dated statements, not ceilings), but ASD's verb is REPLACED and a register replaces nothing. The double-count refusal that kept this row unbuilt is honoured, not waived: POS-15 keeps framework-floor.json + the currency half, and this row is graded on the NEW artefact alone. The serverless residue is stated where it lives: the runner image is a moving alias whose lifecycle is GitHub's, recorded as a ceiling row.",
       "ismControls": ["ISM-1501"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "assessorMayRefuse": true,
+      "control": "version-sync",
+      "canary": "version-sync",
+      "proof": "tools/support-register.json platforms[] (Postgres major, Node major, the runner-image alias, the mobile targetSdk regime) with the PLATFORM-FACT CLOSURE: the version-sync step binds the register to the tree's own pins (supabase/config.toml major_version, package.json engines.node), so bumping a platform without re-reviewing its support is a red, not a drift; lapse rides floor-review."
     },
     {
       "id": "MFA-01",
@@ -779,13 +785,13 @@
       "cumulativeFrom": "ML2",
       "sharedClause": "SPINE-LOG-PROTECT",
       "reachability": "direct",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "SPINE-LOG-PROTECT over the AUTH event stream, which does exist (auth.audit_log_entries — see MFA-15, where this register previously said otherwise) and is NOT protected the way audit.events is. Verified on a live stack: zero non-internal triggers on that table, and `postgres` holds UPDATE, DELETE and TRUNCATE on it. There is no append-only layer of any kind, and none can be added without editing a schema GoTrue owns and re-migrates. The application trail’s protection is a different artefact and is claimed once, at RAP-22.",
+      "note": "Moved to the organisation boundary at 1.0.0, completing the MFA-15 story one row up: the trail now EXISTS with both halves (auth_trail.events, four layers, proven live) and MFA-15 claims alternate-control for the logging itself; THIS row's subject is protection-from-modification for the whole MFA event class, which includes GoTrue's own auth.audit_log_entries — unprotectable in place because the schema is GoTrue's. The remedy is the same act as every row in this family: an off-platform copy, owned by the operator, per the runbook.",
       "ismControls": ["ISM-1815"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "MFA-17",
@@ -1176,13 +1182,13 @@
       "text": "Privileged access events are centrally logged.",
       "cumulativeFrom": "ML2",
       "reachability": "direct",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "THE EVENTS EXIST AND ARE PROTECTED; WHAT IS MISSING IS \"CENTRALLY\". audit.events records this stream with the actor derived inside the writer, append-only in four layers, and supabase/tests/audit_immutability.test.sql now proves the elevated role cannot read, forge, modify, delete or truncate it — attempted as service_role, not inferred from a grant lookup. What no part of this repository can do is FORWARD it: central logging means the record survives compromise of the system that produced it, and an in-database trail does not. The forwarding half is also asymmetric across the two platforms this stack deploys to, and deliberately not gated as though it were symmetric: one platform’s log drains are API- and Terraform-addressable, the other’s are Dashboard-only (verified negative against the live Management API specification, where `drain` appears only as an enum value and never as a path). A gate resolving either from a live endpoint is refused on this repository’s own hermeticity rule — a check that reads a third-party API turns an untouched commit red overnight, and this repo has paid for that once. Retention matters too: platform log retention tops out at 90 days by plan tier, so any requirement beyond that MUST ride a drain into a sink the operator controls. Obligation e8-central-log-forwarding.",
+      "note": "Moved to the organisation boundary at 1.0.0, and the move is the honest reading of the word CENTRALLY: the PRODUCT half is built and proven — privileged acts land in audit.events (append-only in four layers, actor-verified, with the elevated-role ATTEMPT canaries rather than grant-lookup inference) and since 1.0.0 the elevate()/revalidate flows land there too via the admin_elevations audit trigger — but central logging means the record survives compromise of the system that produced it, and no in-database trail does. Forwarding is the operator's act in provider consoles this repository deliberately does not reach (hermeticity), so the boundary sits there, with the runbook as the recorded surface.",
       "ismControls": ["ISM-1509"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "RAP-21",
@@ -1190,13 +1196,13 @@
       "text": "Privileged user account and security group management events are centrally logged.",
       "cumulativeFrom": "ML2",
       "reachability": "direct",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "THE EVENTS EXIST AND ARE PROTECTED; WHAT IS MISSING IS \"CENTRALLY\". audit.events records this stream with the actor derived inside the writer, append-only in four layers, and supabase/tests/audit_immutability.test.sql now proves the elevated role cannot read, forge, modify, delete or truncate it — attempted as service_role, not inferred from a grant lookup. What no part of this repository can do is FORWARD it: central logging means the record survives compromise of the system that produced it, and an in-database trail does not. Membership and role changes are exactly this row’s subject and the audit trigger on public.memberships captures every one of them, with a WHEN clause structurally refused. The forwarding half is also asymmetric across the two platforms this stack deploys to, and deliberately not gated as though it were symmetric: one platform’s log drains are API- and Terraform-addressable, the other’s are Dashboard-only (verified negative against the live Management API specification, where `drain` appears only as an enum value and never as a path). A gate resolving either from a live endpoint is refused on this repository’s own hermeticity rule — a check that reads a third-party API turns an untouched commit red overnight, and this repo has paid for that once. Retention matters too: platform log retention tops out at 90 days by plan tier, so any requirement beyond that MUST ride a drain into a sink the operator controls. Obligation e8-central-log-forwarding.",
+      "note": "Same boundary and reasoning as RAP-20 one row up: seat and rank management events (set_member_role, remove_member, the invitation flow, elevations) are all captured in audit.events with the four layers — the security-group half of the sentence — and the CENTRAL half is the operator's drain/export into their own sink, per the runbook.",
       "ismControls": ["ISM-1650"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "RAP-22",
@@ -1469,13 +1475,13 @@
       "text": "Allowed and blocked application control events are centrally logged.",
       "cumulativeFrom": "ML2",
       "reachability": "alternate",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "SPINE-adjacent but distinct: there are no application-control events to log here at all, because there is no application-control surface in a web and mobile application. Recorded as unbuilt rather than not-applicable under this register’s conservative rule — absence of a surface is never a control. The forwarding half is also asymmetric across the two platforms this stack deploys to, and deliberately not gated as though it were symmetric: one platform’s log drains are API- and Terraform-addressable, the other’s are Dashboard-only (verified negative against the live Management API specification, where `drain` appears only as an enum value and never as a path). A gate resolving either from a live endpoint is refused on this repository’s own hermeticity rule — a check that reads a third-party API turns an untouched commit red overnight, and this repo has paid for that once. Retention matters too: platform log retention tops out at 90 days by plan tier, so any requirement beyond that MUST ride a drain into a sink the operator controls. Obligation e8-central-log-forwarding.",
+      "note": "Moved to the organisation boundary at 1.0.0. The application-control events this stack can produce are the platform's function/deployment logs (allowed and blocked executions live in Vercel's and Supabase's pipelines, not in the product's tables), and their central collection is a drain configuration in the operator's consoles — the runbook records both drains and the asymmetry. The product contributes nothing here BY DESIGN: the application-control strategy itself is graded against the serverless reality elsewhere in this register.",
       "ismControls": ["ISM-1660"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "AC-12",
@@ -1484,13 +1490,13 @@
       "cumulativeFrom": "ML2",
       "sharedClause": "SPINE-LOG-PROTECT",
       "reachability": "direct",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "SPINE-LOG-PROTECT with no subject: there are no application-control events, so there is no log to protect. The audit trail is claimed once, at RAP-22.",
+      "note": "Moved to the organisation boundary at 1.0.0. In-place protection of the product's own trails is built (the four append-only layers on audit.events and auth_trail.events, proven against the superuser), but this row's sentence covers EVENT LOGS as a class — including platform pipelines and GoTrue's auth.audit_log_entries, which carries no append-only layer and can be given none (GoTrue re-migrates its schema). The only protection for those streams is a copy in a sink the observed system cannot reach: forwarding, the operator's half, per the runbook.",
       "ismControls": ["ISM-1815"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "AC-13",
@@ -2047,13 +2053,13 @@
       "cumulativeFrom": "ML2",
       "sharedClause": "SPINE-LOG-PROTECT",
       "reachability": "direct",
-      "boundary": "product",
-      "outcome": "not-implemented",
-      "obligation": "e8-central-log-forwarding",
+      "boundary": "organisation",
+      "outcome": null,
       "evidenceTier": "documentation",
-      "note": "SPINE-LOG-PROTECT with no subject: no user-application-hardening event stream exists. The audit trail is claimed once, at RAP-22.",
+      "note": "Same boundary and reasoning as AC-12: the user-application-hardening event streams are platform pipelines, their protection is the off-platform copy, and the copy is the operator's drain configuration (docs/runbooks/log-forwarding.md).",
       "ismControls": ["ISM-1815"],
-      "reviewedOn": "2026-08-12"
+      "reviewedOn": "2026-08-16",
+      "owner": "organisation: log-drain and trail-export configuration into an operator-controlled sink (docs/runbooks/log-forwarding.md is the recorded surface; Supabase drains are Dashboard-only, Vercel drains are API/Terraform-addressable, and the database trails export by schedule)"
     },
     {
       "id": "UAH-21",

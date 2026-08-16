@@ -21,6 +21,7 @@ import { staleEolReview } from './lib/eol.mjs'
 import { staleReviews } from './lib/framework-floor.mjs'
 import { fail, failures, ok } from './lib/gate.mjs'
 import { staleSecurityTxt } from './lib/security-txt.mjs'
+import { staleSupportReviews } from './lib/support-register.mjs'
 
 const GATE = 'floor-review'
 const arg = (name, fallback) =>
@@ -99,11 +100,36 @@ if (existsSync(eolPath)) {
   )
 }
 
+// THE VENDOR-SUPPORT REGISTER RIDES THIS JOB TOO (1.0.0), fourth of its kind: its
+// clockless half (shape + the platform closure) rides `version-sync` in the chain,
+// and only the reviewedUntil lapse belongs on a clock. Absent is a NOTE for the
+// eol reason: the file is seeded with 1.0.0, and an install that predates it has
+// no review to have let lapse.
+const supportPath = arg('support-register', 'tools/support-register.json')
+const supportProblems = []
+if (existsSync(supportPath)) {
+  try {
+    supportProblems.push(
+      ...staleSupportReviews({
+        register: JSON.parse(readFileSync(supportPath, 'utf8')),
+        today,
+        path: supportPath,
+      }),
+    )
+  } catch (e) {
+    supportProblems.push(`${supportPath} is not valid JSON: ${e.message}`)
+  }
+} else {
+  console.log(
+    `${GATE}: NOTE — ${supportPath} is absent, so no online service or platform is being reviewed for VENDOR SUPPORT. It ships with 1.0.0; run \`npx next-expo-supabase-agent-harness update\` to get it.`,
+  )
+}
+
 // RFC 9116 security.txt RIDES THIS JOB TOO (1.0.0), because its mandatory `Expires`
-// is exactly the kind of reviewer-supplied bound the other three riders age: a lapsed
-// one leaves the PUBLISHED disclosure channel telling researchers not to trust it.
-// The clockless half (present ⇒ parses) rides `security-headers` in the chain; only
-// the calendar question — expired, or a bound past the RFC's one-year recommendation —
+// is exactly the kind of reviewer-supplied bound the other riders age: a lapsed one
+// leaves the PUBLISHED disclosure channel telling researchers not to trust it. The
+// clockless half (present ⇒ parses) rides `security-headers` in the chain; only the
+// calendar question — expired, or a bound past the RFC's one-year recommendation —
 // belongs here. Absent is a NOTE, not a red: the file is seedOnInitOnly since 1.0.0
 // (the bound must be the consumer's review, never a planted date nobody chose), so an
 // existing install legitimately has no bound to have let lapse.
@@ -121,14 +147,18 @@ if (existsSync(stxtPath)) {
 
 failures(
   GATE,
-  [...staleReviews({ floor, today }), ...ccProblems, ...eolProblems, ...stxtProblems].map(
-    (p) => `as of ${today}: ${p}`,
-  ),
+  [
+    ...staleReviews({ floor, today }),
+    ...ccProblems,
+    ...eolProblems,
+    ...supportProblems,
+    ...stxtProblems,
+  ].map((p) => `as of ${today}: ${p}`),
   `\nRe-read each package's upstream security feed, update minPatchByMajor and the advisory rows to match, and move reviewedOn/reviewedUntil in the SAME commit. Bumping the dates alone is the one edit this control cannot distinguish from a real review — which is why the diff is reviewed by a human and ${floorPath} is sha-pinned by \`gate-integrity\`.`,
 )
 
 const names = Object.keys(floor.packages ?? {}).sort()
 ok(
   GATE,
-  `${String(names.length)} floored package(s) (${names.join(', ')})${existsSync(ccPath) ? ', the Claude Code advisory snapshot' : ''}${existsSync(eolPath) ? ', the end-of-life register' : ''}${existsSync(stxtPath) ? ' and the security.txt bound' : ''} carry an unlapsed review as of ${today}`,
+  `${String(names.length)} floored package(s) (${names.join(', ')})${existsSync(ccPath) ? ', the Claude Code advisory snapshot' : ''}${existsSync(eolPath) ? ', the end-of-life register' : ''}${existsSync(supportPath) ? ', the vendor-support register' : ''}${existsSync(stxtPath) ? ' and the security.txt bound' : ''} carry an unlapsed review as of ${today}`,
 )

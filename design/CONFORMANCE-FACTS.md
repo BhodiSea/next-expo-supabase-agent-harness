@@ -435,13 +435,18 @@ release row asserts somebody can schedule the work, and for these five nobody ca
 discharge is a decision about where the product/organisation boundary sits.
 
 - **CEILING (RAP-20/21, AC-11/12, UAH-20, MFA-16): forwarding is not a build this repository
-  can schedule.** Central logging means the record survives compromise of the system that
-  produced it, and no in-database trail does. The drains are asymmetric (above) and a gate
-  resolving either from a live endpoint is refused outright by the hermeticity rule. MFA-16
-  joins this ceiling rather than the auth-trail one, and the reason is that the *remedy* is the
-  same: `auth.audit_log_entries` carries no append-only layer and none can be added, because
-  the schema is GoTrue's and it re-migrates it — so the only way to protect that stream is to
-  get a copy off the platform, which is forwarding.
+  can schedule — RESOLVED AT 1.0.0 AS A BOUNDARY, NOT A BUILD.** Central logging means the
+  record survives compromise of the system that produced it, and no in-database trail does.
+  The drains are asymmetric (above) and a gate resolving either from a live endpoint is
+  refused outright by the hermeticity rule. MFA-16 rides the same remedy because
+  `auth.audit_log_entries` carries no append-only layer and none can be added (GoTrue
+  re-migrates its schema) — protecting that stream IS forwarding. 1.0.0 records the decision
+  the old condition row said someone had to make: the six requirements moved to the
+  ORGANISATION boundary with `docs/runbooks/log-forwarding.md` as the owner's recorded
+  surface (what to forward per stream, where each platform's drains are, what the sink must
+  guarantee), and the register's own organisation-row rules (`outcome: null`, a named owner)
+  keep the move honest — nothing was regraded upward, ownership was placed where the
+  consoles are.
 - **CEILING (RB-02): the manifest needs a deploy-time artefact channel that does not exist.**
   Binding a database backup to the commit, the migration set and the deployed function versions
   requires something emitted at deploy time, and this repository has no deploy-time channel to
@@ -455,13 +460,20 @@ discharge is a decision about where the product/organisation boundary sits.
   no Delete or Modify action for a backup exists anywhere in the surface, and no immutability,
   WORM or object-lock guarantee is published. Reading an unoffered verb as prevention is the
   inflation this register exists to refuse.
-- **CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains.** PA-13
-  discharged because npm publishes `deprecated` into the lockfile. The online services
-  (Supabase, Vercel, GitHub Actions, npm, EAS) and the platforms (runner image, Node major,
-  Postgres major, mobile target SDKs) publish no equivalent, and asking their APIs is refused by
-  the hermeticity rule. The obvious shortcut is refused too: POS-15 already claims
-  `framework-floor.json` and the `version-sync` step, so grading POS-16 on the same artefact
-  would be rule 5 double-counting.
+- **CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains —
+  RESOLVED AT 1.0.0 AS A REVIEWED REGISTER, NOT A PROBE.** PA-13 discharged because npm
+  publishes `deprecated` into the lockfile. The online services (Supabase, Vercel, GitHub
+  Actions, npm, EAS) and the platforms (runner image, Node major, Postgres major, mobile
+  target SDKs) publish no equivalent, and asking their APIs is refused by the hermeticity
+  rule. 1.0.0 records the decision the old condition row said someone had to make:
+  `tools/support-register.json` carries each subject's disposition as the VENDOR'S OWN dated
+  statement (url + quote + fetchedOn) or an honest permanent ceiling — the fact that a
+  vendor publishes no lifecycle, recorded so it cannot read as an omission. The clockless
+  half (shape + the platform-fact closure against the tree's own Postgres/Node pins) rides
+  `version-sync`; the reviewedUntil lapse rides the scheduled `floor-review` job. The
+  double-count refusal survives: POS-15 keeps `framework-floor.json`, and PA-11/POS-16 are
+  graded on the NEW artefact alone (alternate-control, assessorMayRefuse — a register
+  documents support, it cannot perform ASD's "removed/replaced").
 
 ### Shelf life — **the deadline row this section owes**
 

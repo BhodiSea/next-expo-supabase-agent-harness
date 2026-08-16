@@ -89,6 +89,7 @@ import {
   stampGate,
 } from './lib/gate.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
+import { supportRegisterProblems } from './lib/support-register.mjs'
 
 const GATE = 'version-sync'
 const APP_CONFIG = 'apps/mobile/app.config.ts'
@@ -680,6 +681,66 @@ try {
     console.log(
       `${GATE}: NOTE — react single-instance check skipped (pnpm list failed on this partial install; CI verifies it)`,
     )
+  }
+}
+
+// ── the vendor-support register (1.0.0): PA-11/POS-16's reviewed half ──────────────
+// The eol pattern one register over, split on the same clock: this is the CLOCKLESS
+// half (shape + the platform-fact closure against the tree's own Postgres/Node pins);
+// the reviewedUntil lapse rides the scheduled floor-review job. The register is
+// SEEDED for eol.json's reason — a consumer on Postgres 15 must be able to review
+// THEIR platform's row, and `update` must never clobber that review with the
+// template's — so the whole section rides ONE ramp: a pre-1.0.0 install gets dated
+// NOTEs to adopt or re-review the planted register, never a hard red on the update
+// that delivered the demand.
+const SUPPORT_PATH = 'tools/support-register.json'
+const supportErrs = []
+const readPostgresMajor = () => {
+  if (!existsSync('supabase/config.toml')) return undefined
+  const m = readFileSync('supabase/config.toml', 'utf8').match(/^major_version\s*=\s*(\d+)/m)
+  return m ? m[1] : null
+}
+const readNodeFloor = () => {
+  const engines = root.engines?.node
+  if (typeof engines !== 'string') return undefined
+  const m = engines.match(/(\d+)/)
+  return m ? m[1] : null
+}
+if (existsSync(SUPPORT_PATH)) {
+  let supportRegister = null
+  try {
+    supportRegister = readJson(SUPPORT_PATH)
+  } catch (e) {
+    supportErrs.push(
+      `${SUPPORT_PATH} is not valid JSON (${e.message}) — the review must be readable data`,
+    )
+  }
+  if (supportRegister !== null) {
+    supportErrs.push(
+      ...supportRegisterProblems(supportRegister, {
+        postgresMajor: readPostgresMajor(),
+        nodeFloor: readNodeFloor(),
+      }).map((p) => `${SUPPORT_PATH}: ${p}`),
+    )
+  }
+} else if (installedHarnessVersion(GATE) === null) {
+  console.log(
+    `${GATE}: NOTE — no .harness/manifest.json, so the absence of ${SUPPORT_PATH} is not judged (this is not an installed harness). An installed tree at 1.0.0 or later reds here instead.`,
+  )
+} else {
+  supportErrs.push(
+    `${SUPPORT_PATH} is absent, so no online service or platform this stack runs on has a reviewed vendor-support disposition (Essential Eight PA-11/POS-16). It is a seeded file that ships with 1.0.0: run \`npx next-expo-supabase-agent-harness update\` to get it, or restore it if this tree deleted it.`,
+  )
+}
+if (supportErrs.length > 0) {
+  if (
+    rampNote(GATE, '1.0.0', 'the vendor-support register (PA-11/POS-16)', {
+      until: '1.1.0',
+    })
+  ) {
+    for (const e of supportErrs) console.log(`${GATE}: NOTE — ${e}`)
+  } else {
+    errs.push(...supportErrs)
   }
 }
 

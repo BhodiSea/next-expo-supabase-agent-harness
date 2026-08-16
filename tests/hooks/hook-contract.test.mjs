@@ -45,8 +45,8 @@ before(() => {
  * HARNESS_ALLOW_SELF_EDIT=1 is the documented human escape hatch: every write rule honours
  * it and returns no deny. It is also how you work ON this repository — editing the
  * enforcement surface requires it exported — so a maintainer running the suite had it set,
- * and `{ ...process.env }` handed it to all 140 deny cases. They did not fail; they
- * PASSED THROUGH, asserting nothing, and the suite reported 140 reds that read as
+ * and `{ ...process.env }` handed it to all 141 deny cases. They did not fail; they
+ * PASSED THROUGH, asserting nothing, and the suite reported 141 reds that read as
  * environmental noise. Worse than either: it checks LESS locally than in CI, so the first
  * honest run is the one on the PR.
  *
@@ -505,6 +505,9 @@ const RULE_CANARIES = {
   // The consumer's additive mutation surface — deleting a row un-mutates code a
   // human chose to protect, so either direction is a reviewed human act.
   'mutation-scope-extra': [pathDeny('tools/mutation-scope-extra.json')],
+  // The vendor-support register — a 'ceiling' acceptance or a reviewedUntil move is
+  // a human decision, exactly like its eol sibling.
+  'support-register': [pathDeny('tools/support-register.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
@@ -1541,7 +1544,7 @@ test('write-guard: an ordinary file is still approved (the resolver must not ove
 // inherit the parent environment wholesale. HARNESS_ALLOW_SELF_EDIT=1 is the documented
 // human escape hatch that makes every write rule return no deny — and it is also how you
 // work ON this repository, since editing the enforcement surface requires it exported. So a
-// maintainer's own session silently disarmed 140 assertions: they did not detect a broken
+// maintainer's own session silently disarmed 141 assertions: they did not detect a broken
 // guard, they stopped asking. The suite checked LESS locally than in CI, which is the exact
 // shape of the porosity scripts/ci/upgrade-lane.sh unsets script-wide for.
 //

@@ -457,7 +457,7 @@ test('0.5.0 closed EIGHT escapes; seven still stand and the eighth is a recorded
     ['diff-coverage', 'docs-sync', 'gate-integrity', 'wiring'],
     'the four gates 0.5.0 named — the extension moved one of docs-sync’s four, not the last',
   )
-  // Kept, not deleted. Dropping the wrappers would take the fleet from 23 to 15 against
+  // Kept, not deleted. Dropping the wrappers would take the fleet from 24 to 16 against
   // three separate anti-vacuity floors that hard-fail below 15.
   assert.ok(shippedRampSites().length >= 15, 'the fleet floor the ledger and both tests pin')
 })
@@ -716,16 +716,17 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // those two gates were not. EIGHTEEN since 0.11.0 added ONE — data-flow's erase.surface
   // record and its two-surface clients closure, due 0.12.0 — and it does NOT widen the gate
   // set, because data-flow already carried its 0.6.0 closure ramp at this vintage.
-  // TWENTY-THREE since 1.0.0 added FIVE, all at minVersion 1.0.0 due 1.1.0 — the injected
+  // TWENTY-FOUR since 1.0.0 added SIX, all at minVersion 1.0.0 due 1.1.0 — the injected
   // suppressions census and the resilience register closure (both WIDEN the gate set
   // below, because neither gate existed before the 1.0.0 injections), boundaries'
   // behavior-keyed widening of the vertical-anatomy DAL laws, the census module-name
-  // closure over the shipped tools/modules.json, and auth-posture's [auth.hook] trail
-  // posture (the last three do NOT widen the set — boundaries and auth-posture already
-  // carry ramps at this vintage).
+  // closure over the shipped tools/modules.json, auth-posture's [auth.hook] trail
+  // posture, and version-sync's vendor-support register (the last four do NOT widen
+  // the set — boundaries, auth-posture and version-sync already carry ramps at this
+  // vintage).
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 23)
+  assert.equal(fresh.noting.length, 24)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [

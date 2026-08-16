@@ -362,10 +362,11 @@ test('every shipped POSITIVE claim resolves against the real canary registry', (
   const positive = reg.requirements.filter(
     (r) => r.outcome === 'effective' || r.outcome === 'alternate-control',
   )
-  // 15 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03 and RAP-13 to
-  // effective and RAP-02 to alternate-control (rls-isolation canary), and the
-  // auth-event trail regraded MFA-15 to alternate-control (auth-posture canary).
-  assert.equal(positive.length, 15, 'the closure is worthless if its subject set silently shrinks')
+  // 17 since 1.0.0: the privilege-lifecycle discharge regraded RAP-03/RAP-13 to
+  // effective and RAP-02 to alternate-control (rls-isolation canary), the auth-event
+  // trail regraded MFA-15 (auth-posture canary), and the vendor-support register
+  // regraded PA-11 and POS-16 (version-sync canary).
+  assert.equal(positive.length, 17, 'the closure is worthless if its subject set silently shrinks')
   assert.deepEqual(canaryProblems(reg, realKeys()), [])
 })
 

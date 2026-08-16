@@ -50,20 +50,6 @@
       "evidence": "template/base/tools/essential-eight.json"
     },
     {
-      "id": "e8-central-log-forwarding",
-      "kind": "condition",
-      "target": null,
-      "reason": "Essential Eight RAP-20, RAP-21, AC-11, AC-12 and UAH-20 all turn on the word \"centrally\". The events this repository can produce ARE produced and ARE protected — audit.events is append-only in four layers and 0.9.9 added the elevated-role ATTEMPT (service_role trying to read, forge, modify, delete and truncate) rather than inferring refusal from a grant lookup, which is the difference between ASD's POOR and EXCELLENT evidence tiers. What no part of this repository can do is forward them: central logging means the record survives compromise of the system that produced it, and an in-database trail does not. THE FORWARDING HALF IS ASYMMETRIC AND MUST NOT BE GATED AS THOUGH IT WERE SYMMETRIC: one platform's log drains are API- and Terraform-addressable, the other's are Dashboard-only (verified negative against the live Management API specification — `drain` appears only as an enum value, never as a path). A gate resolving either from a live endpoint is refused outright by this repository's hermeticity rule (CONTRIBUTING: a gate that resolves its expectations from a live third-party endpoint turns an untouched commit red overnight, and this repo has already paid for that once). Retention is the other half of the reason: platform log retention tops out at 90 days by plan tier, so any requirement beyond that must ride a drain into a sink the operator controls. Discharge is a reviewed decision about WHERE the boundary sits, not a scheduled build. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work. IT ALSO ABSORBS MFA-16 (“event logs are protected from unauthorised modification and deletion”), which until 0.10.0 was owned by e8-auth-event-logging. The move is not filing convenience: auth.audit_log_entries carries zero non-internal triggers and `postgres` holds UPDATE, DELETE and TRUNCATE on it, and no append-only layer can be ADDED because the schema is GoTrue’s and GoTrue re-migrates it. So the only remedy for the protection requirement is the same act as the remedy for the forwarding ones — get a copy off the platform into a sink the operator controls — and two rows naming one remedy under two ids is how a ceiling gets discharged twice.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "design/CONFORMANCE-FACTS.md",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "CEILING (RAP-20/21, AC-11/12, UAH-20, MFA-16): forwarding is not a build this repository"
-        }
-      ]
-    },
-    {
       "id": "e8-restore-manifest",
       "kind": "condition",
       "target": null,
@@ -102,20 +88,6 @@
         {
           "file": "design/CONFORMANCE-FACTS.md",
           "mustContain": "CEILING (RB-11): an unoffered verb is not a control"
-        }
-      ]
-    },
-    {
-      "id": "e8-eol-closure",
-      "kind": "condition",
-      "target": null,
-      "reason": "Essential Eight PA-11 (online services), PA-13 (applications) and POS-16 (operating systems) require products no longer supported by vendors to be removed or replaced. 0.9.9 DISCHARGED PA-13 and disproved the plan’s assumption that one artefact would cover all three. The built closure reads the npm registry’s own `deprecated` flags out of the RESOLVED pnpm-lock.yaml (a committed third-party artefact, so the check is hermetic), dispositions every one of them in the reviewed tools/eol.json, and RECOMPUTES each row’s production-vs-development scope from the lockfile instead of believing it — which on its first run disproved the note about to be written, since five of the scaffold’s six deprecated packages are development-only and uuid@7 is not (it arrives through expo -> @expo/config-plugins -> xcode). WHAT IS STILL OWED IS THE OTHER TWO ROWS, and neither is a scheduling matter. PA-11 wants ONLINE SERVICES: Supabase, Vercel, GitHub Actions, the npm registry, EAS. None of them has a support flag in any artefact this tree contains, and asking their APIs is refused by the hermeticity rule in CONTRIBUTING. POS-16 wants PLATFORMS: the CI runner image, the Node major, the Postgres major, the mobile target SDKs. store-policy.json holds currency floors, which assert recency and not vendor support, and POS-15 already claims framework-floor.json plus the version-sync step as its runtime-currency alternate control — so grading POS-16 on the same artefact would double-count one control across two requirements. Discharge for both is a reviewed per-service and per-platform support register with its own freshness window, or an honest permanent ceiling; it is a decision about where the boundary sits, not a build to schedule. CONVERTED release/0.10.0 -> condition in 0.10.0, and the conversion is deliberately the HEAVIER bill: a condition row needs `evidence`, but check-obligations.mjs accepts any URL unresolved and any repo path that merely exists, so this row also carries a sites[] anchor byte-checking the exact ceiling sentence in design/CONFORMANCE-FACTS.md — which the dated row never had to pay. NO OUTCOME CHANGES: every requirement naming this row stays not-implemented. What was false was the DATE, which asserted somebody could schedule the work.",
-      "reviewedOn": "2026-08-13",
-      "evidence": "design/CONFORMANCE-FACTS.md",
-      "sites": [
-        {
-          "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "CEILING (PA-11, POS-16): no support flag exists in any artefact this tree contains"
         }
       ]
     },
@@ -383,6 +355,19 @@
         }
       ],
       "reason": "1.0.0 pins the auth-event trail's hook wiring as auth-posture floors (the [auth.hook.*] enabled/uri keys) and adds the two sections to the census. supabase/config.toml is SEEDED and the sections arrive with the 1.0.0 trail migration, so a pre-1.0.0 install meets these findings on a file `update` refuses to rewrite — the identical ambush the 0.9.9 [auth.mfa] routing resolved, resolved the same way: hook findings ride their own NOTE ramp until 1.1.0, every other auth-posture finding stays hard, and the NOTE names the paired adoption (the migration AND the config sections together, per the ADR). The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
+      "reviewedOn": "2026-08-16"
+    },
+    {
+      "id": "version-sync-support-ramp-expiry",
+      "kind": "release",
+      "target": "1.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-version-sync.mjs",
+          "mustContain": "the vendor-support register (PA-11/POS-16)"
+        }
+      ],
+      "reason": "1.0.0 ships tools/support-register.json (the reviewed vendor-support dispositions for the online services and platforms this stack runs on — the decision the deleted e8-eol-closure condition row said someone had to make) and judges it clocklessly in version-sync with a platform-fact closure against the tree's own Postgres/Node pins. The register is SEEDED for eol.json's reason: a consumer on a different Postgres major must be able to review THEIR platform's row, and update must never clobber that review. So the whole section rides one NOTE ramp until 1.1.0 for pre-1.0.0 installs — planted-register adoption with a deadline, never a hard red on the update that delivered the demand. The escape ends at 1.1.0 and the 1.1.0 migrations record owes this expiry.",
       "reviewedOn": "2026-08-16"
     }
   ]

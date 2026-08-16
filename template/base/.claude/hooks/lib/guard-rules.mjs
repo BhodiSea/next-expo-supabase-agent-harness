@@ -516,6 +516,12 @@ export const WRITE_PROTECTED = [
   // the cheapest way past a red here is to append a row, so the file an agent would reach
   // for is exactly the one it must not be able to write.
   { id: 'eol-register', re: /^tools\/eol\.json$/ },
+  // The vendor-support register (1.0.0) — eol's sibling one register up the stack:
+  // accepting that a SERVICE or PLATFORM has no support lifecycle (a 'ceiling' row),
+  // or re-dating a review, is a human decision for the same reason an eol row is,
+  // and moving reviewedUntil is the one edit the lapse control cannot distinguish
+  // from a real review.
+  { id: 'support-register', re: /^tools\/support-register\.json$/ },
   // The backup posture (0.9.9). Its `maxDailyBackupAgeHours` is a recovery-point tolerance
   // and `restorationTesting.lastTestedOn` is an attestation that a human performed a drill —
   // an agent must be able to write neither, because widening the first silences the lane and

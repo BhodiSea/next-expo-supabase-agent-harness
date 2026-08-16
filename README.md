@@ -87,7 +87,7 @@ An npm-installable CLI + Claude Code plugin that scaffolds the monorepo and
 installs three enforcement layers into it:
 
 1. **Agent-time hooks** — PreToolUse guards driven by a pure-data rule table
-   (140 guard-rule ids: shell-command denials, write-protected harness paths,
+   (141 guard-rule ids: shell-command denials, write-protected harness paths,
    banned content everywhere, the schema/migration SQL surface, the npm
    lifecycle-script surface, and the MCP tool-call registry), a PostToolUse
    provenance check, and a Claude Code `Stop` hook that refuses to end a turn
@@ -241,8 +241,8 @@ incident-response portions back to the organisation.
 
 The standing below is recomputed from the register by `check-claims.mjs` and printed
 verbatim by the gate, as the whole partition rather than the flattering half of it:
-**149 ML3 requirements: 8 effective, 7 alternate-control, 23 not-implemented, 61
-not-applicable, 50 organisation-boundary; 8 shared clauses.** Grades are conservative by
+**149 ML3 requirements: 8 effective, 9 alternate-control, 15 not-implemented, 61
+not-applicable, 56 organisation-boundary; 8 shared clauses.** Grades are conservative by
 rule — absence of a surface is never a control, where two grades are defensible the lower
 one is taken, and an artefact another row already claims is not claimed again. Rows
 graded `not-implemented` are honestly unbuilt and each names the obligations row that owns

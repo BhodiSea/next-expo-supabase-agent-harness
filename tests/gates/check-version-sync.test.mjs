@@ -790,3 +790,112 @@ test('stamp: mutating apps/web (a new input class) invalidates the stamp — war
   assert.ok(r.out.includes('apps/web major (9.0.0) != @app/api major (0.1.0)'), r.out)
   assert.ok(!r.out.includes('inputs unchanged'), r.out)
 })
+
+// ── the vendor-support register (1.0.0): the clockless half, as pure judgements ───────
+// The lib is pure so the proofs need no tree; the lane's clockful half is proven in
+// framework-floor.test.mjs, which is the floor-review lane's registered red-proof.
+
+test('support register: the SHIPPED register passes its own shape and the template pins', async () => {
+  const { supportRegisterProblems } = await import(
+    '../../template/base/tools/lib/support-register.mjs'
+  )
+  const shipped = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../template/base/tools/support-register.json', import.meta.url)),
+      'utf8',
+    ),
+  )
+  // The template pins postgres 17 and a node >=22 floor; the shipped register must
+  // carry exactly those platform rows or a fresh scaffold is born red.
+  assert.deepEqual(
+    supportRegisterProblems(shipped, { postgresMajor: '17', nodeFloor: '22' }),
+    [],
+  )
+})
+
+test('support register: every malformed direction fails loud, and the closure binds', async () => {
+  const { supportRegisterProblems } = await import(
+    '../../template/base/tools/lib/support-register.mjs'
+  )
+  const row = (subject, over = {}) => ({
+    subject,
+    status: 'supported',
+    vendorStatement: {
+      url: 'https://vendor.example/support',
+      quote: 'a vendor statement long enough to count as one',
+      fetchedOn: '2026-08-16',
+    },
+    reviewedUntil: '2027-02-16',
+    ...over,
+  })
+  const base = { services: [row('svc')], platforms: [row('postgres-17'), row('node-22')] }
+  const facts = { postgresMajor: '17', nodeFloor: '22' }
+  assert.deepEqual(supportRegisterProblems(base, facts), [])
+
+  assert.ok(supportRegisterProblems(null, facts).some((p) => /must carry/.test(p)), 'null doc')
+  assert.ok(
+    supportRegisterProblems({ services: [row('svc', { status: 'fine' })], platforms: base.platforms }, facts)
+      .some((p) => /'supported'.*'ceiling'/s.test(p)),
+    'an off-vocabulary status reds',
+  )
+  assert.ok(
+    supportRegisterProblems(
+      { services: [row('svc', { vendorStatement: { url: 'http://x', quote: 'too short', fetchedOn: 'nope' } })], platforms: base.platforms },
+      facts,
+    ).some((p) => /vendorStatement/.test(p)),
+    'a statement without url+quote+date is an opinion',
+  )
+  assert.ok(
+    supportRegisterProblems({ services: [row('svc', { reviewedUntil: 'never' })], platforms: base.platforms }, facts)
+      .some((p) => /reviewedUntil/.test(p)),
+    'a review without an expiry reds',
+  )
+  assert.ok(
+    supportRegisterProblems({ services: [row('dupe')], platforms: [...base.platforms, row('dupe')] }, facts)
+      .some((p) => /more than once/.test(p)),
+    'a duplicate subject reds across the halves',
+  )
+  assert.ok(
+    supportRegisterProblems({ services: [], platforms: base.platforms }, facts)
+      .some((p) => /vacuous/.test(p)),
+    'an empty half is a vacuous register',
+  )
+  // THE CLOSURE: bump the tree's postgres pin and the register must red until the
+  // row is re-reviewed — a platform move cannot outrun its support disposition.
+  assert.ok(
+    supportRegisterProblems(base, { postgresMajor: '18', nodeFloor: '22' })
+      .some((p) => /'postgres-18' platform row/.test(p)),
+    'the platform-fact closure binds to the tree, not to the release the register was written for',
+  )
+  assert.ok(
+    supportRegisterProblems(base, { postgresMajor: null, nodeFloor: '22' })
+      .some((p) => /cannot bind/.test(p)),
+    'an unreadable pin is said out loud, never guessed',
+  )
+})
+
+test('support register: the clockful half reds a lapsed review naming the subject', async () => {
+  const { staleSupportReviews } = await import(
+    '../../template/base/tools/lib/support-register.mjs'
+  )
+  const register = {
+    services: [
+      {
+        subject: 'svc',
+        status: 'ceiling',
+        vendorStatement: { url: 'https://x', quote: 'long enough vendor words here', fetchedOn: '2026-01-01' },
+        reviewedUntil: '2026-06-01',
+      },
+    ],
+    platforms: [],
+  }
+  const stale = staleSupportReviews({ register, today: '2026-08-16', path: 'tools/support-register.json' })
+  assert.equal(stale.length, 1)
+  assert.match(stale[0], /'svc' lapsed on 2026-06-01/)
+  assert.match(stale[0], /ONE commit/)
+  assert.deepEqual(
+    staleSupportReviews({ register, today: '2026-05-01', path: 'x' }),
+    [],
+    'an unlapsed review is quiet',
+  )
+})

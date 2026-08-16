@@ -355,6 +355,39 @@ test('CANARY — a MISSING floor file reds rather than passing as "nothing to ch
   assert.match(r.stderr, /does not exist/)
 })
 
+test('CANARY — the vendor-support register rides the lane: a lapsed review reds naming the subject', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-support-'))
+  const script = join(ROOT, 'template/base/tools/check-framework-floor.mjs')
+  const path = join(dir, 'support-register.json')
+  const shipped = JSON.parse(
+    readFileSync(join(ROOT, 'template/base/tools/support-register.json'), 'utf8'),
+  )
+  shipped.platforms[0].reviewedUntil = '2020-01-01'
+  writeFileSync(path, JSON.stringify(shipped))
+
+  const red = spawnSync(
+    process.execPath,
+    [script, `--floor=${SHIPPED_FLOOR}`, '--today=2026-08-06', `--support-register=${path}`],
+    { encoding: 'utf8' },
+  )
+  assert.equal(red.status, 1, `${red.stdout}${red.stderr}`)
+  assert.match(red.stderr, /'postgres-17' lapsed on 2020-01-01/)
+
+  // …and green on the SHIPPED register, so the red is the backdating.
+  const green = spawnSync(
+    process.execPath,
+    [
+      script,
+      `--floor=${SHIPPED_FLOOR}`,
+      '--today=2026-08-06',
+      `--support-register=${join(ROOT, 'template/base/tools/support-register.json')}`,
+    ],
+    { encoding: 'utf8' },
+  )
+  assert.equal(green.status, 0, `${green.stdout}${green.stderr}`)
+  assert.match(green.stdout, /vendor-support register/)
+})
+
 test('CANARY — the security.txt bound rides the lane: expired and too-distant red, live passes, absent NOTEs', () => {
   const dir = mkdtempSync(join(tmpdir(), 'harness-stxt-'))
   const script = join(ROOT, 'template/base/tools/check-framework-floor.mjs')

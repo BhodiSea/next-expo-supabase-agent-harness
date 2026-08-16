@@ -59,6 +59,11 @@ export const ESCAPE_LISTS = [
   // the exact rls-exempt sense: the row is the widening a reviewer must see.
   'tools/suppressions-allow.json',
   'tools/resilience.json',
+  // 1.0.0. A support row LICENSES a dependency-on-a-service posture the same way an
+  // eol row licenses an abandoned package: a 'ceiling' status is a reviewed acceptance,
+  // and moving reviewedUntil is the one edit the lapse control cannot distinguish from
+  // a review — so every widening must land as a committed, human-reviewed diff.
+  'tools/support-register.json',
   // 1.0.0. The additive mutation surface. Union semantics mean a row can never weaken
   // the FLOOR — but deleting a row un-mutates code a human chose to protect, which is
   // exactly the quiet widening the commit-not-dirty rule exists to surface: either
