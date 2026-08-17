@@ -66,18 +66,69 @@ export function parsePerFileFloors(configText) {
   return floors
 }
 
-export function parseCoverageExcludes(configText) {
-  const block = configText.match(/COVERAGE_EXCLUDE\s*=\s*\[([^\]]*)\]/)
+// Comments are NOT data. The array parsers below scan for quoted literals, and a
+// comment inside the array is prose that may legitimately contain an apostrophe
+// ("apps/web's") or a `]` — either of which, left in place, silently truncates or
+// re-pairs the literal scan and drops every exclusion after it (found 2026-08-17:
+// the template's own comment did exactly that, so half of COVERAGE_EXCLUDE never
+// applied). String-aware, so `//` inside a quoted URL is preserved.
+const QUOTES = new Set(["'", '"', '`'])
+
+// Index just past the closing quote (or end of text); backslash escapes skip a char.
+function stringEnd(text, start, quote) {
+  let i = start + 1
+  while (i < text.length && text[i] !== quote) i += text[i] === '\\' ? 2 : 1
+  return Math.min(i + 1, text.length)
+}
+
+// Index just past the comment opening at `i`, or -1 when no comment opens there.
+function commentEnd(text, i) {
+  if (text.startsWith('//', i)) {
+    const nl = text.indexOf('\n', i)
+    return nl === -1 ? text.length : nl
+  }
+  if (text.startsWith('/*', i)) {
+    const close = text.indexOf('*/', i + 2)
+    return close === -1 ? text.length : close + 2
+  }
+  return -1
+}
+
+export function stripComments(text) {
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    if (QUOTES.has(text[i])) {
+      const end = stringEnd(text, i, text[i])
+      out += text.slice(i, end)
+      i = end
+      continue
+    }
+    const skipTo = commentEnd(text, i)
+    if (skipTo !== -1) {
+      i = skipTo
+      continue
+    }
+    out += text[i]
+    i += 1
+  }
+  return out
+}
+
+function parseStringArray(configText, headRe) {
+  const block = stripComments(configText).match(headRe)
   if (!block) return null
   return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+}
+
+export function parseCoverageExcludes(configText) {
+  return parseStringArray(configText, /COVERAGE_EXCLUDE\s*=\s*\[([^\]]*)\]/)
 }
 
 // jest's measured surface IS its collectCoverageFrom array (positives define the
 // tree, '!'-negations carve it) — parsed, not re-declared, so the two cannot drift.
 export function parseCollectCoverageFrom(configText) {
-  const block = configText.match(/collectCoverageFrom\s*:\s*\[([^\]]*)\]/)
-  if (!block) return null
-  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
+  return parseStringArray(configText, /collectCoverageFrom\s*:\s*\[([^\]]*)\]/)
 }
 
 // ---- pure classifier ------------------------------------------------------------

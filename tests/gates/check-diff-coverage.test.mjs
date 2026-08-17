@@ -316,6 +316,35 @@ test('the SHIPPED vitest.config.ts parses: floors 50/40/45/50 and the exclusion 
   // Generated artifacts are transcriptions of a source of truth, not decisions;
   // the regen-diff gate proves them and coverage would only dilute the bar.
   assert.ok(excludes.includes('packages/design-tokens/src/generated/**'))
+  // The entries AFTER the array's first commented apostrophe ("check-diff-coverage.mjs's",
+  // "apps/web's"). Through 1.0.0 the parser did not strip comments, so that apostrophe
+  // re-paired every later quote and silently dropped everything below it — every assertion
+  // above this line sat above the first apostrophe, which is why the suite stayed green.
+  // The LAST entry is the one that proves the whole array parsed.
+  assert.ok(excludes.includes('packages/verticals/*/src/data/query-probes.ts'), excludes.join(', '))
+  assert.ok(excludes.includes('packages/design-system/src/**'), excludes.join(', '))
+  assert.ok(excludes.includes('apps/web/lib/rate-limit-runtime.ts'), excludes.join(', '))
+})
+
+test("comments inside the array are prose, not data: an apostrophe or `]` in a comment cannot drop later entries", () => {
+  const config = `const COVERAGE_EXCLUDE = [
+  '**/*.d.ts',
+  // apps/web's request-bound surface — the URL 'https://example.test/x' is a literal, not a comment
+  'packages/verticals/*/src/data/query-probes.ts',
+  /* a block comment with it's own apostrophe and a stray ] bracket */
+  'apps/web/lib/auth/session.ts', // trailing it's
+]
+`
+  assert.deepEqual(parseCoverageExcludes(config), [
+    '**/*.d.ts',
+    'packages/verticals/*/src/data/query-probes.ts',
+    'apps/web/lib/auth/session.ts',
+  ])
+  const jest = `module.exports = { collectCoverageFrom: [
+    'src/**/*.{ts,tsx}', // jest-expo's tree
+    '!**/*.test.{ts,tsx}',
+  ] }`
+  assert.deepEqual(parseCollectCoverageFrom(jest), ['src/**/*.{ts,tsx}', '!**/*.test.{ts,tsx}'])
 })
 
 test('the SHIPPED apps/mobile/jest.config.js parses: LOCKSTEP floors + collectCoverageFrom', () => {
