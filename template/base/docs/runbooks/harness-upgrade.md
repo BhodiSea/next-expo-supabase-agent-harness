@@ -983,6 +983,28 @@ record its expiry. `graduate` refuses while any of them NOTEs; the sweep above c
 ones a script may clear, and the rest (registers naming YOUR code, the paired trail
 adoption) are yours.
 
+## 1.0.1 — a patch: nothing expires, nothing opens, one lock to regenerate
+
+**If you are on 1.0.0 already, no ramp here applies to you** — `EXPIRED` and `NOTING` are
+both empty at `baseVersion` 1.0.0 (`node scripts/ci/ramp-expectations.mjs 1.0.0 1.0.1` in the
+harness repo says so). The population 1.0.0 reds is restated in this release's record because
+a direct hop from an old vintage crosses 1.0.0's record on the way and meets its expiries on
+arrival; the 1.0.0 section above is the sweep, and 1.0.1 adds nothing to it.
+
+**What `update` plants.** Three owned files, re-planted when your copy still matches the
+recorded sha: `tools/check-diff-coverage.mjs` (the comment-stripping fix — on a 1.0.0
+scaffold the gate was demanding coverage the runner never measured for everything below the
+first apostrophe inside `vitest.config.ts`'s exclude array), `.claude/settings.json` (the
+`~/.claude` deny narrowed to the two settings files, so plans and memory can persist under
+`~/.claude`), and `.claude/agents/architecture-reviewer.md` (`model: opus` → `model: fable`).
+
+**The one thing you owe.** `update` never rewrites an existing `tools/agents.lock.json` —
+regenerating it would launder every edit since the last one — so after this hop the `prompts`
+gate reds on exactly that one agent file until you run
+`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` and commit the lock. That
+is the re-pin landing as a reviewed diff, which is what the lock is for. It is not a ramp and
+it has no deadline.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

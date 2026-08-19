@@ -11,6 +11,47 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [1.0.1] — 2026-08-19
+
+**A patch: two changes that landed on `main` after 1.0.0 (#16, #17), cut so an install can
+take them through `update` rather than by reading the commit log.** No gate is added, no
+chain length changes, no ramp opens or moves, no seeded file is touched — every changed file
+is an OWNED template file that `update` re-plants when sha-unmodified. The
+`template/migrations.json` record for 1.0.1 is therefore `rampExpiry` only, restating 1.0.0's
+thirteen-vintage population on the 0.11.1 precedent (a direct hop from an old vintage crosses
+1.0.0's record and meets its expiries on arrival); `baseVersion` 0.11.0, 0.11.1 and 1.0.0
+meet nothing here. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.0`.
+
+### Fixed
+
+- **`diff-coverage` parsed the runner-config arrays without stripping comments** (#16).
+  `parseCoverageExcludes` / `parseCollectCoverageFrom` scanned `'…'` literals raw, so an
+  apostrophe (or a `]`) in a comment INSIDE the array re-paired every later quote and
+  silently dropped everything below it. The shipped `vitest.config.ts` carries two such
+  comments ("check-diff-coverage.mjs's", "apps/web's"), so on every 1.0.0 scaffold the
+  query-probes, both design-system packages and the whole `apps/web` request-bound
+  surface were never excluded — the gate demanded coverage the runner never measures. The
+  shipped-config test only asserted entries ABOVE the first apostrophe, which is why it
+  stayed green; it now asserts through the last entry and a new test injects the failure
+  shape.
+
+### Changed
+
+- **The architecture reviewer runs on `fable`** (#17). Owner's decision (@BhodiSea):
+  architecture is where AI-written code is notoriously flaky, so
+  `.claude/agents/architecture-reviewer.md` pins the most capable model available
+  (`model: opus` → `model: fable`). The rest of the roster is unchanged. On an existing
+  install the `prompts` gate holds the roster to `tools/agents.lock.json`, which records
+  each agent's pinned model beside its hash, and `update` never rewrites an existing lock
+  (doing so would launder every edit since the last one) — so after `update` the gate
+  reds on this one file until a human regenerates the lock
+  (`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write`), which is the
+  re-pin landing as a visible, reviewed diff rather than a silent repoint.
+- **The template's `~/.claude` deny narrowed from `Edit`/`Write(~/.claude/**)` to the two
+  settings files** (`~/.claude/settings.json`, `~/.claude/settings.local.json`) (#16), so
+  an agent can persist its own plans and memory under `~/.claude/plans` and
+  `~/.claude/projects` while the permission surface stays locked.
+
 ## [1.0.0] — 2026-08-16
 
 **The settlement release: 0.11.1 → 1.0.0 directly, no 0.12.0 ever cut, every deferred item

@@ -771,5 +771,30 @@
       ],
       "why": "The whole inherited advisory backlog falls due, PLUS data-flow's 0.12.0-dated erase ramp. A v0.10.0 install meets exactly ONE expiring site (data-flow) — the smallest non-zero wave at 1.0.0 and the reason upgrade-lane leg L exists; a v0.9.9 install meets five gates (data-flow, docs-sync, rate-limits, version-sync, web-e2e); a v0.3.0 install meets thirteen; a v0.1.3 install meets twenty. Every one of them then carries the SAME six-gate NOTE fleet the 0.11.x vintages carry — the six ramps this release opens at minVersion 1.0.0 — so `graduate` refuses on every un-swept leg and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.0`, never off this paragraph."
     }
+  },
+  "1.0.1": {
+    "//": [
+      "1.0.1 — a patch: two changes that landed on main after 1.0.0 (#16 diff-coverage comment-stripping + the narrowed ~/.claude deny; #17 the architecture reviewer pinned to fable), cut so an install takes them through `update` rather than by reading the commit log. Every changed file is OWNED (re-planted when sha-unmodified), so the record carries no removed/renamed/configSteps/seedOnInitOnly/seededSourceFixes and no rampExtensions: nothing is withheld, no escape opens or moves, and scripts/ci/upgrade-sweep.mjs needs no SWEEPS entry for it (computeSweepSet does not ask for one when nothing is withheld).",
+      "The one thing update cannot do for an existing install is regenerate tools/agents.lock.json — an update never rewrites an existing lock, because doing so would launder every edit since the last one. So after this hop the `prompts` gate reds on exactly one file (.claude/agents/architecture-reviewer.md: model opus -> fable) until the human regenerates the lock (HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write). That is the re-pin landing as a reviewed diff, which is the discipline the lock exists for; it is not a ramp and it does not have a deadline."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 1.0.1 and copied from its output, never typed — the discipline the 0.11.0 record states. The VINTAGE LIST is identical to 1.0.0's and that is not a copy-paste: a patch release closes no new escape, but an install hopping straight from an old vintage to 1.0.1 crosses 1.0.0's record and meets its expiries on arrival, so the population that reds is the same population and must be restated rather than inherited by implication (the 0.11.1 precedent). baseVersion 0.11.0, 0.11.1 and 1.0.0 meet NOTHING here: EXPIRED is empty for all three; the 0.11.x vintages receive the six-gate 1.0.0 NOTE fleet (until 1.1.0) exactly as they would at 1.0.0, and a 1.0.0 install receives nothing at all — EXPIRED and NOTING are both empty for it.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0"
+      ],
+      "why": "1.0.1 opens no escape and closes none. The population below is 1.0.0's, restated because a direct hop from any of these vintages crosses 1.0.0's record: the same sites fall due, the same six-gate NOTE fleet (auth-posture, boundaries, docs-sync, resilience, suppressions, version-sync — all until 1.1.0) arrives, and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them — 1.0.1 adds nothing to it. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.1`, never off this paragraph."
+    }
   }
 }

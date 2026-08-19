@@ -521,14 +521,14 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   assert.deepEqual(checkVintages(['v0.1.2', 'v0.1.3', 'v0.6.0'], '0.6.0', ['0.1.3']), [])
 })
 
-test('the GROWN list (1.0.0): v0.11.1 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (1.0.1): v1.0.0 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
   // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
   // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
   // where the same test reds with no code having changed. This is that wire, pulled early
   // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9,
-  // 0.11.0 for v0.10.0, 0.11.1 for v0.11.0, and 1.0.0 for v0.11.1): the real released-tag
-  // set, judged as the 1.0.0 release will judge it, against the
+  // 0.11.0 for v0.10.0, 0.11.1 for v0.11.0, 1.0.0 for v0.11.1, and 1.0.1 for v1.0.0): the
+  // real released-tag set, judged as the 1.0.1 release will judge it, against the
   // SHIPPED VINTAGES (the default argument — a local literal here would be the drift the
   // one-definition test above exists to prevent).
   //
@@ -553,8 +553,9 @@ test('the GROWN list (1.0.0): v0.11.1 released means VINTAGES carries it, judged
     'v0.10.0',
     'v0.11.0',
     'v0.11.1',
+    'v1.0.0',
   ]
-  assert.deepEqual(checkVintages(tags, '1.0.0'), [])
+  assert.deepEqual(checkVintages(tags, '1.0.1'), [])
 
   // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface. The comparison underneath is
@@ -1049,6 +1050,41 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
   const at010 = classifyForInstall('0.10.0', '1.0.0', sites)
   assert.deepEqual([...new Set(at010.expired.map((s) => s.gate))], ['data-flow'])
   assert.match(record.why, /leg L/)
+  assert.match(record.why, /ramp-expectations\.mjs/)
+})
+
+test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites compute', () => {
+  // A patch release closes no new escape, but a direct hop from an old vintage to 1.0.1
+  // crosses 1.0.0's record and meets its expiries on arrival — so the population is
+  // RESTATED, not inherited (the 0.11.1 precedent). The record must equal the computation
+  // at 1.0.1, not merely copy 1.0.0's; and the later vintages must meet nothing.
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const record = migrations['1.0.1']?.rampExpiry
+  assert.ok(record, 'a release that reds an existing install must say which, in data')
+  assert.equal(migrations['1.0.1'].rampExtensions, undefined, '1.0.1 moves no deadline')
+
+  const sites = shippedRampSites()
+  const computed = VINTAGES.filter((v) => cmpDotted(v, '1.0.1') < 0).filter(
+    (base) => classifyForInstall(base, '1.0.1', sites).expired.length > 0,
+  )
+  assert.deepEqual(record.affects, computed)
+  assert.deepEqual(record.affects, migrations['1.0.0'].rampExpiry.affects, 'the same thirteen as 1.0.0')
+  // 0.11.x still meet the six-gate 1.0.0 NOTE fleet and no expiry; a 1.0.0 install meets
+  // NOTHING at all — no expiry, no NOTE — which is what makes this a patch.
+  for (const base of ['0.11.0', '0.11.1']) {
+    const at = classifyForInstall(base, '1.0.1', sites)
+    assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.0.1`)
+    assert.deepEqual(
+      [...new Set(at.noting.map((s) => s.gate))].sort(),
+      ['auth-posture', 'boundaries', 'docs-sync', 'resilience', 'suppressions', 'version-sync'],
+      `the six-gate 1.0.0 fleet at base ${base}`,
+    )
+  }
+  const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
+  assert.equal(at100.expired.length, 0, '1.0.0 meets no expiry at 1.0.1')
+  assert.equal(at100.noting.length, 0, '1.0.0 meets no NOTE at 1.0.1')
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
 
