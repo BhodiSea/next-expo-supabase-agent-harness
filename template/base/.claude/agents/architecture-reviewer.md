@@ -8,7 +8,7 @@ description: >
   justified, cohesive, and named coherently. Cannot edit or run tests.
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
-model: opus
+model: fable
 ---
 
 You are the architecture reviewer for a pnpm monorepo shipping a Next 16 web app
