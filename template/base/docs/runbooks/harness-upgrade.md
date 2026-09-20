@@ -1005,6 +1005,46 @@ gate reds on exactly that one agent file until you run
 is the re-pin landing as a reviewed diff, which is what the lock is for. It is not a ramp and
 it has no deadline.
 
+## 1.0.2 — a security patch: the `next` floor moves, and it reds every install below it
+
+**No ramp here applies to a 1.0.0 or 1.0.1 install**, and the population 1.0.0 reds is
+restated in this release's record for the same reason 1.0.1 restated it. What follows is
+not a ramp, and no vintage is exempt from it.
+
+**Expect `version-sync` to red after `update`.** `tools/framework-floor.json` is
+harness-owned, so `update` refreshes it; `pnpm-workspace.yaml` is seeded, so `update` does
+not touch your pins. The `next` floor is now **16.3.3** (or **15.5.24** on the 15 line), for
+the two critical advisories in the
+[August 2026 security release](https://nextjs.org/blog/august-2026-security-release):
+
+- **GHSA-2xp9-vwfh-vxw4**: unauthenticated remote code execution when the Image
+  Optimization API optimizes an attacker-controlled AVIF image. The patched releases
+  disable AVIF optimization until an upstream fix propagates.
+- **CVE-2026-75604**: unauthenticated remote code execution for apps using both the Pages
+  Router and the App Router without Cache Components, when the server uses a Windows
+  filesystem. Linux and macOS are not affected.
+
+Upstream patched no 16.2 release, so a 16.2.x pin moves to 16.3.x. **That is a minor bump of
+your web framework**, which this harness otherwise pins exactly to avoid. A fresh scaffold
+passes the whole chain on 16.3.5, which is what new installs now pin. Your app has code the
+scaffold does not, so read the [16.3 release notes](https://nextjs.org/blog/next-16-3)
+before you take it:
+
+```
+# raise the `next` pin in the pnpm-workspace.yaml catalog, then
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+If you deploy to Vercel or another Linux host, use the App Router only and configure no
+remote images, your exposure to both advisories is narrow. The floor does not ask: there is
+no flag that lowers it, for the reason the 0.5.0 section gives.
+
+**Also in `tools/eol.json`:** `eslint` 9 is now recorded as an accepted vendor-EOL
+development dependency (the two accessibility lint plugins do not yet admit ESLint 10), so
+the census does not red on it. `react-native` 0.84 left the supported set. The scaffold has
+never shipped below 0.86, so this reds only a tree that was moved down by hand.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

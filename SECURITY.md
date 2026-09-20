@@ -61,6 +61,19 @@ signer identity.
 The attestation covers release assets. `npx github:...` fetches the repository
 at a ref rather than a release asset, so pin a tag (`#v1.0.1`) when you use it.
 
+## Known Scorecard findings
+
+This repository runs OpenSSF Scorecard and publishes the results. Some findings
+are open for reasons a code change cannot fix:
+
+- **Code-Review.** There is one maintainer, so no change is approved by a second
+  person. Every change still lands through a pull request and the full CI matrix.
+- **Maintained.** Scorecard scores any repository younger than 90 days as
+  unmaintained. This one was created on 2026-07-22.
+- **SAST.** CodeQL has run on every pull request since 1.0.2. Scorecard measures
+  the share of recent commits that were analysed, so the score rises as commits
+  accumulate.
+
 ## Scope notes
 
 - The harness's guard hooks and permission denies are **tamper-evident, not

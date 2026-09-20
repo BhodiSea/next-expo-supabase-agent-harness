@@ -135,9 +135,16 @@ test('a CRITICAL advisory is cited ahead of the Highs, wherever it sits in the r
   // Critical row would have named four older Highs in the one-line failure and left out
   // the advisory that actually moved the floor. Five Highs FIRST, so a cap of four that
   // ignored severity rank would crowd the Critical out entirely.
-  const highs = [1, 2, 3, 4, 5].map((n) => ({ id: `CVE-2026-0000${String(n)}`, severity: 'High' }))
+  const highs = [1, 2, 3, 4, 5].map((n) => ({
+    id: `CVE-2026-0000${String(n)}`,
+    severity: 'High',
+    summary: 'a high',
+  }))
   const floor = structuredClone(FLOOR)
-  floor.packages.next.advisories = [...highs, { id: 'GHSA-crit-crit-crit', severity: 'Critical' }]
+  floor.packages.next.advisories = [
+    ...highs,
+    { id: 'GHSA-crit-crit-crit', severity: 'Critical', summary: 'a critical' },
+  ]
   const { problems } = judgeFloor({
     floor,
     resolved: parseLockVersions(LOCK('16.2.7')),
