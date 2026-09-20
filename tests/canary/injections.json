@@ -884,6 +884,13 @@
         "ref": "tests/gates/check-release-lockstep.test.mjs"
       }
     ],
+    "check-released-shas.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-released-shas.test.mjs",
+        "note": "1.0.2. The released-sha tables are what lets `update` tell a file a release shipped from a fork whose sha was re-recorded, and a table that drifts from the template fails in the QUIET direction — untouched files parked on every install at the next update — so each closure is spawned red against doctored tables through the script's --tables-dir seam: a live owned file whose sha the current version's table does not list (the message must name the one-command remedy), a released vintage with no table, unsorted paths, and a token written in its braced form (hygiene's placeholder closure scans template/shas/ too). The pure halves (unionInto only ever grows; missingFrom/missingVersions/lintTable name exactly what is wrong) are asserted beside them, and the walk is held non-vacuous (hundreds of owned paths, the stack-tree one among them). STATED LIMIT: this proof uses no git, tar or tags because the closure executes it on the Windows leg; the tag half (--verify-tags: every tag's tree, judged by that tag's OWN installer, inside its version's table) is exercised by lint.yml#machinery-lint on every pull request and at the tag ref, and the policy the tables feed is proved end to end in tests/installer/update-provenance.test.mjs."
+      }
+    ],
     "check-residue.mjs": [
       {
         "kind": "fixture",

@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { planTree } from '../lib/copy.mjs'
 import { MODULES, RETIRED_MODULES } from '../lib/layout.mjs'
 import { fileMode, readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
+import { createProvenance, readReleasedShas } from '../lib/provenance.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
 
 // Modules whose gate ships dormant until a config line is activated (none today —
@@ -28,8 +29,42 @@ function pruneEmptyDirs(targetDir, removedPaths, dryRun) {
   }
 }
 
+// Does the file already on disk win over the module's copy? Yes when it differs from the
+// incoming bytes AND either drifted from its record or — since 1.0.2 — matches a record no
+// release shipped: a consumer who forks an owned module file re-records its sha to keep
+// `gate-integrity` green, so "matches the record" alone used to read as pristine and the
+// fork was overwritten. Seeded module files are the project's own; only owned ones are
+// judged (lib/provenance.mjs). Hoisted out of `enable` for the complexity ratchet.
+/**
+ * @param {{ dest: string, entry: { installPath: string, content: string | Buffer },
+ *           recorded: { sha256: string } | undefined,
+ *           provenance: { isFork: (ip: string, recordedSha: string, current: Buffer) => boolean } }} args
+ */
+function localFileWins({ dest, entry, recorded, provenance }) {
+  if (!existsSync(dest)) return false
+  const currentRaw = readFileSync(dest)
+  const incomingRaw = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content)
+  if (currentRaw.equals(incomingRaw)) return false
+  if (!recorded || sha256(currentRaw) !== recorded.sha256) return true
+  return fileMode(entry.installPath) === 'owned' && provenance.isFork(entry.installPath, recorded.sha256, currentRaw)
+}
+
+// The `disable` twin: a module file is deleted only when it is BOTH unmodified against its
+// record and (for an owned file) bytes a release shipped — a re-recorded fork is kept.
+/**
+ * @param {{ dest: string, ip: string, meta: { mode?: string, sha256: string },
+ *           provenance: { isFork: (ip: string, recordedSha: string, current: Buffer) => boolean } }} args
+ */
+function keptOnDisable({ dest, ip, meta, provenance }) {
+  // Raw bytes: a utf8-lossy decode would never hash-match binary assets,
+  // misreading every icon/font as "locally modified".
+  const current = readFileSync(dest)
+  if (sha256(current) !== meta.sha256) return true
+  return meta.mode === 'owned' && provenance.isFork(ip, meta.sha256, current)
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function enable(opts, moduleName, on) {
+export async function enable(opts, moduleName, on, { releasedShas = readReleasedShas() } = {}) {
   if (RETIRED_MODULES.has(moduleName)) {
     throw new Error(`module '${moduleName}' was ${RETIRED_MODULES.get(moduleName)}`)
   }
@@ -42,6 +77,7 @@ export async function enable(opts, moduleName, on) {
 
   const modules = new Set(manifest.modules ?? [])
   const files = { ...manifest.files }
+  const provenance = createProvenance({ tables: releasedShas, manifest, report: { notes: [] } })
 
   if (on) {
     const plan = planTree(`modules/${moduleName}`, manifest.answers)
@@ -53,18 +89,13 @@ export async function enable(opts, moduleName, on) {
     }
     for (const entry of plan) {
       const dest = join(targetDir, entry.installPath)
-      // Never clobber local changes: if the file exists with different content
-      // that also differs from what we recorded, park ours like `update` does.
-      if (existsSync(dest)) {
-        const currentRaw = readFileSync(dest)
-        const incomingRaw = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content)
-        const recorded = files[entry.installPath]
-        if (!currentRaw.equals(incomingRaw) && (!recorded || sha256(currentRaw) !== recorded.sha256)) {
-          const pending = join('.harness', 'pending', entry.installPath)
-          if (!opts.dryRun) writeInstallFile(join(targetDir, pending), entry.content)
-          console.warn(`  DRIFT ${entry.installPath}: local file kept; module version parked at ${pending}`)
-          continue
-        }
+      // Never clobber local changes: a file that drifted from its record — or matches a
+      // record no release shipped — is kept, and ours is parked like `update` does.
+      if (localFileWins({ dest, entry, recorded: files[entry.installPath], provenance })) {
+        const pending = join('.harness', 'pending', entry.installPath)
+        if (!opts.dryRun) writeInstallFile(join(targetDir, pending), entry.content)
+        console.warn(`  DRIFT ${entry.installPath}: local file kept; module version parked at ${pending}`)
+        continue
       }
       if (!opts.dryRun) writeInstallFile(dest, entry.content)
       files[entry.installPath] = { mode: fileMode(entry.installPath), sha256: sha256(entry.content), module: moduleName }
@@ -79,10 +110,7 @@ export async function enable(opts, moduleName, on) {
       if (meta.module !== moduleName) continue
       const dest = join(targetDir, ip)
       if (existsSync(dest)) {
-        // Raw bytes: a utf8-lossy decode would never hash-match binary assets,
-        // misreading every icon/font as "locally modified".
-        const current = sha256(readFileSync(dest))
-        if (current !== meta.sha256) {
+        if (keptOnDisable({ dest, ip, meta, provenance })) {
           console.warn(`  kept locally-modified ${ip} (remove manually if intended)`)
           delete files[ip]
           continue

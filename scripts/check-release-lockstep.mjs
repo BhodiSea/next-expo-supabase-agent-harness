@@ -4,6 +4,8 @@
 //   package.json.version == .claude-plugin/plugin.json.version
 //     == every HARNESS_HOOK_VERSION stamp under template/base/.claude/hooks/
 //     == GITHUB_REF_NAME (only when running on a v* tag)
+//     == CITATION.cff, the CHANGELOG heading (and their dates), and — since 1.0.2 — the
+//        `version` stamp of template/shas/<version>.json, which must exist
 // Doctor uses the hook stamps to tell "stale hook from an older harness" from
 // "locally modified" — a stamp that skews from the released version breaks
 // that diagnosis for every consumer.
@@ -73,6 +75,23 @@ if (released === undefined) {
   problems.push(
     `CITATION.cff date-released ${released} != CHANGELOG.md "## [${pkgVersion}] — ${heading[1]}" — one release, one date`,
   )
+}
+
+// The released-sha table rides it too (1.0.2). `update` reads template/shas/<version>.json
+// to tell a file THIS release shipped from a fork whose sha was re-recorded; a release cut
+// without its table ships an installer that, one version later, has no evidence for this
+// vintage and falls back to trusting the manifest record alone. Presence and stamp only —
+// whether the table matches the tree is scripts/check-released-shas.mjs's closure.
+let table = null
+try {
+  table = JSON.parse(readFileSync(join(root, `template/shas/${pkgVersion}.json`), 'utf8'))
+} catch {
+  problems.push(
+    `template/shas/${pkgVersion}.json is missing or unreadable — run \`node scripts/generate-released-shas.mjs --current\``,
+  )
+}
+if (table !== null && table.version !== pkgVersion) {
+  problems.push(`template/shas/${pkgVersion}.json says version ${String(table.version)}`)
 }
 
 if (problems.length > 0) {

@@ -33,11 +33,19 @@ Apply the harness version you are running to an existing install. Files the
 harness owns are replaced. A file you have changed is kept, and the incoming
 version is parked under `.harness/pending/` for you to merge.
 
+"Changed" means the bytes are not ones a release shipped. A file that still
+matches its record in `.harness/manifest.json` is replaced only when that
+record is a sha the harness actually shipped for that path. A fork whose sha
+you re-recorded (the way to keep `gate-integrity` green on a deliberate fork)
+is kept: the incoming version is parked when upstream changed that file since
+your install's version, and nothing is parked when it did not. The upgrade
+runbook's "Forking an owned file" section describes the flow.
+
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to update. Default `.` |
-| `--dry-run` | Report and write nothing. |
-| `--force` | Overwrite owned files that have drifted locally instead of parking the incoming version. |
+| `--dry-run` | Report and write nothing. The report names every path a real run would write and every path it would park. |
+| `--force` | Overwrite owned files that have drifted locally, or that you forked and re-recorded, instead of parking the incoming version. |
 | `--refresh-seeded <path>` | Pull the template version of a seeded, project-owned file, or of a whole subtree when the path ends in `/`. Overwrites when untouched, parks on drift. Repeatable. |
 | `--rollback` | Restore the tree recorded before the last update. Combines with no other update flag. |
 | `--report json` | Print the update report as JSON. |
@@ -47,7 +55,9 @@ version is parked under `.harness/pending/` for you to merge.
 
 ### `doctor`
 
-`doctor [--dir .]` reports whether an install is healthy.
+`doctor [--dir .]` reports whether an install is healthy. It lists each
+re-recorded fork of a harness-owned file as `info`, which does not change the
+exit code.
 
 ### `graduate`
 
@@ -100,7 +110,7 @@ the default for anything not set. Every value is validated.
 |---|---|
 | 0 | Success |
 | 1 | Error, or an unknown command |
-| 2 | `init` or `update` finished, but the report lists conflicts or drift to resolve |
+| 2 | `init` or `update` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it |
 
 ## Environment variables in a scaffolded project
 
