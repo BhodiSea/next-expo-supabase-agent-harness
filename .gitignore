@@ -19,6 +19,18 @@ coverage/
 # drops the finding. Pure run state, like the stamps above — and the consumer template
 # already ignores it wholesale via `.harness/*`.
 .harness/stop-output/
+# Credential-shaped files. Nothing in the factory reads one: the release path uses the
+# workflow's ephemeral token, and the template ships its example env file dotless
+# (template/base/env.example), which these patterns do not match. template/base/gitignore
+# protects CONSUMERS; this protects the factory checkout from a `git add -A`.
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.p12
+*.keystore
+*.jks
 # Scratch fixtures created by local selftest runs
 .fixtures/
 # The upgrade lane's workdir (scripts/ci/upgrade-lane.sh) — a whole rendered scaffold
