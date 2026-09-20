@@ -69,6 +69,13 @@ const SURFACE_EXCLUDE = [/^tools\/generated\//]
 // lands, and the prescribed remedy (`update`, which re-records the hashes) clobbers the
 // tuning it was pointing at. The ramp gives those installs a release to converge in; a
 // fresh scaffold has no legacy and is covered from day one.
+//
+// (1.0.2 closed the other half of that hazard. The supported way to KEEP a tuned owned file
+// is to re-record its sha in the manifest — and until 1.0.2 the installer read a re-recorded
+// sha as "pristine" and overwrote the fork on the next update. It now asks whether a
+// release ever shipped those bytes, and parks the incoming version when none did. The
+// failure hint at the bottom of this file says so, because this gate is where a consumer
+// first meets the question.)
 const RAMPED_SURFACE = [/^\.claude\/rules\//, /^\.claude\/statusline\.mjs$/]
 const SURFACE_RAMP = '0.2.0'
 
@@ -574,7 +581,7 @@ if (hasGit && configCommitPaths.length > 0 && process.env.HARNESS_ALLOW_SELF_EDI
 failures(
   GATE,
   errs,
-  'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness update` (it re-records the hashes).',
+  'Restore the file(s) from git; if the change came from a sanctioned harness upgrade, re-run `npx next-expo-supabase-agent-harness update` (it re-records the hashes). A DELIBERATE fork of a harness-owned file is supported too: a human re-records its sha256 in .harness/manifest.json in a reviewed commit, this gate goes green, and from harness 1.0.2 `update` sees a recorded sha no release shipped, keeps your file and parks the incoming version under .harness/pending/ instead of overwriting it (docs/runbooks/harness-upgrade.md, "Forking an owned file").',
 )
 ok(
   GATE,
