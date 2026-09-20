@@ -1118,6 +1118,30 @@ of the test, which covers all seven tables and TRUNCATE:
 `npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/rls_structure.test.sql`,
 after the migration is applied.
 
+### The authoring guidance now teaches the revoke this release shipped
+
+The migration above exists because a GRANT adds a privilege and removes none. Until this
+release the places that TEACH a new table's grants still showed the old shape: revoke
+`anon` and `service_role`, then grant `authenticated`. An agent following them wrote
+exactly the table the new privilege assertion reds. They now teach three revokes (`anon`,
+`service_role`, `authenticated`) and then a grant of exactly the operations the table's
+policies admit, name TRUNCATE, REFERENCES and TRIGGER as what the default leaves behind,
+and say that the `authenticated` revoke needs the `-- adr:` marker your `migrations` gate
+asks for.
+
+`update` delivers this to the harness-owned files: the `migration-rls-author` and
+`security-reviewer` agents, the `/new-migration`, `/new-feature` and `/rls-check` commands,
+both authoring skills and `.claude/rules/security-invariants.md`. **`AGENTS.md` and
+`supabase/AGENTS.md` are yours, so `update` does not touch them.** If yours still say
+"`REVOKE ALL` from `service_role`, and grants to `authenticated`", change that clause to:
+
+> `REVOKE ALL` from `anon`, `service_role` AND `authenticated`, then the EXACT grants its
+> policies admit (a GRANT removes nothing; the default leaves it TRUNCATE).
+
+The shipped example migrations keep the older shape. They are applied history, and the
+seven read-only tables are corrected by the migration above. For a writable table of your
+own, the same three statements and an exact re-grant are the fix.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

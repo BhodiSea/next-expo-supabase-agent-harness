@@ -15,8 +15,9 @@ user-scoped table has `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migratio
 it; four per-operation policies `TO authenticated` (never `FOR ALL`), each predicate real (no
 `USING (true)`) and keyed on the initPlan sub-select `(select auth.uid())`, with `WITH CHECK`
 on INSERT/UPDATE; a LEADING-column owner index; `REVOKE ALL ... FROM service_role` (the only
-lever over the BYPASSRLS role, which no policy constrains) with grants narrowed to
-`authenticated`; append-only migrations; exemptions only via the write-guard-protected
+lever over the BYPASSRLS role, which no policy constrains), `FROM anon` and `FROM
+authenticated`, then a `GRANT` to `authenticated` of exactly what its policies admit — a
+GRANT removes nothing, so a missing revoke leaves it TRUNCATE, REFERENCES and TRIGGER; append-only migrations; exemptions only via the write-guard-protected
 `tools/rls-exempt.json`. It reports by severity with `file:line` refs and the exact offending
 SQL.
 

@@ -29,9 +29,13 @@ SAME RLS policies. Schema truth is SQL-first; there is no ORM.
   `(select auth.uid())` — hoisted once per statement, not run per row.
 - `WITH CHECK` on every INSERT and UPDATE (the only defence against writing under, or handing
   away, another user's owner column).
-- `REVOKE ALL … FROM anon` and `FROM service_role`, then `GRANT SELECT, INSERT, UPDATE, DELETE …
-  TO authenticated`. A table stays unreachable by an Edge Function until a later, ADR'd migration
-  grants it explicitly, per table.
+- `REVOKE ALL … FROM anon`, `FROM service_role` AND `FROM authenticated`, then `GRANT` to
+  `authenticated` exactly the operations the policies admit (`SELECT` alone on a read-only
+  table). The platform default grants ALL to all three, and a GRANT removes nothing — skip the
+  third revoke and `authenticated` keeps TRUNCATE, REFERENCES and TRIGGER. That revoke needs an
+  `-- adr:` marker (the `migrations` gate), and the table joins the exactness assertion in
+  `tests/rls_structure.test.sql`. A table stays unreachable by an Edge Function until a later,
+  ADR'd migration grants it explicitly, per table.
 - A leading-column index on the owner column (an index whose LEADING column is the owner turns
   the policy qual into an Index Cond; when keyset-paginated the same index carries the ORDER BY
   tail). A two-row test database never reveals a missing one.

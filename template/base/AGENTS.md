@@ -104,8 +104,9 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 - **RLS on `auth.uid()` IS the authorization boundary.** Every user-scoped table
   ships `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migration, with
   per-operation policies (`TO authenticated`, `WITH CHECK` on INSERT/UPDATE) keyed
-  on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `service_role`,
-  and grants to `authenticated`. Web and mobile hit the SAME policies, so isolation
+  on `auth.uid()`, a leading-column owner index, `REVOKE ALL` from `anon`, `service_role`
+  AND `authenticated`, then the EXACT grants its policies admit (a GRANT removes nothing;
+  the default leaves it TRUNCATE). Web and mobile hit the SAME policies, so isolation
   is enforced in ONE place; `supabase/tests/**` (pgTAP) + `tests/rls/` (supabase-js)
   prove tenant B cannot read A on every `db reset`. **The owner index must carry the
   ORDERING, not just the filter** — `(owner_id, <ORDER BY columns, direction>)` so
