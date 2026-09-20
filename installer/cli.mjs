@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // next-expo-supabase-agent-harness installer.
 //   npx --yes github:<owner>/next-expo-supabase-agent-harness#<tag> <command> [flags]
-// Commands: init | update | doctor | enable <module> | disable <module>
+// Commands: init | update | doctor | graduate | enable <module> | disable <module>
+// Reference: docs/cli.md (held to this file by tests/gates/cli-docs-sync.test.mjs)
 import { parseArgs } from 'node:util'
 import { resolve } from 'node:path'
 
@@ -54,13 +55,13 @@ Usage:
            runs validate, refuses while any ramp NOTE remains)
   enable   <module>   (ci-mobile-release, ci-web-deploy, device-e2e, eas-update,
            store-metadata, ci-provenance, gate-a11y-deep, crash-reporting,
-           push-notifications, eval-live, observability)
+           push-notifications, eval-live, observability, e2ee)
   disable  <module>
 
 Placeholders: PROJECT_NAME PROJECT_SLUG APP_IDENTIFIER APP_SCHEME WEB_ORIGIN
               DESIGN_TOKENS(default|metal) SUPABASE_PROJECT_REF GITHUB_OWNER
-              SECURITY_OWNERS DEFAULT_BRANCH EAS_PROJECT_ID ASC_APP_ID
-              APPLE_TEAM_ID`
+              SECURITY_OWNERS SECURITY_TXT_EXPIRES DEFAULT_BRANCH EAS_PROJECT_ID
+              ASC_APP_ID APPLE_TEAM_ID`
 
 try {
   let code = 0

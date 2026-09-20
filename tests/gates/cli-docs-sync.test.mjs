@@ -51,6 +51,20 @@ test('docs/cli.md names every module, tier and placeholder, and no module that d
   assert.deepEqual([...listed].sort(), [...MODULES].sort())
 })
 
+test('the USAGE text behind --help names every module, placeholder and command (1.0.2)', () => {
+  // USAGE listed eleven of twelve modules and thirteen of fourteen placeholders through
+  // 1.0.1, and its own header comment omitted `graduate`. It is prose, so it gets the same
+  // closure the page gets.
+  const usage = cli.slice(cli.indexOf('const USAGE = `'), cli.indexOf('`\n\ntry {'))
+  assert.ok(usage.length > 200, 'the USAGE literal was not found in installer/cli.mjs')
+  for (const name of [...MODULES, ...Object.keys(PLACEHOLDERS)]) {
+    assert.ok(usage.includes(name), `--help never mentions ${name}`)
+  }
+  for (const command of commands.filter((c) => c !== 'help')) {
+    assert.match(usage, new RegExp(`^ {2}${command}\\b`, 'm'), `--help has no line for the ${command} command`)
+  }
+})
+
 test('the tier table matches TIERS', () => {
   for (const [tier, modules] of Object.entries(TIERS)) {
     const row = page.split('\n').find((line) => line.startsWith(`| \`${tier}\` |`))
