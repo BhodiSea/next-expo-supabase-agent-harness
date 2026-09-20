@@ -220,30 +220,6 @@ echo "$FLOOR_OUT"
 FLOOR_RAISED=0
 case "$FLOOR_OUT" in *'raised to the security floor'*) FLOOR_RAISED=1 ;; esac
 
-# ── 5a-bis. the end-of-life register (1.0.2) ─────────────────────────────────────
-# tools/eol.json is SEEDED: its rows are the consumer's own decisions, so `update` never
-# rewrites an install's copy. An install at 0.9.9 or later therefore keeps the rows it was
-# scaffolded with, and the census is LIVE for it (EOL_RAMP is 0.9.9). When a vendor
-# deprecates a package the scaffold pins — eslint 9 went end-of-life on 2026-08-06 and the
-# registry flag followed — the next re-resolve copies the flag into the lockfile and
-# `version-sync` reds on a row the install does not have. That is correct for the same
-# reason the floor red above is correct, and it is environmental rather than caused by
-# `update`: a FRESH scaffold of the previous release reds the same way on the same day.
-#
-# Left alone it kills legs A and M exactly as an unapplied floor would kill leg A, so the
-# lane plays the consumer with the documented remedy for an untouched seeded file — the
-# real `--refresh-seeded` pull, through HEAD's CLI, not a copy. On a leg older than 0.9.9
-# the register is planted by `update` and is already HEAD's, so the pull changes nothing;
-# the assertion below is on the END STATE for that reason, never on "a file was written".
-if [ -f "$SCAFFOLD/tools/eol.json" ]; then
-  say "end-of-life register"
-  node "$ROOT/installer/cli.mjs" update --dir "$SCAFFOLD" --refresh-seeded tools/eol.json |
-    tee "$WORK/refresh-eol.log"
-  cmp -s "$SCAFFOLD/tools/eol.json" "$ROOT/template/base/tools/eol.json" ||
-    die "\`update --refresh-seeded tools/eol.json\` left the install's register different from HEAD's on an UNTOUCHED scaffold — the documented remedy for a vendor deprecation does not deliver the harness's rows, so the runbook instruction is false"
-  echo "  tools/eol.json matches HEAD's register"
-fi
-
 say "dependency obligations"
 PARKED="$SCAFFOLD/.harness/pending/dependencies.json"
 if [ -f "$PARKED" ]; then
@@ -319,6 +295,52 @@ echo "  resolves:  eslint-plugin-jsx-a11y"
 # And doctor must now be able to reach clean: an unmet obligation is a doctor ERROR (1),
 # which §5 below treats as fatal. Applying it above is what keeps that honest — if the
 # channel did not work, §5 fails with doctor's own message rather than this one.
+
+# ── 5a-bis. the end-of-life register (1.0.2) ─────────────────────────────────────
+# tools/eol.json is SEEDED: its rows are the consumer's own decisions, so `update` never
+# rewrites an install's copy. An install at 0.9.9 or later therefore keeps the rows it was
+# scaffolded with, and the census is LIVE for it (EOL_RAMP is 0.9.9). When a vendor
+# deprecates a package the scaffold pins — eslint 9 went end-of-life on 2026-08-06 and the
+# registry flag followed — the next re-resolve copies the flag into the lockfile and
+# `version-sync` reds on a row the install does not have. That is correct for the same
+# reason the floor red above is correct, and it is environmental rather than caused by
+# `update`: a FRESH scaffold of the previous release reds the same way on the same day.
+#
+# Left alone it kills legs A and M exactly as an unapplied floor would kill leg A, so the
+# lane plays the consumer with the documented remedy for an untouched seeded file — the
+# real `--refresh-seeded` pull, through HEAD's CLI, not a copy. On a leg older than 0.9.9
+# the register is planted by `update` and is already HEAD's, so the pull changes nothing;
+# the assertion below is on the END STATE for that reason, never on "a file was written".
+#
+# AFTER THE INSTALL ABOVE, NOT BEFORE IT, and the first local run of this stage is why.
+# The commit below fires the scaffold's own lefthook pre-commit, whose format step runs
+# through pnpm, and pnpm re-installs first when the catalog has changed. Placed ahead of
+# the install, that moved pnpm-lock.yaml BEFORE the lane took its digest, so the lane's
+# own "the lockfile must have moved" assertion then died on a correct tree.
+if [ -f "$SCAFFOLD/tools/eol.json" ]; then
+  say "end-of-life register"
+  node "$ROOT/installer/cli.mjs" update --dir "$SCAFFOLD" --refresh-seeded tools/eol.json |
+    tee "$WORK/refresh-eol.log"
+  cmp -s "$SCAFFOLD/tools/eol.json" "$ROOT/template/base/tools/eol.json" ||
+    die "\`update --refresh-seeded tools/eol.json\` left the install's register different from HEAD's on an UNTOUCHED scaffold — the documented remedy for a vendor deprecation does not deliver the harness's rows, so the runbook instruction is false"
+  echo "  tools/eol.json matches HEAD's register"
+  # AND COMMIT IT, because that is the other half of what a consumer does. tools/eol.json
+  # is an escape-hatch list, and `gate-integrity` reds one that is modified but
+  # uncommitted: accepting a vendor-abandoned package is a REVIEWED act that has to appear
+  # in a diff. The first run of this stage cleared `version-sync` and went red one step
+  # earlier for exactly that reason, which is the gate working. Only when the pull MODIFIED
+  # A TRACKED register (`git diff`, which ignores untracked files): on a leg older than
+  # 0.9.9 the register was planted by `update`, is untracked like everything else `update`
+  # wrote, and those legs were green before this stage existed, so they are left exactly
+  # as they were. An empty commit would also die under `set -e`.
+  if ! git -C "$SCAFFOLD" diff --quiet -- tools/eol.json; then
+    git -C "$SCAFFOLD" add tools/eol.json
+    git -C "$SCAFFOLD" -c user.email=selftest@localhost -c user.name=selftest \
+      commit -qm "chore(eol): take the harness's end-of-life register (reviewed)"
+    echo "  committed tools/eol.json"
+  fi
+fi
+
 
 # ── 3. the plant-vs-withhold contract, asserted rather than reviewed ─────────────
 # The 0.2.0 hazard, repeated deliberately: a gate that FAILS CLOSED without its data
