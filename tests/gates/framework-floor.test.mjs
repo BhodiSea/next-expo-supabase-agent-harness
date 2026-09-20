@@ -130,6 +130,24 @@ test('CANARY — a resolved version below the floor reds and names the HIGH advi
   assert.ok(!problems[0].includes('CVE-2026-64644'), 'High advisories are cited first')
 })
 
+test('a CRITICAL advisory is cited ahead of the Highs, wherever it sits in the register (1.0.2)', () => {
+  // Through 1.0.1 the citation filter knew only 'High'. The first register to carry a
+  // Critical row would have named four older Highs in the one-line failure and left out
+  // the advisory that actually moved the floor. Five Highs FIRST, so a cap of four that
+  // ignored severity rank would crowd the Critical out entirely.
+  const highs = [1, 2, 3, 4, 5].map((n) => ({ id: `CVE-2026-0000${String(n)}`, severity: 'High' }))
+  const floor = structuredClone(FLOOR)
+  floor.packages.next.advisories = [...highs, { id: 'GHSA-crit-crit-crit', severity: 'Critical' }]
+  const { problems } = judgeFloor({
+    floor,
+    resolved: parseLockVersions(LOCK('16.2.7')),
+    catalogPins: new Map([['next', '16.2.7']]),
+    haveLock: true,
+  })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /GHSA-crit-crit-crit, CVE-2026-00001, CVE-2026-00002, CVE-2026-00003 \(\+2 more\)/)
+})
+
 test('the SHIPPED pin passes its own SHIPPED floor', () => {
   // The regression this whole workstream exists for: the catalog and the floor are two
   // files, and nothing but this compares them.

@@ -101,7 +101,19 @@ catalog:
   # it carries the same four ids as DATA, and the version-sync gate judges the RESOLVED
   # lockfile against it, so a transitive resolution below the floor reds too.
   # SOURCE: https://nextjs.org/blog/july-2026-security-release
-  next: 16.2.11
+  #
+  # 1.0.2: the floor moves to 16.3.3, the August 2026 security release (2026-08-25): two
+  # CRITICAL unauthenticated-RCE advisories, GHSA-2xp9-vwfh-vxw4 (the Image Optimization
+  # API optimizing an attacker-controlled AVIF, via libheif under sharp) and CVE-2026-75604
+  # (Windows-hosted servers running the Pages and App routers together). Upstream patched
+  # only 16.3.x and 15.5.x, so there is no patched 16.2 and this pin crosses a MINOR for
+  # the first time, against the "exact" rule above, because the alternative is shipping a
+  # known-critical pin. 16.3.5 is the newest 16.3 patch with no advisory against it on the
+  # day of review. What this scaffold exposes AS SHIPPED is narrow (App Router only, no
+  # images.remotePatterns, a Linux deploy target), and the floor moves anyway: the
+  # /_next/image endpoint exists by default and consumers extend these apps.
+  # SOURCE: https://nextjs.org/blog/august-2026-security-release
+  next: 16.3.5
   next-safe-action: ^8.5.3
   tailwindcss: ^4.3.0 # v4 CSS-first, WEB ONLY — mobile pins v3 in apps/mobile (see below)
   '@tailwindcss/postcss': ^4.3.0

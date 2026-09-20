@@ -93,11 +93,19 @@ export function compareVersions(a, b) {
   return x.pre < y.pre ? -1 : 1
 }
 
+// Critical outranks High (1.0.2). Through 1.0.1 this filter knew only 'High', so the first
+// register to carry a Critical row would have named four older Highs in the failure line
+// and left out the advisory that actually moved the floor.
+const CITED_SEVERITY_RANK = { Critical: 0, High: 1 }
+
 /** The advisory ids a message should name, most severe first, capped so the line stays readable. */
 function citeAdvisories(entry) {
   const rows = Array.isArray(entry.advisories) ? entry.advisories : []
-  const high = rows.filter((a) => a.severity === 'High').map((a) => a.id)
-  const shown = (high.length > 0 ? high : rows.map((a) => a.id)).slice(0, 4)
+  const severe = rows
+    .filter((a) => Object.hasOwn(CITED_SEVERITY_RANK, a.severity ?? ''))
+    .sort((a, b) => CITED_SEVERITY_RANK[a.severity] - CITED_SEVERITY_RANK[b.severity])
+    .map((a) => a.id)
+  const shown = (severe.length > 0 ? severe : rows.map((a) => a.id)).slice(0, 4)
   if (shown.length === 0) return 'no advisory ids are recorded in the floor'
   const rest = rows.length - shown.length
   return `${shown.join(', ')}${rest > 0 ? ` (+${String(rest)} more)` : ''}`
