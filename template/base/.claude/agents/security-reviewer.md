@@ -54,9 +54,17 @@ sections.
   UPDATE without `WITH CHECK` lets an owner rewrite the owner column and hand the row
   away. Flag an INSERT/UPDATE policy carrying only `USING`. SOURCE: PostgreSQL row
   security — WITH CHECK validates the new row [corpus: postgres/rls-force]
-- **REVOKE, then GRANT narrow.** The creating migration `REVOKE ALL … FROM anon` and
-  `REVOKE ALL … FROM service_role`, then `GRANT SELECT, INSERT, UPDATE, DELETE … TO
-  authenticated`. `service_role` bypasses RLS by role attribute, so the grant is the ONLY
+- **REVOKE from all three, then GRANT exactly.** The creating migration `REVOKE ALL … FROM
+  anon`, `FROM service_role` AND `FROM authenticated`, then `GRANT`s `authenticated`
+  exactly the operations its policies admit (`SELECT` alone on a table clients only read).
+  The platform default grants ALL on a new `public` table to all three roles, and **a GRANT
+  adds a privilege and removes none**: a migration that revokes two roles and grants four
+  verbs leaves `authenticated` holding TRUNCATE — which row security never sees — plus
+  REFERENCES and TRIGGER, and on a read-only table every write verb too. RLS still refuses
+  the rows, so this is a missing layer rather than an open door; flag it as one. The
+  `authenticated` revoke needs a resolvable `-- adr:` marker (the `migrations` gate), and
+  the table belongs in the privilege-exactness assertion in
+  `supabase/tests/rls_structure.test.sql`. `service_role` bypasses RLS by role attribute, so the grant is the ONLY
   control over it — a table stays unreachable by an Edge Function until a later, ADR'd
   migration grants it explicitly, per table. Flag any `GRANT … TO service_role` or
   `GRANT ALL ON ALL TABLES` (the shape a generated `supabase db diff` draft hands you,
@@ -126,8 +134,11 @@ Show the EXACT offending SQL line for each of:
 - an INSERT or UPDATE policy missing `WITH CHECK`;
 - a `GRANT … TO service_role` (or `GRANT ALL ON ALL TABLES`) without a merged ADR, or a
   grant wider than the operations the feature needs;
-- a `REVOKE` for `anon`/`service_role` that a later migration silently re-grants (a
-  `db diff` draft re-adding Supabase's default privileges is the usual way);
+- a `REVOKE` for `anon`/`service_role`/`authenticated` that a later migration silently
+  re-grants (a `db diff` draft re-adding Supabase's default privileges is the usual way);
+- a new table whose migration never revokes the platform default from `authenticated`
+  before granting to it — or any table where `authenticated` holds TRUNCATE, REFERENCES,
+  TRIGGER, or a write verb no policy of its own admits;
 - an owner-column with no leading-column index in any migration;
 - DML without `-- harness-allow-dml:`, destructive DDL without a resolvable `-- adr:`, or
   an edit to an already-committed migration file (append-only violation).
@@ -138,8 +149,8 @@ the Next host or the Expo host beyond the policies, require the `web-security-re
 `mobile-security-reviewer` to run as well.
 
 Flag ONLY gaps that affect correctness or these invariants; a new table with FORCE RLS,
-four keyed policies, the REVOKE/GRANT pair, and an owner-leading index is routine slice
-work. Do not over-engineer.
+four keyed policies, the three REVOKEs and the exact GRANT, and an owner-leading index is
+routine slice work. Do not over-engineer.
 
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,

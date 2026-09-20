@@ -41,6 +41,9 @@
     ],
     ".claude/agents/migration-rls-author.md": [
       {
+        "sha256": "4292957ffbff64f9dd131f0070791b5ae7ef1a868468b85db7b8449f7183abc0"
+      },
+      {
         "sha256": "8112c0eb9582467c536a0a21f590e09e9aa214fcfb763c6ce6109abc62fd7640"
       }
     ],
@@ -55,6 +58,15 @@
         "sites": [
           [
             5118,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "eb183b65dbfc732d7d14ecef8d8784f9d0bf7fc122238cce71a0f2eba6d0e20b",
+        "sites": [
+          [
+            5836,
             "SECURITY_OWNERS"
           ]
         ]
@@ -90,10 +102,16 @@
     ],
     ".claude/commands/new-feature.md": [
       {
+        "sha256": "c69455e9c225ff1b90084aabf8783c66a7be6ff9735ce02a530afc3260109c68"
+      },
+      {
         "sha256": "cb29e15c899d5a6d51ba39dd9c753f276045f2d64a16c3ed1d0d7f574d4bafc5"
       }
     ],
     ".claude/commands/new-migration.md": [
+      {
+        "sha256": "b2039ffdebc9a80ac2c5eb22df1f9cc8b2f82829b306a5d74071e3604925ba5a"
+      },
       {
         "sha256": "ef0142bad84a669a62a0a192f2d93d6990fc966b1acea1e0d337867e4aeaec14"
       }
@@ -104,6 +122,9 @@
       },
       {
         "sha256": "98512de822a812cc660852b2135325cf33136bbcdf304be9ec94dfc6841c181a"
+      },
+      {
+        "sha256": "9f2af06fbb452ebef820e20c09a36b0d7e14e9dbbcd4b9050077b76415a312c5"
       }
     ],
     ".claude/commands/verify-citations.md": [
@@ -206,6 +227,9 @@
     ".claude/rules/security-invariants.md": [
       {
         "sha256": "10eb37f17fa1611efb308f52119180976a611b6b1263f032bb3963fb4416770f"
+      },
+      {
+        "sha256": "b6097e34e6f0330b8e3a805d547cc4927d5665b5cca26d1d874686f872b32fbf"
       }
     ],
     ".claude/settings.json": [
@@ -220,10 +244,16 @@
     ],
     ".claude/skills/authoring-e2ee-feature/SKILL.md": [
       {
+        "sha256": "22f182df960bad4da2060b6a61bb44e24b11ffeab05a4d6084177f038b9df270"
+      },
+      {
         "sha256": "6f1d1e543409b29dc808e73f744088ab02d51f1d68aa820297459258f60e8a6b"
       }
     ],
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
+      {
+        "sha256": "0839b74a375effc6a51269cb051053b2361cad61833f7a622ff902c9a2be2054"
+      },
       {
         "sha256": "2d828f6f046aa72024775bbec8f963ac440f17d0db0a98746fa78a126ae365f3"
       }
@@ -236,6 +266,9 @@
     ".claude/skills/authoring-vertical-slice/references/migration-rls.md": [
       {
         "sha256": "4a088c2b50073a5acd044c754131429054e5468bfbf1526c46f915640e64ac4b"
+      },
+      {
+        "sha256": "f0bc6b80dbe6ef2085e0a405b3d4d35835a9b00405e5c5f1c1cf09c552a150c5"
       }
     ],
     ".claude/skills/authoring-vertical-slice/references/mobile-screen.md": [
@@ -914,6 +947,9 @@
     "docs/modules/e2ee/README.md": [
       {
         "sha256": "265e37375a99d436514489441aa66e9e227f8e08336f503e2247058872203cb1"
+      },
+      {
+        "sha256": "ee8dd9c2151d5080d2a6111c6a5b7399d854208ba5f14c795040cfda8259f1cf"
       }
     ],
     "docs/modules/e2ee/mobile-provider.patch.md": [
@@ -1022,6 +1058,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "14dba01a7d778e2fafe3e373016063d9c7089760a68fa79dc2f8d120514dde91",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "36e5c9a17db779ffe78ef11ac490df7fcf6869a8af30f942f7633f74208b5684",
         "sites": [

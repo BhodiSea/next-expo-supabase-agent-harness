@@ -129,8 +129,17 @@ ALTER TABLE public.<t> FORCE ROW LEVEL SECURITY;
 
 -- Grants are the outer gate. anon has no business here; service_role's grant is revoked
 -- because BYPASSRLS makes the grant the only lever over it (see supabase/functions/README.md).
+-- authenticated is revoked TOO, and then granted exactly what the policies below admit: the
+-- platform default hands it ALL on a new public table, and a GRANT adds a privilege and
+-- removes none — so without the revoke it keeps TRUNCATE (never subject to row security),
+-- REFERENCES and TRIGGER behind a file that reads as if it granted four verbs. A table
+-- clients may only read gets `GRANT SELECT` and nothing else.
+-- The `migrations` gate reads REVOKE … FROM authenticated as a change to an authorization
+-- control, hence the marker; the ADR file must exist (this slice's, from `/adr <slice>`).
+-- adr: docs/adr/<YYYYMMDD>-<slice>.md
 REVOKE ALL ON TABLE public.<t> FROM anon;
 REVOKE ALL ON TABLE public.<t> FROM service_role;
+REVOKE ALL ON TABLE public.<t> FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.<t> TO authenticated;
 
 -- Four per-operation policies, TO authenticated, each resolving through the uncorrelated

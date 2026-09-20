@@ -236,6 +236,23 @@ also gains a `timeout-minutes`, set several times above what it takes on a fresh
 
 ### Changed
 
+- **The authoring surfaces teach the grant shape this release shipped.** The migration and
+  ADR above establish that a GRANT adds a privilege and removes none. The places that teach
+  an agent how to write a new table's grants still showed two revokes (`anon`,
+  `service_role`) and a grant to `authenticated`, which produces the very table the new
+  privilege assertion reds. Twelve of them now teach three revokes and then a grant of
+  exactly the operations the table's policies admit: the `migration-rls-author` and
+  `security-reviewer` agents, `/new-migration`, `/new-feature` and `/rls-check`, both
+  authoring skills and the slice skill's migration reference, the always-loaded
+  `security-invariants` rule, `AGENTS.md`, `supabase/AGENTS.md`, and the e2ee module's
+  sharing recipe. They name TRUNCATE, REFERENCES and TRIGGER, say that the re-grant must
+  cover every operation a policy admits (or `schema-rls` reds), and say that
+  `REVOKE … FROM authenticated` needs a resolvable `-- adr:` marker, because the
+  `migrations` gate treats it as a change to an authorization control and an instruction
+  that omitted it would teach a red. The security reviewer's flag list gains the missing
+  revoke. Documentation only: no gate, test or SQL changes. `AGENTS.md` and
+  `supabase/AGENTS.md` are seeded, so an existing install gets the sentence to copy from the
+  runbook instead.
 - **README rewritten.** The install command moves from line 291 to the top. Claims the
   code did not back are corrected: "npm-installable" (nothing publishes to the npm
   registry), `packages/shared/*` (does not exist), a "36 gates" list that named 32, a Stop
@@ -301,6 +318,13 @@ also gains a `timeout-minutes`, set several times above what it takes on a fresh
   a project that edited a reviewer body, so it belongs behind a ramp. The same goes for the
   ledger's semantics: a BLOCK stays sticky for its turn, a commit before the turn ends
   still empties the set of owed reviewers, and none of that changes here.
+- **The shipped example migrations still use the two-revoke shape.** They are applied
+  history. The seven read-only tables are corrected by this release's migration, and the
+  directly writable ones keep the platform's TRUNCATE, REFERENCES and TRIGGER on
+  `authenticated` behind row security that refuses the rows. Nothing static checks a
+  grant against the policies that need it in the wider direction, and
+  `rls_structure.test.sql` still builds its table lists by hand in several places with a
+  hand-kept `plan()`. Both belong behind a ramp.
 - **What was proven where.** A fresh scaffold from this tree passes all 36 gates with the
   local Supabase stack live and nothing skipped, the pgTAP suite passes 176 tests, and the
   new privilege assertion was shown to fail on an injected `TRUNCATE` grant and pass again
