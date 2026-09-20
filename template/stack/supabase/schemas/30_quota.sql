@@ -25,6 +25,10 @@ ALTER TABLE public.quota_defaults FORCE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.quota_defaults FROM anon;
 REVOKE ALL ON TABLE public.quota_defaults FROM service_role;
+-- REVOKE before GRANT (1.0.2): a GRANT adds a privilege and removes none, so without this
+-- authenticated keeps every write privilege the platform defaults gave it. See
+-- supabase/migrations/20260920000000_authenticated_write_revoke.sql.
+REVOKE ALL ON TABLE public.quota_defaults FROM authenticated;
 GRANT SELECT ON TABLE public.quota_defaults TO authenticated;
 
 -- Readable by every signed-in caller: a client that cannot see the ceiling cannot show
@@ -88,6 +92,8 @@ REVOKE ALL ON TABLE public.org_quota FROM anon;
 REVOKE ALL ON TABLE public.org_quota FROM service_role;
 REVOKE ALL ON TABLE public.org_usage FROM anon;
 REVOKE ALL ON TABLE public.org_usage FROM service_role;
+REVOKE ALL ON TABLE public.org_quota FROM authenticated;
+REVOKE ALL ON TABLE public.org_usage FROM authenticated;
 
 -- SELECT only. A tenant that can raise its own limit, or zero its own counter, has no
 -- quota — so there is no client write path to either table at all.

@@ -1059,6 +1059,65 @@ The row accepts ESLint 9 as a development dependency because
 `react-native` 0.84 also left the supported set. The scaffold has never shipped below 0.86,
 so that reds only a tree that was moved down by hand.
 
+### One migration you have to write yourself: revoke `authenticated`'s default write grants
+
+Supabase's default privileges grant ALL on every new `public` table to `authenticated`.
+The migrations that created the seven tables `authenticated` may only read revoked that
+from `anon` and `service_role`, then granted `SELECT` to `authenticated`. A GRANT adds a
+privilege and removes none, so `authenticated` kept INSERT, UPDATE, DELETE, TRUNCATE,
+REFERENCES and TRIGGER on them.
+
+Row security still refused every client write, because all seven are `FORCE ROW LEVEL
+SECURITY` with deny-all write policies. So this is a missing layer and not an open door.
+It still needs closing: table privileges are checked before row security, and row security
+does not apply to TRUNCATE at all. `docs/adr/20260920-authenticated-write-revoke.md`, which
+this update plants, has the full account.
+
+A fresh scaffold gets `supabase/migrations/20260920000000_authenticated_write_revoke.sql`.
+**`update` does not plant it in your project**, because `supabase/migrations/` is your
+applied history and a file with the harness's timestamp could sort ahead of migrations you
+have already applied. Create your own:
+
+```
+supabase migration new authenticated_write_revoke
+```
+
+and put this in it, keeping only the tables your project has (`admin_elevations` arrived in
+1.0.0; the three quota tables and the three seat tables in 0.2.0):
+
+```sql
+-- adr: docs/adr/20260920-authenticated-write-revoke.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+REVOKE ALL ON TABLE public.orgs FROM authenticated;
+REVOKE ALL ON TABLE public.memberships FROM authenticated;
+REVOKE ALL ON TABLE public.invitations FROM authenticated;
+REVOKE ALL ON TABLE public.admin_elevations FROM authenticated;
+REVOKE ALL ON TABLE public.org_usage FROM authenticated;
+REVOKE ALL ON TABLE public.org_quota FROM authenticated;
+REVOKE ALL ON TABLE public.quota_defaults FROM authenticated;
+
+GRANT SELECT ON TABLE public.orgs TO authenticated;
+GRANT SELECT ON TABLE public.memberships TO authenticated;
+GRANT SELECT ON TABLE public.invitations TO authenticated;
+GRANT SELECT ON TABLE public.admin_elevations TO authenticated;
+GRANT SELECT ON TABLE public.org_usage TO authenticated;
+GRANT SELECT ON TABLE public.org_quota TO authenticated;
+GRANT SELECT ON TABLE public.quota_defaults TO authenticated;
+```
+
+The `-- adr:` line is required: your `migrations` gate treats a `REVOKE ... FROM
+authenticated` as a change to an authorization control. Do the same for any table of your
+own that `authenticated` should only read. Then `pnpm db:reset && pnpm db:test`.
+
+**You may meet this as a red test before you read this page.** `rls_structure.test.sql`
+has asserted "authenticated holds NO write grant" on the seat tables since 0.2.0. It passed
+against the local stack of Supabase CLI 2.115 and fails against 2.117, which applies the
+default privileges the way the platform documents them. If that assertion goes red after a
+CLI upgrade, the test is right and this migration is the fix. To pull the stricter version
+of the test, which covers all seven tables and TRUNCATE:
+`npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/rls_structure.test.sql`,
+after the migration is applied.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

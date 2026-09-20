@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- Count checked by hand against the SELECTs below. pgTAP fails a plan mismatch,
 -- which is the point: an assertion deleted in a hurry cannot pass as a smaller
 -- suite.
-SELECT plan(34);
+SELECT plan(35);
 
 -- The tables under the RLS contract, and the column their policies filter on.
 -- Adding a table to the domain means adding a row here; a table that never
@@ -254,6 +254,27 @@ SELECT is_empty(
        FROM unnest(ARRAY['orgs', 'memberships', 'invitations', 'admin_elevations']) AS t
       WHERE NOT has_table_privilege('authenticated'::name, 'public.' || t, 'SELECT') $$,
   'authenticated can still SELECT orgs, memberships, invitations and admin_elevations'
+);
+
+-- EXACTLY {SELECT}, on EVERY read-only table, over EVERY table privilege (1.0.2). The
+-- assertion above names three verbs on four tables, and the quota assertion further down
+-- names two verbs on two. Neither named TRUNCATE — the one write verb row security does
+-- not apply to, so the privilege is its only control — and neither named quota_defaults.
+-- This is the closure: one row per (table, privilege) where what authenticated HOLDS
+-- differs from what it SHOULD hold, so a missing SELECT reds here exactly as a stray
+-- TRUNCATE does and the check cannot pass against a database that denies everything.
+-- A GRANT adds a privilege and removes none: the platform's defaults grant ALL on a new
+-- public table, and only supabase/migrations/20260920000000_authenticated_write_revoke.sql
+-- takes the rest back. ADR: docs/adr/20260920-authenticated-write-revoke.md.
+SELECT is_empty(
+  $$ SELECT t, priv
+       FROM unnest(ARRAY['orgs', 'memberships', 'invitations', 'admin_elevations',
+                         'org_usage', 'org_quota', 'quota_defaults']) AS t
+       CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE',
+                               'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS priv
+      WHERE has_table_privilege('authenticated'::name, 'public.' || t, priv)
+            IS DISTINCT FROM (priv = 'SELECT') $$,
+  'authenticated holds exactly SELECT on every read-only table'
 );
 
 -- ── the RPC writer role ─────────────────────────────────────────────────────

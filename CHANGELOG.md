@@ -14,10 +14,11 @@ This lineage's own history starts at 0.1.3.
 ## [1.0.2] — 2026-09-20
 
 **A security patch.** The scaffold's `next` pin sat below two critical advisories for 26
-days, and both review-dated registers had lapsed. No gate is added, the chain length does
-not change, and no ramp opens or moves. Every changed template file is OWNED, so the
-`template/migrations.json` record is `rampExpiry` only, restating 1.0.0's thirteen-vintage
-population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.1`.
+days, both review-dated registers had lapsed, and `authenticated` held default write
+privileges on seven tables it may only read. No gate is added, the chain length does not
+change, and no ramp opens or moves. The `template/migrations.json` record withholds one
+file, the new migration, and restates 1.0.0's thirteen-vintage `rampExpiry` population.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.1`.
 
 **This release reds existing installs, by design.** `update` refreshes the owned
 `tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
@@ -44,6 +45,27 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   and, from 2026-08-31, on `obligations-clockful`. A new red inside a standing red changes
   nothing anyone sees. The window bounds how stale a review can get. It does not make
   anyone look sooner, and an alarm that is always on is not an alarm.
+- **`authenticated` kept the platform's default write privileges on seven read-only
+  tables.** Supabase grants ALL on a new `public` table to `authenticated`. The migrations
+  revoked that from `anon` and `service_role` and then granted `SELECT` to
+  `authenticated`, and a GRANT removes nothing, so INSERT, UPDATE, DELETE, TRUNCATE,
+  REFERENCES and TRIGGER stayed on `orgs`, `memberships`, `invitations`,
+  `admin_elevations`, `org_usage`, `org_quota` and `quota_defaults`. **Row security still
+  refused every client write** (all seven are `FORCE ROW LEVEL SECURITY` with deny-all
+  write policies), so this is a missing layer and not an open door. It matters because
+  table privileges are checked before row security and TRUNCATE is not subject to row
+  security at all. New migration `20260920000000_authenticated_write_revoke.sql` (REVOKE
+  ALL, re-GRANT SELECT), ADR `20260920-authenticated-write-revoke.md`, and a pgTAP
+  assertion that `authenticated` holds exactly `{SELECT}` on all seven. The older
+  assertions named neither TRUNCATE nor `quota_defaults`.
+  **Found by `bootstrap-linux` on this release's pull request, not by review.** The
+  structure test has asserted "no write grant" since 0.2.0 and passed against the local
+  stack of Supabase CLI 2.115.0. CI floated to 2.117.0 through the catalog's caret range,
+  the newer stack applies the documented default privileges, and the assertion went red
+  on an unchanged tree. It had been green about a database more locked down than the one
+  a project deploys to.
+  **Existing installs do not receive the migration**, because `supabase/migrations/` is a
+  project's own applied history. The runbook's 1.0.2 section gives the SQL.
 - **Five advisories in the factory's own lockfile are cleared** (code scanning alerts #5
   and #7 to #13, issue #13): `brace-expansion` 1.1.16 → 1.1.21 and 5.0.7 → 5.0.12,
   `js-yaml` 4.3.0 → 4.3.2, `smol-toml` 1.7.0 → 1.8.0. All are dev-only transitives under
@@ -96,6 +118,11 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 
 - **ESLint 9 is end-of-life and the scaffold still pins it**, for the reason above. The
   row discharges when both accessibility plugins admit ESLint 10.
+- **The Supabase CLI is still a caret range in the catalog** (`^2.34.3`), so the local
+  database image can change under CI with no commit. That is how the grants finding
+  surfaced, which was useful this once and is not a control. Pinning it exactly is only
+  worth doing once something keeps the pin current, and Renovate is configured here but
+  has never opened a pull request.
 - **A review window does not shorten time-to-notice.** Nothing in this release changes
   that. A scheduled check that compares the floor against the vendor's advisory feed,
   rather than against the calendar, is the control that would have caught 2026-08-25.
