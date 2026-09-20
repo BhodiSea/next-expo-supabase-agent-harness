@@ -6,3 +6,6 @@ contact_links:
   - name: Questions and ideas
     url: https://github.com/BhodiSea/next-expo-supabase-agent-harness/discussions
     about: Usage questions, stack choices, and "should the harness do X?" belong in Discussions.
+  - name: Code of Conduct
+    url: https://github.com/BhodiSea/next-expo-supabase-agent-harness/blob/main/CODE_OF_CONDUCT.md
+    about: The standards for participating here, and where to report a conduct problem.
