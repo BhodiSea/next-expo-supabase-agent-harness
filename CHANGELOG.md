@@ -98,6 +98,12 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   that remedy before judging the chain, as it already did for a raised floor.
 - **`register-freshness`'s isolation test hardcoded `--today=2026-09-10`**, so any honest
   re-review of either register turned it red. It now derives the date from the registers.
+- **The committed `database.types.ts` no longer matched what the type generator emits.**
+  Supabase CLI 2.117.0 ships a generator that parenthesises the conditional type in the
+  five helper types at the end of the file. The schema content is identical: the diff is
+  ten lines of punctuation. `types-drift` compares bytes, so a fresh scaffold went red in
+  the Stop chain with the stack live. Regenerated with `pnpm db:types`. A project still on
+  an older CLI will see the reverse diff, and regenerating clears it in either direction.
 - **`--help` omitted the `e2ee` module, the `SECURITY_TXT_EXPIRES` placeholder and, in its
   header comment, `graduate`.** Found by a new test that holds `docs/cli.md` and the
   `USAGE` text to the installer source.
@@ -119,10 +125,11 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 - **ESLint 9 is end-of-life and the scaffold still pins it**, for the reason above. The
   row discharges when both accessibility plugins admit ESLint 10.
 - **The Supabase CLI is still a caret range in the catalog** (`^2.34.3`), so the local
-  database image can change under CI with no commit. That is how the grants finding
-  surfaced, which was useful this once and is not a control. Pinning it exactly is only
-  worth doing once something keeps the pin current, and Renovate is configured here but
-  has never opened a pull request.
+  database image and the type generator can change under CI with no commit. Two findings
+  in this release came from that float (the grants above and the regenerated types
+  below). One was worth having and one was noise, and neither is a control. Pinning it
+  exactly is only worth doing once something keeps the pin current, and Renovate is
+  configured here but has never opened a pull request.
 - **A review window does not shorten time-to-notice.** Nothing in this release changes
   that. A scheduled check that compares the floor against the vendor's advisory feed,
   rather than against the calendar, is the control that would have caught 2026-08-25.
@@ -131,9 +138,12 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   `conformance-cra-art14-application` (due 2026-09-11). Each needs its own dated
   re-verification. Until they are done the nightly `hygiene.yml` run stays red on
   `obligations-clockful`, which is the masking described above.
-- The local proof for the `next` bump skipped `types-drift` for want of Docker. The CI
-  supabase lane enforces it, and `upgrade-linux` is the proof that a 1.0.1 install
-  survives this hop.
+- **What was proven where.** A fresh scaffold from this tree passes all 36 gates with the
+  local Supabase stack live and nothing skipped, the pgTAP suite passes 176 tests, and the
+  new privilege assertion was shown to fail on an injected `TRUNCATE` grant and pass again
+  once it was revoked. Leg A of `upgrade-linux` passes locally from v1.0.1. The supabase-js
+  half of the RLS suite was run in CI only: one of its files hardcodes the default database
+  port, and the machine this was prepared on had another project's stack on that port.
 
 ## [1.0.1] — 2026-08-19
 
