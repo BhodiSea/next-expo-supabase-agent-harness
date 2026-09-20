@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [1.0.2] — 2026-09-20
+## [1.0.2] — 2026-09-21
 
 **A security patch.** The scaffold's `next` pin sat below two critical advisories for 26
 days, both review-dated registers had lapsed, and `authenticated` held default write
