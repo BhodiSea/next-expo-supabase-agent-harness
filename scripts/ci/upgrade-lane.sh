@@ -220,6 +220,30 @@ echo "$FLOOR_OUT"
 FLOOR_RAISED=0
 case "$FLOOR_OUT" in *'raised to the security floor'*) FLOOR_RAISED=1 ;; esac
 
+# ── 5a-bis. the end-of-life register (1.0.2) ─────────────────────────────────────
+# tools/eol.json is SEEDED: its rows are the consumer's own decisions, so `update` never
+# rewrites an install's copy. An install at 0.9.9 or later therefore keeps the rows it was
+# scaffolded with, and the census is LIVE for it (EOL_RAMP is 0.9.9). When a vendor
+# deprecates a package the scaffold pins — eslint 9 went end-of-life on 2026-08-06 and the
+# registry flag followed — the next re-resolve copies the flag into the lockfile and
+# `version-sync` reds on a row the install does not have. That is correct for the same
+# reason the floor red above is correct, and it is environmental rather than caused by
+# `update`: a FRESH scaffold of the previous release reds the same way on the same day.
+#
+# Left alone it kills legs A and M exactly as an unapplied floor would kill leg A, so the
+# lane plays the consumer with the documented remedy for an untouched seeded file — the
+# real `--refresh-seeded` pull, through HEAD's CLI, not a copy. On a leg older than 0.9.9
+# the register is planted by `update` and is already HEAD's, so the pull changes nothing;
+# the assertion below is on the END STATE for that reason, never on "a file was written".
+if [ -f "$SCAFFOLD/tools/eol.json" ]; then
+  say "end-of-life register"
+  node "$ROOT/installer/cli.mjs" update --dir "$SCAFFOLD" --refresh-seeded tools/eol.json |
+    tee "$WORK/refresh-eol.log"
+  cmp -s "$SCAFFOLD/tools/eol.json" "$ROOT/template/base/tools/eol.json" ||
+    die "\`update --refresh-seeded tools/eol.json\` left the install's register different from HEAD's on an UNTOUCHED scaffold — the documented remedy for a vendor deprecation does not deliver the harness's rows, so the runbook instruction is false"
+  echo "  tools/eol.json matches HEAD's register"
+fi
+
 say "dependency obligations"
 PARKED="$SCAFFOLD/.harness/pending/dependencies.json"
 if [ -f "$PARKED" ]; then

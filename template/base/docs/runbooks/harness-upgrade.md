@@ -1040,10 +1040,24 @@ If you deploy to Vercel or another Linux host, use the App Router only and confi
 remote images, your exposure to both advisories is narrow. The floor does not ask: there is
 no flag that lowers it, for the reason the 0.5.0 section gives.
 
-**Also in `tools/eol.json`:** `eslint` 9 is now recorded as an accepted vendor-EOL
-development dependency (the two accessibility lint plugins do not yet admit ESLint 10), so
-the census does not red on it. `react-native` 0.84 left the supported set. The scaffold has
-never shipped below 0.86, so this reds only a tree that was moved down by hand.
+**Expect `version-sync` to red on `eslint` 9 as well, and this one is not caused by the
+update.** The vendor ended the ESLint 9 line on 2026-08-06 and has since flagged every 9.x
+release on the registry. `tools/eol.json` is seeded, because its rows are your decisions,
+so `update` does not touch your copy. The next time your lockfile re-resolves, the census
+reds on a deprecated package your register has no row for. Two ways to clear it:
+
+```
+# if you have never edited tools/eol.json: take the harness's register, which now
+# carries an eslint 9 row (overwrites when untouched, parks on drift)
+npx next-expo-supabase-agent-harness update --refresh-seeded tools/eol.json
+
+# if you have your own rows: copy the eslint row from the parked or template copy into yours
+```
+
+The row accepts ESLint 9 as a development dependency because
+`eslint-plugin-react-native-a11y` and `eslint-plugin-jsx-a11y` do not yet admit ESLint 10.
+`react-native` 0.84 also left the supported set. The scaffold has never shipped below 0.86,
+so that reds only a tree that was moved down by hand.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

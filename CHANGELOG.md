@@ -69,6 +69,11 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   development-scope row because `eslint-plugin-react-native-a11y` and
   `eslint-plugin-jsx-a11y` do not yet admit ESLint 10. `react-native` 0.84 leaves the
   supported set, because the vendor's table now calls it Unsupported.
+  **The register is seeded, so `update` does not deliver the new row.** An install at
+  0.9.9 or later reds `version-sync` on `eslint` 9 at its next re-resolve, with or without
+  this release, and clears it with `update --refresh-seeded tools/eol.json` or by copying
+  the row. `upgrade-linux` legs A and M found this on the pull request: the lane now plays
+  that remedy before judging the chain, as it already did for a raised floor.
 - **`register-freshness`'s isolation test hardcoded `--today=2026-09-10`**, so any honest
   re-review of either register turned it red. It now derives the date from the registers.
 - **`--help` omitted the `e2ee` module, the `SECURITY_TXT_EXPIRES` placeholder and, in its
