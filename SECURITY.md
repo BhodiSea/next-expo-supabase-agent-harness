@@ -68,6 +68,11 @@ are open for reasons a code change cannot fix:
 
 - **Code-Review.** There is one maintainer, so no change is approved by a second
   person. Every change still lands through a pull request and the full CI matrix.
+- **Branch-Protection.** A ruleset on `main` requires a pull request and passing
+  checks, and blocks force-pushes and deletion. It requires no approval, for the
+  reason above, and the maintainer can bypass the required checks when merging
+  their own pull request. Nobody can push to `main` directly. Scorecard scores
+  that as partial.
 - **Maintained.** Scorecard scores any repository younger than 90 days as
   unmaintained. This one was created on 2026-07-22.
 - **SAST.** CodeQL has run on every pull request since 1.0.2. Scorecard measures

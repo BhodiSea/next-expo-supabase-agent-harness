@@ -154,6 +154,10 @@ counts the requirements of three further standards
 - Vulnerabilities: report privately, as described in [SECURITY.md](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 
+Project documents: [governance](GOVERNANCE.md), [roadmap](ROADMAP.md),
+[architecture](docs/architecture.md),
+[security assurance case](docs/security/assurance-case.md).
+
 This repository is also a GitHub template repository. To fork the harness
 itself into a sibling for a different stack, follow
 [docs/forking.md](docs/forking.md). It is descended from

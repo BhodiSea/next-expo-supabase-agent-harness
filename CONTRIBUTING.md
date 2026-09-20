@@ -118,6 +118,49 @@ Root `devDependencies` are exact-pinned and never ship: the npm `files` list
 excludes every root config/lockfile, and with no `prepare` script `npx
 github:…` never installs them.
 
+## Coding standards
+
+CI enforces the first three items below, so they are not a matter of taste in
+review. The last two are conventions the maintainer will ask for.
+
+- **The factory's own code** (`installer/`, `scripts/`, `tests/`, the gate
+  scripts and hooks under `template/`) is plain ESM JavaScript with JSDoc types.
+  It follows ESLint's `@eslint/js` recommended rules and a cognitive-complexity
+  ceiling of 15 per function from `eslint-plugin-sonarjs` (`eslint.config.mjs`).
+  `tsc --noEmit` type-checks it with `checkJs`; `strict` is off at the root
+  today. `knip` rejects unused files, exports and dependencies.
+- **Suppressions are counted.** `scripts/check-complexity-ratchet.mjs` re-lints
+  with inline configuration disabled, so an `eslint-disable` cannot hide a
+  function that grew. A function over the ceiling must be listed in
+  `scripts/complexity-ratchet.json` and may never get worse.
+- **Code that ships to consumers** under `template/stack/` follows the
+  scaffold's stricter configuration: `typescript-eslint` `strictTypeChecked`,
+  Biome for formatting, `knip --strict`, and the boundary rules in
+  `template/base/dependency-cruiser.cjs`. The `bootstrap-linux` lane runs that
+  configuration against a rendered scaffold.
+- **Comments say why.** This codebase explains a check's reason at the check,
+  often with the incident that motivated it. Match that. A number in prose must
+  be one `scripts/check-claims.mjs` can recompute, or it should not be written.
+- **Commits** follow Conventional Commits.
+
+## Testing policy
+
+- **New functionality comes with tests in the same pull request.** A change
+  that adds or alters behaviour in `installer/`, `scripts/`, a gate or a hook
+  adds or updates tests under `tests/`. A pull request that changes behaviour
+  with no test change will be asked for one.
+- **A bug fix comes with the test that would have caught it.**
+- **Every gate lands with a proof that it can fail**, registered in
+  `tests/canary/injections.json` (ground rule 6).
+  `scripts/check-canary-coverage.mjs` fails the build for a gate, guard rule or
+  CI job that has none, because a check that cannot go red proves nothing.
+- **Coverage is enforced.** `selftest.yml` runs the installer tests with
+  coverage floors on `installer/**` and on `template/base/tools/lib/**`. The
+  floors only rise. The gate scripts themselves run as child processes that a
+  line counter cannot see, so they are covered by the can-fail proofs instead.
+- Run the suite in the CI environment's shape, as "Local development" describes:
+  `GITHUB_BASE_REF=main CI=true node --test "tests/**/*.test.mjs"`.
+
 ## Releases
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
