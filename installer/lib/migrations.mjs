@@ -115,7 +115,18 @@ function promoteModule(mod, { files, modules, report }) {
 // Apply removed/renamed/promotedModules records. Deletion is sha-guarded:
 // a locally-modified file is never deleted — it is reported and left in place
 // (the human resolves it; doctor keeps naming it until then).
-export function applyFileMigrations({ targetDir, files, modules, report, entries, dryRun }) {
+//
+// …and since 1.0.2 "matches its recorded sha" is no longer enough to delete: a consumer
+// who forked the file and re-recorded it matches by construction. `isFork` is update's
+// provenance predicate (lib/provenance.mjs), INJECTED rather than imported — provenance
+// imports cmpVersions from this file — and optional, so a caller without the released-sha
+// tables keeps the sha guard alone.
+/**
+ * @param {{ targetDir: string, files: Record<string, any>, modules: Set<string>, report: { notes: string[] },
+ *           entries: any[], dryRun?: boolean,
+ *           isFork?: (ip: string, recordedSha: string, current: Buffer) => boolean }} args
+ */
+export function applyFileMigrations({ targetDir, files, modules, report, entries, dryRun, isFork = () => false }) {
   const removeOne = (ip, label) => {
     const recorded = files[ip]
     const dest = join(targetDir, ip)
@@ -123,9 +134,15 @@ export function applyFileMigrations({ targetDir, files, modules, report, entries
       if (recorded) delete files[ip]
       return
     }
-    const currentSha = sha256(readFileSync(dest))
-    if (recorded && currentSha !== recorded.sha256) {
+    const current = readFileSync(dest)
+    if (recorded && sha256(current) !== recorded.sha256) {
       report.notes.push(`${label}: ${ip} is locally modified — left in place; remove it manually`)
+      return
+    }
+    if (recorded && isFork(ip, recorded.sha256, current)) {
+      report.notes.push(
+        `${label}: ${ip} matches its recorded sha, but no release shipped those bytes — a local fork, left in place; remove it manually`,
+      )
       return
     }
     if (!dryRun) rmSync(dest)

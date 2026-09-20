@@ -225,6 +225,16 @@ jobs:
       # transitive arrival changes no key. Needs full history; SKIPS LOUDLY without a tag.
       - name: machinery-sbom-drift (no unreviewed component arrived since the previous release)
         run: node scripts/check-sbom-drift.mjs
+      # The released-sha tables (1.0.2). `update` overwrites an owned file only when a
+      # release shipped the bytes it finds, and template/shas/ is what says so. A table that
+      # drifts from the template fails QUIETLY — it parks untouched files on every install at
+      # the next update — so the closure reds here instead: the live tree inside the current
+      # version's table, a table for every released vintage, and (--verify-tags, which is why
+      # this lives in the one job with fetch-depth: 0) every tag's tree, judged by that tag's
+      # OWN installer, inside its version's table. This workflow also runs at the tag ref and
+      # publish blocks on it, so the tag being cut is verified against the table it ships.
+      - name: machinery-released-shas (template/shas covers the live tree, every vintage and every tag)
+        run: node scripts/check-released-shas.mjs --verify-tags
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)
