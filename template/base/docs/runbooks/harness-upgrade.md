@@ -1161,6 +1161,29 @@ forks (parked, never lost). And `tsconfig.json` is exempt: the installer derives
 project references at install time, so no release's bytes can match it, and it is
 refreshed as before.
 
+### The shipped workflows now fail a broken pipe, and every job has a ceiling
+
+`update` refreshes every workflow under `.github/workflows/` that you have not changed. Two
+things are different in them.
+
+**Every workflow selects `shell: bash` at the top.** GitHub runs a step that names no shell
+as `bash -e`, without `pipefail`, so `producer | tee file` reported `tee`'s status and the
+producer's failure was lost. That is what `gate-summary` was: the check you were told to
+mark required printed `gate-summary: FAIL` and exited 0. It now goes red when a lane it
+covers is red. **If `gate-summary` turns red on the first run after this update, open the
+lane it names.** The lane was already failing; the summary has started saying so. Two other
+steps were rewritten for the same class: the pull request mutation lane no longer reads a
+scoper that failed closed as "nothing to mutate", and the `native` job's targetSdk check
+still prints why it failed.
+
+**Every job has a `timeout-minutes`.** Without one a hung step costs GitHub's 360-minute
+default before anything reports. The ceilings are several times what the lanes take on a
+fresh scaffold, and a job that times out is reported as cancelled, which `gate-summary`
+already counts as a failure. If one of your lanes legitimately runs longer than its
+ceiling (mutation testing and CodeQL grow with your code), raise the number in your copy
+of the workflow and re-record its sha, as this release's "Forking an owned file" section
+describes: `update` keeps a fork and parks the incoming version for you to merge.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

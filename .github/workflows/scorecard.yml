@@ -18,6 +18,7 @@ permissions: read-all
 jobs:
   analysis:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       # A job-level block REPLACES the workflow-level `read-all` rather than
       # merging with it, so every scope this job needs must be spelled here —
