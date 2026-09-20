@@ -25,7 +25,10 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 // Offline stand-in for the SPDX license list: only ids this repo actually
 // uses. A typo'd or unknown id must red HERE, not only under the real tool.
-export const KNOWN_LICENSE_IDS = new Set(['Apache-2.0', '0BSD'])
+// CC-BY-4.0 (1.0.2) covers exactly one file: CODE_OF_CONDUCT.md is the Contributor
+// Covenant, which its authors license CC BY 4.0, so the repo-wide Apache-2.0 claim would
+// misstate it.
+export const KNOWN_LICENSE_IDS = new Set(['Apache-2.0', '0BSD', 'CC-BY-4.0'])
 
 // ---------------------------------------------------------------------------
 // 1. TOML-subset parser. Accepted grammar — pinned, fail closed on the rest:

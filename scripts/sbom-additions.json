@@ -6,5 +6,30 @@
     "WHAT THIS IS NOT: it is not a license allowlist (tools/license-exceptions.json), not an end-of-life acceptance (tools/eol.json), and not the catalog channel (check-dependency-channel.mjs, which asks whether a gained CATALOG key reaches an existing install). This file's subject is the TRANSITIVE closure, which is the half a key diff structurally cannot see.",
     "EMPTY IS THE EXPECTED STATE. The 0.11.0 release adds no dependency, so this array ships empty and the gate reports 0 added. An empty allowlist is meaningful only because the gate CAN red — tests/gates/check-sbom-drift.test.mjs is where that is established."
   ],
-  "additions": []
+  "additions": [
+    {
+      "purl": "pkg:npm/brace-expansion@1.1.21",
+      "reason": "Transitive of eslint via minimatch 3. Replaces 1.1.16, which carried GHSA-mh99-v99m-4gvg and GHSA-rgw5-rvv9-x895 (both High, first patched in 1.1.17 and 1.1.18). A patch bump inside minimatch's declared range, re-resolved with no override left behind; no advisory is recorded against 1.1.21 on the review date.",
+      "release": "1.0.2",
+      "reviewedOn": "2026-09-20"
+    },
+    {
+      "purl": "pkg:npm/brace-expansion@5.0.12",
+      "reason": "Transitive of eslint-plugin-sonarjs via minimatch 10. Replaces 5.0.7, which carried the same two brace-expansion advisories (first patched in 5.0.8 and 5.0.9). A patch bump inside the declared range; no advisory is recorded against 5.0.12 on the review date.",
+      "release": "1.0.2",
+      "reviewedOn": "2026-09-20"
+    },
+    {
+      "purl": "pkg:npm/js-yaml@4.3.2",
+      "reason": "Transitive of eslint via @eslint/eslintrc. Replaces 4.3.0, which carried GHSA-5p4m-2wfm-xmqj (first patched in 4.3.1) and GHSA-2883-xcg3-v3hh / CVE-2026-84375 (first patched in 4.3.2). A patch bump inside the declared range; no advisory is recorded against 4.3.2 on the review date.",
+      "release": "1.0.2",
+      "reviewedOn": "2026-09-20"
+    },
+    {
+      "purl": "pkg:npm/smol-toml@1.8.0",
+      "reason": "Transitive of knip. Replaces 1.7.0, which carried GHSA-7w5x-hrqm-74c2 / CVE-2026-85730 (a parser that never returns on a malformed document; first patched in 1.7.1). 1.8.0 is what knip's caret range resolves to today, a minor inside that range; no advisory is recorded against it on the review date.",
+      "release": "1.0.2",
+      "reviewedOn": "2026-09-20"
+    }
+  ]
 }

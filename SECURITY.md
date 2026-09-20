@@ -32,6 +32,48 @@ The latest tagged release and `main` are supported. Installed projects should
 run `npx --yes github:BhodiSea/next-expo-supabase-agent-harness update` to pick up
 fixes.
 
+Confirmed vulnerabilities are published as GitHub Security Advisories on this
+repository and recorded in `CHANGELOG.md` under the release that fixes them.
+
+## Verifying a release
+
+Each GitHub Release carries one asset, the `npm pack` tarball. The release
+workflow signs a build provenance attestation for it with
+`actions/attest-build-provenance`. The signature is a Sigstore bundle bound to
+the workflow's identity and recorded in a public transparency log. There is no
+long-lived signing key, so there is no public key to fetch and no private key
+that could be taken from the distribution site.
+
+To verify a downloaded asset with the GitHub CLI:
+
+```sh
+gh release download v1.0.1 -R BhodiSea/next-expo-supabase-agent-harness
+gh attestation verify next-expo-supabase-agent-harness-1.0.1.tgz \
+  --repo BhodiSea/next-expo-supabase-agent-harness \
+  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+```
+
+Exit status 0 means the tarball's digest matches an attestation signed by
+`.github/workflows/release.yml` in this repository, running on the release tag.
+Any other tarball, repository or workflow fails. `--format json` prints the
+signer identity.
+
+The attestation covers release assets. `npx github:...` fetches the repository
+at a ref rather than a release asset, so pin a tag (`#v1.0.1`) when you use it.
+
+## Known Scorecard findings
+
+This repository runs OpenSSF Scorecard and publishes the results. Some findings
+are open for reasons a code change cannot fix:
+
+- **Code-Review.** There is one maintainer, so no change is approved by a second
+  person. Every change still lands through a pull request and the full CI matrix.
+- **Maintained.** Scorecard scores any repository younger than 90 days as
+  unmaintained. This one was created on 2026-07-22.
+- **SAST.** CodeQL has run on every pull request since 1.0.2. Scorecard measures
+  the share of recent commits that were analysed, so the score rises as commits
+  accumulate.
+
 ## Scope notes
 
 - The harness's guard hooks and permission denies are **tamper-evident, not

@@ -1,0 +1,58 @@
+# CodeQL SAST over the FACTORY's own source (1.0.2): installer/, scripts/, tests/, the
+# gate scripts and hooks under template/, and these workflows themselves (the 'actions'
+# language catches untrusted-input and injection bugs in CI).
+#
+# Until this release the harness shipped this lane to every consumer
+# (template/base/github/workflows/codeql.yml) and did not run it on itself: the only
+# codeql-action use here was scorecard.yml's SARIF upload, and OpenSSF Scorecard's SAST
+# check said so. Same action, same full-SHA pin, same query suite as the shipped copy, so
+# this repo is a live test of the lane consumers get.
+#
+# Runs on every pull request and push to main, plus a nightly full scan. NOT awaited by
+# release.yml, which blocks on selftest.yml and lint.yml: findings surface in the
+# Security tab and are triaged there, and the blocking static-analysis gates stay the
+# lint.yml jobs whose non-zero exit is the red.
+name: codeql
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Full nightly scan. 03:41 UTC, clear of hygiene (04:17) and scorecard (04:30 Mon).
+    - cron: '41 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@c35d1b164463ee62a100735382aaaa525c5d3496 # codeql-bundle-v2.25.6
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - name: Analyze
+        uses: github/codeql-action/analyze@c35d1b164463ee62a100735382aaaa525c5d3496 # codeql-bundle-v2.25.6
+        with:
+          category: '/language:${{ matrix.language }}'

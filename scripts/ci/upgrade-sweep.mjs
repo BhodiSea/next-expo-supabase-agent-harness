@@ -311,6 +311,13 @@ const SWEEPS = {
     ],
     reconcileDataFlowExclusions: true,
   },
+  // 1.0.2 withholds ONE path, supabase/migrations/20260920000000_authenticated_write_revoke.sql,
+  // and a swept leg must not adopt it, for 0.2.0's reason restated: the DDL would sit
+  // unapplied beside the scaffold's applied history. Nothing else needs sweeping. The two
+  // consumer remedies this release does call for are not sweep work: the raised `next` floor
+  // and the seeded end-of-life register are both played by upgrade-lane.sh BEFORE the chain
+  // is judged, because an unswept leg has to be green too.
+  '1.0.2': {},
 }
 
 /**

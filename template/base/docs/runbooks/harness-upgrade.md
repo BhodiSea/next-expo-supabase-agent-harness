@@ -1005,6 +1005,119 @@ gate reds on exactly that one agent file until you run
 is the re-pin landing as a reviewed diff, which is what the lock is for. It is not a ramp and
 it has no deadline.
 
+## 1.0.2 — a security patch: the `next` floor moves, and it reds every install below it
+
+**No ramp here applies to a 1.0.0 or 1.0.1 install**, and the population 1.0.0 reds is
+restated in this release's record for the same reason 1.0.1 restated it. What follows is
+not a ramp, and no vintage is exempt from it.
+
+**Expect `version-sync` to red after `update`.** `tools/framework-floor.json` is
+harness-owned, so `update` refreshes it; `pnpm-workspace.yaml` is seeded, so `update` does
+not touch your pins. The `next` floor is now **16.3.3** (or **15.5.24** on the 15 line), for
+the two critical advisories in the
+[August 2026 security release](https://nextjs.org/blog/august-2026-security-release):
+
+- **GHSA-2xp9-vwfh-vxw4**: unauthenticated remote code execution when the Image
+  Optimization API optimizes an attacker-controlled AVIF image. The patched releases
+  disable AVIF optimization until an upstream fix propagates.
+- **CVE-2026-75604**: unauthenticated remote code execution for apps using both the Pages
+  Router and the App Router without Cache Components, when the server uses a Windows
+  filesystem. Linux and macOS are not affected.
+
+Upstream patched no 16.2 release, so a 16.2.x pin moves to 16.3.x. **That is a minor bump of
+your web framework**, which this harness otherwise pins exactly to avoid. A fresh scaffold
+passes the whole chain on 16.3.5, which is what new installs now pin. Your app has code the
+scaffold does not, so read the [16.3 release notes](https://nextjs.org/blog/next-16-3)
+before you take it:
+
+```
+# raise the `next` pin in the pnpm-workspace.yaml catalog, then
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+If you deploy to Vercel or another Linux host, use the App Router only and configure no
+remote images, your exposure to both advisories is narrow. The floor does not ask: there is
+no flag that lowers it, for the reason the 0.5.0 section gives.
+
+**Expect `version-sync` to red on `eslint` 9 as well, and this one is not caused by the
+update.** The vendor ended the ESLint 9 line on 2026-08-06 and has since flagged every 9.x
+release on the registry. `tools/eol.json` is seeded, because its rows are your decisions,
+so `update` does not touch your copy. The next time your lockfile re-resolves, the census
+reds on a deprecated package your register has no row for. Two ways to clear it:
+
+```
+# if you have never edited tools/eol.json: take the harness's register, which now
+# carries an eslint 9 row (overwrites when untouched, parks on drift)
+npx next-expo-supabase-agent-harness update --refresh-seeded tools/eol.json
+
+# if you have your own rows: copy the eslint row from the parked or template copy into yours
+```
+
+The row accepts ESLint 9 as a development dependency because
+`eslint-plugin-react-native-a11y` and `eslint-plugin-jsx-a11y` do not yet admit ESLint 10.
+`react-native` 0.84 also left the supported set. The scaffold has never shipped below 0.86,
+so that reds only a tree that was moved down by hand.
+
+### One migration you have to write yourself: revoke `authenticated`'s default write grants
+
+Supabase's default privileges grant ALL on every new `public` table to `authenticated`.
+The migrations that created the seven tables `authenticated` may only read revoked that
+from `anon` and `service_role`, then granted `SELECT` to `authenticated`. A GRANT adds a
+privilege and removes none, so `authenticated` kept INSERT, UPDATE, DELETE, TRUNCATE,
+REFERENCES and TRIGGER on them.
+
+Row security still refused every client write, because all seven are `FORCE ROW LEVEL
+SECURITY` with deny-all write policies. So this is a missing layer and not an open door.
+It still needs closing: table privileges are checked before row security, and row security
+does not apply to TRUNCATE at all. `docs/adr/20260920-authenticated-write-revoke.md`, which
+this update plants, has the full account.
+
+A fresh scaffold gets `supabase/migrations/20260920000000_authenticated_write_revoke.sql`.
+**`update` does not plant it in your project**, because `supabase/migrations/` is your
+applied history and a file with the harness's timestamp could sort ahead of migrations you
+have already applied. Create your own:
+
+```
+supabase migration new authenticated_write_revoke
+```
+
+and put this in it, keeping only the tables your project has (`admin_elevations` arrived in
+1.0.0; the three quota tables and the three seat tables in 0.2.0):
+
+```sql
+-- adr: docs/adr/20260920-authenticated-write-revoke.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+REVOKE ALL ON TABLE public.orgs FROM authenticated;
+REVOKE ALL ON TABLE public.memberships FROM authenticated;
+REVOKE ALL ON TABLE public.invitations FROM authenticated;
+REVOKE ALL ON TABLE public.admin_elevations FROM authenticated;
+REVOKE ALL ON TABLE public.org_usage FROM authenticated;
+REVOKE ALL ON TABLE public.org_quota FROM authenticated;
+REVOKE ALL ON TABLE public.quota_defaults FROM authenticated;
+
+GRANT SELECT ON TABLE public.orgs TO authenticated;
+GRANT SELECT ON TABLE public.memberships TO authenticated;
+GRANT SELECT ON TABLE public.invitations TO authenticated;
+GRANT SELECT ON TABLE public.admin_elevations TO authenticated;
+GRANT SELECT ON TABLE public.org_usage TO authenticated;
+GRANT SELECT ON TABLE public.org_quota TO authenticated;
+GRANT SELECT ON TABLE public.quota_defaults TO authenticated;
+```
+
+The `-- adr:` line is required: your `migrations` gate treats a `REVOKE ... FROM
+authenticated` as a change to an authorization control. Do the same for any table of your
+own that `authenticated` should only read. Then `pnpm db:reset && pnpm db:test`.
+
+**You may meet this as a red test before you read this page.** `rls_structure.test.sql`
+has asserted "authenticated holds NO write grant" on the seat tables since 0.2.0. It passed
+against the local stack of Supabase CLI 2.115 and fails against 2.117, which applies the
+default privileges the way the platform documents them. If that assertion goes red after a
+CLI upgrade, the test is right and this migration is the fix. To pull the stricter version
+of the test, which covers all seven tables and TRUNCATE:
+`npx next-expo-supabase-agent-harness update --refresh-seeded supabase/tests/rls_structure.test.sql`,
+after the migration is applied.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
