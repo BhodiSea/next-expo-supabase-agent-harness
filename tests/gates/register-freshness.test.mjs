@@ -48,10 +48,15 @@ test('a lapsed review reds, and names BOTH registers and the date', () => {
 })
 
 test('each seed reds INDEPENDENTLY — one lapse is not masked by the other', () => {
-  // The two windows are 2026-09-06 (floor) and 2026-09-12 (eol), so a date between them
-  // catches exactly one. A check that only ever reported them together could be reading
-  // one register and attributing it to both.
-  const r = run(['--today=2026-09-10'])
+  // The floor's window closes before the eol register's (the next test pins that), so a
+  // date between them catches exactly one. A check that only ever reported them together
+  // could be reading one register and attributing it to both.
+  // DERIVED, not typed (1.0.2): this read `--today=2026-09-10` against the 0.9.9 windows,
+  // so every honest re-review moved both dates past it and turned the test red for a
+  // reason that had nothing to do with isolation. A review lapses when reviewedUntil is
+  // BEFORE today, so on the eol register's own last day the floor has lapsed and it has not.
+  const eol = JSON.parse(readFileSync(join(ROOT, 'template/base/tools/eol.json'), 'utf8'))
+  const r = run([`--today=${String(eol.reviewedUntil)}`])
   assert.equal(r.code, 1)
   assert.match(r.out, /tools\/framework-floor\.json/)
   assert.doesNotMatch(r.out, /tools\/eol\.json/)
