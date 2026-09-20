@@ -59,6 +59,8 @@ const clean = () => ({
     "const HARNESS_HOOK_VERSION = '1.2.3'\nexport default HARNESS_HOOK_VERSION\n",
   'CITATION.cff': "title: fixture\nversion: 1.2.3\ndate-released: '2026-08-08'\n",
   'CHANGELOG.md': '# Changelog\n\n## [1.2.3] - 2026-08-08\n\n- everything in lockstep\n',
+  // 1.0.2: the released-sha table of the version being cut is a release site too.
+  'template/shas/1.2.3.json': JSON.stringify({ version: '1.2.3', files: {} }),
 })
 
 function run(dir, envExtra = {}) {
@@ -147,4 +149,21 @@ test('RED (1.0.0): the DATE rides the lockstep — a citation date that disagree
     }),
   )
   assert.equal(emdash.code, 0, emdash.out)
+})
+
+test('RED (1.0.2): the released-sha table rides the lockstep — absent, or stamped with another version', () => {
+  // `update` reads template/shas/<version>.json to tell a file this release shipped from a
+  // re-recorded fork. A release cut WITHOUT its table ships an installer that, one version
+  // later, has no evidence for this vintage — so the bump that forgets to start the table
+  // reds here, on the pull request, not as lost fork protection in the field.
+  const { 'template/shas/1.2.3.json': _table, ...noTable } = clean()
+  const absent = run(writeTree(noTable))
+  assert.equal(absent.code, 1, absent.out)
+  assert.match(absent.out, /template\/shas\/1\.2\.3\.json is missing/)
+
+  const stamped = run(
+    writeTree({ ...clean(), 'template/shas/1.2.3.json': JSON.stringify({ version: '1.2.2', files: {} }) }),
+  )
+  assert.equal(stamped.code, 1, stamped.out)
+  assert.match(stamped.out, /template\/shas\/1\.2\.3\.json says version 1\.2\.2/)
 })

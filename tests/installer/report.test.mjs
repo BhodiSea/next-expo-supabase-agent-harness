@@ -158,3 +158,26 @@ test('json mode requires conflicts/drift arrays (human mode tolerates their abse
   // objects, so this only documents the current contract for partial inputs.
   assert.throws(() => capture(t, () => printReport({ title: 't' }, { json: true })), TypeError)
 })
+
+test('human mode, `list`: a dry run NAMES what it would write — and only when asked (1.0.2)', (t) => {
+  // A count cannot answer the one question a dry run is run to answer: WHICH of my files
+  // would this touch. The listing rides the options, never the report object — the
+  // dry-run/real JSON parity test holds the two reports deep-equal.
+  const { code, lines } = capture(t, () => printReport(representative(), { list: true }))
+  assert.equal(code, 2)
+  assert.deepEqual(lines.slice(0, 5), [
+    '\nharness update 0.1.2 → 0.1.3',
+    '  written: 2 file(s)',
+    '    would write tools/validate.mjs',
+    '    would write .claude/hooks/pretool-bash-guard.mjs',
+    '  skipped (project-owned): 1',
+  ])
+  // Without the option the output is byte-for-byte what it was — the exact-lines tests
+  // above are the proof; this one only pins that `list: false` is the same as absent.
+  const plain = capture(t, () => printReport(representative(), { list: false })).lines
+  assert.ok(!plain.some((l) => l.includes('would write')), plain.join('\n'))
+  // JSON mode ignores it: the report object is the whole payload.
+  const json = capture(t, () => printReport(representative(), { json: true, list: true })).lines
+  assert.equal(json.length, 1)
+  assert.deepEqual(JSON.parse(json[0]), representative())
+})

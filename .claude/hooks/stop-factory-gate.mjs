@@ -116,6 +116,12 @@ const STEPS = [
   ['plugin-manifest', ['scripts/check-plugin-manifest.mjs']],
   // One version everywhere: package.json == plugin.json == every shipped hook stamp.
   ['release-lockstep', ['scripts/check-release-lockstep.mjs']],
+  // The released-sha tables `update` reads to tell a shipped file from a re-recorded fork
+  // (1.0.2): every owned file this tree ships must be listed in template/shas/<version>.json.
+  // An edit to an owned template file that skips `generate-released-shas.mjs --current`
+  // reds HERE, this turn — not as parked files on every install after the release. Fast
+  // mode on purpose (one tree walk, no git): the tag half runs in lint.yml, where the tags are.
+  ['released-shas', ['scripts/check-released-shas.mjs']],
 ]
 
 // THE THREE MACHINERY CHECKS THAT WERE CI-ONLY (0.3.0). eslint, tsc and knip run over the

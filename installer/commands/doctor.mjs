@@ -17,6 +17,7 @@ import {
   unappliedSeededSourceFixes,
   unmetDependencyObligations,
 } from '../lib/migrations.mjs'
+import { classifyProvenance, readReleasedShas } from '../lib/provenance.mjs'
 
 
 // One manifest record, classified. Hoisted out of `doctor` so the command stays under the
@@ -164,8 +165,47 @@ function readIfPresent(path) {
   }
 }
 
+// Local forks, named (1.0.2). An owned file whose bytes match its record reads as clean to
+// classifyManifestFile — and that is exactly what a fork looks like once its sha has been
+// re-recorded, which is what keeping `gate-integrity` green on a deliberate fork requires.
+// The released-sha tables say whether a release ever shipped those bytes. INFO, never a
+// warning: a fork is a decision, not damage, and the exit code must not move for it — but
+// the person running `doctor` should be able to see what `update` will park instead of
+// refresh. Hoisted out of `doctor` for the complexity ratchet, like its neighbours.
+/**
+ * @param {{ targetDir: string, manifest: { harnessVersion: string, answers?: Record<string, unknown>,
+ *           files?: Record<string, { mode?: string, sha256?: string }> },
+ *           infos: string[], tables: import('../lib/provenance.mjs').Tables }} args
+ */
+function nameLocalForks({ targetDir, manifest, infos, tables }) {
+  for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
+    const dest = join(targetDir, ip)
+    if (meta.mode !== 'owned' || typeof meta.sha256 !== 'string' || !existsSync(dest)) continue
+    const raw = readFileSync(dest)
+    if (sha256(raw) !== meta.sha256) continue // drift: classifyManifestFile already named it
+    const verdict = classifyProvenance({
+      tables,
+      fromVersion: manifest.harnessVersion,
+      toVersion: installerVersion(),
+      installPath: ip,
+      recordedSha: meta.sha256,
+      current: raw,
+      answers: manifest.answers ?? {},
+    })
+    if (verdict.kind === 'fork') {
+      infos.push(
+        `local fork: ${ip} — its recorded sha matches no release of this harness, so \`update\` parks incoming versions of it instead of overwriting (expected if you forked it on purpose; \`update --force\` discards the fork)`,
+      )
+    } else if (verdict.kind === 'older-release') {
+      infos.push(
+        `pinned file: ${ip} matches release ${verdict.version}, older than this install (${manifest.harnessVersion}) — \`update\` treats it as a fork and parks incoming versions`,
+      )
+    }
+  }
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function doctor(opts) {
+export async function doctor(opts, { releasedShas = readReleasedShas() } = {}) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   const errors = []
@@ -193,6 +233,7 @@ export async function doctor(opts) {
   for (const [ip, meta] of Object.entries(manifest.files ?? {})) {
     classifyManifestFile({ targetDir, ip, meta, manifest, errors, warnings })
   }
+  nameLocalForks({ targetDir, manifest, infos, tables: releasedShas })
 
   // Gate wiring.
   try {

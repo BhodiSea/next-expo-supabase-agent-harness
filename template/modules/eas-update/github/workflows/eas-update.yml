@@ -48,6 +48,13 @@ env:
   # renovate: datasource=npm depName=eas-cli
   EAS_CLI_VERSION: '21.0.2'
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   publish:
     name: validate, then publish (or degrade loudly)
@@ -57,7 +64,7 @@ jobs:
     # be environment-scoped and the environment protected with required
     # reviewers once publishes need sign-off.
     environment: release
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # Secrets cannot be referenced in step `if:` directly — surface presence as env.
       HAVE_TOKEN: ${{ secrets.EXPO_TOKEN != '' }}

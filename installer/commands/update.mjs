@@ -36,7 +36,7 @@ import {
   seedOnInitOnlyPatterns,
   versionsBetween,
 } from '../lib/migrations.mjs'
-import { classifyDrift } from '../lib/reconcile.mjs'
+import { createProvenance, parkedNote, readReleasedShas } from '../lib/provenance.mjs'
 import { printReport } from '../lib/report.mjs'
 import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
 import { refreshAgentsLockEntries, writeAgentsLock } from '../lib/agents-lock.mjs'
@@ -185,7 +185,10 @@ function invalidateStamps(targetDir, report) {
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity -- ceiling is machine-enforced by scripts/complexity-ratchet.json (G16); this directive only silences the rule, the ratchet is what stops the score growing
-export async function update(opts, { migrations = readTemplateMigrations(), writeFile = writeInstallFile } = {}) {
+export async function update(
+  opts,
+  { migrations = readTemplateMigrations(), writeFile = writeInstallFile, releasedShas = readReleasedShas() } = {},
+) {
   const targetDir = opts.dir
   const manifest = readManifest(targetDir)
   if (!manifest) {
@@ -226,7 +229,7 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
   // Focused mode: refresh the requested SEEDED path(s) from the current
   // template and stop — no version migrations, no owned-file sweep.
   if (opts.refreshSeeded?.length) {
-    return refreshSeeded({ targetDir, manifest, entries, answers, paths: opts.refreshSeeded, opts })
+    return refreshSeeded({ targetDir, manifest, entries, answers, paths: opts.refreshSeeded, opts, releasedShas })
   }
 
   const report = {
@@ -242,6 +245,11 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
   refuseWhileTurnRuns(targetDir, report)
   const files = { ...manifest.files }
   const modules = new Set(manifest.modules ?? [])
+  // "The bytes match the record" is not "a release shipped them" (1.0.2) — a re-recorded
+  // fork satisfies the first by construction. Every overwrite and every delete below asks
+  // the second question through this one object; see lib/provenance.mjs. Bound to the
+  // PRE-update harnessVersion: that is the release whose bytes the records describe.
+  const provenance = createProvenance({ tables: releasedShas, manifest, report })
 
   // A newer template must never plan ZERO files — that is a packaging
   // regression (empty tarball, broken walker), and recording a version bump
@@ -264,7 +272,15 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
   const pendingVersions = versionsBetween(migrations, manifest.harnessVersion, installerVersion())
   const migrationEntries = pendingVersions.map((v) => migrations[v])
   if (migrationEntries.length > 0) {
-    applyFileMigrations({ targetDir, files, modules, report, entries: migrationEntries, dryRun: opts.dryRun })
+    applyFileMigrations({
+      targetDir,
+      files,
+      modules,
+      report,
+      entries: migrationEntries,
+      dryRun: opts.dryRun,
+      isFork: provenance.isFork,
+    })
     applyConfigSteps({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
     applyConfigCommandUpdates({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
   }
@@ -363,11 +379,17 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
       report.skipped.push(ip)
       continue
     }
-    const kind = classifyDrift({
+    // classifyDrift plus the provenance policy: an `update-clean` whose recorded sha no
+    // release shipped comes back as `park` (or `skip-same` when upstream has not changed
+    // the file since this install's version — there is nothing new to merge), and the
+    // helper has already pushed the note. No branch is added here on purpose.
+    const kind = provenance.classifyOwned({
+      ip,
       current,
-      recordedSha: recorded?.sha256,
+      recorded,
       incoming: entry.content,
       force: opts.force,
+      entry,
     })
 
     if (kind === 'create') {
@@ -414,6 +436,7 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
     if (!opts.dryRun) writeFile(join(targetDir, pending), entry.content)
     report.drift.push({ path: ip, pending })
   }
+  provenance.close()
 
   // ADOPT, never refresh: an install with no lock gets one written from its own current
   // files (fully-locked, zero drift, no ramp needed); an install that HAS one keeps it,
@@ -423,7 +446,9 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
   // …and, for an install that ALREADY had a lock, re-record only the entries this update
   // actually rewrote. See refreshAgentsLockEntries: adopt-never-rewrite is right about a
   // CONSUMER's edits and wrong about the harness's own, and the difference is decidable —
-  // update writes an owned file only when its bytes still matched the recorded sha.
+  // update writes an owned file only when its bytes still matched the recorded sha AND
+  // that sha is one a release shipped (1.0.2: before the provenance check the first half
+  // alone decided it, so a re-recorded agent fork was overwritten and then laundered here).
   refreshAgentsLockEntries(targetDir, report.written, report, { dryRun: opts.dryRun })
 
   if (!opts.dryRun) {
@@ -442,7 +467,7 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
     })
     invalidateStamps(targetDir, report)
   }
-  return printReport(report, { json: opts.report === 'json' })
+  return printReport(report, { json: opts.report === 'json', list: opts.dryRun })
 }
 
 // `update --refresh-seeded <path>`: the deliberate channel for template
@@ -450,7 +475,7 @@ export async function update(opts, { migrations = readTemplateMigrations(), writ
 // overwrite + re-record; locally modified → park the template version under
 // .harness/pending/ (never clobber project work); unknown path → error naming
 // nearby candidates so a typo cannot silently no-op.
-function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts }) {
+function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts, releasedShas }) {
   const report = {
     conflicts: [],
     drift: [],
@@ -461,6 +486,10 @@ function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts }) {
   }
   const files = { ...manifest.files }
   let failed = false
+  // The same policy object as the sweep. It only has an opinion about OWNED paths (the
+  // tables list nothing else, and a seeded file is the project's to edit), and a path asked
+  // for by name always gets the template's copy parked — never the unchanged-upstream skip.
+  const provenance = createProvenance({ tables: releasedShas, manifest, report })
 
   // Refresh ONE resolved template entry into the install (overwrite when
   // untouched, park on drift). Keyed on the entry's own installPath so subtree
@@ -474,10 +503,22 @@ function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts }) {
     const mode = recorded?.mode ?? fileMode(ip)
 
     const current = existsSync(dest) ? readFileSync(dest) : null
-    let kind = classifyDrift({ current, recordedSha: recorded?.sha256, incoming: content, force: opts.force })
+    let kind = provenance.classifyOwned({
+      ip,
+      current,
+      recorded,
+      incoming: content,
+      force: opts.force,
+      entry,
+      explicit: true,
+      owned: mode === 'owned',
+    })
     // Stricter than update's sweep: with no manifest record we cannot prove
     // the file untouched since install — park, never clobber project work.
-    if (kind === 'update-clean' && !recorded && !opts.force) kind = 'park'
+    if (kind === 'update-clean' && !recorded && !opts.force) {
+      kind = 'park'
+      report.notes.push(parkedNote(ip))
+    }
 
     if (kind === 'create') {
       // The deliberate opt-in for a seedOnInitOnly exemplar the plain sweep
@@ -506,12 +547,11 @@ function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts }) {
       }
       return
     }
+    // The note for this park was pushed where the park was DECIDED (classifyOwned, or the
+    // no-record rule above), so it names the real reason — drift, fork, or no record.
     const pending = join('.harness', 'pending', ip)
     if (!opts.dryRun) writeInstallFile(join(targetDir, pending), content)
     report.drift.push({ path: ip, pending })
-    report.notes.push(
-      `${ip} has local changes — kept; the current template version is parked at ${pending} (merge by hand, or re-run with --force)`,
-    )
   }
 
   for (const rawPath of paths) {
@@ -538,7 +578,8 @@ function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts }) {
     }
   }
 
+  provenance.close()
   if (!opts.dryRun) writeManifest(targetDir, { ...manifest, files })
-  const code = printReport(report, { json: opts.report === 'json' })
+  const code = printReport(report, { json: opts.report === 'json', list: opts.dryRun })
   return failed ? 1 : code
 }

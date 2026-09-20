@@ -34,11 +34,19 @@ on:
 permissions:
   contents: read
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   deploy-record:
     name: deploy manifest (what shipped, judged)
     if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -74,6 +82,7 @@ jobs:
     name: patch windows (ASD 48h / 2w / 1mo, against what is DEPLOYED)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -109,6 +118,7 @@ jobs:
     name: restore manifest (RB-02 — one point in time, exclusions carried)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
