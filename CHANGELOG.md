@@ -11,6 +11,98 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [1.0.2] — 2026-09-20
+
+**A security patch.** The scaffold's `next` pin sat below two critical advisories for 26
+days, and both review-dated registers had lapsed. No gate is added, the chain length does
+not change, and no ramp opens or moves. Every changed template file is OWNED, so the
+`template/migrations.json` record is `rampExpiry` only, restating 1.0.0's thirteen-vintage
+population. `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.1`.
+
+**This release reds existing installs, by design.** `update` refreshes the owned
+`tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
+any `next` pin below the new floor until the consumer raises it. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 1.0.2 section.
+
+### Security
+
+- **The `next` floor moves to 16.3.3 (15.5.24 on the 15 line); the catalog pins 16.3.5.**
+  The [August 2026 security release](https://nextjs.org/blog/august-2026-security-release)
+  (2026-08-25) fixed two critical unauthenticated-RCE advisories: GHSA-2xp9-vwfh-vxw4 (the
+  Image Optimization API optimizing an attacker-controlled AVIF, through libheif under
+  sharp) and CVE-2026-75604 (Windows-hosted servers running the Pages and App routers
+  together without Cache Components). Upstream patched no 16.2 release, so the exact pin
+  crosses a minor for the first time. What a scaffold exposes as shipped is narrow: App
+  Router only, no `images.remotePatterns`, a Linux deploy target. The floor moves anyway,
+  because the `/_next/image` endpoint exists by default and consumers extend these apps. A
+  standard-tier scaffold rendered from this tree passes the whole chain on 16.3.5,
+  `build` and `e2e` included.
+- **How it was missed.** The floor's review window ran to 2026-09-06, so on 2026-08-25 the
+  review was still live and nothing prompts a re-read inside a window. The scheduled
+  `registers-clockful` job did go red once the window lapsed, but inside a nightly
+  `hygiene.yml` run that had already failed every night since 2026-08-11 on `factory-sca`
+  and, from 2026-08-31, on `obligations-clockful`. A new red inside a standing red changes
+  nothing anyone sees. The window bounds how stale a review can get. It does not make
+  anyone look sooner, and an alarm that is always on is not an alarm.
+- **Five advisories in the factory's own lockfile are cleared** (code scanning alerts #5
+  and #7 to #13, issue #13): `brace-expansion` 1.1.16 → 1.1.21 and 5.0.7 → 5.0.12,
+  `js-yaml` 4.3.0 → 4.3.2, `smol-toml` 1.7.0 → 1.8.0. All are dev-only transitives under
+  eslint, eslint-plugin-sonarjs and knip. Nothing under `template/` resolves through that
+  lockfile, so no scaffold was affected. No override remains, and each new component
+  carries a reviewed row in `scripts/sbom-additions.json`.
+- **CodeQL runs on the factory itself** (`.github/workflows/codeql.yml`). The harness
+  shipped that lane to every consumer and did not run it on its own source. Registered in
+  `factoryLanes`; not awaited by `release.yml`.
+- `SECURITY.md` documents how to verify a release asset's build provenance attestation,
+  where confirmed vulnerabilities are published, and which OpenSSF Scorecard findings stay
+  open and why.
+
+### Fixed
+
+- **The floor's failure line ranked `High` and nothing above it.** `citeAdvisories` filtered
+  on `severity === 'High'`, so the first register to carry a `Critical` row would have
+  named four older Highs and left out the advisory that moved the floor. Critical now
+  ranks first, with a test that places it last behind five Highs.
+- **`tools/eol.json` re-reviewed** (lapsed 2026-09-16). The registry sweep over a fresh
+  strict-tier scaffold probed 1580 pairs with zero errors and found seven deprecations
+  against six rows. The seventh is `eslint` 9, vendor-EOL since 2026-08-06, accepted as a
+  development-scope row because `eslint-plugin-react-native-a11y` and
+  `eslint-plugin-jsx-a11y` do not yet admit ESLint 10. `react-native` 0.84 leaves the
+  supported set, because the vendor's table now calls it Unsupported.
+- **`register-freshness`'s isolation test hardcoded `--today=2026-09-10`**, so any honest
+  re-review of either register turned it red. It now derives the date from the registers.
+- **`--help` omitted the `e2ee` module, the `SECURITY_TXT_EXPIRES` placeholder and, in its
+  header comment, `graduate`.** Found by a new test that holds `docs/cli.md` and the
+  `USAGE` text to the installer source.
+
+### Changed
+
+- **README rewritten.** The install command moves from line 291 to the top. Claims the
+  code did not back are corrected: "npm-installable" (nothing publishes to the npm
+  registry), `packages/shared/*` (does not exist), a "36 gates" list that named 32, a Stop
+  chain description without `reviewer-verdicts`, and a command list without `disable`.
+  The fork checklist moves to `docs/forking.md`, and `docs/cli.md` is a new CLI reference.
+- **Community files.** `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, recorded as
+  CC-BY-4.0 in `REUSE.toml`), a pull request template for this repository, and
+  contributing and feedback links in the README, `CONTRIBUTING.md` and the issue chooser.
+- The factory `.gitignore` ignores credential-shaped files.
+
+### What stays open, honestly
+
+- **ESLint 9 is end-of-life and the scaffold still pins it**, for the reason above. The
+  row discharges when both accessibility plugins admit ESLint 10.
+- **A review window does not shorten time-to-notice.** Nothing in this release changes
+  that. A scheduled check that compares the floor against the vendor's advisory feed,
+  rather than against the calendar, is the control that would have caught 2026-08-25.
+- **Two calendar obligations are overdue and this release does not discharge them:**
+  `conformance-play-target-api-window` (due 2026-08-31) and
+  `conformance-cra-art14-application` (due 2026-09-11). Each needs its own dated
+  re-verification. Until they are done the nightly `hygiene.yml` run stays red on
+  `obligations-clockful`, which is the masking described above.
+- The local proof for the `next` bump skipped `types-drift` for want of Docker. The CI
+  supabase lane enforces it, and `upgrade-linux` is the proof that a 1.0.1 install
+  survives this hop.
+
 ## [1.0.1] — 2026-08-19
 
 **A patch: two changes that landed on `main` after 1.0.0 (#16, #17), cut so an install can
