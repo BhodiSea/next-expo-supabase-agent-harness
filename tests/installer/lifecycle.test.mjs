@@ -696,21 +696,46 @@ test('retrofit rejects hono-only, Tauri, foreign lockfiles, and non-workspace la
   assert.ok(bareRes.out.includes('pnpm-workspace.yaml'), bareRes.out)
 })
 
+// "Installed by an older harness" has to be TRUE now (1.0.2). Until then these fixtures
+// aged a file by writing made-up bytes and re-recording their sha — which is, byte for
+// byte, what a consumer's deliberate FORK looks like, so no test could tell the two apart
+// and `update` overwrote both. The refresh fixture below is therefore the file v1.0.1
+// actually shipped at this path, committed under tests/fixtures/released/, judged by the
+// REAL shipped table through the REAL CLI; the made-up bytes moved to the fork test, with
+// their assertions inverted.
+const RELEASED_REL = '.claude/hooks/posttool-fast-check.mjs'
+const RELEASED_101 = readFileSync(
+  new URL('../fixtures/released/1.0.1/posttool-fast-check.mjs.txt', import.meta.url),
+  'utf8',
+)
+
+/** Age one owned file to what v1.0.1 shipped, and the install's version with it. */
+function ageToReleased101(dir) {
+  const table = JSON.parse(readFileSync(new URL('../../template/shas/1.0.1.json', import.meta.url), 'utf8'))
+  assert.ok(
+    table.files[RELEASED_REL].some((v) => v.sha256 === sha256(RELEASED_101)),
+    'fixture precondition: the committed file is what template/shas/1.0.1.json says v1.0.1 shipped',
+  )
+  writeFileSync(join(dir, RELEASED_REL), RELEASED_101)
+  const manifestPath = join(dir, '.harness/manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files[RELEASED_REL].sha256 = sha256(RELEASED_101)
+  manifest.harnessVersion = '1.0.1'
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+}
+
 test('update refreshes unmodified owned files, preserves drift, never touches seeded', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-upd-'))
   assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
 
-  // 1. REFRESH: simulate a file installed by an older harness version —
-  // content differs from the incoming template but MATCHES its manifest hash
-  // (i.e. not locally modified). Update must overwrite it in place.
-  const ownedRel = '.claude/hooks/posttool-fast-check.mjs'
+  // 1. REFRESH: a file an older release installed — its content differs from the incoming
+  // template, MATCHES its manifest hash, and that hash is one v1.0.1 shipped. Update must
+  // overwrite it in place.
+  const ownedRel = RELEASED_REL
   const owned = join(dir, ownedRel)
-  const oldContent = '#!/usr/bin/env node\n// old harness version\n'
-  writeFileSync(owned, oldContent)
+  const oldContent = RELEASED_101
+  ageToReleased101(dir)
   const manifestPath = join(dir, '.harness/manifest.json')
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  manifest.files[ownedRel].sha256 = sha256(oldContent)
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
 
   const refresh = run(['update', '--dir', dir])
   assert.equal(refresh.code, 0, refresh.out)
@@ -735,6 +760,43 @@ test('update refreshes unmodified owned files, preserves drift, never touches se
   writeFileSync(seeded, '# mine now\n')
   run(['update', '--dir', dir]) // exit 2 from the still-drifted hook — irrelevant here
   assert.equal(readFileSync(seeded, 'utf8'), '# mine now\n', 'seeded file must never be touched')
+})
+
+test('update NEVER overwrites a re-recorded fork — through the real CLI and the shipped tables (1.0.2)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-fork-'))
+  assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
+
+  // What keeping `gate-integrity` green on a deliberate fork requires: edit the owned file,
+  // re-record its sha. The bytes match the record — and no release ever shipped them.
+  const owned = join(dir, RELEASED_REL)
+  const forked = '#!/usr/bin/env node\n// old harness version\n'
+  writeFileSync(owned, forked)
+  const manifestPath = join(dir, '.harness/manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files[RELEASED_REL].sha256 = sha256(forked)
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+
+  const res = run(['update', '--dir', dir, '--report', 'json'])
+  const report = JSON.parse(res.out.slice(res.out.indexOf('{'), res.out.lastIndexOf('}') + 1))
+  assert.equal(readFileSync(owned, 'utf8'), forked, `the fork was overwritten:\n${res.out}`)
+  assert.ok(!report.written.includes(RELEASED_REL), 'a fork is never reported as written')
+  assert.equal(
+    JSON.parse(readFileSync(manifestPath, 'utf8')).files[RELEASED_REL].sha256,
+    sha256(forked),
+    'the record still describes the fork',
+  )
+  // Parked when upstream changed the file inside this version, kept-and-skipped when it
+  // did not — which of the two depends on the template's own history, so both are accepted
+  // and exactly one must be reported.
+  const parked = report.drift.some((d) => d.path === RELEASED_REL)
+  const kept = report.skipped.includes(RELEASED_REL) && report.notes.some((n) => n.includes('local fork(s) kept'))
+  assert.ok(parked !== kept, res.out)
+  assert.equal(res.code, parked ? 2 : 0, res.out)
+
+  // `doctor` names it, and --force is still "discard my fork".
+  assert.match(run(['doctor', '--dir', dir]).out, /info +local fork: \.claude\/hooks\/posttool-fast-check\.mjs/)
+  assert.equal(run(['update', '--dir', dir, '--force']).code, 0)
+  assert.notEqual(readFileSync(owned, 'utf8'), forked)
 })
 
 test('backslash manifest keys: doctor trips, update heals', () => {
@@ -1165,16 +1227,13 @@ test('update --dry-run touches nothing yet reports byte-for-byte the plan the re
   const dir = mkdtempSync(join(tmpdir(), 'epah-dryplan-'))
   assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
 
-  // Stage a REFRESH: an owned file installed by an older harness (content
-  // differs from the template) but recorded as untouched (sha matches disk).
-  const ownedRel = '.claude/hooks/posttool-fast-check.mjs'
+  // Stage a REFRESH: an owned file v1.0.1 installed (content differs from the template,
+  // sha matches disk, and that sha is one a release shipped — see ageToReleased101).
+  const ownedRel = RELEASED_REL
   const owned = join(dir, ownedRel)
-  const oldContent = '#!/usr/bin/env node\n// older harness build\n'
-  writeFileSync(owned, oldContent)
+  const oldContent = RELEASED_101
+  ageToReleased101(dir)
   const manifestPath = join(dir, '.harness/manifest.json')
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  manifest.files[ownedRel].sha256 = sha256(oldContent)
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
 
   const fileBefore = readFileSync(owned, 'utf8')
   const manifestBefore = readFileSync(manifestPath, 'utf8')

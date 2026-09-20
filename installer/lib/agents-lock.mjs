@@ -78,10 +78,14 @@ export function writeAgentsLock(targetDir, report, mode, { dryRun = false } = {}
  * generator the guards exist to keep them from running.
  *
  * PER-ENTRY, never wholesale. A file is re-recorded only if `update` actually wrote it,
- * which it does only when the on-disk bytes matched the recorded sha — i.e. the consumer
- * had not touched it. A locally-modified agent file drifts, gets parked, is NOT in
- * `written`, and therefore keeps redding: that edit is exactly what the lock exists to
- * surface, and laundering it here would be the failure this whole control is about.
+ * which it does only when the on-disk bytes matched the recorded sha AND that sha is one a
+ * release shipped — i.e. the consumer had not touched it. (Until 1.0.2 the first half alone
+ * decided it: an agent file the consumer forked and re-recorded in the manifest was
+ * overwritten, landed in `written`, and had its lock entry laundered right here. The
+ * provenance check in lib/provenance.mjs is what makes this paragraph true rather than
+ * asserted.) A locally-modified agent file drifts, gets parked, is NOT in `written`, and
+ * therefore keeps redding: that edit is exactly what the lock exists to surface, and
+ * laundering it here would be the failure this whole control is about.
  *
  * @param {string} targetDir
  * @param {string[]} written install paths this update wrote
