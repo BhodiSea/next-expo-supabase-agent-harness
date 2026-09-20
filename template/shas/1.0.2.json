@@ -9,12 +9,18 @@
     ],
     ".claude/agents/architecture-reviewer.md": [
       {
+        "sha256": "53adbab8965d0c5b93f833a46eb04e8c83bd137c1d6979fbc7ae7e1d915964b4"
+      },
+      {
         "sha256": "56517f664f260f91d7379e200b09e36eaa1292fa13b345a05bd1975f969c2a9a"
       }
     ],
     ".claude/agents/citation-verifier.md": [
       {
         "sha256": "3d17647f76524a65392888f8b22f7b2cafc2c9053ad74acc4d3f392f6cb4e04e"
+      },
+      {
+        "sha256": "c26e616f55e9f67b9746accab565e3cf6b317367c33657bf3615f3c83f00660d"
       }
     ],
     ".claude/agents/dal-author.md": [
@@ -62,6 +68,9 @@
     ".claude/agents/torvalds-reviewer.md": [
       {
         "sha256": "0907e0df9828bb136e2fa1ea0841863a00c42866f89cb1116292d8ca48532b0d"
+      },
+      {
+        "sha256": "cb76a155795a0b84ce4e0668adcdc7a80d812aca48c01a1b3dac12ffa9200b51"
       }
     ],
     ".claude/agents/web-security-reviewer.md": [
@@ -92,6 +101,9 @@
     ".claude/commands/rls-check.md": [
       {
         "sha256": "6934c494808c0184867ff2b1247f620f023ae45eae783885168d212714d2f653"
+      },
+      {
+        "sha256": "98512de822a812cc660852b2135325cf33136bbcdf304be9ec94dfc6841c181a"
       }
     ],
     ".claude/commands/verify-citations.md": [
@@ -102,6 +114,9 @@
     ".claude/commands/verify-invariants.md": [
       {
         "sha256": "5dfc99880f46b0fd8e19f9522fa2f7d44b957239afe422bb3e39c9ca45580c32"
+      },
+      {
+        "sha256": "fdddd9f65fd9a2f80946eb9f699fde906a65d0ce4ddae53ffe7bb55843aa52d4"
       }
     ],
     ".claude/hooks/launch.mjs": [
@@ -155,6 +170,9 @@
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
+      {
+        "sha256": "91e556e8992f2e195f5917f740995ce553d5d1c7c0f328dbdf1d2668322ef7f6"
+      },
       {
         "sha256": "e5871b5a9659bbacd22a40808083f703bcc6c2701120396348f711e44a9c3acf"
       }
@@ -815,6 +833,15 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "11b0adb9b2766f1de8bb3f54dbaf92400fcb0033652bd22879aec56eea9bae94",
+        "sites": [
+          [
+            115909,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "b18da68d84ec4929fab9b053226a125145ada6e484c10c7110cdafd83736af16",
         "sites": [
           [
@@ -1469,6 +1496,9 @@
     ],
     "tools/check-reviewer-verdicts.mjs": [
       {
+        "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
+      },
+      {
         "sha256": "65b346e85ed8bd00025ebc5477cb58ab1cd65719d771b271dbd06dd02cd015a0"
       }
     ],
@@ -1854,6 +1884,9 @@
     "tools/lib/reviewer-verdicts.mjs": [
       {
         "sha256": "d7282037bd7201ebd6c5cc3f6b950642c1544363ce49a1ae96fcd373d7684a92"
+      },
+      {
+        "sha256": "ff9774f95092c867b6304eb8f803c3d6dc5e74109fc143646a182893e7ec53f3"
       }
     ],
     "tools/lib/sbom.mjs": [

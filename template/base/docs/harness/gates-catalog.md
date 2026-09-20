@@ -1982,7 +1982,9 @@ have returned `VERDICT: PASS`, recorded by the SubagentStop hook
 THIS turn, so last turn's PASS satisfies nothing. Four failure modes: an owed
 reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
 reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
-finding it exists to produce, and a turn does not end on a BLOCK; a PASS whose
+finding it exists to produce, and a turn does not end on a BLOCK (it stands for
+the rest of that turn: a same-turn re-run that returns PASS does not clear it,
+and the message says so); a PASS whose
 `path_state` binding does not match the tree at Stop time reds as the reviewer
 having seen a DIFFERENT TREE than the one the turn is shipping — the hook
 records, beside each verdict, a sha256 over the sorted (path, content-sha256)
@@ -2014,7 +2016,15 @@ binding red (with edit-then-PASS green, the non-owed post-PASS edit staying
 green, and the unbound PASS failing toward re-review), and the 0.7.0 binding
 ramp's NOTE and `RAMP EXPIRED` branches both executed; the record half — the
 hook appending `path_state` and the digest MOVING when the owed file moves —
-is tests/hooks/subagent-verdict-pathstate.test.mjs.
+is tests/hooks/subagent-verdict-pathstate.test.mjs. The verdict GRAMMAR (1.0.2)
+is asymmetric and proved row by row in the same file's decision table: PASS
+only as the exact terminal line with no BLOCK-form line anywhere in the
+message, BLOCK wherever a line states it (with its fixes after it, or spelled
+FAIL), both forms in one message bounced — so a hedge can never read as a
+pass; the bounce record (`.harness/verdict-bounces.jsonl`: agent, shape, last
+line) and "every roster body ENDS with the verdict demand" are pinned there
+too, and tests/hooks/hook-contract.test.mjs holds the refusal at exactly exit 2
+even when that record cannot be written.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 

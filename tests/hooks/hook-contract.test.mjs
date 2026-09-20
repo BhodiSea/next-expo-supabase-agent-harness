@@ -1701,6 +1701,25 @@ test('subagent-verdict REFUSAL: a reviewer ending without a verdict exits EXACTL
   assert.ok(block.gates.includes('subagent-verdict/security-reviewer'), JSON.stringify(block.gates))
 })
 
+test('subagent-verdict REFUSAL leaves a bounce RECORD, and a record that cannot be written changes nothing (1.0.2)', () => {
+  const dir = verdictFixture()
+  const hedge = verdictPayload({ last_assistant_message: 'VERDICT: BLOCK\nOn reflection:\nVERDICT: PASS' })
+  const r = runHook('subagent-verdict.mjs', hedge, { cwd: dir })
+  assert.equal(r.code, 2, `a message stating BOTH verdicts is no verdict:\n${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /states both a PASS and a BLOCK verdict line/)
+  const row = JSON.parse(readFileSync(join(dir, '.harness', 'verdict-bounces.jsonl'), 'utf8').trim())
+  assert.equal(row.shape, 'both-forms')
+  assert.equal(row.agent_type, 'security-reviewer')
+  assert.equal(row.last_line, 'VERDICT: PASS')
+
+  // BOOKKEEPING NEVER DECIDES THE OUTCOME: with the log path occupied by a directory the
+  // append throws, and the refusal must still be exactly exit 2.
+  const blocked = verdictFixture()
+  mkdirSync(join(blocked, '.harness', 'verdict-bounces.jsonl'), { recursive: true })
+  const again = runHook('subagent-verdict.mjs', hedge, { cwd: blocked })
+  assert.equal(again.code, 2, `${again.stdout}${again.stderr}`)
+})
+
 test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (refusal is not the default)', () => {
   const dir = verdictFixture()
   const r = runHook('subagent-verdict.mjs', verdictPayload(), { cwd: dir })
