@@ -41,10 +41,12 @@ import { fileURLToPath } from 'node:url'
 import {
   globToRe,
   owedBy,
+  classifyVerdict,
   pathStateDigest,
   readLedger,
   readVerdict,
 } from '../../template/base/tools/lib/reviewer-verdicts.mjs'
+import { REVIEWER_AGENTS } from '../../template/base/tools/lib/agent-roster.mjs'
 
 const STEP = fileURLToPath(new URL('../../template/base/tools/check-reviewer-verdicts.mjs', import.meta.url))
 const HOOK = fileURLToPath(new URL('../../template/base/.claude/hooks/subagent-verdict.mjs', import.meta.url))
@@ -598,3 +600,155 @@ test('readLedger narrows to the turn and leaves everything else alone', () => {
     ['security-reviewer'],
   )
 })
+
+// ── the verdict grammar (1.0.2) ──────────────────────────────────────────────────────
+//
+// Two reviewer bodies said "End with exactly one final line: VERDICT: … Follow it with the
+// top 3 fixes", the parser read only the LAST line, and the hook bounced every reviewer
+// that obeyed its own file. The bodies are fixed (verdict last). The parser is also made
+// ASYMMETRIC, because its two errors do not cost the same: reading a hedge as a PASS lets
+// an unreviewed turn end, while reading a clumsy BLOCK as a BLOCK costs nothing. So PASS
+// stays as strict as it was (exact, terminal, and now only when no BLOCK line exists
+// anywhere), and BLOCK is accepted wherever a line states it.
+
+const VERDICT_TABLE = /** @type {Array<[string, unknown, 'PASS' | 'BLOCK' | null, string]>} */ ([
+  // [ name, message, verdict, shape ]                      — the rows main already pinned
+  ['prose, then the line', 'some reasoning\n\nand more\n\nVERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['terminal BLOCK, trailing blanks', 'VERDICT: BLOCK\n\n', 'BLOCK', 'terminal-block'],
+  ['PASS then a hedge', 'VERDICT: PASS\nbut actually I am not sure', null, 'pass-not-terminal'],
+  ['PASS inside a sentence', 'I would say VERDICT: PASS inline', null, 'verdict-inline'],
+  ['undefined', undefined, null, 'not-a-string'],
+  ['a number', 42, null, 'not-a-string'],
+  ['empty', '', null, 'no-verdict-line'],
+  ['no verdict at all', 'Looks fine to me, no concerns.', null, 'no-verdict-line'],
+  // whitespace and line endings
+  ['CRLF', 'all good\r\n\r\nVERDICT: PASS\r\n', 'PASS', 'terminal-pass'],
+  ['trailing spaces and tabs', 'VERDICT: PASS \t ', 'PASS', 'terminal-pass'],
+  ['no space after the colon', 'VERDICT:PASS', 'PASS', 'terminal-pass'],
+  // the closed set of markdown wrappers a model puts around a conclusion
+  ['one trailing period', 'VERDICT: PASS.', 'PASS', 'terminal-pass'],
+  ['bold', '**VERDICT: PASS**', 'PASS', 'terminal-pass'],
+  ['bold key only', '**VERDICT:** PASS', 'PASS', 'terminal-pass'],
+  ['bold key, colon outside', '**VERDICT**: PASS', 'PASS', 'terminal-pass'],
+  ['backticks', '`VERDICT: PASS`', 'PASS', 'terminal-pass'],
+  ['underscore emphasis', '_VERDICT: PASS_', 'PASS', 'terminal-pass'],
+  ['bold with the period inside', '**VERDICT: PASS.**', 'PASS', 'terminal-pass'],
+  ['blockquote', '> VERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['list item', '- VERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['numbered item', '3. VERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['heading', '## VERDICT: PASS', 'PASS', 'terminal-pass'],
+  // PASS is never relaxed beyond those wrappers
+  ['PASS with trailing text', 'VERDICT: PASS — ship it', null, 'pass-trailing-text'],
+  ['PASSED', 'VERDICT: PASSED', null, 'pass-trailing-text'],
+  ['lower-case pass', 'verdict: pass', null, 'pass-trailing-text'],
+  ['mixed-case key', 'Verdict: PASS', null, 'pass-trailing-text'],
+  ['PASS, then the top 3 fixes — the shape the two bodies demanded', 'VERDICT: PASS\n1. a\n2. b\n3. c', null, 'pass-not-terminal'],
+  ['a fenced PASS is not a PASS', 'summary\n```\nVERDICT: PASS\n```', null, 'pass-fenced'],
+  ['two periods', 'VERDICT: PASS..', null, 'pass-trailing-text'],
+  // BLOCK is accepted wherever a line states it
+  ['BLOCK, then the top 3 fixes', 'VERDICT: BLOCK\n1. a\n2. b\n3. c', 'BLOCK', 'block-anywhere'],
+  ['a fenced BLOCK', 'summary\n```\nVERDICT: BLOCK\n```', 'BLOCK', 'block-anywhere'],
+  ['FAIL is a BLOCK', 'VERDICT: FAIL', 'BLOCK', 'terminal-block'],
+  ['FAILED with a reason, then more', 'VERDICT: FAILED — policy missing\nsee above', 'BLOCK', 'block-anywhere'],
+  ['BLOCK mid-message', 'findings\nVERDICT: BLOCK\nthat is all I have', 'BLOCK', 'block-anywhere'],
+  ['a BLOCK reason that contains the word pass', 'VERDICT: BLOCK — tests pass but RLS is missing', 'BLOCK', 'block-anywhere'],
+  ['bold BLOCK with a reason', '**VERDICT: BLOCK** — missing index', 'BLOCK', 'block-anywhere'],
+  ['lower-case block', 'verdict: block', 'BLOCK', 'block-anywhere'],
+  // both forms in one message: a hedge never reads as a pass
+  ['BLOCK, a retraction, terminal PASS', 'VERDICT: BLOCK\nI was wrong.\nVERDICT: PASS', null, 'both-forms'],
+  ['PASS, a retraction, terminal BLOCK', 'VERDICT: PASS\nActually no.\nVERDICT: BLOCK', 'BLOCK', 'terminal-block'],
+  ['a legend quoting both forms, then PASS', '- `VERDICT: PASS` — clean\n- `VERDICT: BLOCK` — findings\n\nVERDICT: PASS', null, 'both-forms'],
+  ['the instruction quoted mid-sentence, then PASS', 'I must end with `VERDICT: PASS` or `VERDICT: BLOCK`.\n\nVERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['a line naming both, then BLOCK', 'VERDICT: PASS or VERDICT: BLOCK\nVERDICT: BLOCK', 'BLOCK', 'terminal-block'],
+  // words that are neither
+  ['SHIP', 'VERDICT: SHIP', null, 'unknown-word'],
+  ['BLOCKER', 'VERDICT: BLOCKER', null, 'unknown-word'],
+  // the citation-verifier's two lines, in both orders
+  ['CITATIONS then VERDICT', 'CITATIONS: CLEAN\nVERDICT: PASS', 'PASS', 'terminal-pass'],
+  ['VERDICT then CITATIONS', 'VERDICT: PASS\nCITATIONS: CLEAN', null, 'pass-not-terminal'],
+  ['BLOCK then CITATIONS', 'VERDICT: BLOCK\nCITATIONS: REJECTED', 'BLOCK', 'block-anywhere'],
+  // other prefixed verdict lines are not this one
+  ['a bare PASS', 'PASS', null, 'no-verdict-line'],
+  ['INVARIANTS: PASS', 'INVARIANTS: PASS', null, 'no-verdict-line'],
+])
+
+test('the verdict grammar — every accepted and rejected shape, and readVerdict agrees', () => {
+  assert.ok(VERDICT_TABLE.length >= 45)
+  for (const [name, message, verdict, shape] of VERDICT_TABLE) {
+    assert.deepEqual(classifyVerdict(message), { verdict, shape }, name)
+    assert.equal(readVerdict(message), verdict, `readVerdict: ${name}`)
+  }
+})
+
+test('ASYMMETRY: no message with a BLOCK-form line anywhere reads as PASS, and the ledger vocabulary stays closed', () => {
+  for (const [name, message, verdict] of VERDICT_TABLE) {
+    // An independent, deliberately cruder reading of "a LINE that states a block".
+    if (typeof message === 'string' && /^[\s>*_`#+\-\d.)]*verdict[*_`]*\s*:[\s*_`]*(block|fail)/im.test(message)) {
+      assert.notEqual(verdict, 'PASS', name)
+    }
+    assert.ok(verdict === null || verdict === 'PASS' || verdict === 'BLOCK', name)
+  }
+})
+
+test('the hook records a BLOCK that is followed by fixes — it used to bounce the obedient reviewer', () => {
+  const r = runHook({
+    hook_event_name: 'SubagentStop',
+    agent_type: 'torvalds-reviewer',
+    agent_id: 'a1',
+    session_id: 's1',
+    prompt_id: 'p1',
+    last_assistant_message: 'findings above\n\nVERDICT: BLOCK\n1. fix the index\n2. bound the query\n3. delete the wrapper',
+  })
+  assert.equal(r.code, 0, r.out)
+  const line = JSON.parse(readFileSync(join(r.dir, '.harness/reviewer-ledger.jsonl'), 'utf8').trim())
+  assert.equal(line.verdict, 'BLOCK')
+})
+
+test('CANARY — a bounce leaves a RECORD: what the last line was and why it did not parse', () => {
+  const r = runHook({
+    hook_event_name: 'SubagentStop',
+    agent_type: 'security-reviewer',
+    session_id: 's1',
+    prompt_id: 'p1',
+    last_assistant_message: `VERDICT: BLOCK\nOn reflection that was wrong.\n${'x'.repeat(400)}\nVERDICT: PASS`,
+  })
+  assert.equal(r.code, 2, r.out)
+  assert.match(r.out, /ended without a verdict/)
+  assert.match(r.out, /states both a PASS and a BLOCK verdict line/)
+  const rows = readFileSync(join(r.dir, '.harness/verdict-bounces.jsonl'), 'utf8').trim().split('\n')
+  assert.equal(rows.length, 1)
+  const row = JSON.parse(rows[0])
+  assert.equal(row.agent_type, 'security-reviewer')
+  assert.equal(row.session_id, 's1')
+  assert.equal(row.shape, 'both-forms')
+  assert.equal(row.last_line, 'VERDICT: PASS')
+  assert.match(row.at, /^\d{4}-\d{2}-\d{2}T/)
+
+  // The record is capped — a reviewer's last line is prose from a model, not a log format.
+  const long = runHook({
+    hook_event_name: 'SubagentStop',
+    agent_type: 'security-reviewer',
+    session_id: 's1',
+    last_assistant_message: 'y'.repeat(5000),
+  })
+  assert.equal(long.code, 2)
+  const capped = JSON.parse(readFileSync(join(long.dir, '.harness/verdict-bounces.jsonl'), 'utf8').trim())
+  assert.equal(capped.last_line.length, 200)
+  assert.equal(capped.shape, 'no-verdict-line')
+})
+
+test('every reviewer body ENDS with the verdict demand — nothing may follow the line it asks for', () => {
+  // A test, not a gate: check-docs-sync asserts the phrase APPEARS, and two bodies carried
+  // it while instructing the opposite ("Follow it with the top 3 fixes").
+  for (const agent of REVIEWER_AGENTS) {
+    const body = readFileSync(join(AGENTS, `${agent}.md`), 'utf8').trimEnd()
+    const lastParagraph = body.split(/\n\s*\n/).at(-1)?.replace(/\s+/g, ' ') ?? ''
+    assert.match(
+      lastParagraph,
+      /^End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`\./,
+      `${agent}: the LAST paragraph must be the verdict demand`,
+    )
+    assert.ok(!/follow it with/i.test(body), `${agent}: asks for text AFTER the verdict line`)
+  }
+})
+
