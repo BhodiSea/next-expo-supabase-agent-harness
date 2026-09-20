@@ -25,9 +25,17 @@ concurrency:
   group: lint-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   actionlint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -51,6 +59,7 @@ jobs:
 
   zizmor:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -75,6 +84,7 @@ jobs:
   # pins README/CITATION.cff/package.json license consistency with REUSE.toml.
   reuse-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -95,6 +105,7 @@ jobs:
 
   syntax-and-plugin:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -124,6 +135,7 @@ jobs:
   # REPO SOURCE (template/stack app code stays owned by the consumer config).
   machinery-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -225,6 +237,16 @@ jobs:
       # transitive arrival changes no key. Needs full history; SKIPS LOUDLY without a tag.
       - name: machinery-sbom-drift (no unreviewed component arrived since the previous release)
         run: node scripts/check-sbom-drift.mjs
+      # The released-sha tables (1.0.2). `update` overwrites an owned file only when a
+      # release shipped the bytes it finds, and template/shas/ is what says so. A table that
+      # drifts from the template fails QUIETLY — it parks untouched files on every install at
+      # the next update — so the closure reds here instead: the live tree inside the current
+      # version's table, a table for every released vintage, and (--verify-tags, which is why
+      # this lives in the one job with fetch-depth: 0) every tag's tree, judged by that tag's
+      # OWN installer, inside its version's table. This workflow also runs at the tag ref and
+      # publish blocks on it, so the tag being cut is verified against the table it ships.
+      - name: machinery-released-shas (template/shas covers the live tree, every vintage and every tag)
+        run: node scripts/check-released-shas.mjs --verify-tags
       - name: machinery-types (tsc --noEmit, allowJs+checkJs over the same globs)
         run: pnpm exec tsc --noEmit
       - name: machinery-knip (dead exports/files/deps across installer, scripts, tools)

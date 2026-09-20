@@ -84,6 +84,10 @@ Flag ONLY gaps that affect correctness, a stated requirement, or an invariant �
 not over-report style nits as blockers. Be specific and merciless; do not soften; do
 not modify code.
 
+Give the top 3 fixes, most important first, BEFORE the verdict — the verdict line is
+the last thing you write, and the hook that records it reads a reply with anything after
+a PASS as no verdict at all.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
-so a caller (or a future receipt gate) cannot tell a verdict from a sentence. Follow it with the top 3 fixes.
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

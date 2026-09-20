@@ -29,6 +29,7 @@ jobs:
   release-please:
     name: release PR / tag
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write

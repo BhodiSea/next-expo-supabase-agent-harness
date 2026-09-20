@@ -18,12 +18,28 @@ days, both review-dated registers had lapsed, and `authenticated` held default w
 privileges on seven tables it may only read. No gate is added, the chain length does not
 change, and no ramp opens or moves. The `template/migrations.json` record withholds one
 file, the new migration, and restates 1.0.0's thirteen-vintage `rampExpiry` population.
-`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.1`.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.1`. The release also closes a defect
+in the installer itself: `update` overwrote an owned file the consumer had forked and
+re-recorded, and everything else this release changes reaches an install through `update`.
 
 **This release reds existing installs, by design.** `update` refreshes the owned
 `tools/framework-floor.json` and leaves the seeded catalog alone, so `version-sync` reds on
 any `next` pin below the new floor until the consumer raises it. The remedy is in
 `docs/runbooks/harness-upgrade.md`, 1.0.2 section.
+
+**`update` can now exit 2 where it exited 0.** An install that carries a re-recorded fork of
+an owned file, a `.claude/settings.json` that a retrofit merged, or a root config whose
+retrofit conflict was resolved by merging, used to have that file overwritten with exit 0.
+It is now kept, and the incoming version is parked under `.harness/pending/` whenever
+upstream changed that file since the install's version, which is exit 2 like any other
+drift. Nothing is parked, and the exit code stays 0, when upstream left the file alone. An
+install with no such file sees no change. `update --force` still discards local versions.
+
+**`gate-summary` can now go red, which it could not before.** An install whose
+`quality-gate.yml` is unmodified receives the corrected workflow through `update`. If a
+lane under it was already failing, the required check starts reporting that on the next
+run. Nothing about the lanes changes; the summary stops hiding them. Every shipped job
+also gains a `timeout-minutes`, set several times above what it takes on a fresh scaffold.
 
 ### Security
 
@@ -81,6 +97,116 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 
 ### Fixed
 
+- **`update` overwrote a fork whose sha had been re-recorded.** `classifyDrift` read
+  `sha256(file) === recorded sha` as proof that the harness wrote the bytes. Re-recording a
+  sha is the only way to keep `gate-integrity` green on a deliberate fork of an owned file,
+  so every such fork matched its record by construction, was classified `update-clean`, and
+  was overwritten with exit 0. The same test, copied inline, made `disable` delete a forked
+  module file and a `removed` migration delete a forked retired one. The installer also
+  records two shas that no release shipped: the `.claude/settings.json` a retrofit merges,
+  and a root config once its retrofit conflict is resolved. The next `update` overwrote
+  both. The second case needs no hand-edited manifest at all: init over an existing config,
+  merge, delete the sidecar, `update`, `update`, and the merge is gone.
+  `update` now asks whether a release shipped the bytes. `template/shas/<version>.json`
+  lists, per owned install path, the sha of the template source of every variant that
+  version put on `main`, and for a placeholder-bearing file the token sites, so the
+  installer can rebuild the source from an installed copy and compare. No historical file
+  ships. The tables cover every first-parent commit of `main` from 0.1.3 on, not only the
+  tags, because the documented install command carries no tag and an install can come from
+  any of them. A recorded sha that matches a release from the install's version up to the
+  running installer is pristine and refreshes as before. Anything else is a fork and is
+  kept: the incoming version is parked when upstream changed the file, and nothing is
+  parked when it did not. A pin back to an older release is reported as that, not as "no
+  release shipped this". `classifyDrift` is unchanged; the policy sits at the call sites
+  in one shared helper (`installer/lib/provenance.mjs`) used by the sweep,
+  `--refresh-seeded` on an owned path, `enable`, `disable` and the `removed`/`renamed`
+  guard. `enable` dropped from 54 to 44 on the complexity ratchet.
+- **How it was missed.** The decision table had a test for every outcome, and the fixtures
+  behind them aged an install by writing made-up bytes and re-recording their sha, which is
+  byte for byte what a fork is. Those fixtures asserted that such a file must be
+  overwritten, so the suite pinned the defect as the requirement. The retrofit conflict
+  test stopped one `update` short of the overwrite. `doctor` trusts the same record, so it
+  reported a forked install as clean, and the human `--dry-run` report printed a count of
+  files it would write and not their names. The refresh fixtures now use a file v1.0.1
+  actually shipped, committed under `tests/fixtures/released/`, and the made-up bytes moved
+  to the fork tests with their assertions inverted.
+- **The required check could not fail.** `quality-gate.yml`'s `gate-summary` job is the
+  one an enterprise is told to mark required, and its verdict lives in
+  `tools/ci/summarize-gate.mjs`, which exits 1 on a failed or cancelled lane. The step ran
+  it as `node tools/ci/summarize-gate.mjs | tee -a "$GITHUB_STEP_SUMMARY"` and named no
+  shell. GitHub runs such a step as `bash -e`, without `pipefail`, so the step's status
+  was `tee`'s: the log said `gate-summary: FAIL` and the check went green. No shipped
+  workflow selected a shell at workflow level, so the same was true of every un-shelled
+  pipe. All 19 shipped workflows and the factory's own now set
+  `defaults.run.shell: bash`, above `jobs:`, which GitHub runs as
+  `bash --noprofile --norc -eo pipefail`. The Scorecard workflow is the exception, because
+  Scorecard refuses to publish results from a workflow with top-level `defaults` or `env`.
+  An audit of every un-shelled `run:` block found one step whose behaviour the new shell
+  changes (the `native` job's targetSdk check would have died before printing its
+  diagnostic, so its pipeline gains `|| true`) and one swallowed failure of the same class
+  that `pipefail` cannot reach: the pull request mutation lane wrapped
+  `$(node tools/mutation-scope.mjs)` inside an `echo` argument, which discards the
+  scoper's fail-closed exit and reports "nothing to mutate". It is now an assignment
+  followed by the `echo`. `gate-summary` also sends stderr into the step summary, where the
+  list of failed lanes had never appeared.
+- **No job could hang for less than six hours.** 39 of 48 shipped jobs and 15 of the
+  factory's 23 had no `timeout-minutes`. Every job that can take one now has one (a
+  reusable-workflow job cannot). The ceilings follow the values the repository already used
+  for sibling jobs, sit several times above measured cost, and are widest where a
+  consumer's duration grows with their code: 240 for the nightly mutation run, 120 for
+  CodeQL and the live evaluation lane, 90 for the pull request mutation lane and store
+  submission. The factory's `release` job gets 150 because it legitimately polls for 90
+  minutes. `eas-update`'s `publish` rises from 45 to 60, since it does everything `static`
+  does. A timed-out job reports `cancelled`, which `summarize-gate` counts as a failure.
+- **How it was missed.** The summarizer had a red-proof from the day it shipped, and the
+  proof tested the script. Nothing ran the step, and the step is where the verdict was
+  lost. The structural workflow checks (`workflow-lanes`, `check-ci-preconditions`, the
+  canary `lanes` closure) read `template/base/` only, so the ten module workflows were
+  outside every one of them. `tests/gates/workflow-hardening.test.mjs` runs the real step
+  text the way GitHub would, keeps the old behaviour as its control (the same script under
+  `bash -e` exits 0), and holds both properties over base, every module and the factory.
+- **Two reviewer bodies contradicted the parser that judges them.** `torvalds-reviewer`
+  and `architecture-reviewer` ended "End with exactly one final line: `VERDICT: …`.
+  Follow it with the top 3 fixes." `readVerdict` read the last non-empty line only, so a
+  reviewer that did what its own file said was bounced by the SubagentStop hook on every
+  review, PASS or BLOCK, with a message telling it to put "nothing after" the line its body
+  told it to follow. Both bodies now ask for the fixes first and the verdict last, and
+  `citation-verifier` fixes the order of its two lines (`CITATIONS:` first, `VERDICT:`
+  last), which it had left open.
+  The parser is also asymmetric now, because its two errors do not cost the same. A PASS is
+  still read only from the exact terminal line, and additionally only when no BLOCK line
+  exists anywhere in the message. A BLOCK is read wherever a line states it: not terminal,
+  followed by its fixes, carrying a reason, or spelled `FAIL` (recorded as `BLOCK`, so the
+  ledger's vocabulary stays closed). A terminal exact BLOCK always wins, so every message
+  that read BLOCK before still does. A closed set of markdown habits is tolerated around
+  the line (backticks, emphasis, a blockquote, list marker or heading, one trailing
+  period) and nothing else: `VERDICT: PASS — ship it` and `VERDICT: PASSED` are still not
+  a pass. A message that states both is bounced with a sentence saying so. **One shape is
+  stricter than before:** a terminal exact PASS with a BLOCK or FAIL line elsewhere in the
+  same message used to read PASS and is now a bounce. That costs a re-statement inside the
+  subagent and can red nothing.
+  A bounce now leaves a record. The turn log keeps only the gate's name and its last 200
+  rows, so a run of bounces could not be diagnosed afterwards; the hook appends
+  `{ at, session_id, agent_type, shape, last_line }` to `.harness/verdict-bounces.jsonl`
+  (already git-ignored, never trimmed, read by no gate), and a record that cannot be
+  written changes nothing about the exit code. The hook reaches the new parser export
+  through a namespace import, so an install that forked one of the two files and had the
+  other refreshed still loads.
+- **The BLOCK remedy described a rule the gate does not apply.** `reviewer-verdicts` reds
+  on any BLOCK entry in the turn, so a BLOCK stands for the rest of that turn, and its
+  message said "fix what it named and run it again". A same-turn re-run that returns PASS
+  does not clear it. The message now says that, and says what does. The rule itself is
+  unchanged.
+- **`/verify-invariants` named a `SHIP` verdict nothing emits**, and `/rls-check` asked for
+  a bare `PASS` or `FAIL`, the shape `docs-sync`'s own comment calls unparseable. They now
+  say `VERDICT: PASS` and `RLS: PASS` / `RLS: FAIL`, prefixed like `INVARIANTS:` and
+  `CITATIONS:`.
+- **How it was missed.** `docs-sync` asserts that each reviewer body contains the phrase
+  `VERDICT: PASS` or `VERDICT: BLOCK`. It does not look at where, or at what follows, and
+  its failure text claims the instructions "must end by demanding" it. The factory's own
+  test pinned `VERDICT: PASS` followed by text as unparseable, which is exactly the reply
+  the two bodies asked for, and nothing compared the two. A test now holds every roster
+  body to END with the demand.
 - **The floor's failure line ranked `High` and nothing above it.** `citeAdvisories` filtered
   on `severity === 'High'`, so the first register to carry a `Critical` row would have
   named four older Highs and left out the advisory that moved the floor. Critical now
@@ -110,6 +236,23 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 
 ### Changed
 
+- **The authoring surfaces teach the grant shape this release shipped.** The migration and
+  ADR above establish that a GRANT adds a privilege and removes none. The places that teach
+  an agent how to write a new table's grants still showed two revokes (`anon`,
+  `service_role`) and a grant to `authenticated`, which produces the very table the new
+  privilege assertion reds. Twelve of them now teach three revokes and then a grant of
+  exactly the operations the table's policies admit: the `migration-rls-author` and
+  `security-reviewer` agents, `/new-migration`, `/new-feature` and `/rls-check`, both
+  authoring skills and the slice skill's migration reference, the always-loaded
+  `security-invariants` rule, `AGENTS.md`, `supabase/AGENTS.md`, and the e2ee module's
+  sharing recipe. They name TRUNCATE, REFERENCES and TRIGGER, say that the re-grant must
+  cover every operation a policy admits (or `schema-rls` reds), and say that
+  `REVOKE … FROM authenticated` needs a resolvable `-- adr:` marker, because the
+  `migrations` gate treats it as a change to an authorization control and an instruction
+  that omitted it would teach a red. The security reviewer's flag list gains the missing
+  revoke. Documentation only: no gate, test or SQL changes. `AGENTS.md` and
+  `supabase/AGENTS.md` are seeded, so an existing install gets the sentence to copy from the
+  runbook instead.
 - **README rewritten.** The install command moves from line 291 to the top. Claims the
   code did not back are corrected: "npm-installable" (nothing publishes to the npm
   registry), `packages/shared/*` (does not exist), a "36 gates" list that named 32, a Stop
@@ -119,6 +262,20 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   CC-BY-4.0 in `REUSE.toml`), a pull request template for this repository, and
   contributing and feedback links in the README, `CONTRIBUTING.md` and the issue chooser.
 - The factory `.gitignore` ignores credential-shaped files.
+- **`update --dry-run` names the paths it would write**, in the human report as well as the
+  JSON one, and the sweep now adds a note for every file it parks, as `--refresh-seeded`
+  already did. **`doctor` lists each re-recorded fork as `info`** and its exit code does not
+  move for one. `gate-integrity`'s failure hint describes re-recording as the supported way
+  to keep a fork, which it now is.
+- **A new factory check, `scripts/check-released-shas.mjs`**, holds the tables to the tree:
+  every owned file the live template ships is listed under the current version, every
+  released vintage has a table, and in `lint.yml`, where the tags are, every tag's tree is
+  inside its version's table as judged by that tag's own installer. It runs in
+  `machinery-lint`, in the factory Stop list and in the CONTRIBUTING list, and
+  `check-release-lockstep` requires the current version's table to exist. It is a factory
+  check and never runs in an install. A pull request that touches an owned template file
+  now also runs `node scripts/generate-released-shas.mjs --current`, which only adds
+  variants.
 
 ### What stays open, honestly
 
@@ -138,12 +295,56 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   `conformance-cra-art14-application` (due 2026-09-11). Each needs its own dated
   re-verification. Until they are done the nightly `hygiene.yml` run stays red on
   `obligations-clockful`, which is the masking described above.
+- **Provenance has five stated limits.** A file with no manifest record at all is still
+  treated as unmodified, as before, so a consumer file at a path a later release starts
+  shipping can still be overwritten. `update` rebuilds a placeholder-bearing file's source
+  from the answers in the manifest, so an install whose `answers` were hand-edited after
+  install sees those files parked. They are never lost, and the pending copies can be
+  accepted. `tsconfig.json` is exempt, because the installer derives its project references
+  at install time and no release's bytes can match it. And commits below the lineage floor
+  have no table: an install from one keeps the old behaviour and the run says so in one
+  note. "Upstream left the file alone" is judged conservatively: when the tables hold more
+  than one variant of a path between the install's version and the incoming one, a fork of
+  it is parked, because which variant the fork was based on is not knowable. That settles
+  on the first update that moves the install past the version with two variants.
+  `gate-integrity`'s own "this file is what `update` just wrote" test still reads the
+  manifest record alone.
+- **The workflow properties are held by a factory test, not by anything in an install.**
+  A consumer who adds a job without a ceiling, or a workflow without the shell default, is
+  not told. A lint job for that belongs behind a ramp, and the canary `lanes` registry
+  still covers the base workflows only.
+- **`docs-sync` still checks that the verdict phrase appears, not that it is last.** The
+  position is held by a factory test. Making it a rule in an install's own gate would red
+  a project that edited a reviewer body, so it belongs behind a ramp. The same goes for the
+  ledger's semantics: a BLOCK stays sticky for its turn, a commit before the turn ends
+  still empties the set of owed reviewers, and none of that changes here.
+- **The shipped example migrations still use the two-revoke shape.** They are applied
+  history. The seven read-only tables are corrected by this release's migration, and the
+  directly writable ones keep the platform's TRUNCATE, REFERENCES and TRIGGER on
+  `authenticated` behind row security that refuses the rows. Nothing static checks a
+  grant against the policies that need it in the wider direction, and
+  `rls_structure.test.sql` still builds its table lists by hand in several places with a
+  hand-kept `plan()`. Both belong behind a ramp.
 - **What was proven where.** A fresh scaffold from this tree passes all 36 gates with the
   local Supabase stack live and nothing skipped, the pgTAP suite passes 176 tests, and the
   new privilege assertion was shown to fail on an injected `TRUNCATE` grant and pass again
   once it was revoked. Leg A of `upgrade-linux` passes locally from v1.0.1. The supabase-js
   half of the RLS suite was run in CI only: one of its files hardcodes the default database
   port, and the machine this was prepared on had another project's stack on that port.
+  For the fork fix: a second `update` added to the retrofit conflict test failed on the
+  unchanged installer with "the second update overwrote the human's merged config", and
+  the new fork cases failed against the unchanged call sites before passing. The tables
+  were generated from every first-parent commit of `main` at or above 0.1.3 and every tag,
+  each judged by its own installer, and each map was proved twice before it was kept: that
+  commit's `render` had to invert through `derender` for every placeholder-bearing owned
+  file, and that commit's own strict-tier `init` with non-default answers had to leave no
+  owned sha unexplained, which is what shows the `tsconfig.json` exemption is the only one
+  needed. Installs made by each of those commits' own `init`, at the core and strict tiers,
+  were then updated to this tree in dry-run with nothing parked. From v1.0.1's own `init`,
+  a forked gate script that upstream changed was kept and parked with exit 2, one that
+  upstream left alone was kept with nothing parked, the dry-run report equalled the real
+  one, `doctor` named both, and `--rollback` restored the 1.0.1 state. `upgrade-linux`
+  runs every leg's `update` under `pipefail`, so one false park fails a leg.
 
 ## [1.0.1] — 2026-08-19
 

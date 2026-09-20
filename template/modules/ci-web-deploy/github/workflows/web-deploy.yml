@@ -38,10 +38,18 @@ concurrency:
   # Never cancel a release attestation mid-flight; queue instead.
   cancel-in-progress: false
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   attest-web:
     name: build web + attest + verify
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

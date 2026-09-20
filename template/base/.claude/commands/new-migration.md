@@ -37,8 +37,15 @@ Every user-scoped table carries, IN THE SAME migration:
   so one index serves the policy, the sort and the cursor range;
 - `REVOKE ALL ON TABLE ... FROM anon;` and `REVOKE ALL ON TABLE ... FROM service_role;`
   (`service_role` BYPASSES RLS by role attribute — the REVOKE is the only lever over it, and it
-  stays revoked until an ADR-governed Edge Function needs a per-table `GRANT`), then `GRANT`
-  only the operations the feature needs to `authenticated`.
+  stays revoked until an ADR-governed Edge Function needs a per-table `GRANT`), AND
+  `REVOKE ALL ON TABLE ... FROM authenticated;` — then `GRANT` exactly the operations the
+  table's policies admit to `authenticated`. The third revoke is not optional: the platform
+  grants ALL on a new `public` table to `authenticated` too, and **a GRANT adds a privilege and
+  removes none**, so granting four verbs on top of that default leaves TRUNCATE (which row
+  security never sees), REFERENCES and TRIGGER in place. Because the `migrations` gate treats
+  `REVOKE ... FROM authenticated` as a change to an authorization control, the file carries
+  `-- adr: docs/adr/<this slice's ADR>`, and that file has to exist. Extend the
+  privilege-exactness assertion in `supabase/tests/rls_structure.test.sql` to cover the table.
 
 `-- SOURCE: <authority> [corpus: <id>]` on every decision line (FORCE, each CREATE POLICY, the
 initPlan sub-select, the index). Destructive DDL (DROP TABLE/COLUMN, TRUNCATE) requires

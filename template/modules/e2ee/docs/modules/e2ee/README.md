@@ -339,8 +339,13 @@ CREATE POLICY user_public_keys_update ON public.user_public_keys
 CREATE POLICY user_public_keys_delete ON public.user_public_keys
   FOR DELETE TO authenticated USING ((SELECT auth.uid()) = user_id);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_public_keys TO authenticated;
+-- The platform default grants ALL to anon, service_role AND authenticated, and a GRANT
+-- removes nothing: revoke all three, then grant exactly what the policies above admit.
+-- adr: docs/adr/<the sharing feature's ADR>   (required for REVOKE … FROM authenticated)
+REVOKE ALL ON TABLE public.user_public_keys FROM anon;
 REVOKE ALL ON TABLE public.user_public_keys FROM service_role;
+REVOKE ALL ON TABLE public.user_public_keys FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.user_public_keys TO authenticated;
 ```
 
 This is a RECIPE, not a shipped migration — it lands only when a feature

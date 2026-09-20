@@ -62,7 +62,7 @@ node scripts/check-reuse.mjs            # REUSE dual-license structure (offline 
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
-node scripts/check-canary-coverage.mjs  # every gate AND every job in all eight shipped workflows has a registered, RUNNING red-proof
+node scripts/check-canary-coverage.mjs  # every gate AND every job in all nine shipped base workflows has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 # RUN THE SUITE IN THE CI ENVIRONMENT SHAPE, not your shell's. Gate fixtures build a
 # THROWAWAY git repo with no remote, and on a `pull_request` run GITHUB_BASE_REF names the
@@ -99,6 +99,7 @@ node scripts/check-ci-preconditions.mjs    # the shipped CI's entry path stays s
 node scripts/check-seeded-migrations.mjs   # seedOnInitOnly completeness: an unregistered seeded addition auto-plants on `update`
 node scripts/check-eol-target.mjs          # no shipped production-scope removalTarget has ARRIVED in the release being cut, and a moved one carries a seededSourceFixes probe
 node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
+node scripts/check-released-shas.mjs --verify-tags  # template/shas lists every owned file this tree ships, covers every vintage, and contains every tag's own bytes — touched an owned template file? run `node scripts/generate-released-shas.mjs --current` first
 
 # The one that matters most — the scaffold must be green with ZERO edits:
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
@@ -168,7 +169,10 @@ review. The last two are conventions the maintainer will ask for.
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
    (`subagent-verdict.mjs` joined them in 0.6.0 and `launch.mjs` in 1.0.0 — the
    gate iterates the directory, so the count follows the tree rather than this
-   sentence).
+   sentence). The bump also starts the new version's released-sha table
+   (`node scripts/generate-released-shas.mjs --current`) and adds the predecessor
+   to `VINTAGES` in `scripts/lib/ramp-sites.mjs`; the lockstep gate requires the
+   table, and `check-released-shas.mjs` requires one for every vintage.
 3. Run `node scripts/check-release-lockstep.mjs` — the same check runs on every
    PR in the selftest matrix and again at tag time.
 4. **Confirm `upgrade-linux` is green on the release commit.** It installs the

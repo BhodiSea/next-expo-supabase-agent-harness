@@ -73,10 +73,22 @@ Hard rules (each is gate- or hook-enforced; write SQL that passes on the first r
    statements when you review the draft or the citation duty silently lapses.
 6. **The GRANT wall (the outer gate, policies the inner one).** Supabase's default
    privileges hand every new `public` table to anon, authenticated AND service_role;
-   undo that deliberately: `REVOKE ALL ON TABLE public.t FROM anon;`
+   undo that deliberately, for ALL THREE: `REVOKE ALL ON TABLE public.t FROM anon;`
    `REVOKE ALL ON TABLE public.t FROM service_role;`
-   `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.t TO authenticated;`.
-   `FORCE` closes the table-OWNER hole; it does NOT close the BYPASSRLS hole —
+   `REVOKE ALL ON TABLE public.t FROM authenticated;` and only THEN
+   `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.t TO authenticated;` — naming
+   exactly the operations the table's policies admit, no more (a read-only table gets
+   `GRANT SELECT`) and no fewer (`schema-rls` reds a policy whose operation has no grant).
+   **A GRANT adds a privilege and removes none**: without the `authenticated` revoke the
+   role keeps the platform's TRUNCATE, REFERENCES and TRIGGER — and every write verb you
+   did not mean to grant — behind a migration that reads as if it granted four. TRUNCATE
+   is not subject to row security at all. The `migrations` gate treats
+   `REVOKE … FROM authenticated` as a change to an authorization control, so the file
+   carries `-- adr: docs/adr/<this slice's ADR>` and that file must exist (`/adr <slice>`).
+   Then add the table to the privilege-exactness assertion in
+   `supabase/tests/rls_structure.test.sql`: its table list when clients may only read it,
+   a sibling `is_empty(...)` over the same seven privileges (and a `plan()` bump) when
+   they may write. `FORCE` closes the table-OWNER hole; it does NOT close the BYPASSRLS hole —
    the REVOKE is the ONLY lever over `service_role`, so it reaches a table only via
    a LATER, ADR-governed migration granting it explicitly, per table, narrowly
    (never `GRANT ALL ON ALL TABLES`). See `supabase/functions/README.md`.

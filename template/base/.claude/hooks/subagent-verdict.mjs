@@ -26,9 +26,12 @@
 // parsing, no guessing at a format that changes between releases.
 //
 // TWO THINGS IT DOES, IN ORDER:
-//   1. BLOCKS a reviewer whose final message does not end in the mandated form (exit 2,
-//      which "prevents the subagent from stopping"). That enforces at RUNTIME the contract
-//      check-docs-sync.mjs has only ever checked in the FILE.
+//   1. BLOCKS a reviewer whose final message carries no readable verdict (exit 2, which
+//      "prevents the subagent from stopping"). That enforces at RUNTIME the contract
+//      check-docs-sync.mjs has only ever checked in the FILE. What counts as readable is
+//      tools/lib/reviewer-verdicts.mjs's grammar, asymmetric since 1.0.2: a PASS must be
+//      the exact terminal line, a BLOCK is taken wherever a line states it, and a message
+//      stating both is bounced. Every bounce is appended to .harness/verdict-bounces.jsonl.
 //   2. Appends the verdict to a session-scoped ledger, which tools/check-reviewer-verdicts.mjs
 //      reads as Stop-chain step 10. Since 0.7.0 the entry also carries `path_state` — the
 //      shared pathStateDigest over the changed files this reviewer's triggers own, computed
@@ -44,7 +47,13 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { changedFiles } from '../../tools/lib/git-diff.mjs'
-import { pathStateDigest, readVerdict } from '../../tools/lib/reviewer-verdicts.mjs'
+// A NAMESPACE import, deliberately (1.0.2). `classifyVerdict` is new in this release, and an
+// install may carry a FORKED tools/lib/reviewer-verdicts.mjs that `update` parked rather than
+// refreshed. A static named import of an export that lib lacks fails at LINK time, before a
+// line of this hook runs — and then every SubagentStop, reviewer or not, dies on a load
+// error instead of being judged. Through the namespace a missing export is `undefined`, and
+// the hook falls back to `readVerdict`, whose name and return domain did not change.
+import * as verdicts from '../../tools/lib/reviewer-verdicts.mjs'
 import { readHookInput } from './lib/hookio.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
@@ -52,6 +61,11 @@ export const HARNESS_HOOK_VERSION = '1.0.2'
 
 const AGENTS_DIR = '.claude/agents'
 const LEDGER = '.harness/reviewer-ledger.jsonl'
+// Every bounce, kept (1.0.2). The turn log records only THAT this hook blocked and is
+// trimmed to its last 200 rows, so a run of bounces — two reviewer bodies caused one on
+// every review — left nothing to diagnose it from. Append-only, never trimmed, a diagnostic
+// and nothing else: no gate reads it, and .harness/* is already git-ignored.
+const BOUNCES = '.harness/verdict-bounces.jsonl'
 const TRIGGERS = 'tools/reviewer-triggers.json'
 
 /**
@@ -70,7 +84,7 @@ const TRIGGERS = 'tools/reviewer-triggers.json'
 function pathState(agentType) {
   try {
     const cfg = JSON.parse(readFileSync(TRIGGERS, 'utf8'))
-    return pathStateDigest(agentType, cfg, changedFiles(), (p) =>
+    return verdicts.pathStateDigest(agentType, cfg, changedFiles(), (p) =>
       existsSync(p) ? readFileSync(p) : null,
     )
   } catch {
@@ -131,15 +145,50 @@ if (input === null || typeof input !== 'object') {
 const agentType = typeof input.agent_type === 'string' ? input.agent_type : null
 if (agentType === null || !reviewerTypes().has(agentType)) process.exit(0)
 
-const verdict = readVerdict(input.last_assistant_message)
+const { verdict, shape } =
+  typeof verdicts.classifyVerdict === 'function'
+    ? verdicts.classifyVerdict(input.last_assistant_message)
+    : { verdict: verdicts.readVerdict(input.last_assistant_message), shape: 'unclassified' }
+
+/**
+ * What the reviewer's last line was and why it did not parse. BOOKKEEPING NEVER DECIDES THE
+ * OUTCOME: the exit 2 below happens whether or not this write does.
+ */
+function recordBounce() {
+  try {
+    const message = typeof input.last_assistant_message === 'string' ? input.last_assistant_message : ''
+    const lastLine = message.trimEnd().split('\n').at(-1)?.trim() ?? ''
+    mkdirSync(dirname(BOUNCES), { recursive: true })
+    appendFileSync(
+      BOUNCES,
+      `${JSON.stringify({
+        at: new Date().toISOString(),
+        session_id: input.session_id ?? null,
+        agent_type: agentType,
+        shape,
+        last_line: lastLine.slice(0, 200),
+      })}\n`,
+    )
+  } catch {
+    // a diagnostic that cannot be written changes nothing about the verdict
+  }
+}
+
+// The one shape worth its own sentence: the reviewer DID give a verdict — two of them.
+const SHAPE_HINT =
+  shape === 'both-forms'
+    ? ' Your message states both a PASS and a BLOCK verdict line — state exactly one.'
+    : ''
+
 if (verdict === null) {
   // BLOCKING THE SUBAGENT, not the turn. Exit 2 on SubagentStop prevents the subagent from
   // stopping, so it gets another chance to say the thing its own file promises it will say.
   // This is the contract check-docs-sync.mjs asserts about the reviewer's BODY, enforced at
   // the moment it matters.
   recordBlock(`subagent-verdict/${agentType}`, input)
+  recordBounce()
   process.stderr.write(
-    `subagent-verdict: ${agentType} ended without a verdict. Its own definition requires the reply to end with exactly one line reading "VERDICT: PASS" or "VERDICT: BLOCK", and nothing after it. Re-state your conclusion in that form — a review nobody can parse is a review that did not happen.\n`,
+    `subagent-verdict: ${agentType} ended without a verdict. Its own definition requires the reply to end with exactly one line reading "VERDICT: PASS" or "VERDICT: BLOCK", and nothing after it.${SHAPE_HINT} Re-state your conclusion in that form — a review nobody can parse is a review that did not happen.\n`,
   )
   process.exit(2)
 }

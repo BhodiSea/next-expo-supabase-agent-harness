@@ -100,8 +100,9 @@ Everything else is EXACTLY the ordinary table, because RLS is still the authoriz
 boundary and an encrypted table gets no relief from it. In the SAME migration: `ENABLE` +
 `FORCE ROW LEVEL SECURITY`, four per-operation policies `TO authenticated` (never `FOR ALL`,
 never `TO public`) using only the two legal predicate shapes over `org_id`, a leading-column
-owner index that carries the ORDERING as well as the filter, `REVOKE ALL` from `service_role`,
-the explicit `GRANT` per operation the policies admit, and the audit trigger with **no `WHEN`
+owner index that carries the ORDERING as well as the filter, `REVOKE ALL` from `anon`,
+`service_role` and `authenticated` (the platform default grants all three, and a GRANT removes
+nothing), then the explicit `GRANT` per operation the policies admit, and the audit trigger with **no `WHEN`
 clause**. Read `.claude/skills/authoring-vertical-slice/references/migration-rls.md` and
 follow it exactly — including re-casing the RLS statements to UPPERCASE so the provenance
 heuristic can see them.

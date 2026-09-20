@@ -1,5 +1,5 @@
 ---
-description: Run the security-reviewer over the RLS/policy/migration diff, plus (if the local stack is up) the rls_verify probe and pgTAP — return PASS or FAIL and fix until PASS.
+description: Run the security-reviewer over the RLS/policy/migration diff, plus (if the local stack is up) the rls_verify probe and pgTAP — return `RLS: PASS` or `RLS: FAIL` and fix until it passes.
 allowed-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
@@ -15,8 +15,9 @@ user-scoped table has `ENABLE` + `FORCE ROW LEVEL SECURITY` in the SAME migratio
 it; four per-operation policies `TO authenticated` (never `FOR ALL`), each predicate real (no
 `USING (true)`) and keyed on the initPlan sub-select `(select auth.uid())`, with `WITH CHECK`
 on INSERT/UPDATE; a LEADING-column owner index; `REVOKE ALL ... FROM service_role` (the only
-lever over the BYPASSRLS role, which no policy constrains) with grants narrowed to
-`authenticated`; append-only migrations; exemptions only via the write-guard-protected
+lever over the BYPASSRLS role, which no policy constrains), `FROM anon` and `FROM
+authenticated`, then a `GRANT` to `authenticated` of exactly what its policies admit — a
+GRANT removes nothing, so a missing revoke leaves it TRUNCATE, REFERENCES and TRIGGER; append-only migrations; exemptions only via the write-guard-protected
 `tools/rls-exempt.json`. It reports by severity with `file:line` refs and the exact offending
 SQL.
 
@@ -29,6 +30,7 @@ If the local Supabase stack is up, add live evidence:
   `supabase/tests/*.sql`, read back out of `pg_catalog` against what the database actually
   compiled (a migration that never ran or was undone is exactly what a static scan misses).
 
-Return a single verdict line: `PASS` or `FAIL`. If `FAIL`, fix the migration/policy — a fix is
-a further NEW `supabase/migrations/<timestamp>_*.sql`, never an edit to a committed one — and
-re-run this command until it returns `PASS`.
+Return a single verdict line: `RLS: PASS` or `RLS: FAIL` — prefixed like `INVARIANTS:` and
+`CITATIONS:`, because a bare `PASS` cannot be told from prose. If `RLS: FAIL`, fix the
+migration/policy — a fix is a further NEW `supabase/migrations/<timestamp>_*.sql`, never an
+edit to a committed one — and re-run this command until it returns `RLS: PASS`.

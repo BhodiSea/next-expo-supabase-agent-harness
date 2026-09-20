@@ -39,8 +39,9 @@ Only when nothing covers the need do you scaffold a new slice.
    declarative table in `supabase/schemas/<NN>_<slice>.sql`; the APPLIED change is a NEW
    timestamped, append-only migration `supabase/migrations/<timestamp>_<slice>.sql` carrying
    `ENABLE` + `FORCE ROW LEVEL SECURITY`, four per-operation policies keyed on `auth.uid()`
-   (`TO authenticated`), a leading-column owner index, `REVOKE ALL` from `service_role`, and
-   the `authenticated` grants. Never a GUC — RLS keys on the request's verified JWT
+   (`TO authenticated`), a leading-column owner index, `REVOKE ALL` from `anon`,
+   `service_role` AND `authenticated`, and then the exact `authenticated` grants the
+   policies admit (a GRANT removes nothing — see `references/migration-rls.md`). Never a GUC — RLS keys on the request's verified JWT
    (`auth.uid()` reads `request.jwt.claims`), never on an application-set identity value.
    Delegate to the `migration-rls-author` subagent.
 2. **RLS tests** — read `references/tests.md`. TWO twins, both run by `pnpm test:rls`:

@@ -44,6 +44,13 @@ concurrency:
   group: device-e2e-${{ github.ref }}
   cancel-in-progress: true
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # ---------------------------------------------------------------------------
   # Build ONCE, drive three times. The release APK is a pure function of the

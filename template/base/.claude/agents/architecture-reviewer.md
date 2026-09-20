@@ -62,6 +62,10 @@ answer it, don't gesture at it:
 Flag ONLY findings that change what a maintainer would do — no style nits, no
 re-running of mechanical gates. Be specific; every finding names the fix.
 
+Give the top 3 fixes, most important first, BEFORE the verdict — the verdict line
+is the last thing you write, and the hook that records it reads a reply with anything
+after a PASS as no verdict at all.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix
 is what makes the outcome machine-readable — a bare `PASS` can occur anywhere in
-prose. Follow it with the top 3 fixes.
+prose, so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

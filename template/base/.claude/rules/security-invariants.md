@@ -38,6 +38,16 @@ SOURCE: docs/harness/README.md (security-invariants rule)
   grant, because it admits nothing. `tools/check-rls-manifest.mjs` closes policy → grant
   (never the reverse — `service_role` holds ADR'd grants with no policy, since it
   bypasses row security).
+- **…and the GRANT is EXACT, which takes a REVOKE first.** A GRANT adds a privilege and
+  removes none. Where the platform default applies, `authenticated` already holds ALL on
+  a new `public` table, so `REVOKE ALL … FROM anon` + `FROM service_role` followed by a
+  four-verb GRANT leaves it TRUNCATE (which row security never sees), REFERENCES and
+  TRIGGER — and on a table clients may only read, every write verb as well. Write
+  `REVOKE ALL ON TABLE public.<t> FROM authenticated;` beside the other two, THEN grant
+  exactly what the policies admit. The `migrations` gate reads that revoke as a change
+  to an authorization control, so the file carries `-- adr: docs/adr/<file>` and the ADR
+  exists. `supabase/tests/rls_structure.test.sql` asserts the exact privilege set per
+  table — add yours. ADR: `docs/adr/20260920-authenticated-write-revoke.md`.
 - **`service_role` BYPASSES RLS and has exactly one sanctioned home.** No policy
   in the repo constrains it and the RLS suite cannot cover it. It is reachable
   ONLY inside an ADR-governed Edge Function (`supabase/functions/<name>/index.ts`)
