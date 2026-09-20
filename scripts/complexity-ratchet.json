@@ -3,7 +3,7 @@
   "limit": 15,
   "functions": {
     "installer/commands/doctor.mjs::doctor": 54,
-    "installer/commands/enable.mjs::enable": 54,
+    "installer/commands/enable.mjs::enable": 44,
     "installer/commands/init.mjs::init": 117,
     "installer/commands/update.mjs::update": 61,
     "installer/lib/merge-claude-settings.mjs::mergeClaudeSettings": 19,

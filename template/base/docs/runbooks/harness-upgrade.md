@@ -1142,6 +1142,72 @@ The shipped example migrations keep the older shape. They are applied history, a
 seven read-only tables are corrected by the migration above. For a writable table of your
 own, the same three statements and an exact re-grant are the fix.
 
+### Forking an owned file: re-record it, and `update` parks instead of overwriting
+
+Sometimes a harness-owned file has to change for your project: a gate script that needs a
+local fix before upstream ships one, a workflow with a lane you run differently. The
+supported way to keep such a fork is the one `gate-integrity` already pushes you towards:
+edit the file, then have a human re-record its `sha256` in `.harness/manifest.json` in a
+reviewed commit. The gate goes green, and the record is visible in the diff.
+
+**Until 1.0.2 that record was also the fork's death warrant.** `update` read "the bytes
+match the manifest" as "the harness wrote them", so a re-recorded fork looked pristine and
+was overwritten on the next update, silently, with exit 0. `disable` and a `removed`
+migration deleted one the same way, and the installer did it to two files it had recorded
+itself: `.claude/settings.json` after a retrofit merged your settings into it, and a root
+config whose retrofit conflict you had just resolved by merging.
+
+From 1.0.2 `update` asks a different question: did a release ever ship these bytes? The
+installer now carries, per version, the sha of every owned file it has shipped
+(`template/shas/` in the harness repo; nothing is added to your tree). A recorded sha that
+matches none of them is a fork, and:
+
+- **the file is kept**, whatever `update` brings;
+- **the incoming version is parked** at `.harness/pending/<path>` only when upstream
+  actually changed that file since your install's version. Merge it, re-record, delete
+  the parked copy. `update` exits 2 while anything is parked, exactly as it does for drift;
+- **nothing is parked when upstream left the file alone**. The run lists your forks in one
+  note and the exit code stays 0. A fork does not cost you a red update forever;
+- `update --dry-run` now names every path it would write, and `doctor` lists each fork as
+  `info` without changing its exit code, so you can see what a run will do before it does it;
+- `update --force` still means "discard my local version". It overwrites forks too.
+
+A file pinned back to an *older* release's bytes is treated the same way, and the note
+says which release it matches.
+
+Do not reach for the quieter escape of editing the record's `mode` to `seeded`. It does
+stop `update` from touching the file, and it also takes the file off the hash surface, so
+`gate-integrity` no longer notices anyone editing it. Re-recording keeps the evidence.
+
+Two limits. `update` rebuilds a placeholder-bearing file's template source from the
+answers in your manifest, so hand-editing `answers` afterwards makes those files read as
+forks (parked, never lost). And `tsconfig.json` is exempt: the installer derives its
+project references at install time, so no release's bytes can match it, and it is
+refreshed as before.
+
+### The shipped workflows now fail a broken pipe, and every job has a ceiling
+
+`update` refreshes every workflow under `.github/workflows/` that you have not changed. Two
+things are different in them.
+
+**Every workflow selects `shell: bash` at the top.** GitHub runs a step that names no shell
+as `bash -e`, without `pipefail`, so `producer | tee file` reported `tee`'s status and the
+producer's failure was lost. That is what `gate-summary` was: the check you were told to
+mark required printed `gate-summary: FAIL` and exited 0. It now goes red when a lane it
+covers is red. **If `gate-summary` turns red on the first run after this update, open the
+lane it names.** The lane was already failing; the summary has started saying so. Two other
+steps were rewritten for the same class: the pull request mutation lane no longer reads a
+scoper that failed closed as "nothing to mutate", and the `native` job's targetSdk check
+still prints why it failed.
+
+**Every job has a `timeout-minutes`.** Without one a hung step costs GitHub's 360-minute
+default before anything reports. The ceilings are several times what the lanes take on a
+fresh scaffold, and a job that times out is reported as cancelled, which `gate-summary`
+already counts as a failure. If one of your lanes legitimately runs longer than its
+ceiling (mutation testing and CodeQL grow with your code), raise the number in your copy
+of the workflow and re-record its sha, as this release's "Forking an owned file" section
+describes: `update` keeps a fork and parks the incoming version for you to merge.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

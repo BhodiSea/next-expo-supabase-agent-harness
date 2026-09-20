@@ -103,8 +103,14 @@ if (!existsSync(LEDGER)) {
           `${o.agent} did not run this turn, and \`${o.because}\` is why it is owed. ${o.why ?? ''} Run it, then end the turn.`,
         )
       } else if (mine.some((e) => e.verdict === 'BLOCK')) {
+        // ANY entry, not the latest: a BLOCK is sticky for the turn. The message below says
+        // so (1.0.2) — through 1.0.1 it said "fix what it named and run it again", which
+        // describes the latest-entry rule of the branch after this one, not this rule, and
+        // sent a turn into re-running a reviewer whose PASS could not count. Whether a
+        // same-turn PASS by the same agent SHOULD clear it is a semantics change, and
+        // semantics changes here ride a ramp; this release only makes the text true.
         errs.push(
-          `${o.agent} returned VERDICT: BLOCK. That is the finding it exists to produce — fix what it named and run it again. A turn does not end on a BLOCK.`,
+          `${o.agent} returned VERDICT: BLOCK. That is the finding it exists to produce — fix what it named. A turn does not end on a BLOCK, and this one stands for the rest of THIS turn: the ledger keeps every entry, so re-running the reviewer now and getting a PASS does not clear it. On the next turn ${o.agent} is owed again for as long as the diff still touches its paths, and its PASS there is what clears this.`,
         )
       } else {
         // THE DIFF BINDING. Judge the LATEST entry — the ledger is append-only and

@@ -9,9 +9,17 @@ on:
 permissions:
   contents: read
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 150
     permissions:
       contents: write
       id-token: write

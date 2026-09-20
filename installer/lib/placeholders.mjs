@@ -163,3 +163,13 @@ export function tokensIn(text) {
   for (const m of text.matchAll(TOKEN_RE)) found.add(m[1])
   return found
 }
+
+// Where each token sits in a SOURCE text: [offset, NAME] pairs in ascending order, the
+// name bare. This is the record the released-sha tables carry for a placeholder-bearing
+// file (template/shas/), and it is what lets provenance.mjs rebuild the source from an
+// installed, rendered copy by walking offsets instead of searching for values — a value
+// like `main` occurs all over a workflow, and only the offset says which one was a token.
+/** @param {string} text @returns {Array<[number, string]>} */
+export function tokenSites(text) {
+  return [...text.matchAll(TOKEN_RE)].map((m) => [m.index, m[1]])
+}
