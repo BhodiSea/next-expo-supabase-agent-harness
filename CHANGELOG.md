@@ -25,6 +25,12 @@ file, the new migration, and restates 1.0.0's thirteen-vintage `rampExpiry` popu
 any `next` pin below the new floor until the consumer raises it. The remedy is in
 `docs/runbooks/harness-upgrade.md`, 1.0.2 section.
 
+**`gate-summary` can now go red, which it could not before.** An install whose
+`quality-gate.yml` is unmodified receives the corrected workflow through `update`. If a
+lane under it was already failing, the required check starts reporting that on the next
+run. Nothing about the lanes changes; the summary stops hiding them. Every shipped job
+also gains a `timeout-minutes`, set several times above what it takes on a fresh scaffold.
+
 ### Security
 
 - **The `next` floor moves to 16.3.3 (15.5.24 on the 15 line); the catalog pins 16.3.5.**
@@ -81,6 +87,41 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 
 ### Fixed
 
+- **The required check could not fail.** `quality-gate.yml`'s `gate-summary` job is the
+  one an enterprise is told to mark required, and its verdict lives in
+  `tools/ci/summarize-gate.mjs`, which exits 1 on a failed or cancelled lane. The step ran
+  it as `node tools/ci/summarize-gate.mjs | tee -a "$GITHUB_STEP_SUMMARY"` and named no
+  shell. GitHub runs such a step as `bash -e`, without `pipefail`, so the step's status
+  was `tee`'s: the log said `gate-summary: FAIL` and the check went green. No shipped
+  workflow selected a shell at workflow level, so the same was true of every un-shelled
+  pipe. All 19 shipped workflows and the factory's own now set
+  `defaults.run.shell: bash`, above `jobs:`, which GitHub runs as
+  `bash --noprofile --norc -eo pipefail`. The Scorecard workflow is the exception, because
+  Scorecard refuses to publish results from a workflow with top-level `defaults` or `env`.
+  An audit of every un-shelled `run:` block found one step whose behaviour the new shell
+  changes (the `native` job's targetSdk check would have died before printing its
+  diagnostic, so its pipeline gains `|| true`) and one swallowed failure of the same class
+  that `pipefail` cannot reach: the pull request mutation lane wrapped
+  `$(node tools/mutation-scope.mjs)` inside an `echo` argument, which discards the
+  scoper's fail-closed exit and reports "nothing to mutate". It is now an assignment
+  followed by the `echo`. `gate-summary` also sends stderr into the step summary, where the
+  list of failed lanes had never appeared.
+- **No job could hang for less than six hours.** 39 of 48 shipped jobs and 15 of the
+  factory's 23 had no `timeout-minutes`. Every job that can take one now has one (a
+  reusable-workflow job cannot). The ceilings follow the values the repository already used
+  for sibling jobs, sit several times above measured cost, and are widest where a
+  consumer's duration grows with their code: 240 for the nightly mutation run, 120 for
+  CodeQL and the live evaluation lane, 90 for the pull request mutation lane and store
+  submission. The factory's `release` job gets 150 because it legitimately polls for 90
+  minutes. `eas-update`'s `publish` rises from 45 to 60, since it does everything `static`
+  does. A timed-out job reports `cancelled`, which `summarize-gate` counts as a failure.
+- **How it was missed.** The summarizer had a red-proof from the day it shipped, and the
+  proof tested the script. Nothing ran the step, and the step is where the verdict was
+  lost. The structural workflow checks (`workflow-lanes`, `check-ci-preconditions`, the
+  canary `lanes` closure) read `template/base/` only, so the ten module workflows were
+  outside every one of them. `tests/gates/workflow-hardening.test.mjs` runs the real step
+  text the way GitHub would, keeps the old behaviour as its control (the same script under
+  `bash -e` exits 0), and holds both properties over base, every module and the factory.
 - **The floor's failure line ranked `High` and nothing above it.** `citeAdvisories` filtered
   on `severity === 'High'`, so the first register to carry a `Critical` row would have
   named four older Highs and left out the advisory that moved the floor. Critical now
@@ -138,6 +179,10 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   `conformance-cra-art14-application` (due 2026-09-11). Each needs its own dated
   re-verification. Until they are done the nightly `hygiene.yml` run stays red on
   `obligations-clockful`, which is the masking described above.
+- **The workflow properties are held by a factory test, not by anything in an install.**
+  A consumer who adds a job without a ceiling, or a workflow without the shell default, is
+  not told. A lint job for that belongs behind a ramp, and the canary `lanes` registry
+  still covers the base workflows only.
 - **What was proven where.** A fresh scaffold from this tree passes all 36 gates with the
   local Supabase stack live and nothing skipped, the pgTAP suite passes 176 tests, and the
   new privilege assertion was shown to fail on an injected `TRUNCATE` grant and pass again

@@ -62,7 +62,7 @@ node scripts/check-reuse.mjs            # REUSE dual-license structure (offline 
 node scripts/check-claims.mjs           # README/CHANGELOG numbers recomputed from the sources of truth
 node scripts/check-release-lockstep.mjs # one version across package.json, plugin, hooks, CITATION, CHANGELOG
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
-node scripts/check-canary-coverage.mjs  # every gate AND every job in all eight shipped workflows has a registered, RUNNING red-proof
+node scripts/check-canary-coverage.mjs  # every gate AND every job in all nine shipped base workflows has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
 # RUN THE SUITE IN THE CI ENVIRONMENT SHAPE, not your shell's. Gate fixtures build a
 # THROWAWAY git repo with no remote, and on a `pull_request` run GITHUB_BASE_REF names the
