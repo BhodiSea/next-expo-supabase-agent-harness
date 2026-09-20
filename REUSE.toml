@@ -42,3 +42,13 @@ path = "template/presets/tokens-metal/apps/web/styles/metal/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Cogvera Labs; portions oklch-metal-tokens contributors (https://github.com/BhodiSea/oklch-metal-tokens)"
 SPDX-License-Identifier = "Apache-2.0 OR 0BSD"
+
+# CODE_OF_CONDUCT.md is the Contributor Covenant 2.1, unmodified apart from the contact
+# address. Its authors license it CC BY 4.0, and the attribution the license asks for is
+# the file's own closing section. Last, because the latest matching table wins and the
+# repo-wide Apache-2.0 claim above would otherwise misstate it.
+[[annotations]]
+path = "CODE_OF_CONDUCT.md"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Contributor Covenant authors (https://www.contributor-covenant.org)"
+SPDX-License-Identifier = "CC-BY-4.0"
