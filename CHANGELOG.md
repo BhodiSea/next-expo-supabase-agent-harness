@@ -81,6 +81,48 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
 
 ### Fixed
 
+- **Two reviewer bodies contradicted the parser that judges them.** `torvalds-reviewer`
+  and `architecture-reviewer` ended "End with exactly one final line: `VERDICT: …`.
+  Follow it with the top 3 fixes." `readVerdict` read the last non-empty line only, so a
+  reviewer that did what its own file said was bounced by the SubagentStop hook on every
+  review, PASS or BLOCK, with a message telling it to put "nothing after" the line its body
+  told it to follow. Both bodies now ask for the fixes first and the verdict last, and
+  `citation-verifier` fixes the order of its two lines (`CITATIONS:` first, `VERDICT:`
+  last), which it had left open.
+  The parser is also asymmetric now, because its two errors do not cost the same. A PASS is
+  still read only from the exact terminal line, and additionally only when no BLOCK line
+  exists anywhere in the message. A BLOCK is read wherever a line states it: not terminal,
+  followed by its fixes, carrying a reason, or spelled `FAIL` (recorded as `BLOCK`, so the
+  ledger's vocabulary stays closed). A terminal exact BLOCK always wins, so every message
+  that read BLOCK before still does. A closed set of markdown habits is tolerated around
+  the line (backticks, emphasis, a blockquote, list marker or heading, one trailing
+  period) and nothing else: `VERDICT: PASS — ship it` and `VERDICT: PASSED` are still not
+  a pass. A message that states both is bounced with a sentence saying so. **One shape is
+  stricter than before:** a terminal exact PASS with a BLOCK or FAIL line elsewhere in the
+  same message used to read PASS and is now a bounce. That costs a re-statement inside the
+  subagent and can red nothing.
+  A bounce now leaves a record. The turn log keeps only the gate's name and its last 200
+  rows, so a run of bounces could not be diagnosed afterwards; the hook appends
+  `{ at, session_id, agent_type, shape, last_line }` to `.harness/verdict-bounces.jsonl`
+  (already git-ignored, never trimmed, read by no gate), and a record that cannot be
+  written changes nothing about the exit code. The hook reaches the new parser export
+  through a namespace import, so an install that forked one of the two files and had the
+  other refreshed still loads.
+- **The BLOCK remedy described a rule the gate does not apply.** `reviewer-verdicts` reds
+  on any BLOCK entry in the turn, so a BLOCK stands for the rest of that turn, and its
+  message said "fix what it named and run it again". A same-turn re-run that returns PASS
+  does not clear it. The message now says that, and says what does. The rule itself is
+  unchanged.
+- **`/verify-invariants` named a `SHIP` verdict nothing emits**, and `/rls-check` asked for
+  a bare `PASS` or `FAIL`, the shape `docs-sync`'s own comment calls unparseable. They now
+  say `VERDICT: PASS` and `RLS: PASS` / `RLS: FAIL`, prefixed like `INVARIANTS:` and
+  `CITATIONS:`.
+- **How it was missed.** `docs-sync` asserts that each reviewer body contains the phrase
+  `VERDICT: PASS` or `VERDICT: BLOCK`. It does not look at where, or at what follows, and
+  its failure text claims the instructions "must end by demanding" it. The factory's own
+  test pinned `VERDICT: PASS` followed by text as unparseable, which is exactly the reply
+  the two bodies asked for, and nothing compared the two. A test now holds every roster
+  body to END with the demand.
 - **The floor's failure line ranked `High` and nothing above it.** `citeAdvisories` filtered
   on `severity === 'High'`, so the first register to carry a `Critical` row would have
   named four older Highs and left out the advisory that moved the floor. Critical now
@@ -138,6 +180,11 @@ any `next` pin below the new floor until the consumer raises it. The remedy is i
   `conformance-cra-art14-application` (due 2026-09-11). Each needs its own dated
   re-verification. Until they are done the nightly `hygiene.yml` run stays red on
   `obligations-clockful`, which is the masking described above.
+- **`docs-sync` still checks that the verdict phrase appears, not that it is last.** The
+  position is held by a factory test. Making it a rule in an install's own gate would red
+  a project that edited a reviewer body, so it belongs behind a ramp. The same goes for the
+  ledger's semantics: a BLOCK stays sticky for its turn, a commit before the turn ends
+  still empties the set of owed reviewers, and none of that changes here.
 - **What was proven where.** A fresh scaffold from this tree passes all 36 gates with the
   local Supabase stack live and nothing skipped, the pgTAP suite passes 176 tests, and the
   new privilege assertion was shown to fail on an injected `TRUNCATE` grant and pass again

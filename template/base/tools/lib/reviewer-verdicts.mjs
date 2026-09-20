@@ -13,26 +13,98 @@
 // SOURCE: design/CONTROL-PLANE-FACTS.md (the observed SubagentStop payload)
 import { createHash } from 'node:crypto'
 
-/** The mandated terminal line. `check-docs-sync.mjs` requires every reviewer body to demand it. */
-const VERDICT_RE = /^VERDICT:\s*(PASS|BLOCK)\s*$/
+// THE VERDICT GRAMMAR (1.0.2) — asymmetric on purpose, because its two errors do not cost the
+// same. Reading a hedge as a PASS lets an unreviewed turn end; reading a clumsy BLOCK as a
+// BLOCK costs nothing. So:
+//
+//   PASS   only as the TERMINAL line, exact, and only when no BLOCK-form line exists anywhere
+//          in the message. "Exact" tolerates a closed set of markdown habits around the line
+//          (below) and nothing else: not trailing text, not `PASSED`, not another case.
+//   BLOCK  wherever a LINE states it — terminal or not, with a reason after it, spelled FAIL —
+//          provided no PASS-form line exists anywhere. A terminal exact BLOCK always wins, so
+//          every message that read BLOCK before 1.0.2 still does.
+//   null   everything else, including both forms in one message: the hook bounces the
+//          reviewer, which re-states. A hedge can never read as a pass.
+//
+// Through 1.0.1 this was one regex over the LAST line, and two reviewer bodies instructed
+// "End with exactly one final line … Follow it with the top 3 fixes". A reviewer that obeyed
+// its own file was bounced every time, BLOCK or PASS. The bodies now put the verdict last;
+// this grammar is what keeps a BLOCK followed by its fixes from being lost again.
+//
+// The wrappers, each one a habit models have for emphasising a conclusion, tolerated ONLY at
+// the line's edges and around the key: backticks (every roster body shows the line in them,
+// so a verbatim copy carries them), `**`/`__`/`*`/`_` emphasis (including the key-only
+// `**VERDICT:** PASS`), a leading blockquote, list marker or heading, and ONE trailing
+// period. A code fence is deliberately NOT a wrapper: a terminal fence delimiter is never a
+// verdict, but a fenced line still counts in the anywhere-scans — the safe direction.
+const LEAD = String.raw`(?:>\s*)*(?:(?:[-*+]|\d{1,3}[.)])\s+)?(?:#{1,6}\s+)?`
+const MARK = '[*_`]{0,3}'
+const EXACT_RE = new RegExp(
+  `^${LEAD}${MARK}VERDICT${MARK}:${MARK}\\s*(PASS|BLOCK|FAIL)${MARK}\\.?${MARK}$`,
+)
+// Line-anchored and classified by the FIRST word after the colon only — a BLOCK's reason
+// routinely contains the word "pass", and a sentence that merely mentions the line
+// ("…end with `VERDICT: PASS` or…") does not start with it.
+const FORM_RE = new RegExp(`^${LEAD}${MARK}VERDICT${MARK}\\s*:\\s*${MARK}\\s*([A-Za-z]+)`, 'i')
+const PASS_WORDS = new Set(['PASS', 'PASSED', 'PASSES'])
+const BLOCK_WORDS = new Set(['BLOCK', 'BLOCKED', 'FAIL', 'FAILED'])
+
+/** @param {string} line @returns {'pass' | 'block' | 'unknown' | null} */
+function formOf(line) {
+  const word = FORM_RE.exec(line)?.[1]?.toUpperCase()
+  if (word === undefined) return null
+  if (PASS_WORDS.has(word)) return 'pass'
+  return BLOCK_WORDS.has(word) ? 'block' : 'unknown'
+}
+
+// WHY a message did not parse — a closed vocabulary, recorded by the hook on every bounce so
+// a run of them can be read as data instead of reconstructed from a trimmed turn log.
+/** @param {string[]} lines @param {Set<string | null>} forms */
+function bounceShape(lines, forms) {
+  if (forms.has('pass') && forms.has('block')) return 'both-forms'
+  if (forms.has('pass')) {
+    const exactAt = lines.findIndex((l) => EXACT_RE.exec(l)?.[1] === 'PASS')
+    if (exactAt === -1) return 'pass-trailing-text'
+    return /^(`{3,}|~{3,})/.test(lines.at(-1) ?? '') && exactAt === lines.length - 2
+      ? 'pass-fenced'
+      : 'pass-not-terminal'
+  }
+  if (forms.has('unknown')) return 'unknown-word'
+  return lines.some((l) => /VERDICT\s*:/i.test(l)) ? 'verdict-inline' : 'no-verdict-line'
+}
 
 /**
- * The verdict on the LAST non-empty line of a subagent's final message, or null.
+ * A subagent's final message, judged: `{ verdict, shape }`. `verdict` is what the ledger
+ * records (`FAIL` is recorded as `BLOCK`, so the vocabulary stays closed); `shape` says
+ * which rule decided it, or why nothing did.
  *
- * The last line, not a search of the whole text — and the difference is not pedantic. A
- * reviewer explaining its reasoning will write the words "VERDICT: PASS" inside a sentence
- * about what a pass would mean, and a scan that accepted that would read a hedge as an
- * attestation. The probe subagent wrote three paragraphs before its line; that is the shape.
+ * @param {unknown} message
+ * @returns {{ verdict: 'PASS' | 'BLOCK' | null, shape: string }}
+ */
+export function classifyVerdict(message) {
+  if (typeof message !== 'string') return { verdict: null, shape: 'not-a-string' }
+  const lines = message
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+  const forms = new Set(lines.map(formOf))
+  const terminal = EXACT_RE.exec(lines.at(-1) ?? '')?.[1]
+  if (terminal === 'BLOCK' || terminal === 'FAIL')
+    return { verdict: 'BLOCK', shape: 'terminal-block' }
+  if (terminal === 'PASS' && !forms.has('block')) return { verdict: 'PASS', shape: 'terminal-pass' }
+  if (forms.has('block') && !forms.has('pass')) return { verdict: 'BLOCK', shape: 'block-anywhere' }
+  return { verdict: null, shape: bounceShape(lines, forms) }
+}
+
+/**
+ * The verdict of a subagent's final message, or null — see the grammar above. Same name and
+ * return domain as before 1.0.2, so a hook and a lib from different releases still agree on
+ * the call (an install may have forked one of the two files and had the other refreshed).
+ *
+ * @param {unknown} message
  */
 export function readVerdict(message) {
-  if (typeof message !== 'string') return null
-  const last =
-    message
-      .trimEnd()
-      .split('\n')
-      .filter((l) => l.trim() !== '')
-      .pop() ?? ''
-  return VERDICT_RE.exec(last.trim())?.[1] ?? null
+  return classifyVerdict(message).verdict
 }
 
 /**

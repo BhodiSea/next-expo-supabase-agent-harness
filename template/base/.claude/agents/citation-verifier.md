@@ -65,9 +65,11 @@ Output a table of `{ site, source, EXISTS?, SUPPORTS? }`, then the citation verd
 unsupported entry) — that line is the documented protocol `/verify-citations` and the
 provenance rule both name, so it stays.
 
+`CITATIONS: REJECTED` is always `VERDICT: BLOCK`; the two lines are the detail and the
+summary of one judgement, never two independent ones. The `CITATIONS:` line comes FIRST
+and the `VERDICT:` line LAST — the hook that records the verdict reads a reply with
+anything after a PASS as no verdict at all.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.
-
-`CITATIONS: REJECTED` is always `VERDICT: BLOCK`; the two lines are the detail and the
-summary of one judgement, never two independent ones.
