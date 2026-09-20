@@ -25,6 +25,13 @@ concurrency:
   group: quality-gate-${{ github.ref }}
   cancel-in-progress: true
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # ---------------------------------------------------------------------------
   # Static floor — the full validate chain, toolchains REQUIRED (no silent skips).
@@ -34,6 +41,7 @@ jobs:
   static:
     name: static (validate floor)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       HARNESS_REQUIRE_TOOLCHAINS: '1'
     steps:
@@ -75,6 +83,7 @@ jobs:
   unit:
     name: unit (vitest + jest-expo + diff coverage)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -154,6 +163,7 @@ jobs:
   mutation:
     name: mutation (critical files in this diff)
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -182,7 +192,12 @@ jobs:
 
       - name: Which critical files does this change touch?
         id: scope
-        run: echo "files=$(node tools/mutation-scope.mjs)" >> "$GITHUB_OUTPUT"
+        # An assignment, THEN the echo. `echo "files=$(…)"` discards the substitution's exit
+        # status, so a scoper that failed closed (a scope root matching zero files) read as
+        # "nothing to mutate" and the lane went green without mutating anything.
+        run: |
+          files="$(node tools/mutation-scope.mjs)"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
 
       - name: Mutate them (StrykerJS)
         if: steps.scope.outputs.files != ''
@@ -211,6 +226,7 @@ jobs:
   runtime-rls:
     name: runtime (rls isolation + pgTAP, real postgres)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # No `services:` block. The database under test is the Supabase local stack,
     # started by its own CLI below — a bare postgres service container would be a
     # DIFFERENT database from the one the app runs against: no auth schema, no
@@ -288,6 +304,7 @@ jobs:
   e2e-fast:
     name: e2e fast lane (jest-expo screen suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -325,6 +342,7 @@ jobs:
   integration-lane:
     name: integration lane (mobile <-> web-hosted API, real postgres)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       HARNESS_INTEGRATION_LANE: '1'
       LIVE_PROOF: '1'
@@ -411,6 +429,7 @@ jobs:
     name: changed paths
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -556,6 +575,7 @@ jobs:
       (github.event_name != 'pull_request' ||
        (github.event_name == 'pull_request' && needs.changes.outputs.db == 'true'))
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -646,6 +666,7 @@ jobs:
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'pull_request' && needs.changes.outputs.mobile-native == 'true'))
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -714,7 +735,7 @@ jobs:
       - name: targetSdk floor (the generated project vs tools/store-policy.json)
         run: |
           floor="$(node -p "require('./tools/store-policy.json').androidTargetSdk.floor")"
-          target="$(grep -rhoE 'targetSdkVersion\s*=?\s*[0-9]+' apps/mobile/android --include=build.gradle --include=gradle.properties --include='*.gradle' | grep -oE '[0-9]+' | sort -n | tail -1)"
+          target="$(grep -rhoE 'targetSdkVersion\s*=?\s*[0-9]+' apps/mobile/android --include=build.gradle --include=gradle.properties --include='*.gradle' | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
           echo "generated targetSdkVersion: ${target:-<none>} (floor ${floor})"
           if [ -z "$target" ] || [ "$target" -lt "$floor" ]; then
             echo "::error::generated android project targets SDK '${target:-none}', below the Play floor ${floor} (tools/store-policy.json) — Play rejects new builds targeting stale API levels"
@@ -1244,6 +1265,7 @@ jobs:
       # the failure mode this fan-in exists to make impossible.
       - web-build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Harden runner (egress audit)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -1261,4 +1283,8 @@ jobs:
       - name: Summarize every lane (a skip is recorded, never a pass)
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-        run: node tools/ci/summarize-gate.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+        # The verdict is the script's exit status, and this pipeline only carries it because
+        # the workflow selects bash (-eo pipefail) above: un-shelled, the step's status was
+        # `tee`'s and the one check marked required could not go red. 2>&1 because the FAIL
+        # list is written to stderr — without it the summary showed the counts, never the lanes.
+        run: node tools/ci/summarize-gate.mjs 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"

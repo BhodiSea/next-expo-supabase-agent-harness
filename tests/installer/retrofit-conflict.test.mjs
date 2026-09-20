@@ -177,6 +177,31 @@ test('deleting the sidecar is the RESOLUTION signal — `update` re-records the 
   assert.ok(!/RETROFIT CONFLICT/.test(gate.out), gate.out)
 })
 
+test('the merged config SURVIVES the update AFTER the resolution — a recorded sha no release shipped is a fork (1.0.2)', () => {
+  // The resolution above re-records the file as `owned` with the sha of the HUMAN'S MERGE.
+  // Those bytes match the record by construction, so a classifier that reads "matches the
+  // record" as "pristine" overwrites the merge on the very next update — silently, exit 0,
+  // on a tree nobody touched in between. No fabricated manifest edit is needed to get
+  // here: init, merge, delete the sidecar, update, update.
+  const dir = retrofitTarget()
+  const merged = 'export default [/* merged: house rules + harness rules */]\n'
+  writeFileSync(join(dir, 'eslint.config.mjs'), merged)
+  rmSync(join(dir, SIDECAR))
+  const first = spawnSync('node', [CLI, 'update', '--dir', dir], { encoding: 'utf8' })
+  assert.match(`${first.stdout ?? ''}${first.stderr ?? ''}`, /retrofit conflict RESOLVED: eslint\.config\.mjs/)
+  assert.equal(manifestOf(dir).files['eslint.config.mjs'].mode, 'owned')
+
+  const second = spawnSync('node', [CLI, 'update', '--dir', dir, '--report', 'json'], { encoding: 'utf8' })
+  const out = `${second.stdout ?? ''}${second.stderr ?? ''}`
+  assert.equal(
+    readFileSync(join(dir, 'eslint.config.mjs'), 'utf8'),
+    merged,
+    `the second update overwrote the human's merged config:\n${out}`,
+  )
+  const report = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
+  assert.ok(!report.written.includes('eslint.config.mjs'), 'a fork is never reported as written')
+})
+
 test('while the sidecar STANDS, `update` preserves theirs and keeps saying so', () => {
   const dir = retrofitTarget()
   const res = spawnSync('node', [CLI, 'update', '--dir', dir], { encoding: 'utf8' })

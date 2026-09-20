@@ -45,6 +45,13 @@ env:
   # artifact-URL contract when you do.
   EAS_CLI_VERSION: '21.0.2'
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # ---------------------------------------------------------------------------
   # The same validate floor CI enforces on every PR, re-run on the exact tagged
@@ -54,6 +61,7 @@ jobs:
   gates:
     name: gates (validate floor on the tagged tree)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       HARNESS_REQUIRE_TOOLCHAINS: '1'
       # Secrets cannot be referenced in job/step `if:` directly — surface presence as env.
@@ -283,6 +291,7 @@ jobs:
       !cancelled() && needs.gates.result == 'success' &&
       (needs.build-eas.result == 'success' || needs.build-degraded.result == 'success')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write # attach store artifacts + checksums to the GitHub release
     steps:
@@ -393,6 +402,7 @@ jobs:
     if: >-
       !cancelled() && needs.verify-and-attach.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     environment: release
     permissions:
       contents: write # attach NOT-SUBMITTED.txt when submission is gated off

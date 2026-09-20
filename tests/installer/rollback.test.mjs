@@ -29,6 +29,7 @@ import {
 } from '../../installer/lib/rollback.mjs'
 import { readManifest, sha256 } from '../../installer/lib/manifest.mjs'
 import { writeInstallFile } from '../../installer/lib/write-file.mjs'
+import { liveOwned, tablesWith } from './helpers/provenance-fixture.mjs'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
 
@@ -74,6 +75,11 @@ function diffDigests(before, after) {
 // Make an install look one vintage old: rewrite three OWNED tool files on disk
 // AND re-record their manifest shas so update classifies them update-clean —
 // the exact shape of a real version sweep (recorded == current ≠ incoming).
+//
+// …and, since 1.0.2, ALSO the exact shape of a consumer's re-recorded fork, which `update`
+// now refuses to overwrite. What makes this a vintage and not a fork is that a release
+// shipped the stale bytes — so the fixture says so, in the released-sha tables every
+// `update` below is handed (`AGED_TABLES`).
 function ageFixture(dir) {
   const manifest = JSON.parse(readFileSync(join(dir, '.harness', 'manifest.json'), 'utf8'))
   const owned = Object.entries(manifest.files)
@@ -82,13 +88,28 @@ function ageFixture(dir) {
     .map(([ip]) => ip)
   assert.equal(owned.length, 3, 'fixture precondition: three owned tools files')
   for (const ip of owned) {
-    const stale = `// stale ${ip} from the previous vintage\n`
+    const stale = staleBytes(ip)
     writeFileSync(join(dir, ip), stale)
     manifest.files[ip].sha256 = sha256(stale)
   }
   writeFileSync(join(dir, '.harness', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   return owned
 }
+
+/** @param {string} ip */
+const staleBytes = (ip) => `// stale ${ip} from the previous vintage\n`
+
+// The live owned surface, plus "this version also shipped the stale bytes" for every
+// tools/*.mjs path — a superset of whichever three ageFixture picks.
+const AGED_TABLES = (() => {
+  const live = liveOwned()
+  const aged = Object.fromEntries(
+    Object.keys(live)
+      .filter((ip) => ip.startsWith('tools/') && ip.endsWith('.mjs'))
+      .map((ip) => [ip, [{ sha256: sha256(staleBytes(ip)) }]]),
+  )
+  return tablesWith(aged)
+})()
 
 test('snapshot blob: N=1, round-trips, and records absent candidates as absent', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
@@ -135,7 +156,7 @@ test('FAULT INJECTION: a mid-sweep write failure is fully reverted by rollback',
     writeInstallFile(dest, content)
   }
   await assert.rejects(
-    () => update({ dir, dryRun: false }, { writeFile: failing }),
+    () => update({ dir, dryRun: false }, { writeFile: failing, releasedShas: AGED_TABLES }),
     /fault injection/,
     'the injected failure must surface, never be swallowed',
   )
@@ -156,7 +177,7 @@ test('FAULT INJECTION: a mid-sweep write failure is fully reverted by rollback',
   }
 
   // And the recovered tree upgrades cleanly on the next attempt.
-  const code = await update({ dir, dryRun: false })
+  const code = await update({ dir, dryRun: false }, { releasedShas: AGED_TABLES })
   assert.equal(code, 0, 'a re-run update after rollback completes green')
   for (const ip of aged) {
     assert.doesNotMatch(readFileSync(join(dir, ip), 'utf8'), /^\/\/ stale /, `${ip} upgraded by the re-run`)
@@ -166,7 +187,7 @@ test('FAULT INJECTION: a mid-sweep write failure is fully reverted by rollback',
 test('a clean update records a snapshot and a second update is idempotent (written==0)', async () => {
   const dir = initFixture()
   ageFixture(dir)
-  const code = await update({ dir, dryRun: false, report: 'json' })
+  const code = await update({ dir, dryRun: false, report: 'json' }, { releasedShas: AGED_TABLES })
   assert.equal(code, 0)
   assert.ok(readRollbackSnapshot(dir), 'every real update leaves a rollback point')
 
@@ -175,7 +196,7 @@ test('a clean update records a snapshot and a second update is idempotent (writt
   const origLog = console.log
   console.log = (...args) => out.push(args.join(' '))
   try {
-    await update({ dir, dryRun: false, report: 'json' })
+    await update({ dir, dryRun: false, report: 'json' }, { releasedShas: AGED_TABLES })
   } finally {
     console.log = origLog
   }
@@ -186,7 +207,7 @@ test('a clean update records a snapshot and a second update is idempotent (writt
 test('dry-run records no snapshot', async () => {
   const dir = initFixture()
   ageFixture(dir)
-  await update({ dir, dryRun: true })
+  await update({ dir, dryRun: true }, { releasedShas: AGED_TABLES })
   assert.equal(readRollbackSnapshot(dir), null, 'dry-run must not mutate .harness/rollback')
 })
 

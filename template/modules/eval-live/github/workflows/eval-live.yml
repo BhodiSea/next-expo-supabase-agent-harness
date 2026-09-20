@@ -25,10 +25,18 @@ concurrency:
   # One live eval at a time — the GPU is a serial resource.
   cancel-in-progress: false
 
+# Every `run:` step under bash -eo pipefail. A step that names no shell runs as `bash -e`,
+# WITHOUT pipefail, so `producer | tee file` reports tee's status and the producer's
+# failure is swallowed. Selecting the shell here closes that for the whole workflow.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   pre-validate:
     name: grammar + disjointness gates (cheap, before any GPU time)
     runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
     steps:
       # Self-hosted runner: harden-runner's agent is designed for GitHub-hosted VMs;
       # egress policy on this box is the runner host's firewall (see the module README).
@@ -48,6 +56,7 @@ jobs:
     name: live eval (adapter → served model → fixture scoring)
     needs: [pre-validate]
     runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
