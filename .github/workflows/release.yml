@@ -75,12 +75,27 @@ jobs:
       - name: Pack
         run: npm pack
       - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        id: provenance
         with:
           subject-path: '*.tgz'
+      # The step above files the attestation in GitHub's attestation store, which
+      # `gh attestation verify` queries and a release page never shows. A verifier holding
+      # only the release assets therefore had nothing to check against, and OpenSSF
+      # Scorecard — whose Signed-Releases check reads ASSETS, not the store — scored this
+      # repository 0 on that check on 2026-09-22 while every 1.0.x release was in fact
+      # attested. Publishing the bundle the action already produced, under the name the
+      # check recognises, closes both. It is a copy of existing signed material, not a
+      # second signature: same Sigstore bundle, same digest, same workflow identity.
+      - name: Carry the provenance bundle as a release asset
+        env:
+          BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          TARBALL="$(ls ./*.tgz)"
+          cp "$BUNDLE_PATH" "${TARBALL}.intoto.jsonl"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" ./*.tgz \
+          gh release create "$GITHUB_REF_NAME" ./*.tgz ./*.tgz.intoto.jsonl \
             --title "$GITHUB_REF_NAME" \
             --notes-file "$RUNNER_TEMP/notes.md"

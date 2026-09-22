@@ -37,12 +37,17 @@ repository and recorded in `CHANGELOG.md` under the release that fixes them.
 
 ## Verifying a release
 
-Each GitHub Release carries one asset, the `npm pack` tarball. The release
-workflow signs a build provenance attestation for it with
-`actions/attest-build-provenance`. The signature is a Sigstore bundle bound to
-the workflow's identity and recorded in a public transparency log. There is no
+Each GitHub Release carries two assets: the `npm pack` tarball and, beside it,
+`<tarball>.intoto.jsonl`. The release workflow signs a build provenance
+attestation for the tarball with `actions/attest-build-provenance`, and that
+second asset is the signed bundle itself. The signature is bound to the
+workflow's identity and recorded in a public transparency log. There is no
 long-lived signing key, so there is no public key to fetch and no private key
 that could be taken from the distribution site.
+
+Releases up to and including 1.0.2 carry the tarball alone. Their attestation
+exists and verifies; it lives only in GitHub's attestation store, which the
+command below queries for you.
 
 To verify a downloaded asset with the GitHub CLI:
 
@@ -57,6 +62,16 @@ Exit status 0 means the tarball's digest matches an attestation signed by
 `.github/workflows/release.yml` in this repository, running on the release tag.
 Any other tarball, repository or workflow fails. `--format json` prints the
 signer identity.
+
+Where a release carries the `.intoto.jsonl` asset, `--bundle` reads the
+attestation from that file instead of querying the store, so the two assets
+verify together without a call to this repository:
+
+```sh
+gh attestation verify <tarball> --bundle <tarball>.intoto.jsonl \
+  --repo BhodiSea/next-expo-supabase-agent-harness \
+  --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
+```
 
 The attestation covers release assets. `npx github:...` fetches the repository
 at a ref rather than a release asset, so pin a tag (`#v1.0.1`) when you use it.
