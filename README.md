@@ -1,5 +1,7 @@
 # next-expo-supabase-agent-harness
 
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/14727/baseline)](https://www.bestpractices.dev/projects/14727)
+
 A CLI that scaffolds a pnpm monorepo with a Next.js 16 web app and an Expo 57
 mobile app on one Supabase backend, plus Claude Code hooks and CI gates that
 block an agent turn or a merge until validation passes.
