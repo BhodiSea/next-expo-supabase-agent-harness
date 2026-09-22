@@ -166,7 +166,7 @@ corepack enable >/dev/null 2>&1 || true
 corepack prepare --activate >/dev/null 2>&1 || true
 
 say "pnpm install (at $PREV_TAG)"
-pnpm install --no-frozen-lockfile
+node "$ROOT/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
 
 # The scaffold's Supabase CLI is a catalog-pinned devDependency at node_modules/.bin,
 # which is not on a plain shell's PATH — and run-rls.mjs spawns `supabase` bare.
@@ -268,7 +268,7 @@ if [ -f "$PARKED" ] || [ "$FLOOR_RAISED" = 1 ]; then
   LOCK_BEFORE="$(lock_digest "$SCAFFOLD/pnpm-lock.yaml")"
 
   say "pnpm install (after applying the security floor and any obligations)"
-  pnpm install --no-frozen-lockfile
+  node "$ROOT/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
 
   # The assertion that would have caught the original defect: the lockfile MOVED. An
   # obligation that changes no lockfile changed no dependency graph.
