@@ -45,9 +45,11 @@ workflow's identity and recorded in a public transparency log. There is no
 long-lived signing key, so there is no public key to fetch and no private key
 that could be taken from the distribution site.
 
-Releases up to and including 1.0.2 carry the tarball alone. Their attestation
-exists and verifies; it lives only in GitHub's attestation store, which the
-command below queries for you.
+Every release carries both, back to 0.1.3. On releases up to and including 1.0.2
+the bundle was attached after the fact, on 2026-09-22, copied from the attestation
+store where their release builds had filed it. The attestation inside is the
+original one signed at release time — an old artifact re-signed today would prove
+nothing about how it was built.
 
 To verify a downloaded asset with the GitHub CLI:
 
