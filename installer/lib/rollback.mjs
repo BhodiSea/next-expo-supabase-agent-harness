@@ -11,7 +11,18 @@
 // N=1 by design: one blob, replaced on every real update, deleted by
 // `graduate` — a snapshot that predates a baseVersion graduation would
 // silently regress it, which is worse than having no snapshot at all.
-import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import {
+  chmodSync,
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import { printReport } from './report.mjs'
@@ -19,6 +30,44 @@ import { writeInstallFile } from './write-file.mjs'
 
 export function rollbackDirFor(targetDir) {
   return join(targetDir, '.harness', 'rollback')
+}
+
+// O_NONBLOCK: a FIFO at a candidate path must not hang the snapshot (fstat rejects it below).
+// win32 defines no O_NONBLOCK and has no FIFOs, so there this is plain 'r'.
+const SNAPSHOT_OPEN = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0)
+
+// What the old `existsSync(p) && statSync(p).isFile()` called present: a regular file
+// reachable by name. Any stat failure is absent, exactly as existsSync swallowed it.
+function isRegularFile(p) {
+  try {
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+// One open per candidate: the mode AND the bytes come from the same descriptor, so from one
+// inode, instead of three separate resolutions of a name that could change in between.
+function snapshotEntry(dest) {
+  let fd
+  try {
+    // The 0o600 is inert without O_CREAT (nothing is ever created here); it only keeps this
+    // read-only open from looking like a file creation with a default mode.
+    fd = openSync(dest, SNAPSHOT_OPEN, 0o600)
+  } catch (err) {
+    // Missing, a directory we cannot open, a socket (ENXIO, or darwin's unmapped -102), win32
+    // EPERM (delete-pending), ENAMETOOLONG: absent, as before. A REGULAR file we cannot open
+    // (EACCES, EBUSY) still throws, as the old read did, before update's first mutation.
+    if (!isRegularFile(dest)) return { existed: false }
+    throw err
+  }
+  try {
+    const st = fstatSync(fd)
+    if (!st.isFile()) return { existed: false }
+    return { existed: true, mode: st.mode & 0o777, b64: readFileSync(fd).toString('base64') }
+  } finally {
+    closeSync(fd)
+  }
 }
 
 // The park channels update writes outside the rendered plan: version-keyed
@@ -47,18 +96,7 @@ export function writeRollbackSnapshot({ targetDir, manifest, plan, from, to }) {
   }
 
   const files = {}
-  for (const ip of [...candidates].sort()) {
-    const dest = join(targetDir, ip)
-    if (existsSync(dest) && statSync(dest).isFile()) {
-      files[ip] = {
-        existed: true,
-        mode: statSync(dest).mode & 0o777,
-        b64: readFileSync(dest).toString('base64'),
-      }
-    } else {
-      files[ip] = { existed: false }
-    }
-  }
+  for (const ip of [...candidates].sort()) files[ip] = snapshotEntry(join(targetDir, ip))
 
   const blob = gzipSync(
     JSON.stringify({
