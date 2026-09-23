@@ -4,14 +4,17 @@
 // and these scripts ship to nobody), so the gate could spend releases with no watched
 // failure.
 //
-// SCOPE, declared: this suite proves the OFFLINE half only — a repo-relative `url` must
-// name a file that exists, and a missing `url` is a broken citation either way. The
-// http(s) half is NETWORK-DEPENDENT by the gate's own header and stays nightly-only (the
-// hygiene.yml corpus-fidelity job is its home); every fixture here carries zero http(s)
-// urls, and the green control pins "0 live URL(s)" so a fixture that accidentally grew a
-// live url — and with it a network dependency — reds this suite rather than flaking it.
+// SCOPE, declared: this suite proves the OFFLINE halves only — a repo-relative `url` must
+// name a file that exists, a missing `url` is a broken citation either way, and an http(s)
+// `url` must be a plain well-formed URL. The shape fixtures (a space in the host, userinfo)
+// are rejected before any fetch, and even a regressed guard cannot reach the network with
+// them: the Request constructor throws on both. The resolve half is NETWORK-DEPENDENT by
+// the gate's own header and stays nightly-only (the hygiene.yml corpus-fidelity job is its
+// home); no fixture here carries a FETCHABLE http(s) url, and the green control pins "0 live
+// URL(s)" so a fixture that accidentally grew one — and with it a network dependency — reds
+// this suite rather than flaking it.
 // The [corpus-path] positional is the seam: with it, repo-relative urls ground beside the
-// fixture corpus, which is what makes the offline half falsifiable without network.
+// fixture corpus, which is what makes the offline halves falsifiable without network.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
@@ -81,4 +84,20 @@ test('GREEN: every citation grounds, and the counts prove the fixture (not the r
   // "2 entries" proves the [corpus-path] positional was honoured (the shipped corpus is far
   // larger); "0 live URL(s)" proves the offline half ran offline — no fetch ever happened.
   assert.match(out, /CORPUS FIDELITY: CLEAN \(2 entries — 0 live URL\(s\) resolve, 2 repo-relative authority file\(s\) exist\)/)
+})
+
+test('RED: an http(s) url that is not a plain, well-formed URL is a broken citation, judged before any fetch', () => {
+  const dir = writeTree({
+    'corpus.json': JSON.stringify([
+      { id: 'fx/space', url: 'https://exa mple.test/doc' },
+      { id: 'fx/userinfo', url: 'https://user@example.test/doc' },
+    ]),
+  })
+  const { code, out } = run(join(dir, 'corpus.json'))
+  assert.equal(code, 1, `a malformed http(s) citation must red:\n${out}`)
+  assert.match(out, /CORPUS FIDELITY: 2 problem\(s\):/)
+  // The guard's own verdict, not fetch's TypeError: that message would name the parse failure
+  // or the credentials instead.
+  assert.match(out, /corpus entry fx\/space: .* is not a well-formed http\(s\) URL/)
+  assert.match(out, /corpus entry fx\/userinfo: .* is not a well-formed http\(s\) URL/)
 })

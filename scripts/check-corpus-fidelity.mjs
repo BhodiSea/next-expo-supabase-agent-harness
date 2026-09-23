@@ -7,6 +7,8 @@
 // What this checks (and what it deliberately does NOT):
 //   ✓ every cited authority RESOLVES — an http(s) `url` answers 2xx, a repo-relative `url`
 //     names a file that exists. A dead authority is a broken citation, full stop.
+//   ✓ an http(s) `url` is a plain, well-formed URL before it is fetched at all; one that is
+//     not (whitespace, userinfo, raw non-ASCII) is a broken citation too.
 //   ✗ NOT "text is a verbatim substring of the page": corpus `text` is a distilled summary
 //     BY DESIGN (that is what makes it usable mid-turn), so a substring assert would be
 //     false for every entry. Whether a summary faithfully represents its source is a
@@ -15,7 +17,8 @@
 // NETWORK-DEPENDENT, so it is CI-only and scheduled (nightly), never in the agent-time
 // chain: a flaky network must never red an agent's turn or a PR. The http half is only
 // falsifiable there — but the OFFLINE half (a repo-relative url must name a file that
-// exists) is falsifiable anywhere, which is what the [corpus-path] positional is for.
+// exists, an http(s) url must be well-formed) is falsifiable anywhere, which is what the
+// [corpus-path] positional is for.
 //   usage: node scripts/check-corpus-fidelity.mjs [corpus-path]
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -69,6 +72,17 @@ const results = await Promise.allSettled(
       if (!RELATIVE_ROOTS.some((base) => existsSync(new URL(url, base)))) {
         problems.push(`corpus entry ${id}: repo-relative url "${url}" names no file that exists`)
       }
+      return
+    }
+    // An http(s) authority must be a plain, well-formed URL: a host (no userinfo), an optional
+    // port, then only RFC 3986 characters. Fully anchored with no wildcard class, which is the
+    // whole-string shape CodeQL's js/file-access-to-http accepts as a barrier. The url IS the
+    // request by design, so this proves well-formedness, not that no file data leaves.
+    if (!/^https?:\/\/[\w.-]+(?::\d+)?(?:[/?#][\w\-.~%!$&'()*+,;=:@/?#]*)?$/.test(url)) {
+      problems.push(
+        `corpus entry ${id}: "${url}" is not a well-formed http(s) URL ` +
+          '(plain ASCII, no userinfo; percent-encode the rest)',
+      )
       return
     }
     httpChecked += 1
