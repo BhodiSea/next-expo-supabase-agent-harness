@@ -127,7 +127,7 @@ export function globToRegExp(glob) {
       i += 1
     } else {
       // `g` changes nothing on a one-character receiver; it makes the escape read as complete
-      // (the same shape as tools/lib/reviewer-verdicts.mjs globToRe).
+      // (the same shape as template/base/tools/lib/reviewer-verdicts.mjs globToRe).
       out += glob[i].replace(/[.+^${}()|\\]/g, '\\$&')
       i += 1
     }

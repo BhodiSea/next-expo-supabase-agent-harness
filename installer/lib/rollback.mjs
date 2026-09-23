@@ -33,8 +33,10 @@ export function rollbackDirFor(targetDir) {
 }
 
 // O_NONBLOCK: a FIFO at a candidate path must not hang the snapshot (fstat rejects it below).
-// win32 defines no O_NONBLOCK and has no FIFOs, so there this is plain 'r'.
-const SNAPSHOT_OPEN = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0)
+// O_NOCTTY: a terminal device at a candidate path must not become the controlling terminal.
+// win32 defines neither and has no FIFOs or ttys, so there this is plain 'r'.
+const SNAPSHOT_OPEN =
+  constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOCTTY ?? 0)
 
 // What the old `existsSync(p) && statSync(p).isFile()` called present: a regular file
 // reachable by name. Any stat failure is absent, exactly as existsSync swallowed it.

@@ -371,14 +371,21 @@ test('a FIFO candidate is recorded absent without blocking', {
 
 test('a UNIX socket candidate is recorded absent', {
   skip: !POSIX && 'a path-bound socket is POSIX-only',
-}, async () => {
+}, async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   mkdirSync(join(dir, 'tools'))
   const server = createServer()
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(join(dir, 'tools', 'sock'), () => resolve(undefined))
+  const listenError = await new Promise((resolve) => {
+    server.once('error', resolve)
+    server.listen(join(dir, 'tools', 'sock'), () => resolve(null))
   })
+  // A deep TMPDIR can push the socket path past sun_path (about 104 bytes on darwin, 108 on
+  // Linux); that says nothing about the snapshot, so the case is skipped, never passed.
+  if (listenError?.code === 'EINVAL' || listenError?.code === 'ENAMETOOLONG') {
+    t.skip('the socket path exceeds sun_path under this TMPDIR')
+    return
+  }
+  if (listenError) throw listenError
   let files
   try {
     // open(2) on a socket fails (ENXIO on Linux, an errno libuv does not map on darwin); the
