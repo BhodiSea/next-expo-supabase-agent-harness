@@ -76,7 +76,10 @@ export function purlForLockKey(key) {
   const cut = bare.lastIndexOf('@')
   const name = bare.slice(0, cut)
   const version = bare.slice(cut + 1)
-  return `pkg:npm/${name.replace('@', '%40')}@${version}`
+  // Only a scope's LEADING @ is encoded: npm name parts are otherwise URL-safe
+  // (validate-npm-package-name), so this is all the purl escaping a name can need.
+  const encoded = name.startsWith('@') ? `%40${name.slice(1)}` : name
+  return `pkg:npm/${encoded}@${version}`
 }
 
 /** @param {string[]} names @returns {string} */

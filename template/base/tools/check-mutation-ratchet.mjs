@@ -112,7 +112,17 @@ for (const [file, data] of Object.entries(report.files ?? {})) {
 }
 
 // ---- read the baseline --------------------------------------------------------------
-if (!existsSync(BASELINE) && !writeMode) {
+// ONE read, no existence probe first: absence (ENOENT) is "not adopted"; any other read
+// error (a directory, EACCES) is a broken baseline and fails loud rather than skipping.
+// Absence is tested as `=== null`, never truthiness — an EMPTY file is present, and malformed.
+/** @type {string | null} */
+let baselineText = null
+try {
+  baselineText = readFileSync(BASELINE, 'utf8')
+} catch (e) {
+  if (e.code !== 'ENOENT') fail(GATE, `${BASELINE} could not be read (${e.message})`)
+}
+if (baselineText === null && !writeMode) {
   skipOrFail(
     GATE,
     `${BASELINE} is absent — this install has not adopted the mutation ratchet. Seed it deliberately: run the lane, then \`node tools/check-mutation-ratchet.mjs --write\`, write a reason for every survivor, and commit (the file is write-guard-protected). Pull the template's: \`npx expo-postgres-agent-harness update --refresh-seeded tools/mutation-baseline.json\``,
@@ -120,10 +130,10 @@ if (!existsSync(BASELINE) && !writeMode) {
 }
 
 let baseline = []
-if (existsSync(BASELINE)) {
+if (baselineText !== null) {
   let parsed
   try {
-    parsed = JSON.parse(readFileSync(BASELINE, 'utf8'))
+    parsed = JSON.parse(baselineText)
   } catch (e) {
     fail(
       GATE,

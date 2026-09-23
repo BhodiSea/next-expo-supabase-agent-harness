@@ -222,6 +222,9 @@ for (const f of functions) {
   fnBodies.set(f.name, expr)
 }
 
+// Every regex metacharacter, backslash included (the same helper as check-diff-coverage.mjs).
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 /**
  * The predicate with every local helper call replaced, IN PLACE, by that helper's
  * body (one hop). Substituting at the call site rather than appending is what keeps
@@ -232,9 +235,13 @@ for (const f of functions) {
 function resolved(body) {
   let text = body
   // Longest name first, so `public.f` is consumed before a bare `f` can match inside it.
+  // The name is escaped whole (not just its dots), and the body goes in through a function
+  // replacer: a helper body is SQL, and a `$'` or `$&` in it (a `'^x$'` regex literal) is
+  // text to inline verbatim, never a replacement pattern that splices in the predicate.
   for (const name of [...fnBodies.keys()].sort((a, b) => b.length - a.length)) {
-    const re = new RegExp(`\\b${name.replace(/\./g, '\\.')}\\s*\\([^()]*\\)`, 'gi')
-    text = text.replace(re, `(${fnBodies.get(name).trim()})`)
+    const re = new RegExp(`\\b${escapeRe(name)}\\s*\\([^()]*\\)`, 'gi')
+    const inlined = `(${fnBodies.get(name).trim()})`
+    text = text.replace(re, () => inlined)
   }
   return text
 }

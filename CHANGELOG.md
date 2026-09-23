@@ -13,8 +13,71 @@ This lineage's own history starts at 0.1.3.
 
 ## [Unreleased]
 
+### Security
+
+- **The catalog pins `vitest` and `@vitest/coverage-v8` at 4.1.11.** 4.1.10 is affected by
+  GHSA-82fw-gwwq-j7x9 (moderate): path traversal through the `@vitest/mocker` redirect mock,
+  which allows an arbitrary file read. The two pins move together, because
+  `@vitest/coverage-v8` peer-pins the identical `vitest`. New scaffolds get 4.1.11.
+  **Existing installs must raise both pins themselves.** `pnpm-workspace.yaml` is seeded, so
+  `update` never rewrites its catalog: set `vitest` and `@vitest/coverage-v8` to `4.1.11`
+  there, run `pnpm install`, and commit the lockfile with it.
+- **Shipped gates read each file once and match exactly what they mean.** These are the
+  template's open CodeQL findings, and a consumer's own CodeQL lane reports the same ones
+  against its copy until `update` brings these files:
+  - `secrets` measures its 5 MB ceiling and reads the bytes through one descriptor, then
+    re-checks the length it actually read. `hashInputs` in `tools/lib/gate.mjs` types each input,
+    and reads a file input, through one descriptor. `mutation-ratchet` and `perf:baseline` read
+    their baseline once, with no existence probe first.
+  - `schema-rls` escapes a helper name in full before building its call pattern, and inlines
+    the helper body verbatim. A `$'` in a body, such as the end of a `'^x$'` regex literal,
+    is no longer expanded as a replacement pattern that splices the rest of the predicate
+    in. That expansion could red a correctly wrapped `(SELECT helper())` as a per-row call.
+  - The SBOM purl encodes only a scoped name's leading `@`. The observability scan's
+    test-file exclusion is three separately anchored rules. Neither output changes.
+  - The backup-evidence lane and `restore-manifest` validate the project ref before any
+    request that carries the access token is built (see Changed).
+
+### Fixed
+
+- **`update`'s rollback snapshot takes each file's mode and bytes from one descriptor.**
+  It used to check, stat and read a candidate path by name three times, so a file swapped
+  in between could be recorded with another file's mode. A FIFO or a terminal device at a
+  candidate path can no longer hang the snapshot or attach to it. Anything that is not a
+  regular file is still recorded as absent, and a regular file that cannot be read still
+  stops `update` before its first change.
+
 ### Changed
 
+- **`hashInputs` now throws when an input cannot be opened for a reason other than
+  absence.** Every gate stamp runs through it. A path that is absent, or sits beneath a
+  regular file, still hashes as `missing:<path>`. A symlink loop, `EACCES` on a parent
+  directory or an invalid name now fails the gate loudly instead of hashing as missing,
+  which could let a stamp go stale-green over an input nobody could read.
+- **The store-metadata `store-config` sentinel matches `example.com` only as a whole
+  domain.** It used to red any string containing the text, so a real listing on
+  `counterexample.com`, `my-example.com` or `example.community` could never pass. The
+  sentinel is now bounded by hostname labels on both sides. It still refuses every form of
+  the reserved domain a listing can carry, and it now also refuses one behind a
+  percent-encoded delimiter (`%2F`, `%40`), where the text itself follows a hex digit.
+- **The backup-evidence lane treats init's default `TBD` project ref as "never linked".**
+  This applies whichever source supplies the ref, `SUPABASE_PROJECT_REF` or
+  `supabase/config.toml`. It used to send a request for `TBD` and fail on the 404. It now takes the same loud skip
+  as the unrendered placeholder, which still fails under
+  `HARNESS_REQUIRE_BACKUP_EVIDENCE=1`. Any other ref that is not 20 lowercase letters fails
+  before a request is built, naming where the ref came from and its length but never its
+  value. `restore-manifest` applies the same guard to `SUPABASE_PROJECT_REF`.
+- **The shipped `renovate.json` drops the deprecated `baseBranches` key and keeps the
+  5-day cooldown it states.** Renovate's default is the repository's default branch, which
+  is what that key named. `config:best-practices` brings a packageRule that sets npm updates
+  to 3 days, and a packageRule beats the top-level `minimumReleaseAge`. A rule for npm
+  version updates restores 5 days. A second rule gives `github/codeql-action` a versioning
+  scheme for its `codeql-bundle-v…` tags, which the default rejects, so its pin could never
+  update.
+- **`mutation-ratchet` fails loudly on a baseline it cannot read.** A directory or an
+  unreadable file at `tools/mutation-baseline.json` now reports "could not be read", where
+  it used to report "not valid JSON". It still exits 1, and an absent baseline is still the
+  local skip.
 - **The shipped CodeQL lane now also reports reliability and maintainability findings.**
   `.github/workflows/codeql.yml` runs the `security-and-quality` suite instead of
   `security-extended`. GitHub documents it as every `security-extended` query plus the

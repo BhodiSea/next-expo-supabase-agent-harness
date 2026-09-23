@@ -59,16 +59,34 @@ try {
 } catch (e) {
   fail(GATE, `${POSTURE_PATH} is not valid JSON (${e.message})`)
 }
-/** The project ref: explicit env first, then the ref the scaffold wrote into config.toml. */
-function projectRef() {
+/** The ref as written: explicit env first, then the project_id the scaffold put in config.toml. */
+function writtenRef() {
   const fromEnv = process.env.SUPABASE_PROJECT_REF?.trim()
   if (fromEnv) return fromEnv
   if (!existsSync(CONFIG)) return null
   const m = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(readFileSync(CONFIG, 'utf8'))
-  const ref = m?.[1]?.trim()
-  // The template ships an unsubstituted placeholder; treating it as a ref would produce a
-  // confusing 404 instead of the honest "this tree was never linked to a project".
-  return ref && !ref.startsWith('{{') ? ref : null
+  return m?.[1]?.trim() || null
+}
+
+/** The project ref, or null when the tree was never linked. A malformed ref is a broken control. */
+function projectRef() {
+  const source = process.env.SUPABASE_PROJECT_REF?.trim()
+    ? 'SUPABASE_PROJECT_REF'
+    : `project_id in ${CONFIG}`
+  const ref = writtenRef()
+  // An unsubstituted placeholder, and init's default answer (TBD), both mean this tree was
+  // never linked to a project: the honest skip, not a confusing 404 from a ref that is not one.
+  if (!ref || ref === 'TBD' || ref.startsWith('{{')) return null
+  // The shape the Supabase CLI and init both enforce: 20 lowercase letters, the subdomain of
+  // the project URL. Checked BEFORE the token-bearing request is built, so no hand-edited value
+  // can steer it to another Management API path with '/', '..', '?' or '#'.
+  if (/^[a-z]{20}$/.test(ref)) return ref
+  // The value is never printed (the same redaction as the failure in get()): a malformed ref is
+  // most likely something pasted into the wrong variable, and a job log is not the place for it.
+  return fail(
+    GATE,
+    `${source} (${String(ref.length)} chars) is not a Supabase project ref: 20 lowercase letters, the subdomain of the project URL. A configured lane pointed at no project is a broken control, not an absent one.`,
+  )
 }
 
 const fixture = arg('fixture')
@@ -135,9 +153,15 @@ if (fixture !== undefined) {
   console.log(`${GATE}: NOTE — judging the recorded fixture ${fixture} instead of a live project.`)
 } else {
   const token = process.env.SUPABASE_ACCESS_TOKEN?.trim()
-  const ref = projectRef()
   if (!token) skipLoudly('SUPABASE_ACCESS_TOKEN is not set')
-  if (!ref) skipLoudly(`no project ref (SUPABASE_PROJECT_REF unset and ${CONFIG} carries none)`)
+  // Resolved only once a token is set, so a malformed project_id never reds a tree that has
+  // not wired this lane at all.
+  const ref = projectRef()
+  if (!ref) {
+    skipLoudly(
+      `no project ref (SUPABASE_PROJECT_REF unset and ${CONFIG} carries none, or only the unrendered placeholder or init's TBD)`,
+    )
+  }
 
   response = await get(`${API}/${ref}/database/backups`, token)
   // The project envelope carries `status` and `created_at`, which feed the two guards that

@@ -26,11 +26,15 @@ import { fail, failures, ok } from './lib/gate.mjs'
 const GATE = 'store-config'
 const CONFIG_PATH = process.argv[2] ?? 'apps/mobile/store.config.json'
 
-// Scaffold sentinels. example.com is IANA-reserved documentation space, so a
-// real listing never legitimately carries it; "Replace ..." is the module's own
-// placeholder prose; a surviving double-brace installer token means the file
-// was never rendered (a broken copy, not a listing).
-const SENTINELS = [/example\.com/i, /^Replace /, /\{\{[A-Z0-9_]+\}\}/]
+// Scaffold sentinels. example.com is IANA-reserved documentation space (RFC 2606), so a
+// real listing never legitimately carries it: as a URL host, a subdomain host, an email
+// domain, or behind a percent-encoded delimiter (%2F, %40). It is label-bounded on both
+// sides: counterexample.com, my-example.com and example.community are other people's
+// domains, and a real listing on one must not red. "Replace ..." is the module's own
+// placeholder prose; a surviving double-brace installer token means the file was never
+// rendered (a broken copy, not a listing).
+const EXAMPLE_DOMAIN = /(?:^|[^a-z0-9-]|%[0-9a-f]{2})example\.com(?![a-z0-9-])/i
+const SENTINELS = [EXAMPLE_DOMAIN, /^Replace /, /\{\{[A-Z0-9_]+\}\}/]
 
 const problems = []
 

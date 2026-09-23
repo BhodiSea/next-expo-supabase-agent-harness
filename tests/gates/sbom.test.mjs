@@ -109,6 +109,15 @@ test('a peer suffix on a packages: key is dropped rather than read as a version'
   assert.equal(purlForLockKey('react-dom@19.0.0(react@19.0.0)'), 'pkg:npm/react-dom@19.0.0')
 })
 
+test('the steps compose in order: strip the suffix, cut at the LAST @, encode a LEADING @', () => {
+  // A scoped key whose peer suffix is itself scoped: every @ in play at once. Only the
+  // name's leading @ is encoded; the suffix's never reaches the encoder.
+  assert.equal(
+    purlForLockKey('@types/react-dom@19.0.0(@types/react@19.0.0)'),
+    'pkg:npm/%40types/react-dom@19.0.0',
+  )
+})
+
 test('a lockfile with NO packages: section yields no keys (the anti-vacuity input)', () => {
   assert.deepEqual(lockPackageKeys("lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n"), [])
 })

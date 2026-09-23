@@ -160,6 +160,32 @@ test('GREEN: a comment-only mention is not an egress path', () => {
   assert.equal(r.code, 0, r.out)
 })
 
+test('test and type-only files are out of scope; their near-misses are scanned', () => {
+  // Three independent rules: a `__tests__/` or `e2e/` directory SEGMENT, a `.test.`/`.spec.`
+  // infix anywhere, and a `.d.ts` SUFFIX (the only end-anchored one).
+  const SDK = "import * as Sentry from '@sentry/react-native'\n"
+  const excluded = [
+    'apps/web/__tests__/a.ts',
+    'apps/mobile/e2e/flow.ts',
+    'packages/x/src/log.test.ts',
+    'packages/x/src/log.spec.tsx',
+    'packages/x/src/env.d.ts',
+  ]
+  const skipped = runGate(fixture({ files: Object.fromEntries(excluded.map((f) => [f, SDK])) }))
+  assert.equal(skipped.code, 0, skipped.out)
+  // Each near-miss is production source: the SDK import in it must red, naming the file.
+  for (const f of [
+    'apps/web/e2e-helpers/a.ts',
+    'apps/web/lib/contest.ts',
+    'packages/x/src/env.d.tsx',
+    'packages/x/src/log.spec-helpers.ts',
+  ]) {
+    const r = runGate(fixture({ files: { [f]: SDK } }))
+    assert.equal(r.code, 1, `${f}\n${r.out}`)
+    assert.ok(r.out.includes(`${f}:1 imports "@sentry/react-native"`), `${f}\n${r.out}`)
+  }
+})
+
 // ── the register: a declared sink passes, and every register rule can fail ────────────
 
 test('GREEN: a declared sink behind the redaction pass passes with real counts', () => {

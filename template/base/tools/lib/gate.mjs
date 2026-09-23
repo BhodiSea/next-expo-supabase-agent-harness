@@ -7,7 +7,15 @@
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { toPosix, walkFiles } from './fs-walk.mjs'
@@ -227,7 +235,13 @@ export function commandFailureOutput(e) {
 // ---- content-addressed stamps (generalized from the source harness's toolchain stamp) ----
 // hashInputs: one sha256 over the declared input paths (files or directories,
 // recursive, name+bytes, sorted walk so the digest is order-stable). A missing
-// path contributes its name — appearing/disappearing invalidates the stamp.
+// path (absent, or beneath a regular file) contributes its name —
+// appearing/disappearing invalidates the stamp. Any OTHER reason a path cannot be
+// opened (a symlink loop, EACCES on a parent, an invalid name) throws: hashing it
+// as missing would let a stamp go stale-green over an input nobody could read.
+// Each path is opened ONCE. A FILE input is typed and read through that one
+// descriptor, so the test and the read see the same inode; a directory is typed
+// through it and then walked by path, as before.
 // Excluded dirs are the tree's own churn, never review-worthy input: build output
 // ('.next'/'.expo'/'.turbo'), the Stop chain's own coverage maps ('coverage' — without
 // it the `contracts` stamp's bare apps/packages roots self-invalidate every turn),
@@ -249,20 +263,30 @@ const STAMP_EXCLUDES = new Set([
 export function hashInputs(paths) {
   const h = createHash('sha256')
   for (const p of [...paths].sort()) {
-    if (!existsSync(p)) {
+    let fd
+    try {
+      fd = openSync(p, 'r')
+    } catch (e) {
+      if (e.code !== 'ENOENT' && e.code !== 'ENOTDIR') throw e
       h.update(`missing:${p}`)
       continue
     }
-    if (statSync(p).isDirectory()) {
-      const root = toPosix(p)
-      for (const rel of walkFiles(p, { excludeDirs: STAMP_EXCLUDES })) {
-        h.update(`${root}/${rel}`)
-        h.update(readFileSync(`${p}/${rel}`))
+    // The whole walk stays inside the try: readFileSync(fd) never closes a descriptor it
+    // was given, and a throw mid-walk must not leak the directory's handle.
+    try {
+      if (fstatSync(fd).isDirectory()) {
+        const root = toPosix(p)
+        for (const rel of walkFiles(p, { excludeDirs: STAMP_EXCLUDES })) {
+          h.update(`${root}/${rel}`)
+          h.update(readFileSync(`${p}/${rel}`))
+        }
+      } else {
+        h.update(toPosix(p))
+        h.update(readFileSync(fd))
       }
-      continue
+    } finally {
+      closeSync(fd)
     }
-    h.update(toPosix(p))
-    h.update(readFileSync(p))
   }
   return h.digest('hex')
 }

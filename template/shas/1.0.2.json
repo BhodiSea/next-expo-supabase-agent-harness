@@ -1300,6 +1300,9 @@
     ],
     "renovate.json": [
       {
+        "sha256": "8aacc1fb8d350cdaef43a74f61baf30fa4157dd65ae4dbe3baa7de5928802415"
+      },
+      {
         "sha256": "97658861f7d5b2d0b1b73a23d2d9c10583f2514997347315fdd5b47608474d18",
         "sites": [
           [
@@ -1360,6 +1363,9 @@
       }
     ],
     "tools/check-backup-posture.mjs": [
+      {
+        "sha256": "1be870a037136a3725d18f28a3b32faef5c4d0592da0d19ecebd618393f857cb"
+      },
       {
         "sha256": "514ecebf561b8dc6a2403011467e8925095d81f6c4c802328bfa4a88796b2d96"
       }
@@ -1490,6 +1496,9 @@
     ],
     "tools/check-mutation-ratchet.mjs": [
       {
+        "sha256": "8b239d6859f20616b5f47fd9460e35727bc75a2f4e06ee33e97207802cfbc75d"
+      },
+      {
         "sha256": "f1f8c372c4298b02c0e68efe280071274973cdb9a29ee1a23fd0be606a2c0bb5"
       }
     ],
@@ -1546,6 +1555,9 @@
     "tools/check-restore-manifest.mjs": [
       {
         "sha256": "07d16e9b3f2d315acd56dec8158771302a1ff47e23148b2fd2101037e0dbec5f"
+      },
+      {
+        "sha256": "ea322affa83deb8f3172ae3ee58b0d45227dee064bd3f114051ac5adf7d1b13f"
       }
     ],
     "tools/check-reviewer-verdicts.mjs": [
@@ -1559,6 +1571,9 @@
     "tools/check-rls-manifest.mjs": [
       {
         "sha256": "922f5d4e46f0cfff6ffb0b31ef1a9f291d88751f278690c9c4e559658d4877e2"
+      },
+      {
+        "sha256": "9c5d4379e38c591f2141f79337ae6ccdcc2d1a13d1592ef26aa6c7c2cef77cf0"
       }
     ],
     "tools/check-route-manifest.mjs": [
@@ -1572,6 +1587,9 @@
       }
     ],
     "tools/check-secrets.mjs": [
+      {
+        "sha256": "84f8c6ed99f1e5cf7c3fdfb6ce34b2166a3e64c1afa6c6ad233c6195cd5a05ae"
+      },
       {
         "sha256": "c4f743c5b73043a78339fbb754ac6bed15cd360995f24720f734644d7cd91f6d"
       }
@@ -1587,6 +1605,9 @@
       }
     ],
     "tools/check-store-config.mjs": [
+      {
+        "sha256": "3a555c02ccba25233857928330c9773b801afc4b0d7f76f0594584ee91040692"
+      },
       {
         "sha256": "d270298ce85f9ad2a1070f8a98ec85505a8cacb77549677c11678cfde7f16d11"
       }
@@ -1880,6 +1901,9 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "303db1242d60489d0e2cb8db930721a36f17fff4b5f65591ccefe102c54bf651"
+      },
+      {
         "sha256": "924ff2325b043423ae52869b113bce3e0f88198839fede5dfe2c3cd2bd65fdc5"
       }
     ],
@@ -1921,6 +1945,9 @@
     "tools/lib/observability.mjs": [
       {
         "sha256": "29b292fcdd263e58485857cbd3527cae2a5849685f7f2c2f4381e4ae4b7463af"
+      },
+      {
+        "sha256": "c6cdf74c8191455c1ee5e4ddc53f8227be0f09112f186e57a8e09eef634cfbf7"
       }
     ],
     "tools/lib/perf-subject-cli.mjs": [
@@ -1959,6 +1986,9 @@
     "tools/lib/sbom.mjs": [
       {
         "sha256": "5e2a47a9e8cf6b69a8a16a21930da2fd9f5ccc833f6ba6c14e5bb94b1ce24ca3"
+      },
+      {
+        "sha256": "ce73434b0f327d216252fac6f913032dce383ad2f35a25b25a85f295afc2b922"
       }
     ],
     "tools/lib/security-txt.mjs": [
@@ -2063,6 +2093,9 @@
       }
     ],
     "tools/perf-baseline.mjs": [
+      {
+        "sha256": "08acf283a09ce8f829ab993099fa6c4d850aded4326860a8e44f11024573d9e5"
+      },
       {
         "sha256": "1039f1d6de77d3c761a3cdbf90d12ad90664e7c23b7b458dfe248ef77f236755"
       }
