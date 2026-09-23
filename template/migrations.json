@@ -830,5 +830,31 @@
       ],
       "why": "1.0.2 opens no escape and closes none. The population above is 1.0.0's, restated because a direct hop from any of these vintages crosses 1.0.0's record: the same sites fall due, the same six-gate NOTE fleet (all until 1.1.0) arrives, and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. The security-floor red described in this record's notes is separate from the ramp ledger and reaches every vintage. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.2`, never off this paragraph."
     }
+  },
+  "1.0.3": {
+    "//": [
+      "1.0.3 — a patch. Every changed template file but one is OWNED and is re-planted by `update` when sha-unmodified: the shipped gates and libraries that close the template's open CodeQL findings (tools/check-secrets.mjs, tools/lib/gate.mjs, tools/check-mutation-ratchet.mjs, tools/perf-baseline.mjs, tools/check-rls-manifest.mjs, tools/lib/observability.mjs, tools/lib/sbom.mjs, tools/check-backup-posture.mjs, tools/check-restore-manifest.mjs, and the store-metadata module's tools/check-store-config.mjs), .github/workflows/codeql.yml (now the security-and-quality suite), tools/conformance-map.json, renovate.json, the eight hook version stamps and the upgrade runbook. So the record carries no removed/renamed/configSteps/seedOnInitOnly/seededSourceFixes/dependencyObligations and no rampExtensions, and scripts/ci/upgrade-sweep.mjs needs no SWEEPS entry for it.",
+      "THE ONE SEEDED CHANGE, which `update` does not deliver: pnpm-workspace.yaml's catalog now pins vitest and @vitest/coverage-v8 at 4.1.11 (GHSA-82fw-gwwq-j7x9, moderate). An existing install keeps 4.1.10 and no gate reds on it. No record kind carries the raise: dependencyObligations asks whether the catalog MENTIONS a key and root devDependencies declares it, never at what version, so it would read as met on every install since 0.1.3 (scripts/ci/apply-framework-floor.mjs gives the same reason for `next`); and seededSourceFixes tells the consumer a named gate reports the finding, while no gate judges this pin. The consumer's own daily osv-scan full-tree job is what reports it. The consumer raises both pins together, runs `pnpm install` and commits the lockfile (docs/runbooks/harness-upgrade.md, 1.0.3 section).",
+      "WHAT AN EXISTING INSTALL MAY NOTICE after the hop: the CodeQL lane reports reliability and maintainability findings once `update` brings codeql.yml. They are informational; the lane is not a required check and no gate reads it. And `hashInputs` (tools/lib/gate.mjs) now throws on an input it cannot open for a reason other than absence, so a gate over an unreadable input fails loudly where it used to hash it as missing. An install that tuned its renovate.json keeps its copy; the incoming one is parked under .harness/pending/ and `update` exits 2, per the 1.0.2 rule."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 1.0.3 and copied from its output, never typed. The vintage list is identical to 1.0.2's for the reason 1.0.2's was identical to 1.0.1's: a patch closes no new escape, but a direct hop from an old vintage crosses 1.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0"
+      ],
+      "why": "1.0.3 opens no escape and closes none. The population above is 1.0.0's, restated because a direct hop from any of these vintages crosses 1.0.0's record: the same sites fall due, the same six-gate NOTE fleet (all until 1.1.0) arrives, and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. A 1.0.0, 1.0.1 or 1.0.2 install meets nothing. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.3`, never off this paragraph."
+    }
   }
 }

@@ -1208,6 +1208,54 @@ ceiling (mutation testing and CodeQL grow with your code), raise the number in y
 of the workflow and re-record its sha, as this release's "Forking an owned file" section
 describes: `update` keeps a fork and parks the incoming version for you to merge.
 
+## 1.0.3 — a patch: nothing expires, nothing opens, one pin to raise by hand
+
+**No ramp here applies to a 1.0.0, 1.0.1 or 1.0.2 install.** The population 1.0.0 reds is
+restated in this release's record for the same reason 1.0.1 and 1.0.2 restated it, and the
+1.0.0 section above is still the sweep.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: the shipped gates and libraries that close the template's CodeQL findings
+(`tools/check-secrets.mjs`, `tools/lib/gate.mjs`, `tools/check-mutation-ratchet.mjs`,
+`tools/perf-baseline.mjs`, `tools/check-rls-manifest.mjs`, `tools/lib/observability.mjs`,
+`tools/lib/sbom.mjs`, `tools/check-backup-posture.mjs`, `tools/check-restore-manifest.mjs`,
+and `tools/check-store-config.mjs` where the store-metadata module is enabled), plus
+`.github/workflows/codeql.yml`, `tools/conformance-map.json`, `renovate.json` and the hook
+version stamps. What you may notice afterwards:
+
+- **New entries in the Security tab.** The CodeQL lane now runs the `security-and-quality`
+  suite: every query it ran before, plus reliability and maintainability ones. They are
+  informational. The lane is not a required check, and no gate reads it.
+- **A gate stamp that fails where it used to pass.** `hashInputs` now throws on an input it
+  cannot open for any reason other than absence (a symlink loop, `EACCES` on a parent
+  directory), where it used to hash that input as missing. A readable or absent input
+  hashes exactly as before, so no stamp moves unless an input really was unreadable.
+- **The backup-evidence lane skips on `TBD`.** init's default project ref now reads as
+  "never linked", the same loud skip as the unrendered placeholder, which still fails under
+  `HARNESS_REQUIRE_BACKUP_EVIDENCE=1`. A ref that is not 20 lowercase letters fails before
+  any request, naming where it came from but never printing it.
+- **`renovate.json`** drops the deprecated `baseBranches` key and gains two packageRules:
+  one restores the 5-day npm cooldown that `config:best-practices` quietly shortens to 3,
+  one lets the CodeQL action pin update. If you tuned your copy, it is kept and the
+  incoming one is parked under `.harness/pending/`; copy the two rules across by hand.
+
+**The one thing you owe: raise `vitest`.** The catalog now pins `vitest` and
+`@vitest/coverage-v8` at **4.1.11**, for GHSA-82fw-gwwq-j7x9 (moderate: an arbitrary file
+read by path traversal through the `@vitest/mocker` redirect mock, affecting 2.1.0 up to
+4.1.11). Every release through 1.0.2 shipped 4.1.10. `pnpm-workspace.yaml` is seeded, so
+`update` does not touch your pins, and no gate reds on the old one; your daily `osv-scan`
+job is what reports it. Move both pins together, because the coverage package peer-pins
+the identical `vitest`:
+
+```
+# in the pnpm-workspace.yaml catalog: vitest: 4.1.11 and '@vitest/coverage-v8': 4.1.11
+pnpm install && git add pnpm-lock.yaml pnpm-workspace.yaml
+pnpm validate
+```
+
+Do not use `update --refresh-seeded pnpm-workspace.yaml` for this: it replaces your whole
+catalog with the template's.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
