@@ -22,7 +22,7 @@
 // The comparison itself lives in scripts/lib/complexity.mjs so it can be proven red without a
 // 15-second ESLint run (tests/gates/check-complexity-ratchet.test.mjs).
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { compareComplexity, identify, keyScores, scoreOf } from './lib/complexity.mjs'
@@ -94,9 +94,17 @@ if (collisions.length > 0) {
   process.exit(1)
 }
 
-const record = existsSync(RECORD)
-  ? JSON.parse(readFileSync(RECORD, 'utf8'))
-  : { limit: 15, functions: {} }
+// Read-or-default in one call: ENOENT is the first-run default; anything else (a corrupt
+// record, EACCES) still throws. No existsSync pre-check for the --write below to race.
+function readRecord() {
+  try {
+    return JSON.parse(readFileSync(RECORD, 'utf8'))
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { limit: 15, functions: {} }
+    throw err
+  }
+}
+const record = readRecord()
 
 if (WRITE) {
   writeFileSync(

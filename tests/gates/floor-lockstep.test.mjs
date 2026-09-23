@@ -4,7 +4,9 @@
 // (so `--min-floor` runs the real chain) and scripts/generate-floor.mjs --check
 // agrees; (2) `--min-floor` FAILS CLOSED when the snapshot is missing or corrupt
 // (never silently degrades to the local config); (3) config-only extra steps
-// still append after the floor.
+// still append after the floor; (4) generate-floor --write, run on a mirror,
+// seeds a missing or corrupt snapshot from the doctrine and keeps a hand-tuned
+// comment.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -68,6 +70,68 @@ test('scripts/generate-floor.mjs --check agrees the shipped snapshot is in locks
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`
   assert.equal(r.status, 0, out)
   assert.match(out, /generate-floor --check: OK \(VALIDATE_STEPS: \d+, STOP_HOOK_STEPS: \d+ in lockstep\)/, out)
+})
+
+// --write runs against a MIRROR, never the real template: generate-floor resolves ROOT from its
+// own location, so a copy under a scratch dir writes only there. A tiny synthetic config keeps
+// the expected steps literal and the mirror independent of today's real chain.
+const MIRROR_CONFIG =
+  "export const VALIDATE_STEPS = [['format', 'x'], ['types', 'y']]\nexport const STOP_HOOK_STEPS = [['lint', 'z']]\n"
+
+/** @param {{ validateFloor?: string }} planted */
+function mirror({ validateFloor } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-floor-'))
+  const tools = join(dir, 'template/base/tools')
+  mkdirSync(join(dir, 'scripts'), { recursive: true })
+  mkdirSync(tools, { recursive: true })
+  copyFileSync(GENERATE_FLOOR, join(dir, 'scripts/generate-floor.mjs'))
+  writeFileSync(join(tools, 'harness.config.mjs'), MIRROR_CONFIG)
+  if (validateFloor !== undefined) writeFileSync(join(tools, 'validate.floor.json'), validateFloor)
+  return dir
+}
+
+function runGenerate(dir, flag) {
+  const r = spawnSync(process.execPath, [join(dir, 'scripts/generate-floor.mjs'), flag], {
+    encoding: 'utf8',
+    env: cleanEnv(),
+  })
+  return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
+}
+
+const readFloor = (dir, name) =>
+  JSON.parse(readFileSync(join(dir, 'template/base/tools', name), 'utf8'))
+
+test('--write with no snapshots seeds both from the doctrine, and --check then agrees', () => {
+  const dir = mirror()
+  const w = runGenerate(dir, '--write')
+  assert.equal(w.code, 0, w.out)
+  const validate = readFloor(dir, 'validate.floor.json')
+  const stop = readFloor(dir, 'stop.floor.json')
+  assert.match(validate.comment, /^frozen snapshot of the canonical VALIDATE_STEPS/)
+  assert.match(stop.comment, /^frozen snapshot of the canonical STOP_HOOK_STEPS/)
+  assert.deepEqual(validate.steps, [['format', 'x'], ['types', 'y']])
+  assert.deepEqual(stop.steps, [['lint', 'z']])
+  const c = runGenerate(dir, '--check')
+  assert.equal(c.code, 0, c.out)
+  assert.match(c.out, /generate-floor --check: OK/, c.out)
+})
+
+test('--write keeps a hand-tuned comment and replaces the steps', () => {
+  const dir = mirror({ validateFloor: JSON.stringify({ comment: 'hand-tuned', steps: [] }) })
+  const w = runGenerate(dir, '--write')
+  assert.equal(w.code, 0, w.out)
+  const validate = readFloor(dir, 'validate.floor.json')
+  assert.equal(validate.comment, 'hand-tuned')
+  assert.deepEqual(validate.steps, [['format', 'x'], ['types', 'y']])
+})
+
+test('--write over a corrupt snapshot seeds the doctrine comment', () => {
+  const dir = mirror({ validateFloor: 'this is { not json' })
+  const w = runGenerate(dir, '--write')
+  assert.equal(w.code, 0, w.out)
+  const validate = readFloor(dir, 'validate.floor.json')
+  assert.match(validate.comment, /^frozen snapshot of the canonical VALIDATE_STEPS/)
+  assert.deepEqual(validate.steps, [['format', 'x'], ['types', 'y']])
 })
 
 test('--min-floor FAILS CLOSED when the snapshot is missing', () => {
