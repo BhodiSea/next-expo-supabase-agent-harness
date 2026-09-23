@@ -7,7 +7,7 @@
 // redaction docs), and a scanner that reds on those is a scanner nobody can ship.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { before, test } from 'node:test'
@@ -38,8 +38,14 @@ function runGate(cwd = scaffold) {
 /** Run with `file` temporarily written, then restore the tree. */
 function withFile(rel, contents, fn) {
   const path = join(scaffold, rel)
-  const existed = existsSync(path)
-  const original = existed ? readFileSync(path) : null
+  // Snapshot by READING, not by probing first: absent is ENOENT, anything else is a real
+  // error. A probe and a later write of the same path is a check-then-use pair.
+  let original = null
+  try {
+    original = readFileSync(path)
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e
+  }
   mkdirSync(join(path, '..'), { recursive: true })
   writeFileSync(path, contents)
   try {
@@ -70,6 +76,23 @@ test('RED: a real service-role key in a tracked file — and the VALUE is never 
   // block and the transcript.
   assert.ok(!r.out.includes(key), `the finding must never echo the matched value:\n${r.out}`)
   assert.match(r.out, /ROTATE it/)
+})
+
+test('RED: a key appended to a file init SHIPS — and withFile restores its bytes exactly', () => {
+  // Every other withFile target is a NEW file, so none of them reaches the restore branch.
+  // PARITY.md is seeded by init and is not in allowPaths: an edit to a tracked file must red
+  // too, and the helper must put the shipped bytes back or every later test reads a dirty tree.
+  const pristine = readFileSync(join(scaffold, 'PARITY.md'))
+  const r = withFile(
+    'PARITY.md',
+    `${pristine}\nexport const k = 'sb_secret_9f2a1c4b7e0d3856aa11bb22'\n`,
+    runGate,
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /PARITY\.md:\d+ — supabase-secret-key/)
+  assert.deepEqual(readFileSync(join(scaffold, 'PARITY.md')), pristine)
+  const restored = runGate()
+  assert.equal(restored.code, 0, `the restored tree must read green again\n${restored.out}`)
 })
 
 test('GREEN: the placeholder spelling passes — a fixture must LOOK like the real shape', () => {
