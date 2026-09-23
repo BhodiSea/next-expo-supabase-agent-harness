@@ -539,6 +539,15 @@
         ]
       },
       {
+        "sha256": "935fa7b8b8dd88fa50d6393d61eadb81211400613cfd365e20b34c6f2c3a6ba1",
+        "sites": [
+          [
+            501,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "c3f79b50772060a3b862d8740591b819b36cc4b653dfd8712a94c59e888ae41c",
         "sites": [
           [
@@ -1686,6 +1695,19 @@
       }
     ],
     "tools/conformance-map.json": [
+      {
+        "sha256": "2e22f69b2e12f03086b304dee043147a690549f86656ef34f359b2cd7e4890b2",
+        "sites": [
+          [
+            639950,
+            "APP_SCHEME"
+          ],
+          [
+            699657,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "5bb2a5bda41e959cea90bc7d80b6b71b3f766fd798385e81d7ec73070a028cfe",
         "sites": [

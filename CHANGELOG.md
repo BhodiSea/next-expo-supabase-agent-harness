@@ -11,6 +11,20 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Changed
+
+- **The shipped CodeQL lane now also reports reliability and maintainability findings.**
+  `.github/workflows/codeql.yml` runs the `security-and-quality` suite instead of
+  `security-extended`. GitHub documents it as every `security-extended` query plus the
+  reliability and maintainability ones, so nothing the lane found before is lost. Expect
+  new entries in the Security tab after the `update` that brings this file: correctness
+  bugs such as useless assignments, unreachable code and suspicious comparisons. They
+  are informational, like every CodeQL result. The lane is still not a required check,
+  and no gate reads it. The factory's own CodeQL lane moves in step, so this repository
+  keeps running exactly the lane its consumers get.
+
 ## [1.0.2] — 2026-09-21
 
 **A security patch.** The scaffold's `next` pin sat below two critical advisories for 26
