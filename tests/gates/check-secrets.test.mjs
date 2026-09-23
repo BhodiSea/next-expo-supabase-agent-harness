@@ -263,3 +263,50 @@ test('FAILS CLOSED with no policy file — an absent policy is not an empty poli
     writeFileSync(path, original)
   }
 })
+
+// ── the 5 MB ceiling: judged on the bytes actually read ──────────────────────────────────
+// The size probe and the read share ONE descriptor, and the length is re-checked after the
+// read, so the ceiling holds for the bytes scanned, not for whatever a path-level stat saw a
+// moment earlier. Spaces are the filler: every rule in tools/secret-patterns.json has a literal
+// prefix, so they match nothing, scan linearly, and keep the finding on line 1.
+const MAX_BYTES = 5 * 1024 * 1024
+const KEY_LINE = "export const k = 'sb_secret_9f2a1c4b7e0d3856aa11bb22'\n"
+const sized = (bytes) => `${' '.repeat(bytes - KEY_LINE.length)}${KEY_LINE}`
+const scannedCount = (out) => Number(/^secrets: OK — (\d+) file/m.exec(out)?.[1] ?? -1)
+
+test('the 5 MB ceiling: AT it a file is scanned and reds, one byte OVER it is skipped', () => {
+  const baseline = scannedCount(runGate().out)
+  const at = withFile('apps/web/lib/big.ts', sized(MAX_BYTES), runGate)
+  assert.equal(at.code, 1, at.out)
+  assert.match(at.out, /apps\/web\/lib\/big\.ts:1 — supabase-secret-key/)
+  const over = withFile('apps/web/lib/big.ts', sized(MAX_BYTES + 1), runGate)
+  assert.equal(over.code, 0, over.out)
+  // Enumerated but never read: the scanned count is the clean tree's.
+  assert.equal(scannedCount(over.out), baseline)
+})
+
+test('a file that GREW past the ceiling between the size probe and the read is not scanned', () => {
+  // Deterministic stand-in for the race: a preload makes every size probe (statSync and
+  // fstatSync) report a file over the ceiling as empty, i.e. as it was a moment before it
+  // grew. Only a length check on the bytes READ can still keep it out of the scan.
+  const PROBE_SAW_IT_SMALL =
+    'data:text/javascript,import fs from "node:fs";' +
+    'import {syncBuiltinESMExports} from "node:module";' +
+    'const early=(stat)=>(...a)=>{const s=stat(...a);' +
+    `if(s&&s.size>${String(MAX_BYTES)})s.size=0;return s};` +
+    'fs.statSync=early(fs.statSync);fs.fstatSync=early(fs.fstatSync);syncBuiltinESMExports()'
+  const runProbed = () => {
+    const args = ['--import', PROBE_SAW_IT_SMALL, 'tools/check-secrets.mjs']
+    const res = spawnSync(process.execPath, args, {
+      cwd: scaffold,
+      encoding: 'utf8',
+      env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '' },
+    })
+    return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+  }
+  const baseline = scannedCount(runProbed().out)
+  assert.ok(baseline > 100, `the probed gate must still scan the tree, got ${String(baseline)}`)
+  const grown = withFile('apps/web/lib/big.ts', sized(MAX_BYTES + 1), runProbed)
+  assert.equal(grown.code, 0, grown.out)
+  assert.equal(scannedCount(grown.out), baseline)
+})

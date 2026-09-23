@@ -22,7 +22,7 @@
 //   - scanning ZERO files is a FAIL, because "no findings over no input" is the exact
 //     shape of a green that means nothing.
 // SOURCE: docs/security/sandbox-and-supply-chain.md; .gitleaks.toml (the deep scanner)
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, fstatSync, openSync, readFileSync } from 'node:fs'
 import { toPosix, walkFiles } from './lib/fs-walk.mjs'
 import { fail, failures, ok, runCmd } from './lib/gate.mjs'
 
@@ -239,11 +239,20 @@ let scanned = 0
 for (const path of files) {
   let raw
   try {
-    if (statSync(path).size > MAX_BYTES) continue
-    raw = readFileSync(path)
+    // One descriptor for the size probe and the read, so both see the SAME file: a swap or a
+    // link between them is impossible. readFileSync(fd) re-stats, so a file that grew between
+    // the probe and the read is caught by the length re-check below.
+    const fd = openSync(path, 'r')
+    try {
+      if (fstatSync(fd).size > MAX_BYTES) continue
+      raw = readFileSync(fd)
+    } finally {
+      closeSync(fd)
+    }
   } catch {
     continue // vanished mid-run, or a directory entry from a stale index
   }
+  if (raw.length > MAX_BYTES) continue // grew between the probe and the read
   if (raw.includes(0)) continue // binary
   const text = raw.toString('utf8')
   scanned += 1

@@ -43,10 +43,11 @@ if (!existsSync(DIST)) die(`expo export produced no ${DIST}/`)
 const measured = measureDist(DIST)
 
 let prev = null
-if (existsSync(BASELINE_FILE)) {
-  try {
-    prev = parseBaseline(readFileSync(BASELINE_FILE, 'utf8'))
-  } catch (e) {
+try {
+  prev = parseBaseline(readFileSync(BASELINE_FILE, 'utf8'))
+} catch (e) {
+  // ENOENT is the first baseline ever (diffBaseline reports the seeding); all else is unusable.
+  if (e.code !== 'ENOENT') {
     console.log(
       `${TAG}: existing ${BASELINE_FILE} is unusable (${e.message}) — regenerating from scratch with default ratioCap/installerBudgetBytes`,
     )

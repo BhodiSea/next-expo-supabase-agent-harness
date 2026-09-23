@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hashInputs } from '../../template/base/tools/lib/gate.mjs'
@@ -129,3 +129,31 @@ test('empty input list is the empty-stream sha256 (degenerate but deterministic)
     assert.equal(hashInputs([]), createHash('sha256').digest('hex'))
   })
 })
+
+test('a declared path beneath a regular FILE hashes as missing (the old existsSync parity)', () => {
+  // ENOTDIR on POSIX, ENOENT on Windows: both are "this path is not there", never an error.
+  withFixture({ 'top.txt': 'x' }, () => {
+    const expected = createHash('sha256').update('missing:top.txt/child').digest('hex')
+    assert.equal(hashInputs(['top.txt/child']), expected)
+  })
+})
+
+test('an input unopenable for a reason OTHER than absence throws, never hashes as missing', () => {
+  // existsSync() said false for this path, so the old code hashed `missing:<p>` and a stamp
+  // could go stale-green over an input nobody could read. openSync rejects the name outright.
+  withFixture({}, () => {
+    assert.throws(() => hashInputs(['bad\u0000path']), { code: 'ERR_INVALID_ARG_VALUE' })
+  })
+})
+
+test(
+  'a symlink loop is an error, not a missing input',
+  { skip: process.platform === 'win32' && 'symlinks need privilege on Windows runners' },
+  () => {
+    // The realistic errno behind the rethrow: ELOOP (EACCES on a parent is the other one).
+    withFixture({}, (dir) => {
+      symlinkSync('loop', join(dir, 'loop'))
+      assert.throws(() => hashInputs(['loop']), { code: 'ELOOP' })
+    })
+  },
+)

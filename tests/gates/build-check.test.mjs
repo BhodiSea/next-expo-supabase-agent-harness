@@ -21,7 +21,16 @@
 // for. Measurement/ratchet arithmetic is additionally unit-tested at the lib level.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { test } from 'node:test'
@@ -487,4 +496,52 @@ test('diffBaseline: seeding line without a previous baseline; total/chunk deltas
   assert.ok(lines.some((l) => /chunk "android\/entry\.hbc": 100 B → 150 B/.test(l)), lines.join('|'))
   assert.ok(lines.some((l) => /chunk "new\.hbc": NEW at 50 B/.test(l)), lines.join('|'))
   assert.ok(lines.some((l) => /chunk "old\.hbc": REMOVED/.test(l)), lines.join('|'))
+})
+
+// ── the regenerator end to end (`pnpm perf:baseline`, tools/perf-baseline.mjs) ──
+// Same fixture and pnpm shim as the gate: the export is a no-op and the pre-built dist is
+// measured. The previous baseline is read ONCE with no existence probe first, so the
+// absent case (ENOENT) must stay silent while every other unreadable state is reported.
+function runPerfBaseline(dir) {
+  cpSync(join(TOOLS, 'perf-baseline.mjs'), join(dir, 'tools/perf-baseline.mjs'))
+  const env = { ...process.env }
+  env[PATH_KEY] = `${join(dir, 'fakebin')}${delimiter}${process.env[PATH_KEY] ?? ''}`
+  const res = spawnSync('node', [join(dir, 'tools/perf-baseline.mjs')], {
+    cwd: dir,
+    encoding: 'utf8',
+    env,
+  })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+const writtenBaseline = (dir) =>
+  parseBaseline(readFileSync(join(dir, 'tools/perf-baseline.json'), 'utf8'))
+
+test('perf:baseline: an ABSENT baseline seeds silently — the seeding note, no "unusable"', () => {
+  const dir = fixture()
+  const r = runPerfBaseline(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(!r.out.includes('unusable'), r.out)
+  assert.match(r.out, /no previous tools\/perf-baseline\.json — seeding gzip total/)
+  assert.equal(writtenBaseline(dir).gzip.total, TOTAL)
+})
+
+test('perf:baseline: a MALFORMED baseline is reported unusable and regenerated', () => {
+  const dir = fixture({ baseline: '{ not json' })
+  const r = runPerfBaseline(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /existing tools\/perf-baseline\.json is unusable/)
+  const next = writtenBaseline(dir)
+  assert.equal(next.gzip.total, TOTAL)
+  assert.equal(next.ratioCap, 1.25)
+})
+
+test('perf:baseline: the previous baseline reaches composeBaseline — human knobs survive', () => {
+  const knobs = { gzip: { total: 1 }, ratioCap: 1.5, installerBudgetBytes: 123 }
+  const dir = fixture({ baseline: knobs })
+  const r = runPerfBaseline(dir)
+  assert.equal(r.code, 0, r.out)
+  const next = writtenBaseline(dir)
+  assert.equal(next.gzip.total, TOTAL)
+  assert.equal(next.ratioCap, 1.5)
+  assert.equal(next.installerBudgetBytes, 123)
 })

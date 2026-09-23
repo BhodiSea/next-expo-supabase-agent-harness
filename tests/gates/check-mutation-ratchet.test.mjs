@@ -274,6 +274,33 @@ test('an ABSENT baseline self-disables locally (adoption) and FAILS CLOSED in CI
   assert.equal(r.status, 1, `a skip must never look like a pass in CI\n${r.stdout}${r.stderr}`)
 })
 
+test('RED: an UNREADABLE baseline (a directory at its path) fails LOUD — never a skip', () => {
+  // Only ENOENT means "not adopted". Any other read error is a broken baseline: treating it
+  // as absent would turn it into a local SKIP (exit 0), or let --write reseed over it.
+  for (const args of [[], ['--write']]) {
+    const dir = fixture() // no baseline file...
+    mkdirSync(join(dir, 'tools/mutation-baseline.json')) // ...but a directory in its place
+    const r = run(dir, args)
+    assert.equal(r.code, 1, r.out)
+    assert.match(r.out, /mutation-baseline\.json could not be read/, r.out)
+  }
+})
+
+test('an EMPTY baseline is present and malformed, never absent; --write seeds from ABSENT', () => {
+  // Absence is `=== null`, never falsiness: '' must not read as "not adopted".
+  const empty = fixture()
+  writeFileSync(join(empty, 'tools/mutation-baseline.json'), '')
+  const r = run(empty)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /not valid JSON/, r.out)
+
+  const absent = fixture() // no baseline written
+  const seeded = run(absent, ['--write'])
+  assert.equal(seeded.code, 0, seeded.out)
+  const written = JSON.parse(readFileSync(join(absent, 'tools/mutation-baseline.json'), 'utf8'))
+  assert.equal(written.survivors.length, 1)
+})
+
 // ── MUTATE_GLOBS == isCritical (0.9.0): the mutated-surface definition lives twice ──────
 //
 // tools/lib/mutation-critical.mjs feeds the SAME critical surface to two consumers through

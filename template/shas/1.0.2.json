@@ -1490,6 +1490,9 @@
     ],
     "tools/check-mutation-ratchet.mjs": [
       {
+        "sha256": "8b239d6859f20616b5f47fd9460e35727bc75a2f4e06ee33e97207802cfbc75d"
+      },
+      {
         "sha256": "f1f8c372c4298b02c0e68efe280071274973cdb9a29ee1a23fd0be606a2c0bb5"
       }
     ],
@@ -1572,6 +1575,9 @@
       }
     ],
     "tools/check-secrets.mjs": [
+      {
+        "sha256": "84f8c6ed99f1e5cf7c3fdfb6ce34b2166a3e64c1afa6c6ad233c6195cd5a05ae"
+      },
       {
         "sha256": "c4f743c5b73043a78339fbb754ac6bed15cd360995f24720f734644d7cd91f6d"
       }
@@ -1880,6 +1886,9 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "70f5445ebe82bc04b0c393f154febea42587a611499215ff795cf1637bd3c487"
+      },
+      {
         "sha256": "924ff2325b043423ae52869b113bce3e0f88198839fede5dfe2c3cd2bd65fdc5"
       }
     ],
@@ -2063,6 +2072,9 @@
       }
     ],
     "tools/perf-baseline.mjs": [
+      {
+        "sha256": "08acf283a09ce8f829ab993099fa6c4d850aded4326860a8e44f11024573d9e5"
+      },
       {
         "sha256": "1039f1d6de77d3c761a3cdbf90d12ad90664e7c23b7b458dfe248ef77f236755"
       }
