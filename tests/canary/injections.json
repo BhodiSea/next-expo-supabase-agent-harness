@@ -1000,7 +1000,7 @@
     "codeql.yml#analyze": [
       {
         "kind": "steps",
-        "note": "1.0.2: GitHub CodeQL (security-extended) over the factory's own JavaScript and workflows, a vendor SAST lane publishing to the Security tab. Same action and full-SHA pin as the shipped template copy, where tests/gates/workflow-lanes.test.mjs proves the neutered-lane failure shapes; no equivalent factory-side structural proof exists (stated, not hidden, as for lint.yml#actionlint). NOT a blocking gate and not awaited by release.yml: a finding is triaged in the Security tab, and the blocking static analysis stays the lint.yml jobs."
+        "note": "1.0.2: GitHub CodeQL (security-extended; security-and-quality from 1.0.3) over the factory's own JavaScript and workflows, a vendor SAST lane publishing to the Security tab. Same action and full-SHA pin as the shipped template copy, where tests/gates/workflow-lanes.test.mjs proves the neutered-lane failure shapes; no equivalent factory-side structural proof exists (stated, not hidden, as for lint.yml#actionlint). NOT a blocking gate and not awaited by release.yml: a finding is triaged in the Security tab, and the blocking static analysis stays the lint.yml jobs."
       }
     ],
     "hygiene.yml#hygiene": [
