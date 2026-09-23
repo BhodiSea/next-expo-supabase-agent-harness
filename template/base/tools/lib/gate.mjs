@@ -239,8 +239,9 @@ export function commandFailureOutput(e) {
 // appearing/disappearing invalidates the stamp. Any OTHER reason a path cannot be
 // opened (a symlink loop, EACCES on a parent, an invalid name) throws: hashing it
 // as missing would let a stamp go stale-green over an input nobody could read.
-// Each path is opened ONCE and the directory test and the read share that one
-// descriptor, so they can never see two different files.
+// Each path is opened ONCE. A FILE input is typed and read through that one
+// descriptor, so the test and the read see the same inode; a directory is typed
+// through it and then walked by path, as before.
 // Excluded dirs are the tree's own churn, never review-worthy input: build output
 // ('.next'/'.expo'/'.turbo'), the Stop chain's own coverage maps ('coverage' — without
 // it the `contracts` stamp's bare apps/packages roots self-invalidate every turn),

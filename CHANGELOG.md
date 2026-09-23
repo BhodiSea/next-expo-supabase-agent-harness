@@ -26,8 +26,8 @@ This lineage's own history starts at 0.1.3.
   template's open CodeQL findings, and a consumer's own CodeQL lane reports the same ones
   against its copy until `update` brings these files:
   - `secrets` measures its 5 MB ceiling and reads the bytes through one descriptor, then
-    re-checks the length it actually read. `hashInputs` in `tools/lib/gate.mjs` tests for a
-    directory and reads through one descriptor. `mutation-ratchet` and `perf:baseline` read
+    re-checks the length it actually read. `hashInputs` in `tools/lib/gate.mjs` types each input,
+    and reads a file input, through one descriptor. `mutation-ratchet` and `perf:baseline` read
     their baseline once, with no existence probe first.
   - `schema-rls` escapes a helper name in full before building its call pattern, and inlines
     the helper body verbatim. A `$'` in a body, such as the end of a `'^x$'` regex literal,
@@ -37,6 +37,15 @@ This lineage's own history starts at 0.1.3.
     test-file exclusion is three separately anchored rules. Neither output changes.
   - The backup-evidence lane and `restore-manifest` validate the project ref before any
     request that carries the access token is built (see Changed).
+
+### Fixed
+
+- **`update`'s rollback snapshot takes each file's mode and bytes from one descriptor.**
+  It used to check, stat and read a candidate path by name three times, so a file swapped
+  in between could be recorded with another file's mode. A FIFO or a terminal device at a
+  candidate path can no longer hang the snapshot or attach to it. Anything that is not a
+  regular file is still recorded as absent, and a regular file that cannot be read still
+  stops `update` before its first change.
 
 ### Changed
 
@@ -52,7 +61,8 @@ This lineage's own history starts at 0.1.3.
   the reserved domain a listing can carry, and it now also refuses one behind a
   percent-encoded delimiter (`%2F`, `%40`), where the text itself follows a hex digit.
 - **The backup-evidence lane treats init's default `TBD` project ref as "never linked".**
-  It used to send a request for `TBD` and fail on the 404. It now takes the same loud skip
+  This applies whichever source supplies the ref, `SUPABASE_PROJECT_REF` or
+  `supabase/config.toml`. It used to send a request for `TBD` and fail on the 404. It now takes the same loud skip
   as the unrendered placeholder, which still fails under
   `HARNESS_REQUIRE_BACKUP_EVIDENCE=1`. Any other ref that is not 20 lowercase letters fails
   before a request is built, naming where the ref came from and its length but never its

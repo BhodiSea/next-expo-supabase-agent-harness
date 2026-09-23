@@ -91,6 +91,8 @@ test('RED: the SHIPPED placeholder listing fails, naming every sentinel field', 
     'apple.review.email',
     `${EN}.title`,
     `${EN}.subtitle`,
+    `${EN}.description`,
+    'apple.review.notes',
   ]) {
     assert.ok(flagged(r.out, fieldPath), `${fieldPath} must be refused\n${r.out}`)
   }
