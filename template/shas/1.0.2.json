@@ -1300,6 +1300,9 @@
     ],
     "renovate.json": [
       {
+        "sha256": "8aacc1fb8d350cdaef43a74f61baf30fa4157dd65ae4dbe3baa7de5928802415"
+      },
+      {
         "sha256": "97658861f7d5b2d0b1b73a23d2d9c10583f2514997347315fdd5b47608474d18",
         "sites": [
           [

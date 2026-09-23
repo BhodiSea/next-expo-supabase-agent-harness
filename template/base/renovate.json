@@ -1,6 +1,19 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:best-practices"],
-  "baseBranches": ["{{DEFAULT_BRANCH}}"],
-  "minimumReleaseAge": "5 days"
+  "minimumReleaseAge": "5 days",
+  "packageRules": [
+    {
+      "description": "Keep the 5-day npm cooldown. config:best-practices brings security:minimumReleaseAgeNpm, a packageRule setting 3 days, and packageRules beat the top-level value. Limited to version updates so pin and lockfile-maintenance keep the preset's exemptions.",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "codeql-action is pinned to codeql-bundle-vX.Y.Z tags, which the default github-actions versioning rejects; without this it never updates.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["github/codeql-action"],
+      "versioning": "regex:^codeql-bundle-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    }
+  ]
 }

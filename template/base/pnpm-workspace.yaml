@@ -64,8 +64,8 @@ catalog:
   '@commitlint/config-conventional': ^21.2.0
   cspell: ^10.0.1
   # ---- test -------------------------------------------------------------------
-  vitest: 4.1.10 # exact: @vitest/coverage-v8 peer-pins the identical version
-  '@vitest/coverage-v8': 4.1.10
+  vitest: 4.1.11 # exact: @vitest/coverage-v8 peer-pins the identical version
+  '@vitest/coverage-v8': 4.1.11
   fast-check: ^4.9.0
   # Mutation testing (CI-only lane; the behavioural net over the critical surface).
   # Exact pins: the runner peer-pins core, and the SET-based ratchet compares mutant
