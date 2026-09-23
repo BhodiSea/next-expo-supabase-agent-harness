@@ -19,7 +19,7 @@
 // SOURCE: https://supabase.com/docs/guides/platform/backups
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -395,4 +395,85 @@ test('HARNESS_REQUIRE_BACKUP_EVIDENCE=1 turns the skip into a failure — the op
   })
   assert.equal(red.status, 1, `${red.stdout}${red.stderr}`)
   assert.match(red.stderr, /makes this binding/)
+})
+
+// ---- the project ref is validated BEFORE the token-bearing request is built ------------
+// Every spawn below carries a token, so every one of them installs NO_NET: a stub `fetch` that
+// logs the URL it was handed and answers 401, loaded with --import before the script runs. If
+// the guard ever regressed, these spawns would otherwise send a real bearer-token GET from the
+// CI legs. The absence of a FETCH line is the proof that no request was built; the last test
+// is the control that proves the stub itself is live.
+const NO_NET =
+  'data:text/javascript,globalThis.fetch=async(u)=>' +
+  '{console.log("FETCH:"+String(u));return new Response("{}",{status:401})}'
+
+/**
+ * A tree whose supabase/config.toml says `project_id`, spawned with a token and NO_NET.
+ * @param {{ projectId?: string, envRef?: string, require?: string }} opts
+ */
+function runWithRef({ projectId, envRef = '', require = '' }) {
+  const dir = mkdtempSync(join(tmpdir(), 'backup-posture-'))
+  const posturePath = join(dir, 'backup-posture.json')
+  writeFileSync(posturePath, JSON.stringify(POSTURE))
+  if (projectId !== undefined) {
+    mkdirSync(join(dir, 'supabase'), { recursive: true })
+    writeFileSync(join(dir, 'supabase/config.toml'), `project_id = "${projectId}"\n`)
+  }
+  const args = ['--import', NO_NET, SCRIPT, `--posture=${posturePath}`]
+  const r = spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    cwd: dir,
+    env: {
+      ...process.env,
+      SUPABASE_ACCESS_TOKEN: 'not-a-real-token',
+      SUPABASE_PROJECT_REF: envRef,
+      HARNESS_REQUIRE_BACKUP_EVIDENCE: require,
+      CI: '',
+    },
+  })
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, out: `${r.stdout}${r.stderr}` }
+}
+
+test('a malformed ref FAILS before any request, naming its source and never its value', () => {
+  // From config.toml: a path-steering value that would have redirected the authenticated GET.
+  const fromConfig = runWithRef({ projectId: 'x/../../organizations' })
+  assert.equal(fromConfig.status, 1, fromConfig.out)
+  assert.match(
+    fromConfig.stderr,
+    /project_id in supabase\/config\.toml \(21 chars\) is not a Supabase project ref/,
+  )
+  assert.doesNotMatch(fromConfig.out, /FETCH/)
+  assert.ok(!fromConfig.out.includes('organizations'), 'the malformed value must never be echoed')
+
+  // From the environment, which wins over config.toml.
+  const fromEnv = runWithRef({ projectId: 'abcdefghijklmnopqrst', envRef: 'abc?x=1' })
+  assert.equal(fromEnv.status, 1, fromEnv.out)
+  assert.match(fromEnv.stderr, /SUPABASE_PROJECT_REF \(7 chars\) is not a Supabase project ref/)
+  assert.doesNotMatch(fromEnv.out, /FETCH/)
+  assert.ok(!fromEnv.out.includes('abc?x=1'), 'the malformed value must never be echoed')
+})
+
+test("init's TBD is never-linked: the loud skip, not a 404, and binding under the opt-in", () => {
+  const skipped = runWithRef({ projectId: 'TBD' })
+  assert.equal(skipped.status, 0, skipped.out)
+  assert.match(skipped.stdout, /SKIPPED — no project ref/)
+  assert.doesNotMatch(skipped.out, /FETCH/)
+
+  const bound = runWithRef({ projectId: 'TBD', require: '1' })
+  assert.equal(bound.status, 1, bound.out)
+  assert.match(bound.stderr, /makes this binding/)
+  assert.doesNotMatch(bound.out, /FETCH/)
+
+  // The unrendered placeholder takes the same skip, from either source.
+  const placeholder = runWithRef({ envRef: '{{SUPABASE_PROJECT_REF}}' })
+  assert.equal(placeholder.status, 0, placeholder.out)
+  assert.doesNotMatch(placeholder.out, /FETCH/)
+})
+
+test('control: a well-formed ref reaches the stubbed fetch, so no-FETCH proofs are live', () => {
+  const r = runWithRef({ projectId: 'abcdefghijklmnopqrst' })
+  // The stub answers 401: a configured lane that cannot read the posture is a broken control.
+  assert.equal(r.status, 1, r.out)
+  assert.match(r.stdout, /^FETCH:\S+\/v1\/projects\/abcdefghijklmnopqrst\/database\/backups$/m)
+  assert.match(r.stderr, /returned 401/)
 })

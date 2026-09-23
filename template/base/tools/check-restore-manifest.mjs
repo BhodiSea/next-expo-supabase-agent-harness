@@ -33,14 +33,28 @@ try {
   fail(GATE, `${manifestPath} is not valid JSON (${e.message})`)
 }
 
-const token = process.env.SUPABASE_ACCESS_TOKEN
-const ref = process.env.SUPABASE_PROJECT_REF
-if (!token || !ref) {
-  skipOrFail(
+/**
+ * The project ref, or null when unset or never linked. A malformed ref is a broken control.
+ * The same guard as check-backup-posture.mjs, one job over: init's default answer (TBD) and an
+ * unrendered placeholder mean "never linked"; anything that is not 20 lowercase letters fails
+ * BEFORE the token-bearing request is built, and fails without echoing the value.
+ */
+function projectRef() {
+  const ref = process.env.SUPABASE_PROJECT_REF?.trim()
+  if (!ref || ref === 'TBD' || ref.startsWith('{{')) return null
+  if (/^[a-z]{20}$/.test(ref)) return ref
+  return fail(
     GATE,
-    'SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set — the backup fact lives in the platform control plane (the backup-evidence posture, one job over)',
+    `SUPABASE_PROJECT_REF (${String(ref.length)} chars) is not a Supabase project ref: 20 lowercase letters, the subdomain of the project URL. A restore manifest cannot bind the backup fact of no project.`,
   )
 }
+
+const UNWIRED =
+  'SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF not set (or the ref is still TBD) — the backup fact lives in the platform control plane (the backup-evidence posture, one job over)'
+const token = process.env.SUPABASE_ACCESS_TOKEN
+if (!token) skipOrFail(GATE, UNWIRED)
+const ref = projectRef()
+if (!ref) skipOrFail(GATE, UNWIRED)
 
 // The same control-plane read backup-evidence performs: one HTTPS GET, judged.
 const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/backups`, {

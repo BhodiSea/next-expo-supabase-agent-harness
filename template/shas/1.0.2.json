@@ -1361,6 +1361,9 @@
     ],
     "tools/check-backup-posture.mjs": [
       {
+        "sha256": "1be870a037136a3725d18f28a3b32faef5c4d0592da0d19ecebd618393f857cb"
+      },
+      {
         "sha256": "514ecebf561b8dc6a2403011467e8925095d81f6c4c802328bfa4a88796b2d96"
       }
     ],
@@ -1549,6 +1552,9 @@
     "tools/check-restore-manifest.mjs": [
       {
         "sha256": "07d16e9b3f2d315acd56dec8158771302a1ff47e23148b2fd2101037e0dbec5f"
+      },
+      {
+        "sha256": "ea322affa83deb8f3172ae3ee58b0d45227dee064bd3f114051ac5adf7d1b13f"
       }
     ],
     "tools/check-reviewer-verdicts.mjs": [

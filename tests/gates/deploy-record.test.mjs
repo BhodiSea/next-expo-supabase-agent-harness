@@ -167,3 +167,53 @@ test('the EMITTER judges before it writes: a scaffold-shaped tree emits; a hollo
   assert.match(`${red.stdout}${red.stderr}`, /nothing is emitted/)
   assert.throws(() => readFileSync(join(hollow, 'artifacts/deploy-manifest.json')), 'a failed judgement must leave no artefact')
 })
+
+// ---- restore-manifest: the project ref is validated BEFORE the token-bearing request ----
+// The same guard as the backup-evidence lane. Every spawn carries a token, so every one loads
+// NO_NET (a stub `fetch` that logs its URL and answers 401) with --import: a regressed guard
+// can never send a real bearer-token GET from a CI leg, and the absence of a FETCH line is the
+// proof that no request was built. The last case is the control that the stub is live.
+const RESTORE_TOOL = join(ROOT, 'template/base/tools/check-restore-manifest.mjs')
+const NO_NET =
+  'data:text/javascript,globalThis.fetch=async(u)=>' +
+  '{console.log("FETCH:"+String(u));return new Response("{}",{status:401})}'
+
+function runRestore(ref, { ci = false } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'nesah-restore-'))
+  const manifest = join(dir, 'deploy-manifest.json')
+  writeFileSync(manifest, JSON.stringify(MANIFEST))
+  const env = { ...process.env }
+  env.SUPABASE_ACCESS_TOKEN = 'not-a-real-token'
+  env.SUPABASE_PROJECT_REF = ref
+  delete env.CI
+  delete env.HARNESS_REQUIRE_TOOLCHAINS
+  if (ci) env.CI = 'true'
+  const args = ['--import', NO_NET, RESTORE_TOOL, `--manifest=${manifest}`]
+  const r = spawnSync(process.execPath, args, { cwd: dir, encoding: 'utf8', env })
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, out: `${r.stdout}${r.stderr}` }
+}
+
+test('restore-manifest: a malformed ref FAILS before any request, never echoing the value', () => {
+  const r = runRestore('x/../../organizations')
+  assert.equal(r.status, 1, r.out)
+  assert.match(r.stderr, /SUPABASE_PROJECT_REF \(21 chars\) is not a Supabase project ref/)
+  assert.doesNotMatch(r.out, /FETCH/)
+  assert.ok(!r.out.includes('organizations'), 'the malformed value must never be echoed')
+})
+
+test("restore-manifest: init's TBD is never-linked (the skip locally, fail-closed in CI)", () => {
+  const local = runRestore('TBD')
+  assert.equal(local.status, 0, local.out)
+  assert.match(local.out, /SKIP/)
+  assert.doesNotMatch(local.out, /FETCH/)
+  const ci = runRestore('TBD', { ci: true })
+  assert.equal(ci.status, 1, ci.out)
+  assert.doesNotMatch(ci.out, /FETCH/)
+})
+
+test('restore-manifest control: a well-formed ref reaches the stubbed fetch and is judged', () => {
+  const r = runRestore('abcdefghijklmnopqrst')
+  assert.equal(r.status, 1, r.out)
+  assert.match(r.stdout, /^FETCH:\S+\/v1\/projects\/abcdefghijklmnopqrst\/database\/backups$/m)
+  assert.match(r.stderr, /the backups endpoint answered 401/)
+})
