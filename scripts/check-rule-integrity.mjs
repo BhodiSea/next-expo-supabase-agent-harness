@@ -45,10 +45,20 @@ const depcruise = depcruiseConfig.forbidden ?? []
 const depcruiseOptions = depcruiseConfig.options ?? {}
 const eslintText = readFileSync(`${ROOT}${ESLINT}`, 'utf8')
 
+// Read-or-default in one call (the check-complexity-ratchet shape): ENOENT is a first --write
+// with no record yet; anything else (a corrupt record, EACCES) still throws. No existsSync
+// pre-check held apart from the write below.
+function readRecord() {
+  try {
+    return JSON.parse(readFileSync(`${ROOT}${RECORD}`, 'utf8'))
+  } catch (err) {
+    if (err?.code === 'ENOENT') return {}
+    throw err
+  }
+}
+
 if (WRITE) {
-  const record = existsSync(`${ROOT}${RECORD}`)
-    ? JSON.parse(readFileSync(`${ROOT}${RECORD}`, 'utf8'))
-    : {}
+  const record = readRecord()
   const next = {
     '//':
       record['//'] ??

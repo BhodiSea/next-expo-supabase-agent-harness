@@ -431,6 +431,27 @@ export function createdTablesIn(migrationsDir) {
   return out
 }
 
+/**
+ * A file's text, or null when it is not there. Read-and-catch, never existsSync-then-read:
+ * the sweep rewrites what it reads, and a presence check held apart from the write is the
+ * check-then-use shape js/file-system-race (CWE-367) reports. ABSENCE is ENOENT, plus ENOTDIR
+ * (a parent that is a file): the cases existsSync answered false for. Anything else (EISDIR,
+ * EACCES) surfaces instead of reading as "nothing to sweep".
+ *
+ * NOT installer/commands/doctor.mjs's readIfPresent, which returns '' and swallows every
+ * error: this one tells absence apart from a failure, so it is named differently on purpose.
+ * @param {string} path
+ * @returns {string | null}
+ */
+export function readTextOrNull(path) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch (e) {
+    if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR') return null
+    throw e
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [installDir, repoRoot, baseVersion, headVersion] = process.argv.slice(2)
   if (
@@ -504,13 +525,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // a far larger act than the finding calls for. Renaming in place is the sweep, and it is
   // what the runbook tells a human to do.
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // Read ONCE, and only when a rename or an append is due (so a hop with neither never
+  // touches the file); every edit below carries the text forward in memory. This process is
+  // the file's only writer, so the carried text is what a re-read would return.
   const configPath = join(installDir, 'supabase/config.toml')
-  if (existsSync(configPath)) {
+  const tomlDue = sweepSet.tomlSectionRenames.length > 0 || sweepSet.tomlSectionAppends.length > 0
+  let toml = tomlDue ? readTextOrNull(configPath) : null
+  if (toml !== null) {
     for (const [from, to] of sweepSet.tomlSectionRenames) {
-      const before = readFileSync(configPath, 'utf8')
-      const after = before.replace(new RegExp(`^${escapeRe(from)}$`, 'm'), to)
-      if (after !== before) {
-        writeFileSync(configPath, after)
+      const after = toml.replace(new RegExp(`^${escapeRe(from)}$`, 'm'), to)
+      if (after !== toml) {
+        toml = after
+        writeFileSync(configPath, toml)
         done.push(`supabase/config.toml (${from} → ${to})`)
       }
     }
@@ -524,9 +550,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // appending a header the file already carries is a duplicate-table parse error, so
     // an install that has already applied the fix by hand must be left alone.
     for (const [header, block] of sweepSet.tomlSectionAppends) {
-      const before = readFileSync(configPath, 'utf8')
-      if (before.includes(header)) continue
-      writeFileSync(configPath, `${before.trimEnd()}\n${block}`)
+      if (toml.includes(header)) continue
+      toml = `${toml.trimEnd()}\n${block}`
+      writeFileSync(configPath, toml)
       done.push(`supabase/config.toml (${header} appended)`)
     }
   }
@@ -537,8 +563,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // reconcileDataFlowExclusions for why this narrows and never adds.
   if (sweepSet.reconcileDataFlowExclusions) {
     const dataFlowPath = join(installDir, 'tools/data-flow.json')
-    if (existsSync(dataFlowPath)) {
-      const before = JSON.parse(readFileSync(dataFlowPath, 'utf8'))
+    const dataFlowText = readTextOrNull(dataFlowPath)
+    if (dataFlowText !== null) {
+      const before = JSON.parse(dataFlowText)
       const created = createdTablesIn(join(installDir, 'supabase/migrations'))
       const { dataFlow: next, dropped } = reconcileDataFlowExclusions(before, created)
       if (dropped.length > 0) {
@@ -570,9 +597,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const configUrl = pathToFileURL(join(installDir, 'tools/harness.config.mjs')).href
   const { VALIDATE_STEPS } = await import(configUrl)
   const names = VALIDATE_STEPS.map(([n]) => n)
-  if (existsSync(agentsPath)) {
-    const before = readFileSync(agentsPath, 'utf8')
-    const withChain = before
+  const agentsText = readTextOrNull(agentsPath)
+  if (agentsText !== null) {
+    const withChain = agentsText
       .replace(/The \d+ gates, in order:[\s\S]*?\n {2}\(docs\/harness\/gates-catalog\.md/, () => {
         const wrapped = names.map((n) => `\`${n}\``).join(', ')
         return `The ${String(names.length)} gates, in order: ${wrapped}\n${'  '}(docs/harness/gates-catalog.md`
@@ -625,7 +652,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ? `Keep under ~${String(Math.ceil(lineCount / 50) * 50)} lines`
         : whole,
     )
-    if (after !== before) {
+    if (after !== agentsText) {
       writeFileSync(agentsPath, after)
       const budgetMoved = after !== withStop
       const stopMoved = withStop !== withChain

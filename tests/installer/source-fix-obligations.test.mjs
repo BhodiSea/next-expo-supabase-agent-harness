@@ -11,7 +11,7 @@
 // the consumer moved the surface, and the gate stays the authority.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -61,11 +61,11 @@ const FIXED_BARREL = "export { cookieSessionStorage } from './cookies.js'\n"
 /** @param {Record<string, string>} map */
 const treeOf = (map) => (rel) => (Object.hasOwn(map, rel) ? map[rel] : null)
 
-let seq = 0
+// A fresh, private directory per call. A guessable name plus a recursive mkdir could hand
+// `init` a leftover that already holds a harness (a reused pid), or a directory another
+// local user pre-created in a shared temp dir; mkdtemp can do neither.
 function scratch() {
-  const dir = join(tmpdir(), `harness-srcfix-${String(process.pid)}-${String(seq++)}`)
-  mkdirSync(dir, { recursive: true })
-  return dir
+  return mkdtempSync(join(tmpdir(), 'harness-srcfix-'))
 }
 
 /** @param {string} dir @param {Record<string, string>} files */

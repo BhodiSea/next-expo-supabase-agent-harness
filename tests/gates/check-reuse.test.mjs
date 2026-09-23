@@ -98,6 +98,11 @@ test('** crosses path separators (top-level files AND deep files), * does not', 
 test('regex metacharacters in paths stay literal; unpinned glob chars throw', () => {
   assert.ok(globToRegExp('a+b/c.d/**').test('a+b/c.d/e'))
   assert.ok(!globToRegExp('a.b').test('axb'))
+  // Every other member of the escape class, so dropping one from it goes red.
+  assert.ok(globToRegExp('a$b(c)|d^e/**').test('a$b(c)|d^e/f'))
+  assert.ok(!globToRegExp('a|b').test('a'), 'an unescaped | would be an alternation matching "a"')
+  assert.ok(globToRegExp('a\\b').test('a\\b'), 'a backslash stays a literal backslash')
+  assert.ok(!globToRegExp('a\\b').test('ab'))
   assert.throws(() => globToRegExp('template/[ab]/**'), /outside the pinned subset/)
   assert.throws(() => globToRegExp('file?.txt'), /outside the pinned subset/)
 })

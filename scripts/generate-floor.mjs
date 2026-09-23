@@ -91,14 +91,14 @@ const flags = new Set(process.argv.slice(2))
 if (flags.has('--write')) {
   for (const floor of FLOORS) {
     // Preserve a hand-tuned comment if one already exists; otherwise seed doctrine.
+    // One read, no existsSync first: a presence check held apart from the write below is the
+    // check-then-use shape (CWE-367), and the catch already covers a missing file.
     let comment = floor.doctrine
-    if (existsSync(floor.path)) {
-      try {
-        const cur = JSON.parse(readFileSync(floor.path, 'utf8'))
-        if (typeof cur.comment === 'string' && cur.comment.trim()) comment = cur.comment
-      } catch {
-        // Corrupt existing file — regenerate from scratch with doctrine.
-      }
+    try {
+      const cur = JSON.parse(readFileSync(floor.path, 'utf8'))
+      if (typeof cur.comment === 'string' && cur.comment.trim()) comment = cur.comment
+    } catch {
+      // Missing (ENOENT) or corrupt existing file — seed the doctrine comment.
     }
     writeFileSync(floor.path, serialize(comment, floor.steps))
     console.log(

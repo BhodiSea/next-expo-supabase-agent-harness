@@ -23,8 +23,15 @@
 // remedy is the narrowest edit instead — an append of the reviewed [auth.mfa] block,
 // guarded on absence — and the last test here holds that literal to tools/auth-posture.json
 // in both directions, because a second copy of a register is a second copy that drifts.
-// SOURCE: scripts/ci/upgrade-sweep.mjs (computeSweepSet + SWEEPS) · template/migrations.json
+//
+// The CLI main block (the edits themselves) is driven last, over a HERMETIC repo root that
+// holds only template/migrations.json, so every copy is a quiet no-op and what is judged is
+// the in-place work: the toml rename then append, the data-flow reconcile and the AGENTS.md
+// rewrite. Each file is read once and a missing one is a skip, never a create or a crash.
+// SOURCE: scripts/ci/upgrade-sweep.mjs (computeSweepSet + SWEEPS + the CLI main block) ·
+// template/migrations.json
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,6 +41,7 @@ import {
   AUTH_MFA_BLOCK,
   computeSweepSet,
   createdTablesIn,
+  readTextOrNull,
   reconcileDataFlowExclusions,
 } from '../../scripts/ci/upgrade-sweep.mjs'
 
@@ -389,4 +397,156 @@ test('createdTablesIn reads CREATE TABLE across a migrations dir, bare and schem
     fileURLToPath(new URL('../../template/stack/supabase/migrations', import.meta.url)),
   )
   assert.ok(shipped.has('admin_elevations'))
+})
+
+// ── readTextOrNull and the CLI main block ────────────────────────────────────────
+
+test('readTextOrNull: absence is null, anything else surfaces', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-sweep-read-'))
+  const file = join(dir, 'present.txt')
+  writeFileSync(file, 'text\n')
+  assert.equal(readTextOrNull(file), 'text\n')
+  assert.equal(readTextOrNull(join(dir, 'missing.txt')), null)
+  // A parent that is a file: ENOTDIR on POSIX, ENOENT on win32. Absent either way.
+  assert.equal(readTextOrNull(join(file, 'child')), null)
+  // A directory is not "absent": it throws (EISDIR on every OS today), asserted as "not an
+  // absence code" so the win32 leg does not depend on the exact errno.
+  assert.throws(
+    () => readTextOrNull(dir),
+    (/** @type {any} */ e) => e.code !== 'ENOENT' && e.code !== 'ENOTDIR',
+  )
+})
+
+const SWEEP_SCRIPT = fileURLToPath(new URL('../../scripts/ci/upgrade-sweep.mjs', import.meta.url))
+
+/** A repo root holding ONLY migrations.json: every copy is a no-op, the in-place edits remain. */
+function sweepRepo(migrations) {
+  const repo = mkdtempSync(join(tmpdir(), 'epah-sweep-repo-'))
+  mkdirSync(join(repo, 'template'))
+  writeFileSync(join(repo, 'template/migrations.json'), JSON.stringify(migrations))
+  return repo
+}
+
+// Crosses 0.6.0 (the [inbucket] rename), 0.9.9 (the [auth.mfa] append) and 1.0.0 (the
+// data-flow reconcile).
+const HOP_RECORDS = {
+  '0.5.0': {},
+  '0.6.0': {},
+  '0.9.9': { seededSourceFixes: [{ paths: ['supabase/config.toml'] }] },
+  '1.0.0': {},
+}
+
+const AGENTS_BEFORE = [
+  '# Agents',
+  '',
+  'Keep under ~2 lines.',
+  '',
+  'The 3 gates, in order: `a`, `b`, `c`',
+  '  (docs/harness/gates-catalog.md has each one).',
+  '',
+  'Run the 3-step chain before you stop. The 1 Stop-chain steps, in order: `x`.',
+  '',
+].join('\n')
+
+/** @param {{ full?: boolean }} opts  full=false plants only tools/harness.config.mjs */
+function sweepInstall({ full = true } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-sweep-install-'))
+  mkdirSync(join(dir, 'tools'))
+  writeFileSync(
+    join(dir, 'tools/harness.config.mjs'),
+    "export const VALIDATE_STEPS = [['lint', []], ['types', []]]\n",
+  )
+  if (!full) return dir
+  mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
+  writeFileSync(
+    join(dir, 'supabase/config.toml'),
+    'project_id = "demo"\n\n[inbucket]\nenabled = true\n',
+  )
+  writeFileSync(join(dir, 'supabase/migrations/1_a.sql'), 'create table public.notes (id uuid);\n')
+  const reason = 'x'.repeat(40)
+  writeFileSync(
+    join(dir, 'tools/data-flow.json'),
+    JSON.stringify({
+      export: { excluded: [{ table: 'notes', reason }, { table: 'admin_elevations', reason }] },
+    }),
+  )
+  writeFileSync(
+    join(dir, 'tools/stop.floor.json'),
+    JSON.stringify({ steps: [['typecheck', []], ['test', []]] }),
+  )
+  writeFileSync(join(dir, 'AGENTS.md'), AGENTS_BEFORE)
+  return dir
+}
+
+function runSweep(install, repo, base, head) {
+  const r = spawnSync(process.execPath, [SWEEP_SCRIPT, install, repo, base, head], {
+    encoding: 'utf8',
+  })
+  return { code: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
+}
+
+const SWEPT = ['supabase/config.toml', 'tools/data-flow.json', 'AGENTS.md']
+const readSwept = (install) =>
+  Object.fromEntries(SWEPT.map((rel) => [rel, readFileSync(join(install, rel), 'utf8')]))
+
+test('CLI: the sweep renames, then appends, then reconciles, then rewrites AGENTS.md', () => {
+  const install = sweepInstall()
+  const r = runSweep(install, sweepRepo(HOP_RECORDS), '0.5.0', '1.0.0')
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  assert.match(r.stdout, /upgrade-sweep: adopted 4 item\(s\)/)
+
+  const swept = readSwept(install)
+  // The append sees the RENAMED text: carrying a pre-rename copy forward would bring
+  // [inbucket] back with the [auth.mfa] block behind it.
+  assert.equal(
+    swept['supabase/config.toml'],
+    `project_id = "demo"\n\n[local_smtp]\nenabled = true\n${AUTH_MFA_BLOCK}`,
+  )
+  assert.equal(swept['supabase/config.toml'].match(/^\[auth\.mfa\]$/gm)?.length, 1)
+
+  const dataFlow = JSON.parse(swept['tools/data-flow.json'])
+  assert.deepEqual(dataFlow.export.excluded.map((x) => x.table), ['notes'])
+  assert.match(r.stdout, /data-flow\.json \(export\.excluded reconciled: dropped admin_elevations /)
+
+  const agents = swept['AGENTS.md']
+  assert.match(agents, /The 2 gates, in order: `lint`, `types`\n {2}\(docs\/harness\/gates-catalog\.md/)
+  assert.match(agents, /the 2-step chain/)
+  assert.match(agents, /The 2 Stop-chain steps, in order: `typecheck`, `test`\./)
+  assert.match(agents, /Keep under ~50 lines/)
+  assert.match(r.stdout, /AGENTS\.md \(gate list \+ counts → 2; Stop-chain list; self-budget restated/)
+})
+
+test('CLI: a second sweep over the swept tree adopts nothing and changes no byte', () => {
+  const install = sweepInstall()
+  const repo = sweepRepo(HOP_RECORDS)
+  const first = runSweep(install, repo, '0.5.0', '1.0.0')
+  assert.equal(first.code, 0, `${first.stdout}${first.stderr}`)
+  const swept = readSwept(install)
+
+  const again = runSweep(install, repo, '0.5.0', '1.0.0')
+  assert.equal(again.code, 1, `${again.stdout}${again.stderr}`)
+  assert.match(again.stderr, /upgrade-sweep: nothing to adopt/)
+  assert.deepEqual(readSwept(install), swept)
+})
+
+test('CLI: a missing file is a skip, never a create or a crash', () => {
+  const install = sweepInstall({ full: false })
+  const r = runSweep(install, sweepRepo(HOP_RECORDS), '0.5.0', '1.0.0')
+  assert.equal(r.code, 1, `${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /upgrade-sweep: nothing to adopt/)
+  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /ENOENT/)
+  for (const rel of SWEPT) {
+    assert.throws(() => readFileSync(join(install, rel)), { code: 'ENOENT' }, `${rel} was created`)
+  }
+})
+
+test('CLI: a hop with no toml edit due never reads config.toml', () => {
+  // A directory where config.toml should be would throw EISDIR on any read. The (1.0.0, 1.0.2)
+  // hop has no rename and no append, so the sweep must not look at the file at all.
+  const install = sweepInstall({ full: false })
+  mkdirSync(join(install, 'supabase/config.toml'), { recursive: true })
+  const r = runSweep(install, sweepRepo({ '1.0.0': {}, '1.0.2': {} }), '1.0.0', '1.0.2')
+  assert.equal(r.code, 1, `${r.stdout}${r.stderr}`)
+  assert.match(r.stderr, /upgrade-sweep: nothing to adopt/)
+  assert.doesNotMatch(r.stderr, /EISDIR/)
 })

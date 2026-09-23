@@ -11,6 +11,10 @@ import { test } from 'node:test'
 import { deriveRegistry } from '../../scripts/lib/escape-registry.mjs'
 
 const guard = (id, re) => ({ id, re })
+// An exact-match guard for one path. Every regex metacharacter is escaped, backslash
+// included (the same escaper as installer/lib/migrations.mjs), not just the first dot.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const exact = (f) => new RegExp(`^${escapeRe(f)}$`)
 
 // A population large enough to clear MIN_POPULATION, so the per-member rules are what is
 // under test rather than the floor. Built from a real prefix of the shipped lists.
@@ -19,7 +23,7 @@ function bulk(n, { guardAll = true } = {}) {
   return {
     seeded: files,
     escapes: files,
-    guards: guardAll ? files.map((f) => guard(f, new RegExp(`^${f.replace('.', '\\.')}$`))) : [],
+    guards: guardAll ? files.map((f) => guard(f, exact(f))) : [],
   }
 }
 
@@ -83,10 +87,7 @@ test('the three tolerated-absent escapes are exempt from the seed rule, not from
   const ok = deriveRegistry({
     seeded: base.seeded,
     escapes: [...base.escapes, ...tolerated],
-    guards: [
-      ...base.guards,
-      ...tolerated.map((f) => guard(f, new RegExp(`^${f.replace(/\./g, '\\.')}$`))),
-    ],
+    guards: [...base.guards, ...tolerated.map((f) => guard(f, exact(f)))],
   })
   assert.deepEqual(ok.problems, [])
   // Unguarded: still reds. Tolerated-absent excuses the SEED layer only.

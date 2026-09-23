@@ -52,7 +52,7 @@ test('GREEN — a versioned prompt whose lock hash matches passes', () => {
 test('RED — a prompt not in the lock reds (every prompt must be hash-locked)', () => {
   const r = run(scaffold({ prompts: { [PROMPT]: BODY }, lock: {} }))
   assert.equal(r.status, 1)
-  assert.match(r.stderr, new RegExp(`${PROMPT.replace(/\./g, '\\.')} is not in`))
+  assert.ok(r.stderr.includes(`${PROMPT} is not in`), r.stderr)
   assert.match(r.stderr, /every prompt must be hash-locked/)
 })
 
