@@ -11,7 +11,17 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [1.0.3] — 2026-09-23
+
+**A patch: the fixes merged since 1.0.2 (#27–#34), cut so an install takes them through
+`update` rather than by reading the commit log.** CodeQL's first full scan of this
+repository, on 2026-09-20, raised 34 alerts. All 34 are closed here, nine of them in gate
+tools the template ships. No gate is added, the chain length does not change, and no ramp
+opens or moves. One change is seeded, so `update` does not deliver it: the catalog's
+`vitest` pin (see Security, which says what an existing install does instead). The
+`template/migrations.json` record for 1.0.3 is `rampExpiry` only, restating 1.0.0's
+thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.2 meet nothing here.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.2`.
 
 ### Security
 
@@ -45,7 +55,23 @@ This lineage's own history starts at 0.1.3.
   in between could be recorded with another file's mode. A FIFO or a terminal device at a
   candidate path can no longer hang the snapshot or attach to it. Anything that is not a
   regular file is still recorded as absent, and a regular file that cannot be read still
-  stops `update` before its first change.
+  stops `update` before its first change (#33).
+- **Each release now carries its provenance bundle as an asset** (#28). `release.yml`
+  uploads the signed bundle that `attest-build-provenance` produces, as
+  `next-expo-supabase-agent-harness-<version>.tgz.intoto.jsonl`, beside the tarball.
+  Verification from the attestation store worked before; a verifier holding only the
+  release assets now has the bundle too (`gh attestation verify --bundle`, SECURITY.md).
+  1.0.3 is the first release whose workflow attaches it itself.
+- **A registry publish race no longer reds the whole selftest matrix** (#29). A rendered
+  scaffold resolves its catalog live, so every job sat in the same three-minute window
+  when npm published a package before the dependency it pins exactly. The scaffold
+  installs retry only on a registry-side signature, drop the failing packument from
+  pnpm's cache between attempts, and otherwise fail at once with the original status.
+- **The factory's own machinery reads each file once and escapes in full** (#32, #33).
+  Test fixtures take their directories from `mkdtempSync`. The complexity ratchet, the
+  rule-integrity record, the floor generator and the upgrade sweep read their files once
+  with ENOENT as the only "absent". The REUSE mirror's glob escape is global. The corpus
+  fidelity lane refuses a malformed http(s) citation before any request is built.
 
 ### Changed
 
@@ -62,8 +88,8 @@ This lineage's own history starts at 0.1.3.
   percent-encoded delimiter (`%2F`, `%40`), where the text itself follows a hex digit.
 - **The backup-evidence lane treats init's default `TBD` project ref as "never linked".**
   This applies whichever source supplies the ref, `SUPABASE_PROJECT_REF` or
-  `supabase/config.toml`. It used to send a request for `TBD` and fail on the 404. It now takes the same loud skip
-  as the unrendered placeholder, which still fails under
+  `supabase/config.toml`. It used to send a request for `TBD` and fail on the 404. It now
+  takes the same loud skip as the unrendered placeholder, which still fails under
   `HARNESS_REQUIRE_BACKUP_EVIDENCE=1`. Any other ref that is not 20 lowercase letters fails
   before a request is built, naming where the ref came from and its length but never its
   value. `restore-manifest` applies the same guard to `SUPABASE_PROJECT_REF`.
@@ -86,7 +112,31 @@ This lineage's own history starts at 0.1.3.
   bugs such as useless assignments, unreachable code and suspicious comparisons. They
   are informational, like every CodeQL result. The lane is still not a required check,
   and no gate reads it. The factory's own CodeQL lane moves in step, so this repository
-  keeps running exactly the lane its consumers get.
+  keeps running exactly the lane its consumers get (#31). On this repository's own code
+  the 100 added rules found nothing.
+- **This repository's Renovate config fits the factory and the shipped template** (#30).
+  It separates factory updates from shipped ones and groups them. Majors, the Expo SDK
+  set, `next` minors, `typescript` minors, pre-1.0 minors and the checksum-verified
+  binaries wait for a Dependency Dashboard click. The 19 template workflows, the
+  `# renovate:` annotations and the `.tmpl` / `eas.json` pins are managed. The Supabase
+  CLI is pinned exactly, and OSV advisories cover the shipped catalog, which GitHub's
+  dependency graph cannot see. Factory-only: nothing reaches an install.
+
+### What stays open, honestly
+
+- **Existing installs keep `vitest 4.1.10` until they raise it.** The catalog is seeded
+  by design, and no migration record kind can express "raise an existing pin"
+  (`dependencyObligations` asks whether a key is present, not at what version). A
+  consumer's daily `osv-scan` full-tree job reports the advisory against its lockfile.
+- **Five OpenSSF Scorecard checks stay below their thresholds.** Code-Review and the
+  admin half of Branch-Protection need a second maintainer. Maintained lifts itself
+  once the repository is 90 days old (2026-10-20), SAST as more CodeQL-checked pull
+  requests merge, and CII-Best-Practices when the Passing questionnaire is complete.
+- **Two defects found while fixing the machinery are not fixed here.** `rollbackUpdate`
+  calls `rmSync` without `recursive` on a path recorded as absent that has since become
+  a directory, which throws mid-rollback. `check-complexity-ratchet` resolves its record
+  against the working directory rather than the repository root, which CI never reaches
+  because it runs from the root.
 
 ## [1.0.2] — 2026-09-21
 

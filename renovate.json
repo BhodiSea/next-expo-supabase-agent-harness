@@ -121,7 +121,7 @@
       "semanticCommitType": "chore",
       "semanticCommitScope": "deps",
       "prBodyNotes": [
-        "**Factory lockfile change.** Every component this adds to `pnpm-lock.yaml` needs a reviewed row in `scripts/sbom-additions.json` (release `1.0.3`, a reason of 40+ characters), and a 1.0.2 row whose component moved retires, or `machinery-sbom-drift` stays red. `CI=true node scripts/check-sbom-drift.mjs` lists both. Push the rows before approving; after that, do not tick the rebase box."
+        "**Factory lockfile change.** Every component this adds to `pnpm-lock.yaml` needs a reviewed row in `scripts/sbom-additions.json` (release: the version the NEXT release will carry, not the one in package.json; a reason of 40+ characters), and a row for that same release whose component moved again retires, or `machinery-sbom-drift` stays red. `CI=true node scripts/check-sbom-drift.mjs` lists both. Push the rows before approving; after that, do not tick the rebase box."
       ]
     },
     {
