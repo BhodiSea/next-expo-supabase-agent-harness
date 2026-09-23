@@ -1,12 +1,257 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits"],
+  "description": "Factory repo. template/** is rendered into consumer projects (shipped); everything else is the factory's own tooling.",
+  "extends": ["config:best-practices", ":semanticCommits", "customManagers:biomeVersions"],
+  "timezone": "Etc/UTC",
+  "schedule": ["* 0-5 * * 1"],
   "minimumReleaseAge": "5 days",
-  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "dependencyDashboardOSVVulnerabilitySummary": "all",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "addLabels": ["security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 1-7 * 1"]
+  },
+  "enabledManagers": ["npm", "github-actions", "custom.regex", "custom.jsonata"],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    ".selftest/**",
+    ".harness/**",
+    "design/**",
+    "docs/**",
+    "template/shas/**",
+    "template/modules/*/docs/**"
+  ],
+  "github-actions": {
+    "managerFilePatterns": ["template/**/github/workflows/*.{yml,yaml}"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "`# renovate:` annotations above a *_VERSION key (lint.yml reuse, eas-update.yml eas-cli).",
+      "managerFilePatterns": [".github/workflows/*.{yml,yaml}", "template/**/github/workflows/*.{yml,yaml}"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: registryUrl=(?<registryUrl>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*[\"']?(?<currentValue>.+?)[\"']?\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "The two unannotated EAS_CLI_VERSION pins in the mobile release module, kept in step with eas-update.yml.",
+      "managerFilePatterns": ["template/modules/ci-mobile-release/github/workflows/*.{yml,yaml}"],
+      "matchStrings": ["EAS_CLI_VERSION:\\s*['\"]?(?<currentValue>\\d+\\.\\d+\\.\\d+)['\"]?"],
+      "depNameTemplate": "eas-cli",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "One-shot tools run with pnpm dlx (migration-safety.yml squawk-cli, store-metadata-push.yml eas-cli).",
+      "managerFilePatterns": ["template/**/github/workflows/*.{yml,yaml}"],
+      "matchStrings": ["pnpm dlx (?<depName>[a-z0-9@/._-]+?)@(?<currentValue>\\d+\\.\\d+\\.\\d+)\\b"],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "The consumer's packageManager pin lives in a .tmpl manifest, which the npm manager does not read.",
+      "managerFilePatterns": ["template/**/package.json.tmpl"],
+      "matchStrings": ["\"packageManager\":\\s*\"(?<depName>pnpm)@(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "eas.json build.base.pnpm must equal packageManager (tools/check-version-sync.mjs), so it moves in the same group.",
+      "managerFilePatterns": ["template/stack/apps/mobile/eas.json"],
+      "matchStrings": ["\"pnpm\":\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "eas.json build.base.node: the same Node major as the scaffold's node-version file.",
+      "managerFilePatterns": ["template/stack/apps/mobile/eas.json"],
+      "matchStrings": ["\"node\":\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
+    },
+    {
+      "customType": "regex",
+      "description": "Maestro CLI zip. The sha256 on the next line is checked by sha256sum -c and must be updated by hand.",
+      "managerFilePatterns": [".github/workflows/selftest.yml", "template/**/github/workflows/*.{yml,yaml}"],
+      "matchStrings": ["releases/download/(?<currentValue>cli-\\d+\\.\\d+\\.\\d+)/maestro\\.zip"],
+      "depNameTemplate": "maestro",
+      "packageNameTemplate": "mobile-dev-inc/maestro",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^cli-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "gitleaks binary. GITLEAKS_SHA256 next to it must be updated by hand.",
+      "managerFilePatterns": ["template/base/github/workflows/gitleaks.yml"],
+      "matchStrings": ["GITLEAKS_VERSION:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "gitleaks",
+      "packageNameTemplate": "gitleaks/gitleaks",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
+      "description": "Keep the 5-day npm cooldown. config:best-practices brings security:minimumReleaseAgeNpm, a packageRule setting 3 days, and packageRules beat the top-level value. Limited to version updates so pin and lockfile-maintenance keep the preset's exemptions.",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "FACTORY npm: root package.json, the root pnpm-workspace.yaml override and the root lockfile. Never ships.",
+      "matchFileNames": ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"],
+      "addLabels": ["deps:factory"],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps",
+      "prBodyNotes": [
+        "**Factory lockfile change.** Every component this adds to `pnpm-lock.yaml` needs a reviewed row in `scripts/sbom-additions.json` (release `1.0.3`, a reason of 40+ characters), and a 1.0.2 row whose component moved retires, or `machinery-sbom-drift` stays red. `CI=true node scripts/check-sbom-drift.mjs` lists both. Push the rows before approving; after that, do not tick the rebase box."
+      ]
+    },
+    {
+      "description": "The owner's devDependencies group, widened to packageManager and the typescript override so they never split. Non-major only.",
+      "matchFileNames": ["package.json", "pnpm-workspace.yaml"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "dev dependencies"
+    },
+    {
+      "description": "FACTORY workflows.",
+      "matchFileNames": [".github/workflows/**"],
+      "addLabels": ["deps:factory"],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "matchFileNames": [".github/workflows/**"],
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "factory GitHub Actions"
+    },
+    {
+      "description": "SHIPPED: everything under template/ is rendered into consumer projects.",
+      "matchFileNames": ["template/**"],
+      "addLabels": ["deps:template"],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "template-deps",
+      "additionalBranchPrefix": "template-",
+      "prBodyNotes": [
+        "**Shipped change.** If this touches a harness-owned file (a workflow, `biome.jsonc`), run `node scripts/generate-released-shas.mjs --current` and push `template/shas/`, or `machinery-released-shas` stays red. Catalog bumps are proven by `canary` and `bootstrap-linux`, which render and validate the scaffold."
+      ]
+    },
+    {
+      "matchFileNames": [
+        "template/base/pnpm-workspace.yaml",
+        "template/**/package.json.tmpl",
+        "template/stack/apps/mobile/eas.json",
+        "template/base/biome.jsonc"
+      ],
+      "matchUpdateTypes": ["minor", "patch", "pin"],
+      "groupName": "template catalog"
+    },
+    {
+      "matchFileNames": ["template/**/github/workflows/**"],
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "template GitHub Actions",
+      "semanticCommitScope": "template-ci"
+    },
+    {
+      "description": "Every major waits for a Dependency Dashboard click.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pre-1.0 packages: under semver a 0.x minor is a breaking release (@supabase/ssr ^0.10 to 0.12), so it waits for a click like a major, in its own group so the rest of the catalog still flows.",
+      "matchDatasources": ["npm"],
+      "matchCurrentValue": "/^[~^]?0\\./",
+      "matchUpdateTypes": ["minor"],
+      "groupName": "pre-1.0 minors",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "The Expo SDK / bundledNativeModules set. The native-deps gate (expo install --check) reds any drift between them, so they move as one reviewed set.",
+      "matchFileNames": ["template/base/pnpm-workspace.yaml"],
+      "matchPackageNames": [
+        "expo",
+        "expo-*",
+        "babel-preset-expo",
+        "jest-expo",
+        "react",
+        "react-dom",
+        "react-test-renderer",
+        "react-native",
+        "@react-native/*",
+        "react-native-screens",
+        "react-native-svg",
+        "react-native-safe-area-context",
+        "@react-native-async-storage/async-storage"
+      ],
+      "groupName": "Expo SDK set",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "next minors move the App Router contract. Patches, which carry the security floor, still flow.",
+      "matchFileNames": ["template/base/pnpm-workspace.yaml"],
+      "matchPackageNames": ["next"],
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "typescript: the root override and the catalog pin move together, typescript-eslint 8 supports <6.1, and 7.x crashes eslint-plugin-sonarjs.",
+      "matchPackageNames": ["typescript"],
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pin the Supabase CLI exactly, in its own PR. A CLI release moves the local database image and the gen-types output (1.0.2 CHANGELOG).",
+      "matchFileNames": ["template/base/pnpm-workspace.yaml"],
+      "matchPackageNames": ["supabase"],
+      "rangeStrategy": "pin",
+      "groupName": "Supabase CLI"
+    },
+    {
+      "description": "codeql-action is pinned to codeql-bundle-vX.Y.Z tags, which the default github-actions versioning rejects; without this it never updates.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["github/codeql-action"],
+      "versioning": "regex:^codeql-bundle-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "description": "Runtime versions in `with:` inputs are policy: node-version 22 is the tested floor, Java 17 is the Android toolchain.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["uses-with"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "eas.json build.base.node keeps the scaffold's Node major (check-version-sync).",
+      "matchFileNames": ["template/stack/apps/mobile/eas.json"],
+      "matchDepNames": ["node"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "sha256-verified binaries: Renovate cannot recompute the checksum.",
+      "matchDepNames": ["maestro", "gitleaks"],
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "**Checksum.** Update the sha256 that sits next to this version by hand; CI fails closed on it until you do."
+      ]
     }
   ]
 }
