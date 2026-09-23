@@ -366,6 +366,52 @@ test('GREEN (0.2.0): the SAME helper wrapped in a scalar sub-select passes — r
   assert.equal(r.code, 0, r.out)
 })
 
+test('GREEN: the helper name matches LITERALLY — its dot is not a wildcard for `_`', () => {
+  // With the dot unescaped, `public.current_uid` would match `public_current_uid()` (a
+  // different function) and inline auth.uid() there: a false per-row red. The bare key
+  // `current_uid` cannot match it either, because `\b` does not hold between `_` and `c`.
+  const helper =
+    'CREATE FUNCTION public.current_uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT auth.uid() $$;'
+  const r = runGate(
+    fixture({
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = public_current_uid())',
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(!r.out.includes('per row'), r.out)
+})
+
+test("GREEN: a `$'` in a helper body is inlined verbatim, not as a replacement pattern", () => {
+  // `'^x$'` is an ordinary SQL regex literal. Passed as a replacement STRING, its `$'` would
+  // splice the rest of the predicate (its closing parens) in ahead of auth.uid(), break the
+  // `(SELECT ...)` the initPlan rule reads, and red a correctly wrapped call as per-row.
+  const helper =
+    "CREATE FUNCTION public.current_uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT CASE WHEN 'x' ~ '^x$' THEN auth.uid() END $$;"
+  const wrapped = runGate(
+    fixture({
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = (SELECT public.current_uid()))',
+      }),
+    }),
+  )
+  assert.equal(wrapped.code, 0, wrapped.out)
+  // Control: the same helper called BARE is still the per-row red, so the body did inline.
+  const bare = runGate(
+    fixture({
+      migration: migration({
+        extra: helper,
+        usingSelect: 'USING (owner_id = public.current_uid())',
+      }),
+    }),
+  )
+  assert.equal(bare.code, 1, bare.out)
+  assert.ok(bare.out.includes('per row'), bare.out)
+})
+
 test('RED (0.2.0): SECURITY DEFINER with no reviewed allowlist entry', () => {
   const fn =
     "CREATE FUNCTION public.escalate() RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$ SELECT 1 $$;"

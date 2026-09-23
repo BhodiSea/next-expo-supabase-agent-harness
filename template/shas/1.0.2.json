@@ -1562,6 +1562,9 @@
     "tools/check-rls-manifest.mjs": [
       {
         "sha256": "922f5d4e46f0cfff6ffb0b31ef1a9f291d88751f278690c9c4e559658d4877e2"
+      },
+      {
+        "sha256": "9c5d4379e38c591f2141f79337ae6ccdcc2d1a13d1592ef26aa6c7c2cef77cf0"
       }
     ],
     "tools/check-route-manifest.mjs": [
@@ -1593,6 +1596,9 @@
       }
     ],
     "tools/check-store-config.mjs": [
+      {
+        "sha256": "3a555c02ccba25233857928330c9773b801afc4b0d7f76f0594584ee91040692"
+      },
       {
         "sha256": "d270298ce85f9ad2a1070f8a98ec85505a8cacb77549677c11678cfde7f16d11"
       }
@@ -1930,6 +1936,9 @@
     "tools/lib/observability.mjs": [
       {
         "sha256": "29b292fcdd263e58485857cbd3527cae2a5849685f7f2c2f4381e4ae4b7463af"
+      },
+      {
+        "sha256": "c6cdf74c8191455c1ee5e4ddc53f8227be0f09112f186e57a8e09eef634cfbf7"
       }
     ],
     "tools/lib/perf-subject-cli.mjs": [
@@ -1968,6 +1977,9 @@
     "tools/lib/sbom.mjs": [
       {
         "sha256": "5e2a47a9e8cf6b69a8a16a21930da2fd9f5ccc833f6ba6c14e5bb94b1ce24ca3"
+      },
+      {
+        "sha256": "ce73434b0f327d216252fac6f913032dce383ad2f35a25b25a85f295afc2b922"
       }
     ],
     "tools/lib/security-txt.mjs": [

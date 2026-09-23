@@ -95,7 +95,16 @@ const EXCLUDE_DIRS = new Set([
 ])
 
 const SOURCE_EXT = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/
-const TEST_PATH = /(?:^|\/)(?:__tests__|e2e)\/|\.(?:test|spec)\.|\.d\.ts$/
+// Test and type-only files, as three independent rules, each anchored exactly as it means:
+// a `__tests__/` or `e2e/` directory SEGMENT, a `.test.`/`.spec.` infix anywhere in the
+// path, and a `.d.ts` SUFFIX. One alternation with a lone trailing `$` reads as
+// `^(a|b|c)$` to reviewers and scanners alike; only the declaration rule is end-anchored.
+const TEST_DIR = /(?:^|\/)(?:__tests__|e2e)\//
+const TEST_INFIX = /\.(?:test|spec)\./
+const DECLARATION = /\.d\.ts$/
+
+/** @param {string} p @returns {boolean} */
+const isTestPath = (p) => TEST_DIR.test(p) || TEST_INFIX.test(p) || DECLARATION.test(p)
 
 /**
  * Every scannable source file under the given roots, as POSIX paths relative to
@@ -110,7 +119,7 @@ export function scanFiles(roots) {
   for (const root of roots) {
     for (const rel of walkFiles(root, {
       excludeDirs: EXCLUDE_DIRS,
-      filter: (p) => SOURCE_EXT.test(p) && !TEST_PATH.test(p),
+      filter: (p) => SOURCE_EXT.test(p) && !isTestPath(p),
     })) {
       out.push(`${toPosix(root)}/${rel}`)
     }
