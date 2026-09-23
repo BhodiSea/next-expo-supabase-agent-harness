@@ -411,7 +411,10 @@ test('readTextOrNull: absence is null, anything else surfaces', () => {
   assert.equal(readTextOrNull(join(file, 'child')), null)
   // A directory is not "absent": it throws (EISDIR on every OS today), asserted as "not an
   // absence code" so the win32 leg does not depend on the exact errno.
-  assert.throws(() => readTextOrNull(dir), (e) => e.code !== 'ENOENT' && e.code !== 'ENOTDIR')
+  assert.throws(
+    () => readTextOrNull(dir),
+    (/** @type {any} */ e) => e.code !== 'ENOENT' && e.code !== 'ENOTDIR',
+  )
 })
 
 const SWEEP_SCRIPT = fileURLToPath(new URL('../../scripts/ci/upgrade-sweep.mjs', import.meta.url))

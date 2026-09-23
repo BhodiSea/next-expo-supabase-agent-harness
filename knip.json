@@ -48,5 +48,7 @@
     "@app/notes",
     "postgres"
   ],
-  "ignoreBinaries": ["vitest", "stryker", "supabase"]
+  // `mkfifo` is a POSIX system utility, not a package: tests/installer/rollback.test.mjs
+  // spawns it to plant a FIFO candidate, and skips when it is missing.
+  "ignoreBinaries": ["vitest", "stryker", "supabase", "mkfifo"]
 }

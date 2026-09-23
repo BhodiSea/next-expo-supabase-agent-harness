@@ -377,7 +377,7 @@ test('a UNIX socket candidate is recorded absent', {
   const server = createServer()
   await new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(join(dir, 'tools', 'sock'), resolve)
+    server.listen(join(dir, 'tools', 'sock'), () => resolve(undefined))
   })
   let files
   try {
