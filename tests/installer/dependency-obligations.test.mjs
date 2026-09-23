@@ -6,7 +6,7 @@
 // asserted here by its absence — pnpm-workspace.yaml and package.json are untouched, the
 // obligation self-clears once met, and the parked file is machine-readable.
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -39,11 +39,10 @@ const CATALOG_WITHOUT = `packages:\n  - 'apps/*'\ncatalog:\n  next: 16.2.11\n`
 const PKG_WITH = JSON.stringify({ devDependencies: { 'eslint-plugin-jsx-a11y': 'catalog:' } })
 const PKG_WITHOUT = JSON.stringify({ devDependencies: {} })
 
-let seq = 0
+// A fresh, private directory per call. mkdtemp never reuses a path, so a leftover from an
+// earlier run can never stand in for a fixture, and no other local user can pre-create it.
 function scratch() {
-  const dir = join(tmpdir(), `harness-oblig-${String(process.pid)}-${String(seq++)}`)
-  mkdirSync(dir, { recursive: true })
-  return dir
+  return mkdtempSync(join(tmpdir(), 'harness-oblig-'))
 }
 
 test('an obligation from a FUTURE release is not demanded yet', () => {
@@ -145,6 +144,9 @@ test('a dry run writes nothing at all', () => {
     dryRun: true,
   })
   assert.equal(existsSync(join(dir, DEPENDENCY_OBLIGATIONS_PATH)), false)
+  // "Nothing at all" literally: not even an empty .harness/ directory. Only assertable
+  // because scratch() hands out a directory nothing else has written into.
+  assert.deepEqual(readdirSync(dir).sort(), ['package.json', 'pnpm-workspace.yaml'])
 })
 
 test('the parked file SELF-CLEARS once the tree meets the obligation', () => {

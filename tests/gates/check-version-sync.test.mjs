@@ -640,7 +640,9 @@ test('RED: an image below the floor names both majors, the in-force date and the
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('builds with Xcode 25, below the floor of 26'), r.out)
   assert.ok(r.out.includes('2026-04-28'), r.out)
-  assert.ok(r.out.includes('developer.apple.com'), r.out)
+  // The reviewed record's source, printed verbatim in the message's parentheses. Not a
+  // domain substring: any text that merely mentioned the host would have passed that.
+  assert.ok(r.out.includes(`(${shippedStorePolicy.iosToolchain.source})`), r.out)
 })
 
 test('GREEN: -xcode-26.0 meets the floor — the static half stays silent about the toolchain', () => {
