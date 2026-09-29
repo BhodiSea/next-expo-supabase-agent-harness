@@ -15,8 +15,9 @@ This lineage's own history starts at 0.1.3.
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
-every changed file that is owned. The one seeded change, the regenerated database types,
-reaches fresh scaffolds only (see Fixed, which says what an existing install does instead).
+every changed file that is owned. The seeded changes, the regenerated database types and
+a comment in `tools/store-tunables.json`, reach fresh scaffolds only (see Fixed and Changed,
+which say what an existing install does instead).
 One gate can red locally where it used to skip: `types-drift`, on a machine with no global
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
 already did (see Fixed).
@@ -148,6 +149,21 @@ this heading if none does. -->
   judge committed history as before. `update` re-plants
   `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md`, whose write-guard
   section now states the three proofs and the residual, and the upgrade runbook (#45).
+- **`expo-policy`'s stamp hashes every file the gate reads after stamping.** The declared
+  inputs left out `tools/store-tunables.json`, the mobile source the `EXPO_PUBLIC_` name scan
+  walks (`apps/mobile/src` and `apps/mobile/app`, which also hold the routes the `route`
+  surface reads and the auth-surface probe's paths), and every Edge Function but
+  `delete-account`. So locally, an edit to any of them could pass on a warm stamp: setting
+  `accountDeletion.actionId` to an id the registry lacks, or adding a secret-shaped
+  `EXPO_PUBLIC_` name under `apps/mobile/src`. The four paths join the list and the existing
+  entries stay. Any mobile source or Edge Function edit now re-runs the gate locally, as a
+  mobile source edit already re-runs `build` and `e2e`; CI never honoured a stamp, so no CI
+  verdict moves. `update` delivers `tools/lib/stamp-inputs.mjs` (#46).
+- **Two docs named a deletion route the template does not ship.** The gates catalog's
+  `expo-policy` section and the `store-metadata` module's `docs/store/app-review-notes.md`
+  said the deletion action calls `DELETE /api/me`. The closure checks the `delete-account`
+  Edge Function, on disk and declared in `supabase/config.toml`, and both docs now say so.
+  `update` delivers both (#46).
 
 ### Changed
 
@@ -209,6 +225,32 @@ this heading if none does. -->
   `docs/security/threat-model.md` is generated from, is unchanged, so that document does not
   change. `reports/`, `artifacts/` and the stamps stay off the list. `update` re-plants
   `.claude/hooks/lib/guard-rules.mjs`; the longer list comes with this release's CLI (#45).
+- **Two reviewed escapes for a project that does not keep the example's anchors.** Both are
+  optional keys in registers that are write-guarded and escape-listed, so each lands only as
+  a committed human edit, and neither appears in any shipped register, so no existing
+  install's verdict changes.
+  - `perf-budget` accepts `subjects: []` beside `"emptySubjects": { "reason", "reviewedOn" }`,
+    held to the vertical-anatomy escape's bar: a reason of at least 40 characters after
+    trimming, and a `reviewedOn` shaped `YYYY-MM-DD` that is never compared with the clock.
+    It prints a NOTE and names the empty state and its reason in its OK line. A row beside a
+    non-empty `subjects[]` reds as a stale escape, and `[]` without the row still reds with
+    "NON-EMPTY array", now naming the row. The leak scan and both directions of the
+    dense-feature closure run unchanged, so the row cannot hide a dense screen or an
+    undeclared `perfSubject.tsx`. Until now a project with nothing dense to measure went
+    green only by keeping a subject it did not have.
+  - `expo-policy` reads the command registry the `action` surface checks from an optional
+    `accountDeletion.registry`: a forward-slash `.ts` or `.tsx` path under `apps/mobile/src/`
+    with no `..` segment, legal only on that surface. Any other value fails the shape check,
+    the red names the file the gate read, and without the key the gate reads
+    `apps/mobile/src/features/actions/registry.ts` as before.
+
+  `update` delivers both gates and the gates catalog. `tools/store-tunables.json` is seeded,
+  so the `//` comment that documents the registry key reaches fresh scaffolds only; the
+  upgrade runbook's 1.0.4 section documents both keys, says that moving the registry also
+  moves the mobile entry in `tools/data-flow.json` `erase.clients`, and says that a new
+  vertical's events reach the committed event catalog only through a forked generator until
+  1.1.0. A new factory lane, `day0-empty-states`, runs the Stop chain on a scaffold that uses
+  both escapes and proves each red (#46).
 
 ### What stays open, honestly
 
@@ -250,6 +292,13 @@ this heading if none does. -->
   only. An install whose root sits below its repository's root still gets the deny for every
   existing migration, as through 1.0.3: git reports the path with that prefix, which is not
   exactly `?? <path>` (#45).
+- **The lane keeps the example; it does not prove a chain without it.** `day0-empty-states`
+  swaps the two anchors for their reviewed escapes and removes nothing, because deleting the
+  example would red what other items own: the pgTAP proofs on the notes table, the registers
+  that name the example, and the matrix route's startup-budget, suppression, knip and
+  Maestro rows. The event-catalog leg, a generator that discovers each vertical's catalog
+  instead of importing it by name, changes the `contracts` verdict for an existing install
+  and so waits for 1.1.0 (#46).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -318,7 +367,14 @@ this heading if none does. -->
   append-only deny naming the untracked proof; a migration `init` planted was denied on the
   manifest proof, under `HARNESS_ALLOW_SELF_EDIT=1` too; and `doctor --clean` removed a
   planted `apps/web/.next/`, `coverage/` and `.eslintcache` after `--dry-run` listed them
-  (#45).
+  (#45). The new cases in
+  `tests/gates/check-perf-budget.test.mjs`, `tests/gates/check-expo-policy.test.mjs` and
+  `tests/gates/gate-helpers.test.mjs` were red before the gates changed and green after,
+  including the two stamp proofs, which ran the gate outside CI and got the warm stamp's OK
+  on the edited tree. On a rendered core
+  scaffold carrying the lane's three edits, `format`, `gate-integrity`, `perf-budget`,
+  `expo-policy` and `data-flow` passed, and the Canary 30, 31 and 32 steps, run as written,
+  each went red with its message and restored green (#46).
 
 ## [1.0.3] — 2026-09-23
 
