@@ -258,6 +258,18 @@ this heading if none does. -->
   the manifest are still restored, and `update --rollback` exits 2, which the exit-code
   table in `docs/cli.md` now names. The fix is in the installer, so an install gets it by
   running `update --rollback` with the 1.0.4 CLI; no template file changes (#52).
+- **The complexity ratchet reads and writes its record at the repository root, whichever
+  directory it is started from.** `scripts/check-complexity-ratchet.mjs` linted the tree its
+  own file sits in but resolved `scripts/complexity-ratchet.json` against the working
+  directory. Started anywhere but the root, it judged against no record and reported every
+  recorded function as new; started inside another checkout, it judged against that
+  checkout's record, where a function that grew could read clean; and `--write` either threw
+  or wrote a stray record there, leaving the real one untouched. Both paths now resolve from
+  the root the script lints, as `scripts/check-rule-integrity.mjs` already did. CI and the
+  factory Stop hook start it from the root, so their verdicts do not change, and a record
+  missing at the root still reports every function as new. This closes one of the machinery
+  defects the 1.0.3 notes left open. The fix is factory-only: `scripts/` does not ship, so
+  nothing reaches an install (#53).
 
 ### Changed
 
@@ -566,7 +578,15 @@ this heading if none does. -->
   the CLI case, which wants exit 2 and a `CONFLICT` line naming the path, exited 1 on that
   throw; and the amended assertions, a new blob's `v` and a path under a regular file
   recorded `vacant`, failed. Run as a user other than root, a path under an unreadable
-  directory was recorded without `vacant` and the whole file passed (#52).
+  directory was recorded without `vacant` and the whole file passed (#52). `tests/gates/check-complexity-ratchet.test.mjs`
+  now runs the ratchet itself over a mirror, with a fake `pnpm` printing a canned ESLint
+  report, so it needs no install. On this release's base the run from a directory with no
+  `scripts/` reported the recorded function as `NEW`, a laxer record in the working directory
+  turned growth into `CLEAN`, and `--write` left a stray record in the working directory and
+  the mirror's record unchanged; all three pass after the fix, and the run from the mirror's
+  root passed on both sides. The cases skip on Windows, where the ratchet's shell-less spawn
+  of `pnpm` cannot reach a test shim. Run from the root and from `installer/`, the ratchet
+  printed the same `CLEAN` line, and `scripts/complexity-ratchet.json` did not change (#53).
 
 ## [1.0.3] — 2026-09-23
 
