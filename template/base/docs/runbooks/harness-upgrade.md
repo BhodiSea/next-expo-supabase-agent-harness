@@ -1433,9 +1433,9 @@ Each note says what an existing install does instead.
   `new exemplar available (not auto-planted): tools/mcp/corpus/project.json` instead of
   planting it: every reader takes an absent file as empty, and a file whose gate reads
   absence as empty is not planted. Pull it when you need it, as described below.
-- **The seeded sentences that name it.** Four seeded files now name `project.json`, and
-  `update` changes none of yours. Each is prose, so copying it changes no verdict, and you
-  may copy any of them from the template:
+- **The seeded sentences that name it.** These seeded files now name `project.json`, and
+  `update` changes none of yours. Each sentence is prose, so copying it changes no verdict,
+  and you may copy any of them from the template:
   - `AGENTS.md`, the first bullet under `## Provenance` (reworded in place, so its line
     count and the budget `docs-sync` holds it to do not move);
   - `tools/decision-groups.json`, the sentence in `comment` about the covering entry a
@@ -1444,8 +1444,8 @@ Each note says what an existing install does instead.
     properly-grouped authority over an override;
   - `tools/approved-tools.json`, the `reason` of the `corpus_search` row.
 
-  The last three are reviewed escape files: the guards deny an agent's edit, and
-  `gate-integrity` reds an uncommitted one, so a human makes the change and commits it.
+  The JSON files among them are reviewed escape files: the guards deny an agent's edit,
+  and `gate-integrity` reds an uncommitted one, so a human makes the change and commits it.
 
 ### The project citation corpus: pulling it, and moving a forked index into it
 
@@ -1466,17 +1466,17 @@ go back to being the harness's.
    Do not copy an entry the harness shipped; an id both files pin reds as "already pinned
    in `tools/mcp/corpus/index.json`". The same red appears if a later release pins an id
    you chose. Rename your entry and its citations then; the harness's entry stays.
-3. **Return the index to a released version.** If `update` parked a copy at
-   `.harness/pending/tools/mcp/corpus/index.json`, move it over the index; that copy holds
-   the bytes of the release you updated to. Otherwise restore the index from the commit
-   before your first edit (`git log -- tools/mcp/corpus/index.json` finds it). Then set
-   the index's `sha256` in `.harness/manifest.json` to the restored file's, the reverse of
-   the re-record you made when you forked it. `doctor` stops listing the index as a fork,
-   and the next `update` refreshes it again.
-4. **Commit all three files together** and run `pnpm validate`. `provenance` is green when
-   every citation resolves and each moved entry still hashes; a red names the file and the
-   entry. `project.json` is a reviewed escape file, so `gate-integrity` also reds while an
-   edit to it is uncommitted.
+3. **Return the index to a released version.** Only once step 2 is done, run
+   `update --refresh-seeded tools/mcp/corpus/index.json --force`. Scoped to that one path,
+   `--force` discards your copy, writes the index this release ships and re-records its
+   `sha256` in `.harness/manifest.json`, the reverse of the re-record you made when you
+   forked it; no other file is touched. If an earlier `update` parked a copy at
+   `.harness/pending/tools/mcp/corpus/index.json`, delete it. `doctor` stops listing the
+   index as a fork, and the next `update` refreshes it again.
+4. **Commit `project.json`, `index.json` and `.harness/manifest.json` together** and run
+   `pnpm validate`. `provenance` is green when every citation resolves and each moved
+   entry still hashes; a red names the file and the entry. `project.json` is a reviewed
+   escape file, so `gate-integrity` also reds while an edit to it is uncommitted.
 
 A decision group you add to `tools/decision-groups.json` still needs an entry tagged with
 its key. That entry now goes in `project.json`, so adding a group no longer forks the index.

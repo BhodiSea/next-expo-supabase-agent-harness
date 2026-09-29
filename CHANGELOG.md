@@ -15,13 +15,15 @@ This lineage's own history starts at 0.1.3.
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
-every changed file that is owned. The seeded changes, the regenerated database types and
-a comment in `tools/store-tunables.json` and the new project citation corpus with the
+every changed file that is owned. The seeded changes, the regenerated database types, a
+comment in `tools/store-tunables.json` and the new project citation corpus with the
 sentences that name it, reach fresh scaffolds only (see Fixed, Added and Changed, which say
 what an existing install does instead).
 One gate can red locally where it used to skip: `types-drift`, on a machine with no global
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
-already did (see Fixed).
+already did (see Fixed). One gate can red on an unchanged tree, narrowly: `wiring`, on a
+CODEOWNERS whose last rule matching `tools/mcp/corpus/project.json` names no owner; the
+shipped rules name one (see Changed).
 The `template/migrations.json` record for 1.0.4 carries `rampExpiry`, restating 1.0.0's
 thirteen-vintage population, and one `seedOnInitOnly` path, the empty project corpus (#47);
 `baseVersion` 1.0.0 through 1.0.3 meet no expiry here.
@@ -414,16 +416,23 @@ this heading if none does. -->
   Stop-chain union with `perf-budget` naming the reviewed empty state, and Canary 30, 31 and
   32 each went red with its message and restored green. Leg A of `upgrade-linux` passed
   locally from v1.0.3 with both gates and `tools/lib/stamp-inputs.mjs` re-planted and
-  `tools/store-tunables.json` untouched (#46). The new cases in `tests/gates/check-sources.test.mjs` and
-  `tests/gates/check-docs-sync.test.mjs`, and the new `tests/gates/corpus-lib.test.mjs`, were
-  red before `tools/lib/corpus.mjs` existed and green after. `tests/gates/upgrade-sweep.test.mjs`
-  threw on the missing `SWEEPS['1.0.4']` entry once the record withheld the skeleton, then
-  passed with it. The new `tests/gates/check-wiring.test.mjs` case failed against the
-  pre-1.0.4 escape lists, where a later ownerless `/tools/mcp/` rule is green, and passes
-  against the new ones. In a rendered core scaffold, `provenance` stayed green with an entry
-  added to `project.json` at its true sha256 and cited from `apps/`, then redded naming
-  `project.json` once the entry's `text` changed, and `gate-integrity` redded while an edit to
-  the file was uncommitted (#47).
+  `tools/store-tunables.json` untouched (#46). The new cases in
+  `tests/gates/check-sources.test.mjs` and `tests/gates/check-docs-sync.test.mjs`, and the
+  new `tests/gates/corpus-lib.test.mjs`, were red on this release's base and green after,
+  except the missing-index case, which held on both sides by design.
+  `tests/gates/upgrade-sweep.test.mjs` threw on the missing `SWEEPS['1.0.4']` entry once the
+  record withheld the skeleton, then passed with it. The new
+  `tests/gates/check-wiring.test.mjs` case failed against the pre-1.0.4 escape lists, where
+  a later ownerless `/tools/mcp/` rule is green, and passes against the new ones. In a
+  rendered core scaffold, `validate --report-all` stayed green with an entry added to
+  `project.json` at its true sha256 and cited from `apps/`, then redded `provenance` naming
+  `project.json` once the entry's `text` changed, and `gate-integrity` redded while an edit
+  to the file was uncommitted. On the same scaffold forked the 1.0.3 way, the entry in the
+  index with its sha re-recorded and no `project.json`, the runbook's steps pulled the
+  skeleton, moved the entry and put the index back to this release's bytes with its sha
+  re-recorded, and `provenance`, `gate-integrity`, `docs-sync` and `wiring` were green with
+  `doctor` listing no fork of the index; an ownerless `/tools/mcp/` line added to its
+  CODEOWNERS redded `wiring` naming `project.json` and the rule (#47).
 
 ## [1.0.3] — 2026-09-23
 
