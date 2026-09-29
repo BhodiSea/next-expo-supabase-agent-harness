@@ -15,10 +15,10 @@
 // SOURCE: tests/gates/wait-for-workflows.test.mjs (the stand-in gh transport)
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { formatMarker, judgeReuse, MARKER_TAG, readMarkers } from '../../template/base/tools/lib/lane-reuse.mjs'
 
@@ -32,21 +32,33 @@ const HEAD = 'c'.repeat(40) // the pull request's final head
 const JOB = 'integration lane (mobile <-> web-hosted API, real postgres)'
 const RUN_URL = 'https://github.com/o/r/actions/runs/101'
 
+const BRANCH = 'feature/reuse' // the pull request's head branch
+const REPO_ID = 11 // this repository: the pull request's base AND head (not a fork)
+
 const pull = (over = {}) => ({
   number: 7,
   merged_at: '2026-09-29T08:00:00Z',
   merge_commit_sha: SHA,
-  head: { sha: HEAD },
+  head: { sha: HEAD, ref: BRANCH, repo: { id: REPO_ID, full_name: 'o/r' } },
+  base: { ref: 'main', repo: { id: REPO_ID, full_name: 'o/r' } },
   ...over,
 })
+/**
+ * A run the way GitHub serves it AFTER the merge. A workflow run's `pull_requests` lists
+ * only pull requests that are still OPEN with a matching head_sha or head_branch, so once
+ * the pull request is merged it is empty: the run is tied to it by its head commit, head
+ * branch and head repository, never by that list.
+ */
 const run = (over = {}) => ({
   id: 101,
   run_attempt: 2,
   event: 'pull_request',
   head_sha: HEAD,
+  head_branch: BRANCH,
+  head_repository: { id: REPO_ID, full_name: 'o/r' },
   html_url: RUN_URL,
   created_at: '2026-09-29T07:00:00Z',
-  pull_requests: [{ number: 7 }],
+  pull_requests: [],
   ...over,
 })
 const job = (over = {}) => ({ id: 555, name: JOB, conclusion: 'success', ...over })
@@ -116,15 +128,43 @@ test('no associated pull request, two of them, or one that was not merged, misse
 
 test('only runs of the merged pull request at its final head count', () => {
   // Another pull request's run executes that pull request's own workflow text, which could
-  // print any marker; a fork's run lists no pull request at all, so it can never stand in.
-  assertMiss(judgeReuse(snapshot({ runs: [run({ pull_requests: [{ number: 8 }] })] })), /no quality-gate\.yml pull_request run of #7/)
-  assertMiss(judgeReuse(snapshot({ runs: [run({ pull_requests: [] })] })), /fork/)
+  // print any marker, so only a pull_request run at this pull request's final head, from its
+  // head branch in its head repository, can stand in.
   assertMiss(judgeReuse(snapshot({ runs: [run({ head_sha: 'e'.repeat(40) })] })), /at its final head/)
+  assertMiss(judgeReuse(snapshot({ runs: [run({ head_branch: 'other-branch' })] })), /no quality-gate\.yml pull_request run of #7/)
+  assertMiss(judgeReuse(snapshot({ runs: [run({ head_branch: undefined })] })), /no quality-gate\.yml pull_request run of #7/)
+  assertMiss(judgeReuse(snapshot({ runs: [run({ head_repository: { id: 99, full_name: 'x/r' } })] })), /no quality-gate\.yml pull_request run of #7/)
+  assertMiss(judgeReuse(snapshot({ runs: [run({ head_repository: null })] })), /no quality-gate\.yml pull_request run of #7/)
   assertMiss(judgeReuse(snapshot({ runs: [run({ event: 'push' })] })), /no quality-gate\.yml pull_request run/)
+  assertMiss(judgeReuse(snapshot({ runs: [run({ event: 'pull_request_target' })] })), /no quality-gate\.yml pull_request run/)
   assertMiss(judgeReuse(snapshot({ runs: [] })), /no quality-gate\.yml pull_request run/)
   assertMiss(judgeReuse(snapshot({ runs: null })), /listing .* failed/)
   assertMiss(judgeReuse(snapshot({ runs: [run({ html_url: 'javascript:alert(1)' })] })), /malformed/)
   assertMiss(judgeReuse(snapshot({ runs: [run({ run_attempt: 0 })] })), /malformed/)
+})
+
+test('a run is tied to its pull request by head commit, branch and repository, not by pull_requests, which a merge empties', () => {
+  // GitHub fills a workflow run's `pull_requests` with the pull requests that are OPEN with a
+  // matching head, so the push after a merge always reads it empty. A judge that required the
+  // merged pull request's number there would miss on every merge and reuse nothing.
+  const v = judgeReuse(snapshot({ runs: [run({ pull_requests: [] })] }))
+  assert.equal(v.hit, true, v.reason)
+  // And a list naming some other OPEN pull request from the same head changes nothing either
+  // way: it says which pull requests are open now, not which one triggered the run.
+  assert.equal(judgeReuse(snapshot({ runs: [run({ pull_requests: [{ number: 8 }] })] })).hit, true)
+})
+
+test('a pull request from a fork never reuses, and neither does one whose head is gone', () => {
+  // A fork's run executed workflow text from a repository this one does not control, up to
+  // the merge. Conservative: its merge runs every lane, as it did before reuse existed.
+  const fork = pull({ head: { sha: HEAD, ref: BRANCH, repo: { id: 99, full_name: 'someone/r' } } })
+  assertMiss(judgeReuse(snapshot({ pulls: [fork] })), /#7 comes from a fork/)
+  const forkRun = run({ head_repository: { id: 99, full_name: 'someone/r' } })
+  assertMiss(judgeReuse(snapshot({ pulls: [fork], runs: [forkRun] })), /fork/)
+  // A deleted head repository or branch leaves nothing to tie a run to.
+  assertMiss(judgeReuse(snapshot({ pulls: [pull({ head: { sha: HEAD, ref: BRANCH, repo: null } })] })), /#7 names no head repository/)
+  assertMiss(judgeReuse(snapshot({ pulls: [pull({ head: { sha: HEAD, repo: { id: REPO_ID } } })] })), /#7 names no head branch/)
+  assertMiss(judgeReuse(snapshot({ pulls: [pull({ base: { ref: 'main', repo: null } })] })), /#7 names no base repository/)
 })
 
 test('the NEWEST run of the pull request decides: an older green never outranks a newer run', () => {
@@ -185,7 +225,7 @@ test('the judge asks for each input in order, with what the transport needs to f
   assert.equal(judgeReuse({ ...base, tree: TREE }).need, 'pulls')
   const runs = judgeReuse({ ...base, tree: TREE, pulls: [pull()] })
   assert.equal(runs.need, 'runs')
-  assert.deepEqual(runs.pull, { number: 7, head: HEAD })
+  assert.deepEqual(runs.pull, { number: 7, head: HEAD, ref: BRANCH, repoId: REPO_ID })
   const jobs = judgeReuse({ ...base, tree: TREE, pulls: [pull()], runs: [run()] })
   assert.equal(jobs.need, 'jobs')
   assert.deepEqual(jobs.run, { id: 101, attempt: 2, url: RUN_URL, head: HEAD })
@@ -214,12 +254,24 @@ test('both files use Node built-ins only: the lookup runs before setup-node, on 
 // ── the transport, end to end through a stand-in gh ───────────────────────────────────────
 
 const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
+
+// Every scratch directory this file makes, removed when it ends.
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+/** @param {string} prefix */
+function scratch(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  made.push(dir)
+  return dir
+}
 const HAS_GIT = spawnSync('git', ['--version']).status === 0
 const NO_GIT = 'needs git on PATH: the transport reads HEAD^{tree} through git'
 
 /** A throwaway repository with one commit; returns its dir, commit and tree. */
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'nsah-reuse-'))
+  const dir = scratch('nsah-reuse-')
   const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
   git('init', '-q')
   writeFileSync(join(dir, 'a.txt'), 'a\n')
@@ -235,7 +287,7 @@ function repo() {
  * @param {Record<string, string | null>} answers path -> stdout, or null for a failure
  */
 function fakeGh(answers) {
-  const dir = mkdtempSync(join(tmpdir(), 'nsah-reuse-gh-'))
+  const dir = scratch('nsah-reuse-gh-')
   const bin = join(dir, 'bin')
   mkdirSync(bin)
   const stub = join(dir, 'gh-stub.mjs')
@@ -400,7 +452,7 @@ test('e2e: the record refuses any event but pull_request, and a head that is not
 })
 
 test('e2e: a missing --job is a usage error (exit 2), never a silent miss', () => {
-  const r = { dir: mkdtempSync(join(tmpdir(), 'nsah-reuse-usage-')) }
+  const r = { dir: scratch('nsah-reuse-usage-') }
   const bin = fakeGh({}).bin
   for (const args of [[], ['--job'], ['--job', ''], ['--jb', JOB]]) {
     const res = runTransport({ bin, cwd: r.dir, args })
