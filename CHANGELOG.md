@@ -41,6 +41,13 @@ This lineage's own history starts at 0.1.3.
   code do not change, and a line-ending-only difference still passes. `update` delivers the
   gate. `selftest.yml` also prints the CLI version and a full `diff -u` of the two files
   when `bootstrap-linux` fails, from the stack that is still up (#40).
+- **The two overdue calendar rows in `scripts/obligations.json` are re-read and re-dated, so
+  neither holds the nightly `obligations-clockful` job red any more.**
+  `conformance-play-target-api-window` (due 2026-08-31) now falls due 2027-05-31, and
+  `conformance-cra-art14-application` (due 2026-09-11) now falls due 2027-06-11. The dated
+  re-reads and their sources are in `design/CONFORMANCE-FACTS.md` §2 and §4, which also
+  records a new open question about open-source software stewards. Nothing here reaches an
+  install.
 
 ## [1.0.3] — 2026-09-23
 
