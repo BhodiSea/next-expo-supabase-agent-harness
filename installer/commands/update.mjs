@@ -280,6 +280,7 @@ export async function update(
       entries: migrationEntries,
       dryRun: opts.dryRun,
       isFork: provenance.isFork,
+      isReleased: provenance.isReleased,
     })
     applyConfigSteps({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
     applyConfigCommandUpdates({ targetDir, files, report, entries: migrationEntries, dryRun: opts.dryRun })
@@ -381,8 +382,9 @@ export async function update(
     }
     // classifyDrift plus the provenance policy: an `update-clean` whose recorded sha no
     // release shipped comes back as `park` (or `skip-same` when upstream has not changed
-    // the file since this install's version — there is nothing new to merge), and the
-    // helper has already pushed the note. No branch is added here on purpose.
+    // the file since this install's version — there is nothing new to merge), an owned file
+    // with NO record whose bytes no release shipped comes back as `park` (1.0.4; never the
+    // skip), and the helper has already pushed the note. No branch is added here on purpose.
     const kind = provenance.classifyOwned({
       ip,
       current,
@@ -514,7 +516,9 @@ function refreshSeeded({ targetDir, manifest, entries, answers, paths, opts, rel
       owned: mode === 'owned',
     })
     // Stricter than update's sweep: with no manifest record we cannot prove
-    // the file untouched since install — park, never clobber project work.
+    // the file untouched since install — park, never clobber project work. For an owned
+    // path classifyOwned has already parked bytes no release shipped (with its own note),
+    // so this fires only for released bytes or a seeded path: one note per park.
     if (kind === 'update-clean' && !recorded && !opts.force) {
       kind = 'park'
       report.notes.push(parkedNote(ip))
