@@ -538,3 +538,49 @@ test('skipOrFail records its gate and reason under the CI predicate, and never o
     [{ gate: 'fake', reason: 'toolchain missing' }],
   )
 })
+
+// ── a parked fork of lib/gate.mjs must not break a re-planted gate (1.0.4) ────────────
+// `update` re-plants an unmodified gate script but parks the incoming copy of a forked
+// tools/lib/gate.mjs, so a 1.0.4 gate can run over a lib that has no
+// noteMissingPrerequisite. A named import of it would then fail the gate at link time,
+// before any check runs. Every caller outside lib/gate.mjs therefore reaches it through a
+// namespace import and a guarded call, and this loads each one over such a fork.
+const NOTE_CALL_RE = /\bnoteMissingPrerequisite\b/
+// A line of code that names it; a comment that does (validate.mjs's header) is not a call.
+/** @param {string} src */
+const namesNote = (src) => src.split('\n').some((l) => !l.trim().startsWith('//') && NOTE_CALL_RE.test(l))
+
+test('every gate that records a missing prerequisite still loads over a lib/gate.mjs without the export', () => {
+  const callers = readdirSync(join(BASE_DIR, 'tools'))
+    .filter((f) => f.endsWith('.mjs'))
+    .map((f) => `tools/${f}`)
+    .filter((f) => namesNote(readFileSync(join(BASE_DIR, f), 'utf8')))
+    .sort()
+  assert.deepEqual(
+    callers,
+    ['tools/check-migrations.mjs', 'tools/check-styleguide-manifest.mjs', 'tools/check-version-sync.mjs'],
+    'the partial legs that record a missing prerequisite (update this list with the docs)',
+  )
+  const forked = readFileSync(join(BASE_DIR, 'tools/lib/gate.mjs'), 'utf8').replace(
+    'export function noteMissingPrerequisite(',
+    'function noteMissingPrerequisite(',
+  )
+  assert.ok(!/export function noteMissingPrerequisite\(/.test(forked), 'precondition: export removed')
+  for (const script of callers) {
+    const src = readFileSync(join(BASE_DIR, script), 'utf8')
+    for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'\.\/lib\/gate\.mjs'/gm)) {
+      assert.ok(!NOTE_CALL_RE.test(m[1]), `${script}: a named import of noteMissingPrerequisite fails over a parked fork`)
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'epah-gatelib-fork-'))
+    for (const file of [script, ...importClosure(script, [BASE_DIR])]) {
+      mkdirSync(join(dir, posix.dirname(file)), { recursive: true })
+      writeFileSync(join(dir, file), file === 'tools/lib/gate.mjs' ? forked : readFileSync(join(BASE_DIR, file), 'utf8'))
+    }
+    const env = { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', GITHUB_BASE_REF: '' }
+    delete env.HARNESS_PARITY_REPORT_DIR
+    const res = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8', env })
+    const out = `${res.stdout ?? ''}${res.stderr ?? ''}`
+    assert.doesNotMatch(out, /SyntaxError|does not provide an export named/, `${script} failed to load:\n${out}`)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
