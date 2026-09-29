@@ -25,7 +25,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { doctor } from '../../installer/commands/doctor.mjs'
@@ -342,6 +342,17 @@ test('toolchainReport: absent pin sources are named as absent, not guessed', () 
   // The real probe on a workspace copy that is not installed: named relative to the install.
   const real = toolchainReport(dir)
   assert.match(real[2], /^toolchain: supabase \(workspace\) — not probed \(node_modules\/\.bin\/supabase does not exist\)/)
+})
+
+test('toolchainReport: a relative target still probes the workspace copy by its absolute path', () => {
+  const dir = tempDir('nesah-toolchain-rel-')
+  /** @type {string[]} */
+  const bins = []
+  toolchainReport(relative(process.cwd(), dir) || '.', (bin) => {
+    bins.push(bin)
+    return { found: null, reason: 'fake' }
+  })
+  assert.equal(bins[2], join(dir, 'node_modules', '.bin', 'supabase'))
 })
 
 test('doctor prints the toolchain report as info, and a failing, timing-out or throwing probe never moves its exit code', async () => {

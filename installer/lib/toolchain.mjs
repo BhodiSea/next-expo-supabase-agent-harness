@@ -168,10 +168,12 @@ function shown(targetDir, found) {
  * @returns {string[]}
  */
 export function toolchainReport(targetDir, probe = probeCommand) {
+  // Absolute, so the workspace copy is never mistaken for a bare name looked up on PATH.
+  const workspaceBin = join(resolve(targetDir), 'node_modules', '.bin', 'supabase')
   const tools = [
     { label: 'node', bin: 'node', pin: nodePin },
     { label: 'pnpm', bin: 'pnpm', pin: pnpmPin },
-    { label: 'supabase (workspace)', bin: join(targetDir, 'node_modules', '.bin', 'supabase'), pin: supabasePin },
+    { label: 'supabase (workspace)', bin: workspaceBin, pin: supabasePin },
     { label: 'supabase (PATH)', bin: 'supabase', pin: supabasePin },
     { label: 'psql', bin: 'psql', pin: psqlPin },
   ]
@@ -184,8 +186,9 @@ export function toolchainReport(targetDir, probe = probeCommand) {
     }
     // A workspace path is shown relative to the install, in a reason as in a hit.
     const reason = r.reason ?? 'no result'
-    const why = isAbsolute(bin) ? reason.replace(bin, shown(targetDir, bin)) : reason
-    const what = r.version !== undefined && r.found ? `${shown(targetDir, r.found)}, ${r.version}` : `not probed (${why})`
+    const why = isAbsolute(bin) ? reason.replace(bin, shown(resolve(targetDir), bin)) : reason
+    const what =
+      r.version !== undefined && r.found ? `${shown(resolve(targetDir), r.found)}, ${r.version}` : `not probed (${why})`
     return `toolchain: ${label} — ${what}; pin: ${pin(targetDir)}`
   })
 }
