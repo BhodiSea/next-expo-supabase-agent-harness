@@ -267,9 +267,9 @@ A stamp is a local shortcut, never proof. A stamped gate hashes its declared inp
 every one is byte-identical to its last GREEN run (the digest in `.harness/<gate>.ok`) and
 this is not CI, it prints
 `<gate>: STAMPED — inputs unchanged since last green run (.harness/<gate>.ok; CI always re-runs)`
-and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` always
-runs the real check, and `update` and `graduate` delete every stamp, so the first run after
-either re-proves everything.
+and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` (which
+`validate --ci-parity` sets) always runs the real check, and `update` and `graduate` delete
+every stamp, so the first run after either re-proves everything.
 
 - **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
   `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
