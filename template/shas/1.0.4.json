@@ -794,6 +794,15 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "060d608b9ab45db080b77a7544590b18be4265551dafb4fe828999e9314a6089",
+        "sites": [
+          [
+            118852,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "0d4a2ce4fcac1700b7bd0d70af37b6d24006bc6efd7142aca8dcd8e23144f9bb",
         "sites": [
           [
@@ -1011,6 +1020,15 @@
         ]
       },
       {
+        "sha256": "6d2b4996fa74f74f9031606c425526d5635a89bec461cce457f0adb7f46ba986",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "7a18e5f7fc20c03f790c2b0f4bc263605d301523273a1917b4e558fdb03b074e",
         "sites": [
           [
@@ -1079,6 +1097,23 @@
       }
     ],
     "docs/store/app-review-notes.md": [
+      {
+        "sha256": "d9746cbe63f884261f9878b667b19285708496dfd81da5a02f51ecdf5c30a48c",
+        "sites": [
+          [
+            678,
+            "PROJECT_NAME"
+          ],
+          [
+            2516,
+            "WEB_ORIGIN"
+          ],
+          [
+            4163,
+            "WEB_ORIGIN"
+          ]
+        ]
+      },
       {
         "sha256": "d9e88e5cf3f2088cfabb1ce2e64b67d5790f84b702347ce5a2b0dcf81194e891",
         "sites": [
@@ -1369,6 +1404,9 @@
     "tools/check-expo-policy.mjs": [
       {
         "sha256": "6883fd663c1723f476fb39fe77ec9bdbc643b34b365c216e5917adaf6dc30bad"
+      },
+      {
+        "sha256": "d1541a6fe8ba07076f70947b7d527344de59843f49c4ee0b2c6c6338c5d7f29e"
       }
     ],
     "tools/check-exports-walls.mjs": [
@@ -1453,6 +1491,9 @@
     "tools/check-perf-budget.mjs": [
       {
         "sha256": "01df0779fccc08c10cea0fbf7e342664b8e42ad2470d7a612db0cd307f1890e0"
+      },
+      {
+        "sha256": "47c9395897e1eb64c7e0cc37e5d6bd889769fa6556dc70df35e9eb8235c6ff2c"
       }
     ],
     "tools/check-prompts-lock.mjs": [
@@ -1923,6 +1964,9 @@
     "tools/lib/stamp-inputs.mjs": [
       {
         "sha256": "550eda19fdee03e753123ab533a08f0501dcadcc4278327e6cf825995dc9e203"
+      },
+      {
+        "sha256": "a1ba024008cec30e9b8ee1abfd32e90ea731fc877278446b3d10e381db79af00"
       },
       {
         "sha256": "f25cc09a58dcd09e318792513092c19c35e21c3730a10d6121b5ffd12c6bb428"

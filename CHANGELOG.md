@@ -16,7 +16,7 @@ This lineage's own history starts at 0.1.3.
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
 every changed file that is owned. The seeded changes, the regenerated database types and
-a comment in `tools/store-tunables.json`, reach fresh scaffolds only (see Fixed and Changed,
+a comment in `tools/store-tunables.json`, reach fresh scaffolds only (see Fixed and Added,
 which say what an existing install does instead).
 One gate can red locally where it used to skip: `types-drift`, on a machine with no global
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
@@ -52,6 +52,32 @@ this heading if none does. -->
   `docs/harness/README.md` and the upgrade runbook. The three gates reach the new export
   through a namespace import, so an install whose forked `tools/lib/gate.mjs` was parked still
   runs them and records nothing (#44).
+- **Two reviewed escapes for a project that does not keep the example's anchors.** Both are
+  optional keys in registers that are write-guarded and escape-listed, so each lands only as
+  a committed human edit, and neither appears in any shipped register, so no existing
+  install's verdict changes.
+  - `perf-budget` accepts `subjects: []` beside `"emptySubjects": { "reason", "reviewedOn" }`,
+    held to the vertical-anatomy escape's bar: a reason of at least 40 characters after
+    trimming, and a `reviewedOn` shaped `YYYY-MM-DD` that is never compared with the clock.
+    It prints a NOTE and names the empty state and its reason in its OK line. A row beside a
+    non-empty `subjects[]` reds as a stale escape, and `[]` without the row still reds with
+    "NON-EMPTY array", now naming the row. The leak scan and both directions of the
+    dense-feature closure run unchanged, so the row cannot hide a dense screen or an
+    undeclared `perfSubject.tsx`. Until now a project with nothing dense to measure went
+    green only by keeping a subject it did not have.
+  - `expo-policy` reads the command registry the `action` surface checks from an optional
+    `accountDeletion.registry`: a forward-slash `.ts` or `.tsx` path under `apps/mobile/src/`
+    with no `..` segment, legal only on that surface. Any other value fails the shape check,
+    the red names the file the gate read, and without the key the gate reads
+    `apps/mobile/src/features/actions/registry.ts` as before.
+
+  `update` delivers both gates and the gates catalog. `tools/store-tunables.json` is seeded,
+  so the `//` comment that documents the registry key reaches fresh scaffolds only; the
+  upgrade runbook's 1.0.4 section documents both keys, says that moving the registry also
+  moves the mobile entry in `tools/data-flow.json` `erase.clients`, and says that a new
+  vertical's events reach the committed event catalog only through a forked generator until
+  1.1.0. A new factory lane, `day0-empty-states`, runs the Stop chain on a scaffold that uses
+  both escapes and proves each red (#46).
 
 ### Fixed
 
@@ -225,32 +251,6 @@ this heading if none does. -->
   `docs/security/threat-model.md` is generated from, is unchanged, so that document does not
   change. `reports/`, `artifacts/` and the stamps stay off the list. `update` re-plants
   `.claude/hooks/lib/guard-rules.mjs`; the longer list comes with this release's CLI (#45).
-- **Two reviewed escapes for a project that does not keep the example's anchors.** Both are
-  optional keys in registers that are write-guarded and escape-listed, so each lands only as
-  a committed human edit, and neither appears in any shipped register, so no existing
-  install's verdict changes.
-  - `perf-budget` accepts `subjects: []` beside `"emptySubjects": { "reason", "reviewedOn" }`,
-    held to the vertical-anatomy escape's bar: a reason of at least 40 characters after
-    trimming, and a `reviewedOn` shaped `YYYY-MM-DD` that is never compared with the clock.
-    It prints a NOTE and names the empty state and its reason in its OK line. A row beside a
-    non-empty `subjects[]` reds as a stale escape, and `[]` without the row still reds with
-    "NON-EMPTY array", now naming the row. The leak scan and both directions of the
-    dense-feature closure run unchanged, so the row cannot hide a dense screen or an
-    undeclared `perfSubject.tsx`. Until now a project with nothing dense to measure went
-    green only by keeping a subject it did not have.
-  - `expo-policy` reads the command registry the `action` surface checks from an optional
-    `accountDeletion.registry`: a forward-slash `.ts` or `.tsx` path under `apps/mobile/src/`
-    with no `..` segment, legal only on that surface. Any other value fails the shape check,
-    the red names the file the gate read, and without the key the gate reads
-    `apps/mobile/src/features/actions/registry.ts` as before.
-
-  `update` delivers both gates and the gates catalog. `tools/store-tunables.json` is seeded,
-  so the `//` comment that documents the registry key reaches fresh scaffolds only; the
-  upgrade runbook's 1.0.4 section documents both keys, says that moving the registry also
-  moves the mobile entry in `tools/data-flow.json` `erase.clients`, and says that a new
-  vertical's events reach the committed event catalog only through a forked generator until
-  1.1.0. A new factory lane, `day0-empty-states`, runs the Stop chain on a scaffold that uses
-  both escapes and proves each red (#46).
 
 ### What stays open, honestly
 
