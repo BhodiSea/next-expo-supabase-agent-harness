@@ -17,8 +17,8 @@
 // The judgement lives in scripts/lib/ci-preconditions.mjs so it can be proven red as a
 // pure function (tests/gates/ci-preconditions.test.mjs).
 // SHIPPED means base AND every module (1.0.4, #55). Through 1.0.3 this read the base
-// workflows only, so an unpinned action or a bare install in any of the ten module
-// workflows a consumer enables was never judged. Each file is labelled with its
+// workflows only, so an unpinned action or a bare install in any module workflow a
+// consumer enables was never judged. Each file is labelled with its
 // repo-relative '/'-joined path, so a finding names its module.
 //
 //   node scripts/check-ci-preconditions.mjs    # the gate (machinery-lint, blocking)
