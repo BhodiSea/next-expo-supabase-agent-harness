@@ -180,8 +180,10 @@ export function toolchainReport(targetDir, probe = probeCommand) {
     } catch (err) {
       r = { found: null, reason: `probe failed: ${err instanceof Error ? err.message : String(err)}` }
     }
-    const what =
-      r.version !== undefined && r.found ? `${shown(targetDir, r.found)}, ${r.version}` : `not probed (${r.reason ?? 'no result'})`
+    // A workspace path is shown relative to the install, in a reason as in a hit.
+    const reason = r.reason ?? 'no result'
+    const why = isAbsolute(bin) ? reason.replace(bin, shown(targetDir, bin)) : reason
+    const what = r.version !== undefined && r.found ? `${shown(targetDir, r.found)}, ${r.version}` : `not probed (${why})`
     return `toolchain: ${label} — ${what}; pin: ${pin(targetDir)}`
   })
 }

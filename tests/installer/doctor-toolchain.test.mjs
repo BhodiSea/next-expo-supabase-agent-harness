@@ -316,6 +316,9 @@ test('toolchainReport: absent pin sources are named as absent, not guessed', () 
   assert.match(lines[1], /pin: none \(package\.json names no packageManager\)$/)
   assert.match(lines[2], /pin: none \(pnpm-workspace\.yaml catalogues no supabase\)$/)
   assert.match(lines[4], /pin: none \(supabase\/config\.toml sets no \[db\] major_version\)$/)
+  // The real probe on a workspace copy that is not installed: named relative to the install.
+  const real = toolchainReport(dir)
+  assert.match(real[2], /^toolchain: supabase \(workspace\) — not probed \(node_modules\/\.bin\/supabase does not exist\)/)
 })
 
 test('doctor prints the toolchain report as info, and a failing, timing-out or throwing probe never moves its exit code', async () => {
