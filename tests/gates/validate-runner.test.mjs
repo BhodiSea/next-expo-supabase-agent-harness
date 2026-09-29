@@ -329,6 +329,14 @@ const recordGreen = stampGate('warm', ['input.txt'])
 recordGreen()
 ok('warm', 'ran the real check')
 `,
+  // Occupies its report directory's path with a regular file, then skips under a gate
+  // name: the record cannot be written, and the runner cannot read the directory.
+  'squat.mjs': `import { writeFileSync } from 'node:fs'
+import process from 'node:process'
+import { skipOrFail } from './lib/gate.mjs'
+writeFileSync(process.env.HARNESS_PARITY_REPORT_DIR, 'not a directory\\n')
+skipOrFail('squatted', 'squatted prerequisite absent')
+`,
   // Reports what the runner put in the step's environment.
   'show-vars.mjs': `import process from 'node:process'
 const show = (k) => process.env[k] ?? '<unset>'
@@ -565,4 +573,19 @@ test('--ci-parity: a report root that cannot be created keeps the posture and sa
   assert.ok(r.stdout.startsWith(`${POSTURE_LINE}\n`), r.stdout)
   assert.match(r.out, /validate --ci-parity: report unavailable \(.+\)/, r.out)
   assert.ok(!r.out.includes(NO_RECORDS_LINE), r.out)
+})
+
+test('--ci-parity: a step directory that cannot be read is named, never reported as "no records"', () => {
+  const dir = parityFixture([
+    ['squat', 'node tools/squat.mjs'],
+    ['need', 'node tools/need.mjs'],
+  ])
+  const r = runParity(dir, ['--ci-parity', '--report-all'])
+  // The verdicts are the gates' alone: squat's CI-posture skip fails, need passes.
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('squatted: FAIL — squatted prerequisite absent'), r.out)
+  assert.ok(r.out.includes('✓ need'), r.out)
+  const lines = parityLines(r.out)
+  assert.equal(lines.length, 2, r.out)
+  assert.match(lines[1], /^validate --ci-parity: squat: report unreadable \(.+\)$/)
 })

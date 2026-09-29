@@ -82,6 +82,7 @@ import {
   failures,
   inCI,
   installedHarnessVersion,
+  noteMissingPrerequisite,
   ok,
   rampNote,
   runCmd,
@@ -628,6 +629,10 @@ try {
   // it matters. Partial local installs may legitimately break `pnpm list`;
   // CI (full install) must never swallow it.
   if (inCI()) {
+    noteMissingPrerequisite(
+      GATE,
+      'zod single-instance walk: `pnpm list` failed (partial or missing install)',
+    )
     errs.push(
       `pnpm list failed — cannot verify the single-zod-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )
@@ -684,6 +689,10 @@ try {
   // Same asymmetry as the zod walk: a partial local install may break `pnpm list`, but
   // CI (full install) must never swallow the single-instance assertion.
   if (inCI()) {
+    noteMissingPrerequisite(
+      GATE,
+      'React single-instance walk: `pnpm list` failed (partial or missing install)',
+    )
     errs.push(
       `pnpm list failed — cannot verify the single-React-instance invariant: ${commandFailureOutput(e).slice(0, 300)}`,
     )

@@ -61,7 +61,15 @@
 // https://reactnative.dev/docs/colors
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, inCI, ok, runCmd, skipOrFail } from './lib/gate.mjs'
+import {
+  fail,
+  failures,
+  inCI,
+  noteMissingPrerequisite,
+  ok,
+  runCmd,
+  skipOrFail,
+} from './lib/gate.mjs'
 import { blankComments, skipBalanced } from './lib/source-text.mjs'
 
 const GATE = 'styleguide'
@@ -128,6 +136,7 @@ if (existsSync('node_modules')) {
   regenRan = true
 } else if (inCI()) {
   // CI without an install is a broken lane, not a valid skip: fail closed.
+  noteMissingPrerequisite(GATE, '@app/design-tokens regen-diff: node_modules is missing')
   errs.push(
     `@app/design-tokens regen-diff could not run — node_modules is missing in CI. Install before validate (\`pnpm install\`); the regen-diff must run in CI.`,
   )

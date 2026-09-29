@@ -31,6 +31,7 @@ import {
   fail,
   failures,
   inCI,
+  noteMissingPrerequisite,
   ok,
   rampNote,
   skipOrFail,
@@ -109,6 +110,7 @@ function changedAgainst(ref) {
   } catch (e) {
     const reason = commandFailureOutput(e).split('\n')[0]
     if (inCI()) {
+      noteMissingPrerequisite(GATE, `append-only diff: git diff against ${ref} failed (${reason})`)
       fail(
         GATE,
         `git diff against ${ref} failed (${reason}) — the append-only check cannot run. In CI this usually means a shallow checkout: set fetch-depth: 0.`,
