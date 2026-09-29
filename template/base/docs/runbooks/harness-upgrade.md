@@ -1272,7 +1272,14 @@ under `.claude/hooks/` (their version stamps, and the telemetry below),
 `tools/check-perf-budget.mjs` and `tools/check-expo-policy.mjs`; where the `eas-update`
 module is enabled, `tools/check-eas-update.mjs`; and where the `store-metadata` module is
 enabled, `docs/store/app-review-notes.md`. `tools/lib/supabase-cli.mjs` is new, and `update`
-plants it. What you may notice afterwards:
+plants it. The project citation corpus below adds the new `tools/lib/corpus.mjs`, which
+`update` plants too, and changes `tools/check-sources.mjs`, `tools/check-docs-sync.mjs`,
+`tools/mcp/corpus-search-server.mjs`, `tools/mcp/README.md`,
+`tools/lib/enforcement-surface.mjs`, the header comments of `tools/lib/provenance-rules.mjs`
+and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
+`.claude/agents/citation-verifier.md`, `.claude/commands/verify-citations.md`,
+`.claude/skills/authoring-e2ee-feature/SKILL.md`, `docs/adr/README.md` and
+`docs/security/approved-tools.md`. What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1391,6 +1398,15 @@ plants it. What you may notice afterwards:
   1.0.2 section's "Forking an owned file" describes. Without the line, that vertical's
   events are missing from the committed catalog while `contracts` stays green. Discovery
   is planned for 1.1.0, and that release's section will say what changes.
+- **A project adds a citation authority in `tools/mcp/corpus/project.json`.** The
+  `provenance` gate, the ADR check in `docs-sync` and the `corpus_search` MCP server read
+  it beside `tools/mcp/corpus/index.json`, through `tools/lib/corpus.mjs`. An absent file
+  counts as empty, so until you create one every verdict is what it was. Once it exists,
+  `provenance` judges it: it must parse as exactly `{ comment, entries }`, each entry
+  passes the same lint as an index entry, and an id the index already pins reds naming
+  both files. The gate's remedies now point at `project.json`. The one change that
+  reaches you whether or not you create the file is in `wiring`; see "The CODEOWNERS
+  case" below.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
@@ -1413,6 +1429,67 @@ Each note says what an existing install does instead.
   your database.
 - **`tools/store-tunables.json`'s `//` comment documents `accountDeletion.registry`.**
   The key itself works on an existing install without it; the section above says how.
+- **`tools/mcp/corpus/project.json`, the empty project corpus.** `update` prints
+  `new exemplar available (not auto-planted): tools/mcp/corpus/project.json` instead of
+  planting it: every reader takes an absent file as empty, and a file whose gate reads
+  absence as empty is not planted. Pull it when you need it, as described below.
+- **The seeded sentences that name it.** Four seeded files now name `project.json`, and
+  `update` changes none of yours. Each is prose, so copying it changes no verdict, and you
+  may copy any of them from the template:
+  - `AGENTS.md`, the first bullet under `## Provenance` (reworded in place, so its line
+    count and the budget `docs-sync` holds it to do not move);
+  - `tools/decision-groups.json`, the sentence in `comment` about the covering entry a
+    group you add needs;
+  - `tools/provenance-overrides.json`, the sentence in `comment` that prefers a
+    properly-grouped authority over an override;
+  - `tools/approved-tools.json`, the `reason` of the `corpus_search` row.
+
+  The last three are reviewed escape files: the guards deny an agent's edit, and
+  `gate-integrity` reds an uncommitted one, so a human makes the change and commits it.
+
+### The project citation corpus: pulling it, and moving a forked index into it
+
+Through 1.0.3 the only place to add a citation authority was
+`tools/mcp/corpus/index.json`, which the harness owns and `gate-integrity` hash-pins, and
+the `provenance` gate's own remedy said to extend it. If you did, you re-recorded its sha
+(the "Forking an owned file" section above), and since 1.0.2 every `update` that changed
+the index has parked the incoming copy under `.harness/pending/` for you to merge by hand.
+From 1.0.4 your authorities belong in `tools/mcp/corpus/project.json`, and the index can
+go back to being the harness's.
+
+1. **Pull the skeleton.** `update --refresh-seeded tools/mcp/corpus/project.json` writes
+   `{ "comment": "…", "entries": [] }`. Its `comment` gives the entry shape. The file is
+   write-guarded, so a human edits it.
+2. **Move your additions.** Cut every entry you added to `tools/mcp/corpus/index.json` and
+   paste it, unchanged, into `entries`. Keep each id: a `project/` prefix is recommended
+   for new ids and required of none, so every `[corpus: <id>]` you cite keeps resolving.
+   Do not copy an entry the harness shipped; an id both files pin reds as "already pinned
+   in `tools/mcp/corpus/index.json`". The same red appears if a later release pins an id
+   you chose. Rename your entry and its citations then; the harness's entry stays.
+3. **Return the index to a released version.** If `update` parked a copy at
+   `.harness/pending/tools/mcp/corpus/index.json`, move it over the index; that copy holds
+   the bytes of the release you updated to. Otherwise restore the index from the commit
+   before your first edit (`git log -- tools/mcp/corpus/index.json` finds it). Then set
+   the index's `sha256` in `.harness/manifest.json` to the restored file's, the reverse of
+   the re-record you made when you forked it. `doctor` stops listing the index as a fork,
+   and the next `update` refreshes it again.
+4. **Commit all three files together** and run `pnpm validate`. `provenance` is green when
+   every citation resolves and each moved entry still hashes; a red names the file and the
+   entry. `project.json` is a reviewed escape file, so `gate-integrity` also reds while an
+   edit to it is uncommitted.
+
+A decision group you add to `tools/decision-groups.json` still needs an entry tagged with
+its key. That entry now goes in `project.json`, so adding a group no longer forks the index.
+
+### The CODEOWNERS case
+
+`tools/mcp/corpus/project.json` joins the escape lists that `wiring` checks CODEOWNERS
+against, and `wiring` asks about every path on them whether or not the file exists. The
+shipped `/tools/**` rule and the `*` catch-all both give it an owner. `wiring` reds only
+when the last CODEOWNERS rule that matches the path names no owner, for example a bare
+`/tools/mcp/` line added below `/tools/**`. GitHub reads that rule as "no review" for
+everything under it. The red names the path and the rule. Give that rule an owner, or add
+a `/tools/mcp/corpus/project.json` line with one below it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

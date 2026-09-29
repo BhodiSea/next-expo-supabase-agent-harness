@@ -16,13 +16,15 @@ This lineage's own history starts at 0.1.3.
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
 every changed file that is owned. The seeded changes, the regenerated database types and
-a comment in `tools/store-tunables.json`, reach fresh scaffolds only (see Fixed and Added,
-which say what an existing install does instead).
+a comment in `tools/store-tunables.json` and the new project citation corpus with the
+sentences that name it, reach fresh scaffolds only (see Fixed, Added and Changed, which say
+what an existing install does instead).
 One gate can red locally where it used to skip: `types-drift`, on a machine with no global
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
 already did (see Fixed).
-The `template/migrations.json` record for 1.0.4 is `rampExpiry` only, restating 1.0.0's
-thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.3 meet nothing here.
+The `template/migrations.json` record for 1.0.4 carries `rampExpiry`, restating 1.0.0's
+thirteen-vintage population, and one `seedOnInitOnly` path, the empty project corpus (#47);
+`baseVersion` 1.0.0 through 1.0.3 meet no expiry here.
 `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
 
 ### Security
@@ -251,6 +253,34 @@ this heading if none does. -->
   `docs/security/threat-model.md` is generated from, is unchanged, so that document does not
   change. `reports/`, `artifacts/` and the stamps stay off the list. `update` re-plants
   `.claude/hooks/lib/guard-rules.mjs`; the longer list comes with this release's CLI (#45).
+- **A project adds a citation authority in `tools/mcp/corpus/project.json`, not in the owned
+  index.** The `provenance` gate, the ADR check in `docs-sync` and the `corpus_search` server
+  read one corpus file, `tools/mcp/corpus/index.json`, which is owned and hash-pinned, and the
+  gate's own remedy told a project to extend it. That forked it: `gate-integrity` redded until
+  a human re-recorded its sha, and from 1.0.2 `update` parked each upstream change under
+  `.harness/pending/`. A group added to `tools/decision-groups.json` needs a covering entry,
+  so adding one forced the same fork. All three readers now also read a seeded
+  `tools/mcp/corpus/project.json` (`{ comment, entries }`; an absent file counts as empty)
+  through one helper, `tools/lib/corpus.mjs`. The per-entry lint moved into the helper with
+  its rules unchanged and judges both files, each message naming the entry's file. A project
+  entry justifies only the groups it declares, and an id the index already pins reds naming
+  both files, so a project adds authorities and never replaces one. The file itself reds on
+  invalid JSON, a top level that is not `{ comment, entries }`, a non-array `entries` or an
+  unknown top-level key. Remedies that say where to add an authority now name `project.json`,
+  an unresolved id names both files, and messages about the index's own integrity still name
+  `index.json`. `docs-sync` takes ids only and skips its ADR corpus-id check while either file
+  is malformed, as it did for a malformed index. The server keeps `CORPUS_INDEX_URL` as an
+  override for the index only, answers a colliding id from the index, and ignores a malformed
+  project file. With the file absent or empty, every `provenance` and `docs-sync` verdict is
+  unchanged. The path joins `SEEDED_FILES` and `ESCAPE_LISTS`, and the existing `tools-mcp`
+  write-guard rule already covers it. **One check reaches every install, file or no file:**
+  `wiring`'s CODEOWNERS closure now includes the path. The shipped `/tools/**` rule and the
+  `*` catch-all cover it, so `wiring` newly reds only a CODEOWNERS whose last rule matching the
+  path names no owner. `update` delivers the helper, both gates, the server and the owned docs
+  that say where an authority goes. The empty `project.json` is withheld (`seedOnInitOnly`,
+  and `SWEEPS['1.0.4']` in `scripts/ci/upgrade-sweep.mjs` is reviewed-empty), so `update`
+  prints the `--refresh-seeded` command that pulls it, and the seeded sentences that name it
+  reach fresh scaffolds only (#47).
 
 ### What stays open, honestly
 
@@ -299,6 +329,13 @@ this heading if none does. -->
   Maestro rows. The event-catalog leg, a generator that discovers each vertical's catalog
   instead of importing it by name, changes the `contracts` verdict for an existing install
   and so waits for 1.1.0 (#46).
+- **A forked corpus index stays forked until a human moves its additions.** An install that
+  added authorities to `tools/mcp/corpus/index.json` keeps the fork, and `update` keeps
+  parking upstream copies of it, until someone pulls `project.json`, moves those entries into
+  it and returns the index to a released version; the 1.0.4 runbook section gives the steps.
+  No test starts the `corpus_search` server, which imports `@modelcontextprotocol/sdk` and so
+  resolves only inside a scaffold; `tests/gates/corpus-lib.test.mjs` tests the helper it
+  calls (#47).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -377,7 +414,16 @@ this heading if none does. -->
   Stop-chain union with `perf-budget` naming the reviewed empty state, and Canary 30, 31 and
   32 each went red with its message and restored green. Leg A of `upgrade-linux` passed
   locally from v1.0.3 with both gates and `tools/lib/stamp-inputs.mjs` re-planted and
-  `tools/store-tunables.json` untouched (#46).
+  `tools/store-tunables.json` untouched (#46). The new cases in `tests/gates/check-sources.test.mjs` and
+  `tests/gates/check-docs-sync.test.mjs`, and the new `tests/gates/corpus-lib.test.mjs`, were
+  red before `tools/lib/corpus.mjs` existed and green after. `tests/gates/upgrade-sweep.test.mjs`
+  threw on the missing `SWEEPS['1.0.4']` entry once the record withheld the skeleton, then
+  passed with it. The new `tests/gates/check-wiring.test.mjs` case failed against the
+  pre-1.0.4 escape lists, where a later ownerless `/tools/mcp/` rule is green, and passes
+  against the new ones. In a rendered core scaffold, `provenance` stayed green with an entry
+  added to `project.json` at its true sha256 and cited from `apps/`, then redded naming
+  `project.json` once the entry's `text` changed, and `gate-integrity` redded while an edit to
+  the file was uncommitted (#47).
 
 ## [1.0.3] — 2026-09-23
 
