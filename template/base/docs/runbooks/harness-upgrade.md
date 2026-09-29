@@ -1491,6 +1491,52 @@ when the last CODEOWNERS rule that matches the path names no owner, for example 
 everything under it. The red names the path and the rule. Give that rule an owner, or add
 a `/tools/mcp/corpus/project.json` line with one below it.
 
+### A harness-owned file with no manifest record: `update` keeps it and parks the incoming copy
+
+**Who is affected.** An install that holds a file at a path the harness owns, with no
+record for that path in `.harness/manifest.json`. `init` and `update` record every owned
+file they write, so an install nobody has touched has none. One appears when:
+
+- a release starts shipping a path where your project already had its own file;
+- `enable` found your file at a module path, kept it and parked the module's copy, which
+  records nothing for the path;
+- `disable` kept a module file you had modified and dropped its record, and you enabled
+  the module again;
+- someone deleted a record by hand.
+
+**What you see.** Through 1.0.3 `update` read a missing record as "unmodified": it
+replaced your file with the harness's copy, recorded it and exited 0, and a `removed` or
+`renamed` migration deleted it. From 1.0.4 `update` asks whether any release of the
+harness shipped exactly the bytes on disk for that path. When one did, the file is
+refreshed and recorded as before. When none did, `update`:
+
+- keeps your file and records nothing for it;
+- parks the incoming version at `.harness/pending/<path>` and lists the path as drift;
+- adds one note, `<path> has no manifest record and its bytes match no release of this
+  harness — kept; …`;
+- exits 2, as it does for any drift. `update --dry-run` reports the same park.
+
+It parks even when upstream has not changed the file since your install's version: with
+no record, nothing shows that your file started as the harness's copy. A `removed` or
+`renamed` migration leaves such a file in place and says so in a note ending `left in
+place; remove it manually`. `gate-integrity` checks recorded files only, so the file stays
+outside it until you resolve the park, as it was before the update, and `doctor` keeps
+naming the parked copy.
+
+**Three ways to resolve it.**
+
+1. **Keep your file, merged.** Merge what you need from `.harness/pending/<path>` into
+   your file, delete the parked copy, and have a human record the file's `sha256` in
+   `.harness/manifest.json`, with mode `owned`, in a reviewed commit. The file is then a
+   fork, and "Forking an owned file" in the 1.0.2 section above applies on every later
+   update.
+2. **Take the harness's copy.** Delete your file and the parked copy, then run `update`
+   again. The path is written fresh and recorded.
+3. **Discard yours in one step.** `update --force` overwrites it with the incoming
+   version, records it and notes `--force overwrote locally-modified <path>`. `--force`
+   also discards every other drifted or forked owned file in the run, so read
+   `update --dry-run` first.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
