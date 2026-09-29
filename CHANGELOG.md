@@ -10,9 +10,8 @@ and the version line continues from it. Entries at **0.1.2 and below are the
 ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
-## [1.0.4] — unreleased
 
-**A patch: the pin and verify examples in the docs name no release.**
+## [Unreleased]
 
 ### Fixed
 

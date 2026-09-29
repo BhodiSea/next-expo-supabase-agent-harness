@@ -62,19 +62,6 @@ gh attestation verify "next-expo-supabase-agent-harness-${tag#v}.tgz" \
   --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
 ```
 
-Why `${tag#v}` gives the tarball's name:
-
-- The release job builds the tarball with `npm pack` (`release.yml:75-76`) and
-  uploads the bundle under the tarball's name plus `.intoto.jsonl`
-  (`release.yml:89-94`). That bundle is
-  `next-expo-supabase-agent-harness-<version>.tgz.intoto.jsonl`
-  (`CHANGELOG.md:59-61`), so the tarball is
-  `next-expo-supabase-agent-harness-<version>.tgz`.
-- The same job's gates (`release.yml:46-50`) fail a tag that is not `v` plus
-  `package.json`'s version (`scripts/check-release-lockstep.mjs:46-49`).
-- With no tag argument, `gh release view` shows the latest release, and
-  `gh release download` requires `--pattern` or `--archive` (see each command's
-  `--help`). So the first line looks the tag up.
 
 Exit status 0 means the tarball's digest matches an attestation signed by
 `.github/workflows/release.yml` in this repository, running on the release tag.
