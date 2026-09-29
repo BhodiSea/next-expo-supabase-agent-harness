@@ -11,12 +11,13 @@
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { doctor } from '../../installer/commands/doctor.mjs'
 import { enable } from '../../installer/commands/enable.mjs'
 import { init } from '../../installer/commands/init.mjs'
-import { sha256 } from '../../installer/lib/manifest.mjs'
+import { planTree } from '../../installer/lib/copy.mjs'
+import { fileMode, sha256 } from '../../installer/lib/manifest.mjs'
 import { render, tokenSites } from '../../installer/lib/placeholders.mjs'
 import {
   VERSION,
@@ -320,4 +321,212 @@ test('an agent-surface fork keeps its tools/agents.lock.json entry: update neith
     lockedBefore,
     'the lock entry still describes the pristine file — the mismatch IS the edit it exists to show',
   )
+})
+
+// ── AN OWNED PATH WITH NO MANIFEST RECORD (1.0.4, N21) ──────────────────────────────────
+//
+// `init` records every owned file it writes and `update` every file it creates or refreshes,
+// so a pristine install holds no unrecorded owned file. One appears when a release starts
+// shipping a path where the project already had its own file, when `enable` keeps a file at
+// a module path (it parks its own copy and records nothing), when `disable` keeps a modified
+// module file and drops its record and the module is enabled again, or when someone deletes a
+// record by hand. Through 1.0.3 the sweep read "no record" as "unmodified" and overwrote the
+// project's bytes with exit 0, and a `removed` migration deleted them. Both now ask the
+// question 1.0.2 asks of a recorded file: did any release ship these bytes for this path?
+
+const UNRECORDED = 'tools/validate.mjs'
+const THEIRS = '// a project file at a harness-owned path\n'
+
+/**
+ * Put `bytes` at `ip` and DROP its manifest record — the state each route above leaves.
+ *
+ * @param {string} dir @param {string} ip @param {string} bytes
+ */
+function unrecordedBytes(dir, ip, bytes) {
+  mkdirSync(dirname(join(dir, ip)), { recursive: true })
+  writeFileSync(join(dir, ip), bytes)
+  const manifest = manifestOf(dir)
+  delete manifest.files[ip]
+  writeManifestOf(dir, manifest)
+}
+
+/** @param {{ notes: string[] }} report @param {string} ip */
+const notesNaming = (report, ip) => report.notes.filter((n) => n.includes(ip))
+
+test('an unrecorded owned file whose bytes NO release shipped is kept: parked, exit 2, one note', async () => {
+  const dir = await freshInstall('epah-prov-unrec-')
+  unrecordedBytes(dir, UNRECORDED, THEIRS)
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: tablesWith() })
+  assert.equal(res.code, 2, res.out)
+  const report = parseReport(res.out)
+  assert.equal(read(dir, UNRECORDED), THEIRS, "the project's bytes must survive")
+  assert.ok(!report.written.includes(UNRECORDED), 'a kept file is never reported as written')
+  const pending = join('.harness', 'pending', UNRECORDED)
+  assert.deepEqual(
+    report.drift.filter((d) => d.path === UNRECORDED),
+    [{ path: UNRECORDED, pending }],
+  )
+  assert.ok(existsSync(join(dir, pending)), 'the incoming version is parked')
+  assert.notEqual(read(dir, pending), THEIRS)
+  assert.deepEqual(notesNaming(report, UNRECORDED), [
+    `${UNRECORDED} has no manifest record and its bytes match no release of this harness — kept; the incoming version is parked at ${pending} (merge it and record its sha, delete yours and re-run update, or re-run with --force)`,
+  ])
+  assert.equal(manifestOf(dir).files[UNRECORDED], undefined, 'a park never writes a record')
+})
+
+test('the same file under --force is overwritten and recorded, and the note says so — sweep and --refresh-seeded alike', async () => {
+  for (const extra of [{}, { refreshSeeded: [UNRECORDED] }]) {
+    const dir = await freshInstall('epah-prov-unrec-force-')
+    unrecordedBytes(dir, UNRECORDED, THEIRS)
+    const res = await captureUpdate({ dir, force: true, report: 'json', ...extra }, { releasedShas: tablesWith() })
+    assert.equal(res.code, 0, res.out)
+    const report = parseReport(res.out)
+    assert.ok(report.written.includes(UNRECORDED), res.out)
+    assert.notEqual(read(dir, UNRECORDED), THEIRS)
+    assert.equal(manifestOf(dir).files[UNRECORDED].sha256, sha256(read(dir, UNRECORDED)))
+    assert.deepEqual(notesNaming(report, UNRECORDED), [`--force overwrote locally-modified ${UNRECORDED}`])
+  }
+})
+
+test('an install at an OLDER version whose table lacks the path: new in the incoming version, and the project file parks — no unchanged-upstream skip', async () => {
+  const dir = await freshInstall('epah-prov-unrec-new-')
+  unrecordedBytes(dir, UNRECORDED, THEIRS)
+  const manifest = manifestOf(dir)
+  manifest.harnessVersion = '0.0.9'
+  writeManifestOf(dir, manifest)
+  const older = liveOwned()
+  delete older[UNRECORDED]
+  // In range sits exactly one variant and it IS the incoming source — for a recorded fork
+  // that is the "upstream has not changed it" skip. With no record, nothing shows the
+  // project even knows the harness ships this path.
+  const tables = { '0.0.9': older, ...tablesWith() }
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: tables, migrations: {} })
+  assert.equal(res.code, 2, res.out)
+  const report = parseReport(res.out)
+  assert.equal(read(dir, UNRECORDED), THEIRS)
+  assert.ok(!report.skipped.includes(UNRECORDED), 'an unrecorded path never takes the unchanged-upstream skip')
+  assert.ok(report.drift.some((d) => d.path === UNRECORDED), res.out)
+  assert.ok(!report.notes.some((n) => n.includes('local fork(s) kept')), report.notes.join('\n'))
+})
+
+test('with NO released-sha tables at all, an unrecorded owned file parks — as `enable` and --refresh-seeded already do', async () => {
+  const dir = await freshInstall('epah-prov-unrec-notables-')
+  unrecordedBytes(dir, UNRECORDED, THEIRS)
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: {} })
+  assert.equal(res.code, 2, res.out)
+  const report = parseReport(res.out)
+  assert.equal(read(dir, UNRECORDED), THEIRS)
+  assert.ok(report.drift.some((d) => d.path === UNRECORDED), res.out)
+  assert.equal(notesNaming(report, UNRECORDED).length, 1, report.notes.join('\n'))
+})
+
+test('`enable` keeps an unrecorded owned module file, and the next `update` keeps it too (exit 2)', async () => {
+  const dir = await freshInstall('epah-prov-unrec-enable-')
+  const releasedShas = tablesWith()
+  const module = 'observability'
+  const [ip] = planTree(`modules/${module}`, manifestOf(dir).answers)
+    .map((e) => e.installPath)
+    .filter((p) => fileMode(p) === 'owned')
+    .sort()
+  assert.ok(ip, `fixture precondition: the ${module} module installs at least one owned file`)
+  const theirs = '# the project already had its own file at this module path\n'
+  unrecordedBytes(dir, ip, theirs)
+
+  const enabled = await captured(() => enable({ dir }, module, true, { releasedShas }))
+  assert.equal(enabled.result, 0, enabled.out)
+  assert.equal(read(dir, ip), theirs, 'fixture precondition: enable keeps the file')
+  assert.equal(manifestOf(dir).files[ip], undefined, 'fixture precondition: enable records nothing for it')
+  assert.ok(manifestOf(dir).modules.includes(module), 'fixture precondition: the module is enabled')
+
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+  assert.equal(res.code, 2, res.out)
+  assert.equal(read(dir, ip), theirs, 'the next update overwrote the file enable kept')
+  assert.ok(
+    parseReport(res.out).drift.some((d) => d.path === ip),
+    res.out,
+  )
+})
+
+test('an unrecorded owned file whose bytes a release SHIPPED refreshes and is recorded, exit 0 — as before', async () => {
+  // A table at the running version, and one OLDER than any install: with no record nobody
+  // pinned the file, so either shows the harness wrote these bytes.
+  for (const releasedShas of [tablesWith({ [UNRECORDED]: EARLIER }), { '0.0.1': { [UNRECORDED]: EARLIER }, ...tablesWith() }]) {
+    const dir = await freshInstall('epah-prov-unrec-released-')
+    unrecordedBytes(dir, UNRECORDED, AGED)
+    const res = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+    assert.equal(res.code, 0, res.out)
+    const report = parseReport(res.out)
+    assert.ok(report.written.includes(UNRECORDED), res.out)
+    assert.notEqual(read(dir, UNRECORDED), AGED)
+    assert.equal(manifestOf(dir).files[UNRECORDED].sha256, sha256(read(dir, UNRECORDED)), 'the refresh is recorded')
+    assert.deepEqual(notesNaming(report, UNRECORDED), [])
+  }
+})
+
+test('dry-run reports EXACTLY the plan the real run applies when an unrecorded file parks', async () => {
+  const dir = await freshInstall('epah-prov-unrec-dry-')
+  unrecordedBytes(dir, UNRECORDED, THEIRS)
+  const releasedShas = tablesWith()
+  const dry = await captureUpdate({ dir, dryRun: true, report: 'json' }, { releasedShas })
+  assert.ok(!existsSync(join(dir, '.harness', 'pending')), 'dry-run must not park anything')
+  assert.equal(read(dir, UNRECORDED), THEIRS, 'dry-run must not write anything')
+  const real = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+  assert.deepEqual(parseReport(dry.out), parseReport(real.out))
+  assert.equal(dry.code, real.code)
+})
+
+test('`--refresh-seeded <owned path>` with no record parks with exactly ONE note, and --force overwrites', async () => {
+  // Bytes no release shipped, and bytes one did: --refresh-seeded parks both without a
+  // record, and each park carries one note whichever rule decided it.
+  for (const bytes of [THEIRS, AGED]) {
+    const dir = await freshInstall('epah-prov-unrec-refresh-')
+    unrecordedBytes(dir, UNRECORDED, bytes)
+    const releasedShas = tablesWith({ [UNRECORDED]: EARLIER })
+    const res = await captureUpdate({ dir, refreshSeeded: [UNRECORDED], report: 'json' }, { releasedShas })
+    assert.equal(res.code, 2, res.out)
+    assert.equal(read(dir, UNRECORDED), bytes)
+    assert.ok(existsSync(join(dir, '.harness', 'pending', UNRECORDED)))
+    assert.equal(notesNaming(parseReport(res.out), UNRECORDED).length, 1, res.out)
+
+    const forced = await captureUpdate(
+      { dir, refreshSeeded: [UNRECORDED], force: true, report: 'json' },
+      { releasedShas },
+    )
+    assert.equal(forced.code, 0, forced.out)
+    assert.ok(parseReport(forced.out).written.includes(UNRECORDED), forced.out)
+    assert.notEqual(read(dir, UNRECORDED), bytes)
+  }
+})
+
+test('a `removed` migration keeps an unrecorded file no release shipped — owned or seeded — and deletes one a release shipped', async () => {
+  const dir = await freshInstall('epah-prov-unrec-removed-')
+  const shipped = '// what 0.0.9 shipped at this path\n'
+  const ownedTheirs = 'tools/retired-theirs.mjs'
+  const ownedShipped = 'tools/retired-shipped.mjs'
+  const seededTheirs = 'apps/mobile/__tests__/retired-seeded.test.tsx'
+  assert.equal(fileMode(seededTheirs), 'seeded', 'fixture precondition: a seeded path')
+  unrecordedBytes(dir, ownedTheirs, THEIRS)
+  unrecordedBytes(dir, ownedShipped, shipped)
+  unrecordedBytes(dir, seededTheirs, '// the project wrote this test\n')
+  const manifest = manifestOf(dir)
+  manifest.harnessVersion = '0.0.9'
+  writeManifestOf(dir, manifest)
+
+  // The tables list OWNED paths only, so no release can vouch for the seeded one.
+  const retired = { [ownedTheirs]: [{ sha256: sha256(shipped) }], [ownedShipped]: [{ sha256: sha256(shipped) }] }
+  const tables = { '0.0.9': { ...liveOwned(), ...retired }, ...tablesWith() }
+  const migrations = { [VERSION]: { removed: [ownedTheirs, ownedShipped, seededTheirs] } }
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: tables, migrations })
+  const report = parseReport(res.out)
+  assert.ok(!existsSync(join(dir, ownedShipped)), 'bytes a release shipped are removed, record or not')
+  assert.ok(report.notes.includes(`removed by template migration: ${ownedShipped}`), report.notes.join('\n'))
+  for (const ip of [ownedTheirs, seededTheirs]) {
+    assert.ok(existsSync(join(dir, ip)), `${ip}: a file no release shipped is never deleted without a record`)
+    assert.ok(
+      report.notes.includes(
+        `removed by template migration: ${ip} has no manifest record and no release shipped its bytes — left in place; remove it manually`,
+      ),
+      report.notes.join('\n'),
+    )
+  }
 })
