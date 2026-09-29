@@ -40,7 +40,7 @@ const RUN_URL = /^https:\/\/[^\s"'<>`]+$/
 
 /**
  * @typedef {{ job: string, tree: string, head: string }} Marker
- * @typedef {{ number: number, head: string }} PullRef
+ * @typedef {{ number: number, head: string, ref: string, repoId: number }} PullRef
  * @typedef {{ id: number, attempt: number, url: string, head: string }} RunRef
  * @typedef {{
  *   hit: boolean, reason: string, from?: string,
@@ -128,6 +128,36 @@ function judgeRequest({ event, sha, job }) {
   return null
 }
 
+/** @param {unknown} repo @returns {number | null} a repository's id, or null */
+const repoId = (repo) => {
+  const id = /** @type {Record<string, unknown> | null | undefined} */ (repo)?.id
+  return Number.isInteger(id) ? /** @type {number} */ (id) : null
+}
+
+/**
+ * Where the pull request's head lives. A run is tied to its pull request by this (head
+ * commit, head branch, head repository), because GitHub empties a run's `pull_requests` once
+ * the pull request is merged. A FORK never reuses: its run executed workflow text from a
+ * repository this one does not control until the merge, so its merge runs every lane, as it
+ * did before reuse existed.
+ * @param {Record<string, any>} pr @param {number} n
+ * @returns {Verdict | { ok: { ref: string, repoId: number } }}
+ */
+function headOf(pr, n) {
+  const ref = pr.head?.ref
+  if (typeof ref !== 'string' || ref === '') return miss(`#${String(n)} names no head branch`)
+  const head = repoId(pr.head?.repo)
+  if (head === null) return miss(`#${String(n)} names no head repository (a deleted fork?)`)
+  const base = repoId(pr.base?.repo)
+  if (base === null) return miss(`#${String(n)} names no base repository`)
+  if (head !== base) {
+    return miss(
+      `#${String(n)} comes from a fork, and a fork's pull request never reuses: its merge runs every lane`,
+    )
+  }
+  return { ok: { ref, repoId: head } }
+}
+
 /** @param {unknown} p @param {string} sha @returns {Verdict | { ok: PullRef }} */
 function mergedPull(p, sha) {
   const pr = /** @type {Record<string, any>} */ (p ?? {})
@@ -141,7 +171,9 @@ function mergedPull(p, sha) {
   const head = pr.head?.sha
   if (typeof head !== 'string' || !OBJECT_ID.test(head))
     return miss(`#${String(n)} names no head commit`)
-  return { ok: { number: n, head } }
+  const where = headOf(pr, n)
+  if (!('ok' in where)) return where
+  return { ok: { number: n, head, ...where.ok } }
 }
 
 /**
@@ -165,18 +197,20 @@ function pickPull(pulls, sha) {
 }
 
 /**
- * A run OF THIS pull request at its final head. Another pull request's run executes that
- * pull request's own workflow text, which could print any marker, so it never stands in; a
- * run from a fork lists no pull request at all (GitHub leaves `pull_requests` empty there),
- * so a fork's pull request always runs in full on its merge.
+ * A run OF THIS pull request at its final head: a `pull_request` run whose head commit, head
+ * branch and head repository are the pull request's. Another pull request's run executes that
+ * pull request's own workflow text, which could print any marker, so it never stands in.
+ * `pull_requests` is NOT read: GitHub fills it with the pull requests that are OPEN with a
+ * matching head, so on the push after a merge it is empty (or names some other open pull
+ * request from the same branch), and it never says which pull request triggered the run.
  * @param {any} r @param {PullRef} pull
  */
 function isRunOf(r, pull) {
   return (
     r?.event === 'pull_request' &&
     r.head_sha === pull.head &&
-    Array.isArray(r.pull_requests) &&
-    r.pull_requests.some((/** @type {any} */ p) => p?.number === pull.number)
+    r.head_branch === pull.ref &&
+    repoId(r.head_repository) === pull.repoId
   )
 }
 
@@ -205,7 +239,7 @@ function pickRun(runs, pull) {
   const own = runs.filter((r) => isRunOf(r, pull)).sort(newestFirst)
   if (own.length === 0) {
     return miss(
-      `no ${WORKFLOW_FILE} pull_request run of #${String(pull.number)} at its final head ${pull.head} (a pull request from a fork lists none)`,
+      `no ${WORKFLOW_FILE} pull_request run of #${String(pull.number)} at its final head ${pull.head} on its head branch ${JSON.stringify(pull.ref)}`,
     )
   }
   const r = own[0]
