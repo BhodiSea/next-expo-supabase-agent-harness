@@ -646,14 +646,20 @@ this heading if none does. -->
   made `workflow-lanes` fail naming the module file, and one module `uses:` moved to `@v7`
   made `check-ci-preconditions` exit 1 naming the module path and line; on the base the
   last two edits stayed green (#55).
-  `tests/gates/supabase-cli-pin.test.mjs` was red on this release's base, on the caret
-  range and on the rule's missing PR note, and green after; its fixture cases red a range,
-  a prerelease, a version below 2.117.0, a missing entry, a missing or non-pin rule and a
-  disabled package on both sides. `renovate-config-validator --strict` (Renovate 44.119.1)
-  passed on the edited `renovate.json`, as a repository config and as a global one, and
-  failed on a copy with a misspelled `prBodyNotes`. On 2026-09-29 supabase/cli#5894, the
-  upstream issue `auth-posture-cli-census` names, was still open with no milestone and no
-  linked pull request, so the deferral's condition is unmet (#88).
+  `tests/gates/supabase-cli-pin.test.mjs` was red on this release's base, on the caret range
+  and on the rule's missing PR note, and green after. Copied onto v1.0.3 it was red on the
+  same two and on the case that wants `doctor`'s catalog reader, which this release adds.
+  Its fixture cases red a range, a prerelease, a version below 2.117.0, a missing entry, a
+  missing or non-pin rule and a disabled package on both sides.
+  `renovate-config-validator --strict` (Renovate 44.119.1) passed on the edited
+  `renovate.json`, as a repository config and as a global one, and failed on a copy with a
+  misspelled `prBodyNotes`. In a fresh core scaffold `pnpm install` resolved the CLI to
+  2.118.0; with its stack up `types-drift` passed, `pnpm db:test` passed every pgTAP file,
+  and `pnpm db:types` rewrote the committed types byte for byte. On 2026-09-29
+  supabase/cli#5894, the upstream issue `auth-posture-cli-census` names, was still open with
+  no milestone and no linked pull request, and 2.118.0's `supabase config` offers `diff`,
+  `pull` and `push`, each against a linked project, so the deferral's condition is unmet
+  (#88).
 
 ## [1.0.3] — 2026-09-23
 
