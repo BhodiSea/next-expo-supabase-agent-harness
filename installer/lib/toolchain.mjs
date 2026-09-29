@@ -234,7 +234,8 @@ export function cleanEntry(targetDir, entry, dryRun) {
   // the ignore check alone would skip it too, under a reason that sends a reader to the
   // .gitignore instead of to the force-added file.
   const tracked = git(root, ['ls-files', '--', posixRel])
-  if (!tracked.ok || tracked.out.trim() !== '') return skip('it holds tracked files')
+  if (!tracked.ok) return skip('git could not list the files it tracks there')
+  if (tracked.out.trim() !== '') return skip('it holds tracked files')
   if (!git(root, ['check-ignore', '-q', '--', posixRel]).ok) return skip('not ignored by git here')
   if (dryRun) return `clean --dry-run: would remove ${entry}`
   try {

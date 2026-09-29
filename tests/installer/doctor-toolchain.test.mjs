@@ -25,7 +25,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { doctor } from '../../installer/commands/doctor.mjs'
@@ -163,15 +163,22 @@ test('an absent entry is reported as nothing to remove', () => {
 
 test('skip: the target is not a git repository, so nothing proves an entry is ignored', () => {
   const dir = tempDir('nesah-clean-nogit-')
-  // A git repository above tmpdir would answer for this directory; the guard is the
-  // fixture's own: it must not be inside one.
-  const probe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: dir })
-  if (probe.status === 0) return // cannot build the fixture on this machine; the other skips still run
-  plant(dir, '.harness/stop-output/validate.log')
-  const lines = cleanResidue(dir, { clean: true })
-  assert.equal(lines.length, CLEAN_LIST.length)
-  for (const line of lines) assert.match(line, /^clean: skipped .* not a git repository/)
-  assert.ok(existsSync(join(dir, '.harness/stop-output/validate.log')))
+  // A git repository above tmpdir would answer for this directory, so git is told to stop
+  // looking at the fixture's parent: the case is proven on every machine, never passed over.
+  const ceiling = process.env.GIT_CEILING_DIRECTORIES
+  process.env.GIT_CEILING_DIRECTORIES = dirname(dir)
+  try {
+    const probe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: dir })
+    assert.notEqual(probe.status, 0, 'fixture precondition: the directory is in no git repository')
+    plant(dir, '.harness/stop-output/validate.log')
+    const lines = cleanResidue(dir, { clean: true })
+    assert.equal(lines.length, CLEAN_LIST.length)
+    for (const line of lines) assert.match(line, /^clean: skipped .* not a git repository/)
+    assert.ok(existsSync(join(dir, '.harness/stop-output/validate.log')))
+  } finally {
+    if (ceiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES
+    else process.env.GIT_CEILING_DIRECTORIES = ceiling
+  }
 })
 
 test('skip: an entry outside the target directory', () => {
