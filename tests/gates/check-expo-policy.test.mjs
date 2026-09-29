@@ -954,7 +954,8 @@ test('11g account deletion: the key is READ — its file lacking the action id r
 })
 
 test('RED 11g: a malformed accountDeletion.registry fails the shape check CLOSED', () => {
-  for (const [label, ad] of [
+  /** @type {[string, Record<string, any>][]} */
+  const cases = [
     ['a .. segment', { registry: 'apps/mobile/src/../../../etc/registry.ts' }],
     ['a trailing .. escape', { registry: 'apps/mobile/src/features/../../app/registry.ts' }],
     ['outside apps/mobile/src/', { registry: 'apps/mobile/app/registry.ts' }],
@@ -981,7 +982,8 @@ test('RED 11g: a malformed accountDeletion.registry fails the shape check CLOSED
         registry: 'apps/mobile/src/features/actions/registry.ts',
       },
     ],
-  ]) {
+  ]
+  for (const [label, ad] of cases) {
     const r = runGate(
       fixture({ sources: AUTH_SOURCES, storeTunables: tunablesWithRegistry(ad) }),
     )

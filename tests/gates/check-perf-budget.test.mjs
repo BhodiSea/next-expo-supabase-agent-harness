@@ -252,14 +252,16 @@ test('GREEN empty state: the day-0 shape — perfSubject.tsx kept for a test, it
 test('RED empty state: a blank, short or missing reason and a malformed reviewedOn each fail naming emptySubjects', () => {
   // 39 characters after trimming, padded so the untrimmed length clears the bar.
   const short = `  ${'x'.repeat(39)}  `
-  for (const [label, row, expected] of [
+  /** @type {[string, Record<string, any>, string][]} */
+  const cases = [
     ['blank reason', { reason: '   ' }, 'at least 40 characters'],
     ['short reason', { reason: short }, 'at least 40 characters'],
     ['missing reason', { reason: undefined }, 'at least 40 characters'],
     ['day-first date', { reviewedOn: '29-09-2026' }, 'reviewedOn'],
     ['unpadded date', { reviewedOn: '2026-9-29' }, 'reviewedOn'],
     ['numeric date', { reviewedOn: 20260929 }, 'reviewedOn'],
-  ]) {
+  ]
+  for (const [label, row, expected] of cases) {
     const r = runGate(fixture({ budget: emptyBudget(row) }))
     assert.equal(r.code, 1, `${label}: ${r.out}`)
     assert.ok(r.out.includes('emptySubjects'), `${label}: ${r.out}`)
