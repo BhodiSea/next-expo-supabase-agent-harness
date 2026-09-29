@@ -235,9 +235,10 @@ this heading if none does. -->
   form's fresh-scaffold bar names `git init` and the commit. `scripts/ci/consumer-ci-static.sh`
   quotes init's note in its current order, and so do the `check-ci-preconditions` fixtures,
   whose regressed note still leaves out `pnpm-lock.yaml`. A new test,
-  `tests/gates/next-steps-order.test.mjs`, reds any of those texts, init's note or the
-  README's post-init block that names `pnpm install` before `git init`. The change is
-  factory-only: no `template/` file changes, and it reaches no install (#50).
+  `tests/gates/next-steps-order.test.mjs`, reds when any of those texts, init's note or the
+  README's post-init block names `pnpm install` before `git init`, leaves either out, or
+  loses the anchor the test finds it by. The change is factory-only: no `template/` file
+  changes, and it reaches no install (#50).
 
 ### Changed
 
@@ -399,10 +400,11 @@ this heading if none does. -->
   it beforehand (#48).
 - **No CI lane makes a scaffold's first commit with the hooks installed.** With git first,
   the recipe's first commit runs the scaffold's pre-commit and commit-msg hooks over the
-  whole tree. `bootstrap-linux` commits before it installs, `canary-mutation` installs
-  before its `git init`, and every other lane's commit after an install follows a baseline
-  commit made before it, so a hook that reds that first commit is caught by CONTRIBUTING's
-  recipe run by hand, not by CI (#50).
+  whole tree. Every lane that scaffolds and installs commits its baseline before its first
+  install, except `canary-mutation`, which installs before its `git init` inside the
+  harness's own checkout, so lefthook installs into that checkout's hooks; every commit a
+  lane makes after an install follows that baseline. A hook that reds the first commit is
+  caught by CONTRIBUTING's recipe run by hand, not by CI (#50).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -523,8 +525,11 @@ this heading if none does. -->
   forms at v1.0.3 and on this release's base, green there on init's note and the README
   block, and green on every text after the edits. In a fresh core scaffold outside any
   repository, the old order's `pnpm install` failed at `prepare` with lefthook 2.1.14
-  reporting "not a git repository"; the reordered recipe's first commit ran lefthook's
-  pre-commit `format` and `secrets` jobs and its `commitlint` job and passed, after which
+  reporting "not a git repository". The reordered recipe, cut from CONTRIBUTING.md as
+  written with only its directory changed and run with no Supabase stack up, made its first
+  commit through lefthook's pre-commit `format` and `secrets` jobs (`secrets` skipping
+  loudly with no gitleaks binary) and its commit-msg `commitlint` job, and
+  `validate --report-all` passed every step, with `types-drift` skipping loudly; after it
   `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and the tree was
   clean (#50).
 
