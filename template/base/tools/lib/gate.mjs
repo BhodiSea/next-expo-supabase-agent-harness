@@ -292,21 +292,50 @@ export function hashInputs(paths) {
 }
 
 // stampGate: if every declared input is byte-identical to the last GREEN run
-// (stamp in .harness/<gate>.ok) and we are not in CI, report OK instantly.
+// (stamp in .harness/<gate>.ok) and we are not in CI, report STAMPED instantly.
 // CI always runs the real check — a stamp is a local convenience, never proof.
 // Returns recordGreen(); the gate calls it right before its final ok(). Input
 // completeness is reviewed data in tools/lib/stamp-inputs.mjs — an undeclared
-// input class is a stale-pass bug, so the selftest mutates each class and
-// asserts invalidation.
+// input class is a stale-pass bug, so tests/gates/gate-helpers.test.mjs holds every
+// list to its script's whole import closure.
+//
+// A HIT IS ITS OWN STATUS (1.0.4). Through 1.0.3 it printed through ok(), so a turn that
+// ended on warm stamps read exactly like one that re-proved everything; the Stop hook now
+// lists `<gate>: STAMPED — ` lines beside its skipped layers. The exit stays 0.
+//
+// `salt` (1.0.4) is state no declared file carries, mixed into the digest: the rls runner
+// passes the Supabase CLI version and the running database's identity, because a reset, a
+// restart or an applied migration changes what its suites would conclude and edits no file.
+// Omitted, the digest is hashInputs(inputs) exactly as before. Keep `salt` a plain third
+// parameter (no default value): tests/rls/run-rls.mjs reads `stampGate.length` to tell this
+// signature from 1.0.3's, which would drop the salt.
 // SOURCE: docs/harness/README.md (stamped gates) [corpus: harness/doctrine]
-export function stampGate(gate, inputs) {
+/** @param {string} gate @param {string[]} inputs @param {string} [salt] */
+export function stampGate(gate, inputs, salt) {
   const stampPath = join('.harness', `${gate}.ok`)
-  const digest = hashInputs(inputs)
+  const digest = stampDigest(inputs, salt)
   if (!inCI() && existsSync(stampPath) && readFileSync(stampPath, 'utf8').trim() === digest) {
-    ok(gate, `inputs unchanged since last green run (${stampPath}; CI always re-runs)`)
+    stamped(gate, `inputs unchanged since last green run (${stampPath}; CI always re-runs)`)
   }
   return function recordGreen() {
     mkdirSync('.harness', { recursive: true })
     writeFileSync(stampPath, digest)
   }
+}
+
+/** @param {string[]} inputs @param {string | undefined} salt */
+function stampDigest(inputs, salt) {
+  const inputsDigest = hashInputs(inputs)
+  if (salt === undefined) return inputsDigest
+  return createHash('sha256')
+    .update(`${inputsDigest}\0${String(salt)}`)
+    .digest('hex')
+}
+
+// The phrase after the dash is load-bearing: tests, the selftest's warm-lane control and
+// graduate's comments match on "inputs unchanged since last green run".
+/** @param {string} gate @param {string} msg @returns {never} */
+function stamped(gate, msg) {
+  console.log(`${gate}: STAMPED — ${msg}`)
+  process.exit(0)
 }

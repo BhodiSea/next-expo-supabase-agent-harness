@@ -65,9 +65,11 @@ The maintainer scheduled these for 1.0.4, the local loop release (issue #38),
 beside fixes that have no proposal here. None of them tightens a gate for an
 existing install. Where one changes what `update` does, its section says so.
 
-- **Input-stamped Stop steps.** The slow Stop entries skip on unchanged
-  inputs, a stamped step prints as `STAMPED`, and stamp inputs cover the
-  libraries a gate imports.
+- **Input-stamped Stop steps.** `rls-isolation` skips on unchanged inputs, an
+  unchanged CLI and an unchanged database, a stamped step prints as `STAMPED`,
+  and stamp inputs cover the libraries a gate imports. Stamping `unit` and
+  `mobile-unit` needs a wrapper that changes floored commands, so it waits for
+  1.1.0 (issue #39).
   ([N01](design/FIELD-UPGRADES-2026-09.md#n01-input-stamped-stop-steps),
   issue #42)
 - **Stop-step and gate-event telemetry.** Untrimmed local records of step

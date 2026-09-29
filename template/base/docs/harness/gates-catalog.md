@@ -1863,13 +1863,17 @@ key so they never race `.git/index.lock`.
 
 ### rls-isolation — `node tests/rls/run-rls.mjs`
 
-Live cross-user isolation against local Postgres (fresh-applies all migrations
-first). Seeded positive control (a deny-all database must NOT pass), zero-row
+Live cross-user isolation against the running local stack, as it stands: the runner
+applies no migration (the first `pnpm db:up` and `pnpm db:reset` do). Seeded positive control (a deny-all database must NOT pass), zero-row
 cross-user SELECT/UPDATE/DELETE, SQLSTATE 42501 on INSERT smuggling,
 pooled-connection GUC-leak detector (pool max=1), and the pg_catalog gate (FORCE
 RLS flags, per-op policies, leading-column owner indexes, initPlan-shaped
 predicates, patched pgvector, non-BYPASSRLS role). Unreachable database → loud
-SKIP locally; in CI with migrations present, unreachable = FAIL.
+SKIP locally; in CI with migrations present, unreachable = FAIL. Stamped locally (1.0.4):
+with the stack up and its declared inputs, the `supabase --version` output and the
+database's identity (server start time + applied migration versions) all unchanged since
+the last green run, it prints `rls-isolation: STAMPED` and runs neither suite; any non-empty
+`CI` always runs both (see docs/harness/README.md, Stamped gates).
 
 **There is no plan probe in THIS suite, and that is a placement decision, not an
 omission.** A plan is a planner opinion at one statistics snapshot; against the
