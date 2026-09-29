@@ -101,9 +101,11 @@ node scripts/check-eol-target.mjs          # no shipped production-scope removal
 node scripts/check-sbom-drift.mjs          # the SBOM as a RELEASE DIFF: no component added since the previous tag without a reviewed row
 node scripts/check-released-shas.mjs --verify-tags  # template/shas lists every owned file this tree ships, covers every vintage, and contains every tag's own bytes — touched an owned template file? run `node scripts/generate-released-shas.mjs --current` first
 
-# The one that matters most — the scaffold must be green with ZERO edits:
+# The one that matters most — the scaffold must be green with ZERO edits.
+# git init FIRST, as init's closing note says: the prepare script (lefthook install)
+# needs a repository, and `wiring` reds a .git/hooks with no lefthook in it.
 node installer/cli.mjs init --dir /tmp/scratch --tier core --yes
-cd /tmp/scratch && pnpm install && git init -q && git add -A \
+cd /tmp/scratch && git init -q && pnpm install && git add -A \
   && git -c user.email=x@y.z -c user.name=x commit -qm "chore: baseline" \
   && node tools/validate.mjs --report-all
 ```
