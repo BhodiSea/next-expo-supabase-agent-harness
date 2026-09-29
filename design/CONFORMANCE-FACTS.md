@@ -75,6 +75,59 @@ a map would be machinery for a case the scaffold cannot reach.
 
 Re-open if the template ever seeds a Wear, Automotive, TV or XR target.
 
+**Play target-API row re-verified 2026-09-29**, on the scheduled re-read that the
+`conformance-play-target-api-window` row owed on 2026-08-31. Both sources were read on
+2026-09-29:
+
+- [developer.android.com/google/play/requirements/target-sdk](https://developer.android.com/google/play/requirements/target-sdk),
+  the page `tools/store-policy.json` and `tools/check-expo-policy.mjs` cite. It says "Last
+  updated 2026-09-16 UTC".
+- [Play Console Help, answer 11926878](https://support.google.com/googleplay/android-developer/answer/11926878),
+  "Target API level requirements for Google Play apps". The served page carries no
+  last-updated date, so none is recorded.
+
+What they say:
+
+- **Submission (new apps and app updates), from 2026-08-31: unchanged.** API **36** in
+  general, **35** for Wear OS and Android Automotive OS, **34** for Android TV and Android XR.
+  The Help page's per-form-factor tables still date TV's 34 to 2025-08-31 and XR's 34 to
+  2026-08-31.
+- **Continued distribution (existing apps), from 2026-08-31.** **35** in general (mobile and
+  Android Auto), **34** for Wear OS and for XR, **32** (12L) for Automotive OS. **The two pages
+  disagree on TV.** The Help page counts an existing TV app that targets 33 as compliant. The
+  developer page lists TV beside Wear OS and XR among the apps restricted at 33 or lower,
+  which implies 34. This template builds no TV target, so the difference is recorded and
+  nothing acts on it.
+- **Extension: to 2026-11-01, on both pages.** On the Help page the asterisk now marks only
+  the API 36 row of the general submission table, and the XR table carries none. Its
+  per-form-factor "What to do to comply" text offers every form factor an extension request
+  to keep distributing to all users until 2026-11-01. So the bullet above that scopes the asterisk to
+  "API 36 general and XR only" no longer matches the page. `store-policy.json` does not assume
+  an extension, so its floor is unaffected.
+- **No later step is published.** Neither page names a requirement after 2026-08-31.
+
+The local half holds, re-checked in this tree on the same day:
+
+- `tools/store-policy.json` has `androidTargetSdk.floor` 36, and `expoSdkDefaults` maps SDK 57
+  to 36.
+- The catalog pins `expo` at 57.0.9 and `react-native` at 0.86.2.
+- `checkTargetSdk` in `tools/check-expo-policy.mjs` reads both values: a declared
+  `targetSdkVersion` first, else the mapped default, and an unknown SDK major fails closed.
+- The SDK 57 mapping was re-derived from the published packages rather than restated.
+  `expo-modules-autolinking` 57.0.13, inside `expo` 57.0.9's `~57.0.9` range, takes
+  `targetSdkVersion` from React Native's version catalog, and `react-native` 0.86.2's
+  `gradle/libs.versions.toml` sets `targetSdk = "36"`.
+- A search of `template/` for
+  `leanback|android.hardware.type.(watch|automotive)|supportsTVOnly|EXPO_TV` finds nothing, so
+  the form-factor cut above still holds.
+
+**Verdict: the floor of 36 still matches the only form factor this template can produce, and
+no shipped value is contradicted.** The row is re-dated, not deleted: its next re-verification
+is **2027-05-31**. That is three months before the next 31 August step that the Help page's own
+table implies (API 35 from 2025-08-31, API 36 from 2026-08-31). Raising the floor tightens what
+`check-expo-policy` judges for an existing install, so it needs a ramp in a minor release, and
+a row that fired on the deadline itself would fire too late to ship one.
+
 ---
 
 ## 3. Apple: uploads must build against a minimum SDK — **TARGET 0.7.0 — DISCHARGED 2026-08-08**
@@ -154,6 +207,89 @@ vulnerability disclosure) ships in 0.6.0. `security.txt` is a **Target**, and de
 ship: RFC 9116 makes `Expires` mandatory, which is a dated commitment in a seeded file — the
 exact shape of the defect 0.6.0 just fixed in `framework-floor.json`, where a reviewer-supplied
 date with no bound on it was an off switch for the control. It ships when it ships with a bound.
+
+**CRA Article 14 row re-verified 2026-09-29**, on the scheduled re-read that the
+`conformance-cra-art14-application` row owed on 2026-09-11.
+
+**How it was read, and what was not read.** The register's evidence URL for the Regulation is
+[EUR-Lex, OJ L 2024/2847](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202402847).
+It answered every request from the session that did this re-read with an empty HTTP 202, which
+is a bot challenge, and its ELI and PDF forms did the same. So the Articles were read through
+the Commission's own pages, each of which cites them by number. All three were read on
+2026-09-29:
+
+- [Cyber Resilience Act: Reporting obligations](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting)
+  (last update 11 September 2026);
+- [Cyber Resilience Act: Summary of the legislative text](https://digital-strategy.ec.europa.eu/en/policies/cra-summary);
+- [Cyber Resilience Act: Open source](https://digital-strategy.ec.europa.eu/en/policies/cra-open-source)
+  (last update 31 July 2026).
+
+Those pages link two more documents: the Commission guidance, C(2026) 5252 and its annex
+(published 2026-07-27; §3 covers free and open-source software and §9.1 covers reporting), and
+the Commission FAQ (§5 covers reporting). Both are hosted on ec.europa.eu, which the same
+session could not reach, so neither was read. Reading EUR-Lex itself and those two documents
+is the maintainer's step before the re-dating below is approved.
+
+What the pages say:
+
+- **Date: CONFIRMED.** "As of 11 September 2026, manufacturers are required to report actively
+  exploited vulnerabilities and severe incidents impacting the security of products with
+  digital elements." Art. 14 applies early under Art. 71(2). The rest of the Regulation
+  applies from 11 December 2027.
+- **End-point: CONFIRMED, and now live.** "Manufacturers report only once through the CRA
+  Single Reporting Platform (SRP)." The notification is addressed to the CSIRT where the
+  manufacturer has its main establishment, and is made available to ENISA at the same time.
+  ENISA set the platform up under Art. 16, and it has been operational since 11 September
+  2026. "One submission, not three" above stands; read "single reporting end-point" as one
+  submission through one platform.
+- **Scope reading: CONFIRMED for the manufacturer duties.** Only free and open-source software
+  that is made available on the market is in scope, and that means supplied in the course of
+  a commercial activity, "whether in return for payment or free of charge" (Art. 3(22)). The
+  open-source page: "the provision of products with digital elements qualifying as free and
+  open-source software that are not monetised by their manufacturers should not be considered
+  to be a commercial activity". The Commission's summary attributes the clarification of when
+  such software is made available on the market to **recital 18**. The bullet above cites
+  recital 19. Which recital carries which point is part of the EUR-Lex re-read.
+- **The steward answer, which this section never recorded.** Art. 24 sets up a second role
+  beside the manufacturer, the **open-source software steward**. Art. 3(14), in the summary's
+  words: "a legal person, other than a manufacturer, that has the purpose or objective of
+  systematically providing support on a sustained basis for the development of specific
+  products with digital elements, qualifying as free and open-source software and intended
+  for commercial activities, and that ensures the viability of those products". Art. 24(3)
+  extends two Art. 14 duties to a steward. In the summary's words, a steward reports actively
+  exploited vulnerabilities "to the extent that they are involved in the development of the
+  products with digital elements", and severe incidents "to the extent that they affect
+  network and information systems provided by the open-source software stewards for the
+  development of such products". A search-index copy of the EUR-Lex text numbers those duties
+  Art. 14(1) and Art. 14(3) and (8); confirming the numbers is part of the EUR-Lex re-read.
+  Art. 24 also asks a steward for a cybersecurity policy and for cooperation with market
+  surveillance authorities, and Art. 64(10) exempts stewards from administrative fines.
+  **The steward duties apply from 11 December 2027, not from 11 September 2026:** "In
+  accordance with Article 71(2) of the CRA, open-source software stewards are subject to
+  reporting obligations (Article 24(3)) from 11 December 2027."
+
+**What that means here.** On 2026-09-11 no Art. 14 duty reached this repository in either
+role. As a manufacturer it is out of scope, because nothing about it is monetised, and a
+steward's Art. 14 duties do not apply until 2027-12-11. So "out of scope entirely" above is
+true of the manufacturer duties and of today. For 2027-12-11 it is **not settled**, because
+whether this repository has a steward depends on facts the tree cannot establish.
+`package.json`, `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. Whether
+Cogvera Labs is a legal person that systematically supports this harness, as software intended
+for commercial activities, is for the maintainer to determine. This file records the question
+as **open**, and does not answer it.
+
+**The two shipped texts still read true,** and neither changes:
+
+- `template/base/SECURITY.md`, "Downstream obligations": a consumer who places a product on
+  the EU market in the course of a commercial activity reports under Art. 14 from 2026-09-11,
+  to the reporting end-point, on clocks that start when the consumer becomes aware.
+- The `CRA-II.5` note in `tools/conformance-map.json` says SECURITY.md carries "a paragraph on
+  the consumer's own CRA Article 14 reporting duty from 2026-09-11", and it does.
+
+**Verdict: the row is re-dated, not deleted.** Its next re-verification is **2027-06-11**, six
+months before the steward duties apply on 2027-12-11. If the maintainer's organisation is a
+steward, its Art. 24 policy and a reporting route into the SRP have to be in place on that
+day, and a row that fired on the day itself would fire too late to prepare either.
 
 ---
 
