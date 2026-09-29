@@ -10,7 +10,9 @@
     "DOGFOOD (0.2.0): the hooks below now run ON this repo. pretool-bash-guard is a three-line RE-EXPORT of the shipped guard \u2014 never a fork, so this repo is a live test of the exact bytes consumers get. pretool-write-guard cannot be shimmed (its subject is paths, and a consumer's tools/ is this repo's template/base/tools/), so it reuses the shipped hookio plumbing with a factory path table. stop-factory-gate runs the closure checks that nobody remembers to run \u2014 the pure-node machinery gates (hygiene, canary coverage, rule integrity, claims, floor lockstep, and the rest; STEPS in the hook is the authoritative list) plus the toolchain steps (eslint, tsc, knip, biome, and the tests/gates + tests/hooks red-proof corpus). Budget ~45-60 seconds, dominated by the tests step: the hook's own MEASURED note records ~46s total on the 16-core reference machine, ~31s of it the tests, against the 300s Stop budget below.",
     "IT WILL BLOCK MAINTENANCE TURNS. That is the feature. A blocked maintainer turn means a consumer would have been blocked too, so a bug in the shipped guard surfaces on the machine of the person who can fix it. HARNESS_ALLOW_SELF_EDIT=1 is the human-in-the-loop escape, exactly as it is for consumers.",
     "0.3.0 POSTURE PARITY. Until this release the factory allowed bare `Bash` with `acceptEdits`, set no `disableBypassPermissionsMode`, wired no PostToolUse hooks, and its write-guard omitted `installer/**` (only installer/lib/) and `template/migrations.json`. Every one of those is a posture the harness DEMANDS of a consumer and did not hold itself \u2014 and the maintainer's machine is where a bug in that posture is cheapest to find. The permission list stays deliberately broad for routine machinery work; what closed is the set of things the harness tells consumers are never routine.",
-    "POSTURE PARITY IS NOT POSTURE COPYING, and the .claude/hooks deny is where the two differ. The SHIPPED settings deny Edit/Write on .claude/hooks/** and .claude/settings.json at layer 1 (the permission model), which is right for a consumer: they never author hooks, the harness ships them. This repo DOES author them \u2014 they are the product \u2014 and layer 1 has no HARNESS_ALLOW_SELF_EDIT escape, so copying that deny here would make the factory unable to do its job while teaching maintainers to reach for bypassPermissions, the worst habit a guard can teach. The factory's control for those files is layer 2: pretool-write-guard's PROTECTED table covers all of `.claude/`, WITH the deliberate human-in-the-loop escape. Same property, the layer that has a door."
+    "POSTURE PARITY IS NOT POSTURE COPYING, and the .claude/hooks deny is where the two differ. The SHIPPED settings deny Edit/Write on .claude/hooks/** and .claude/settings.json at layer 1 (the permission model), which is right for a consumer: they never author hooks, the harness ships them. This repo DOES author them \u2014 they are the product \u2014 and layer 1 has no HARNESS_ALLOW_SELF_EDIT escape, so copying that deny here would make the factory unable to do its job while teaching maintainers to reach for bypassPermissions, the worst habit a guard can teach. The factory's control for those files is layer 2: pretool-write-guard's PROTECTED table covers all of `.claude/`, WITH the deliberate human-in-the-loop escape. Same property, the layer that has a door.",
+    "READ-ONLY TOOLS NEVER PROMPT. Read, Grep and Glob are allowed everywhere, including absolute paths outside the checkout (scratch scaffolds, worktrees), because they change nothing; the deny list above still keeps env files, keys and ~/.ssh out of reach. Cloud sessions honour this file too, so the rule saves the same prompts there.",
+    "CLOUD SESSIONS START READY. SessionStart runs .claude/hooks/session-start-cloud.sh, which does nothing unless CLAUDE_CODE_REMOTE is true. In a cloud session it fetches full history and tags and installs the workspace, because each cloud session starts from a fresh clone and the Stop gate above needs both: its complexity step runs eslint from node_modules, and seeded-migrations fails on a shallow clone with no release tag. It always exits 0 and checks nothing."
   ],
   "hooks": {
     "PreToolUse": [
@@ -58,6 +60,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-cloud.sh\"",
+            "timeout": 600
+          }
+        ]
+      }
     ]
   },
   "permissions": {
@@ -66,7 +80,11 @@
       "Bash",
       "Read",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "Read(//**)",
+      "Grep",
+      "Glob",
+      "WebFetch(domain:supabase.com)"
     ],
     "ask": [
       "Bash(git push --force-with-lease:*)",
