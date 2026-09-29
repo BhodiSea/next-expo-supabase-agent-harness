@@ -200,8 +200,10 @@ test('an ignored apps/web/.next is removed, and so is the ignored .eslintcache f
   plant(dir, 'apps/web/.next/trace', 'partial\n')
   plant(dir, 'apps/web/app/page.tsx', 'export default function Page() { return null }\n')
   plant(dir, '.eslintcache', '[]\n')
-  assert.equal(cleanEntry(dir, 'apps/web/.next/', false), 'clean: removed apps/web/.next/')
-  assert.equal(cleanEntry(dir, '.eslintcache', false), 'clean: removed .eslintcache')
+  // Through the list, the way `doctor --clean` runs: the entries are CLEAN_LIST's, not the test's.
+  const lines = cleanResidue(dir, { clean: true })
+  assert.ok(lines.includes('clean: removed apps/web/.next/'), lines.join('\n'))
+  assert.ok(lines.includes('clean: removed .eslintcache'), lines.join('\n'))
   assert.ok(!existsSync(join(dir, 'apps/web/.next')))
   assert.ok(!existsSync(join(dir, '.eslintcache')))
   assert.ok(existsSync(join(dir, 'apps/web/app/page.tsx')), 'the app source beside it stays')

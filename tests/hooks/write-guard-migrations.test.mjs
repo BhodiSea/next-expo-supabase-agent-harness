@@ -6,7 +6,8 @@
 // the agent to write, was treated as deployed history. Now a migration on disk may be
 // edited only when three proofs hold for every spelling of it (its name, and where its
 // bytes land):
-//   - untracked:   git status reports exactly one entry for it, `?? <path>`;
+//   - untracked:   git status reports exactly one entry for it, `?? <path>`, and the file
+//                  has one hard link (a second name for a committed file's bytes is `??` too);
 //   - manifest:    .harness/manifest.json parses, and its `files` records no such path;
 //   - environment: CLAUDE_PROJECT_DIR is set and no GIT_DIR, GIT_WORK_TREE,
 //                  GIT_INDEX_FILE or GIT_COMMON_DIR can point git at another repository.
@@ -18,7 +19,7 @@
 // CLAUDE_PROJECT_DIR, the way subagent-verdict-pathstate.test.mjs runs its hook.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
@@ -293,4 +294,21 @@ test('an untracked symlink under supabase/migrations/ pointing at a committed mi
   }
   assert.equal(git(dir, ['status', '--porcelain', '--', link]), `?? ${link}\n`, 'fixture precondition: the link is untracked')
   assertDenied(dir, link, 'untracked', { names: COMMITTED, detail: /reports nothing/ })
+})
+
+test('an untracked hard link under supabase/migrations/ to a committed migration: the untracked proof fails on the link count', { skip: NO_GIT }, (t) => {
+  // git status judges a name, not an inode: a second name for a committed migration's bytes
+  // reports `??`, the manifest does not record it, and a write through it would rewrite the
+  // committed file in place. The symlink case above is caught by its target's spelling; a
+  // hard link has no other spelling, so the file's link count is what proves it.
+  const dir = install()
+  const link = 'supabase/migrations/29990103000000_hardlink.sql'
+  try {
+    linkSync(join(dir, COMMITTED), join(dir, link))
+  } catch (err) {
+    t.skip(`this filesystem cannot make a hard link here (${err.code}): the case cannot be built`)
+    return
+  }
+  assert.equal(git(dir, ['status', '--porcelain', '--', link]), `?? ${link}\n`, 'fixture precondition: the link is untracked')
+  assertDenied(dir, link, 'untracked', { detail: /2 hard links/ })
 })
