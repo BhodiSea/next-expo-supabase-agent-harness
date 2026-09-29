@@ -29,13 +29,13 @@ const GATE_LIB = pathToFileURL(
   fileURLToPath(new URL('../../template/base/tools/lib/gate.mjs', import.meta.url)),
 ).href
 
-/** @param {string} script @param {{ env?: Record<string, string>, cwd?: string }} [opts] */
-function runInFixture(script, { env = {}, cwd } = {}) {
+/** @param {string} script @param {{ env?: Record<string, string>, cwd?: string, args?: string[] }} [opts] */
+function runInFixture(script, { env = {}, cwd, args = [] } = {}) {
   const dir = cwd ?? mkdtempSync(join(tmpdir(), 'epah-gatelib-'))
   mkdirSync(join(dir, 'tools'), { recursive: true })
   const file = join(dir, 'tools', 'check-fake.mjs')
   writeFileSync(file, `import { fail, failures, ok, rampNote, skipOrFail, stampGate } from '${GATE_LIB}'\n${script}`)
-  const res = spawnSync('node', [file], {
+  const res = spawnSync('node', [file, ...args], {
     cwd: dir,
     encoding: 'utf8',
     env: { ...process.env, CI: '', HARNESS_REQUIRE_TOOLCHAINS: '', GITHUB_BASE_REF: '', ...env },
@@ -49,6 +49,36 @@ test('fail() emits the FIX[gate] line with the exact reproduce command', () => {
   assert.ok(r.out.includes('fake: FAIL — boom'), r.out)
   assert.ok(r.out.includes('FIX[fake]: reproduce with `node tools/check-fake.mjs`'), r.out)
   assert.ok(r.out.includes('docs/harness/gates-catalog.md ("fake")'), r.out)
+})
+
+test('the FIX line keeps path arguments and elides the value of a KEY=VALUE pair', () => {
+  // 1.0.4 (#10): the line kept only [a-z0-9-] tokens, so `--file maestro/journeys/x.yaml
+  // --out-dir artifacts/maestro/x` reproduced as `--file --out-dir`, which the runner
+  // rejects. A token still needing shell quoting is dropped, as before, and so is the flag
+  // it was the value of, so what is printed still parses.
+  const r = runInFixture(`fail('fake', 'boom')`, {
+    args: [
+      '--phase',
+      'journey',
+      '--file',
+      'maestro/journeys/mutation.yaml',
+      '--env',
+      'DEVICE_PASSWORD=hunter2',
+      '--note',
+      'two words',
+      '--out-dir',
+      'artifacts/maestro/mutation',
+    ],
+  })
+  assert.equal(r.code, 1)
+  assert.ok(
+    r.out.includes(
+      'FIX[fake]: reproduce with `node tools/check-fake.mjs --phase journey --file maestro/journeys/mutation.yaml --env DEVICE_PASSWORD=… --out-dir artifacts/maestro/mutation`',
+    ),
+    r.out,
+  )
+  assert.ok(!r.out.includes('hunter2'), r.out)
+  assert.ok(!r.out.includes('two words'), r.out)
 })
 
 test('failures() and CI-mode skipOrFail() emit the FIX line; local skip does not', () => {
