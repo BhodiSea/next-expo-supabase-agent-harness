@@ -307,7 +307,8 @@ function childrenOf(body, key) {
   const m = new RegExp(`^ {4}${key}:[ \\t]*\\n((?: {6}\\S.*\\n?)+)`, 'm').exec(body)
   if (!m) return null
   return Object.fromEntries(
-    [...m[1].matchAll(/^ {6}([\w-]+):[ \t]*(.*)$/gm)].map((e) => [e[1], e[2].trim()]),
+    // A trailing ` # why` comment is documentation (zizmor asks for one per permission).
+    [...m[1].matchAll(/^ {6}([\w-]+):[ \t]*(.*)$/gm)].map((e) => [e[1], e[2].replace(/\s+#.*$/, '').trim()]),
   )
 }
 

@@ -72,7 +72,7 @@ const snapshot = (over = {}) => ({
   ...over,
 })
 
-/** @param {ReturnType<typeof judgeReuse>} v @param {RegExp} why */
+/** @param {import('../../template/base/tools/lib/lane-reuse.mjs').Verdict} v @param {RegExp} why */
 function assertMiss(v, why) {
   assert.equal(v.hit, false, `expected a miss, got ${JSON.stringify(v)}`)
   assert.equal(v.need, undefined, `a miss is a verdict, not a request for more input: ${JSON.stringify(v)}`)

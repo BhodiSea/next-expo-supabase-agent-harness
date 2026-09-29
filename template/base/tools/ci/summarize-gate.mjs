@@ -14,6 +14,12 @@
 //      pass, and an empty context is what a broken `needs:` list produces);
 //   3. a SKIPPED path-filtered lane           -> recorded BY NAME, exit 0.
 //
+// A fourth, which changes no verdict (1.1.0): a lane that REUSED its merged pull request's
+// green result on this identical tree concluded success, so it counts as the pass it cites,
+// and it is NAMED with the run it relied on (its job output `reused-from`, set by
+// tools/ci/lane-reuse.mjs), beside the skipped lanes. A reviewer reading a green summary on
+// a push can see which lanes re-ran and which cited the pull request run instead.
+//
 // Rule 3 is where this kind of check usually goes wrong. `if: always()` makes a skipped
 // need indistinguishable from a passed one in a naive `contains(needs.*.result, ...)`
 // expression, which recreates the silent-skip problem INSIDE the check a reviewer trusts
@@ -23,7 +29,8 @@
 // did not run.
 //
 // Input: the needs context as JSON, from $NEEDS_JSON or argv[2].
-//   { "<job-id>": { "result": "success" | "failure" | "cancelled" | "skipped", ... }, … }
+//   { "<job-id>": { "result": "success" | "failure" | "cancelled" | "skipped",
+//                   "outputs": { "reused-from"?: "<run url>", … } }, … }
 //
 // A DEFERRED SURFACE IS NAMED WITH ITS REASON (1.1.0). A live row in tools/surfaces.json
 // makes the `changes` job publish `mobile-deferred=true` and `mobile-deferral=<until>:
@@ -106,6 +113,19 @@ if (skipped.length > 0) {
   say('')
   say('SKIPPED (did NOT run — path filter or an upstream condition):')
   for (const id of skipped.sort()) say(`  - ${id}${deferralNote(id, needs.changes)}`)
+}
+
+// Reused lanes: a SUCCESS whose `reused-from` output names the run it relied on. Only a
+// success is ever listed, so a failed lane can never read as reused, whatever it output.
+const reused = entries
+  .filter(([, v]) => v?.result === 'success' && typeof v?.outputs?.['reused-from'] === 'string')
+  .map(([id, v]) => [id, String(v.outputs['reused-from']).replace(/[\r\n]+/g, ' ').trim()])
+  .filter(([, from]) => from !== '')
+  .sort(([a], [b]) => a.localeCompare(b))
+if (reused.length > 0) {
+  say('')
+  say('REUSED (passed on this exact tree in the pull request run named; not re-run on this push):')
+  for (const [id, from] of reused) say(`  - ${id} <- ${from}`)
 }
 
 const problems = []
