@@ -145,7 +145,8 @@ this heading if none does. -->
   lapsed date and each malformed shape; over a zero-edit init scaffold, where a
   future-dated row is live over every planted mobile file; and through the `changes`
   step's own `run:` line under `bash -eo pipefail`, where one appended byte turns the
-  output from `true` to `false` (#56).
+  output from `true` to `false`. A 1.0.4 install updated by this installer got the CLI and
+  the new workflow but no register, and printed `mobile-deferred=false` (#56).
 
 ## [1.0.4] — 2026-09-29
 
