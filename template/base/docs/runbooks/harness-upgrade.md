@@ -1684,8 +1684,11 @@ and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.
 `docs/security/threat-model.md`; the register itself is withheld (the subsection below).
 Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
 re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
-`docs/harness/README.md` (the last subsection before RECOVERY). What you may notice
-afterwards:
+`docs/harness/README.md` (the last subsection before RECOVERY). The generated skill
+references re-plant the vertical-slice skill's
+`.claude/skills/authoring-vertical-slice/references/dal-dto.md` and
+`references/migration-rls.md`, and the `.claude/agents/migration-rls-author.md` agent, and
+`update` re-records their `tools/agents.lock.json` entries. What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1700,6 +1703,18 @@ afterwards:
   request run that already passed on the identical tree, name it, and appear under
   `REUSED` in `gate-summary`. They now request `actions: read` and `pull-requests: read`.
   The subsection on `quality-gate.yml` below says when a lane reuses and when it runs.
+- **The vertical-slice skill's code blocks name `notes` and sit between `skill-region`
+  comments.** Each is now a verbatim copy of a marked span of the harness's own example:
+  the `create` procedure of `packages/api/src/routers/notes.ts` in `references/dal-dto.md`,
+  and the four permissive policies of `supabase/schemas/20_notes.sql` as the policy half of
+  the RLS skeleton in `references/migration-rls.md`. That half reads `notes` where the
+  skeleton's hand-written half above it reads `<t>`; rename when you copy, as the line
+  beside each block says. A fresh scaffold's copies of those two example files carry the
+  matching markers as comments. Yours are seeded, so `update` leaves them as they are, and
+  nothing asks you to add the markers: the check that reads them runs in the harness
+  repository, not in your chain. If you edited one of the three owned files above, your copy
+  stays, the new one is parked under `.harness/pending/`, and `update` exits 2 while it
+  stays there.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
