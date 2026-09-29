@@ -37,8 +37,9 @@ exit 0. It is now kept, the incoming version is parked under `.harness/pending/`
 `update` exits 2 like any other drift, even when upstream left the file alone. A `removed`
 or `renamed` migration now leaves such a file in place instead of deleting it. An
 unrecorded file whose bytes a release shipped refreshes as before, and an install with no
-unrecorded owned file sees no change; `init` and `update` never leave one. `update --force`
-still overwrites. The remedy is in `docs/runbooks/harness-upgrade.md`, 1.0.4 section.
+unrecorded owned file sees no change; `init` and `update` record every owned file they
+write. `update --force` still overwrites. The remedy is in
+`docs/runbooks/harness-upgrade.md`, 1.0.4 section.
 
 ### Security
 
@@ -472,14 +473,17 @@ this heading if none does. -->
   CODEOWNERS redded `wiring` naming `project.json` and the rule (#47). The
   unrecorded-file cases in `tests/installer/update-provenance.test.mjs` (the sweep's park,
   `--force`, a path new since an older `harnessVersion`, no tables at all, the file
-  `enable` kept, and a `removed` migration over an owned and a seeded file) were red before
-  the change and green after, and the cases for released bytes, dry-run parity and
-  `--refresh-seeded` with no record were green on both sides. The issue's reproduction, an
-  install whose `tools/validate.mjs` record was deleted and whose file was replaced, exited
-  0 with the file overwritten before and exited 2 after, with the file kept and the incoming
-  copy parked. `init` at every release tag from v0.1.3 through v1.0.3 on the core tier, and
-  at a sample of them on the standard and strict tiers, followed by this tree's `update`,
-  exited 0 without parking an unrecorded file (#48).
+  `enable` kept, and a `removed` migration over an owned file and, on its own, a seeded
+  one) and the `releasedAnywhere` cases in `tests/installer/provenance.test.mjs` were red on
+  this release's base and green after, and the cases for released bytes, dry-run parity and
+  `--refresh-seeded` with no record were green on both sides; `reconcile.test.mjs` passed
+  unchanged. The issue's reproduction, an install whose `tools/validate.mjs` record was
+  deleted and whose file was replaced, exited 0 with the file overwritten and recorded on
+  the base, and exited 2 after, with the file kept, nothing recorded and the incoming copy
+  parked. On that install each of the runbook's three ways out ended as the runbook says.
+  `init` at every release tag from v0.1.3 through v1.0.3, on the core, standard and strict
+  tiers, followed by this tree's `update`, exited 0 without parking an unrecorded file
+  (#48).
 
 ## [1.0.3] — 2026-09-23
 
