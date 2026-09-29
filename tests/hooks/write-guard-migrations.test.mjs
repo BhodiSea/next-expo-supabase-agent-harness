@@ -203,6 +203,8 @@ test('a committed migration removed from the index with git rm --cached: the unt
 
 test('an untracked migration listed in .git/info/exclude: the untracked proof fails', { skip: NO_GIT }, () => {
   const dir = install()
+  // A git built without templates creates no .git/info; the exclude file is read either way.
+  mkdirSync(join(dir, '.git/info'), { recursive: true })
   appendFileSync(join(dir, '.git/info/exclude'), `\n${DRAFT}\n`)
   assert.equal(git(dir, ['status', '--porcelain', '--', DRAFT]), '', 'fixture precondition: ignored')
   assertDenied(dir, DRAFT, 'untracked', { detail: /reports nothing/ })

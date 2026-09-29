@@ -1233,7 +1233,7 @@ test('rm-rf: the deny names doctor --clean, and its first sentence is byte-ident
     'Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness.'
   assert.ok(rule.message.startsWith(`${FIRST} `), rule.message)
   assert.match(rule.message, /doctor --clean/)
-  const threat = readFileSync(join(TEMPLATE, 'docs/security/threat-model.md'), 'utf8')
+  const threat = readFileSync(join(TEMPLATE, 'docs/security/threat-model.md'), 'utf8').replaceAll('\r\n', '\n')
   assert.ok(threat.includes(`- \`rm-rf\` — ${FIRST}\n`), 'threat-model.md still lists the unchanged first sentence')
   const r = runHook('pretool-bash-guard.mjs', {
     tool_name: 'Bash',
