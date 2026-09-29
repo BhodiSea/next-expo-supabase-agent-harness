@@ -20,7 +20,7 @@ import * as gateLib from '../../template/base/tools/lib/gate.mjs'
 // failing the one test that needs it.
 import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
 
-const { hashInputs, rampNote } = gateLib
+const { hashInputs, noteMissingPrerequisite, rampNote } = gateLib
 const { STAMP_INPUTS } = stampRegister
 
 const GATE_LIB = pathToFileURL(
@@ -460,4 +460,81 @@ test('contracts stamp: declared inputs and the manifest invalidate; excluded chu
   } finally {
     process.chdir(prev)
   }
+})
+
+// ── noteMissingPrerequisite: the record `validate --ci-parity` closes with (1.0.4) ──
+// In-process, so the tools/lib coverage floor measures it. Each case sets or clears
+// HARNESS_PARITY_REPORT_DIR and restores the previous value afterwards.
+
+/** @param {string | undefined} value @param {() => void} fn */
+function withReportDir(value, fn) {
+  const prev = process.env.HARNESS_PARITY_REPORT_DIR
+  if (value === undefined) delete process.env.HARNESS_PARITY_REPORT_DIR
+  else process.env.HARNESS_PARITY_REPORT_DIR = value
+  const printed = []
+  const origLog = console.log
+  const origError = console.error
+  console.log = (...a) => printed.push(a.map(String).join(' '))
+  console.error = (...a) => printed.push(a.map(String).join(' '))
+  try {
+    fn()
+  } finally {
+    console.log = origLog
+    console.error = origError
+    if (prev === undefined) delete process.env.HARNESS_PARITY_REPORT_DIR
+    else process.env.HARNESS_PARITY_REPORT_DIR = prev
+  }
+  return printed
+}
+
+test('noteMissingPrerequisite: records one JSON line in <dir>/<pid>.jsonl, creating the directory', () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'epah-parity-note-')), '3')
+  const printed = withReportDir(dir, () => noteMissingPrerequisite('fake', 'no database reachable'))
+  assert.deepEqual(printed, [], 'it prints nothing')
+  assert.deepEqual(readdirSync(dir), [`${process.pid}.jsonl`])
+  const text = readFileSync(join(dir, `${process.pid}.jsonl`), 'utf8')
+  assert.equal(text, `${JSON.stringify({ gate: 'fake', reason: 'no database reachable' })}\n`)
+})
+
+test('noteMissingPrerequisite: does nothing when the variable is unset', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-parity-unset-'))
+  const prev = process.cwd()
+  process.chdir(dir)
+  try {
+    const printed = withReportDir(undefined, () => noteMissingPrerequisite('fake', 'reason'))
+    assert.deepEqual(printed, [])
+    assert.deepEqual(readdirSync(dir), [], 'nothing is written anywhere near the cwd')
+  } finally {
+    process.chdir(prev)
+  }
+})
+
+test('noteMissingPrerequisite: a directory beneath a regular file does not throw and prints nothing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'epah-parity-enotdir-'))
+  writeFileSync(join(root, 'a-file'), 'regular\n')
+  const printed = withReportDir(join(root, 'a-file', 'report'), () =>
+    assert.doesNotThrow(() => noteMissingPrerequisite('fake', 'reason')),
+  )
+  assert.deepEqual(printed, [])
+  assert.deepEqual(readdirSync(root), ['a-file'])
+})
+
+test('skipOrFail records its gate and reason under the CI predicate, and never on a local skip', () => {
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'epah-parity-skip-')), '0')
+  const script = `skipOrFail('fake', 'toolchain missing')`
+  const local = runInFixture(script, { env: { HARNESS_PARITY_REPORT_DIR: reportDir } })
+  assert.equal(local.code, 0, local.out)
+  assert.throws(() => readdirSync(reportDir), /ENOENT/, 'a local skip records nothing')
+
+  const ci = runInFixture(script, {
+    env: { HARNESS_REQUIRE_TOOLCHAINS: '1', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  assert.equal(ci.code, 1, ci.out)
+  const files = readdirSync(reportDir)
+  assert.equal(files.length, 1, files.join(','))
+  const lines = readFileSync(join(reportDir, files[0]), 'utf8').split('\n').filter(Boolean)
+  assert.deepEqual(
+    lines.map((l) => JSON.parse(l)),
+    [{ gate: 'fake', reason: 'toolchain missing' }],
+  )
 })

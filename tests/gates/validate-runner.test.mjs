@@ -5,7 +5,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -20,6 +28,7 @@ function cleanEnv(extra = {}) {
   const env = { ...process.env }
   delete env.CI
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.HARNESS_PARITY_REPORT_DIR
   delete env.GITHUB_BASE_REF
   return { ...env, ...extra }
 }
@@ -282,4 +291,278 @@ test('default mode (no --report-all) stays serial and stops at first failure eve
   assert.ok(r.out.includes('(2 later step(s) not run)'), r.out)
   // serial + streamed: only provenance ran, so only its markers exist in the log
   assert.deepEqual(r.log, ['start:provenance', 'end:provenance'])
+})
+
+// ── --ci-parity: CI's no-skip, no-stamp posture for a local run (1.0.4, N04) ──────
+// Local and CI verdicts split on one predicate, inCI() in tools/lib/gate.mjs: a missing
+// prerequisite skips locally and fails in CI, and a warm stamp is honoured only locally.
+// `--ci-parity` sets HARNESS_REQUIRE_TOOLCHAINS=1 for the run, prints a posture line, and
+// closes with one line per missing prerequisite a gate recorded. Every stub below is a
+// FILE (no nested `node -e` quoting, so the Windows leg runs the same commands), and the
+// gate stubs import a copy of the real lib/gate.mjs, so what they record is what a
+// shipped gate records.
+const GATE_LIB_FILE = fileURLToPath(
+  new URL('../../template/base/tools/lib/gate.mjs', import.meta.url),
+)
+const FS_WALK_FILE = fileURLToPath(
+  new URL('../../template/base/tools/lib/fs-walk.mjs', import.meta.url),
+)
+const POSTURE_LINE =
+  'validate --ci-parity: CI posture for this run (HARNESS_REQUIRE_TOOLCHAINS=1): a missing prerequisite fails, no stamp is honoured'
+const NO_RECORDS_LINE = 'validate --ci-parity: no gate reported a missing prerequisite'
+
+const PARITY_STUBS = {
+  // Needs the predicate: red without it, green with it.
+  'need.mjs': `import { fail, inCI, ok } from './lib/gate.mjs'
+if (!inCI()) fail('need', 'the CI predicate is not set')
+ok('need', 'the CI predicate is set')
+`,
+  // skipOrFail under a given gate name, with an optional delay so a pooled step can
+  // finish LATE.
+  'skip.mjs': `import { skipOrFail } from './lib/gate.mjs'
+const [gate, delay] = process.argv.slice(2)
+setTimeout(() => skipOrFail(gate, \`\${gate} prerequisite absent\`), Number(delay ?? 0))
+`,
+  // A stamped gate over one input file.
+  'stamp.mjs': `import { ok, stampGate } from './lib/gate.mjs'
+const recordGreen = stampGate('warm', ['input.txt'])
+recordGreen()
+ok('warm', 'ran the real check')
+`,
+  // Reports what the runner put in the step's environment.
+  'show-vars.mjs': `import process from 'node:process'
+const show = (k) => process.env[k] ?? '<unset>'
+process.stdout.write(\`seen HARNESS_REQUIRE_TOOLCHAINS=\${show('HARNESS_REQUIRE_TOOLCHAINS')} HARNESS_PARITY_REPORT_DIR=\${show('HARNESS_PARITY_REPORT_DIR')}\\n\`)
+`,
+}
+
+/** @param {[string, string][]} steps [name, command] */
+function parityConfig(steps) {
+  const body = steps.map(([n, c]) => `  ['${n}', '${c}'],`).join('\n')
+  return `export const VALIDATE_STEPS = [\n${body}\n]\nexport const STOP_HOOK_STEPS = []\n`
+}
+
+/** @param {[string, string][]} steps [name, command] */
+function parityFixture(steps) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-validate-parity-'))
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  copyFileSync(VALIDATE, join(dir, 'tools/validate.mjs'))
+  copyFileSync(GATE_LIB_FILE, join(dir, 'tools/lib/gate.mjs'))
+  copyFileSync(FS_WALK_FILE, join(dir, 'tools/lib/fs-walk.mjs'))
+  for (const [file, src] of Object.entries(PARITY_STUBS)) writeFileSync(join(dir, 'tools', file), src)
+  writeFileSync(join(dir, 'input.txt'), 'v1\n')
+  writeFileSync(join(dir, 'tools/harness.config.mjs'), parityConfig(steps))
+  return dir
+}
+
+/** @param {string} dir @param {string[]} args @param {Record<string, string>} [extra] */
+function runParity(dir, args, extra = {}) {
+  const res = spawnSync('node', ['tools/validate.mjs', ...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: cleanEnv(extra),
+  })
+  const stdout = res.stdout ?? ''
+  return { code: res.status, out: `${stdout}${res.stderr ?? ''}`, stdout }
+}
+
+/** @param {string} out */
+const parityLines = (out) =>
+  out.split(/\r?\n/).filter((l) => l.startsWith('validate --ci-parity:'))
+
+// Point every variable os.tmpdir() reads at one path (TMPDIR on POSIX, TEMP/TMP on Windows).
+/** @param {string} path */
+const tmpVars = (path) => ({ TMPDIR: path, TEMP: path, TMP: path })
+
+test('--ci-parity: a step that needs the predicate fails without the flag and passes with it', () => {
+  const dir = parityFixture([['need', 'node tools/need.mjs']])
+  const without = runParity(dir, [])
+  assert.equal(without.code, 1, without.out)
+  assert.ok(without.out.includes('need: FAIL — the CI predicate is not set'), without.out)
+
+  const withFlag = runParity(dir, ['--ci-parity'])
+  assert.equal(withFlag.code, 0, withFlag.out)
+  assert.ok(withFlag.out.includes('need: OK — the CI predicate is set'), withFlag.out)
+  // The posture line comes FIRST, before any step header: a runner that predates the flag
+  // ignores it silently, so a missing line means the flag was not applied.
+  assert.ok(withFlag.stdout.startsWith(`${POSTURE_LINE}\n`), withFlag.stdout)
+  assert.deepEqual(parityLines(withFlag.out), [POSTURE_LINE, NO_RECORDS_LINE])
+})
+
+test('--ci-parity: a skipOrFail stub skips without the flag, fails with it, and the closing block names step, gate and reason', () => {
+  const dir = parityFixture([['db-lane', 'node tools/skip.mjs fake-db']])
+  const without = runParity(dir, [])
+  assert.equal(without.code, 0, without.out)
+  assert.ok(without.out.includes('fake-db: SKIPPED — fake-db prerequisite absent'), without.out)
+  assert.deepEqual(parityLines(without.out), [])
+
+  const withFlag = runParity(dir, ['--ci-parity'])
+  assert.equal(withFlag.code, 1, withFlag.out)
+  assert.ok(withFlag.out.includes('fake-db: FAIL — fake-db prerequisite absent'), withFlag.out)
+  assert.deepEqual(parityLines(withFlag.out), [
+    POSTURE_LINE,
+    'validate --ci-parity: db-lane: fake-db — fake-db prerequisite absent',
+  ])
+  // The closing block sits after the summary's total line.
+  assert.ok(
+    withFlag.out.indexOf('validate --ci-parity: db-lane:') > withFlag.out.search(/total \d+ms/),
+    withFlag.out,
+  )
+})
+
+test('--ci-parity: a warm stamp is not honoured under the flag', () => {
+  const dir = parityFixture([['warm', 'node tools/stamp.mjs']])
+  const cold = runParity(dir, [])
+  assert.equal(cold.code, 0, cold.out)
+  assert.ok(cold.out.includes('ran the real check'), cold.out)
+  const warm = runParity(dir, [])
+  assert.ok(warm.out.includes('inputs unchanged'), `precondition: the stamp must be warm: ${warm.out}`)
+
+  const parity = runParity(dir, ['--ci-parity'])
+  assert.equal(parity.code, 0, parity.out)
+  assert.ok(parity.out.includes('ran the real check'), parity.out)
+  assert.ok(!parity.out.includes('inputs unchanged'), parity.out)
+})
+
+test('--ci-parity --report-all: two skipOrFail stubs in one pooled batch are listed in STEP order, not finish order', () => {
+  // provenance and version-sync are PARALLEL_SAFE, so they share a pooled batch. The first
+  // one finishes last (a 400ms delay), so a report read in record order would invert them.
+  const dir = parityFixture([
+    ['provenance', 'node tools/skip.mjs late-gate 400'],
+    ['version-sync', 'node tools/skip.mjs early-gate 0'],
+  ])
+  const r = runParity(dir, ['--ci-parity', '--report-all'])
+  assert.equal(r.code, 1, r.out)
+  assert.deepEqual(parityLines(r.out), [
+    POSTURE_LINE,
+    'validate --ci-parity: provenance: late-gate — late-gate prerequisite absent',
+    'validate --ci-parity: version-sync: early-gate — early-gate prerequisite absent',
+  ])
+})
+
+test('--ci-parity: identical records from one step print once', () => {
+  // `||` runs the second child after the first fails, in sh and in cmd alike: two
+  // processes, two record files, one record.
+  const dir = parityFixture([
+    ['twice', 'node tools/skip.mjs same-gate || node tools/skip.mjs same-gate'],
+  ])
+  const r = runParity(dir, ['--ci-parity'])
+  assert.equal(r.code, 1, r.out)
+  assert.equal(r.out.split('same-gate: FAIL').length - 1, 2, `both children must fail: ${r.out}`)
+  assert.deepEqual(parityLines(r.out), [
+    POSTURE_LINE,
+    'validate --ci-parity: twice: same-gate — same-gate prerequisite absent',
+  ])
+})
+
+test('--stop-chain --ci-parity exits 1 before resolving or running any step, with or without --list', () => {
+  for (const args of [
+    ['--stop-chain', '--ci-parity'],
+    ['--stop-chain', '--ci-parity', '--list'],
+    ['--ci-parity', '--stop-chain', '--report-all'],
+  ]) {
+    const dir = stopChainFixture({ config: ['validate'], floor: ['validate', 'test-quality'] })
+    const r = runStopChain(dir, args)
+    assert.equal(r.code, 1, `${args.join(' ')}: ${r.out}`)
+    assert.ok(r.out.includes('reviewer-verdicts'), r.out)
+    assert.ok(r.out.includes('no single CI equivalent'), r.out)
+    assert.ok(!r.out.includes('mark-'), `no step may be listed: ${r.out}`)
+    assert.ok(!existsSync(join(dir, 'ran-validate')), 'no step may run')
+    assert.ok(!existsSync(join(dir, 'ran-test-quality')), 'no step may run')
+  }
+  // It refuses BEFORE resolving: a corrupt floor would otherwise answer first.
+  const corrupt = stopChainFixture({ config: ['validate'], floor: [], corruptFloor: '{ not json' })
+  const r = runStopChain(corrupt, ['--stop-chain', '--ci-parity'])
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('reviewer-verdicts'), r.out)
+  assert.ok(!r.out.includes('FAILING CLOSED'), r.out)
+})
+
+test('--list --ci-parity prints exactly what --list prints, and runs nothing', () => {
+  const dir = parityFixture([
+    ['need', 'node tools/need.mjs'],
+    ['vars', 'node tools/show-vars.mjs'],
+  ])
+  const list = runParity(dir, ['--list'])
+  const parity = runParity(dir, ['--list', '--ci-parity'])
+  assert.equal(list.code, 0, list.out)
+  assert.equal(parity.code, 0, parity.out)
+  assert.equal(parity.out, list.out)
+  assert.ok(!parity.out.includes('seen '), 'nothing runs under --list')
+})
+
+test('without --ci-parity nothing changes: no parity line, and a step sees neither variable', () => {
+  const dir = parityFixture([['vars', 'node tools/show-vars.mjs']])
+  writeFileSync(
+    join(dir, 'tools/validate.floor.json'),
+    `${JSON.stringify({ steps: [['vars', 'node tools/show-vars.mjs']] })}\n`,
+  )
+  for (const args of [[], ['--report-all'], ['--min-floor']]) {
+    const r = runParity(dir, args)
+    assert.equal(r.code, 0, r.out)
+    assert.deepEqual(parityLines(r.out), [], `${args.join(' ')}: ${r.out}`)
+    assert.ok(
+      r.out.includes('seen HARNESS_REQUIRE_TOOLCHAINS=<unset> HARNESS_PARITY_REPORT_DIR=<unset>'),
+      `${args.join(' ')}: ${r.out}`,
+    )
+  }
+})
+
+test('--ci-parity: a step sees the predicate and its own per-step report directory, outside the project', () => {
+  const dir = parityFixture([
+    ['need', 'node tools/need.mjs'],
+    ['vars', 'node tools/show-vars.mjs'],
+  ])
+  const r = runParity(dir, ['--ci-parity'])
+  assert.equal(r.code, 0, r.out)
+  const seen = /seen HARNESS_REQUIRE_TOOLCHAINS=(\S+) HARNESS_PARITY_REPORT_DIR=(\S+)/.exec(r.out)
+  assert.ok(seen, r.out)
+  assert.equal(seen[1], '1')
+  // step index 1 in the resolved list, under a harness-parity- root in the temp dir
+  assert.match(seen[2], /harness-parity-[^/\\]+[/\\]1$/, r.out)
+  assert.ok(!seen[2].startsWith(dir), `the report must never be written into the project tree: ${seen[2]}`)
+})
+
+test('--ci-parity: VALIDATE_TIMINGS stays the last line, under --min-floor and --report-all too', () => {
+  const dir = parityFixture([['db-lane', 'node tools/skip.mjs fake-db']])
+  writeFileSync(
+    join(dir, 'tools/validate.floor.json'),
+    `${JSON.stringify({ steps: [['db-lane', 'node tools/skip.mjs fake-db']] })}\n`,
+  )
+  for (const args of [['--ci-parity'], ['--min-floor', '--ci-parity', '--report-all']]) {
+    const r = runParity(dir, args)
+    assert.equal(r.code, 1, r.out)
+    const lines = r.stdout.split(/\r?\n/).filter((l) => l.trim() !== '')
+    assert.match(lines.at(-1) ?? '', /^VALIDATE_TIMINGS \{/, `${args.join(' ')}: ${r.stdout}`)
+    assert.equal(
+      lines.at(-2),
+      'validate --ci-parity: db-lane: fake-db — fake-db prerequisite absent',
+      r.stdout,
+    )
+  }
+})
+
+test('--ci-parity: the report root lives in the temp dir and is removed when the run ends', () => {
+  const dir = parityFixture([
+    ['db-lane', 'node tools/skip.mjs fake-db'],
+    ['need', 'node tools/need.mjs'],
+  ])
+  const tmp = mkdtempSync(join(tmpdir(), 'epah-parity-tmp-'))
+  for (const args of [['--ci-parity'], ['--ci-parity', '--report-all']]) {
+    const r = runParity(dir, args, tmpVars(tmp))
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('validate --ci-parity: db-lane: fake-db'), r.out)
+    assert.deepEqual(readdirSync(tmp), [], `the report root must be gone after the run: ${r.out}`)
+  }
+})
+
+test('--ci-parity: a report root that cannot be created keeps the posture and says the report is unavailable', () => {
+  const dir = parityFixture([['need', 'node tools/need.mjs']])
+  writeFileSync(join(dir, 'not-a-dir'), 'a regular file\n')
+  const r = runParity(dir, ['--ci-parity'], tmpVars(join(dir, 'not-a-dir', 'tmp')))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('need: OK — the CI predicate is set'), r.out)
+  assert.ok(r.stdout.startsWith(`${POSTURE_LINE}\n`), r.stdout)
+  assert.match(r.out, /validate --ci-parity: report unavailable \(.+\)/, r.out)
+  assert.ok(!r.out.includes(NO_RECORDS_LINE), r.out)
 })

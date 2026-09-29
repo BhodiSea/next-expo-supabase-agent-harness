@@ -22,7 +22,16 @@
 // pre-0.7.0 installs. Facts: design/CONFORMANCE-FACTS.md §3.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { test } from 'node:test'
@@ -243,16 +252,43 @@ function armResolved(
 // Windows names the variable Path; override THAT key or the child gets two PATHs.
 const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
 
-/** @param {string} dir @param {{ ci?: boolean, bin?: string }} [opts] */
-function runGate(dir, { ci = true, bin } = {}) {
+/**
+ * @param {string} dir
+ * @param {{ ci?: boolean, bin?: string, extraEnv?: Record<string, string> }} [opts]
+ */
+function runGate(dir, { ci = true, bin, extraEnv = {} } = {}) {
   const env = { ...process.env }
   delete env.CI
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.HARNESS_PARITY_REPORT_DIR
   delete env.GITHUB_BASE_REF
   if (ci) env.CI = 'true'
   if (bin !== undefined) env[PATH_KEY] = `${bin}${delimiter}${process.env[PATH_KEY] ?? ''}`
+  Object.assign(env, extraEnv)
   const res = spawnSync('node', [GATE], { cwd: dir, encoding: 'utf8', env })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+// The CI posture `validate --ci-parity` gives a step: the predicate through
+// HARNESS_REQUIRE_TOOLCHAINS=1 (not CI=true) and a per-step report directory. Returns the
+// run and every record the gate appended there.
+/** @param {string} dir @param {string} bin */
+function runUnderParity(dir, bin) {
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'epah-vsync-parity-')), '0')
+  const r = runGate(dir, {
+    bin,
+    ci: false,
+    extraEnv: { HARNESS_REQUIRE_TOOLCHAINS: '1', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  const records = existsSync(reportDir)
+    ? readdirSync(reportDir).flatMap((f) =>
+        readFileSync(join(reportDir, f), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => JSON.parse(l)),
+      )
+    : []
+  return { ...r, records }
 }
 
 // A fully-green resolved fixture: one version everywhere, agreeing toolchains, faithful
@@ -512,6 +548,13 @@ test('zod walk failure: loud NOTE locally, red in CI — the invariant never sil
   const c = runGate(ci.dir, { bin: ci.bin, ci: true })
   assert.equal(c.code, 1, c.out)
   assert.ok(c.out.includes('cannot verify the single-zod-instance invariant'), c.out)
+  const parity = greenFixture('1.2.3', { resolved: { zodExit: 1, zodList: '' } })
+  const p = runUnderParity(parity.dir, parity.bin)
+  assert.equal(p.code, 1, p.out)
+  assert.ok(p.out.includes('cannot verify the single-zod-instance invariant'), p.out)
+  assert.equal(p.records.length, 1, JSON.stringify(p.records))
+  assert.equal(p.records[0].gate, 'version-sync')
+  assert.match(p.records[0].reason, /zod/)
 })
 
 test('RED: a failing `expo config` reds naming the command — never a silent half-gate', () => {
@@ -594,6 +637,13 @@ test('react walk failure: loud NOTE locally, red in CI — the invariant never s
   const c = runGate(ci.dir, { bin: ci.bin, ci: true })
   assert.equal(c.code, 1, c.out)
   assert.ok(c.out.includes('cannot verify the single-React-instance invariant'), c.out)
+  const parity = greenFixture('1.2.3', { resolved: { reactExit: 1, reactList: '' } })
+  const p = runUnderParity(parity.dir, parity.bin)
+  assert.equal(p.code, 1, p.out)
+  assert.ok(p.out.includes('cannot verify the single-React-instance invariant'), p.out)
+  assert.equal(p.records.length, 1, JSON.stringify(p.records))
+  assert.equal(p.records[0].gate, 'version-sync')
+  assert.match(p.records[0].reason, /React/)
 })
 
 // ── the iOS build-toolchain floor (0.7.0, static half; design/CONFORMANCE-FACTS.md §3) ──
