@@ -1535,7 +1535,7 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
   const stamp = 'rls-isolation: STAMPED — inputs unchanged since last green run (.harness/rls-isolation.ok; CI always re-runs)'
   writeFileSync(
     join(proj, 'tools/harness.config.mjs'),
-    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', '${stampedStep.replace(/'/g, "\\'")}']]\n`,
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
   )
   const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
   assert.equal(green.code, 0, green.stderr)
@@ -1545,7 +1545,7 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
 
   writeFileSync(
     join(proj, 'tools/harness.config.mjs'),
-    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', '${stampedStep.replace(/'/g, "\\'")}'], ['boom', '${FAIL}']]\n`,
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}], ['boom', '${FAIL}']]\n`,
   )
   const red = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
   assert.equal(red.code, 2, red.stderr)
@@ -1555,7 +1555,7 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
   // A line that only CONTAINS the word is not a stamp line: the status follows `<gate>: `.
   writeFileSync(
     join(proj, 'tools/harness.config.mjs'),
-    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', '${stampedStep.replace(/'/g, "\\'")}']]\n`,
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
   )
   const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: 'note: nothing was STAMPED — here' } })
   assert.equal(prose.code, 0, prose.stderr)
