@@ -263,3 +263,271 @@ test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.
     }
   }
 })
+
+// ── POST-MERGE LANE REUSE (1.1.0, #57) ──────────────────────────────────────────────────────
+//
+// Six lanes of the merge gate run on `pull_request` AND on the `push` its merge produces, and
+// an up-to-date squash merge re-ran them on the tree the pull request run had just proved. On
+// a push they now first ask tools/ci/lane-reuse.mjs whether that exact tree already passed
+// that exact lane in the merged pull request's run, and skip their steps on a hit. The judge
+// is proven in tests/gates/lane-reuse.test.mjs; what makes it SAFE is the wiring, and every
+// rule of the wiring is decidable from the file:
+//   - the lookup is the first step after checkout, on push only, and asks about the job's own
+//     `name:` (the jobs API is matched by name, so a wrong --job reads another lane's proof);
+//   - every later step carries the reuse condition as a conjunct, so no step runs half a lane
+//     on a hit — except the hit report and the record step;
+//   - the record step is LAST and runs only on pull requests, so it prints its marker only
+//     when every step before it passed;
+//   - no job-level `if:` (live-controls reads only a job-level `if:`, and one here would
+//     turn these lanes conditional and change what docs-sync concludes for every install);
+//   - the job's permissions are exactly contents/actions/pull-requests read (a job-level
+//     block sets every scope it does not name to none);
+//   - the job exposes reused-from for gate-summary, and no other job calls the script.
+// Each rule is shown red on a synthetic negative, following workflow-hardening.test.mjs.
+
+const REUSE_LANES = ['static', 'unit', 'mutation', 'runtime-rls', 'e2e-fast', 'integration-lane']
+const REUSE_SCRIPT = 'tools/ci/lane-reuse.mjs'
+const REUSE_CLAUSE = "steps.reuse.outputs.hit != 'true'"
+const HIT_IF = "steps.reuse.outputs.hit == 'true'"
+const REUSE_PERMISSIONS = { actions: 'read', contents: 'read', 'pull-requests': 'read' }
+
+/**
+ * The value of one key at a given indent inside a block, unquoted of nothing: the raw text
+ * after `key: `. A folded (`>-`) value is returned as its marker; none of the reuse steps
+ * uses one, and a rule comparing such a value against an expected string reds.
+ * @param {string} block @param {number} indent @param {string} key
+ */
+function keyAt(block, indent, key) {
+  const m = new RegExp(`^ {${String(indent)}}${key}:[ \\t]*(.*)$`, 'm').exec(block)
+  return m ? m[1].trim() : null
+}
+
+/** The `key: value` children of a 4-space job key (`permissions:`, `outputs:`). */
+function childrenOf(body, key) {
+  const m = new RegExp(`^ {4}${key}:[ \\t]*\\n((?: {6}\\S.*\\n?)+)`, 'm').exec(body)
+  if (!m) return null
+  return Object.fromEntries(
+    [...m[1].matchAll(/^ {6}([\w-]+):[ \t]*(.*)$/gm)].map((e) => [e[1], e[2].trim()]),
+  )
+}
+
+/**
+ * The steps of one job, each as its own text plus the keys the rules read. A step starts at a
+ * `      - ` line; its keys sit at eight spaces (or on the dash line itself).
+ * @param {string} body
+ */
+function stepsOf(body) {
+  const at = body.search(/^ {4}steps:\s*$/m)
+  if (at === -1) return []
+  const region = body.slice(at)
+  const heads = [...region.matchAll(/^ {6}- /gm)]
+  return heads.map((m, i) => {
+    const text = region.slice(m.index, heads[i + 1]?.index ?? region.length)
+    const block = text.replace(/^ {6}- /, '        ')
+    const env = /^ {8}env:[ \t]*\n((?: {10}\S.*\n?)+)/m.exec(block)
+    return {
+      text,
+      name: keyAt(block, 8, 'name'),
+      uses: keyAt(block, 8, 'uses'),
+      id: keyAt(block, 8, 'id'),
+      if: keyAt(block, 8, 'if'),
+      run: keyAt(block, 8, 'run'),
+      env: Object.fromEntries(
+        [...(env?.[1] ?? '').matchAll(/^ {10}([A-Z_]+):[ \t]*(.*)$/gm)].map((e) => [e[1], e[2].trim()]),
+      ),
+    }
+  })
+}
+
+/** Is the reuse condition a top-level conjunct of this `if:`? `||` anywhere fails it. */
+function carriesReuseClause(cond) {
+  if (cond === null || cond.includes('||')) return false
+  return cond.split('&&').some((part) => part.trim() === REUSE_CLAUSE)
+}
+
+/** The lookup and record step shapes for one job. @param {string} label @param {string} name */
+function lookupProblems(label, name, lookup) {
+  const problems = []
+  if (lookup?.id !== 'reuse') problems.push(`${label}: the first step after checkout is not the reuse lookup (id: reuse)`)
+  if (lookup?.if !== "github.event_name == 'push'") problems.push(`${label}: the lookup must run on push only`)
+  if (lookup?.run !== `node ${REUSE_SCRIPT} --job "${name}"`) problems.push(`${label}: the lookup's --job must equal the job's name: (${name})`)
+  if (lookup?.env.GH_TOKEN !== '${{ github.token }}') problems.push(`${label}: the lookup must take GH_TOKEN from github.token in env:`)
+  return problems
+}
+
+/** @param {string} label @param {string} name */
+function recordProblems(label, name, record, tag) {
+  const problems = []
+  if (record?.if !== "github.event_name == 'pull_request'") problems.push(`${label}: the last step must be the record, on pull_request only`)
+  if (record?.run !== `node ${REUSE_SCRIPT} --record --job "${name}"`) problems.push(`${label}: the record step's --job must equal the job's name: (${name})`)
+  if (record?.env.PR_HEAD_SHA !== '${{ github.event.pull_request.head.sha }}') problems.push(`${label}: the record must take PR_HEAD_SHA from the event in env:`)
+  if (record?.text.includes(tag)) problems.push(`${label}: the record step's text carries the marker itself — the script builds it, so the log's echo of the command is never a second marker`)
+  return problems
+}
+
+/** The job-level rules. @param {string} label @param {string} body */
+function jobLevelProblems(label, body) {
+  const problems = []
+  if (/^ {4}if:/m.test(body)) problems.push(`${label}: a job-level if: — live-controls would read this lane as conditional`)
+  const perms = childrenOf(body, 'permissions')
+  if (JSON.stringify(Object.entries(perms ?? {}).sort()) !== JSON.stringify(Object.entries(REUSE_PERMISSIONS).sort())) {
+    problems.push(`${label}: permissions must be exactly contents, actions and pull-requests read, got ${JSON.stringify(perms)}`)
+  }
+  if (childrenOf(body, 'outputs')?.['reused-from'] !== '${{ steps.reuse.outputs.from }}') {
+    problems.push(`${label}: the job must expose outputs.reused-from from the lookup`)
+  }
+  return problems
+}
+
+/** Every later step: the conjunct, one hit report, and the script called nowhere else. */
+function laterStepProblems(label, later) {
+  const problems = []
+  const reports = later.filter((s) => s.if === HIT_IF)
+  if (reports.length !== 1) problems.push(`${label}: expected exactly one hit report (if: ${HIT_IF}), found ${String(reports.length)}`)
+  for (const s of reports) {
+    if (s.env.REUSED_FROM !== '${{ steps.reuse.outputs.from }}' || !s.text.includes('GITHUB_STEP_SUMMARY')) {
+      problems.push(`${label}: the hit report must name the run (REUSED_FROM from the lookup) in the log and in $GITHUB_STEP_SUMMARY`)
+    }
+  }
+  for (const s of later.slice(0, -1)) {
+    if (s.if === HIT_IF) continue
+    if (!carriesReuseClause(s.if)) problems.push(`${label}: step '${s.name ?? s.uses}' lacks the condition ${REUSE_CLAUSE} (joined with &&)`)
+    if (s.text.includes(REUSE_SCRIPT)) problems.push(`${label}: step '${s.name ?? s.uses}' calls ${REUSE_SCRIPT} outside the lookup and the record`)
+  }
+  return problems
+}
+
+/**
+ * Everything wrong with the reuse wiring of one workflow, as sentences. Pure, so the synthetic
+ * negatives below can show each rule going red.
+ * @param {string} text @param {string[]} [lanes] @param {string} [tag] the marker tag
+ * @returns {string[]}
+ */
+function reuseProblems(text, lanes = REUSE_LANES, tag = '[lane-reuse] RECORD') {
+  const problems = []
+  const jobs = jobsOf(text)
+  for (const id of lanes) {
+    const found = jobs.find((j) => j.id === id)
+    if (!found) {
+      problems.push(`${id}: no such job`)
+      continue
+    }
+    const label = `quality-gate.yml#${id}`
+    const name = keyAt(found.body, 4, 'name') ?? ''
+    const steps = stepsOf(found.body)
+    const checkout = steps.findIndex((s) => s.uses?.startsWith('actions/checkout@'))
+    const later = steps.slice(checkout + 2)
+    problems.push(
+      ...jobLevelProblems(label, found.body),
+      ...lookupProblems(label, name, checkout === -1 ? undefined : steps[checkout + 1]),
+      ...laterStepProblems(label, later),
+      ...recordProblems(label, name, later.at(-1), tag),
+    )
+  }
+  for (const j of jobs) {
+    if (!lanes.includes(j.id) && j.body.includes(REUSE_SCRIPT)) problems.push(`quality-gate.yml#${j.id}: calls ${REUSE_SCRIPT} but is not a reuse lane`)
+  }
+  return problems
+}
+
+test('the merge gate wires post-merge reuse into exactly the six unconditional lanes (#57)', async () => {
+  const { MARKER_TAG } = await import('../../template/base/tools/lib/lane-reuse.mjs')
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  assert.deepEqual(reuseProblems(text, REUSE_LANES, MARKER_TAG), [])
+  // No other shipped workflow, base or module, calls the script.
+  for (const { label, text: other } of SHIPPED) {
+    if (label.endsWith('/base/github/workflows/quality-gate.yml')) continue
+    assert.ok(!other.includes(REUSE_SCRIPT), `${label} calls ${REUSE_SCRIPT}: only the merge gate's six lanes may`)
+  }
+})
+
+test('liveControls() reports none of the six reuse lanes as conditional', async () => {
+  const { liveControls } = await import('../../template/base/tools/lib/live-controls.mjs')
+  const { conditional } = liveControls({ steps: [], workflowDir: DIR })
+  for (const lane of REUSE_LANES) {
+    assert.equal(conditional.has(lane), false, `${lane} reads as conditional — docs-sync's tier verdict would change for every install`)
+  }
+})
+
+test('each reuse-wiring rule can go red: the synthetic negatives', () => {
+  const lane = ({ jobIf = '', perms = ['contents', 'actions', 'pull-requests'], outputs = true, steps }) =>
+    [
+      'name: x',
+      '',
+      'jobs:',
+      '  static:',
+      '    name: static (validate floor)',
+      '    runs-on: ubuntu-latest',
+      '    timeout-minutes: 10',
+      ...(jobIf ? [`    if: ${jobIf}`] : []),
+      '    permissions:',
+      ...perms.map((p) => `      ${p}: read`),
+      ...(outputs ? ['    outputs:', '      reused-from: ${{ steps.reuse.outputs.from }}'] : []),
+      '    steps:',
+      ...steps,
+      '  other:',
+      '    runs-on: ubuntu-latest',
+      '    timeout-minutes: 10',
+      '    steps:',
+      '      - run: echo other',
+      '',
+    ].join('\n')
+  const S = {
+    harden: ['      - name: Harden runner', '        uses: step-security/harden-runner@0000000000000000000000000000000000000000 # v2'],
+    checkout: ['      - uses: actions/checkout@0000000000000000000000000000000000000000 # v7', '        with:', '          persist-credentials: false'],
+    lookup: [
+      '      - name: Reuse?',
+      '        id: reuse',
+      "        if: github.event_name == 'push'",
+      '        env:',
+      '          GH_TOKEN: ${{ github.token }}',
+      '        run: node tools/ci/lane-reuse.mjs --job "static (validate floor)"',
+    ],
+    report: [
+      '      - name: Reused',
+      `        if: ${HIT_IF}`,
+      '        env:',
+      '          REUSED_FROM: ${{ steps.reuse.outputs.from }}',
+      '        run: echo "$REUSED_FROM" >> "$GITHUB_STEP_SUMMARY"',
+    ],
+    work: ['      - name: Work', `        if: ${REUSE_CLAUSE}`, '        run: echo work'],
+    joined: ['      - name: Joined', `        if: failure() && ${REUSE_CLAUSE}`, '        run: echo log'],
+    record: [
+      '      - name: Record',
+      "        if: github.event_name == 'pull_request'",
+      '        env:',
+      '          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
+      '        run: node tools/ci/lane-reuse.mjs --record --job "static (validate floor)"',
+    ],
+  }
+  const good = [...S.harden, ...S.checkout, ...S.lookup, ...S.report, ...S.work, ...S.joined, ...S.record]
+  const judge = (text) => reuseProblems(text, ['static'])
+  assert.deepEqual(judge(lane({ steps: good })), [])
+
+  const red = (text, re) => assert.ok(judge(text).some((p) => re.test(p)), `expected ${String(re)} in ${JSON.stringify(judge(text))}`)
+  // the lookup is not the first step after checkout
+  red(lane({ steps: [...S.harden, ...S.checkout, ...S.work, ...S.lookup, ...S.report, ...S.record] }), /first step after checkout is not the reuse lookup/)
+  // --job differs from the job's name:
+  red(lane({ steps: good.map((l) => l.replace('--job "static (validate floor)"', '--job "unit"')) }), /lookup's --job must equal/)
+  // the lookup runs on every event
+  red(lane({ steps: good.map((l) => l.replace("if: github.event_name == 'push'", 'if: always()')) }), /push only/)
+  // a later step without the condition, and one that joins it with ||
+  red(lane({ steps: [...S.harden, ...S.checkout, ...S.lookup, ...S.report, '      - name: Bare', '        run: echo bare', ...S.record] }), /'Bare' lacks the condition/)
+  red(lane({ steps: good.map((l) => l.replace(`failure() && ${REUSE_CLAUSE}`, `failure() || ${REUSE_CLAUSE}`)) }), /'Joined' lacks the condition/)
+  // the record step is not last, or not pull_request-only
+  red(lane({ steps: [...S.harden, ...S.checkout, ...S.lookup, ...S.report, ...S.record, ...S.work] }), /last step must be the record/)
+  red(lane({ steps: good.map((l) => l.replace("if: github.event_name == 'pull_request'", 'if: always()')) }), /last step must be the record/)
+  // the record's run text carries the marker
+  red(lane({ steps: good.map((l) => l.replace('      - name: Record', '      - name: Record ([lane-reuse] RECORD v1)')) }), /carries the marker itself/)
+  // a job-level if:
+  red(lane({ jobIf: "github.event_name == 'pull_request'", steps: good }), /job-level if:/)
+  // permissions: one scope missing, or one widened
+  red(lane({ perms: ['contents', 'pull-requests'], steps: good }), /permissions must be exactly/)
+  red(lane({ steps: good }).replace('      actions: read', '      actions: write'), /permissions must be exactly/)
+  // no reused-from output
+  red(lane({ outputs: false, steps: good }), /outputs\.reused-from/)
+  // no hit report
+  red(lane({ steps: [...S.harden, ...S.checkout, ...S.lookup, ...S.work, ...S.record] }), /exactly one hit report/)
+  // another job calls the script
+  red(lane({ steps: good }).replace('      - run: echo other', '      - run: node tools/ci/lane-reuse.mjs --job "other"'), /#other: calls tools\/ci\/lane-reuse\.mjs but is not a reuse lane/)
+})

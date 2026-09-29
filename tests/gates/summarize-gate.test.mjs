@@ -51,6 +51,41 @@ test('GREEN-WITH-SKIPS: exit 0, and EVERY skipped lane is named (a skip is never
   assert.ok(!res.out.includes('- static'), res.out)
 })
 
+test('GREEN-WITH-REUSE (1.1.0, #57): exit 0, and every reused lane is named with the run it relied on', () => {
+  // A post-merge push whose lane found its pull request's green result on the identical
+  // tree concludes success without re-running its steps. That IS a pass (it cites a pass),
+  // but a reader of the one required check must see which lanes it was and where the proof
+  // lives, the same way a skip is named.
+  const url = 'https://github.com/o/r/actions/runs/101'
+  const res = run({
+    static: { result: 'success', outputs: { 'reused-from': url } },
+    unit: { result: 'success', outputs: { 'reused-from': '' } },
+    'integration-lane': { result: 'success', outputs: { 'reused-from': url } },
+    native: r('skipped'),
+  })
+  assert.equal(res.code, 0, res.out)
+  assert.match(res.out, /gate-summary: OK/)
+  assert.match(res.out, /REUSED \(passed on this exact tree/)
+  for (const lane of ['static', 'integration-lane']) {
+    assert.ok(res.out.includes(`- ${lane} <- ${url}`), `reused lane '${lane}' must be named with its run:\n${res.out}`)
+  }
+  // A lane that ran is not reported as reused, and the skip accounting is untouched.
+  assert.ok(!res.out.includes('- unit <-'), res.out)
+  assert.ok(res.out.includes('- native'), res.out)
+})
+
+test('RED WITH REUSE: a failed lane still exits 1 beside reused ones, and a failure is never listed as reused', () => {
+  const url = 'https://github.com/o/r/actions/runs/101'
+  const res = run({
+    static: { result: 'success', outputs: { 'reused-from': url } },
+    unit: { result: 'failure', outputs: { 'reused-from': url } },
+  })
+  assert.equal(res.code, 1, res.out)
+  assert.match(res.out, /unit: FAILED/)
+  assert.ok(!res.out.includes('- unit <-'), `a failed lane must never read as reused:\n${res.out}`)
+  assert.ok(res.out.includes(`- static <- ${url}`), res.out)
+})
+
 test('RED: a failed lane exits 1 and names it', () => {
   const res = run({ static: r('success'), unit: r('failure'), native: r('skipped') })
   assert.equal(res.code, 1, res.out)
