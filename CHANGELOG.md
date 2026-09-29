@@ -239,6 +239,24 @@ this heading if none does. -->
   note or the README's post-init block names `pnpm install` before `git init`, leaves
   either out, or loses the anchor the test finds it by. The change is factory-only: no
   `template/` file changes, and it reaches no install (#50).
+- **`update --rollback` removes a directory the update created instead of throwing.** A
+  release that replaces an owned file with files under a directory of the same name leaves a
+  directory where the rollback snapshot recorded a file or nothing. Rollback removed an absent
+  path with `rmSync` and no `recursive`, and restored a file by renaming a staged copy onto
+  the path, so it threw on that directory: every path sorted after it and
+  `.harness/manifest.json` kept their post-update state, and a re-run threw at the same path.
+  The snapshot now records `vacant: true` beside `existed: false` when nothing at all was at
+  a path, and its blob says `v: 2`; no path's `existed` changes. Rollback removes a directory
+  only on that evidence, or where the snapshot recorded a file, which it then restores with
+  its bytes and mode, and only when the directory's parent resolves inside the install. Its
+  recursive walk unlinks a symlink without following it. A directory at a path where the
+  snapshot found something other than a regular file, such as the consumer's own directory,
+  stays, and the report notes it. A snapshot written by 1.0.3 or earlier never records
+  `vacant`, so from one of those a directory at an absent path stays as a conflict naming
+  it, and so does a directory whose parent leads outside the install through a symlink. The
+  other paths and the manifest are still restored, and `update --rollback` exits 2, which
+  the exit-code table in `docs/cli.md` now names. The fix is in the installer, so an install
+  gets it by running `update --rollback` with the 1.0.4 CLI; no template file changes (#52).
 
 ### Changed
 
@@ -405,6 +423,12 @@ this heading if none does. -->
   harness's own checkout, so lefthook installs into that checkout's hooks; every commit a
   lane makes after an install follows that baseline. A hook that reds the first commit is
   caught by CONTRIBUTING's recipe run by hand, not by CI (#50).
+- **Rolling back from a snapshot written before 1.0.4 cannot remove a directory at an
+  absent path.** Such a snapshot records a path where nothing was and a path where a
+  directory already was in the same way, so rollback leaves the directory, exits 2 and names
+  it, and a human removes it if the update created it. Rollback also removes anything placed
+  inside a directory it does remove, as it always overwrote a file edited after the update,
+  so commit before you update, as the runbook's recovery steps assume (#52).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -531,7 +555,15 @@ this heading if none does. -->
   loudly with no gitleaks binary) and its commit-msg `commitlint` job. Then
   `validate --report-all` was green: every other step passed and `types-drift` skipped
   loudly. After it `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and
-  the tree was clean (#50).
+  the tree was clean (#50). The new cases in `tests/installer/rollback.test.mjs` were red on
+  v1.0.3's `installer/lib/rollback.mjs`, which this release's base carried unchanged, each
+  throwing `EISDIR` from `rmSync` or from the staged rename, and are green after: the
+  issue's reproduction, a file replaced by a directory and restored with its bytes and mode,
+  a consumer directory kept with a note, a hand-built `v: 1` blob that kept its directory,
+  restored its manifest and exited 2, the CLI's exit 2 naming the path, a symlink inside a
+  removed directory whose target survived, and a symlinked parent leading outside the
+  install, where nothing outside was removed. Run as a user other than root, a path under an
+  unreadable directory was recorded without `vacant` (#52).
 
 ## [1.0.3] — 2026-09-23
 
