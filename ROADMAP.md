@@ -59,25 +59,55 @@ the change from weakening a gate. An item that adds a check, or changes what an
 existing check judges, needs a `gate-proposal` issue first (CONTRIBUTING.md,
 ground rule 6).
 
+### 1.0.4, no ramp
+
+The maintainer scheduled these for 1.0.4, the local loop release (issue #38),
+beside fixes that have no proposal here. None of them tightens a gate for an
+existing install. Where one changes what `update` does, its section says so.
+
+- **Input-stamped Stop steps.** The slow Stop entries skip on unchanged
+  inputs, a stamped step prints as `STAMPED`, and stamp inputs cover the
+  libraries a gate imports.
+  ([N01](design/FIELD-UPGRADES-2026-09.md#n01-input-stamped-stop-steps),
+  issue #42)
+- **Stop-step and gate-event telemetry.** Untrimmed local records of step
+  durations and of in-turn gate and guard events, read by no gate.
+  ([N02](design/FIELD-UPGRADES-2026-09.md#n02-stop-step-and-gate-event-telemetry),
+  issue #41)
+- **Preflight hygiene and a pinned runner environment.** `doctor` reports the
+  toolchain it resolved and clears enumerated residue, and the local database
+  lane stops taking its CLI and its port from the machine.
+  ([N03](design/FIELD-UPGRADES-2026-09.md#n03-preflight-residue-hygiene-and-a-pinned-runner-environment),
+  issue #43)
+- **`validate --ci-parity`.** One flag gives a local run CI's posture: no
+  skips and no stamps.
+  ([N04](design/FIELD-UPGRADES-2026-09.md#n04-a-ci-parity-flag-for-validate),
+  issue #44)
+- **Legal empty states on day 0.** `perf-budget`, the event catalog and the
+  account-deletion closure stop requiring the worked example, and a factory
+  lane proves the chain green without it.
+  ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
+  issue #46)
+- **A project-side citation corpus.** The citation corpus splits into an owned
+  upstream index and a seeded project file, which the provenance gate,
+  `docs-sync` and the MCP server merge. The proposal flow that is the other half
+  of this item stays in 1.1.0.
+  ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
+  issue #47)
+- **Two guard carve-outs.** Editing a migration that git has never tracked,
+  and a sanctioned delete for ignored build output.
+  ([N16](design/FIELD-UPGRADES-2026-09.md#n16-two-guard-carve-outs),
+  issue #45)
+- **An owned path with no manifest record.** `update` parks the incoming copy
+  unless the bytes on disk are a released version. Follows #21.
+  ([N21](design/FIELD-UPGRADES-2026-09.md#n21-an-owned-path-with-no-manifest-record),
+  issue #48)
+
 ### 1.1.0, no ramp
 
 None of these tightens a gate for an existing install. Where one changes what
 `update` does, its section says so.
 
-- **Input-stamped Stop steps.** The slow Stop entries skip on unchanged
-  inputs, a stamped step prints as `STAMPED`, and stamp inputs cover the
-  libraries a gate imports.
-  ([N01](design/FIELD-UPGRADES-2026-09.md#n01-input-stamped-stop-steps))
-- **Stop-step and gate-event telemetry.** Untrimmed local records of step
-  durations and of in-turn gate and guard events, read by no gate.
-  ([N02](design/FIELD-UPGRADES-2026-09.md#n02-stop-step-and-gate-event-telemetry))
-- **Preflight hygiene and a pinned runner environment.** `doctor` reports the
-  toolchain it resolved and clears enumerated residue, and the local database
-  lane stops taking its CLI and its port from the machine.
-  ([N03](design/FIELD-UPGRADES-2026-09.md#n03-preflight-residue-hygiene-and-a-pinned-runner-environment))
-- **`validate --ci-parity`.** One flag gives a local run CI's posture: no
-  skips and no stamps.
-  ([N04](design/FIELD-UPGRADES-2026-09.md#n04-a-ci-parity-flag-for-validate))
 - **A dated deferral for an unbuilt surface.** A project building one surface
   first can defer the device and perf lanes for the other, with an expiry and
   a content tripwire. Needs a `gate-proposal` issue first.
@@ -85,10 +115,6 @@ None of these tightens a gate for an existing install. Where one changes what
 - **Skip a lane that already passed on the same tree.** The post-merge run
   reuses a `success` from the pull request when the tree hash is identical.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree))
-- **Legal empty states on day 0.** `perf-budget`, the event catalog and the
-  account-deletion closure stop requiring the worked example, and a factory
-  lane proves the chain green without it.
-  ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them))
 - **Database proofs on a fixture table.** Behavioural pgTAP proofs build their
   own table inside the transaction, so deleting the example does not delete
   them.
@@ -112,13 +138,10 @@ None of these tightens a gate for an existing install. Where one changes what
 - **Review records outside ADRs.** A defined home for round-by-round review
   records, so ADRs keep decisions.
   ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs))
-- **A proposal flow for register edits, and a project-side corpus.** An agent
-  stages a protected edit for a human to apply in one action, and the citation
-  corpus splits into an owned upstream index and a seeded project file.
-  ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus))
-- **Two guard carve-outs.** Editing a migration that git has never tracked,
-  and a sanctioned delete for ignored build output.
-  ([N16](design/FIELD-UPGRADES-2026-09.md#n16-two-guard-carve-outs))
+- **A proposal flow for register edits.** An agent stages a protected edit for
+  a human to apply in one action. The corpus half of this item is in 1.0.4.
+  ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
+  issue #65)
 - **Absence checklists and a reviewer eval.** Reviewers report what a change
   should have brought with it and did not, and a factory-side eval measures
   them on seeded defects.
@@ -132,9 +155,6 @@ None of these tightens a gate for an existing install. Where one changes what
 - **Provenance by decision class.** Mandatory where a citation guards a
   security decision, advisory elsewhere.
   ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere))
-- **An owned path with no manifest record.** `update` parks the incoming copy
-  unless the bytes on disk are a released version. Follows #21.
-  ([N21](design/FIELD-UPGRADES-2026-09.md#n21-an-owned-path-with-no-manifest-record))
 
 ### 1.1.0, behind a ramp
 
