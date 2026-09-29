@@ -525,6 +525,9 @@
     ],
     ".github/workflows/device-e2e.yml": [
       {
+        "sha256": "0f16484223f8ed8bc55414666b599c3d97078b36f4bc29a9efeb9b79d937d82e"
+      },
+      {
         "sha256": "d2e3bb614754e14ac6ca145797d8fe78cc13712c7d9ac301f6ff553b8c0f8c51"
       }
     ],
@@ -589,6 +592,15 @@
     ".github/workflows/quality-gate.yml": [
       {
         "sha256": "78b337dc8c013248a2c27ab87d0485bdf3aaceabf6a3a4d13b86480d977f067d",
+        "sites": [
+          [
+            859,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
+        "sha256": "fc3bdda658e5b5b0a6f8b572a513b4de6b0931929faa2d5bc16289c83e924ea9",
         "sites": [
           [
             859,
@@ -849,6 +861,15 @@
         "sites": [
           [
             116445,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "67ce1ea543d8f52f31a57f00898b0d0b0168ab5e14673989637bf8cba146a242",
+        "sites": [
+          [
+            120323,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1126,6 +1147,15 @@
       },
       {
         "sha256": "ef52b5f76f5398e9de8a2a2a26b2d7f2b0e1d5bbaf6400ba7c92f650aafc4f5c",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "efeaa15448a55021b258c9294e3d0f3a57e0f18ee13d99961692a4c904a22979",
         "sites": [
           [
             14115,
@@ -1460,6 +1490,9 @@
     "tools/check-e2e-device.mjs": [
       {
         "sha256": "aa497a9c06fd682400849504677e5d1b27d1c02bfbbb4fad1c92e002621dd860"
+      },
+      {
+        "sha256": "d3545b031dbf43e0d867a8a25c858322e15b46c660a3de6fe31ca7b7e9d4e905"
       }
     ],
     "tools/check-e2e.mjs": [
@@ -1748,6 +1781,23 @@
             "APP_IDENTIFIER"
           ]
         ]
+      },
+      {
+        "sha256": "82ca14983ce17b26ad2ddb503875884292b60f4cc92a5cce8dbfcd5e458f92aa",
+        "sites": [
+          [
+            1468,
+            "APP_IDENTIFIER"
+          ],
+          [
+            3106,
+            "APP_IDENTIFIER"
+          ],
+          [
+            3164,
+            "APP_IDENTIFIER"
+          ]
+        ]
       }
     ],
     "tools/ci/mint-device-user.mjs": [
@@ -1949,6 +1999,9 @@
     ],
     "tools/lib/gate.mjs": [
       {
+        "sha256": "0d37a1bc1987de8098bee68718c1c756853d2a3a0c3a77d8a8fa86fef6157278"
+      },
+      {
         "sha256": "303db1242d60489d0e2cb8db930721a36f17fff4b5f65591ccefe102c54bf651"
       },
       {
@@ -1981,6 +2034,9 @@
     "tools/lib/maestro-flows.mjs": [
       {
         "sha256": "2d64859d10fff30ed4dd07136e7bd99cc549670775f6e3f61c00b18f029ce121"
+      },
+      {
+        "sha256": "5a2bd87df16c45320642fee4023a247eb960f4b1502eb1c64f4eccc0dde350ca"
       }
     ],
     "tools/lib/mobile-app-meta.mjs": [

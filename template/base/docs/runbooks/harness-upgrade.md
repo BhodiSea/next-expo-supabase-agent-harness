@@ -1283,7 +1283,11 @@ plants it. The project citation corpus below adds the new `tools/lib/corpus.mjs`
 and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
 `.claude/agents/citation-verifier.md`, `.claude/commands/verify-citations.md`,
 `.claude/skills/authoring-e2ee-feature/SKILL.md`, `docs/adr/README.md` and
-`docs/security/approved-tools.md`. What you may notice afterwards:
+`docs/security/approved-tools.md`. The device lane below changes
+`.github/workflows/quality-gate.yml`, `tools/ci/device-lane.sh`,
+`tools/check-e2e-device.mjs` and `tools/lib/maestro-flows.mjs`, and, where the
+`device-e2e` module is enabled, `.github/workflows/device-e2e.yml`. What you may notice
+afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1424,6 +1428,32 @@ and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
   nothing then and owes nothing now. An agent file you edited still needs a human to run
   `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` once you merge its
   parked copy. What `update` does has not changed.
+- **Your `mobile-e2e` and `integration-lane` jobs reach their suites.** Both booted the web
+  app before the env its first request parses was set (`SUPABASE_SERVICE_ROLE_KEY`,
+  `SUPABASE_DB_URL` and the three `NEXT_PUBLIC_` names), so it answered 500, and waited on
+  `/api/trpc/health`, which is no procedure (the routers are namespaced), so neither could
+  get past the boot step to the device lane or the live-api proof. Each job now has a
+  "Publish the local Supabase env" step before "Boot the web app", fed from
+  `supabase status -o env`, and waits on `/api/trpc/system.health`. From this release the
+  two jobs can go red on their suites; treat that as you would any red suite. If you forked
+  `.github/workflows/quality-gate.yml`, `update` parks the new copy under
+  `.harness/pending/` and neither job gets past the boot until you take those two
+  publish steps and the `system.health` probe from it.
+- **A device red says what was on screen.** `tools/check-e2e-device.mjs` prints
+  `e2e-device: on screen when <flow> failed — ids: …; text: …` before its FAIL line, and
+  the evidence upload now keeps Maestro's own debug output, which it writes under a hidden
+  `.maestro/` directory. The perf-harness journey fails as soon as the screen shows its
+  verdict without `perf-pass`, and the printed text names each breached cap with its
+  measured value. The failure step prints `/tmp/web.log`, the web app's log.
+- **The device lane's Metro prewarm can fail the lane.** `tools/ci/device-lane.sh` fetches
+  the bundle a debug build asks Metro for, the Expo virtual entry, where it fetched
+  `/index.bundle`, a 404 on this SDK, and ignored the result. A Metro that cannot serve the
+  bundle within 600 seconds now fails the lane on that line instead of on the first
+  journey.
+- **A FIX line repeats path arguments.** The command after `FIX[<gate>]: reproduce with`
+  now keeps relative paths and prints a `KEY=VALUE` argument as `KEY=…`, so a value passed
+  with `--env` never reaches a log. If a script of yours reads FIX lines, it may see more
+  arguments than before.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.

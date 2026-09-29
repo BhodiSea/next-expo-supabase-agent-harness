@@ -24,7 +24,8 @@ Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-
 already did (see Fixed). One gate can red on an unchanged tree, narrowly: `wiring`, on a
 CODEOWNERS whose last rule matching `tools/mcp/corpus/project.json` names no owner; the
 shipped rules name one (see Changed). One installer fix can move `update`'s exit code
-from 0 to 2 (below).
+from 0 to 2 (below). Two shipped CI jobs that could not get past their boot step,
+`mobile-e2e` and `integration-lane`, now reach their suites (see Fixed).
 The `template/migrations.json` record for 1.0.4 carries `rampExpiry`, restating 1.0.0's
 thirteen-vintage population, and one `seedOnInitOnly` path, the empty project corpus (#47);
 `baseVersion` 1.0.0 through 1.0.3 meet no expiry here.
@@ -284,6 +285,40 @@ this heading if none does. -->
   the module's path in a finding, and the generic `workflow-lanes` tests run over both trees
   with a minimum file count for each. No module workflow needed an edit and nothing under
   `template/` changes, so nothing here reaches an install (#55).
+- **The shipped device lane reaches the mutation journey, and a device red says what was on
+  screen.** Issue #10 reported `maestro/journeys/mutation.yaml` timing out on a selector in
+  every scheduled `maestro-smoke` run. 1.0.0 fixed that journey, which tapped an empty
+  sign-in form, and it has passed in every scheduled run since that reached the emulator
+  and was read for #10. The consumer's copy of the lane, the `mobile-e2e` job, never got
+  that far. It booted the web app, the journey's backend, before it published any
+  Supabase env, never published `SUPABASE_DB_URL` or the `NEXT_PUBLIC_` trio at all, and
+  waited on `/api/trpc/health`. The host's first request parses the server-only
+  `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`, then the `NEXT_PUBLIC_` trio, so it
+  answered 500, and the routers are namespaced, so with the env set `/api/trpc/health`
+  answers 404: the boot loop could only fail, after 60 seconds. `integration-lane` boots the
+  host the same way, so it never reached the live-api proof either, which also needs a URL,
+  a publishable key and a service-role key the job did not publish. Both jobs now publish
+  that env from `supabase status` before the boot, as the harness's own `integration` and
+  `maestro-smoke` jobs do, and wait on `/api/trpc/system.health`, so each can now go red on
+  its suite where it went red on its boot. In the same lane, the failure step prints
+  `/tmp/web.log`, which the boot writes, instead of `/tmp/server.log`, which nothing writes.
+  The evidence upload keeps hidden files, so Maestro's debug output under
+  `<flow>/.maestro/` reaches the artifact; every `maestro-smoke` upload read for #10 held
+  only the runner's own files.
+  `tools/ci/device-lane.sh` prewarms the bundle a debug build asks Metro for, the Expo
+  virtual entry, where it fetched `/index.bundle`, a 404, and ignored the result; a failed
+  prewarm now fails the lane.
+  `tools/check-e2e-device.mjs` prints the ids and text on screen before a flow's FAIL line,
+  and the perf-harness journey waits for the measurement to end and then asserts
+  `perf-pass`, so a breached budget fails at once and names its cap, where a 120-second
+  wait for `perf-pass` read the same as a measurement that never ended. The `device-e2e`
+  module's evidence upload keeps hidden files too, and the gates catalog's live-api entry
+  names the env `integration-lane` publishes where it named an `AUTH_MODE=stub` server,
+  which the template no longer has. `update` delivers
+  `.github/workflows/quality-gate.yml`, `tools/ci/device-lane.sh`,
+  `tools/check-e2e-device.mjs`, `tools/lib/maestro-flows.mjs`, the gates catalog, and,
+  where the module is enabled, `.github/workflows/device-e2e.yml`. The journey itself does
+  not change (#10).
 
 ### Changed
 
@@ -388,6 +423,13 @@ this heading if none does. -->
   pass, and holds the Renovate rule that moves it. `pnpm-workspace.yaml` is seeded, so only
   new scaffolds get the pin: `update` leaves an install's catalog alone, and the upgrade
   runbook's 1.0.4 section says how to take it (#88).
+- **A FIX line repeats path arguments.** The command after `FIX[<gate>]: reproduce with`
+  kept only arguments made of letters, digits and hyphens, so a failed device journey
+  printed `node tools/check-e2e-device.mjs --phase journey --file --out-dir`, which the
+  runner rejects. A relative path now survives, a `KEY=VALUE` argument prints as `KEY=…` so
+  a value passed with `--env` never reaches a log, and an argument that needs shell quoting
+  is dropped together with the flag before it. No verdict or exit code changes. `update`
+  delivers `tools/lib/gate.mjs` (#10).
 
 ### Corrections to the record
 
@@ -491,6 +533,21 @@ this heading if none does. -->
   is `^2.34.3`, in `tools/check-auth-posture.mjs`, the gates catalog,
   `supabase/config.toml` and `scripts/obligations.json`, record what was true when they
   were written and are unchanged (#88).
+- **The perf-harness phase still reds the scheduled device lane, and why is not known
+  yet.** Of the fourteen scheduled runs from 2026-08-17 to 2026-09-29 whose job results were
+  read for #10, every one that reached the emulator passed the mutation journey, and seven
+  failed on the perf-harness marker: five on the first measurement (2026-08-17, 08-19,
+  09-15, 09-22 and 09-24) and two on the one after the Canary 20 revert (09-26 and 09-28).
+  Their logs said only that `perf-pass` never appeared. The runner also writes its own
+  capture of the screen, `perf-harness-hierarchy.txt`, into a red's artifact, but the
+  artifact store was out of reach from where this was fixed, so none was read. The next red
+  prints the on-screen verdict in the log, with each breached cap and its measured value,
+  and the fix, a re-baselined budget in a reviewed commit or a change to the probe, waits
+  for that line or for a downloaded capture. A green run still prints no
+  medians, although `tools/interaction-budget.json` says a re-baseline starts from them.
+  The consumer's `mobile-e2e` and `integration-lane` jobs have not run on GitHub since the
+  change: nothing in this repository runs the shipped workflow's jobs beyond
+  `consumer-ci-static`, so their boot steps were run by hand (#10).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -660,6 +717,29 @@ this heading if none does. -->
   no milestone and no linked pull request, and 2.118.0's `supabase config` offers `diff`,
   `pull` and `push`, each against a linked project, so the deferral's condition is unmet
   (#88).
+  The scheduled and dispatched runs issue #10 names (31307386944, 31357713318 and
+  31377698831) stopped at `home-screen` after tapping `sign-in-submit` on an empty form; the
+  1.0.0 dispatch 31937834669 passed the journey, and so did every scheduled run read for #10
+  that reached the emulator. `tests/gates/device-lane.test.mjs` was red on four of its seven
+  cases on this release's base (the two shipped boots, the two `/tmp/server.log` steps, the
+  three evidence uploads and the consumer's prewarm) and is green after; its selector,
+  sign-in and lane cases passed on both sides, and each reds on the defect it guards, the
+  journey 1.0.0 replaced among them. The new cases in `check-e2e-device.test.mjs`,
+  `maestro-flows.test.mjs` and `gate-helpers.test.mjs` were red on the base, where the FIX
+  line printed `--phase journey --file --out-dir --env --env`, and green after. In a core
+  scaffold rendered from this tree, with Supabase CLI 2.118.0 and the stack up, the 1.0.3
+  boot answered 500 on both `/api/trpc/health` and `/api/trpc/system.health`, so
+  `curl -fsS` exited 22. After the new publish step the host answered `system.health` with
+  200 within 9 seconds and `health` with 404, `tools/ci/mint-device-user.mjs` minted the
+  journey's identity from the published env, and the live-api proof passed its four tests
+  under `check-query-budget` as `integration-lane` runs it. The device-lane test reads both
+  of the host's env schemas, and it redded on a `mobile-e2e` publish step that set every
+  name but `SUPABASE_DB_URL`; with exactly that step's names the host still answered 500
+  naming `SUPABASE_DB_URL`, and with the DB URL added it answered `system.health` with 200
+  within 6 seconds, as it did with exactly `integration-lane`'s names. Metro there answered
+  `/index.bundle?platform=android&dev=true` with 404 and the virtual entry with 200. No
+  emulator runs here, so the journey, the on-screen line and the hidden-file upload wait
+  for a dispatched `maestro-smoke` (#10).
 
 ## [1.0.3] — 2026-09-23
 
