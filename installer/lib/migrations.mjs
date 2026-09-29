@@ -328,6 +328,31 @@ export function requiredConfigSteps(migrations, version) {
 // looks, and satisfied by two commands the consumer runs deliberately.
 export const DEPENDENCY_OBLIGATIONS_PATH = '.harness/pending/dependencies.json'
 
+// Deliberately a text probe rather than a YAML parse: the installer has no YAML
+// dependency (CONTRIBUTING rule 3 — zero runtime dependencies in installer/), and
+// parseSimpleYaml models only the subset it was written for. "Does the catalog mention
+// this key" is the obligation check's question, and a false "already met" is the only
+// dangerous answer — so the probe is anchored to a catalog-entry shape rather than a bare
+// substring. Hoisted out of unmetDependencyObligations in 1.0.4 so `doctor`'s toolchain
+// report reads the Supabase CLI's pin through the same anchor.
+/**
+ * The value of an indented `name:` entry in a pnpm-workspace.yaml text, with a trailing
+ * comment and surrounding quotes removed ('' for a key with no value), or null when no such
+ * entry exists.
+ * @param {string} workspaceYaml
+ * @param {string} name
+ * @returns {string | null}
+ */
+export function catalogEntry(workspaceYaml, name) {
+  const key = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`^\\s{2,}'?${key}'?\\s*:(.*)$`, 'm').exec(workspaceYaml)
+  if (!m) return null
+  return m[1]
+    .replace(/\s+#.*$/, '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+}
+
 /**
  * Obligations introduced at or before `version`, minus the ones the tree already meets.
  * PURE over its inputs (the two manifest texts) so it is testable without a scaffold.
@@ -348,18 +373,8 @@ export function unmetDependencyObligations(migrations, version, tree) {
     // An unparseable package.json is the consumer's problem and `doctor` says so
     // elsewhere; here it simply means we cannot prove the obligation is met.
   }
-  // Deliberately a text probe rather than a YAML parse: the installer has no YAML
-  // dependency (CONTRIBUTING rule 3 — zero runtime dependencies in installer/), and
-  // parseSimpleYaml models only the subset it was written for. "Does the catalog mention
-  // this key" is the question, and a false "already met" is the only dangerous answer —
-  // so the probe is anchored to a catalog-entry shape rather than a bare substring.
-  const inCatalog = (name) =>
-    new RegExp(`^\\s{2,}'?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'?\\s*:`, 'm').test(
-      tree.workspaceYaml,
-    )
-
   return all.filter((o) => {
-    const catalogued = inCatalog(o.name)
+    const catalogued = catalogEntry(tree.workspaceYaml, o.name) !== null
     const declared = o.devDependency === false || Object.hasOwn(devDeps, o.name)
     return !(catalogued && declared)
   })

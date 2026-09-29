@@ -59,6 +59,23 @@ runbook's "Forking an owned file" section describes the flow.
 re-recorded fork of a harness-owned file as `info`, which does not change the
 exit code.
 
+It also prints a toolchain report as `info` lines. For `node`, `pnpm`, the
+Supabase CLI (the workspace copy in `node_modules/.bin` and the one on `PATH`)
+and `psql`, each line names the binary it found, that binary's version, and the
+pin it is compared with: `.node-version`, the `packageManager` field of
+`package.json`, the `supabase` entry of the `pnpm-workspace.yaml` catalog, and
+`major_version` under `[db]` in `supabase/config.toml`. A tool that could not be
+run, or did not answer within 10 seconds, is reported as not probed, with the
+reason. The report never changes the exit code.
+
+| Flag | Meaning |
+|---|---|
+| `--dir <path>` | Install to check. Default `.` |
+| `--clean` | Delete ignored residue that nothing else deletes: `.harness/stop-output/` (the Stop hook's full step logs) and `apps/mobile/dist/` (the build gate's export). Each removed path is printed. An entry is skipped, with a note, unless it is inside the install, not reached through a symlink, ignored by git and holds no tracked file; in a directory that is not a git repository every entry is skipped. The list is fixed. The install manifest, `.harness/pending/`, `.harness/rollback/`, `.harness/turn.lock`, the `.jsonl` ledgers and the `.ok` stamps are never on it. |
+| `--dry-run` | With `--clean`, list what would be deleted and delete nothing. |
+
+`--clean` does not change the exit code either.
+
 ### `graduate`
 
 `graduate [--dir .]` advances the install's `baseVersion` once ramped checks

@@ -20,12 +20,13 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { doctor } from '../../installer/commands/doctor.mjs'
 import { catalogEntry } from '../../installer/lib/migrations.mjs'
@@ -36,10 +37,30 @@ import {
   probeCommand,
   toolchainReport,
 } from '../../installer/lib/toolchain.mjs'
-import { captured, freshInstall } from './helpers/provenance-fixture.mjs'
+import { captured, freshInstall as install } from './helpers/provenance-fixture.mjs'
 
 const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
 const TEMPLATE_GITIGNORE = fileURLToPath(new URL('../../template/base/gitignore', import.meta.url))
+
+// Every directory this file makes is removed when it ends: a fresh install is ~14 MB, and
+// the suite runs on shared machines.
+/** @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+/** @param {string} prefix */
+const tempDir = (prefix) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  made.push(dir)
+  return dir
+}
+/** @param {string} prefix */
+const freshInstall = async (prefix) => {
+  const dir = await install(prefix)
+  made.push(dir)
+  return dir
+}
 
 /** @param {string} cwd @param {string[]} args */
 const git = (cwd, args) => {
@@ -58,7 +79,7 @@ function plant(dir, rel, body = 'residue\n') {
 
 /** A git repository whose .gitignore is the template's, with both residue entries planted. */
 function residueRepo() {
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-clean-'))
+  const dir = tempDir('nesah-clean-')
   git(dir, ['init', '-q'])
   copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
   plant(dir, '.harness/stop-output/validate.log')
@@ -70,7 +91,7 @@ function residueRepo() {
 
 test('the clean list is the two entries #43 names, and each is ignored by template/base/gitignore', () => {
   assert.deepEqual([...CLEAN_LIST], ['.harness/stop-output/', 'apps/mobile/dist/'])
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-clean-ignore-'))
+  const dir = tempDir('nesah-clean-ignore-')
   git(dir, ['init', '-q'])
   copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
   for (const entry of CLEAN_LIST) {
@@ -141,7 +162,7 @@ test('an absent entry is reported as nothing to remove', () => {
 })
 
 test('skip: the target is not a git repository, so nothing proves an entry is ignored', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-clean-nogit-'))
+  const dir = tempDir('nesah-clean-nogit-')
   // A git repository above tmpdir would answer for this directory; the guard is the
   // fixture's own: it must not be inside one.
   const probe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: dir })
@@ -162,11 +183,11 @@ test('skip: an entry outside the target directory', () => {
 })
 
 test('skip: an entry reached through a symlink (the entry itself, or a parent)', () => {
-  const outside = mkdtempSync(join(tmpdir(), 'nesah-clean-outside-'))
+  const outside = tempDir('nesah-clean-outside-')
   const victim = plant(outside, 'dist/keep.js')
   plant(outside, 'stop/keep.log')
 
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-clean-link-'))
+  const dir = tempDir('nesah-clean-link-')
   git(dir, ['init', '-q'])
   copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
   mkdirSync(join(dir, 'apps'), { recursive: true })
@@ -237,7 +258,7 @@ test('probeCommand: a name on no PATH entry, and an absolute path that does not 
 })
 
 test('probeCommand: a bare name resolves through the PATH it is given (PATHEXT on win32)', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-probe-path-'))
+  const dir = tempDir('nesah-probe-path-')
   const file = join(dir, process.platform === 'win32' ? 'nesah-fake-tool.EXE' : 'nesah-fake-tool')
   writeFileSync(file, 'not a program\n')
   chmodSync(file, 0o755)
@@ -289,7 +310,7 @@ test('toolchainReport names each tool, the binary, its version or why it was not
 })
 
 test('toolchainReport: absent pin sources are named as absent, not guessed', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'nesah-toolchain-bare-'))
+  const dir = tempDir('nesah-toolchain-bare-')
   const lines = toolchainReport(dir, allGood)
   assert.match(lines[0], /pin: none \(\.node-version is absent\)$/)
   assert.match(lines[1], /pin: none \(package\.json names no packageManager\)$/)
