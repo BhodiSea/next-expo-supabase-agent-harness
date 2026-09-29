@@ -7,15 +7,22 @@
 // `platform` is injected, so both branches run on both legs of the matrix: the POSIX branch
 // on windows-latest too, and the win32 branch on ubuntu. Nothing here spawns a process.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { supabaseCli } from '../../template/base/tools/lib/supabase-cli.mjs'
+
+/** @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
 
 /** A project root; with `workspace`, node_modules/.bin holds a `supabase` entry. */
 function root({ workspace }) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-supabase-cli-'))
+  made.push(dir)
   if (workspace) {
     mkdirSync(join(dir, 'node_modules', '.bin'), { recursive: true })
     writeFileSync(join(dir, 'node_modules', '.bin', 'supabase'), '#!/bin/sh\n')

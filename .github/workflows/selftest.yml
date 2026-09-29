@@ -1046,6 +1046,8 @@ jobs:
           # canary that proves nothing while looking rigorous. The env below mirrors what
           # run-rls.mjs hands vitest (tests/rls/run-rls.mjs: RLS_SUITE_READY + the three
           # runtime-read keys), so this is the same invocation, minus the short circuit.
+          # Since 1.0.4 the runner also hands vitest a fourth key, SUPABASE_DB_URL; only
+          # tests/rls/auth-trail.test.ts reads it, and this canary does not run that file.
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER ROLE anon RESET statement_timeout'
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'"

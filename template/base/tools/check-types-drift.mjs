@@ -14,16 +14,27 @@
 // is the CI lane that brings the stack up (never a general run with no database). Once a
 // stack IS up, a `gen types` failure or a real drift is a hard red. The committed mirror
 // is opt-in (`pnpm db:types` writes it); until it exists there is nothing to diff.
+//
+// WHICH CLI (1.0.4). Its remedy, `pnpm db:types`, and every CI job run the catalog-pinned
+// CLI in node_modules/.bin, and different CLI versions generate different types. Through
+// 1.0.3 the gate looked `supabase` up on the session's PATH only, so on a machine with
+// another global CLI it could red a mirror `pnpm db:types` had just written, and on one with
+// none it skipped with the stack up. tools/lib/supabase-cli.mjs now puts the workspace copy
+// first when it is installed (never on Windows), for the probes and for `gen types` alike.
+// The skip rule and the verdict are unchanged.
 // SOURCE: docs/harness/README.md (types-drift gate: the generated types are the schema
 // mirror, so drift means a stale schema view); https://supabase.com/docs/guides/api/rest/generating-types
 import { execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { fail, ok, runCmd } from './lib/gate.mjs'
+import { supabaseCli } from './lib/supabase-cli.mjs'
 
 const GATE = 'types-drift'
 const COMMITTED = 'packages/platform/supabase/src/database.types.ts'
 const GEN = 'supabase gen types typescript --local --schema public'
+// The mirror is read from the working directory, so the CLI is resolved from it too.
+const { env: cliEnv } = supabaseCli(process.cwd(), process.env, process.platform)
 
 function skip(reason) {
   console.log(
@@ -32,9 +43,11 @@ function skip(reason) {
   process.exit(0)
 }
 
+// Bounded, as the rls runner's probe is: a CLI that hangs on `status` (a wedged Docker
+// daemon) must read as "no stack", not hold the step until the job's own timeout.
 function available(cmd) {
   try {
-    execSync(cmd, { stdio: 'ignore' })
+    execSync(cmd, { env: cliEnv, stdio: 'ignore', timeout: 30_000 })
     return true
   } catch {
     return false
@@ -55,7 +68,7 @@ if (!existsSync(COMMITTED)) {
 
 let generated
 try {
-  generated = runCmd(GEN)
+  generated = runCmd(GEN, { env: cliEnv })
 } catch {
   fail(
     GATE,
