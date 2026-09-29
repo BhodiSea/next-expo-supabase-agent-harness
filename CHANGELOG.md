@@ -213,9 +213,14 @@ this heading if none does. -->
   with a working workspace fake and a failing `PATH` fake failed under `HARNESS_STOP_GATE=1`
   with "supabase CLI not installed" before the fix, and after it named the workspace CLI,
   handed vitest the fake `DB_URL` as `SUPABASE_DB_URL` and ended `[rls] OK`; the same fakes
-  took `types-drift` from SKIPPED to OK. `doctor`'s report and `--clean` were driven through
-  an injected probe, including a failing, a timing-out and a throwing one, with the exit code
-  unchanged, and every `--clean` skip case was exercised (#43).
+  took `types-drift` from SKIPPED to OK. In a core scaffold on a machine with no global CLI,
+  `HARNESS_STOP_GATE=1 node tests/rls/run-rls.mjs` against a live local stack named the
+  workspace CLI 2.118.0, passed all three supabase-js files, `auth-trail` among them through
+  `SUPABASE_DB_URL`, and ended `[rls] OK`, and `types-drift` ran and passed where it used to
+  skip. With no stack, `pnpm exec vitest run tests/rls` skipped all three files and passed.
+  `doctor`'s report and `--clean` were driven through an injected probe, including a failing,
+  a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip case
+  was exercised (#43).
 
 ## [1.0.3] — 2026-09-23
 
