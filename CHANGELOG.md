@@ -269,10 +269,10 @@ this heading if none does. -->
   factory Stop hook start it from the root, so their verdicts do not change, and a record
   missing at the root still reports every function as new. The 1.0.3 entry listed this as
   open. The fix is factory-only: `scripts/` does not ship, so no install gets it (#53).
-- **The factory's workflow checks read the module workflows too.** `workflow-lanes`,
-  `check-ci-preconditions` and the canary `lanes` closure read `template/base/` only, so
-  the module workflows, which run in every install that enables their module, were outside
-  all three; 1.0.2 recorded the gap and left it open. `check-canary-coverage` now closes
+- **The factory's workflow checks read the module workflows too.** Through 1.0.3,
+  `workflow-lanes`, `check-ci-preconditions` and the canary `lanes` closure read
+  `template/base/` only, so the module workflows, which run in every install that enables
+  their module, were outside all three; 1.0.2 recorded the gap and left it open. `check-canary-coverage` now closes
   every module job through a new `moduleLanes` section of `tests/canary/injections.json`,
   keyed `<module>/<file>#<job>`, and judges its proofs with the function that judges
   `lanes`, so a fixture proof is run unless `--no-spawn` is passed and a `steps` proof needs
@@ -466,7 +466,8 @@ this heading if none does. -->
   reproduced. The module tools the jobs run without a factory test, `check-eas-update.mjs`,
   `check-notices.mjs`, `check-gbnf.mjs`, `check-eval-disjoint.mjs` and
   `tools/ci/device-e2e-matrix.sh`, are named in their entries as unproven, and writing those
-  tests is out of scope. The consumer-side lint job for these properties is #73's (#55).
+  tests is out of scope. #73's consumer-side lint job, for shells and job timeouts, does
+  not cover this factory closure (#55).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
