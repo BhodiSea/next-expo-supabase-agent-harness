@@ -17,6 +17,9 @@ This lineage's own history starts at 0.1.3.
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
 every changed file that is owned. The one seeded change, the regenerated database types,
 reaches fresh scaffolds only (see Fixed, which says what an existing install does instead).
+One gate can red locally where it used to skip: `types-drift`, on a machine with no global
+Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
+already did (see Fixed).
 The `template/migrations.json` record for 1.0.4 is `rampExpiry` only, restating 1.0.0's
 thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.3 meet nothing here.
 `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
@@ -212,18 +215,24 @@ this heading if none does. -->
   edited migration each ran both suites again before the next run rode the new stamp. In a
   zero-edit core scaffold a warm `validate --report-all` printed a `STAMPED` line for every
   stamped validate gate, and one Stop run with the stack up exited 0 listing those lines and
-  `rls-isolation` as stamped layers (#42). A fixture copy of the runner
-  with a working workspace fake and a failing `PATH` fake failed under `HARNESS_STOP_GATE=1`
-  with "supabase CLI not installed" before the fix, and after it named the workspace CLI,
-  handed vitest the fake `DB_URL` as `SUPABASE_DB_URL` and ended `[rls] OK`; the same fakes
-  took `types-drift` from SKIPPED to OK. In a core scaffold on a machine with no global CLI,
-  `HARNESS_STOP_GATE=1 node tests/rls/run-rls.mjs` against a live local stack named the
-  workspace CLI 2.118.0, passed all three supabase-js files, `auth-trail` among them through
-  `SUPABASE_DB_URL`, and ended `[rls] OK`, and `types-drift` ran and passed where it used to
-  skip. With no stack, `pnpm exec vitest run tests/rls` skipped all three files and passed.
-  `doctor`'s report and `--clean` were driven through an injected probe, including a failing,
-  a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip case
-  was exercised (#43).
+  `rls-isolation` as stamped layers (#42). A fixture copy of the runner with a working
+  workspace fake and a failing `PATH` fake failed under `HARNESS_STOP_GATE=1` with
+  "supabase CLI not installed" before the fix, and after it named the workspace CLI, handed
+  vitest the fake `DB_URL` as `SUPABASE_DB_URL`, ended `[rls] OK` and rode its stamp on the
+  next run through the same CLI; the same fakes took `types-drift` from SKIPPED to OK, and
+  the import-closure test was red until the `rls-isolation` list named the helper. In a
+  zero-edit core scaffold on a machine with no global CLI, with no stack,
+  `pnpm exec vitest run tests/rls` skipped all three files and passed, and the Stop-hook
+  command failed closed on "no running supabase stack" after naming the workspace CLI. With
+  the stack up it named the workspace CLI 2.118.0, passed the pgTAP suite and all three
+  supabase-js files, `auth-trail` among them through `SUPABASE_DB_URL`, and ended
+  `[rls] OK`, and the next run printed `rls-isolation: STAMPED`; `types-drift` ran and
+  passed where it used to skip, and redded a mirror with one line appended; `auth-trail`
+  run without `SUPABASE_DB_URL` threw the error naming the runner. `doctor --clean
+  --dry-run` there listed both entries, removed nothing, and printed a line for each tool.
+  Its report and `--clean` were also driven through an injected probe, including a failing,
+  a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip
+  case was exercised (#43).
 
 ## [1.0.3] — 2026-09-23
 
