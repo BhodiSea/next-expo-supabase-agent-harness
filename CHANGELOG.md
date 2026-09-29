@@ -144,10 +144,10 @@ this heading if none does. -->
   out. The deny keeps its opening and its `supabase migration new` advice, and now names the
   path and the proof that failed. `HARNESS_ALLOW_SELF_EDIT=1` still does not open the rule,
   the content rules still judge what the draft receives, the bash guard's rules on
-  `supabase/migrations/` are unchanged, and so are the `migrations` gate and CI's
-  `append-only` job. `update` re-plants `.claude/hooks/pretool-write-guard.mjs` and
-  `docs/harness/README.md`, whose write-guard section now states the three proofs and the
-  residual (#45).
+  `supabase/migrations/` do not change, and the `migrations` gate and CI's `append-only` job
+  judge committed history as before. `update` re-plants
+  `.claude/hooks/pretool-write-guard.mjs` and `docs/harness/README.md`, whose write-guard
+  section now states the three proofs and the residual (#45).
 
 ### Changed
 

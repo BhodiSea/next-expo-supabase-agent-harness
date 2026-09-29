@@ -199,8 +199,8 @@ or `supabase db diff -f` leaves can be written, and the content checks in (3) st
 what it receives. The residual: untracked means absent from the index and `HEAD`, not from
 all history, so a migration someone applied to a shared database by hand without
 committing it still reads as a draft. Committed history stays guarded by the `migrations`
-gate and the CI `append-only` job, neither of which changes, and the bash guard's rules on
-`supabase/migrations/` are unchanged; (3) content checks on the written
+gate and the CI `append-only` job, which judge it exactly as before, and the bash guard's
+rules on `supabase/migrations/` do not change; (3) content checks on the written
 text: security-surface weakenings in `app.config.ts`/`eas.json` (cleartext/ATS
 exceptions, identity or runtimeVersion drift, secret-shaped `extra` keys),
 EXPO_PUBLIC_-prefixed secret-shaped names, session-scoped GUCs, `WITH RECURSIVE`

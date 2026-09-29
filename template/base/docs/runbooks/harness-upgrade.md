@@ -1350,11 +1350,12 @@ new, and `update` plants it. What you may notice afterwards:
   `.harness/manifest.json` does not record it, and the session has no `GIT_DIR`,
   `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` set. Once you `git add` it, it is
   history again, and the deny returns naming the proof that failed. Committed migrations stay
-  append-only: the `migrations` gate and CI's `append-only` job are unchanged. A migration
-  someone applied to a shared database by hand and never committed reads as a draft too, so
-  commit what you apply. If you forked `.claude/hooks/pretool-write-guard.mjs`, `update`
-  parks the new one under `.harness/pending/` and your fork keeps denying every existing
-  migration until you take it.
+  append-only: the `migrations` gate and CI's `append-only` job judge them as before. A
+  migration someone applied to a shared database by hand and never committed reads as a
+  draft too, so commit what you apply. If you forked
+  `.claude/hooks/pretool-write-guard.mjs`, `update` parks the new one under
+  `.harness/pending/` and your fork keeps denying every existing migration until you take
+  it.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
