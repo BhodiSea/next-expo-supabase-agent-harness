@@ -412,6 +412,9 @@ test('an unreadable directory is absent; an unreadable FILE throws before any bl
   chmodSync(lockedDir, 0o000)
   try {
     assert.deepEqual(snapshotOf(dir, ['tools/locked-dir'])['tools/locked-dir'], { existed: false })
+    // A path lstat cannot inspect (EACCES on its parent) is not provably empty: never vacant.
+    const inside = snapshotOf(dir, ['tools/locked-dir/child'])['tools/locked-dir/child']
+    assert.deepEqual(inside, { existed: false })
     chmodSync(lockedFile, 0o000)
     rmSync(rollbackDirFor(dir), { recursive: true, force: true })
     assert.throws(() => snapshotOf(dir, ['tools/locked.mjs']), { code: 'EACCES' })

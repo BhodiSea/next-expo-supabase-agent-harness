@@ -57,6 +57,15 @@ The upgrade runbook's 1.0.4 section describes how to resolve it.
 | `--rollback` | Restore the tree recorded before the last update. Combines with no other update flag. |
 | `--report json` | Print the update report as JSON. |
 
+`--rollback` also removes a directory the update created where the snapshot
+shows nothing was there, and restores a file the update replaced with a
+directory. A directory at a path where the snapshot found something other than
+a regular file is left in place, with a note. Two cases are left in place as
+conflicts: a directory at a path a snapshot written by 1.0.3 or earlier records
+as absent, because such a snapshot cannot show the path was empty, and a
+directory whose parent leads outside the install through a symlink. Every other
+path and the manifest are still restored.
+
 `update` refuses to run while a live Claude Code session holds
 `.harness/turn.lock` for the tree.
 
@@ -134,7 +143,7 @@ the default for anything not set. Every value is validated.
 |---|---|
 | 0 | Success |
 | 1 | Error, or an unknown command |
-| 2 | `init` or `update` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it, and a file with no manifest record whose bytes no release shipped |
+| 2 | `init`, `update` or `update --rollback` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it, and a file with no manifest record whose bytes no release shipped. For `update --rollback` it is a directory left in place that the update may have created |
 
 ## Environment variables in a scaffolded project
 
