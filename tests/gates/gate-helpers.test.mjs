@@ -22,6 +22,8 @@ import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
 
 const { hashInputs, noteMissingPrerequisite, rampNote } = gateLib
 const { STAMP_INPUTS } = stampRegister
+// Every regex metacharacter, backslash included: a path is matched literally.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const GATE_LIB = pathToFileURL(
   fileURLToPath(new URL('../../template/base/tools/lib/gate.mjs', import.meta.url)),
@@ -387,7 +389,7 @@ test('every module gate that stamps passes withMachinery(<its script>, […]) na
       found.push(`${mod}/${script}`)
       assert.match(
         call,
-        new RegExp(`^\\(\\s*\\w+\\s*,\\s*withMachinery\\(\\s*'${script.replace(/[.]/g, '\\.')}'`),
+        new RegExp(`^\\(\\s*\\w+\\s*,\\s*withMachinery\\(\\s*'${escapeRe(script)}'`),
         `${mod}/${script}: pass withMachinery('${script}', […]) so the list carries the script, the manifest and the machinery`,
       )
       for (const need of importClosure(script, [join(modulesDir, mod), BASE_DIR])) {
