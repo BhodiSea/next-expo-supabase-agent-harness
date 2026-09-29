@@ -126,6 +126,18 @@ export const STAMP_INPUTS = {
   // closure's two reads — the actions registry (the surface) and the backing
   // delete-account Edge Function + config.toml declaration (the endpoint). A
   // change to any of them must invalidate a warm expo-policy stamp.
+  // 1.0.4 (#46) adds the reads the list above missed, each of which could pass on
+  // a warm stamp locally: the SEEDED tools/store-tunables.json (the project's half
+  // of the store policy, and the accountDeletion.registry key naming where the
+  // command registry lives); apps/mobile/src and apps/mobile/app (the EXPO_PUBLIC_
+  // name scan walks both, the `route` surface reads src/routes.ts, the auth-surface
+  // probe checks app/sign-in.* and src/auth/providers, and every legal registry
+  // path sits under src/); and supabase/functions (the tunables may name an Edge
+  // Function other than delete-account). Together they cover each of those reads,
+  // including any legal registry path, so the gate needs no new read before it
+  // stamps. The cost: any mobile source or Edge Function edit now re-arms this
+  // stamp, as a mobile source edit already re-arms `build` and `e2e`. The narrower
+  // entries stay: they name the files the closure reads by default.
   'expo-policy': withMachinery('tools/check-expo-policy.mjs', [
     'apps/mobile/app.config.ts',
     'apps/mobile/package.json',
@@ -135,9 +147,13 @@ export const STAMP_INPUTS = {
     'apps/mobile/eas.json',
     'packages/design-tokens/src/generated/native.ts',
     'tools/store-policy.json',
+    'tools/store-tunables.json',
     'apps/mobile/assets',
+    'apps/mobile/src',
+    'apps/mobile/app',
     'apps/mobile/src/features/actions/registry.ts',
     'supabase/functions/delete-account/index.ts',
+    'supabase/functions',
     'supabase/config.toml',
     'pnpm-lock.yaml',
     'tools/lib/cng-purity.mjs',
