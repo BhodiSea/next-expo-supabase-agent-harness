@@ -906,6 +906,123 @@ test('11g account deletion: an auth surface without the registered action or the
   assert.equal(escaped.code, 0, escaped.out)
 })
 
+// 11g, 1.0.4: the command registry the `action` surface reads is movable. The optional
+// accountDeletion.registry key names it; absent, the gate reads today's path. The key only
+// changes WHERE the gate looks, never WHETHER it checks.
+const MOVED_REGISTRY = 'apps/mobile/src/commands/registry.ts'
+
+/** @param {Record<string, any>} [fields] */
+function tunablesWithRegistry(fields = {}) {
+  return storeTunablesWith((p) => {
+    p.accountDeletion = { ...p.accountDeletion, registry: MOVED_REGISTRY, ...fields }
+  })
+}
+
+test('11g account deletion: a registry moved under apps/mobile/src and named by the key closes the surface', () => {
+  const moved = { ...AUTH_SOURCES, [MOVED_REGISTRY]: REGISTRY_WITH_DELETE }
+  delete moved['apps/mobile/src/features/actions/registry.ts']
+  const r = runGate(fixture({ sources: moved, storeTunables: tunablesWithRegistry() }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('account-deletion closed'), r.out)
+})
+
+test('11g account deletion: the key is READ — its file lacking the action id reds naming that file', () => {
+  // Today's path still registers the id, so a gate that ignored the key would pass.
+  const r = runGate(
+    fixture({
+      sources: { ...AUTH_SOURCES, [MOVED_REGISTRY]: 'export const ACTION_COMMANDS = []\n' },
+      storeTunables: tunablesWithRegistry(),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(
+    r.out.includes(`${MOVED_REGISTRY} registers no 'session.deleteAccount' command`),
+    r.out,
+  )
+  assert.ok(r.out.includes('5.1.1(v)'), r.out)
+  assert.ok(!r.out.includes('src/features/actions/registry.ts registers no'), r.out)
+
+  // A key naming a file that does not exist is the same red, naming the missing file.
+  const missing = runGate(
+    fixture({
+      sources: AUTH_SOURCES,
+      storeTunables: tunablesWithRegistry({ registry: 'apps/mobile/src/nowhere.ts' }),
+    }),
+  )
+  assert.equal(missing.code, 1, missing.out)
+  assert.ok(missing.out.includes("apps/mobile/src/nowhere.ts registers no 'session.deleteAccount'"), missing.out)
+})
+
+test('RED 11g: a malformed accountDeletion.registry fails the shape check CLOSED', () => {
+  for (const [label, ad] of [
+    ['a .. segment', { registry: 'apps/mobile/src/../../../etc/registry.ts' }],
+    ['a trailing .. escape', { registry: 'apps/mobile/src/features/../../app/registry.ts' }],
+    ['outside apps/mobile/src/', { registry: 'apps/mobile/app/registry.ts' }],
+    ['another app', { registry: 'apps/web/lib/registry.ts' }],
+    ['not .ts or .tsx', { registry: 'apps/mobile/src/features/actions/registry.js' }],
+    ['a backslash path', { registry: 'apps\\mobile\\src\\features\\actions\\registry.ts' }],
+    ['an empty segment', { registry: 'apps/mobile/src//registry.ts' }],
+    ['not a string', { registry: ['apps/mobile/src/features/actions/registry.ts'] }],
+    ['the bare directory', { registry: 'apps/mobile/src/' }],
+    [
+      'the key on a route surface',
+      {
+        surface: 'route',
+        routeId: 'account.delete',
+        actionId: undefined,
+        registry: 'apps/mobile/src/features/actions/registry.ts',
+      },
+    ],
+    [
+      'the key on a none surface',
+      {
+        surface: 'none',
+        reason: 'SSO-only enterprise app; accounts are organization-managed',
+        registry: 'apps/mobile/src/features/actions/registry.ts',
+      },
+    ],
+  ]) {
+    const r = runGate(
+      fixture({ sources: AUTH_SOURCES, storeTunables: tunablesWithRegistry(ad) }),
+    )
+    assert.equal(r.code, 1, `${label}: ${r.out}`)
+    assert.ok(r.out.includes('accountDeletion.registry'), `${label}: ${r.out}`)
+    assert.ok(r.out.includes('cannot silently disarm'), `${label}: ${r.out}`)
+  }
+})
+
+// Stamp proofs (1.0.4): the gate stamps after the store-tunables read and the source scan,
+// so every file those reads touch must be a declared stamp input. Each edit below used to
+// ride a warm stamp locally (CI never honours one); now it re-runs the check and reds.
+test('stamp: a store-tunables edit and a secret-shaped EXPO_PUBLIC_ name each re-run the gate on a warm stamp', () => {
+  const tunablesDir = fixture({ sources: AUTH_SOURCES })
+  const first = runGate(tunablesDir, { ci: false })
+  assert.equal(first.code, 0, first.out)
+  const warm = runGate(tunablesDir, { ci: false })
+  assert.equal(warm.code, 0, warm.out)
+  assert.ok(warm.out.includes('inputs unchanged since last green run'), warm.out)
+  writeFileSync(
+    join(tunablesDir, 'tools/store-tunables.json'),
+    asText(storeTunablesWith((p) => (p.accountDeletion.actionId = 'session.eraseEverything'))),
+  )
+  const edited = runGate(tunablesDir, { ci: false })
+  assert.equal(edited.code, 1, edited.out)
+  assert.ok(!edited.out.includes('inputs unchanged since last green run'), edited.out)
+  assert.ok(edited.out.includes("registers no 'session.eraseEverything' command"), edited.out)
+
+  const sourceDir = fixture({ sources: AUTH_SOURCES })
+  assert.equal(runGate(sourceDir, { ci: false }).code, 0)
+  mkdirSync(join(sourceDir, 'apps/mobile/src/lib'), { recursive: true })
+  writeFileSync(
+    join(sourceDir, 'apps/mobile/src/lib/env.ts'),
+    'export const k = process.env.EXPO_PUBLIC_API_TOKEN\n',
+  )
+  const leaked = runGate(sourceDir, { ci: false })
+  assert.equal(leaked.code, 1, leaked.out)
+  assert.ok(!leaked.out.includes('inputs unchanged since last green run'), leaked.out)
+  assert.ok(leaked.out.includes('apps/mobile/src/lib/env.ts: EXPO_PUBLIC_API_TOKEN'), leaked.out)
+})
+
 test('RED store policy: a malformed policy FAILS CLOSED; a missing one is a restore-it red', () => {
   const malformed = runGate(
     fixture({ storePolicy: storePolicyWith((p) => (p.androidTargetSdk.floor = 'thirty-five')) }),
