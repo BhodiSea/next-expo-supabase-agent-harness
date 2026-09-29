@@ -10,9 +10,13 @@
 // probed" with the reason, never as missing. That matters on Windows, where the workspace
 // copies are .cmd shims a probe without a shell cannot start.
 //
-// THE CLEAN LIST. Two directories of ignored residue that nothing else deletes: the Stop
-// hook's per-step spill logs and the build gate's mobile export. The list is this constant
-// and nothing else. Before an entry is deleted it must be inside the target, not reached
+// THE CLEAN LIST. Ignored residue that nothing else deletes: the Stop hook's per-step spill
+// logs and the build gate's mobile export (#43), then the ignored build output and tool caches
+// the bash guard's `rm-rf` deny points at (#45): Next's `.next` (a partial one left by a failed
+// build reds `build --web`), Expo's `.expo`, the coverage report, Stryker's sandbox and
+// ESLint's cache file. `template/base/gitignore` ignores every entry, and `.gitignore` is
+// seeded, so the run-time ignore check below still decides each one. The list is this
+// constant and nothing else; `reports/` and `artifacts/` hold evidence and stay off it. Before an entry is deleted it must be inside the target, not reached
 // through a symlink, ignored by git at run time, and hold no tracked file; an entry that
 // fails any check is skipped with a note. The install manifest, pending/, rollback/,
 // turn.lock, the *.jsonl ledgers and the .ok stamps are never on it (`graduate` clears the
@@ -25,7 +29,15 @@ import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { catalogEntry } from './migrations.mjs'
 
 /** Ignored residue `doctor --clean` deletes, relative to the install root. */
-export const CLEAN_LIST = Object.freeze(['.harness/stop-output/', 'apps/mobile/dist/'])
+export const CLEAN_LIST = Object.freeze([
+  '.harness/stop-output/',
+  'apps/mobile/dist/',
+  'apps/web/.next/',
+  'apps/mobile/.expo/',
+  'coverage/',
+  '.stryker-tmp/',
+  '.eslintcache',
+])
 
 /** Every probe is bounded: a tool that hangs becomes a "not probed" line, never a hung doctor. */
 const PROBE_TIMEOUT_MS = 10_000

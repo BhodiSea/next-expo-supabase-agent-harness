@@ -6,9 +6,11 @@
 //
 // What it writes: it deletes .harness/pending/dependencies.json and source-fixes.json once
 // the tree meets every entry in them, and with `--clean` (1.0.4) it deletes the ignored
-// residue in installer/lib/toolchain.mjs CLEAN_LIST — .harness/stop-output/ and
-// apps/mobile/dist/ — after checking each one is inside the install, not reached through a
-// symlink, ignored by git and holds no tracked file. `--clean --dry-run` only lists them.
+// residue in installer/lib/toolchain.mjs CLEAN_LIST — .harness/stop-output/,
+// apps/mobile/dist/ and the ignored build output and tool caches (apps/web/.next/,
+// apps/mobile/.expo/, coverage/, .stryker-tmp/, .eslintcache) — after checking each one is
+// inside the install, not reached through a symlink, ignored by git and holds no tracked
+// file. `--clean --dry-run` only lists them.
 // Nothing else is written, and neither changes the exit code.
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
