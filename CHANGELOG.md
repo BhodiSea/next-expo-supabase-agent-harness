@@ -232,13 +232,13 @@ this heading if none does. -->
   `lefthook install`, found no repository and the install failed before `validate` ran;
   init's closing note, the README and `bootstrap-linux` already put git first. The
   bug-report form's reproduction now runs `git init` and commits, and the gate-proposal
-  form's fresh-scaffold bar names `git init` and the commit. `scripts/ci/consumer-ci-static.sh`
-  quotes init's note in its current order, and so do the `check-ci-preconditions` fixtures,
-  whose regressed note still leaves out `pnpm-lock.yaml`. A new test,
-  `tests/gates/next-steps-order.test.mjs`, reds when any of those texts, init's note or the
-  README's post-init block names `pnpm install` before `git init`, leaves either out, or
-  loses the anchor the test finds it by. The change is factory-only: no `template/` file
-  changes, and it reaches no install (#50).
+  form's fresh-scaffold bar names `git init` and the commit.
+  `scripts/ci/consumer-ci-static.sh` quotes init's note in its current order, and so do the
+  `check-ci-preconditions` fixtures, whose regressed note still leaves out `pnpm-lock.yaml`.
+  A new test, `tests/gates/next-steps-order.test.mjs`, reds when any of those texts, init's
+  note or the README's post-init block names `pnpm install` before `git init`, leaves
+  either out, or loses the anchor the test finds it by. The change is factory-only: no
+  `template/` file changes, and it reaches no install (#50).
 
 ### Changed
 
@@ -528,10 +528,10 @@ this heading if none does. -->
   reporting "not a git repository". The reordered recipe, cut from CONTRIBUTING.md as
   written with only its directory changed and run with no Supabase stack up, made its first
   commit through lefthook's pre-commit `format` and `secrets` jobs (`secrets` skipping
-  loudly with no gitleaks binary) and its commit-msg `commitlint` job, and
-  `validate --report-all` passed every step, with `types-drift` skipping loudly; after it
-  `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and the tree was
-  clean (#50).
+  loudly with no gitleaks binary) and its commit-msg `commitlint` job. Then
+  `validate --report-all` was green: every other step passed and `types-drift` skipped
+  loudly. After it `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and
+  the tree was clean (#50).
 
 ## [1.0.3] — 2026-09-23
 
