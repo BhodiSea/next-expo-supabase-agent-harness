@@ -460,7 +460,7 @@ const recorded = (text, mode = 0o644) => ({
   b64: Buffer.from(text).toString('base64'),
 })
 
-test('RED at 1.0.3: rollback removes a directory the update created at a vacant path', () => {
+test('rollback removes a directory the update created at a vacant path', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   writeRollbackSnapshot({
     targetDir: dir,
@@ -482,7 +482,7 @@ test('RED at 1.0.3: rollback removes a directory the update created at a vacant 
   })
 })
 
-test('RED at 1.0.3: a file the update replaced with a directory is restored with its bytes', () => {
+test('a file the update replaced with a directory is restored with its bytes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   const gate = join(dir, 'tools', 'gate.mjs')
   const manifestPath = join(dir, '.harness', 'manifest.json')
@@ -513,7 +513,7 @@ test('RED at 1.0.3: a file the update replaced with a directory is restored with
   assert.deepEqual(files['tools/gate.mjs/check.mjs'], { existed: false, vacant: true })
 })
 
-test('RED at 1.0.3: a directory that was already at a candidate path survives, with a note', () => {
+test('a directory that was already at a candidate path survives, with a note', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   const mine = join(dir, 'tools', 'kept', 'mine.txt')
   const manifestPath = join(dir, '.harness', 'manifest.json')
@@ -542,7 +542,7 @@ test('RED at 1.0.3: a directory that was already at a candidate path survives, w
   assert.equal(readFileSync(manifestPath, 'utf8'), '{"files":{}}\n', 'and so does the manifest')
 })
 
-test('RED at 1.0.3: under a v1 blob a directory at an absent path is a conflict, not a delete', () => {
+test('under a v1 blob a directory at an absent path is a conflict, not a delete', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   const manifestPath = join(dir, '.harness', 'manifest.json')
   const created = join(dir, 'tools', 'new-gate', 'nested', 'check.mjs')
