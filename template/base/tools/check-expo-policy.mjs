@@ -588,7 +588,7 @@ function loadStoreTunables() {
     )
   if (!accountDeletionRegistryOk(p.accountDeletion))
     badly(
-      `accountDeletion.registry is legal only with surface "action", and must be a forward-slash .ts or .tsx path under ${APP}/src/ with no ".." segment — got ${JSON.stringify(p.accountDeletion.registry)} on surface ${JSON.stringify(p.accountDeletion.surface)}`,
+      `accountDeletion.registry is legal only with surface "action", and must be a forward-slash .ts or .tsx path under ${APP}/src/ with no empty, "." or ".." segment — got ${JSON.stringify(p.accountDeletion.registry)} on surface ${JSON.stringify(p.accountDeletion.surface)}`,
     )
   if (p.icons?.solidColorPlaceholder !== 'warn' && p.icons?.solidColorPlaceholder !== 'error') {
     badly('icons.solidColorPlaceholder must be "warn" or "error"')
