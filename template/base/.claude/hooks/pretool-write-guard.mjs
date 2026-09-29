@@ -11,7 +11,7 @@
 // rule id there has a behavioral canary in tests/hooks/hook-contract.test.mjs.
 // SOURCE: docs/harness/README.md (pretool-write-guard)
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
@@ -163,10 +163,11 @@ if (protectedRow !== undefined) {
 // anything unexpected: `environment` (CLAUDE_PROJECT_DIR is set, and no variable can point
 // git at another repository or index), `manifest` (.harness/manifest.json parses and records
 // no such file: a file `init` planted is the harness's history) and `untracked` (git reports
-// exactly one entry for it, `?? <path>`). A new file costs no git call: existsSync stays the
-// trigger. HARNESS_ALLOW_SELF_EDIT does not open this rule. Residual: "untracked" means absent
-// from the index and HEAD, not from all history, so a migration applied to a shared database
-// by hand and never committed still reads as a draft.
+// exactly one entry for it, `?? <path>`, and the file has one hard link: git judges a name,
+// so a second name for a committed migration's bytes reads `??` too). A new file costs no
+// git call: existsSync stays the trigger. HARNESS_ALLOW_SELF_EDIT does not open this rule.
+// Residual: "untracked" means absent from the index and HEAD, not from all history, so a
+// migration applied to a shared database by hand and never committed still reads as a draft.
 // SOURCE: docs/harness/README.md (pretool-write-guard; append-only migrations)
 const MIGRATION = /^supabase\/migrations\/[^/]+\.sql$/
 const GIT_REDIRECTS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']
@@ -214,6 +215,17 @@ function untrackedFailure(spelling) {
   return `git status reports ${entries.map((e) => JSON.stringify(e)).join(', ')}, not exactly "?? ${spelling}"`
 }
 
+/** @returns {string | null} why the file's link count fails the untracked proof, or null */
+function hardLinkFailure() {
+  let links
+  try {
+    links = statSync(path).nlink
+  } catch (err) {
+    return `its link count could not be read (${err?.code ?? 'unknown error'})`
+  }
+  return links === 1 ? null : `it has ${links} hard links, so its bytes may be a tracked file's, which git status cannot see`
+}
+
 /**
  * The first proof that fails for these spellings, or null when every spelling is a draft.
  * @param {string[]} spellings the entries of `rels` that name a migration
@@ -233,7 +245,8 @@ function draftProofFailure(spellings) {
     const why = untrackedFailure(spelling)
     if (why) return { spelling, proof: 'untracked', why }
   }
-  return null
+  const links = hardLinkFailure()
+  return links ? { spelling: spellings[0], proof: 'untracked', why: links } : null
 }
 
 const migrationRels = rels.filter((r) => MIGRATION.test(r))

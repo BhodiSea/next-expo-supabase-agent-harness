@@ -136,18 +136,18 @@ this heading if none does. -->
   `migration-rls-author` agent then tell the agent to write, was denied as if a database had
   already run it. `existsSync` stays the trigger, so a new file costs no git call. An
   existing migration is now writable only when every spelling of it (its name, and where a
-  symlink lands) passes three proofs: git reports exactly `?? <path>` for it;
-  `.harness/manifest.json` parses and records no such file, because a file `init` planted is
-  the harness's history; and `CLAUDE_PROJECT_DIR` is set while no `GIT_DIR`,
-  `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` is. A tracked, staged, ignored or
-  `git rm --cached` migration is still denied, and so is every case where git fails or times
-  out. The deny keeps its opening and its `supabase migration new` advice, and now names the
+  symlink lands) passes three proofs: git reports exactly `?? <path>` for it and the file
+  has one hard link; `.harness/manifest.json` parses and records no such file, because a
+  file `init` planted is the harness's history; and `CLAUDE_PROJECT_DIR` is set while no
+  `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` is. A tracked, staged,
+  ignored, hard-linked or `git rm --cached` migration is still denied, and so is every case
+  where git fails or times out. The deny keeps its opening and its `supabase migration new` advice, and now names the
   path and the proof that failed. `HARNESS_ALLOW_SELF_EDIT=1` still does not open the rule,
   the content rules still judge what the draft receives, the bash guard's rules on
   `supabase/migrations/` do not change, and the `migrations` gate and CI's `append-only` job
   judge committed history as before. `update` re-plants
-  `.claude/hooks/pretool-write-guard.mjs` and `docs/harness/README.md`, whose write-guard
-  section now states the three proofs and the residual (#45).
+  `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md`, whose write-guard
+  section now states the three proofs and the residual, and the upgrade runbook (#45).
 
 ### Changed
 
@@ -308,7 +308,8 @@ this heading if none does. -->
   case in it was red at v1.0.3 and on this release's base and is green after: the untracked
   draft takes an Edit and a Write, `USING (true)` written to it is still denied by
   `policy-using-true`, and every other case, with and without `HARNESS_ALLOW_SELF_EDIT=1`, is
-  denied on exactly the one proof it fails. The existing append-only test passed unchanged,
+  denied on exactly the one proof it fails. The hard-link case was allowed by the first
+  version of the change and is denied since the link count joined the untracked proof. The existing append-only test passed unchanged,
   and `check-canary-coverage` stayed green on the unchanged `denyToolCallSites` pin. The
   clean-list pin, the tracked-`.next` refusal and the `rm-rf` message test were red before
   the list and the message moved, and `gen-conformance-docs.mjs --check` still reported

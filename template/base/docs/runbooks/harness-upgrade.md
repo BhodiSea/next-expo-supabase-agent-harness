@@ -1346,13 +1346,15 @@ new, and `update` plants it. What you may notice afterwards:
 - **You can edit a migration draft you have not committed.** The write guard used to deny
   every Edit or Write to an existing `supabase/migrations/*.sql`, so the file
   `supabase migration new` or `supabase db diff -f` had just written could not be filled in.
-  It now allows it when git reports the file as untracked (`?? <path>`),
-  `.harness/manifest.json` does not record it, and the session has no `GIT_DIR`,
+  It now allows it when git reports the file as untracked (`?? <path>`) and it has one hard
+  link, `.harness/manifest.json` does not record it, and the session has no `GIT_DIR`,
   `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` set. Once you `git add` it, it is
   history again, and the deny returns naming the proof that failed. Committed migrations stay
   append-only: the `migrations` gate and CI's `append-only` job judge them as before. A
   migration someone applied to a shared database by hand and never committed reads as a
-  draft too, so commit what you apply. If you forked
+  draft too, so commit what you apply. If your install sits in a subdirectory of its git
+  repository, git names the file with that prefix, which is not exactly `?? <path>`, so the
+  deny stays as it was through 1.0.3. If you forked
   `.claude/hooks/pretool-write-guard.mjs`, `update` parks the new one under
   `.harness/pending/` and your fork keeps denying every existing migration until you take
   it.
