@@ -15,10 +15,10 @@ This lineage's own history starts at 0.1.3.
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
-every changed file that is owned. The seeded changes, the regenerated database types, a
-comment in `tools/store-tunables.json` and the new project citation corpus with the
-sentences that name it, reach fresh scaffolds only (see Fixed, Added and Changed, which say
-what an existing install does instead).
+every changed file that is owned. The seeded changes, the regenerated database types, the
+Supabase CLI's exact catalog pin, a comment in `tools/store-tunables.json` and the new
+project citation corpus with the sentences that name it, reach fresh scaffolds only (see
+Fixed, Added and Changed, which say what an existing install does instead).
 One gate can red locally where it used to skip: `types-drift`, on a machine with no global
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
 already did (see Fixed). One gate can red on an unchanged tree, narrowly: `wiring`, on a
@@ -112,8 +112,8 @@ this heading if none does. -->
   enum is added, removed or retyped, and nothing compiles against the generated `Database`
   type. The file is seeded, so `update` never plants it. **An existing install whose own
   CLI moves to 2.118.0 gets the same red with the stack up, and clears it the same way:**
-  `pnpm db:types`, then commit the diff. The CLI still floats until it is pinned (#88), so a
-  later release can do this again (#40).
+  `pnpm db:types`, then commit the diff. New scaffolds now pin the CLI (see Changed), and
+  an install whose catalog still gives a range can meet this again with a later CLI (#40).
 - **A `types-drift` FAIL shows the diff.** It used to print only "stale", and in CI that
   line also went through the Stop hook's head-and-tail trim, so nobody could read from a log
   which lines had changed. Before the unchanged FAIL sentence the gate now writes each side's
@@ -373,6 +373,21 @@ this heading if none does. -->
   and `SWEEPS['1.0.4']` in `scripts/ci/upgrade-sweep.mjs` is reviewed-empty), so `update`
   prints the `--refresh-seeded` command that pulls it, and the seeded sentences that name it
   reach fresh scaffolds only (#47).
+- **The catalog pins the Supabase CLI exactly, at 2.118.0.** It read `supabase: ^2.34.3`,
+  and the scaffold ships no lockfile, so every fresh install and every CI run took the
+  newest 2.x. That is how CI moved to 2.117.0 and then to 2.118.0 with no commit, and each
+  move redded an unchanged tree (#40 above). 1.0.3's "The Supabase CLI is pinned exactly"
+  meant the Renovate rule with `rangeStrategy: "pin"`, which did nothing until Renovate ran
+  on this repository; the catalog did not change then. Renovate now runs here, its
+  Dependency Dashboard lists the pin, and the rule proposes each later CLI in its own PR,
+  with a note telling the reviewer to regenerate the database types when `types-drift`
+  reds and to re-check the upstream issue the `auth-posture-cli-census` deferral names.
+  2.118.0 is the CLI the committed types were regenerated with. A new test,
+  `tests/gates/supabase-cli-pin.test.mjs`, holds the pin exact and at or above 2.117.0,
+  because the ADR on authenticated write grants rejects pinning the CLI back to make a test
+  pass, and holds the Renovate rule that moves it. `pnpm-workspace.yaml` is seeded, so only
+  new scaffolds get the pin: `update` leaves an install's catalog alone, and the upgrade
+  runbook's 1.0.4 section says how to take it (#88).
 
 ### Corrections to the record
 
@@ -468,6 +483,14 @@ this heading if none does. -->
   `tools/ci/device-e2e-matrix.sh`, are named in their entries as unproven, and writing those
   tests is out of scope. #73's consumer-side lint job, for shells and job timeouts, does
   not cover this factory closure (#55).
+- **An existing install keeps its own CLI entry, and the pin is only as current as the
+  Renovate PR a maintainer merges.** `update` does not touch the seeded catalog, so an
+  install created before 1.0.4 keeps `^2.34.3` and its lockfile decides the CLI its CI
+  installs. Each later CLI reaches new scaffolds only when a maintainer merges Renovate's
+  Supabase CLI PR, and it can need regenerated types. The dated sentences that say the pin
+  is `^2.34.3`, in `tools/check-auth-posture.mjs`, the gates catalog,
+  `supabase/config.toml` and `scripts/obligations.json`, record what was true when they
+  were written and are unchanged (#88).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -623,6 +646,14 @@ this heading if none does. -->
   made `workflow-lanes` fail naming the module file, and one module `uses:` moved to `@v7`
   made `check-ci-preconditions` exit 1 naming the module path and line; on the base the
   last two edits stayed green (#55).
+  `tests/gates/supabase-cli-pin.test.mjs` was red on this release's base, on the caret
+  range and on the rule's missing PR note, and green after; its fixture cases red a range,
+  a prerelease, a version below 2.117.0, a missing entry, a missing or non-pin rule and a
+  disabled package on both sides. `renovate-config-validator --strict` (Renovate 44.119.1)
+  passed on the edited `renovate.json`, as a repository config and as a global one, and
+  failed on a copy with a misspelled `prBodyNotes`. On 2026-09-29 supabase/cli#5894, the
+  upstream issue `auth-posture-cli-census` names, was still open with no milestone and no
+  linked pull request, so the deferral's condition is unmet (#88).
 
 ## [1.0.3] — 2026-09-23
 

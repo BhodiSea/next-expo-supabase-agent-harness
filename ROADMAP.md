@@ -24,13 +24,6 @@ when they fall due.
   reporting). The second half is a check that compares the framework
   floor against the vendor's advisory feed, so that a security release is
   noticed when it ships and not when a review window happens to end.
-- **Get dependency updates flowing.** `renovate.json` is configured here and in
-  every scaffold, and CONTRIBUTING ground rule 5 says Renovate maintains the
-  pins, but the Renovate app has never opened a pull request on this
-  repository. Until it does, exact pins go stale and caret ranges move
-  unobserved. The Supabase CLI is a caret range, which is how CI picked up a
-  new local database image in September 2026 with no commit (1.0.2 CHANGELOG).
-  Install the app, then pin the CLI exactly.
 - **Issue #10**: the Maestro mutation journey fails on the Android emulator in
   the scheduled device lane.
 
