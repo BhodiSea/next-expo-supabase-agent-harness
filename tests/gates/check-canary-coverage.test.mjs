@@ -15,7 +15,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,20 +32,52 @@ const REGISTRY = fileURLToPath(new URL('../canary/injections.json', import.meta.
 const realRegistry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
 const stepNames = [...config.VALIDATE_STEPS, ...config.STOP_HOOK_STEPS].map(([name]) => name)
 
-// The same job-id parse the checker itself performs — over ALL EIGHT shipped workflows
-// since 0.3.0, not just the merge gate. The single hardcoded filename is what made codeql,
-// gitleaks, osv-scan, actions-lint, adr-guard, migration-safety and mutation invisible to
-// the lane closure: seven blocking lanes a reviewer reads as enforcement, none of which had
-// to carry a red-proof.
+// The same job-id parse the checker itself performs — over EVERY shipped workflow, base and
+// modules. Base since 0.3.0, not just the merge gate: the single hardcoded filename is what
+// made codeql, gitleaks, osv-scan, actions-lint, adr-guard, migration-safety and mutation
+// invisible to the lane closure, seven blocking lanes a reviewer reads as enforcement, none
+// of which had to carry a red-proof. Modules since 1.0.4 (#55): the ten module workflows sat
+// outside the closure the same way, and their jobs are keyed '<module>/<file>#<job>' in
+// #moduleLanes, never bare ids in #lanes.
 const WORKFLOW_DIR = join(ROOT_DIR, 'template/base/github/workflows')
+/** @param {string} text @returns {string[]} */
+const jobIdsIn = (text) => {
+  const at = text.indexOf('\njobs:')
+  return at === -1 ? [] : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+}
 const jobIds = readdirSync(WORKFLOW_DIR)
   .filter((f) => /\.ya?ml$/.test(f))
   .sort()
-  .flatMap((f) => {
-    const text = readFileSync(join(WORKFLOW_DIR, f), 'utf8')
-    const at = text.indexOf('\njobs:')
-    return at === -1 ? [] : [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
+  .flatMap((f) => jobIdsIn(readFileSync(join(WORKFLOW_DIR, f), 'utf8')))
+// Derived here, independently of the checker's walk, so the LIVE LOCKSTEP below cannot share
+// a bug with it: template/modules/<module>/github/workflows/*.y?ml, keyed from directory and
+// file NAMES joined with '/' and '#' (never a filesystem path — this suite also runs on Windows).
+const MODULES_DIR = join(ROOT_DIR, 'template/modules')
+/** @type {Array<{ key: string, module: string, file: string, id: string, body: string }>} */
+const moduleJobs = readdirSync(MODULES_DIR)
+  .sort()
+  .filter((module) => existsSync(join(MODULES_DIR, module, 'github', 'workflows')))
+  .flatMap((module) => {
+    const dir = join(MODULES_DIR, module, 'github', 'workflows')
+    return readdirSync(dir)
+      .filter((f) => /\.ya?ml$/.test(f))
+      .sort()
+      .flatMap((file) => {
+        const text = readFileSync(join(dir, file), 'utf8')
+        const at = text.indexOf('\njobs:')
+        if (at === -1) return []
+        const region = text.slice(at)
+        const heads = [...region.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)]
+        return heads.map((m, i) => ({
+          key: `${module}/${file}#${m[1]}`,
+          module,
+          file,
+          id: m[1],
+          body: region.slice(m.index, heads[i + 1]?.index ?? region.length),
+        }))
+      })
   })
+const moduleJobKeys = moduleJobs.map((j) => j.key)
 
 // The FACTORY universes (0.7.0), derived the same way the checker derives them. The gate
 // scripts: every scripts/check-*.mjs plus hygiene.mjs and generate-floor.mjs. The hook
@@ -121,7 +153,37 @@ function greenRegistry() {
     factoryLanes: Object.fromEntries(
       factoryJobKeys.map((k) => [k, [{ kind: 'steps', note: 'fixture note' }]]),
     ),
+    moduleLanes: Object.fromEntries(
+      moduleJobKeys.map((k) => [k, [{ kind: 'steps', note: 'fixture note' }]]),
+    ),
     hookRules: greenHookRules(),
+  }
+}
+
+/**
+ * A synthetic module tree for --modules-dir: `{ '<module>': { '<file>': text } }`. A module
+ * given `null` gets a directory with no github/workflows at all (a module that ships none).
+ * @param {Record<string, Record<string, string> | null>} modules
+ */
+function modulesFixture(modules) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-cancov-modules-'))
+  for (const [module, files] of Object.entries(modules)) {
+    mkdirSync(join(dir, module), { recursive: true })
+    if (files === null) continue
+    const wf = join(dir, module, 'github', 'workflows')
+    mkdirSync(wf, { recursive: true })
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(wf, file), text)
+  }
+  return dir
+}
+/** A workflow text with the given job ids, each carrying steps. */
+const workflowText = (jobs) =>
+  `name: x\non: workflow_dispatch\njobs:\n${jobs.map((j) => `  ${j}:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n`).join('')}`
+/** The green registry with #moduleLanes replaced by exactly the given keys. */
+function registryWithModuleLanes(keys) {
+  return {
+    ...greenRegistry(),
+    moduleLanes: Object.fromEntries(keys.map((k) => [k, [{ kind: 'steps', note: 'synthetic note' }]])),
   }
 }
 
@@ -173,12 +235,15 @@ function syntheticFactorySections() {
  * shipped hooks, which no synthetic registry covers. A flag rather than a positional so a
  * case needing only a hook universe does not have to supply the factory paths first.
  * @param {string} registryPath @param {string} hookContractPath
- * @param {{ spawn?: boolean, factory?: { scriptsDir: string, hookPath: string, workflowsDir: string }, hooksDir?: string }} [opts]
+ * `modulesDir` (1.0.4, #55) becomes the --modules-dir= flag, for the same reason: the module-lane
+ * closure walks a DIRECTORY, so the tree-shape cases present a synthetic one.
+ * @param {{ spawn?: boolean, factory?: { scriptsDir: string, hookPath: string, workflowsDir: string }, hooksDir?: string, modulesDir?: string }} [opts]
  */
-function run(registryPath, hookContractPath, { spawn = false, factory, hooksDir = GREEN_HOOKS_DIR } = {}) {
+function run(registryPath, hookContractPath, { spawn = false, factory, hooksDir = GREEN_HOOKS_DIR, modulesDir } = {}) {
   const args = [registryPath, hookContractPath]
   if (factory !== undefined) args.push(factory.scriptsDir, factory.hookPath, factory.workflowsDir)
   if (hooksDir !== undefined) args.push(`--hooks-dir=${hooksDir}`)
+  if (modulesDir !== undefined) args.push(`--modules-dir=${modulesDir}`)
   if (!spawn) args.push('--no-spawn')
   const env = { ...process.env }
   delete env.CI
@@ -247,7 +312,7 @@ test('LIVE LOCKSTEP (static): the shipped registry covers exactly the real steps
   assert.deepEqual(
     [...Object.keys(realRegistry.lanes)].sort(),
     [...jobIds].sort(),
-    'tests/canary/injections.json#lanes must equal the jobs of EVERY shipped workflow, bidirectionally',
+    'tests/canary/injections.json#lanes must equal the jobs of EVERY shipped BASE workflow, bidirectionally (module jobs live in #moduleLanes)',
   )
   // Every registered proof kind is one the checker knows.
   for (const proofs of [...Object.values(realRegistry.steps), ...Object.values(realRegistry.lanes)]) {
@@ -393,6 +458,195 @@ test('RED: a factoryGates lane declaration naming a nonexistent workflow job fai
   const r = run(registryPath, contractPath, { factory: factoryFixture() })
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes("factory gate 'fmt': lane declaration \"ci.yml#no-such-job\""), r.out)
+})
+
+// ── the module-lane closure (1.0.4, #55) ─────────────────────────────────────────────
+// Through 1.0.3 the lane closure read template/base/ only, so the ten module workflows and
+// their 17 jobs were outside it (CHANGELOG 1.0.2, "How it was missed"). They are keyed
+// '<module>/<file>#<job>' in their own #moduleLanes section, never bare ids in #lanes: #lanes
+// keys count as conformance and Essential Eight evidence, and module job ids are generic
+// (build, push, publish, attest) — a bare 'build' would also merge with the `build` step.
+
+const WORKFLOW_LANES_PROOF = 'tests/gates/workflow-lanes.test.mjs'
+// A module tool a job invokes: `node tools/x.mjs` or `bash tools/ci/x.sh`, outside a comment.
+const TOOL_CALL = /^[^#\n]*\b(?:node|bash)\s+(tools\/[A-Za-z0-9._/-]+\.(?:mjs|sh))/gm
+
+test('LIVE LOCKSTEP (static): #moduleLanes covers exactly the module job keys, and every note states its limits', () => {
+  assert.ok(moduleJobKeys.length >= 17, `expected the module workflow fleet, got ${String(moduleJobKeys.length)} job(s)`)
+  const registered = Object.keys(realRegistry.moduleLanes ?? {})
+  for (const key of moduleJobKeys) {
+    assert.ok(registered.includes(key), `module job '${key}' has no tests/canary/injections.json#moduleLanes entry`)
+  }
+  for (const key of registered) {
+    assert.ok(moduleJobKeys.includes(key), `#moduleLanes covers '${key}', which is no module workflow job — stale entry`)
+  }
+  assert.equal(typeof realRegistry.moduleLanesComment, 'string', 'the #moduleLanes section carries a moduleLanesComment')
+  // #lanes stays base-only and bare-keyed: no module key leaked into the evidence union.
+  for (const key of Object.keys(realRegistry.lanes)) {
+    assert.ok(!key.includes('#') && !key.includes('/'), `#lanes key '${key}' is module-qualified — it belongs in #moduleLanes`)
+  }
+  for (const job of moduleJobs) {
+    const proofs = realRegistry.moduleLanes[job.key]
+    for (const proof of proofs) {
+      assert.ok(['fixture', 'runner', 'selftest', 'steps'].includes(proof.kind), JSON.stringify(proof))
+      assert.ok(typeof proof.note === 'string' && proof.note.trim() !== '', `${job.key}: every proof states what it does not cover`)
+    }
+    assert.ok(
+      proofs.some((p) => p.kind === 'fixture' && p.ref === WORKFLOW_LANES_PROOF),
+      `${job.key}: the wiring half this repo owns is proven by ${WORKFLOW_LANES_PROOF}`,
+    )
+    if (/^[^#\n]*node tools\/validate\.mjs --min-floor/m.test(job.body)) {
+      assert.ok(
+        proofs.some((p) => p.kind === 'steps'),
+        `${job.key} runs node tools/validate.mjs --min-floor, whose every step is proven in #steps — declare {"kind":"steps"} with a note`,
+      )
+    }
+    // A MODULE tool the job runs is proven by a fixture that names it, or the entry says it is not.
+    for (const [, tool] of job.body.matchAll(TOOL_CALL)) {
+      if (!existsSync(join(MODULES_DIR, job.module, tool))) continue // a base tool — proven elsewhere
+      const base = tool.slice(tool.lastIndexOf('/') + 1)
+      const provenBy = proofs.some(
+        (p) =>
+          p.kind === 'fixture' &&
+          p.ref !== WORKFLOW_LANES_PROOF &&
+          readFileSync(join(ROOT_DIR, p.ref), 'utf8').includes(base),
+      )
+      const namedUnproven = proofs.some((p) => p.note.includes(tool) && p.note.includes('no factory test'))
+      assert.ok(
+        provenBy || namedUnproven,
+        `${job.key} runs the module tool ${tool}: cite the fixture that tests it, or name it in a note as having no factory test`,
+      )
+    }
+  }
+})
+
+test('GREEN: a synthetic module tree fully covered by #moduleLanes is CLEAN, and the CLEAN line counts it', () => {
+  const modulesDir = modulesFixture({
+    alpha: { 'ship.yml': workflowText(['build', 'push']) },
+    beta: { 'deploy.yaml': workflowText(['build']) },
+    gamma: null,
+  })
+  const reg = registryWithModuleLanes(['alpha/ship.yml#build', 'alpha/ship.yml#push', 'beta/deploy.yaml#build'])
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath, { modulesDir })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('CANARY COVERAGE: CLEAN'), r.out)
+  assert.ok(r.out.includes('3 module lanes closed'), r.out)
+})
+
+test('GREEN: the real module tree under the green registry reports its module-lane count', () => {
+  const { registryPath, contractPath } = fixture(greenRegistry())
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes(`${String(moduleJobKeys.length)} module lanes closed`), r.out)
+})
+
+test('RED: a module job with no #moduleLanes entry fails, naming its <module>/<file>#<job> key', () => {
+  const reg = greenRegistry()
+  delete reg.moduleLanes['eas-update/eas-update.yml#publish']
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("module workflow job 'eas-update/eas-update.yml#publish' has NO entry"), r.out)
+})
+
+test('RED: a stale #moduleLanes key naming no real module job fails', () => {
+  const reg = greenRegistry()
+  reg.moduleLanes['eas-update/eas-update.yml#no-such-job'] = [{ kind: 'steps', note: 'stale' }]
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("moduleLanes registry covers 'eas-update/eas-update.yml#no-such-job'"), r.out)
+  assert.ok(r.out.includes('stale entry'), r.out)
+})
+
+test('RED: a malformed #moduleLanes key (a bare id, no module prefix, no job) is rejected', () => {
+  for (const bad of ['publish', 'eas-update.yml#publish', 'eas-update/eas-update.yml']) {
+    const reg = greenRegistry()
+    reg.moduleLanes[bad] = [{ kind: 'steps', note: 'malformed' }]
+    const { registryPath, contractPath } = fixture(reg)
+    const r = run(registryPath, contractPath)
+    assert.equal(r.code, 1, `${bad}: ${r.out}`)
+    assert.ok(r.out.includes(`moduleLanes key '${bad}' is not shaped '<module>/<workflow-file>#<job>'`), r.out)
+  }
+})
+
+test('RED: a module workflow with no jobs: block fails, naming the file', () => {
+  const modulesDir = modulesFixture({
+    alpha: { 'ship.yml': workflowText(['build']), 'broken.yml': 'name: x\non: workflow_dispatch\n' },
+  })
+  const { registryPath, contractPath } = fixture(registryWithModuleLanes(['alpha/ship.yml#build']))
+  const r = run(registryPath, contractPath, { modulesDir })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /alpha\/github\/workflows\/broken\.yml exposes no `jobs:` block — the module-lane closure cannot fail open/, r.out)
+})
+
+test('RED: a module workflow whose jobs: block holds no parseable job fails, naming the file', () => {
+  const modulesDir = modulesFixture({
+    alpha: {
+      'ship.yml': workflowText(['build']),
+      'flat.yml': 'name: x\non: workflow_dispatch\njobs:\n    too-deep:\n      runs-on: ubuntu-latest\n',
+    },
+  })
+  const { registryPath, contractPath } = fixture(registryWithModuleLanes(['alpha/ship.yml#build']))
+  const r = run(registryPath, contractPath, { modulesDir })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /alpha\/github\/workflows\/flat\.yml exposes no parseable jobs — the module-lane closure cannot fail open/, r.out)
+})
+
+test('RED: no module workflows at all fails closed, for an empty tree and a missing directory alike', () => {
+  const empty = modulesFixture({ alpha: null, beta: null })
+  const missing = join(mkdtempSync(join(tmpdir(), 'epah-cancov-nomodules-')), 'absent')
+  for (const modulesDir of [empty, missing]) {
+    const { registryPath, contractPath } = fixture(registryWithModuleLanes([]))
+    const r = run(registryPath, contractPath, { modulesDir })
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('no module workflows found at all — the module-lane closure cannot fail open'), r.out)
+    assert.ok(!r.out.includes('ENOENT'), `a missing directory is a finding, not a crash:\n${r.out}`)
+  }
+})
+
+test('RED: a note-less {kind:"steps"} #moduleLanes declaration, a missing fixture ref and an unknown kind each fail', () => {
+  const reg = greenRegistry()
+  reg.moduleLanes['eas-update/eas-update.yml#publish'] = [{ kind: 'steps' }]
+  reg.moduleLanes['store-metadata/store-metadata-push.yml#push'] = [
+    { kind: 'fixture', ref: 'tests/gates/does-not-exist.test.mjs', note: 'dangling' },
+  ]
+  reg.moduleLanes['eval-live/eval-live.yml#live-eval'] = [{ kind: 'vibes', note: 'unknown' }]
+  const { registryPath, contractPath } = fixture(reg)
+  const r = run(registryPath, contractPath)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(
+    r.out.includes(`module lane 'eas-update/eas-update.yml#publish': a {"kind":"steps"} declaration must carry a non-empty note`),
+    r.out,
+  )
+  assert.ok(
+    r.out.includes("module lane 'store-metadata/store-metadata-push.yml#push': fixture proof tests/gates/does-not-exist.test.mjs does not exist"),
+    r.out,
+  )
+  assert.ok(r.out.includes(`module lane 'eval-live/eval-live.yml#live-eval': unknown proof kind "vibes"`), r.out)
+})
+
+test('RED (spawn, G28): a #moduleLanes fixture proof is EXECUTED, and --no-spawn only checks it exists', () => {
+  // The lanes loop and the module loop judge a proof through one function, so a module proof
+  // meets the same bar as a lane proof: present, runnable, green, with real tests.
+  const brokenRel = 'tests/gates/.tmp-broken-module-proof.test.mjs'
+  writeFileSync(
+    join(ROOT_DIR, brokenRel),
+    "import { test } from 'node:test'\nimport assert from 'node:assert/strict'\ntest('deliberately fails', () => assert.equal(1, 2))\n",
+  )
+  try {
+    const modulesDir = modulesFixture({ alpha: { 'ship.yml': workflowText(['build']) } })
+    const reg = { moduleLanes: { 'alpha/ship.yml#build': [{ kind: 'fixture', ref: brokenRel, note: 'broken' }] } }
+    const { registryPath, contractPath } = fixture(reg)
+    const spawned = run(registryPath, contractPath, { spawn: true, modulesDir })
+    assert.equal(spawned.code, 1, spawned.out)
+    assert.ok(spawned.out.includes(`module lane 'alpha/ship.yml#build': red-proof ${brokenRel} FAILS when run`), spawned.out)
+    const staticOnly = run(registryPath, contractPath, { modulesDir })
+    assert.ok(!staticOnly.out.includes('FAILS when run'), staticOnly.out)
+  } finally {
+    rmSync(join(ROOT_DIR, brokenRel), { force: true })
+  }
 })
 
 test('RED: a guard rule id with no behavioral canary fails, naming the rule', () => {
