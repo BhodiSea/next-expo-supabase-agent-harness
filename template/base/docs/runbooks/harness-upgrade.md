@@ -1603,8 +1603,9 @@ naming the parked copy.
 ## 1.1.0 — the sharper verdicts release: the 1.0.0 notes fall due
 
 **If your `baseVersion` is 1.0.0 or later, nothing expires for you.** Every ramp 1.0.0
-opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. The
-one thing a 1.0.x install can meet here is the uuid arrival NOTE below. Read what applies
+opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. What
+the version bump itself brings a 1.0.x install is the uuid arrival NOTE below; each ramp a
+later 1.1.0 change opens has its own part of this section. Read what applies
 to YOUR `baseVersion` off `node scripts/ci/ramp-expectations.mjs <your base> 1.1.0` in a
 harness checkout, and off `pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in
 your own tree, never off this page.

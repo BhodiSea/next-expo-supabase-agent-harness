@@ -214,8 +214,8 @@ register's dating is release-clockless by design: the ASD expiring-exception int
 carried by the both-ways closure (a suppression cannot outlive its site, and adding
 one is a two-place, write-guard-reviewed act), never by a calendar date a chain step
 must not consult. Findings ramped for pre-1.0.0 installs until 1.1.0 (expired — hard
-for every install since 1.1.0). Not covered: whether a reason is TRUE — that is the reviewer's half, exactly as it is for
-every other reviewed register.
+for every install since 1.1.0). Not covered: whether a reason is TRUE — that is the
+reviewer's half, exactly as it is for every other reviewed register.
 
 ### 8. provenance — `node tools/check-sources.mjs`
 
@@ -262,7 +262,8 @@ installer's module list, write-guarded and refreshed by `update`, with a factory
 lockstep test holding the two set-equal — so a typo'd module name can no longer park
 the stale arm permanently dormant; unknown or retired names red (ramped for pre-1.0.0
 installs until 1.1.0, `exports-walls-module-closure-ramp-expiry`, expired — hard for
-every install since 1.1.0), and a missing or malformed module list fails closed unramped naming `update`.
+every install since 1.1.0), and a missing or malformed module list fails closed unramped
+naming `update`.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
@@ -298,8 +299,7 @@ finding's vintage: the directory keying's findings ramped for pre-0.9.5 installs
 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`, expired — hard for every real
 install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs until
 1.1.0 (`boundaries-anatomy-widening-ramp-expiry`, expired — hard for every install since
-1.1.0). The allow-file shape problems and
-the zero-files-scanned floor are never ramped.
+1.1.0). The allow-file shape problems and the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
 vertical depend on another → FAIL "verticals never import each other"; put a `node:fs`
@@ -327,9 +327,9 @@ the delete-account function's ordering-not-retries correctness argument), and th
 non-null posture it ships (the rate limiter's 1s `AbortSignal.timeout`) is the
 register agreeing with the code that already carried it. Posture constants are
 provenance decision sites (`SOURCE:` on the line). Findings ramped for pre-1.0.0
-installs until 1.1.0 (expired — hard for every install since 1.1.0). Not covered: runtime behaviour (the unit/e2e lanes'
-half) and transports reached through a dependency's own internals — stated per the
-Covers / Does NOT cover discipline.
+installs until 1.1.0 (expired — hard for every install since 1.1.0). Not covered:
+runtime behaviour (the unit/e2e lanes' half) and transports reached through a
+dependency's own internals — stated per the Covers / Does NOT cover discipline.
 
 ### 11. observability — `node tools/check-observability.mjs`
 

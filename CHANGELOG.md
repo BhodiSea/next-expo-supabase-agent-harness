@@ -96,11 +96,17 @@ this heading if none does. -->
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
   arrived uuid target. The new `docs-sync` test was red on the arrived census, the renamed
   GROWN-list test red while `VINTAGES` lacked `1.0.4`, and the new sweep test red while
-  `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. The v1.0.4 tag is
-  local until the maintainer pushes it, so the tag-reading checks on this pull request's CI
-  compare against v1.0.3 and `check-ramp-ledger`'s vintage closure there reports `1.0.4`
-  as not yet released; the local run with the tag present is the one that proves this
-  commit (#39).
+  `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. `upgrade-linux` ran
+  locally on four legs. Leg A, from v1.0.3 and from v1.0.4, parked the uuid fix, took the
+  harness's register and graduated un-swept to 1.1.0. Leg M, from v0.11.0, met the seven
+  expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`, the other
+  five gates had nothing to withhold, and `graduate` refused on the red chain. Leg E, from
+  v0.3.0, ran the 1.0.0 sweep and `graduate` moved it to 1.1.0. A v1.0.4 scaffold updated
+  without the register pull printed the arrival as a NOTE that expires in 1.2.0, and at a
+  simulated harness 1.2.0 as `RAMP EXPIRED`. The v1.0.4 tag is local until the maintainer
+  pushes it, so the tag-reading checks on this pull request's CI compare against v1.0.3,
+  and `check-ramp-ledger`'s vintage closure there reports `1.0.4` as not yet released. The
+  local run with the tag present is the one that proves this commit (#39).
 
 ## [1.0.4] — 2026-09-29
 

@@ -716,7 +716,7 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "21a100c58528c492153d015ae515de4a68be913294e5a01370ba86bb30e41278",
+        "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
             120772,
@@ -897,7 +897,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "82552fe621e9e4704128ba8cb1fb19453a23a983231c3bede60db76a39e11569",
+        "sha256": "f3eaa6d27057344d8936c51414d334bb039cc82da912e562fa85151f0933c080",
         "sites": [
           [
             14115,
@@ -1192,7 +1192,7 @@
     ],
     "tools/check-docs-sync.mjs": [
       {
-        "sha256": "5ec4baa13ea6ed61463b8288d72f8b3171ce11c336d6b7e0f16ceb9296c2de90"
+        "sha256": "1e1de2e4d05792aa1c65dd8806e22546a91fb29260d0b276014646972a6d2931"
       }
     ],
     "tools/check-duplication.mjs": [
@@ -1428,7 +1428,7 @@
     ],
     "tools/check-workspace-deps.mjs": [
       {
-        "sha256": "b2b149070eb304456de55692cd708e0568f6c353bfb54ef102f9c8fbe6340a60"
+        "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
       }
     ],
     "tools/ci/device-e2e-matrix.sh": [
