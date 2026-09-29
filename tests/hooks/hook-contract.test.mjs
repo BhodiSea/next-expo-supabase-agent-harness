@@ -479,7 +479,12 @@ const RULE_CANARIES = {
     pathAllow('tools/lib/citation-domains.mjs', SELF_EDIT),
   ],
   'tools-lib': [pathDeny('tools/lib/gate.mjs')],
-  'tools-mcp': [pathDeny('tools/mcp/corpus-search-server.mjs')],
+  'tools-mcp': [
+    pathDeny('tools/mcp/corpus-search-server.mjs'),
+    // 1.0.4: the project corpus is the reviewed place a project adds an authority;
+    // adding one stays a human act.
+    pathDeny('tools/mcp/corpus/project.json'),
+  ],
   'lock-json': [pathDeny('tools/identity.lock.json'), pathDeny('tools/prompts.lock.json')],
   'rls-exempt': [pathDeny('tools/rls-exempt.json')],
   // The tenancy contract: predicateForms IS the definition of a correct tenant

@@ -355,6 +355,20 @@ test('1.0.0 — the web MFA seams travel WITH the derived-copied files that impo
   assert.equal(computeSweepSet(MIGRATIONS, '0.10.0', '0.11.1').reconcileDataFlowExclusions, false)
 })
 
+// ── 1.0.4: the project corpus skeleton is withheld, and the sweep adopts none of it ──
+test('1.0.4 — the hop from 1.0.3 has a reviewed sweep posture, and adopts no project corpus', () => {
+  // The record withholds tools/mcp/corpus/project.json (seedOnInitOnly), so
+  // computeSweepSet throws until SWEEPS carries a '1.0.4' entry. The entry is empty:
+  // provenance reads an absent project.json as empty, so a swept leg adopts nothing.
+  assert.ok(
+    (MIGRATIONS['1.0.4'].seedOnInitOnly ?? []).includes('tools/mcp/corpus/project.json'),
+    'the 1.0.4 record must withhold the project corpus skeleton',
+  )
+  assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.3', '1.0.4'))
+  const { adopt } = computeSweepSet(MIGRATIONS, '1.0.3', '1.0.4')
+  assert.ok(!adopt.includes('tools/mcp/corpus/project.json'), adopt.join(', '))
+})
+
 test('reconcileDataFlowExclusions only ever REMOVES: a stale exclusion goes, a real one stays, nothing is added', () => {
   const dataFlow = {
     export: {

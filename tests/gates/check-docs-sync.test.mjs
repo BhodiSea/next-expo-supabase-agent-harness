@@ -1450,6 +1450,66 @@ test('RED: an unresolvable corpus id and an off-allowlist host both red', () => 
   assert.ok(badHost.out.includes('some-random-blog.example'), badHost.out)
 })
 
+// 1.0.4: an ADR may cite an authority the project pinned in tools/mcp/corpus/project.json.
+// docs-sync takes ids only; the per-entry lint is the provenance gate's subject.
+const ADR_CITING = (id) =>
+  ADR_OK.replace(
+    '- <https://www.postgresql.org/docs/current/ddl-rowsecurity.html> — backs the fixture.',
+    `- \`[corpus: ${id}]\` — backs the fixture decision.`,
+  )
+
+test('GREEN: an ADR citing an id that only tools/mcp/corpus/project.json pins resolves', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': JSON.stringify({
+          comment: 'fixture',
+          entries: [{ id: 'project/adr-authority' }],
+        }),
+        'docs/adr/29990101-x.md': ADR_CITING('project/adr-authority'),
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: an ADR citing an id in neither corpus file names both files', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': JSON.stringify({
+          comment: 'fixture',
+          entries: [{ id: 'project/adr-authority' }],
+        }),
+        'docs/adr/29990101-x.md': ADR_CITING('project/ghost'),
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('[corpus: project/ghost]'), r.out)
+  assert.ok(r.out.includes('tools/mcp/corpus/index.json'), r.out)
+  assert.ok(r.out.includes('tools/mcp/corpus/project.json'), r.out)
+})
+
+test('a malformed project.json skips the ADR corpus-id check, as a malformed index always has', () => {
+  // provenance reds the malformed file; docs-sync must not red every ADR on its behalf.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'tools/mcp/corpus/index.json': JSON.stringify([{ id: 'real/id' }]),
+        'tools/mcp/corpus/project.json': 'not json {',
+        'docs/adr/29990101-x.md': ADR_CITING('project/ghost'),
+      },
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
 test('NOTE: ADR shape findings are advisory on a pre-0.9.5 install until 0.11.0', () => {
   const files = { 'docs/adr/29990101-hollow.md': '# hollow\n\n- **Status:** Accepted\n' }
   // harnessVersion stays below 0.10.0: at 0.10.0 the fixture would instead red on the
