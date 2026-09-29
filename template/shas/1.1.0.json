@@ -1534,7 +1534,7 @@
     ],
     "tools/ci/surface-deferral.mjs": [
       {
-        "sha256": "76200571e0d866f2856c32730774c4a2bea9b7190de0febaf04d7571bf8b6163"
+        "sha256": "af43a63be1f9e311bea3134794daa40f9c7ec0fc09676dedcb595c9c9ddc7fbb"
       }
     ],
     "tools/conformance-map.json": [

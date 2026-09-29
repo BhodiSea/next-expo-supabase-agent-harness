@@ -52,7 +52,11 @@ const GATE = 'surface-deferral'
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 // A built app voids a row with one cause per file. The log names this many, then counts.
 const CAUSES_LOGGED = 20
-const HINT = `\nA deferral is a reviewed row in ${REGISTER_PATH}: { "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "<one line>" }. Fix the row, or delete it; either way it lands as a commit a human reviews.`
+// lib/gate.mjs's FIX line drops every --flag=value argument, and this script without its
+// --mode is a usage error, so the hint names the command that reproduces the verdict.
+/** @param {string} mode @param {string} today */
+const hint = (mode, today) =>
+  `\nA deferral is a reviewed row in ${REGISTER_PATH}: { "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "<one line>" }. Fix the row, or delete it; either way it lands as a commit a human reviews.\nReproduce this verdict: node tools/ci/surface-deferral.mjs --mode=${mode} --today=${today}`
 
 /** @param {string} name @param {string} fallback */
 const arg = (name, fallback) =>
@@ -189,7 +193,7 @@ function prMode(today) {
   const out = prOutputs(classified, problems)
   emit(out)
   table(classified, today, note)
-  failures(GATE, problems, HINT)
+  failures(GATE, problems, hint('pr', today))
   const lanes = SURFACES.mobile.lanes.join(' and ')
   note(
     out.deferred
@@ -211,7 +215,7 @@ function reviewMode(today) {
   }
   const classified = rows.length > 0 ? judge(rows, today) : []
   table(classified, today, (line) => console.log(`${GATE}: ${line}`))
-  failures(GATE, [...problems, ...reviewProblems(classified, today)], HINT)
+  failures(GATE, [...problems, ...reviewProblems(classified, today)], hint('review', today))
   ok(GATE, `${String(classified.length)} deferral(s) live as of ${today}`)
 }
 

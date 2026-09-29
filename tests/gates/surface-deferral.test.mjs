@@ -475,6 +475,20 @@ test('CLI: a past date is not deferred on a pull request, and --mode=review exit
   assert.match(review.stderr, /surface-deferral: FAIL/)
   assert.match(review.stderr, /tools\/surfaces\.json: the mobile deferral lapsed after 2026-01-31/)
   assert.match(review.stderr, /FIX\[surface-deferral\]/)
+  // lib/gate.mjs's FIX line drops every --flag=value argument, and the bare script is a
+  // usage error, so the failure names the command that reproduces this verdict.
+  assert.ok(
+    review.stderr.includes(
+      `Reproduce this verdict: node tools/ci/surface-deferral.mjs --mode=review --today=${TODAY}`,
+    ),
+    review.stderr,
+  )
+  const malformed = repo({ surfaces: '{ not json' })
+  const bad = run(malformed, '--mode=pr', `--today=${TODAY}`)
+  assert.ok(
+    bad.stderr.includes(`Reproduce this verdict: node tools/ci/surface-deferral.mjs --mode=pr --today=${TODAY}`),
+    bad.stderr,
+  )
 })
 
 test('ANTI-VACUITY (the gate proposal): --mode=review with --today after deferredUntil exits 1; the same row on its date exits 0', (t) => {
