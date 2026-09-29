@@ -438,6 +438,19 @@ test('CLI --mode=pr: an added file, a deleted recorded file and an absent manife
   assert.match(n.stderr, /VOID — .*\.harness\/manifest\.json is absent/)
 })
 
+test('CLI: a built app voids with one cause per file, and the log names the first twenty and counts the rest', (t) => {
+  if (!HAS_GIT) return t.skip(NO_GIT)
+  const screens = Object.fromEntries(
+    Array.from({ length: 25 }, (_, i) => [`apps/mobile/src/screen-${String(i).padStart(2, '0')}.tsx`, `export const n = ${String(i)}\n`]),
+  )
+  const dir = repo({ files: { ...APP, ...screens }, surfaces: register([mobileRow()]), manifest: manifestFor(APP) })
+  const res = run(dir, '--mode=pr', `--today=${TODAY}`)
+  assert.equal(res.code, 0, res.out)
+  assertPrLines(res, false)
+  assert.equal(res.stderr.split('\n').filter((l) => / has no record in /.test(l)).length, 20, res.stderr)
+  assert.match(res.stderr, /mobile deferral VOID — and 5 more cause\(s\)/)
+})
+
 test('CLI: nothing tracked and nothing recorded under apps/mobile/ (a retrofit install) is LIVE, and says zero files were compared', (t) => {
   if (!HAS_GIT) return t.skip(NO_GIT)
   const dir = repo({

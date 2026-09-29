@@ -2204,7 +2204,8 @@ even when that record cannot be written.
   injecting native source would break CNG purity) — the median + warm split is
   the managed replacement, and the parse stays armed for consumers that add a
   native binding.
-- **Surface deferral** (`changes` → `mobile-e2e`, `perf-lane`; 1.1.0) — a project that
+- **Surface deferral** (`surface-deferral`, run by `changes` for `mobile-e2e` and
+  `perf-lane`, and by `floor-review`; 1.1.0) — a project that
   builds its web surface first records the mobile surface as not built yet in the seeded
   `tools/surfaces.json`: `{ "surface": "mobile", "deferredUntil": "YYYY-MM-DD",
   "reason": "<one line>" }`, one row per surface, and `mobile` is the only surface a row

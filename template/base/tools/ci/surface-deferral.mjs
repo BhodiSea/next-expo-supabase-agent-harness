@@ -50,6 +50,8 @@ import {
 
 const GATE = 'surface-deferral'
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+// A built app voids a row with one cause per file. The log names this many, then counts.
+const CAUSES_LOGGED = 20
 const HINT = `\nA deferral is a reviewed row in ${REGISTER_PATH}: { "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "<one line>" }. Fix the row, or delete it; either way it lands as a commit a human reviews.`
 
 /** @param {string} name @param {string} fallback */
@@ -149,7 +151,11 @@ function table(classified, today, say) {
   for (const row of classified) {
     const tree = SURFACES[row.surface].tree
     if (row.status === 'void') {
-      for (const cause of row.causes) say(`${row.surface} deferral VOID — ${cause}`)
+      for (const cause of row.causes.slice(0, CAUSES_LOGGED)) {
+        say(`${row.surface} deferral VOID — ${cause}`)
+      }
+      const more = row.causes.length - CAUSES_LOGGED
+      if (more > 0) say(`${row.surface} deferral VOID — and ${String(more)} more cause(s)`)
     } else if (row.status === 'expired') {
       say(
         `${row.surface} deferral EXPIRED — its last deferred day was ${row.deferredUntil} (today is ${today})`,

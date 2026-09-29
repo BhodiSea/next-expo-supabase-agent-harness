@@ -749,7 +749,7 @@
         ]
       },
       {
-        "sha256": "7bf4dbda00b03eaa3dcdafabea07af5506ee8f3e31aba32d3939ba51797db264",
+        "sha256": "464ffa9ce677a77cb78ffc850a181e1e732e5a37e99c6239e73b771071d91f3e",
         "sites": [
           [
             121025,
@@ -1534,7 +1534,7 @@
     ],
     "tools/ci/surface-deferral.mjs": [
       {
-        "sha256": "4c929f8e0458e9bacf039cf57054ccc025ac5e0cf9dd5e0050ccbf25cd96a844"
+        "sha256": "76200571e0d866f2856c32730774c4a2bea9b7190de0febaf04d7571bf8b6163"
       }
     ],
     "tools/conformance-map.json": [
