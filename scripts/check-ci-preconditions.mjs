@@ -16,25 +16,28 @@
 //   3. every `uses:` reference is SHA-pinned (40-hex) with a version comment.
 // The judgement lives in scripts/lib/ci-preconditions.mjs so it can be proven red as a
 // pure function (tests/gates/ci-preconditions.test.mjs).
+// SHIPPED means base AND every module (1.0.4, #55). Through 1.0.3 this read the base
+// workflows only, so an unpinned action or a bare install in any of the ten module
+// workflows a consumer enables was never judged. Each file is labelled with its
+// repo-relative '/'-joined path, so a finding names its module.
 //
 //   node scripts/check-ci-preconditions.mjs    # the gate (machinery-lint, blocking)
 // SOURCE: scripts/ci/consumer-ci-static.sh (the executed proof this closes over)
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { ciPreconditionProblems } from './lib/ci-preconditions.mjs'
+import { baseWorkflows, moduleWorkflows } from './lib/shipped-workflows.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// The template stores workflows dotless (template/base/github/, never .github/) so they
+// The template stores workflows dotless (template/<tree>/github/, never .github/) so they
 // can never execute in THIS repo — the same fact lint.yml's fixture-staging step records.
-const WORKFLOW_DIR = join(ROOT, 'template/base/github/workflows')
 const INIT = join(ROOT, 'installer/commands/init.mjs')
 
-const workflows = readdirSync(WORKFLOW_DIR)
-  .filter((f) => /\.ya?ml$/.test(f))
-  .sort()
-  .map((f) => ({ file: f, text: readFileSync(join(WORKFLOW_DIR, f), 'utf8') }))
+const workflows = [...baseWorkflows(ROOT), ...moduleWorkflows(join(ROOT, 'template', 'modules'))].map(
+  ({ label, text }) => ({ file: label, text }),
+)
 
 const problems = ciPreconditionProblems({
   workflows,
@@ -53,7 +56,7 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `CI PRECONDITIONS: CLEAN (${String(workflows.length)} shipped workflow(s): every pnpm install ` +
+  `CI PRECONDITIONS: CLEAN (${String(workflows.length)} shipped workflow(s), base and modules: every pnpm install ` +
     'spells its lockfile posture, the cache: pnpm demand is backed by init\'s committed-lockfile ' +
     'guidance, every action reference SHA-pinned with a version comment)',
 )

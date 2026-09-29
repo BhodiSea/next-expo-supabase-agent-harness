@@ -607,13 +607,16 @@ test('RED: no module workflows at all fails closed, for an empty tree and a miss
 })
 
 test('RED: a note-less {kind:"steps"} #moduleLanes declaration, a missing fixture ref and an unknown kind each fail', () => {
+  /** @type {Record<string, Array<{ kind: string, ref?: string, note?: string }>>} */
+  const broken = {
+    'eas-update/eas-update.yml#publish': [{ kind: 'steps' }],
+    'store-metadata/store-metadata-push.yml#push': [
+      { kind: 'fixture', ref: 'tests/gates/does-not-exist.test.mjs', note: 'dangling' },
+    ],
+    'eval-live/eval-live.yml#live-eval': [{ kind: 'vibes', note: 'unknown' }],
+  }
   const reg = greenRegistry()
-  reg.moduleLanes['eas-update/eas-update.yml#publish'] = [{ kind: 'steps' }]
-  reg.moduleLanes['store-metadata/store-metadata-push.yml#push'] = [
-    { kind: 'fixture', ref: 'tests/gates/does-not-exist.test.mjs', note: 'dangling' },
-  ]
-  reg.moduleLanes['eval-live/eval-live.yml#live-eval'] = [{ kind: 'vibes', note: 'unknown' }]
-  const { registryPath, contractPath } = fixture(reg)
+  const { registryPath, contractPath } = fixture({ ...reg, moduleLanes: { ...reg.moduleLanes, ...broken } })
   const r = run(registryPath, contractPath)
   assert.equal(r.code, 1, r.out)
   assert.ok(
