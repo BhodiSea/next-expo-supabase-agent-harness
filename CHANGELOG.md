@@ -11,6 +11,37 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Fixed
+
+- **The committed database types match Supabase CLI 2.118.0.** The catalog gives the CLI as
+  `supabase: ^2.34.3` and the scaffold ships no lockfile, so every install and every CI run
+  takes the newest 2.x. On 2026-09-25 that became 2.118.0, which generates types natively
+  instead of through a container, and on the same schema its output no longer matched
+  `packages/platform/supabase/src/database.types.ts`. With the stack up, `types-drift`
+  reported the file stale, and from the next day's scheduled run both `bootstrap-linux`
+  legs were red on an unchanged tree.
+  The file under `template/stack/` is regenerated with 2.118.0 from a rendered scaffold
+  (`pnpm db:up && pnpm db:types`). The schema is unchanged: put through one formatter, the
+  two files differ in layout and in how a function with no arguments is written
+  (`Args: never` is now `Args: Record<PropertyKey, never>`, for `effective_limits`,
+  `ensure_personal_org` and `reconcile_org_usage`). No table, column, view, function or
+  enum is added, removed or retyped, and nothing compiles against the generated `Database`
+  type. The file is seeded, so `update` never plants it. **An existing install whose own
+  CLI moves to 2.118.0 gets the same red with the stack up, and clears it the same way:**
+  `pnpm db:types`, then commit the diff. The CLI still floats until it is pinned (#88), so a
+  later release can do this again (#40).
+- **A `types-drift` FAIL shows the diff.** It used to print only "stale", and in CI that
+  line also went through the Stop hook's head-and-tail trim, so nobody could read from a log
+  which lines had changed. Before the unchanged FAIL sentence the gate now writes each side's
+  line count, the first line that differs, and up to 20 lines of each side from there, the
+  committed file's prefixed `- ` and the generated output's prefixed `+ `. It also says when
+  that line differs only in trailing whitespace, which a log cannot show. The verdict and exit
+  code do not change, and a line-ending-only difference still passes. `update` delivers the
+  gate. `selftest.yml` also prints the CLI version and a full `diff -u` of the two files
+  when `bootstrap-linux` fails, from the stack that is still up (#40).
+
 ## [1.0.3] — 2026-09-23
 
 **A patch: the fixes merged since 1.0.2 (#27–#34), cut so an install takes them through
