@@ -1407,6 +1407,11 @@ and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
   both files. The gate's remedies now point at `project.json`. The one change that
   reaches you whether or not you create the file is in `wiring`; see "The CODEOWNERS
   case" below.
+- **`update` can exit 2 over an owned file it holds no record for.** A file at a path the
+  harness owns, with no record in `.harness/manifest.json`, is now judged by its bytes.
+  Unless a release shipped exactly those bytes for that path, `update` keeps your file,
+  parks the incoming copy and exits 2, where it used to overwrite the file and exit 0. See
+  "A harness-owned file with no manifest record" below.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
@@ -1532,10 +1537,12 @@ naming the parked copy.
    update.
 2. **Take the harness's copy.** Delete your file and the parked copy, then run `update`
    again. The path is written fresh and recorded.
-3. **Discard yours in one step.** `update --force` overwrites it with the incoming
-   version, records it and notes `--force overwrote locally-modified <path>`. `--force`
-   also discards every other drifted or forked owned file in the run, so read
-   `update --dry-run` first.
+3. **Discard yours in one step.** `update --refresh-seeded <path> --force` overwrites that
+   one file with this release's version, records its `sha256` and notes
+   `--force overwrote locally-modified <path>`; no other file is touched. Delete the parked
+   copy afterwards. A plain `update --force` does the same, but it also discards every
+   other drifted or forked owned file in the run, so read `update --dry-run` first if you
+   use it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
