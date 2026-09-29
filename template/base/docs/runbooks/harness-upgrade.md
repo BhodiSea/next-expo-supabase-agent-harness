@@ -1263,13 +1263,22 @@ reds is restated in this release's record for the same reason 1.0.1 through 1.0.
 it, and the 1.0.0 section above is still the sweep.
 
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
-sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook and the
-hook version stamps. What you may notice afterwards:
+sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook, the hooks
+under `.claude/hooks/` (their version stamps, and the telemetry below),
+`.claude/hooks/lib/hookio.mjs` and `docs/harness/README.md`. What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
   side from there (`DIFF_LINES` in the gate), the committed file's lines prefixed `- ` and
   the generated output's `+ `. The verdict and the exit code do not change.
+- **A new log, `.harness/telemetry.jsonl`.** The hooks append a record per Stop step (its
+  status, duration and `SKIPPED` count), per gate time in a step's `VALIDATE_TIMINGS` line,
+  and per in-turn deny, provenance block, Biome warning or reviewer bounce. It holds ids and
+  counts, never content, commands or paths. It is never trimmed and no gate reads it, and
+  `.harness/*` is already ignored, so it never shows in `git status`. To reset it, delete it
+  yourself: the guards deny an agent's edits and deletions under `.harness/`. If you forked
+  `.claude/hooks/lib/hookio.mjs` and `update` parked the new one under `.harness/pending/`,
+  every hook still loads and nothing is recorded until you take the parked copy.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.

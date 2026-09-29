@@ -6,12 +6,16 @@
 import { execSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
-import { readHookInput } from './lib/hookio.mjs'
+// A NAMESPACE import (1.0.4), the way subagent-verdict.mjs reaches reviewer-verdicts.mjs:
+// `appendTelemetry` is new, and an install may run this hook over a FORKED lib/hookio.mjs
+// that `update` parked rather than replaced. A named import of an export that file lacks
+// fails at link time, and launch.mjs turns that into exit 2 for every Stop.
+import * as hookio from './lib/hookio.mjs'
 import { TURN_LOG, capHitBlockEligible, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
 export const HARNESS_HOOK_VERSION = '1.0.4'
 
-const input = await readHookInput()
+const input = await hookio.readHookInput()
 const looping = input?.stop_hook_active === true
 
 // ---- BOUNDED OUTPUT WITH SPILL-TO-FILE (0.10.0) ----------------------------------------
@@ -130,10 +134,12 @@ try {
   floorNote = `could not load tools/lib/stop-chain.mjs (${e?.message ?? e}) — the floor union could not be computed`
 }
 
-const failures = []
-const failedGates = []
-const skips = []
-for (const [name, cmd] of STEPS) {
+/**
+ * Run one chain step. A green step's output is its stdout, a red step's is stdout then
+ * stderr — exactly what the hook has always judged and printed.
+ * @param {string} cmd @returns {{ ok: boolean, out: string }}
+ */
+function runStep(cmd) {
   try {
     // 64 MB: bundler export output + tsc diagnostics + docker compose logs can
     // exceed the 1 MB default and make execSync throw ENOBUFS on an otherwise-green
@@ -154,11 +160,80 @@ for (const [name, cmd] of STEPS) {
       maxBuffer: 64 * 1024 * 1024,
       stdio: 'pipe',
     })
-    for (const line of out.toString().split('\n')) {
-      if (/\bSKIPPED\b/.test(line)) skips.push(`[${name}] ${line.trim()}`)
-    }
+    return { ok: true, out: out.toString() }
   } catch (e) {
-    const out = (e.stdout?.toString() ?? '') + (e.stderr?.toString() ?? '')
+    return { ok: false, out: (e.stdout?.toString() ?? '') + (e.stderr?.toString() ?? '') }
+  }
+}
+
+// ---- STEP TELEMETRY (1.0.4) ------------------------------------------------------------
+// One `stop-step` record per step (`status`, integer `ms`, and `skips`: the output lines the
+// SKIPPED test below matches, counted for a red step too, though only a green step's are
+// printed), plus one `validate-gate` record per entry of the LAST `VALIDATE_TIMINGS` line in
+// the step's FULL output — read here, before spill() shortens it. Appended to
+// `.harness/telemetry.jsonl` through lib/hookio.mjs, which writes only inside an install,
+// never trims, and swallows every error: bookkeeping never decides a turn.
+const SKIP_RE = /\bSKIPPED\b/
+// Copied from the factory's scripts/lib/chain-budget.mjs parseTimings, not imported: an
+// install has no scripts/. "Last" because a nested member's earlier line is another chain's.
+const TIMINGS_RE = /^VALIDATE_TIMINGS (\{.*\})$/gm
+
+/** @param {string} out @returns {Array<[string, number]>} */
+function lastValidateTimings(out) {
+  let last = null
+  for (const m of out.matchAll(TIMINGS_RE)) last = m[1]
+  if (last === null) return []
+  try {
+    const parsed = JSON.parse(last)
+    if (typeof parsed?.totalMs !== 'number' || parsed.steps === null || typeof parsed.steps !== 'object') {
+      return []
+    }
+    return Object.entries(parsed.steps)
+      .filter(([, ms]) => typeof ms === 'number' && Number.isFinite(ms))
+      .map(([gate, ms]) => [gate, Math.round(ms)])
+  } catch {
+    return []
+  }
+}
+
+/** @param {string} step @param {boolean} ok @param {number} startedAt @param {string} out */
+function recordStep(step, ok, startedAt, out) {
+  try {
+    const head = {
+      at: new Date().toISOString(),
+      session_id: typeof input?.session_id === 'string' ? input.session_id : null,
+      prompt_id: typeof input?.prompt_id === 'string' ? input.prompt_id : null,
+      step,
+    }
+    const records = [
+      {
+        v: 1,
+        kind: 'stop-step',
+        ...head,
+        status: ok ? 'ok' : 'fail',
+        ms: Math.round(performance.now() - startedAt),
+        skips: out.split('\n').filter((line) => SKIP_RE.test(line)).length,
+      },
+      ...lastValidateTimings(out).map(([gate, ms]) => ({ v: 1, kind: 'validate-gate', ...head, gate, ms })),
+    ]
+    hookio.appendTelemetry?.(records)
+  } catch {
+    // bookkeeping never decides a turn
+  }
+}
+
+const failures = []
+const failedGates = []
+const skips = []
+for (const [name, cmd] of STEPS) {
+  const startedAt = performance.now()
+  const { ok, out } = runStep(cmd)
+  recordStep(name, ok, startedAt, out)
+  if (ok) {
+    for (const line of out.split('\n')) {
+      if (SKIP_RE.test(line)) skips.push(`[${name}] ${line.trim()}`)
+    }
+  } else {
     failures.push(`### ${name} FAILED (${cmd})\n${spill(name, out)}`)
     failedGates.push(name)
   }
