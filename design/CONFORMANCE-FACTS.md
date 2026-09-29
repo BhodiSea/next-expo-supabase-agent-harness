@@ -101,9 +101,9 @@ What they say:
 - **Extension: to 2026-11-01, on both pages.** On the Help page the asterisk now marks only
   the API 36 row of the general submission table, and the XR table carries none. Its
   per-form-factor "What to do to comply" text offers every form factor an extension request
-  to keep distributing to all users until 2026-11-01. So the bullet above that scopes the asterisk to
-  "API 36 general and XR only" no longer matches the page. `store-policy.json` does not assume
-  an extension, so its floor is unaffected.
+  to keep distributing to all users until 2026-11-01. So the bullet above that scopes the
+  asterisk to "API 36 general and XR only" no longer matches the page. `store-policy.json`
+  does not assume an extension, so its floor is unaffected.
 - **No later step is published.** Neither page names a requirement after 2026-08-31.
 
 The local half holds, re-checked in this tree on the same day:
@@ -269,8 +269,8 @@ What the pages say:
   reporting obligations (Article 24(3)) from 11 December 2027."
 
 **What that means here.** On 2026-09-11 no Art. 14 duty reached this repository in either
-role. As a manufacturer it is out of scope, because nothing about it is monetised, and a
-steward's Art. 14 duties do not apply until 2027-12-11. So "out of scope entirely" above is
+role. As a manufacturer it is out of scope on the reading above, as free and open-source
+software that is not monetised, and a steward's Art. 14 duties do not apply until 2027-12-11. So "out of scope entirely" above is
 true of the manufacturer duties and of today. For 2027-12-11 it is **not settled**, because
 whether this repository has a steward depends on facts the tree cannot establish.
 `package.json`, `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. Whether
