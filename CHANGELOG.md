@@ -227,6 +227,17 @@ this heading if none does. -->
   only, so that includes every unrecorded seeded file. `classifyDrift` does not change.
   `docs/cli.md` and a new subsection of the upgrade runbook's 1.0.4 section describe the
   case, and `update` re-plants the runbook (#48).
+- **CONTRIBUTING's zero-edit scaffold recipe runs `git init` before `pnpm install`, and so
+  do the issue forms.** The recipe installed first, so the scaffold's `prepare` script,
+  `lefthook install`, found no repository and the install failed before `validate` ran;
+  init's closing note, the README and `bootstrap-linux` already put git first. The
+  bug-report form's reproduction now runs `git init` and commits, and the gate-proposal
+  form's fresh-scaffold bar names `git init` and the commit. `scripts/ci/consumer-ci-static.sh`
+  quotes init's note in its current order, and so do the `check-ci-preconditions` fixtures,
+  whose regressed note still leaves out `pnpm-lock.yaml`. A new test,
+  `tests/gates/next-steps-order.test.mjs`, reds any of those texts, init's note or the
+  README's post-init block that names `pnpm install` before `git init`. The change is
+  factory-only: no `template/` file changes, and it reaches no install (#50).
 
 ### Changed
 
@@ -386,6 +397,12 @@ this heading if none does. -->
   owned file that has no record, and `gate-integrity` checks recorded files only, so the
   file stays outside the integrity check until a human records it. `update --dry-run` names
   it beforehand (#48).
+- **No CI lane makes a scaffold's first commit with the hooks installed.** With git first,
+  the recipe's first commit runs the scaffold's pre-commit and commit-msg hooks over the
+  whole tree. `bootstrap-linux` commits before it installs, `canary-mutation` installs
+  before its `git init`, and every other lane's commit after an install follows a baseline
+  commit made before it, so a hook that reds that first commit is caught by CONTRIBUTING's
+  recipe run by hand, not by CI (#50).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -502,6 +519,14 @@ this heading if none does. -->
   lock entry, `architecture-reviewer.md` took its new model pin in the file and in the lock,
   `prompts` passed and `gen-agents-lock.mjs --check` printed `in sync`, and the same install
   updated by this tree's installer ended the same way (#49).
+  `tests/gates/next-steps-order.test.mjs` was red on CONTRIBUTING's recipe and both issue
+  forms at v1.0.3 and on this release's base, green there on init's note and the README
+  block, and green on every text after the edits. In a fresh core scaffold outside any
+  repository, the old order's `pnpm install` failed at `prepare` with lefthook 2.1.14
+  reporting "not a git repository"; the reordered recipe's first commit ran lefthook's
+  pre-commit `format` and `secrets` jobs and its `commitlint` job and passed, after which
+  `.git/hooks/pre-commit` named lefthook, `pnpm-lock.yaml` was tracked and the tree was
+  clean (#50).
 
 ## [1.0.3] — 2026-09-23
 
