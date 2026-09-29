@@ -67,9 +67,10 @@ for (const { where, text } of TEXTS) {
   test(`${where} puts \`git init\` before \`pnpm install\``, () => {
     const body = text()
     assert.ok(body.trim() !== '', `${where}: the text was not found, or is empty; its anchor moved, so this check would be vacuous`)
+    const missing = ['git init', 'pnpm install'].filter((command) => !body.includes(command))
+    assert.deepEqual(missing, [], `${where}: must name both \`git init\` and \`pnpm install\`, and names no ${missing.map((command) => `\`${command}\``).join(' and no ')}:\n${body}`)
     const git = body.indexOf('git init')
     const install = body.indexOf('pnpm install')
-    assert.ok(git !== -1 && install !== -1, `${where}: must name both \`git init\` and \`pnpm install\`, and names ${git === -1 ? 'no `git init`' : 'no `pnpm install`'}:\n${body}`)
     assert.ok(
       git < install,
       `${where}: \`pnpm install\` comes before \`git init\`. The scaffold's prepare script (lefthook install) needs a repository, and \`wiring\` reds a .git/hooks with no lefthook in it, so git init must come first:\n${body}`,
