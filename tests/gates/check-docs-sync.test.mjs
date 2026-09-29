@@ -1450,6 +1450,23 @@ test('RED: an unresolvable corpus id and an off-allowlist host both red', () => 
   assert.ok(badHost.out.includes('some-random-blog.example'), badHost.out)
 })
 
+test('1.0.4: the off-allowlist host remedy names tools/mcp/corpus/project.json, where a project pins an authority', () => {
+  // Extending the owned index forks it; the project corpus is the place to add one.
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      files: {
+        'docs/adr/29990101-x.md': ADR_OK.replace(
+          'https://www.postgresql.org/docs/current/ddl-rowsecurity.html',
+          'https://some-random-blog.example/post',
+        ),
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('pin the authority in tools/mcp/corpus/project.json instead'), r.out)
+})
+
 // 1.0.4: an ADR may cite an authority the project pinned in tools/mcp/corpus/project.json.
 // docs-sync takes ids only; the per-entry lint is the provenance gate's subject.
 const ADR_CITING = (id) =>

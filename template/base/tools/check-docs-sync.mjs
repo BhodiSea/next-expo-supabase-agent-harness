@@ -416,7 +416,7 @@ for (const cmd of advertised) {
           }
           if (host !== null && !isAllowedCitationHost(host)) {
             adrFindings.push(
-              `${at} Sources cites host '${host}', which is not on the tools/lib/citation-domains.mjs allowlist — pin the authority in the corpus instead`,
+              `${at} Sources cites host '${host}', which is not on the tools/lib/citation-domains.mjs allowlist — pin the authority in ${PROJECT_CORPUS} instead`,
             )
           }
         }

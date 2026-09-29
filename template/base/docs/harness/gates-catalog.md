@@ -1735,7 +1735,8 @@ this holds the mechanical slice of content: `## Context` / `## Decision` /
 of substance; a `**Status:**` in the closed vocabulary; every `[corpus: <id>]`
 resolving against `tools/mcp/corpus/index.json` or `tools/mcp/corpus/project.json`
 (skipped while either file is malformed, which `provenance` reds); every bare source
-URL's host on the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
+URL's host on the `tools/lib/citation-domains.mjs` allowlist, whose red says to pin the
+authority in `project.json` instead. `## Alternatives Considered` stays
 advisory on purpose — a shape gate that reds an honest "no alternative existed"
 teaches authors to fabricate alternatives. NO escape file: the remedy is always
 editing the ADR; an allowlist here would be a place to park unshaped ADRs forever.

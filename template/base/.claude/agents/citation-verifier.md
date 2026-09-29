@@ -12,7 +12,8 @@ model: sonnet
 <!--
   The mcp__corpus_search server (tools: corpus_search + corpus_resolve, over the
   version-pinned corpus: the harness's tools/mcp/corpus/index.json and the
-  project's tools/mcp/corpus/project.json) IS wired in (see `tools:` above). Use it to resolve `[corpus: <id>]` references and internal doc ids.
+  project's tools/mcp/corpus/project.json) IS wired in (see `tools:` above). Use it
+  to resolve `[corpus: <id>]` references and internal doc ids.
   NO WebFetch, since 0.9.0: this agent reads the whole repository and its report
   egresses to the caller, so an external-fetch tool handed it all three
   lethal-trifecta legs in one place (repo read + untrusted web content + a channel
@@ -53,7 +54,7 @@ Pass 2 — EXISTENCE-RESOLVE: resolve every cited source by its kind.
   HUMAN-VERIFY — list the exact URL for the human running `/verify-citations` to
   open; it does not fail the verdict on its own. A URL on NO allowlisted host and
   in NO corpus entry is UNRESOLVABLE (the `provenance` gate will fail the bare URL
-  too: pin it in the corpus in the same PR).
+  too: pin it in `tools/mcp/corpus/project.json` in the same PR).
 
 Pass 3 — SUPPORT-CHECK: read the resolved source (corpus `text` for pinned entries)
 and confirm it actually backs the SPECIFIC claim, not merely the general topic. Mark
