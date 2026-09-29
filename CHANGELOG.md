@@ -97,9 +97,9 @@ this heading if none does. -->
 
 ### Fixed
 
-- **The committed database types match Supabase CLI 2.118.0.** The catalog gives the CLI as
+- **The committed database types match Supabase CLI 2.118.0.** The catalog gave the CLI as
   `supabase: ^2.34.3` and the scaffold ships no lockfile, so every install and every CI run
-  takes the newest 2.x. On 2026-09-25 that became 2.118.0, which generates types natively
+  took the newest 2.x. On 2026-09-25 that became 2.118.0, which generates types natively
   instead of through a container, and on the same schema its output no longer matched
   `packages/platform/supabase/src/database.types.ts`. With the stack up, `types-drift`
   reported the file stale, and from the next day's scheduled run both `bootstrap-linux`

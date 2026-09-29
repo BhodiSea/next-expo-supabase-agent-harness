@@ -9,10 +9,10 @@
 // catalog. An exact pin is only acceptable while something keeps it current (1.0.2
 // CHANGELOG), so this file holds both halves: the pin, and the rule that moves it.
 //
-// It reads two files and nothing else, so it runs unchanged on the Windows leg. Each judge
+// It reads three files and nothing else, so it runs unchanged on the Windows leg. Each judge
 // is also driven over fixtures that must red, so a judge that can no longer fail is caught
 // here and not in a scheduled run.
-// SOURCE: template/base/pnpm-workspace.yaml, renovate.json
+// SOURCE: template/base/pnpm-workspace.yaml, renovate.json, template/base/tools/deferrals.json
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
