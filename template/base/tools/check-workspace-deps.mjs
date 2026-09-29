@@ -162,9 +162,10 @@ for (const [name, { tier, deps }] of pkgs) {
 // finding's vintage: what the 0.9.5 directory keying already produced stays on the
 // armed 0.9.5 ramp (register row boundaries-vertical-anatomy-ramp-expiry — expired, so
 // hard for every real install), and what only the 1.0.0 behavior keying sees rides its
-// own ramp until 1.1.0 (register row boundaries-anatomy-widening-ramp-expiry) — a
-// vertical that satisfied the directory keying must get one release of dated NOTEs on
-// the widened demand, never a hard red on the update that delivered it. The allow-file
+// own ramp until 1.1.0 (register row boundaries-anatomy-widening-ramp-expiry — expired
+// at 1.1.0, so hard for every real install too) — a vertical that satisfied the
+// directory keying got one release of dated NOTEs on the widened demand, never a hard
+// red on the update that delivered it. The allow-file
 // shape/staleness problems and the anti-vacuity floor are NEVER ramped — a broken
 // reviewed file or an empty scan is not a debt an old install grows out of.
 const ANATOMY_ALLOW = 'tools/vertical-anatomy-allow.json'

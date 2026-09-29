@@ -35,15 +35,21 @@ when they fall due.
 ## Next: 1.1.0
 
 1.0.0 opened a set of dated advisory notes for existing installs, all expiring
-at 1.1.0. Shipping 1.1.0 means discharging each one:
+at 1.1.0. The 1.1.0 version bump settled each one (issue #39):
 
-- The six-gate note fleet becomes enforcing for upgraded installs:
-  `auth-posture`, `boundaries`, `docs-sync`, `resilience`, `suppressions`,
-  `version-sync` (the `*-ramp-expiry` release rows in the obligations register).
+- The six-gate note fleet is enforcing for installs below 1.0.0:
+  `auth-posture`, `boundaries`, `docs-sync`, `resilience`, `suppressions`, and
+  `version-sync`'s support register. Their seven `*-ramp-expiry` release rows
+  are gone from the obligations register.
 - `uuid` 7, the one vendor-deprecated package in the production dependency
-  closure, reaches its recorded re-review at 1.1.0 (`tools/eol.json`).
-- The Supabase CLI config census, blocked upstream on supabase/cli#5894, was
-  re-dated to 1.1.0 and gets re-examined then.
+  closure, was re-reviewed at 1.1.0 and is still not discharged upstream. Its
+  removal target moved to 1.2.0, and `version-sync`'s arrival note re-opened
+  until 1.2.0 (the `version-sync-eol-arrival-ramp-expiry` release row).
+- The Supabase CLI config census, still blocked upstream on
+  supabase/cli#5894, was re-checked and re-dated to 1.2.0.
+
+The rest of 1.1.0 is the field-report upgrades below that are scheduled for
+it, each behind a ramp of its own or tightening nothing for an existing install.
 
 ## Field-report upgrades
 
@@ -67,8 +73,8 @@ does, its section says so.
 - **Input-stamped Stop steps.** `rls-isolation` skips on unchanged inputs, an
   unchanged CLI and an unchanged database, a stamped step prints as `STAMPED`,
   and stamp inputs cover the libraries a gate imports. Stamping `unit` and
-  `mobile-unit` needs a wrapper that changes floored commands, so it waits for
-  1.1.0 (issue #39).
+  `mobile-unit` needs a wrapper that changes floored commands. It was left for
+  1.1.0, and no 1.1.0 issue schedules it yet.
   ([N01](design/FIELD-UPGRADES-2026-09.md#n01-input-stamped-stop-steps),
   issue #42)
 - **Stop-step and gate-event telemetry.** Untrimmed local records of step

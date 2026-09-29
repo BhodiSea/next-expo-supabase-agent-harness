@@ -23,7 +23,7 @@ import process from 'node:process'
 // fails at link time; through the namespace it is undefined and the guarded call is a no-op.
 import * as hookio from './lib/hookio.mjs'
 
-export const HARNESS_HOOK_VERSION = '1.0.4'
+export const HARNESS_HOOK_VERSION = '1.1.0'
 
 // Dynamic import AFTER hookio has installed its fail-closed handlers: a missing or
 // broken rules module must BLOCK (exit 2), not exit 1 as a non-blocking load error.

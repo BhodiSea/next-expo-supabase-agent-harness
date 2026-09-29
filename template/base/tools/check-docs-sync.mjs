@@ -130,8 +130,8 @@ if (!listMatch) {
   // ambush this mechanism exists to prevent. The NOTE below tells them exactly what to
   // paste. Expires at 1.1.0; the move is excused by the byte-matched `rampExtensions`
   // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it —
-  // and its expiry is owed by the 1.1.0 record (obligations row docs-sync-gate-list-
-  // ramp-expiry). It opens at minVersion 1.0.0, NOT at the 0.8.0 the previous re-open
+  // and the 1.1.0 record's rampExpiry paid its expiry, which discharged the obligations
+  // row docs-sync-gate-list-ramp-expiry. It opens at minVersion 1.0.0, NOT at the 0.8.0 the previous re-open
   // used: an escape opened at or below the population it protects is inert for exactly
   // that population (the 0.11.1 lesson), and every install below 1.0.0 receives the two
   // steps.

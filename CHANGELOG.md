@@ -11,6 +11,97 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [1.1.0] — 2026-09-29
+
+**A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
+checks that land after them judge more precisely.** Seven of the eight ramp sites 1.0.0
+opened reach their deadline, so an install whose `baseVersion` is below 1.0.0 now gets a
+hard failure where it got a dated NOTE: `auth-posture`'s `[auth.hook]` trail posture (only
+where the trail is adopted), `boundaries`' anatomy widening and its census module-name
+closure, `docs-sync`'s AGENTS.md gate list, `resilience`, `suppressions`, and
+`version-sync`'s vendor-support register. A 1.0.x install meets none of them. The eighth
+site, `version-sync`'s eol arrival, re-opens until 1.2.0 instead (see Changed). Each item
+that lands after this bump either ships behind a ramp of its own, opened at 1.1.0, or
+tightens nothing for an existing install, and adds its entry below.
+The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
+0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
+set and one `rampExtensions` entry, and injects no chain step. `scripts/lib/ramp-sites.mjs`
+`VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
+re-targets the eighth to 1.2.0.
+
+### Security
+
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Added
+
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Fixed
+
+<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### Changed
+
+- **The NOTE fleet 1.0.0 opened is now enforcing for installs below 1.0.0.** The seven
+  sites above expire at 1.1.0, as their obligations rows said they would:
+  `docs-sync-gate-list-ramp-expiry`, `suppressions-census-ramp-expiry`,
+  `resilience-register-ramp-expiry`, `boundaries-anatomy-widening-ramp-expiry`,
+  `exports-walls-module-closure-ramp-expiry`, `auth-posture-hook-ramp-expiry` and
+  `version-sync-support-ramp-expiry`. The 1.1.0 record's `rampExpiry` names their
+  population, copied from `check-ramp-ledger`'s output at 1.1.0, and the seven rows are
+  deleted. Nothing new is demanded: the sweep is the 1.0.0 one, and the runbook's 1.1.0
+  section lists what arrives and points to it. The catalog, the conformance map and the
+  gate comments that still called these ramps open are reworded (#39).
+- **The uuid 7 acceptance is re-affirmed and moved to 1.2.0, and its arrival ramp re-opens
+  at 1.1.0.** `tools/eol.json` dated its re-review 1.1.0, and `check-eol-target` reds a
+  production-scope target the version has reached. The re-review on 2026-09-29 found the
+  discharge condition unmet: `xcode` 3.0.1 is still the latest and still declares
+  `uuid: ^7.0.3`, `@expo/config-plugins` depends on it at both `latest` and `next`, and a
+  registry sweep of a fresh strict-tier scaffold (1582 pairs, 0 errors) found the same seven
+  deprecations the register carries, uuid@7.0.3 the only one in the production closure. The
+  vendor's message now also tells ESM codebases to update to uuid@latest and CommonJS
+  codebases to use uuid@11. The register is seeded, so every 1.0.x install still holds
+  `"removalTarget": "1.1.0"`, which arrives here. The rule the 1.0.0 record wrote down is
+  paid in full: a `seededSourceFixes` probe on that literal parks the re-affirmation, a
+  `rampExtensions` entry moves `version-sync`'s arrival escape from (1.0.0, 1.1.0) to
+  (1.1.0, 1.2.0), the obligations row `version-sync-eol-arrival-ramp-expiry` is re-targeted
+  to 1.2.0, and `SWEEPS['1.1.0']` is a reviewed empty entry. The register's review window is
+  not moved: the product support tables were not re-read (#39).
+- **The Supabase CLI config census moves to 1.2.0.** The `auth-posture-cli-census` deferral
+  targeted 1.1.0, and `docs-sync` reds an arrived deferral on every install, fresh scaffolds
+  included. Re-checked on 2026-09-29: supabase/cli#5894 (a side-effect-free
+  `config validate`) is still open with no milestone, no linked pull request and no
+  comments, and the CLI reference documents `config push` as the only `config` subcommand.
+  By the entry's standing rule the date moves one release, in the ledger, the obligations
+  row and the three files the entry lists. A new factory test runs `docs-sync` at the
+  package version against the shipped ledger, so the next arrival reds the bump commit
+  rather than the zero-edit scaffold (#39).
+
+### What stays open, honestly
+
+- **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major, and
+  an `overrides` entry forcing uuid 11 into Expo's prebuild tooling would decide a
+  consumer's native build surface to clear the harness's own register. The 1.2.0 record owes
+  either the arrival ramp's expiry or the next re-open (#39).
+- **The CLI config census is re-dated, not built.** It waits on supabase/cli#5894 (#39).
+- **Stamps for `unit` and `mobile-unit` are still not built.** The 1.0.4 entry left them
+  for 1.1.0, because a stamp there needs a wrapper that changes floored commands and a
+  `configCommandUpdates` record. No 1.1.0 issue schedules that work yet (#39).
+- **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
+  `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
+  `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
+  arrived uuid target. The new `docs-sync` test was red on the arrived census, the renamed
+  GROWN-list test red while `VINTAGES` lacked `1.0.4`, and the new sweep test red while
+  `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. The v1.0.4 tag is
+  local until the maintainer pushes it, so the tag-reading checks on this pull request's CI
+  compare against v1.0.3 and `check-ramp-ledger`'s vintage closure there reports `1.0.4`
+  as not yet released; the local run with the tag present is the one that proves this
+  commit (#39).
+
 ## [1.0.4] — 2026-09-29
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate

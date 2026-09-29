@@ -213,8 +213,8 @@ censused, not re-policed (`check-migrations.mjs` owns their reason rule). The
 register's dating is release-clockless by design: the ASD expiring-exception intent is
 carried by the both-ways closure (a suppression cannot outlive its site, and adding
 one is a two-place, write-guard-reviewed act), never by a calendar date a chain step
-must not consult. Findings ramp for pre-1.0.0 installs (NOTE until 1.1.0). Not
-covered: whether a reason is TRUE — that is the reviewer's half, exactly as it is for
+must not consult. Findings ramped for pre-1.0.0 installs until 1.1.0 (expired — hard
+for every install since 1.1.0). Not covered: whether a reason is TRUE — that is the reviewer's half, exactly as it is for
 every other reviewed register.
 
 ### 8. provenance — `node tools/check-sources.mjs`
@@ -261,8 +261,8 @@ against the OWNED `tools/modules.json` since 1.0.0 — the shipped copy of the
 installer's module list, write-guarded and refreshed by `update`, with a factory
 lockstep test holding the two set-equal — so a typo'd module name can no longer park
 the stale arm permanently dormant; unknown or retired names red (ramped for pre-1.0.0
-installs until 1.1.0, register row `exports-walls-module-closure-ramp-expiry`), and a
-missing or malformed module list fails closed unramped naming `update`.
+installs until 1.1.0, `exports-walls-module-closure-ramp-expiry`, expired — hard for
+every install since 1.1.0), and a missing or malformed module list fails closed unramped naming `update`.
 **check-workspace-deps** (the declared-dependency allow-matrix):
 apps/mobile may take a runtime `@app/*` dependency only if it is sanctioned OR
 universally-importable (the error/event kernel, the wire contracts, the RN-only design
@@ -297,7 +297,8 @@ reviewedOn}`), closed BOTH ways — a stale entry reds. Two ramps, partitioned b
 finding's vintage: the directory keying's findings ramped for pre-0.9.5 installs until
 0.10.0 (`boundaries-vertical-anatomy-ramp-expiry`, expired — hard for every real
 install); the behavior keying's WIDENED findings ramped for pre-1.0.0 installs until
-1.1.0 (`boundaries-anatomy-widening-ramp-expiry`). The allow-file shape problems and
+1.1.0 (`boundaries-anatomy-widening-ramp-expiry`, expired — hard for every install since
+1.1.0). The allow-file shape problems and
 the zero-files-scanned floor are never ramped.
 **Anti-vacuity:** add a `./client` export to a package with no census entry → FAIL
 naming it; make `@app/api` a runtime mobile dependency → FAIL "import type only"; make one
@@ -325,8 +326,8 @@ that shape where it is the reviewed choice (the tRPC client's no-auto-retry stan
 the delete-account function's ordering-not-retries correctness argument), and the one
 non-null posture it ships (the rate limiter's 1s `AbortSignal.timeout`) is the
 register agreeing with the code that already carried it. Posture constants are
-provenance decision sites (`SOURCE:` on the line). Findings ramp for pre-1.0.0
-installs (NOTE until 1.1.0). Not covered: runtime behaviour (the unit/e2e lanes'
+provenance decision sites (`SOURCE:` on the line). Findings ramped for pre-1.0.0
+installs until 1.1.0 (expired — hard for every install since 1.1.0). Not covered: runtime behaviour (the unit/e2e lanes'
 half) and transports reached through a dependency's own internals — stated per the
 Covers / Does NOT cover discipline.
 
@@ -986,7 +987,7 @@ project's posture lives in its `[remotes]` blocks or the Dashboard, and neither 
 here. `auth.email.enable_confirmations` is where that gap is loudest — `false` is correct
 locally and wrong in production — and `tools/auth-posture.json` says so in writing.
 
-**Deferred to 1.1.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
+**Deferred to 1.2.0: asking the CLI directly** (deferral ledger: `auth-posture-cli-census`).
 A check that read the CLI's own deprecation
 warnings was built, worked, and found a real defect — the harness shipped `[inbucket]` against a
 CLI that renamed it to `[local_smtp]` and warns on every command, with nothing reading the
@@ -1015,7 +1016,10 @@ no linked PR and zero comments, so the date moved to 0.11.0. Re-checked again at
 arrival (2026-08-15) against the issue itself: still open, still no milestone, still no
 linked PR, so the standing rule moved it to 0.12.0 — a release that was never cut, so the date
 arrived at the 1.0.0 cut and was re-checked there (2026-08-16): #5894 still open, still zero
-comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0.
+comments, still no milestone, npm latest still 2.114.0, so it moved to 1.1.0. At the 1.1.0
+cut (2026-09-29) it arrived again: #5894 still open with no milestone, no linked PR and zero
+comments, the CLI reference still documenting `config push` as the only `config` subcommand,
+and npm latest at 2.118.0, the version the catalog pins exactly, so it moved to 1.2.0.
 The 0.8.0 move licensed itself "once"; the second firing proved the shape recurs, so the rule
 is now standing: each arrival with the upstream condition unmet forces the re-check and a
 one-release move in a reviewed diff — the discharge happens only when the side-effect-free

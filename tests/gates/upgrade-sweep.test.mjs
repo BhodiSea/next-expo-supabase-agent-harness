@@ -369,6 +369,28 @@ test('1.0.4 — the hop from 1.0.3 has a reviewed sweep posture, and adopts no p
   assert.ok(!adopt.includes('tools/mcp/corpus/project.json'), adopt.join(', '))
 })
 
+// ── 1.1.0: the uuid re-date parks a seeded-source fix, and the swept leg takes it ──
+test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the corrected eol register rides the derived pass', () => {
+  // The 1.1.0 record moves the template's uuid removalTarget to 1.2.0 and carries a
+  // seededSourceFixes probe on tools/eol.json, so computeSweepSet throws until SWEEPS
+  // carries a '1.1.0' entry. The entry is empty: the derived pass already adopts the fix's
+  // own path, which is the whole remedy, and nothing else is withheld.
+  const fixes = MIGRATIONS['1.1.0'].seededSourceFixes ?? []
+  assert.ok(
+    fixes.some((f) => (f.paths ?? []).includes('tools/eol.json')),
+    'the 1.1.0 record must park the uuid re-date on tools/eol.json',
+  )
+  assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.4', '1.1.0'))
+  const { adopt, tomlSectionAppends, reconcileDataFlowExclusions } = computeSweepSet(
+    MIGRATIONS,
+    '1.0.4',
+    '1.1.0',
+  )
+  assert.deepEqual(adopt, ['tools/eol.json'])
+  assert.deepEqual(tomlSectionAppends, [])
+  assert.equal(reconcileDataFlowExclusions, false)
+})
+
 test('reconcileDataFlowExclusions only ever REMOVES: a stale exclusion goes, a real one stays, nothing is added', () => {
   const dataFlow = {
     export: {

@@ -1282,6 +1282,24 @@ test('DEFERRAL ARRIVAL: the shipped census target is a live tripwire, derived â€
   assert.match(r.out, /has ARRIVED/)
 })
 
+test('DEFERRAL AHEAD: the SHIPPED ledger has not arrived at the version this tree cuts', () => {
+  // The other half of the tripwire above, and the one a release bump meets first. A fresh
+  // scaffold records the package version as its harnessVersion, so a ledger entry whose
+  // target that version has reached reds docs-sync on EVERY install from its first
+  // validate, fresh ones included. At 1.1.0 the census entry still said 1.1.0, and the
+  // zero-edit scaffold at the end of CONTRIBUTING's list was the first place it would have
+  // shown. This test shows it in the factory suite instead: at the bump commit it is red
+  // until the census ships or its date moves in the same reviewed diff.
+  const version = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+  ).version
+  const r = runGate(
+    deferralFixture({ manifest: { harnessVersion: version, baseVersion: version, files: {} } }),
+  )
+  assert.doesNotMatch(r.out, /has ARRIVED/, r.out)
+  assert.equal(r.code, 0, r.out)
+})
+
 test('DEFERRAL RED: re-freezing the old auth-posture sentence reds both directions of the closure', () => {
   // The anti-regression for the 0.7.0 prose sweep: the shipped catalog says the CLI census
   // is deferred with the LEDGER's target. Rewinding the sentence to the previous release's
