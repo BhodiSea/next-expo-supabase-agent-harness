@@ -96,9 +96,11 @@ if (collisions.length > 0) {
 
 // Read-or-default in one call: ENOENT is the first-run default; anything else (a corrupt
 // record, EACCES) still throws. No existsSync pre-check for the --write below to race.
+// The record resolves from ROOT, never the working directory: ESLint lints ROOT's tree
+// (cwd: ROOT above), so the record it is judged against must be ROOT's too.
 function readRecord() {
   try {
-    return JSON.parse(readFileSync(RECORD, 'utf8'))
+    return JSON.parse(readFileSync(`${ROOT}${RECORD}`, 'utf8'))
   } catch (err) {
     if (err?.code === 'ENOENT') return { limit: 15, functions: {} }
     throw err
@@ -108,7 +110,7 @@ const record = readRecord()
 
 if (WRITE) {
   writeFileSync(
-    RECORD,
+    `${ROOT}${RECORD}`,
     `${JSON.stringify(
       {
         '//': record['//'] ?? 'Cognitive-complexity records for the harness machinery.',
