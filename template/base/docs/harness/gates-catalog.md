@@ -2172,10 +2172,16 @@ even when that record cannot be written.
   real server + Postgres — since 1.0.0; the inherited stub-authority tap of an
   empty form had been failing nightly, invisibly, since Supabase Auth replaced
   it), and the perf-harness journey (the dev screen self-measures against
-  `tools/interaction-budget.json` and the flow asserts its `perf-pass` leaf).
-  Path-filtered + nightly (emulator cost); anti-vacuity: a phase that executed
-  zero flows exits red, and evidence (Maestro debug output, screenshot, logcat
-  tail) uploads on every failure.
+  `tools/interaction-budget.json`; the flow waits for its `perf-running` leaf to
+  clear, then asserts `perf-pass`, so a breached budget reds at once and a
+  measurement that never ends reds on the wait). The web app is the mutation
+  flow's backend: the job publishes the `NEXT_PUBLIC_` Supabase env before it
+  boots the host and waits for `/api/trpc/system.health`. Path-filtered +
+  nightly (emulator cost); anti-vacuity: a phase that executed zero flows exits
+  red. On every failure the runner prints the ids and text on screen to the log,
+  and the evidence uploads: screenshot, logcat tail, hierarchy, and Maestro's
+  debug output, which sits under a hidden `.maestro/` directory and so needs the
+  upload's `include-hidden-files: true`.
 - **Startup measurement lane** (`perf-lane`) — `tools/measure-startup.mjs`
   cold-starts every ROUTES entry ×3 on its own quiet emulator (`am force-stop`
   + `am start -W` per deep link; `totalTimeMs` is the MEDIAN, every roll
@@ -2274,7 +2280,8 @@ even when that record cannot be written.
   which is what makes a daily cadence honest. The artefact uploads only after it
   passes, so a broken inventory is never the file someone downloads later.
 - **live-api proof** — `__tests__/live-api-proof.test.ts` (jest, self-skipping
-  unless `LIVE_PROOF=1` + a running `AUTH_MODE=stub` server): the one place the
+  unless `LIVE_PROOF=1`; `integration-lane` publishes the Supabase URL, keys and
+  service-role key it requires from the local stack, then boots the web host): the one place the
   mobile client's real tRPC client talks to the real server over real Postgres
   under FORCE RLS. Every other lane mocks the network — which is exactly how the
   desktop original once shipped requests with no Authorization header at all

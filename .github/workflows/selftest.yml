@@ -2142,11 +2142,17 @@ jobs:
           working-directory: .selftest/app
           script: |
             bash "$GITHUB_WORKSPACE/scripts/ci/device-smoke.sh"
+      # /tmp/web.log is what the boot step writes; through 1.0.3 this printed
+      # /tmp/server.log, which nothing writes (#10).
       - name: Server + Metro logs on failure
         if: failure()
         run: |
-          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::web.log'; cat /tmp/web.log || true; echo '::endgroup::'
           echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
+      # include-hidden-files: Maestro's debug output lives under <flow>/.maestro/, and
+      # upload-artifact drops hidden files by default. Through 1.0.3 every run uploaded
+      # only the runner's own files (5 on a perf-harness red, 11 on a green run) and none
+      # of Maestro's (#10).
       - name: Upload Maestro evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -2155,3 +2161,4 @@ jobs:
           path: .selftest/app/artifacts/maestro/
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true

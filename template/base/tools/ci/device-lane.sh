@@ -34,8 +34,12 @@ for _ in $(seq 1 60); do
   if curl -fsS -m 2 "http://127.0.0.1:8081/status" > /dev/null; then break; fi
   sleep 2
 done
-# Pre-warm the bundle so the first launchApp is not a cold Metro compile.
-curl -fsS -m 600 "http://127.0.0.1:8081/index.bundle?platform=android&dev=true" -o /dev/null || true
+# Pre-warm the bundle so the first launchApp is not a cold Metro compile. The URL is the
+# one a debug build requests, the Expo virtual entry: /index.bundle is a 404 on this SDK,
+# and through 1.0.3 this line fetched it and swallowed the failure, so it warmed nothing.
+# Fail-loud, as the harness's own lane does (scripts/ci/device-smoke.sh): a Metro that
+# cannot serve the bundle here cannot serve the journeys below either.
+curl -fsS -m 600 "http://127.0.0.1:8081/.expo/.virtual-metro-entry.bundle?platform=android&dev=true" -o /dev/null
 
 # i18n/RTL journey precondition: pre-seed the kv store BEFORE launch
 # (locale ar-XB + theme light) — expo-sqlite's kv database is

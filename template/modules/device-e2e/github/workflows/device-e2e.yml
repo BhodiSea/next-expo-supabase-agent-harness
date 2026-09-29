@@ -256,6 +256,8 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash tools/ci/device-e2e-matrix.sh
+      # include-hidden-files: the Maestro debug output this step names lives under
+      # <flow>/.maestro/, and upload-artifact drops hidden files by default (1.0.4).
       - name: Upload evidence (Maestro debug output, screenshots, logcat tails)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -264,6 +266,7 @@ jobs:
           path: artifacts/device-e2e/
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Upload measured startup numbers
         if: ${{ always() && matrix.measure }}
