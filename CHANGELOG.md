@@ -440,6 +440,14 @@ this heading if none does. -->
   `.claude/agents/architecture-reviewer.md`, the re-pin never redded `prompts`. Only an
   edited copy needs a human regeneration, once its parked incoming version is merged. The
   upgrade runbook and the gates catalog now say so (#49).
+- **The 1.0.0 entry said the device lane was made true again. That held for the
+  harness's own `maestro-smoke` job, not for the consumer's `mobile-e2e`.** Its three
+  corrections reached every install as owned files, and the mutation journey has passed on
+  the emulator since. But through 1.0.3 the shipped `mobile-e2e` job booted the web host
+  before it published the env the host parses and waited on `/api/trpc/health`, which is no
+  procedure, so it never got past that boot to any journey, and `integration-lane`, booting
+  the same way, never reached the live-api proof. Nothing in this repository runs either
+  job, so no run here showed it. See Fixed (#10).
 
 ### What stays open, honestly
 

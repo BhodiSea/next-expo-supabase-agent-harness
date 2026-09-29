@@ -1270,6 +1270,11 @@
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
         "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The emulator matrix needs KVM and an Android emulator: not reproduced here. tools/ci/device-e2e-matrix.sh, which the job runs, has no factory test: unproven here. The base tools it calls carry their own proofs (tests/gates/check-e2e-device.test.mjs, tests/gates/measure-startup.test.mjs), which prove those tools, not this job."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/device-lane.test.mjs",
+        "note": "1.0.4 (#10): the evidence half of this job. Its upload of artifacts/device-e2e/ must set include-hidden-files: true, because Maestro writes its debug output under a hidden <flow>/.maestro/ directory and upload-artifact drops hidden files by default; the test reds an upload of any Maestro --out-dir root that lacks it, with a red case in the file. It does not run the matrix, and it is not a test of tools/ci/device-e2e-matrix.sh"
       }
     ],
     "eas-update/eas-update.yml#publish": [
