@@ -83,7 +83,9 @@ this heading if none does. -->
   `tools/lib/supabase-cli.mjs`, puts `node_modules/.bin` first on the child's `PATH` when it
   holds `supabase`, and falls back to `PATH` as before when it does not. On Windows it
   changes nothing, because `.bin` holds `.cmd` shims there. The runner prints the CLI's
-  version and where it came from; its rule for when to skip and when to fail is unchanged.
+  version and where it came from; its rule for when to skip and when to fail is unchanged,
+  and every spawn, the stamp's database-identity query included, uses that CLI. The
+  `rls-isolation` stamp list names the helper, so an edit to it runs both suites again.
   **`types-drift` uses the same CLI, and that is the one place a gate can now red locally
   where it used to skip:** on a machine with no global CLI, with the stack up and a stale
   mirror, it reds a turn. CI's `runtime-rls` job already judges the same tree with the same
@@ -97,10 +99,11 @@ this heading if none does. -->
   scope, so a skipped suite still loads. With no URL it throws, naming
   `node tests/rls/run-rls.mjs`; there is no fallback. The RLS doctrine in
   `docs/harness/README.md` now says which CLI the runner resolves and that it hands vitest
-  `SUPABASE_DB_URL`, which it never did before. `update` plants the new helper and
-  re-plants, when unmodified, the owned files these two fixes touch:
-  `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`, `tools/check-types-drift.mjs`,
-  `docs/harness/README.md` and the upgrade runbook (#43).
+  `SUPABASE_DB_URL`, which it never did before, and `docs/harness/gates-catalog.md` says the
+  same of both steps. `update` plants the new helper and re-plants, when unmodified, the
+  owned files these two fixes touch: `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
+  `tools/check-types-drift.mjs`, `tools/lib/stamp-inputs.mjs`, `docs/harness/README.md`,
+  `docs/harness/gates-catalog.md` and the upgrade runbook (#43).
 
 ### Changed
 

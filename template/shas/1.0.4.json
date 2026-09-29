@@ -786,6 +786,15 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "d0163b723d4dea0118e7d08f4e43e2f602c323923791c254bc25ce3c5fc11348",
+        "sites": [
+          [
+            116702,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -1875,6 +1884,9 @@
       },
       {
         "sha256": "f0150fb78f4f00c4f287fe5bb2744ea95aa670fda80c392ecc8e9cbe40abf296"
+      },
+      {
+        "sha256": "f25cc09a58dcd09e318792513092c19c35e21c3730a10d6121b5ffd12c6bb428"
       }
     ],
     "tools/lib/standards-claim.mjs": [

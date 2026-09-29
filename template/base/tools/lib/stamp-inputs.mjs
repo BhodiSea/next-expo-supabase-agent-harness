@@ -259,6 +259,8 @@ export const STAMP_INPUTS = {
   // database's identity (server start time + applied migration versions), so a CLI change,
   // a reset, a restart or an applied migration re-runs both suites. It honours the stamp
   // only when CI is empty or unset and HARNESS_REQUIRE_TOOLCHAINS is not 1.
+  // tools/lib/supabase-cli.mjs (#43) decides which CLI both suites run under (the workspace
+  // copy in node_modules/.bin first), so it is in the import closure like any other lib.
   'rls-isolation': withMachinery('tests/rls/run-rls.mjs', [
     'supabase/migrations',
     'supabase/tests',
@@ -270,5 +272,6 @@ export const STAMP_INPUTS = {
     'package.json',
     'pnpm-workspace.yaml',
     'pnpm-lock.yaml',
+    'tools/lib/supabase-cli.mjs',
   ]),
 }
