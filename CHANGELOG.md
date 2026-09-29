@@ -745,9 +745,15 @@ this heading if none does. -->
   name but `SUPABASE_DB_URL`; with exactly that step's names the host still answered 500
   naming `SUPABASE_DB_URL`, and with the DB URL added it answered `system.health` with 200
   within 6 seconds, as it did with exactly `integration-lane`'s names. Metro there answered
-  `/index.bundle?platform=android&dev=true` with 404 and the virtual entry with 200. No
-  emulator runs here, so the journey, the on-screen line and the hidden-file upload wait
-  for a dispatched `maestro-smoke` (#10).
+  `/index.bundle?platform=android&dev=true` with 404 and the virtual entry with 200. Then,
+  on a core scaffold rendered from the tree that carries the CLI pin (#88), the two jobs'
+  steps were replayed as the rendered `quality-gate.yml` writes them, against one live
+  stack. The base's boot steps exited 1 after their 60 tries, the host answering
+  `/api/trpc/health` with 500 and naming `SUPABASE_DB_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
+  the new publish and boot steps printed `web up`, `integration-lane`'s live proof passed
+  its four tests under `check-query-budget`, and the minter ran on `mobile-e2e`'s published
+  env. No emulator runs here, so the journey, the on-screen line and the hidden-file upload
+  wait for a dispatched `maestro-smoke` (#10).
 
 ## [1.0.3] — 2026-09-23
 
