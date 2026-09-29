@@ -34,23 +34,23 @@ this heading if none does. -->
 - **`node tools/validate.mjs --ci-parity` gives a local run CI's posture.** Local and CI
   verdicts split on one predicate: a gate whose prerequisite is missing skips locally and
   fails in CI, and a warm stamp is honoured only locally. No `validate` flag set it, so the
-  way to get CI's verdict before pushing was to export `HARNESS_REQUIRE_TOOLCHAINS=1` by
-  hand, and `docs/cli.md` did not say that the variable also turns every stamp off. The
-  flag sets that variable for every step, prints the posture as its first line, and after
-  the summary's total prints one line per missing prerequisite a gate recorded, naming the
-  step, the gate and the reason, in step order under `--report-all` too.
-  `VALIDATE_TIMINGS` stays the last line. `tools/lib/gate.mjs` gains
-  `noteMissingPrerequisite`, which `skipOrFail` calls, and so do the CI branches of the
-  partial legs that used to print only a local NOTE: `migrations`' append-only diff,
-  `version-sync`'s zod and React walks, and `styleguide`'s install-less regen-diff. The
-  records live in a temp directory outside the project and never decide the exit code.
-  `--min-floor --ci-parity` is the local counterpart of CI's `static` job. With `--list` the flag changes nothing, and it refuses
-  `--stop-chain`, whose `reviewer-verdicts` step needs a live turn. Without the flag
-  nothing changes, and the chain, both frozen floors and the workflows are untouched.
-  `update` delivers `tools/validate.mjs`, `tools/lib/gate.mjs`, the three gates,
-  `docs/harness/gates-catalog.md` and `docs/harness/README.md`. The three gates reach the
-  new export through a namespace import, so an install whose forked `tools/lib/gate.mjs`
-  was parked still runs them and records nothing (#44).
+  way to get CI's verdict before pushing was to export `HARNESS_REQUIRE_TOOLCHAINS=1` by hand,
+  and `docs/cli.md` did not say that the variable also turns every stamp off. The flag sets
+  that variable for every step, prints the posture as its first line, and after the summary's
+  total prints one line per missing prerequisite a gate recorded, naming the step, the gate
+  and the reason, in step order under `--report-all` too. `VALIDATE_TIMINGS` stays the last
+  line. `tools/lib/gate.mjs` gains `noteMissingPrerequisite`, which `skipOrFail` calls, and so
+  do the CI branches of the partial legs that used to print only a local NOTE: `migrations`'
+  append-only diff, `version-sync`'s zod and React walks, and `styleguide`'s install-less
+  regen-diff. The records live in a temp directory outside the project and never decide the
+  exit code. `--min-floor --ci-parity` is the local counterpart of CI's `static` job. With
+  `--list` the flag changes nothing, and it refuses `--stop-chain`, whose `reviewer-verdicts`
+  step needs a live turn. Without the flag nothing changes, and the chain, both frozen floors
+  and the workflows are untouched. `update` delivers `tools/validate.mjs`,
+  `tools/lib/gate.mjs`, the three gates, `docs/harness/gates-catalog.md`,
+  `docs/harness/README.md` and the upgrade runbook. The three gates reach the new export
+  through a namespace import, so an install whose forked `tools/lib/gate.mjs` was parked still
+  runs them and records nothing (#44).
 
 ### Fixed
 
