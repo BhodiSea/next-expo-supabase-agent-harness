@@ -56,7 +56,9 @@ function runnableFile(candidate, mode) {
  */
 function findOnPath(name, env, platform) {
   const win = platform === 'win32'
-  const exts = win ? ['', ...(env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';')] : ['']
+  // As cmd.exe resolves a bare name: only with a PATHEXT extension. The extensionless file
+  // beside an npm .cmd shim is a POSIX shell script Windows cannot start.
+  const exts = win && !name.includes('.') ? (env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';') : ['']
   // Windows has no execute bit to test; existence is what its own lookup checks.
   const mode = win ? constants.F_OK : constants.X_OK
   const dirs = envPath(env)

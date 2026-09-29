@@ -269,6 +269,22 @@ test('probeCommand: a bare name resolves through the PATH it is given (PATHEXT o
   assert.ok(r.reason, JSON.stringify(r))
 })
 
+test('probeCommand with platform win32 injected: a bare name resolves only with a PATHEXT extension', () => {
+  // Runs on every leg: the lookup is pure over the injected env and platform.
+  const dir = tempDir('nesah-probe-win-')
+  writeFileSync(join(dir, 'nesah-shimmed'), '#!/bin/sh\n') // the POSIX script npm puts beside a .cmd shim
+  writeFileSync(join(dir, 'nesah-shimmed.CMD'), '@echo off\r\n')
+  const r = probeCommand('nesah-shimmed', ['--version'], {
+    cwd: dir,
+    env: { Path: dir, PATHEXT: '.EXE;.CMD' },
+    platform: 'win32',
+  })
+  assert.equal(r.found, join(dir, 'nesah-shimmed.CMD'))
+  assert.ok(r.reason, 'a .cmd shim cannot be started without a shell: not probed')
+  const none = probeCommand('nesah-absent', ['--version'], { cwd: dir, env: { Path: dir }, platform: 'win32' })
+  assert.equal(none.found, null)
+})
+
 /** A fake probe: node works, pnpm fails, psql times out, the PATH supabase throws. */
 function fakeProbe(calls) {
   /** @type {import('../../installer/lib/toolchain.mjs').Probe} */
