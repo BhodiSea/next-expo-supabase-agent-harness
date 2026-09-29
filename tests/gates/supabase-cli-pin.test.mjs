@@ -18,7 +18,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { catalogEntry } from '../../installer/lib/migrations.mjs'
 import { cmpDotted } from '../../scripts/lib/ramp-sites.mjs'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
@@ -30,15 +29,31 @@ const FLOOR = '2.117.0'
 const read = (/** @type {string} */ rel) => readFileSync(join(ROOT, rel), 'utf8')
 
 /**
+ * name -> value for every two-space-indented key of a pnpm-workspace.yaml text, the catalog's
+ * shape: the scanner `framework-floor.test.mjs` reads the `next` pin with, a trailing comment
+ * and one level of quotes stripped. It needs nothing that arrived after 1.0.3, so this file
+ * reds on its first assertion at v1.0.3 and not on an import.
+ * @param {string} workspaceYaml
+ * @returns {Map<string, string>}
+ */
+function catalogPins(workspaceYaml) {
+  return new Map(
+    [...workspaceYaml.matchAll(/^ {2}'?([@a-z0-9][@a-z0-9/.-]*)'?:\s*([^\s#]+)/gm)].map((m) => [
+      m[1],
+      m[2].replace(/^['"]|['"]$/g, ''),
+    ]),
+  )
+}
+
+/**
  * Why a pnpm-workspace.yaml text's `supabase` catalog entry is not an acceptable pin; empty
- * when it is. Reads the entry through `catalogEntry`, the anchor `doctor`'s toolchain report
- * reads the same pin with, so this test and doctor cannot disagree about what the pin is.
+ * when it is.
  * @param {string} workspaceYaml
  * @returns {string[]}
  */
 function pinProblems(workspaceYaml) {
-  const value = catalogEntry(workspaceYaml, 'supabase')
-  if (value === null) return [`${CATALOG} catalogues no \`supabase\`, so nothing pins the CLI`]
+  const value = catalogPins(workspaceYaml).get('supabase')
+  if (value === undefined) return [`${CATALOG} catalogues no \`supabase\`, so nothing pins the CLI`]
   if (!/^\d+\.\d+\.\d+$/.test(value)) {
     return [
       `\`supabase: ${value}\` is not an exact X.Y.Z: the scaffold ships no lockfile, so a range resolves the newest CLI on every fresh install and every CI run`,
@@ -100,6 +115,16 @@ function ruleProblems(renovate) {
 
 test('the catalog pins the Supabase CLI to an exact version at or above the floor', () => {
   assert.deepEqual(pinProblems(read(CATALOG)), [])
+})
+
+test("doctor's toolchain report reads the same pin", async () => {
+  // `doctor` names the catalog's CLI entry through installer/lib/migrations.mjs catalogEntry
+  // (1.0.4, #43). Imported here, not at the top, so its absence at an older tree reds this
+  // case alone.
+  const { catalogEntry } = await import('../../installer/lib/migrations.mjs')
+  assert.equal(typeof catalogEntry, 'function', 'installer/lib/migrations.mjs exports catalogEntry')
+  const workspace = read(CATALOG)
+  assert.equal(catalogEntry(workspace, 'supabase'), catalogPins(workspace).get('supabase'))
 })
 
 test('root renovate.json keeps the catalog CLI pin current, in its own rule', () => {
