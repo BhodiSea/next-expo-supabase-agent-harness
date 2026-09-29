@@ -63,7 +63,8 @@ ground rule 6).
 
 The maintainer scheduled these for 1.0.4, the local loop release (issue #38),
 beside fixes that have no proposal here. None of them tightens a gate for an
-existing install. Where one changes what `update` does, its section says so.
+existing install beyond what its bullet names. Where one changes what `update`
+does, its section says so.
 
 - **Input-stamped Stop steps.** `rls-isolation` skips on unchanged inputs, an
   unchanged CLI and an unchanged database, a stamped step prints as `STAMPED`,
@@ -98,8 +99,11 @@ existing install. Where one changes what `update` does, its section says so.
   issue #46)
 - **A project-side citation corpus.** The citation corpus splits into an owned
   upstream index and a seeded project file, which the provenance gate,
-  `docs-sync` and the MCP server merge. The proposal flow that is the other half
-  of this item stays in 1.1.0.
+  `docs-sync` and the MCP server merge. The project file joins the escape lists,
+  so `wiring` asks every install's CODEOWNERS for its owner, file or no file; the
+  shipped rules cover it, and only a CODEOWNERS whose last rule matching it names
+  no owner reds. The proposal flow that is the other half of this item stays in
+  1.1.0.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
   issue #47)
 - **Two guard carve-outs.** The write guard lets an Edit or Write reach a
