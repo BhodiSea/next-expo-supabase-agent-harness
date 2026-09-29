@@ -1221,6 +1221,28 @@ for (const cmd of [
   })
 }
 
+// ── bash-guard: the rm-rf deny points at doctor --clean (1.0.4, #45) ─────────
+// The regex, its canaries above and the settings deny list do not move: the deny gains one
+// sentence naming the sanctioned delete for ignored build output. Its FIRST sentence is
+// what docs/security/threat-model.md is generated from (gen-conformance-docs.mjs
+// firstSentence), so it stays byte-identical and the generated doc does not change.
+test('rm-rf: the deny names doctor --clean, and its first sentence is byte-identical', async () => {
+  const { BASH_RULES } = await import(GUARD_RULES.href)
+  const rule = BASH_RULES.find((r) => r.id === 'rm-rf')
+  const FIRST =
+    'Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness.'
+  assert.ok(rule.message.startsWith(`${FIRST} `), rule.message)
+  assert.match(rule.message, /doctor --clean/)
+  const threat = readFileSync(join(TEMPLATE, 'docs/security/threat-model.md'), 'utf8')
+  assert.ok(threat.includes(`- \`rm-rf\` — ${FIRST}\n`), 'threat-model.md still lists the unchanged first sentence')
+  const r = runHook('pretool-bash-guard.mjs', {
+    tool_name: 'Bash',
+    tool_input: { command: 'rm -rf apps/web/.next' },
+  })
+  assert.ok(denied(r), r.stdout)
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /doctor --clean/)
+})
+
 // ── write-guard: migrations append-only ───────────────────────────────────────
 test('write-guard denies edits to an EXISTING migration, allows a NEW one', () => {
   const existing = runHook('pretool-write-guard.mjs', {
