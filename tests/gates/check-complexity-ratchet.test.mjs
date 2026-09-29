@@ -19,12 +19,13 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import process from 'node:process'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { compareComplexity, identify, keyScores, scoreOf } from '../../scripts/lib/complexity.mjs'
 
@@ -129,6 +130,7 @@ const MIRROR_RECORD = 'scripts/complexity-ratchet.json'
 const SHIMLESS =
   process.platform === 'win32' &&
   'the ratchet spawns pnpm without a shell, so no test shim can stand in for it on win32'
+if (SHIMLESS) console.log(`# SKIPPED the ratchet runs in check-complexity-ratchet.test.mjs: ${SHIMLESS}`)
 
 // Windows names the variable Path; override THAT key or the child gets two PATHs.
 const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
@@ -136,8 +138,18 @@ const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH'
 /** @param {number} score */
 const recordOf = (score) => `${JSON.stringify({ limit: 15, functions: { 'a.mjs::foo': score } })}\n`
 
+/** @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
 /** @param {string} prefix */
-const scratch = (prefix) => realpathSync(mkdtempSync(join(tmpdir(), prefix)))
+function scratch(prefix) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
+  made.push(dir)
+  return dir
+}
 
 /** @param {{ recorded: number, measured: number }} scores */
 function ratchetMirror({ recorded, measured }) {
