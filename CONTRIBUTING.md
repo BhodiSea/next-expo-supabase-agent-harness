@@ -64,6 +64,7 @@ node scripts/check-release-lockstep.mjs # one version across package.json, plugi
 node scripts/check-plugin-manifest.mjs  # plugin/marketplace fields + every referenced path exists
 node scripts/check-canary-coverage.mjs  # every gate AND every job in every shipped workflow, base and modules, has a registered, RUNNING red-proof
 node scripts/generate-floor.mjs --check    # BOTH frozen snapshots (validate.floor.json, stop.floor.json) mirror the config
+node scripts/generate-skill-references.mjs --check  # the slice skill's code blocks match the example's marked spans
 # RUN THE SUITE IN THE CI ENVIRONMENT SHAPE, not your shell's. Gate fixtures build a
 # THROWAWAY git repo with no remote, and on a `pull_request` run GITHUB_BASE_REF names the
 # base branch of the PR against THIS repo — so a gate that resolves a diff base looks for an

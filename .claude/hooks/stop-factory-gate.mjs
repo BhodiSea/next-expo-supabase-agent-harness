@@ -60,6 +60,10 @@ const STEPS = [
   // The frozen CI floor still mirrors harness.config.mjs — a locally weakened config
   // cannot weaken CI, but only if the two are in lockstep.
   ['floor-sync', ['scripts/generate-floor.mjs', '--check']],
+  // The authoring-vertical-slice skill's code blocks still match the example's marked spans
+  // (1.1.0). The references said they were copied from the example and nothing held them to
+  // it; this is the regen-diff, both directions, and it cannot pass on zero regions.
+  ['skill-references', ['scripts/generate-skill-references.mjs', '--check']],
   // A ramp whose minVersion predates the lineage's oldest release can never fire, and the
   // deadlines a release is responsible for are COMPUTED here rather than typed into a
   // changelog. Six never-armed ramps shipped for three releases before anything counted.

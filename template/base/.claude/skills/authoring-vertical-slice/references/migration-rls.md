@@ -7,8 +7,10 @@
   `10_account`, `20_notes`, …). `supabase/schemas/20_notes.sql` is the shape every later
   vertical is copied from.
 - **Applied history:** `supabase/migrations/<timestamp>_<slice>.sql` — a NEW, timestamped,
-  append-only file that gets the database to that state. `supabase/migrations/20260101000100_notes.sql`
-  is the worked pattern.
+  append-only file that gets the database to that state. For a new table it is ONE file shaped
+  like the skeleton below. The notes table's own history is not one file to copy:
+  `20260101000100_notes.sql` created it keyed on the owner, and
+  `20260201000100_notes_org_scope.sql` dropped those four policies for the org-scoped ones.
 
 The pair is authored together: edit the schema file, then `supabase migration new <slice>`
 (or `supabase db diff -f <slice>`), READ the generated draft, re-case its DDL (see the
@@ -141,20 +143,29 @@ REVOKE ALL ON TABLE public.<t> FROM anon;
 REVOKE ALL ON TABLE public.<t> FROM service_role;
 REVOKE ALL ON TABLE public.<t> FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.<t> TO authenticated;
+```
 
+The policy half of the skeleton is the four permissive policies of
+`supabase/schemas/20_notes.sql`, verbatim, so it reads `notes` where the half above reads
+`<t>`: rename `notes` to your table, in each policy name too, when you copy it into the same
+migration.
+
+<!-- skill-region:begin org-policies source=supabase/schemas/20_notes.sql -->
+```sql
 -- Four per-operation policies, TO authenticated, each resolving through the uncorrelated
 -- zero-argument helpers so the planner hoists them into one InitPlan per statement (once per
 -- statement, not once per row). Never FOR ALL — each op stays independently auditable.
 -- Reading is MEMBERSHIP; writing is RANK.
+-- Each has a real predicate: none of the four is vacuous.
 -- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
 -- [corpus: postgres/rls-initplan]
-CREATE POLICY <t>_select_org ON public.<t>
+CREATE POLICY notes_select_org ON public.notes
   AS PERMISSIVE FOR SELECT TO authenticated
   USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
 
 -- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
 -- INSERT into an org it may not write [corpus: postgres/rls-force]
-CREATE POLICY <t>_insert_org ON public.<t>
+CREATE POLICY notes_insert_org ON public.notes
   AS PERMISSIVE FOR INSERT TO authenticated
   WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
 
@@ -162,7 +173,7 @@ CREATE POLICY <t>_insert_org ON public.<t>
 -- cannot move a row out of reach; the freeze trigger above is what stops org_id changing
 -- at all.
 -- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
-CREATE POLICY <t>_update_org ON public.<t>
+CREATE POLICY notes_update_org ON public.notes
   AS PERMISSIVE FOR UPDATE TO authenticated
   USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
   WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
@@ -173,7 +184,7 @@ CREATE POLICY <t>_update_org ON public.<t>
 -- `OR owner_id = (SELECT auth.uid())` quietly restores per-user scope on top of org scope.
 -- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
 -- [corpus: postgres/rls-force]
-CREATE POLICY <t>_delete_org ON public.<t>
+CREATE POLICY notes_delete_org ON public.notes
   AS PERMISSIVE FOR DELETE TO authenticated
   USING (
     coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
@@ -183,6 +194,7 @@ CREATE POLICY <t>_delete_org ON public.<t>
     )
   );
 ```
+<!-- skill-region:end org-policies -->
 
 **Seat tables are not authored this way.** `orgs`, `memberships` and `invitations` are the
 tenancy spine itself: they are read-only to `authenticated`, every write goes through an
@@ -197,8 +209,10 @@ policy` you would search for). Do not copy this skeleton onto them; see
 
 Mirror the SAME statements in the declarative `supabase/schemas/<NN>_<slice>.sql` so the two
 agree — that file carries the desired state and the fuller comments; the migration carries
-the applied history. `20_notes.sql` and `20260101000100_notes.sql` are the two halves of the
-worked example.
+the applied history. In the worked example `20_notes.sql` is the desired state, and no single
+migration is its other half: `20260101000100_notes.sql` created the table with four
+owner-keyed policies, `20260201000100_notes_org_scope.sql` replaced them with the org-scoped
+policies above, and later migrations added an index and the MFA policy.
 
 ## Identity is the verified JWT, never a GUC
 
