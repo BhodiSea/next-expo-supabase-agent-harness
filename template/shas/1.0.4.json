@@ -727,7 +727,7 @@
     ],
     "docs/harness/README.md": [
       {
-        "sha256": "58216164d9eef1b9e0774235a1607bb004e54692b501e311d608b1907ecbbee4",
+        "sha256": "053149d4474b65131042814ae058210732bd25a492fbb844e9076818681e0b03",
         "sites": [
           [
             16364,
@@ -745,19 +745,19 @@
         ]
       },
       {
-        "sha256": "606dd5961912842212a72c9422d7c4a49b4ba92605336f15a598477fc389c149",
+        "sha256": "914934992ac90176506e2382d796c2fb300a757ea3dee984901631583447869e",
         "sites": [
           [
-            16364,
+            14929,
             "SECURITY_OWNERS"
           ]
         ]
       },
       {
-        "sha256": "914934992ac90176506e2382d796c2fb300a757ea3dee984901631583447869e",
+        "sha256": "ec22b124625dc6f76fcc656954f72161e2987059d81ff333614a5da5b88d7fe0",
         "sites": [
           [
-            14929,
+            16297,
             "SECURITY_OWNERS"
           ]
         ]
@@ -770,7 +770,7 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "068b977cefc3f7d791beb85c9dea8565fd1262a83753e7128d47d6fe5909139d",
+        "sha256": "0d4a2ce4fcac1700b7bd0d70af37b6d24006bc6efd7142aca8dcd8e23144f9bb",
         "sites": [
           [
             116445,
@@ -788,7 +788,7 @@
         ]
       },
       {
-        "sha256": "d0163b723d4dea0118e7d08f4e43e2f602c323923791c254bc25ce3c5fc11348",
+        "sha256": "c91b97ae2fd768401ba63a28e773bc4e64bb59fbe190ccafd53cb39dfc99d2a7",
         "sites": [
           [
             116702,
@@ -978,25 +978,25 @@
         ]
       },
       {
-        "sha256": "458299dfdf65bd59bb69160a5d0dc451f3e2f35273179c452c8d9ca2652c1e44",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
-        "sha256": "469bb01dfbcb77dc44ebabc6d54924f4499d2d2a876a34088204b05833f17f19",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "7a18e5f7fc20c03f790c2b0f4bc263605d301523273a1917b4e558fdb03b074e",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "d558ef3b0ad033edb7ae2616ced7354096cde1fe9ffb336c88488c1a5e4fc410",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "ef4fc5bbfa4c83428281b17d396b9ada7543cb74d3728d6e81ea0c7f60672ccf",
         "sites": [
           [
             14115,
@@ -1238,9 +1238,6 @@
       },
       {
         "sha256": "856601f3017209d2d2a9fc54943f8f9498c6edf7b20d2a937caced9dfda52e98"
-      },
-      {
-        "sha256": "8b3dbd4dd1ca82ef37644a2cc0156793a3cfc1d7ed50b3725cbbbd1fd616ba95"
       }
     ],
     "tools/auth-posture.json": [
@@ -1379,6 +1376,9 @@
     ],
     "tools/check-migrations.mjs": [
       {
+        "sha256": "3930dec6b994849569ea2c2b351be747fac253c9cb3f490b996c02e58e43e1eb"
+      },
+      {
         "sha256": "4bb0a580e12d3357917f082eb859949004dd8f6f5095172f5446fe953b7a52aa"
       }
     ],
@@ -1495,6 +1495,9 @@
     "tools/check-styleguide-manifest.mjs": [
       {
         "sha256": "27c080d192ddf006a85d713c4517e04e004cc889d5830d5001a9e6bb2f1b7e37"
+      },
+      {
+        "sha256": "73bd99fd7019787b2a198a764d1b26effb98ee0032009e5f77b8ddb9811178c9"
       }
     ],
     "tools/check-suppressions.mjs": [
@@ -1521,6 +1524,9 @@
       }
     ],
     "tools/check-version-sync.mjs": [
+      {
+        "sha256": "73d3742e0405c4d8d2205bad129dc44b8ba04cb67c3bc0ab04ee1d2cb3d625b1"
+      },
       {
         "sha256": "b90db81c4e06e6b74f90d188c5b34b25a6080893e3d92f56a99f486ee8da92fc"
       }
@@ -1771,10 +1777,13 @@
     ],
     "tools/lib/gate.mjs": [
       {
-        "sha256": "1d328dd5aa70d067c7d6da9f36e1548dce39308c38bb8478781696593f6e5b55"
+        "sha256": "303db1242d60489d0e2cb8db930721a36f17fff4b5f65591ccefe102c54bf651"
       },
       {
-        "sha256": "303db1242d60489d0e2cb8db930721a36f17fff4b5f65591ccefe102c54bf651"
+        "sha256": "aeb87ae39c46cb07390ffdb24ba1f2471669f8d098cac61f79cd8fa30616d6d5"
+      },
+      {
+        "sha256": "d844c352ae56a8e72ba44b0a17fcd2af9a2915498ef13b5745d080536471c497"
       }
     ],
     "tools/lib/git-diff.mjs": [
@@ -1883,9 +1892,6 @@
         "sha256": "550eda19fdee03e753123ab533a08f0501dcadcc4278327e6cf825995dc9e203"
       },
       {
-        "sha256": "f0150fb78f4f00c4f287fe5bb2744ea95aa670fda80c392ecc8e9cbe40abf296"
-      },
-      {
         "sha256": "f25cc09a58dcd09e318792513092c19c35e21c3730a10d6121b5ffd12c6bb428"
       }
     ],
@@ -1990,6 +1996,9 @@
       }
     ],
     "tools/validate.mjs": [
+      {
+        "sha256": "26c31d7617ad698834d7468b32a0cafed0fac914b017ec5b0bc9b6bce3260b77"
+      },
       {
         "sha256": "91cbe8628ab5154071a0a4613d807ab0111903f373207cc72cc75274e6e2fb77"
       }

@@ -29,6 +29,29 @@ thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.3 meet nothing here
 <!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
 this heading if none does. -->
 
+### Added
+
+- **`node tools/validate.mjs --ci-parity` gives a local run CI's posture.** Local and CI
+  verdicts split on one predicate: a gate whose prerequisite is missing skips locally and
+  fails in CI, and a warm stamp is honoured only locally. No `validate` flag set it, so the
+  way to get CI's verdict before pushing was to export `HARNESS_REQUIRE_TOOLCHAINS=1` by
+  hand, and `docs/cli.md` did not say that the variable also turns every stamp off. The
+  flag sets that variable for every step, prints the posture as its first line, and after
+  the summary's total prints one line per missing prerequisite a gate recorded, naming the
+  step, the gate and the reason, in step order under `--report-all` too.
+  `VALIDATE_TIMINGS` stays the last line. `tools/lib/gate.mjs` gains
+  `noteMissingPrerequisite`, which `skipOrFail` calls, and so do the CI branches of the
+  partial legs that used to print only a local NOTE: `migrations`' append-only diff,
+  `version-sync`'s zod and React walks, and `styleguide`'s install-less regen-diff. The
+  records live in a temp directory outside the project and never decide the exit code.
+  `--min-floor --ci-parity` is the local counterpart of CI's `static` job. With `--list` the flag changes nothing, and it refuses
+  `--stop-chain`, whose `reviewer-verdicts` step needs a live turn. Without the flag
+  nothing changes, and the chain, both frozen floors and the workflows are untouched.
+  `update` delivers `tools/validate.mjs`, `tools/lib/gate.mjs`, the three gates,
+  `docs/harness/gates-catalog.md` and `docs/harness/README.md`. The three gates reach the
+  new export through a namespace import, so an install whose forked `tools/lib/gate.mjs`
+  was parked still runs them and records nothing (#44).
+
 ### Fixed
 
 - **The committed database types match Supabase CLI 2.118.0.** The catalog gives the CLI as
@@ -185,6 +208,13 @@ this heading if none does. -->
   unmodified. When the runner is forked, `update` keeps the fork and parks the incoming
   copy, and a fork that does not hand vitest `SUPABASE_DB_URL` makes the new `auth-trail`
   suite throw, locally and in `runtime-rls`, until it does (#43).
+- **`--ci-parity` is CI's posture, not CI.** It does not set `CI`, so a tool that reads
+  `CI` directly keeps its local behaviour, and ESLint's cache and `*.tsbuildinfo` stay.
+  It does not set `GITHUB_BASE_REF` either, so an edit to a migration already committed
+  on the branch is caught only in CI, or locally with that variable exported and the base
+  branch fetched. `types-drift` still skips on its own with no stack up, as it does in
+  CI's `static` job, and records nothing. The Stop chain has no parity run at all
+  (`docs/harness/README.md`, skip-local / fail-closed-CI asymmetry) (#44).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -232,7 +262,12 @@ this heading if none does. -->
   --dry-run` there listed both entries, removed nothing, and printed a line for each tool.
   Its report and `--clean` were also driven through an injected probe, including a failing,
   a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip
-  case was exercised (#43).
+  case was exercised (#43). The `--ci-parity` cases in `tests/gates/validate-runner.test.mjs`,
+  run over file stubs and a copy of the real `tools/lib/gate.mjs`, were red while the runner
+  ignored the flag and green after it, and the cases pinning `--list` and a run without the
+  flag were green on both sides; each of the partial legs was red on its missing record
+  before its call was added, and a gate run over a `tools/lib/gate.mjs` without the new
+  export failed to load until the gates reached it through a namespace import (#44).
 
 ## [1.0.3] — 2026-09-23
 

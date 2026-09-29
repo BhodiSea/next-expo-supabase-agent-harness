@@ -1266,9 +1266,11 @@ it, and the 1.0.0 section above is still the sweep.
 sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook, the hooks
 under `.claude/hooks/` (their version stamps, and the telemetry below),
 `.claude/hooks/lib/hookio.mjs`, `docs/harness/README.md`, `tools/lib/gate.mjs`,
-`tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs` and `tests/rls/auth-trail.test.ts`,
-and, where the `eas-update` module is enabled, `tools/check-eas-update.mjs`.
-`tools/lib/supabase-cli.mjs` is new, and `update` plants it. What you may notice afterwards:
+`tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
+`tools/validate.mjs`, `tools/check-migrations.mjs`, `tools/check-version-sync.mjs` and
+`tools/check-styleguide-manifest.mjs`, and, where the `eas-update` module is enabled,
+`tools/check-eas-update.mjs`. `tools/lib/supabase-cli.mjs` is new, and `update` plants it.
+What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1331,6 +1333,13 @@ and, where the `eas-update` module is enabled, `tools/check-eas-update.mjs`.
   versions and their pins. `doctor --clean` deletes `.harness/stop-output/` and
   `apps/mobile/dist/` when git ignores them (`--clean --dry-run` lists them first). Neither
   changes its exit code.
+- **A new flag, `node tools/validate.mjs --ci-parity`.** It gives one local run CI's
+  posture: a missing prerequisite fails instead of skipping, no stamp is honoured, and the
+  run closes by naming each missing prerequisite. Run
+  `node tools/validate.mjs --min-floor --ci-parity` before you push to see what CI's
+  `static` job will say. Without the flag nothing changes, and no chain step, floor or
+  workflow moves. If you forked `tools/lib/gate.mjs` and `update` parked the new one, the
+  gates still run and nothing is recorded until you take the parked copy.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
