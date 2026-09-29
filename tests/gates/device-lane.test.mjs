@@ -74,7 +74,7 @@ function appLiterals() {
   const literals = new Set()
   for (const dir of MOBILE_DIRS) {
     for (const rel of filesUnder(dir, /\.tsx?$/)) {
-      if (/(?:^|\/)__tests__\/|\.test\.tsx?$/.test(rel)) continue
+      if (/(?:^|\/)__tests__\//.test(rel) || /\.test\.tsx?$/.test(rel)) continue
       for (const m of read(rel).matchAll(/['"`]([A-Za-z0-9_.-]+)['"`]/g)) literals.add(m[1])
     }
   }
@@ -449,11 +449,14 @@ function scriptsRunBy(job) {
   return found
 }
 
+/** A string as a regular-expression literal: every metacharacter, backslash included, escaped. */
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 /** `/tmp/<name>` logs a job reads with cat but neither it nor a script it runs writes. */
 function unwrittenLogs(job, scripts = scriptsRunBy(job).map(read)) {
   const text = [...job.steps, ...scripts].join('\n')
   const logs = [...new Set([...job.steps.join('\n').matchAll(/\bcat (\/tmp\/[\w.-]+)/g)].map((m) => m[1]))]
-  return logs.filter((log) => !new RegExp(`>\\s*${log.replace(/[.]/g, '\\.')}\\b`).test(text))
+  return logs.filter((log) => !new RegExp(`>\\s*${escapeRegExp(log)}\\b`).test(text))
 }
 
 test('a step that prints a log prints one its job writes', () => {
