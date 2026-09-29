@@ -296,7 +296,8 @@ for (const [id, proofs] of Object.entries(lanes)) {
 //     blocking lanes in that consumer's repository exactly as the base ones are, and through
 //     1.0.3 this closure, workflow-lanes and check-ci-preconditions all read template/base/
 //     only, so the module jobs (ten files and 17 jobs at 1.0.3) had to carry nothing
-//     (CHANGELOG 1.0.2 recorded the gap and left it open). Keyed '<module>/<file>#<job>' in a SEPARATE section, never bare ids in #lanes:
+//     (CHANGELOG 1.0.2 recorded the gap and left it open). Keyed '<module>/<file>#<job>' in
+//     a SEPARATE section, never bare ids in #lanes:
 //       - #lanes keys are evidence. check-conformance-evidence resolves claims against
 //         steps ∪ lanes ∪ hookRules and check-essential-eight-evidence against steps ∪ lanes;
 //         module ids there would become citable canaries and change what both accept.
