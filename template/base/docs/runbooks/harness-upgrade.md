@@ -1266,8 +1266,9 @@ it, and the 1.0.0 section above is still the sweep.
 sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook, the hooks
 under `.claude/hooks/` (their version stamps, and the telemetry below),
 `.claude/hooks/lib/hookio.mjs`, `docs/harness/README.md`, `tools/lib/gate.mjs`,
-`tools/lib/stamp-inputs.mjs` and `tests/rls/run-rls.mjs`, and, where the `eas-update`
-module is enabled, `tools/check-eas-update.mjs`. What you may notice afterwards:
+`tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs` and `tests/rls/auth-trail.test.ts`,
+and, where the `eas-update` module is enabled, `tools/check-eas-update.mjs`.
+`tools/lib/supabase-cli.mjs` is new, and `update` plants it. What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1304,6 +1305,32 @@ module is enabled, `tools/check-eas-update.mjs`. What you may notice afterwards:
   `.harness/`). If `update` parked your copy of `tools/lib/gate.mjs` or
   `tools/lib/stamp-inputs.mjs`, the runner stamps nothing and runs both suites, as it did
   before, until you take the parked copies.
+- **The Stop hook's database steps run your workspace Supabase CLI.** The `rls-isolation`
+  step and `types-drift` now put `node_modules/.bin` first on the `PATH` they spawn with
+  (not on Windows), so they run the CLI your catalog pins, as `pnpm test:rls`,
+  `pnpm db:types` and CI already did. The runner prints which CLI it used.
+- **`types-drift` can now red locally on a stale mirror.** On a machine with no global CLI
+  it used to skip; with your stack up it now runs, and a mirror that no longer matches your
+  schema blocks the turn. CI's `runtime-rls` job was already judging the same file with the
+  same CLI. Clear it the way the FAIL says:
+
+  ```
+  pnpm db:up && pnpm db:types
+  git add packages/platform/supabase/src/database.types.ts
+  ```
+
+- **The two `tests/rls` files change together.** The runner now hands vitest
+  `SUPABASE_DB_URL`, and `auth-trail.test.ts` reads it instead of naming a port. If you
+  forked `tests/rls/run-rls.mjs`, `update` keeps your fork and parks the incoming copy under
+  `.harness/pending/`, while the unmodified `auth-trail.test.ts` is re-planted. Your fork
+  must then pass `SUPABASE_DB_URL: s['DB_URL'] ?? ''` to vitest, or that suite throws
+  (locally and in `runtime-rls`) with a message naming the runner. Merge the parked copy, or
+  add that one key.
+- **`doctor` reports your toolchain and can clean residue.** Run with this release's CLI, it
+  prints `info` lines naming the `node`, `pnpm`, Supabase CLI and `psql` it found, their
+  versions and their pins. `doctor --clean` deletes `.harness/stop-output/` and
+  `apps/mobile/dist/` when git ignores them (`--clean --dry-run` lists them first). Neither
+  changes its exit code.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
