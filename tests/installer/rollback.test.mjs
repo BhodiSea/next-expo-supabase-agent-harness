@@ -504,9 +504,12 @@ test('a file the update replaced with a directory is restored with its bytes', (
 
   const { code, report } = rollbackJson(dir)
   assert.equal(code, 0, JSON.stringify(report))
-  assert.ok(statSync(gate).isFile(), 'the directory is gone and the file is back')
-  assert.equal(readFileSync(gate, 'utf8'), gateBytes)
-  if (POSIX) assert.equal(statSync(gate).mode & 0o777, 0o755, 'with its recorded mode')
+  // Read first, then stat once: a read of a directory throws, and one stat answers both the
+  // kind and the mode (a stat-then-read on one path is the check-then-use shape CodeQL flags).
+  assert.equal(readFileSync(gate, 'utf8'), gateBytes, 'the file is back with its bytes')
+  const restored = statSync(gate)
+  assert.ok(restored.isFile(), 'the directory is gone')
+  if (POSIX) assert.equal(restored.mode & 0o777, 0o755, 'with its recorded mode')
   assert.equal(readFileSync(manifestPath, 'utf8'), manifestBytes, 'and the manifest after it')
   const files = readRollbackSnapshot(dir).snapshot.files
   assert.equal(files['tools/gate.mjs'].existed, true)
