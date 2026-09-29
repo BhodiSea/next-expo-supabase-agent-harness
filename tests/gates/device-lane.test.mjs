@@ -43,6 +43,7 @@ const MUTATION = 'template/base/maestro/journeys/mutation.yaml'
 const MOBILE_DIRS = ['template/stack/apps/mobile/app', 'template/stack/apps/mobile/src']
 const LIVE_PROOF_SUITE = 'template/stack/apps/mobile/__tests__/live-api-proof.test.ts'
 const WEB_ENV_SCHEMA = 'template/stack/packages/platform/env/src/client.ts'
+const SERVER_ENV_SCHEMA = 'template/stack/packages/platform/env/src/index.ts'
 const INVENTORY = 'template/base/tools/generated/action-inventory.json'
 
 /** Files under a repo-relative directory, repo-relative and forward-slashed. */
@@ -300,11 +301,25 @@ function namesBefore(job, index) {
   return names
 }
 
-/** The NEXT_PUBLIC_ names the web host's env schema requires. */
+/** The top-level keys of one `<name> = z.object({ ... })` schema, in source order. */
+function schemaKeys(rel, name) {
+  const src = read(rel)
+  const at = src.indexOf(`${name} = z.object({`)
+  if (at === -1) return []
+  const body = src.slice(at, src.indexOf('\n})', at))
+  return [...body.matchAll(/^ {2}([A-Z][A-Z0-9_]*):/gm)].map((m) => m[1])
+}
+
+/**
+ * The names the web host parses when a request first loads @app/env: the server-only
+ * class (index.ts), then the web-public class (client.ts). A missing one of either is a
+ * 500 on every route, health included.
+ */
 function webHostEnv() {
-  const src = read(WEB_ENV_SCHEMA)
-  const body = src.slice(src.indexOf('WebPublicEnvSchema = z.object({'))
-  return [...body.slice(0, body.indexOf('})')).matchAll(/(NEXT_PUBLIC_[A-Z_]+):/g)].map((m) => m[1])
+  return [
+    ...schemaKeys(SERVER_ENV_SCHEMA, 'ServerEnvSchema'),
+    ...schemaKeys(WEB_ENV_SCHEMA, 'WebPublicEnvSchema'),
+  ]
 }
 
 /** Each requireEnv(...) group of the live proof: at least one name per group must be set. */
@@ -344,6 +359,8 @@ function webHostProblems(job, { required, groups, known }) {
 test('every job that boots the web host publishes its env first and probes a real procedure', () => {
   const context = { required: webHostEnv(), groups: liveProofEnvGroups(), known: procedures() }
   assert.deepEqual(context.required, [
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_DB_URL',
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_PUBLISHABLE',
     'NEXT_PUBLIC_WEB_ORIGIN',
@@ -364,6 +381,56 @@ test('every job that boots the web host publishes its env first and probes a rea
     jobs.flatMap((job) => webHostProblems(job, context)),
     [],
   )
+  // RED: integration-lane as 1.0.3 shipped it: the host booted with no env published and
+  // probed at /api/trpc/health, and the live proof run with LIVE_PROOF and the DB URL only.
+  const [old] = jobsOf(`on: workflow_dispatch
+jobs:
+  lane:
+    env:
+      LIVE_PROOF: '1'
+      EXPO_PUBLIC_WEB_ORIGIN: 'http://127.0.0.1:3000'
+    steps:
+      - name: Boot the web app
+        run: |
+          pnpm --filter web run dev > /tmp/web.log 2>&1 &
+          curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health"
+      - name: Live proof
+        run: |
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          export SUPABASE_DB_URL="$DB_URL"
+          pnpm --filter mobile exec jest __tests__/live-api-proof.test.ts
+`)
+  assert.ok(old !== undefined)
+  assert.deepEqual(webHostProblems({ file: 'old.yml', ...old }, context), [
+    `old.yml#lane: boots the web host before ${context.required.join(', ')} is set`,
+    'old.yml#lane: probes /api/trpc/health, which is no procedure the router has',
+    'old.yml#lane: runs the live proof without any of SUPABASE_URL / EXPO_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL',
+    'old.yml#lane: runs the live proof without any of SUPABASE_ANON_KEY / EXPO_PUBLIC_SUPABASE_PUBLISHABLE / NEXT_PUBLIC_SUPABASE_PUBLISHABLE',
+    'old.yml#lane: runs the live proof without any of SUPABASE_SERVICE_ROLE_KEY',
+  ])
+  // RED: the publish step moved first, but without the server-only DB URL, which the
+  // host parses before any NEXT_PUBLIC_ name.
+  const [partial] = jobsOf(`on: workflow_dispatch
+jobs:
+  lane:
+    steps:
+      - name: Publish
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=\${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=\${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=\${SERVICE_ROLE_KEY}"
+          } >> "$GITHUB_ENV"
+      - name: Boot the web app
+        run: |
+          pnpm --filter web run dev > /tmp/web.log 2>&1 &
+          curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/system.health"
+`)
+  assert.ok(partial !== undefined)
+  assert.deepEqual(webHostProblems({ file: 'partial.yml', ...partial }, context), [
+    'partial.yml#lane: boots the web host before SUPABASE_DB_URL is set',
+  ])
 })
 
 // ---------------------------------------------------------------------------
