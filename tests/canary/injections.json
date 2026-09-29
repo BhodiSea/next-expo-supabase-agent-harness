@@ -471,6 +471,7 @@
       ]
     },
     "pretool-bash-guard.mjs": {
+      "//": "1.0.4 (#45): the rm-rf rule's regex, its canaries and the settings deny list are unchanged; its message gains one sentence naming `doctor --clean` for ignored build output. hook-contract.test.mjs's rm-rf message case pins that sentence, the byte-identical first sentence docs/security/threat-model.md is generated from, and the deny an agent reads for a force-delete of apps/web/.next.",
       "denyToolCallSites": 1,
       "denyExamples": [
         "rm -rf node_modules",
@@ -479,6 +480,7 @@
       ]
     },
     "pretool-write-guard.mjs": {
+      "//": "1.0.4 (#45): the append-only migrations site stays ONE of these twelve and gained its proofs rather than a site. An existing supabase/migrations/*.sql is writable only when every spelling of it passes the environment proof (CLAUDE_PROJECT_DIR set; no GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE or GIT_COMMON_DIR), the manifest proof (.harness/manifest.json parses and records no such file) and the untracked proof (git status reports exactly `?? <path>`). Its red proof is tests/hooks/write-guard-migrations.test.mjs, run against a real git repository and red on every case at v1.0.3: the untracked draft is written by an Edit and a Write, USING (true) into it is still denied by policy-using-true, and a committed (clean and modified), staged, `git rm --cached`, excluded, manifest-recorded, manifest-missing, manifest-unparseable, non-repository, git-not-on-PATH, GIT_DIR-redirected and symlink-to-committed migration are each denied, with and without HARNESS_ALLOW_SELF_EDIT=1, on exactly the one proof they fail. hook-contract.test.mjs's existing append-only case (no manifest) still denies unchanged.",
       "denyToolCallSites": 12,
       "denyExamples": [
         "tools/harness.config.mjs",

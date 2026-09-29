@@ -1265,12 +1265,12 @@ it, and the 1.0.0 section above is still the sweep.
 **What `update` plants.** Owned files, re-planted when your copy still matches a released
 sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook, the hooks
 under `.claude/hooks/` (their version stamps, and the telemetry below),
-`.claude/hooks/lib/hookio.mjs`, `docs/harness/README.md`, `tools/lib/gate.mjs`,
-`tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
-`tools/validate.mjs`, `tools/check-migrations.mjs`, `tools/check-version-sync.mjs` and
-`tools/check-styleguide-manifest.mjs`, and, where the `eas-update` module is enabled,
-`tools/check-eas-update.mjs`. `tools/lib/supabase-cli.mjs` is new, and `update` plants it.
-What you may notice afterwards:
+`.claude/hooks/lib/hookio.mjs`, `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/README.md`,
+`tools/lib/gate.mjs`, `tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs`,
+`tests/rls/auth-trail.test.ts`, `tools/validate.mjs`, `tools/check-migrations.mjs`,
+`tools/check-version-sync.mjs` and `tools/check-styleguide-manifest.mjs`, and, where the
+`eas-update` module is enabled, `tools/check-eas-update.mjs`. `tools/lib/supabase-cli.mjs` is
+new, and `update` plants it. What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1330,9 +1330,12 @@ What you may notice afterwards:
   add that one key.
 - **`doctor` reports your toolchain and can clean residue.** Run with this release's CLI, it
   prints `info` lines naming the `node`, `pnpm`, Supabase CLI and `psql` it found, their
-  versions and their pins. `doctor --clean` deletes `.harness/stop-output/` and
-  `apps/mobile/dist/` when git ignores them (`--clean --dry-run` lists them first). Neither
-  changes its exit code.
+  versions and their pins. `doctor --clean` deletes `.harness/stop-output/`,
+  `apps/mobile/dist/`, `apps/web/.next/`, `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/`
+  and `.eslintcache` when git ignores them and they hold no tracked file (`--clean --dry-run`
+  lists them first). Your `.gitignore` is yours, so an entry it does not ignore is skipped
+  with a note. Neither changes its exit code. The bash guard still denies a recursive
+  force-delete, and its message now names `doctor --clean`.
 - **A new flag, `node tools/validate.mjs --ci-parity`.** It gives one local run CI's
   posture: a missing prerequisite fails instead of skipping, no stamp is honoured, and the
   run closes by naming each missing prerequisite. Run
@@ -1340,6 +1343,18 @@ What you may notice afterwards:
   `static` job will say. Without the flag nothing changes, and no chain step, floor or
   workflow moves. If you forked `tools/lib/gate.mjs` and `update` parked the new one, the
   gates still run and nothing is recorded until you take the parked copy.
+- **You can edit a migration draft you have not committed.** The write guard used to deny
+  every Edit or Write to an existing `supabase/migrations/*.sql`, so the file
+  `supabase migration new` or `supabase db diff -f` had just written could not be filled in.
+  It now allows it when git reports the file as untracked (`?? <path>`),
+  `.harness/manifest.json` does not record it, and the session has no `GIT_DIR`,
+  `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` set. Once you `git add` it, it is
+  history again, and the deny returns naming the proof that failed. Committed migrations stay
+  append-only: the `migrations` gate and CI's `append-only` job are unchanged. A migration
+  someone applied to a shared database by hand and never committed reads as a draft too, so
+  commit what you apply. If you forked `.claude/hooks/pretool-write-guard.mjs`, `update`
+  parks the new one under `.harness/pending/` and your fork keeps denying every existing
+  migration until you take it.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
