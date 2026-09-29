@@ -1368,8 +1368,9 @@ plants it. What you may notice afterwards:
     app is dense enough to measure. The reason needs at least 40 characters after
     trimming; the date is checked for format only. `perf-budget` then prints a NOTE and
     names the reason in its OK line. The leak scan and the dense-feature closure still
-    run, so a kept `features/*/perfSubject.tsx` still needs a subject or a reviewed
-    `exempt` row, and the row beside a non-empty `subjects[]` reds as a stale escape.
+    run, so a `features/*/perfSubject.tsx` you keep needs a reviewed `exempt` row for its
+    directory (declaring it as a subject ends the empty state), and the row beside a
+    non-empty `subjects[]` reds as a stale escape.
   - `tools/store-tunables.json` `accountDeletion` may carry `"registry"` when your command
     registry is not `apps/mobile/src/features/actions/registry.ts`: a forward-slash `.ts`
     or `.tsx` path under `apps/mobile/src/` with no `..` segment, legal only with
