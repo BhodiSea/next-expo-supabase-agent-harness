@@ -40,7 +40,8 @@ here deliberately rather than papered over:
   expo-router navigation, the tRPC client and i18n run for real, but Hermes bytecode load,
   native module init, Fabric layout, and the OS keychain do not. The on-device half is
   the Maestro emulator lane plus the startup-budget measurement, and those are CI-ONLY
-  (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly; `mobile-perf
+  (quality-gate `mobile-e2e` + `perf-lane`, path-filtered + nightly, and skipped on a
+  pull request while a live `tools/surfaces.json` row defers the mobile surface; `mobile-perf
   --closure` in the Stop chain is the static half that guarantees every screen HAS a
   flow and a budget row the day it registers). A turn can end green having never booted
   the app on a device. That is a deliberate trade (seconds-fast, laptop-complete agent
@@ -499,7 +500,9 @@ reason `pnpm audit` is not in this chain at all. This half is CLOCKLESS and OFFL
 lockfile, same floor, same verdict on any machine on any day. Whether the review is still
 FRESH is the one time-dependent question, and it rides the scheduled `floor-review` job in
 `osv-scan.yml` (`reviewedUntil`, schedule + workflow_dispatch only — never a PR, because a
-lapsed review must not block a contributor's unrelated patch).
+lapsed review must not block a contributor's unrelated patch). The same job reviews the
+surface register since 1.1.0, in a step of its own that a red floor step cannot hide (see
+"Surface deferral" under the CI lanes).
 **The review WINDOW is judged here, though (0.6.0), because it is not a calendar question.**
 `reviewedUntil - reviewedOn` must be at most **31 days** — one calendar month, matching the
 roughly monthly cadence upstream now publishes security releases on. Before this the window
@@ -2201,6 +2204,37 @@ even when that record cannot be written.
   injecting native source would break CNG purity) — the median + warm split is
   the managed replacement, and the parse stays armed for consumers that add a
   native binding.
+- **Surface deferral** (`changes` → `mobile-e2e`, `perf-lane`; 1.1.0) — a project that
+  builds its web surface first records the mobile surface as not built yet in the seeded
+  `tools/surfaces.json`: `{ "surface": "mobile", "deferredUntil": "YYYY-MM-DD",
+  "reason": "<one line>" }`, one row per surface, and `mobile` is the only surface a row
+  may name. The `changes` job runs `node tools/ci/surface-deferral.mjs --mode=pr`, which
+  prints exactly `mobile-deferred=true|false` and `mobile-deferral=<until>: <reason>` into
+  `$GITHUB_OUTPUT` (everything else goes to the log), and the two device lanes skip on a
+  pull request while the row is live. **Narrow reach:** only the `pull_request` arm of those
+  two jobs reads the output; scheduled and dispatched runs keep both lanes, `native` and
+  every other job ignore it, and `gate-summary` prints the reason beside the two skipped
+  lanes and never counts a skip as a pass. **The content tripwire:** a row is VOID, and the
+  lanes run, as soon as any file `git ls-files` lists under `apps/mobile/` differs from the
+  sha256 the installer recorded in `.harness/manifest.json`, a file is added there or a
+  recorded one is gone, or the manifest is absent. The tree is `apps/mobile/` alone: a
+  web-first project edits the shared packages on every backend change, and a shared change
+  that forces an edit under `apps/mobile/` voids the row through that edit. On a retrofit
+  install with no mobile app, nothing is compared and the row is live, and the output says
+  zero files were compared. **The clock only tightens:** `deferredUntil` is the last
+  deferred day, and after it a pull request runs the lanes again, so no date can turn a
+  run into a skip. A stale row reds on the schedule instead, never on an unrelated pull
+  request: the `floor-review` job runs `--mode=review`, which exits 1 on an expired, void
+  or malformed row. `--mode=pr` exits 1 only on a malformed register or a corrupt
+  manifest, after printing `false`; an absent or empty register reads nothing else.
+  Adding a row is a reviewed human act: the file is write-guarded (`surfaces-register`) and
+  in the escape lists, so an uncommitted edit reds `gate-integrity`, and re-recording an
+  `apps/mobile/` sha to keep a row live means editing the write-guarded,
+  CODEOWNERS-covered `.harness/`. **Anti-vacuity** (`tests/gates/surface-deferral.test.mjs`):
+  with a live row, one byte appended to `apps/mobile/app.config.ts` turns the output to
+  `mobile-deferred=false` and the log names it (`surface-deferral: mobile deferral VOID —
+  apps/mobile/app.config.ts differs from the sha the installer recorded`); `--mode=review`
+  with a `--today` after the row's date exits 1 naming the row, and on its date exits 0.
 - **Web browser lane** (`web-e2e`) — the ONLY browser-side accessibility net in
   the harness (the mobile a11y floor is lint + RNTL; neither renders the DOM).
   `tools/check-web-e2e.mjs` fails closed FIRST on a missing `playwright.config`,
