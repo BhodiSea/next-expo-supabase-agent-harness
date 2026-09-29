@@ -220,15 +220,24 @@ the Commission's own pages, each of which cites them by number. All three were r
 
 - [Cyber Resilience Act: Reporting obligations](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting)
   (last update 11 September 2026);
-- [Cyber Resilience Act: Summary of the legislative text](https://digital-strategy.ec.europa.eu/en/policies/cra-summary);
+- [Cyber Resilience Act: Summary of the legislative text](https://digital-strategy.ec.europa.eu/en/policies/cra-summary)
+  (last update 3 December 2025);
 - [Cyber Resilience Act: Open source](https://digital-strategy.ec.europa.eu/en/policies/cra-open-source)
   (last update 31 July 2026).
 
-Those pages link two more documents: the Commission guidance, C(2026) 5252 and its annex
-(published 2026-07-27; §3 covers free and open-source software and §9.1 covers reporting), and
-the Commission FAQ (§5 covers reporting). Both are hosted on ec.europa.eu, which the same
-session could not reach, so neither was read. Reading EUR-Lex itself and those two documents
-is the maintainer's step before the re-dating below is approved.
+Those pages link two more documents. Their library pages on the same site were read on
+2026-09-29, and the documents themselves were not:
+
+- the [Commission guidance, C(2026) 5252](https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation)
+  and its annex, published 27 July 2026, which the library page says clarifies scope
+  "including remote data processing solutions and free and open source software" and covers
+  reporting;
+- the [Commission FAQ](https://digital-strategy.ec.europa.eu/en/library/cyber-resilience-act-implementation-frequently-asked-questions),
+  published 3 December 2025 and last updated 4 September 2026.
+
+Both documents are hosted on ec.europa.eu, which the same session could not reach. Reading
+EUR-Lex itself and those two documents is the maintainer's step before the re-dating below is
+approved.
 
 What the pages say:
 
@@ -240,16 +249,21 @@ What the pages say:
   Single Reporting Platform (SRP)." The notification is addressed to the CSIRT where the
   manufacturer has its main establishment, and is made available to ENISA at the same time.
   ENISA set the platform up under Art. 16, and it has been operational since 11 September
-  2026. "One submission, not three" above stands; read "single reporting end-point" as one
-  submission through one platform.
+  2026. The same page: "Manufacturers and open-source software stewards are required to submit
+  their notifications through that platform." "One submission, not three" above stands; read
+  "single reporting end-point" as one submission through one platform.
 - **Scope reading: CONFIRMED for the manufacturer duties.** Only free and open-source software
   that is made available on the market is in scope, and that means supplied in the course of
   a commercial activity, "whether in return for payment or free of charge" (Art. 3(22)). The
   open-source page: "the provision of products with digital elements qualifying as free and
   open-source software that are not monetised by their manufacturers should not be considered
-  to be a commercial activity". The Commission's summary attributes the clarification of when
-  such software is made available on the market to **recital 18**. The bullet above cites
-  recital 19. Which recital carries which point is part of the EUR-Lex re-read.
+  to be a commercial activity". **The recital cited above looks wrong.** The Commission's
+  summary says "Recital 18 further clarifies when free and open-source software is made
+  available on the market", and the bullet above cites recital 19. Search-index copies of the
+  EUR-Lex text agree with the summary: they quote the not-monetised sentence from recital 18,
+  and describe recital 19 as the one that introduces the open-source software steward. The
+  bullet above is the 2026-08-07/08 record and is left as it was read; confirming the recital
+  numbers is part of the EUR-Lex re-read. The scope reading does not depend on the number.
 - **The steward answer, which this section never recorded.** Art. 24 sets up a second role
   beside the manufacturer, the **open-source software steward**. Art. 3(14), in the summary's
   words: "a legal person, other than a manufacturer, that has the purpose or objective of
@@ -270,9 +284,10 @@ What the pages say:
 
 **What that means here.** On 2026-09-11 no Art. 14 duty reached this repository in either
 role. As a manufacturer it is out of scope on the reading above, as free and open-source
-software that is not monetised, and a steward's Art. 14 duties do not apply until 2027-12-11. So "out of scope entirely" above is
-true of the manufacturer duties and of today. For 2027-12-11 it is **not settled**, because
-whether this repository has a steward depends on facts the tree cannot establish.
+software that is not monetised, and a steward's Art. 14 duties do not apply until 2027-12-11.
+So "out of scope entirely" above is true of the manufacturer duties and of today. For
+2027-12-11 it is **not settled**, because whether this repository has a steward depends on
+facts the tree cannot establish.
 `package.json`, `CITATION.cff` and `GOVERNANCE.md` name Cogvera Labs as the author. Whether
 Cogvera Labs is a legal person that systematically supports this harness, as software intended
 for commercial activities, is for the maintainer to determine. This file records the question

@@ -47,7 +47,7 @@ This lineage's own history starts at 0.1.3.
   `conformance-cra-art14-application` (due 2026-09-11) now falls due 2027-06-11. The dated
   re-reads and their sources are in `design/CONFORMANCE-FACTS.md` §2 and §4, which also
   records a new open question about open-source software stewards. Nothing here reaches an
-  install.
+  install (#54).
 
 ## [1.0.3] — 2026-09-23
 
