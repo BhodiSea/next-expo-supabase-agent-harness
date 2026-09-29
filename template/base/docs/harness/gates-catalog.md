@@ -2186,7 +2186,8 @@ even when that record cannot be written.
   server-only `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`, then the
   `NEXT_PUBLIC_` trio) before it boots the host, and waits for
   `/api/trpc/system.health`. Path-filtered +
-  nightly (emulator cost); anti-vacuity: a phase that executed zero flows exits
+  nightly (emulator cost), and skipped on a pull request while a live surface
+  deferral holds (below); anti-vacuity: a phase that executed zero flows exits
   red. On every failure the runner prints the ids and text on screen to the log,
   and the evidence uploads: screenshot, logcat tail, hierarchy, and Maestro's
   debug output, which sits under a hidden `.maestro/` directory and so needs the
@@ -2203,7 +2204,8 @@ even when that record cannot be written.
   in the managed scaffold (no RN/Expo binding for `reportFullyDrawn()`;
   injecting native source would break CNG purity) — the median + warm split is
   the managed replacement, and the parse stays armed for consumers that add a
-  native binding.
+  native binding. Path-filtered + nightly like the Maestro lane, and skipped on a
+  pull request while a live surface deferral holds (below).
 - **Surface deferral** (`surface-deferral`, run by `changes` for `mobile-e2e` and
   `perf-lane`, and by `floor-review`; 1.1.0) — a project that
   builds its web surface first records the mobile surface as not built yet in the seeded

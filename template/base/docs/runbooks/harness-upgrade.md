@@ -1681,7 +1681,8 @@ surface deferral adds `tools/ci/surface-deferral.mjs` and `tools/lib/surface-def
 and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.yml`,
 `tools/ci/summarize-gate.mjs`, `tools/lib/gate.mjs`, `tools/lib/enforcement-surface.mjs`,
 `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/enforcement-tiers.md` and
-`docs/security/threat-model.md`; the register itself is withheld (the subsection below). What you may notice afterwards:
+`docs/security/threat-model.md`; the register itself is withheld (the subsection below).
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`

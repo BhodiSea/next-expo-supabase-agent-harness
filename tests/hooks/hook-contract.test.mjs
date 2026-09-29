@@ -525,7 +525,7 @@ const RULE_CANARIES = {
   // request, so writing one is the cheapest way past a red Maestro run. Adding a row is
   // a reviewed human act.
   'surfaces-register': [pathDeny('tools/surfaces.json')],
-  'reviewer-triggers':[pathDeny('tools/reviewer-triggers.json')],
+  'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates
   // apps/web/lib/security-headers.ts and diffs what it RETURNS against this file, so an
