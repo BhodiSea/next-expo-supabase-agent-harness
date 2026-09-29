@@ -576,6 +576,7 @@ test('every gate that records a missing prerequisite still loads over a lib/gate
       mkdirSync(join(dir, posix.dirname(file)), { recursive: true })
       writeFileSync(join(dir, file), file === 'tools/lib/gate.mjs' ? forked : readFileSync(join(BASE_DIR, file), 'utf8'))
     }
+    /** @type {Record<string, string | undefined>} */
     const env = { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', GITHUB_BASE_REF: '' }
     delete env.HARNESS_PARITY_REPORT_DIR
     const res = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8', env })
