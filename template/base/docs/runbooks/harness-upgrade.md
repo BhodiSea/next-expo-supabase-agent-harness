@@ -1416,6 +1416,14 @@ and `tools/lib/citation-domains.mjs`, `.claude/rules/provenance.md`,
   Unless a release shipped exactly those bytes for that path, `update` keeps your file,
   parks the incoming copy and exits 2, where it used to overwrite the file and exit 0. See
   "A harness-owned file with no manifest record" below.
+- **The 1.0.1 section above and `docs/harness/gates-catalog.md` are corrected.** They said
+  `update` leaves an existing `tools/agents.lock.json` alone, and the 1.0.1 section said the
+  `architecture-reviewer.md` re-pin left `prompts` red until a human regenerated the lock.
+  Since 0.3.0 `update` has re-recorded the lock entry of each agent-surface file it
+  rewrites, hash and model pin together, so an install that had not edited that file owed
+  nothing then and owes nothing now. An agent file you edited still needs a human to run
+  `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` once you merge its
+  parked copy. What `update` does has not changed.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.

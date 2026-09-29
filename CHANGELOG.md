@@ -317,6 +317,16 @@ this heading if none does. -->
   prints the `--refresh-seeded` command that pulls it, and the seeded sentences that name it
   reach fresh scaffolds only (#47).
 
+### Corrections to the record
+
+- **The 1.0.1 entry said a manual `tools/agents.lock.json` regeneration was owed after
+  `update`. It was not.** Since 0.3.0 `update` re-records the lock entries of the
+  agent-surface files it rewrites, hash and model pin together, and the `prompts` gate
+  never reads the model pins. On an install that had not edited
+  `.claude/agents/architecture-reviewer.md`, the re-pin never redded `prompts`. Only an
+  edited copy needs a human regeneration, once its parked incoming version is merged. The
+  upgrade runbook and the gates catalog now say so (#49).
+
 ### What stays open, honestly
 
 - **An existing install keeps its database types until it regenerates them.** The file is
@@ -483,7 +493,15 @@ this heading if none does. -->
   parked. On that install each of the runbook's three ways out ended as the runbook says.
   `init` at every release tag from v0.1.3 through v1.0.3, on the core, standard and strict
   tiers, followed by this tree's `update`, exited 0 without parking an unrecorded file
-  (#48).
+  (#48). The new `update-provenance.test.mjs` case, an untouched agent file aged to bytes a
+  release shipped with its old hash and model pin in the lock, passed before and after the
+  two documents changed, as a test of unchanged code must, and failed when
+  `refreshAgentsLockEntries` stopped re-recording the hash or the model pin, or `update`
+  stopped calling it. The issue's reproduction, which it had derived from the code and not
+  run, was then run: a v1.0.0 core install updated by the v1.0.1 installer re-recorded one
+  lock entry, `architecture-reviewer.md` took its new model pin in the file and in the lock,
+  `prompts` passed and `gen-agents-lock.mjs --check` printed `in sync`, and the same install
+  updated by this tree's installer ended the same way (#49).
 
 ## [1.0.3] — 2026-09-23
 
