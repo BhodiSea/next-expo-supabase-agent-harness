@@ -223,7 +223,10 @@
       "matchFileNames": ["template/base/pnpm-workspace.yaml"],
       "matchPackageNames": ["supabase"],
       "rangeStrategy": "pin",
-      "groupName": "Supabase CLI"
+      "groupName": "Supabase CLI",
+      "prBodyNotes": [
+        "**Supabase CLI.** This moves the local database image and the `gen types` output. If `types-drift` reds in `bootstrap-linux`, regenerate `template/stack/packages/platform/supabase/src/database.types.ts` with `pnpm db:types`. This is a CLI pin bump for `auth-posture-cli-census` (`template/base/tools/deferrals.json`): re-check the upstream issue it names and record the result in this PR."
+      ]
     },
     {
       "description": "codeql-action is pinned to codeql-bundle-vX.Y.Z tags, which the default github-actions versioning rejects; without this it never updates.",
