@@ -61,14 +61,18 @@ function parseArgs(argv) {
       i += 1
     } else usage(`unknown argument ${JSON.stringify(argv[i])}`)
   }
-  if (typeof job !== 'string' || job.trim() === '') usage('--job must name the job, exactly as its `name:` reads')
+  if (typeof job !== 'string' || job.trim() === '')
+    usage('--job must name the job, exactly as its `name:` reads')
   return { record, job }
 }
 
 /** This checkout's tree, or '' when git cannot say. No shell: see the header. */
 function readTree() {
   try {
-    return execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    return execFileSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
   } catch {
     return ''
   }
@@ -83,7 +87,11 @@ function readTree() {
 function ghApi(path, fields = []) {
   if (!API_PATH.test(path) || !fields.every((f) => FIELD.test(f))) return null
   const query = fields.map((f) => ` -f ${f}`).join('')
-  const r = spawnSync(`gh api --method GET ${path}${query}`, { shell: true, encoding: 'utf8', maxBuffer: MAX_BUFFER })
+  const r = spawnSync(`gh api --method GET ${path}${query}`, {
+    shell: true,
+    encoding: 'utf8',
+    maxBuffer: MAX_BUFFER,
+  })
   return r.status === 0 && typeof r.stdout === 'string' ? r.stdout : null
 }
 
@@ -118,7 +126,12 @@ function fetchers(repo, sha) {
         ['event=pull_request', `head_sha=${v.pull.head}`, 'per_page=100'],
         'workflow_runs',
       ),
-    jobs: (v) => ghJson(`repos/${repo}/actions/runs/${String(v.run.id)}/attempts/${String(v.run.attempt)}/jobs`, ['per_page=100'], 'jobs'),
+    jobs: (v) =>
+      ghJson(
+        `repos/${repo}/actions/runs/${String(v.run.id)}/attempts/${String(v.run.attempt)}/jobs`,
+        ['per_page=100'],
+        'jobs',
+      ),
     log: (v) => ghApi(`repos/${repo}/actions/jobs/${String(v.jobId)}/logs`),
   }
 }
@@ -132,28 +145,38 @@ function lookup(job) {
   const input = { event: process.env.GITHUB_EVENT_NAME, sha: process.env.GITHUB_SHA, job }
   const repo = process.env.GITHUB_REPOSITORY ?? ''
   let verdict = judgeReuse(input)
-  if (verdict.need && !REPO_SHAPE.test(repo)) return { hit: false, reason: 'GITHUB_REPOSITORY is not an owner/name pair' }
+  if (verdict.need && !REPO_SHAPE.test(repo))
+    return { hit: false, reason: 'GITHUB_REPOSITORY is not an owner/name pair' }
   const fetch = fetchers(repo, String(input.sha))
   for (let asked = 0; verdict.need && asked < 6; asked += 1) {
     input[verdict.need] = fetch[verdict.need](verdict)
     verdict = judgeReuse(input)
   }
-  return verdict.need ? { hit: false, reason: `the judge kept asking for ${verdict.need}` } : verdict
+  return verdict.need
+    ? { hit: false, reason: `the judge kept asking for ${verdict.need}` }
+    : verdict
 }
 
 /** @param {import('../lib/lane-reuse.mjs').Verdict} verdict */
 function publish(verdict) {
-  const lines = [`hit=${verdict.hit ? 'true' : 'false'}`, ...(verdict.hit ? [`from=${verdict.from}`] : [])]
+  const lines = [
+    `hit=${verdict.hit ? 'true' : 'false'}`,
+    ...(verdict.hit ? [`from=${verdict.from}`] : []),
+  ]
   const out = process.env.GITHUB_OUTPUT
   try {
     if (out) appendFileSync(out, `${lines.join('\n')}\n`)
   } catch (e) {
     // No output means `hit` reads empty, and an empty hit runs every step: the safe side.
-    console.log(`lane-reuse: could not write $GITHUB_OUTPUT (${e instanceof Error ? e.message : String(e)}); every step runs`)
+    console.log(
+      `lane-reuse: could not write $GITHUB_OUTPUT (${e instanceof Error ? e.message : String(e)}); every step runs`,
+    )
     return
   }
   if (verdict.hit) {
-    console.log(`lane-reuse: HIT — ${verdict.reason}. This lane's steps do not run again on this push.`)
+    console.log(
+      `lane-reuse: HIT — ${verdict.reason}. This lane's steps do not run again on this push.`,
+    )
   } else {
     console.log(`lane-reuse: MISS — ${verdict.reason}. Every step of this lane runs.`)
   }
@@ -164,11 +187,17 @@ function record(job) {
   const event = process.env.GITHUB_EVENT_NAME ?? ''
   const head = process.env.PR_HEAD_SHA ?? ''
   const refuse = (/** @type {string} */ why) => {
-    console.error(`lane-reuse: record refused — ${why}. Nothing was recorded, so the push after this merge runs this lane in full.`)
+    console.error(
+      `lane-reuse: record refused — ${why}. Nothing was recorded, so the push after this merge runs this lane in full.`,
+    )
     process.exit(1)
   }
-  if (event !== 'pull_request') refuse(`the record runs only on pull_request, and this event is ${JSON.stringify(event)}`)
-  if (!OBJECT_ID.test(head)) refuse('PR_HEAD_SHA is not a commit id (set it from github.event.pull_request.head.sha in env:)')
+  if (event !== 'pull_request')
+    refuse(`the record runs only on pull_request, and this event is ${JSON.stringify(event)}`)
+  if (!OBJECT_ID.test(head))
+    refuse(
+      'PR_HEAD_SHA is not a commit id (set it from github.event.pull_request.head.sha in env:)',
+    )
   const tree = readTree()
   if (!OBJECT_ID.test(tree)) refuse("this checkout's tree could not be read")
   console.log(formatMarker({ job, tree, head }))
@@ -182,7 +211,10 @@ if (recording) {
   try {
     verdict = lookup(job)
   } catch (e) {
-    verdict = { hit: false, reason: `the lookup failed (${e instanceof Error ? e.message : String(e)})` }
+    verdict = {
+      hit: false,
+      reason: `the lookup failed (${e instanceof Error ? e.message : String(e)})`,
+    }
   }
   publish(verdict)
 }

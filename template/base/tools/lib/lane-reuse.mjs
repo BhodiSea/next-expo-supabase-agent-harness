@@ -56,7 +56,12 @@ const miss = (reason) => ({ hit: false, reason })
  * @param {Verdict['need']} what @param {Partial<Verdict>} [context]
  * @returns {Verdict}
  */
-const need = (what, context = {}) => ({ hit: false, reason: `needs ${String(what)}`, need: what, ...context })
+const need = (what, context = {}) => ({
+  hit: false,
+  reason: `needs ${String(what)}`,
+  need: what,
+  ...context,
+})
 
 /**
  * The one marker line the record step prints.
@@ -128,12 +133,14 @@ function mergedPull(p, sha) {
   const pr = /** @type {Record<string, any>} */ (p ?? {})
   const n = pr.number
   if (!Number.isInteger(n) || n < 1) return miss('the associated pull request has no number')
-  if (typeof pr.merged_at !== 'string' || pr.merged_at === '') return miss(`#${String(n)} was not merged`)
+  if (typeof pr.merged_at !== 'string' || pr.merged_at === '')
+    return miss(`#${String(n)} was not merged`)
   if (pr.merge_commit_sha !== sha) {
     return miss(`#${String(n)} merged as ${String(pr.merge_commit_sha)}, not as this commit ${sha}`)
   }
   const head = pr.head?.sha
-  if (typeof head !== 'string' || !OBJECT_ID.test(head)) return miss(`#${String(n)} names no head commit`)
+  if (typeof head !== 'string' || !OBJECT_ID.test(head))
+    return miss(`#${String(n)} names no head commit`)
   return { ok: { number: n, head } }
 }
 
@@ -145,10 +152,14 @@ function mergedPull(p, sha) {
  */
 function pickPull(pulls, sha) {
   if (pulls === undefined) return need('pulls')
-  if (!Array.isArray(pulls)) return miss(`the pull request lookup for ${sha} failed (API or parse error)`)
-  if (pulls.length === 0) return miss(`no pull request is associated with ${sha}: a direct push, never a merge`)
+  if (!Array.isArray(pulls))
+    return miss(`the pull request lookup for ${sha} failed (API or parse error)`)
+  if (pulls.length === 0)
+    return miss(`no pull request is associated with ${sha}: a direct push, never a merge`)
   if (pulls.length > 1) {
-    return miss(`${String(pulls.length)} pull requests are associated with ${sha}, and reuse needs exactly one`)
+    return miss(
+      `${String(pulls.length)} pull requests are associated with ${sha}, and reuse needs exactly one`,
+    )
   }
   return mergedPull(pulls[0], sha)
 }
@@ -171,7 +182,10 @@ function isRunOf(r, pull) {
 
 /** Newest first: creation time, then the (monotonic) run id. @param {any} a @param {any} b */
 function newestFirst(a, b) {
-  return String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')) || Number(b.id) - Number(a.id)
+  return (
+    String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')) ||
+    Number(b.id) - Number(a.id)
+  )
 }
 
 /**
@@ -184,7 +198,9 @@ function newestFirst(a, b) {
 function pickRun(runs, pull) {
   if (runs === undefined) return need('runs', { pull })
   if (!Array.isArray(runs)) {
-    return miss(`listing ${WORKFLOW_FILE} runs for #${String(pull.number)} failed (API or parse error)`)
+    return miss(
+      `listing ${WORKFLOW_FILE} runs for #${String(pull.number)} failed (API or parse error)`,
+    )
   }
   const own = runs.filter((r) => isRunOf(r, pull)).sort(newestFirst)
   if (own.length === 0) {
@@ -194,8 +210,12 @@ function pickRun(runs, pull) {
   }
   const r = own[0]
   const valid =
-    Number.isInteger(r.id) && Number.isInteger(r.run_attempt) && r.run_attempt >= 1 && RUN_URL.test(String(r.html_url))
-  if (!valid) return miss(`the newest run of #${String(pull.number)} is malformed (id, attempt or URL)`)
+    Number.isInteger(r.id) &&
+    Number.isInteger(r.run_attempt) &&
+    r.run_attempt >= 1 &&
+    RUN_URL.test(String(r.html_url))
+  if (!valid)
+    return miss(`the newest run of #${String(pull.number)} is malformed (id, attempt or URL)`)
   return { ok: { id: r.id, attempt: r.run_attempt, url: r.html_url, head: pull.head } }
 }
 
@@ -209,17 +229,26 @@ function pickRun(runs, pull) {
  */
 function pickJob(jobs, name, run) {
   if (jobs === undefined) return need('jobs', { run })
-  if (!Array.isArray(jobs)) return miss(`listing the jobs of ${run.url} failed (API or parse error)`)
+  if (!Array.isArray(jobs))
+    return miss(`listing the jobs of ${run.url} failed (API or parse error)`)
   const named = jobs.filter((j) => j?.name === name)
-  if (named.length === 0) return miss(`${run.url} (attempt ${String(run.attempt)}) has no job named ${JSON.stringify(name)}`)
+  if (named.length === 0)
+    return miss(
+      `${run.url} (attempt ${String(run.attempt)}) has no job named ${JSON.stringify(name)}`,
+    )
   if (named.length > 1) {
-    return miss(`${run.url} (attempt ${String(run.attempt)}) has ${String(named.length)} jobs named ${JSON.stringify(name)}`)
+    return miss(
+      `${run.url} (attempt ${String(run.attempt)}) has ${String(named.length)} jobs named ${JSON.stringify(name)}`,
+    )
   }
   const j = named[0]
   if (j.conclusion !== 'success') {
-    return miss(`${JSON.stringify(name)} concluded ${JSON.stringify(j.conclusion ?? null)} in ${run.url}, and only success counts`)
+    return miss(
+      `${JSON.stringify(name)} concluded ${JSON.stringify(j.conclusion ?? null)} in ${run.url}, and only success counts`,
+    )
   }
-  if (!Number.isInteger(j.id)) return miss(`${JSON.stringify(name)} in ${run.url} carries no job id`)
+  if (!Number.isInteger(j.id))
+    return miss(`${JSON.stringify(name)} in ${run.url} carries no job id`)
   return { ok: j.id }
 }
 
@@ -231,16 +260,26 @@ function pickJob(jobs, name, run) {
  */
 function judgeLog(log, { job, tree, run, jobId }) {
   if (log === undefined) return need('log', { run, jobId })
-  if (typeof log !== 'string') return miss(`the log of ${JSON.stringify(job)} in ${run.url} could not be read`)
+  if (typeof log !== 'string')
+    return miss(`the log of ${JSON.stringify(job)} in ${run.url} could not be read`)
   const { count, marker } = readMarkers(log)
   if (count === 0) return miss(`no reuse record in the log of ${JSON.stringify(job)} in ${run.url}`)
-  if (count > 1) return miss(`${String(count)} reuse records in the log of ${JSON.stringify(job)} in ${run.url}, and exactly one counts`)
+  if (count > 1)
+    return miss(
+      `${String(count)} reuse records in the log of ${JSON.stringify(job)} in ${run.url}, and exactly one counts`,
+    )
   if (marker === null) return miss(`the reuse record in ${run.url} is malformed`)
-  if (marker.job !== job) return miss(`the record in ${run.url} was recorded for ${JSON.stringify(marker.job)}, not for ${JSON.stringify(job)}`)
+  if (marker.job !== job)
+    return miss(
+      `the record in ${run.url} was recorded for ${JSON.stringify(marker.job)}, not for ${JSON.stringify(job)}`,
+    )
   if (marker.tree !== tree) {
-    return miss(`the tree ${marker.tree} that ${run.url} proved differs from this checkout's ${tree}: the merge changed something`)
+    return miss(
+      `the tree ${marker.tree} that ${run.url} proved differs from this checkout's ${tree}: the merge changed something`,
+    )
   }
-  if (marker.head !== run.head) return miss(`the recorded head ${marker.head} differs from the run's head ${run.head}`)
+  if (marker.head !== run.head)
+    return miss(`the recorded head ${marker.head} differs from the run's head ${run.head}`)
   return {
     hit: true,
     from: run.url,
@@ -264,7 +303,8 @@ export function judgeReuse(input) {
   const sha = /** @type {string} */ (input.sha)
   const job = /** @type {string} */ (input.job)
   if (input.tree === undefined) return need('tree')
-  if (typeof input.tree !== 'string' || !OBJECT_ID.test(input.tree)) return miss("this checkout's tree could not be read")
+  if (typeof input.tree !== 'string' || !OBJECT_ID.test(input.tree))
+    return miss("this checkout's tree could not be read")
   const pull = pickPull(input.pulls, sha)
   if (!('ok' in pull)) return pull
   const run = pickRun(input.runs, pull.ok)
@@ -272,5 +312,7 @@ export function judgeReuse(input) {
   const picked = pickJob(input.jobs, job, run.ok)
   if (!('ok' in picked)) return picked
   const verdict = judgeLog(input.log, { job, tree: input.tree, run: run.ok, jobId: picked.ok })
-  return verdict.hit ? { ...verdict, reason: `${verdict.reason} (pull request #${String(pull.ok.number)})` } : verdict
+  return verdict.hit
+    ? { ...verdict, reason: `${verdict.reason} (pull request #${String(pull.ok.number)})` }
+    : verdict
 }

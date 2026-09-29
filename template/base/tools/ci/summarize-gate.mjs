@@ -119,7 +119,12 @@ if (skipped.length > 0) {
 // success is ever listed, so a failed lane can never read as reused, whatever it output.
 const reused = entries
   .filter(([, v]) => v?.result === 'success' && typeof v?.outputs?.['reused-from'] === 'string')
-  .map(([id, v]) => [id, String(v.outputs['reused-from']).replace(/[\r\n]+/g, ' ').trim()])
+  .map(([id, v]) => [
+    id,
+    String(v.outputs['reused-from'])
+      .replace(/[\r\n]+/g, ' ')
+      .trim(),
+  ])
   .filter(([, from]) => from !== '')
   .sort(([a], [b]) => a.localeCompare(b))
 if (reused.length > 0) {
