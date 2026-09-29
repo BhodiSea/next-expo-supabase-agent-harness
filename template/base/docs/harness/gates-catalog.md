@@ -2175,8 +2175,10 @@ even when that record cannot be written.
   `tools/interaction-budget.json`; the flow waits for its `perf-running` leaf to
   clear, then asserts `perf-pass`, so a breached budget reds at once and a
   measurement that never ends reds on the wait). The web app is the mutation
-  flow's backend: the job publishes the `NEXT_PUBLIC_` Supabase env before it
-  boots the host and waits for `/api/trpc/system.health`. Path-filtered +
+  flow's backend: the job publishes the env its first request parses (the
+  server-only `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_DB_URL`, then the
+  `NEXT_PUBLIC_` trio) before it boots the host, and waits for
+  `/api/trpc/system.health`. Path-filtered +
   nightly (emulator cost); anti-vacuity: a phase that executed zero flows exits
   red. On every failure the runner prints the ids and text on screen to the log,
   and the evidence uploads: screenshot, logcat tail, hierarchy, and Maestro's

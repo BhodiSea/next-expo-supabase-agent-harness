@@ -381,13 +381,14 @@ jobs:
       - name: Start the Supabase local stack
         run: supabase start
 
-      # BEFORE the web app boots (1.0.4): the host builds its Supabase client from
-      # NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE / NEXT_PUBLIC_WEB_ORIGIN on every request,
-      # health included, and the live-proof suite below requires a URL, a publishable key
-      # and SUPABASE_SERVICE_ROLE_KEY. Through 1.0.3 this job booted the host with none of
-      # them. Extracted from the running stack at runtime, never committed: the local
-      # stack's keys rotate per `supabase start`. API_URL loses its trailing slash because
-      # the env Origin validator rejects one.
+      # BEFORE the web app boots (1.0.4): the host's first request parses @app/env, the
+      # server-only pair (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then
+      # NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE / NEXT_PUBLIC_WEB_ORIGIN, and one missing
+      # name is a 500 on every route, health included. The live-proof suite below requires
+      # a URL, a publishable key and SUPABASE_SERVICE_ROLE_KEY. Through 1.0.3 this job
+      # booted the host with none of them. Extracted from the running stack at runtime,
+      # never committed: the local stack's keys rotate per `supabase start`. API_URL loses
+      # its trailing slash because the env Origin validator rejects one.
       - name: Publish the local Supabase env to the job
         shell: bash
         run: |
@@ -865,17 +866,18 @@ jobs:
 
       # The device reaches the host through adb reverse, so the app's public config
       # must point at loopback. `supabase status -o env` is the source for the local
-      # stack's URL and publishable key — never a committed literal (the hygiene gate
-      # rejects JWT-shaped strings in the template, and these rotate per `supabase start`).
-      # SUPABASE_SERVICE_ROLE_KEY rides along for ONE step: tools/ci/mint-device-user.mjs
-      # mints the identity the mutation journey signs in as (admin createUser + its
-      # personal org) — the local stack's key, rotated per `supabase start`, never a
-      # deployed project's, and it reaches no bundle (EXPO_PUBLIC_ is the only prefix
-      # Metro inlines).
-      # BEFORE the web app boots, with the NEXT_PUBLIC_ trio (1.0.4): the web app is the
-      # mutation journey's backend, and it builds its Supabase client from those three on
-      # every request, health included. Through 1.0.3 this step ran after the boot and
-      # published none of them, so the host never answered and the journey never ran.
+      # stack's URL and keys — never a committed literal (the hygiene gate rejects
+      # JWT-shaped strings in the template, and these rotate per `supabase start`).
+      # SUPABASE_SERVICE_ROLE_KEY is the local stack's key, never a deployed project's:
+      # tools/ci/mint-device-user.mjs mints the identity the mutation journey signs in as
+      # with it (admin createUser + its personal org), and it reaches no bundle
+      # (EXPO_PUBLIC_ is the only prefix Metro inlines).
+      # BEFORE the web app boots (1.0.4): the web app is the mutation journey's backend,
+      # and its first request parses @app/env, the server-only pair
+      # (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then the NEXT_PUBLIC_ trio; one
+      # missing name is a 500 on every route, health included. Through 1.0.3 this step
+      # ran after the boot and published neither the DB URL nor the trio, so the host never
+      # answered and the journey never ran.
       - name: Publish the local Supabase env for the web host, the bundle and the minter
         shell: bash
         run: |
@@ -889,6 +891,7 @@ jobs:
             echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
             echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
           } >> "$GITHUB_ENV"
 
       - name: Boot the web app (the mutation flow's backend)
