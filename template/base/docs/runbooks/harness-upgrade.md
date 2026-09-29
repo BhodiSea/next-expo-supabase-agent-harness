@@ -983,7 +983,7 @@ record its expiry. `graduate` refuses while any of them NOTEs; the sweep above c
 ones a script may clear, and the rest (registers naming YOUR code, the paired trail
 adoption) are yours.
 
-## 1.0.1 — a patch: nothing expires, nothing opens, one lock to regenerate
+## 1.0.1 — a patch: nothing expires, nothing opens, and the lock follows the re-pin
 
 **If you are on 1.0.0 already, no ramp here applies to you** — `EXPIRED` and `NOTING` are
 both empty at `baseVersion` 1.0.0 (`node scripts/ci/ramp-expectations.mjs 1.0.0 1.0.1` in the
@@ -998,12 +998,16 @@ first apostrophe inside `vitest.config.ts`'s exclude array), `.claude/settings.j
 `~/.claude` deny narrowed to the two settings files, so plans and memory can persist under
 `~/.claude`), and `.claude/agents/architecture-reviewer.md` (`model: opus` → `model: fable`).
 
-**The one thing you owe.** `update` never rewrites an existing `tools/agents.lock.json` —
-regenerating it would launder every edit since the last one — so after this hop the `prompts`
-gate reds on exactly that one agent file until you run
-`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` and commit the lock. That
-is the re-pin landing as a reviewed diff, which is what the lock is for. It is not a ramp and
-it has no deadline.
+**The agent lock follows the re-pin.** `update` never regenerates an existing
+`tools/agents.lock.json`, because that would launder every edit made since the last one.
+It re-records only the entries of the agent-surface files it rewrote itself, hash and
+model pin together. If your `architecture-reviewer.md` was untouched, `update` rewrites
+it, the lock records its new model, and `prompts` does not red on it: nothing is owed.
+If you had edited it, `update` keeps your copy and parks the incoming one under
+`.harness/pending/` (see "Forking an owned file" in the 1.0.2 section). Merging it is
+your edit, so `prompts` reds on it until a human runs
+`HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write` and commits the lock
+with the merge. That is not a ramp and has no deadline.
 
 ## 1.0.2 — a security patch: the `next` floor moves, and it reds every install below it
 

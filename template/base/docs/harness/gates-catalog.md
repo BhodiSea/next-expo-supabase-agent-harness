@@ -642,8 +642,11 @@ own promise that projects grow into gates. "In the lock and the hash moved" is U
 every vintage: that is not a vintage gap, it is an edit to instructions somebody already
 reviewed. In practice no install sees the ramp at all, because the installer **writes the
 lock from the install's own current files** — at `init` always, at `update` only when
-there is no lock yet. An update never REWRITES one: doing so would launder every edit made
-since, which is the act the lock exists to make visible.
+there is no lock yet. An update never REGENERATES one: doing so would launder every edit
+made since, which is the act the lock exists to make visible. It re-records only the
+entries of the agent-surface files it wrote itself, hash and model pin together. It does
+not rewrite a copy you edited, so that entry does not move. `update --force` discards your
+edit, and the entry then moves with the file it wrote.
 
 **Three layers, because one env var is not a control.** `tools/gen-agents-lock.mjs`
 refuses `--write` without `HARNESS_ALLOW_SELF_EDIT=1`; the bash-guard denies invoking any
