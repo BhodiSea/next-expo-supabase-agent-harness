@@ -1256,6 +1256,41 @@ pnpm validate
 Do not use `update --refresh-seeded pnpm-workspace.yaml` for this: it replaces your whole
 catalog with the template's.
 
+## 1.0.4 — the local loop release: a patch, nothing expires, nothing opens
+
+**No ramp here applies to a 1.0.0, 1.0.1, 1.0.2 or 1.0.3 install.** The population 1.0.0
+reds is restated in this release's record for the same reason 1.0.1 through 1.0.3 restated
+it, and the 1.0.0 section above is still the sweep.
+
+**What `update` plants.** Owned files, re-planted when your copy still matches a released
+sha: `tools/check-types-drift.mjs`, `docs/harness/gates-catalog.md`, this runbook and the
+hook version stamps. What you may notice afterwards:
+
+- **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
+  prints each side's line count, the first line that differs, and a bounded window of each
+  side from there (`DIFF_LINES` in the gate), the committed file's lines prefixed `- ` and
+  the generated output's `+ `. The verdict and the exit code do not change.
+
+**What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
+Each note says what an existing install does instead.
+
+- **`packages/platform/supabase/src/database.types.ts`, regenerated with Supabase CLI
+  2.118.0.** The schema is unchanged. The generator's layout moved, and a function that
+  takes no arguments is now typed `Args: Record<PropertyKey, never>` where it was
+  `Args: never`. Your catalog's `supabase` entry decides which CLI your install runs, not
+  this release. Once that CLI generates differently from your committed file, `types-drift`
+  reds with your stack up, and the diff it prints shows where. Regenerate from your own
+  schema and commit the result:
+
+  ```
+  pnpm db:up && pnpm db:types
+  git add packages/platform/supabase/src/database.types.ts
+  pnpm validate
+  ```
+
+  Do not copy the template's file over yours. It describes the example's schema, not
+  your database.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

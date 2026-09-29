@@ -856,5 +856,30 @@
       ],
       "why": "1.0.3 opens no escape and closes none. The population above is 1.0.0's, restated because a direct hop from any of these vintages crosses 1.0.0's record: the same sites fall due, the same six-gate NOTE fleet (all until 1.1.0) arrives, and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. A 1.0.0, 1.0.1 or 1.0.2 install meets nothing. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.3`, never off this paragraph."
     }
+  },
+  "1.0.4": {
+    "//": [
+      "1.0.4 — a patch, the local loop release: what a local run says matches what CI will say. The version bump changes the eight hook version stamps and the upgrade runbook, both OWNED and re-planted by `update` when sha-unmodified. Each entry below names what its item delivers through `update` and what it leaves to fresh scaffolds. A patch opens no ramp and moves no deadline. So the record carries no removed/renamed/configSteps/seedOnInitOnly/seededSourceFixes/dependencyObligations and no rampExtensions, and scripts/ci/upgrade-sweep.mjs needs no SWEEPS entry for it.",
+      "tools/check-types-drift.mjs and docs/harness/gates-catalog.md: on a FAIL the gate now prints each side's line count, the first differing line and at most 20 lines of each side from there, before the unchanged FAIL sentence. Its verdict and exit code do not change. `update` NEVER plants packages/platform/supabase/src/database.types.ts: the file is seeded, and every release since 0.2.0 has withheld it (the 0.2.0 record's WITHHELD note), so the types regenerated for Supabase CLI 2.118.0 reach fresh scaffolds only. An existing install whose own CLI resolves 2.118.0 gets the types-drift red with its stack up. The CLI moving causes that, not this release, so no gate here newly enforces anything. The install clears it with `pnpm db:types` and commits the diff (docs/runbooks/harness-upgrade.md, 1.0.4 section). That is why the record carries no seedOnInitOnly or seededSourceFixes entry for it (#40)."
+    ],
+    "rampExpiry": {
+      "//": "COMPUTED by scripts/check-ramp-ledger.mjs at version 1.0.4 and copied from its output, never typed. The vintage list is identical to 1.0.3's for the reason 1.0.3's was identical to 1.0.2's: a patch closes no new escape, but a direct hop from an old vintage crosses 1.0.0's record and meets its expiries on arrival, so the population is restated rather than inherited by implication.",
+      "affects": [
+        "0.1.3",
+        "0.2.0",
+        "0.2.1",
+        "0.3.0",
+        "0.4.0",
+        "0.5.0",
+        "0.6.0",
+        "0.7.0",
+        "0.8.0",
+        "0.9.0",
+        "0.9.5",
+        "0.9.9",
+        "0.10.0"
+      ],
+      "why": "1.0.4 opens no escape and closes none. The population above is 1.0.0's, restated because a direct hop from any of these vintages crosses 1.0.0's record: the same sites fall due, the same six-gate NOTE fleet (all until 1.1.0) arrives, and the documented sweep (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0']) is what clears them. A 1.0.0, 1.0.1, 1.0.2 or 1.0.3 install meets nothing. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.0.4`, never off this paragraph."
+    }
   }
 }
