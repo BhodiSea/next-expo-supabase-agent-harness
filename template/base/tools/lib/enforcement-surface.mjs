@@ -31,6 +31,10 @@ export const ESCAPE_LISTS = [
   // list for the whole time — found by scripts/check-escape-registry.mjs, which exists
   // because the header above promised drift would be invisible and then was.
   'tools/decision-groups.json',
+  // 1.0.4. The project's own citation authorities (tools/lib/corpus.mjs merges it with the
+  // owned index). An entry here makes a citation resolve and can justify a decision group,
+  // so adding one is the same widening as a new group above: a committed, reviewed act.
+  'tools/mcp/corpus/project.json',
   'tools/license-exceptions.json',
   // 0.9.9. Accepting a dependency whose VENDOR has stopped supporting it — the widening
   // its neighbour above is for licences. It is an escape rather than a harness-owned floor

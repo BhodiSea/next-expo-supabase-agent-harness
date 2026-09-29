@@ -190,6 +190,12 @@ export const SEEDED_FILES = new Set([
   // consumer at a reviewed entry here.
   'tools/vertical-anatomy-allow.json',
   'tools/decision-groups.json',
+  // 1.0.4: the project's own citation authorities, merged with the owned, hash-pinned
+  // tools/mcp/corpus/index.json by tools/lib/corpus.mjs. Seeded for the reason
+  // decision-groups.json above is: the provenance gate's remedy text tells the consumer to
+  // add an authority here, and a group added there needs a covering entry. Withheld from
+  // existing installs (seedOnInitOnly in the 1.0.4 record): the gate reads it absent-as-empty.
+  'tools/mcp/corpus/project.json',
   'tools/i18n-allow.json',
   // The 0.2.0 reviewed-data files, ALL of them. SEEDED, not owned, because every
   // gate that reads one tells the consumer in its own failure text to edit it
