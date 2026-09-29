@@ -1760,8 +1760,8 @@ you:
   `contents: read`, to list the pull request's runs, their jobs and job logs, and the pull
   request a push merged. Nothing is written. If the token cannot read them, the lookup
   misses and the lane runs in full.
-- **A pull request from a fork never reuses.** GitHub lists no pull request on a run from a
-  fork, so its merge runs every lane, which is what it did before.
+- **A pull request from a fork never reuses.** Its run executed workflow text from a
+  repository you do not control, so its merge runs every lane, which is what it did before.
 - **If you forked `quality-gate.yml`,** `update` keeps your fork and parks the incoming copy
   at `.harness/pending/.github/workflows/quality-gate.yml`, and it exits 2 while that copy
   is there ("Forking an owned file" in the 1.0.2 section). Your fork keeps running every

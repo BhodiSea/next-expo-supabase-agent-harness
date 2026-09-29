@@ -336,9 +336,12 @@ all compare against `HEAD` and see an empty diff.
 - **What is looked up.** On a push, the first step after checkout asks the same script. It
   finds the one merged pull request whose merge commit is this commit, that pull request's
   newest `quality-gate.yml` run at its final head, this job (by name) in that run's latest
-  attempt, and the marker in the job's log. It reports a hit only when the job concluded
-  exactly `success`, the log holds exactly one marker, the marker's tree equals this
-  checkout's tree, and its head equals the run's head.
+  attempt, and the marker in the job's log. A run belongs to the pull request when its head
+  commit, head branch and head repository are the pull request's. GitHub's own list of a
+  run's pull requests names only open ones, so it is empty once the pull request is merged
+  and is never read. The lookup reports a hit only when the job concluded exactly
+  `success`, the log holds exactly one marker, the marker's tree equals this checkout's
+  tree, and its head equals the run's head.
 - **What a hit does.** Every later step carries `steps.reuse.outputs.hit != 'true'`, so it
   is skipped. One step names the run the lane relied on, in the log and in the step summary,
   and `gate-summary` lists the lane as `REUSED` with that run beside its `SKIPPED` list. The
@@ -346,11 +349,11 @@ all compare against `HEAD` and see an empty diff.
   change.
 - **What misses.** Everything else, and a miss runs every step: any event but `push`
   (`pull_request`, `schedule` and `workflow_dispatch` always run in full), a direct push, an
-  associated pull request that is not exactly one or was not merged, a run of another pull
-  request or from a fork (GitHub lists no pull request on a fork's run), any conclusion but
-  `success`, a missing or malformed marker, and a merge that changed anything, such as a
-  branch behind its base or a conflict resolution. An API or parse error is a miss too: the
-  step prints why and exits 0.
+  associated pull request that is not exactly one or was not merged, a pull request from a
+  fork (its run executed workflow text from a repository you do not control), a run of
+  another pull request, any conclusion but `success`, a missing or malformed marker, and a
+  merge that changed anything, such as a branch behind its base or a conflict resolution.
+  An API or parse error is a miss too: the step prints why and exits 0.
 - **What a tree does not pin.** History (`gate-integrity` walks `git log`, and a squash
   commit's history differs from the merge commit's), the runner image, the network and the
   clock. The nightly run never reuses, so it stays the net for all four.

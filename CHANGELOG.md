@@ -75,8 +75,8 @@ this heading if none does. -->
   in its log. Only a conclusion of exactly `success`, a single marker, the same tree and the
   run's own head make a hit; then every later step is skipped, the lane names the run in its
   log and step summary, and `gate-summary` lists it as `REUSED` beside its `SKIPPED` list
-  without changing its verdict. Anything else, an API error included, runs every step, and
-  `schedule` and `workflow_dispatch` never reuse. Those jobs now request `actions: read` and
+  without changing its verdict. Anything else, a pull request from a fork and an API error
+  included, runs every step, and `schedule` and `workflow_dispatch` never reuse. Those jobs now request `actions: read` and
   `pull-requests: read` beside `contents: read`, and carry no job-level `if:`, so
   `docs-sync`'s tier verdicts do not change. An install with a forked `quality-gate.yml`
   keeps its fork, the new copy is parked under `.harness/pending/`, and `update` exits 2
