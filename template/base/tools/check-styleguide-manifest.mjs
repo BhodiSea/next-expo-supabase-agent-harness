@@ -61,15 +61,12 @@
 // https://reactnative.dev/docs/colors
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import {
-  fail,
-  failures,
-  inCI,
-  noteMissingPrerequisite,
-  ok,
-  runCmd,
-  skipOrFail,
-} from './lib/gate.mjs'
+// A NAMESPACE import (1.0.4) for `noteMissingPrerequisite` alone: it is new, and an install
+// may run this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of
+// an export that file lacks fails at link time; through the namespace it is undefined and the
+// guarded call is a no-op, so the gate still runs and only the --ci-parity record is lost.
+import * as gateLib from './lib/gate.mjs'
+import { fail, failures, inCI, ok, runCmd, skipOrFail } from './lib/gate.mjs'
 import { blankComments, skipBalanced } from './lib/source-text.mjs'
 
 const GATE = 'styleguide'
@@ -136,7 +133,7 @@ if (existsSync('node_modules')) {
   regenRan = true
 } else if (inCI()) {
   // CI without an install is a broken lane, not a valid skip: fail closed.
-  noteMissingPrerequisite(GATE, '@app/design-tokens regen-diff: node_modules is missing')
+  gateLib.noteMissingPrerequisite?.(GATE, '@app/design-tokens regen-diff: node_modules is missing')
   errs.push(
     `@app/design-tokens regen-diff could not run — node_modules is missing in CI. Install before validate (\`pnpm install\`); the regen-diff must run in CI.`,
   )

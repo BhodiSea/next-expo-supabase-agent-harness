@@ -136,6 +136,36 @@ test('RED — in CI the install-less regen-diff fails CLOSED, and under the CI p
   assert.match(records[0].reason, /node_modules/)
 })
 
+test('a forked tools/lib/gate.mjs without noteMissingPrerequisite still loads the gate (the record is lost, the verdict is not)', () => {
+  // `update` re-plants an unmodified gate script but parks the incoming copy of a forked
+  // lib/gate.mjs. The gate reaches the new export through a namespace import, so over a lib
+  // that lacks it the guarded call is a no-op instead of a link-time SyntaxError.
+  const dir = scaffold()
+  const src = dirname(GATE)
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  const gate = join(dir, 'tools/check-styleguide-manifest.mjs')
+  writeFileSync(gate, readFileSync(GATE, 'utf8'))
+  for (const lib of ['fs-walk.mjs', 'source-text.mjs']) {
+    writeFileSync(join(dir, 'tools/lib', lib), readFileSync(join(src, 'lib', lib), 'utf8'))
+  }
+  const forked = readFileSync(join(src, 'lib/gate.mjs'), 'utf8').replace(
+    'export function noteMissingPrerequisite(',
+    'function noteMissingPrerequisite(',
+  )
+  assert.ok(!forked.includes('export function noteMissingPrerequisite'), 'precondition: export removed')
+  writeFileSync(join(dir, 'tools/lib/gate.mjs'), forked)
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'styleguide-fork-')), '0')
+  const r = spawnSync(process.execPath, [gate], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.doesNotMatch(r.stderr, /SyntaxError|does not provide an export/)
+  assert.match(r.stderr, /node_modules is missing in CI/)
+  assert.throws(() => readdirSync(reportDir), /ENOENT/, 'no record without the export')
+})
+
 test('RED — a raw hex literal in a scanned screen reds naming the file and value', () => {
   const r = run(
     scaffold({ sources: { 'apps/mobile/app/bad.tsx': "const c = { color: '#ff0000' }\n" } }),

@@ -76,13 +76,17 @@ import {
   parseLockVersions,
   reviewWindowProblems,
 } from './lib/framework-floor.mjs'
+// A NAMESPACE import (1.0.4) for `noteMissingPrerequisite` alone: it is new, and an install
+// may run this gate over a forked tools/lib/gate.mjs that `update` parked. A named import of
+// an export that file lacks fails at link time; through the namespace it is undefined and the
+// guarded call is a no-op, so the gate still runs and only the --ci-parity record is lost.
+import * as gateLib from './lib/gate.mjs'
 import {
   cmpDotted,
   commandFailureOutput,
   failures,
   inCI,
   installedHarnessVersion,
-  noteMissingPrerequisite,
   ok,
   rampNote,
   runCmd,
@@ -629,7 +633,7 @@ try {
   // it matters. Partial local installs may legitimately break `pnpm list`;
   // CI (full install) must never swallow it.
   if (inCI()) {
-    noteMissingPrerequisite(
+    gateLib.noteMissingPrerequisite?.(
       GATE,
       'zod single-instance walk: `pnpm list` failed (partial or missing install)',
     )
@@ -689,7 +693,7 @@ try {
   // Same asymmetry as the zod walk: a partial local install may break `pnpm list`, but
   // CI (full install) must never swallow the single-instance assertion.
   if (inCI()) {
-    noteMissingPrerequisite(
+    gateLib.noteMissingPrerequisite?.(
       GATE,
       'React single-instance walk: `pnpm list` failed (partial or missing install)',
     )
