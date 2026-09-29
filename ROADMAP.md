@@ -112,8 +112,9 @@ does, its section says so.
   force-delete deny now names.
   ([N16](design/FIELD-UPGRADES-2026-09.md#n16-two-guard-carve-outs),
   issue #45)
-- **An owned path with no manifest record.** `update` parks the incoming copy
-  unless the bytes on disk are a released version. Follows #21.
+- **An owned path with no manifest record.** `update` keeps the file and parks
+  the incoming copy unless the bytes on disk are a released version, and a
+  `removed` or `renamed` migration keeps it too. Follows #21.
   ([N21](design/FIELD-UPGRADES-2026-09.md#n21-an-owned-path-with-no-manifest-record),
   issue #48)
 

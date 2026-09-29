@@ -23,11 +23,22 @@ One gate can red locally where it used to skip: `types-drift`, on a machine with
 Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
 already did (see Fixed). One gate can red on an unchanged tree, narrowly: `wiring`, on a
 CODEOWNERS whose last rule matching `tools/mcp/corpus/project.json` names no owner; the
-shipped rules name one (see Changed).
+shipped rules name one (see Changed). One installer fix can move `update`'s exit code
+from 0 to 2 (below).
 The `template/migrations.json` record for 1.0.4 carries `rampExpiry`, restating 1.0.0's
 thirteen-vintage population, and one `seedOnInitOnly` path, the empty project corpus (#47);
 `baseVersion` 1.0.0 through 1.0.3 meet no expiry here.
 `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
+
+**`update` can now exit 2 where it exited 0.** An install that holds a file at a
+harness-owned path with no record in `.harness/manifest.json`, whose bytes no release of
+the harness shipped for that path, used to have that file overwritten and recorded with
+exit 0. It is now kept, the incoming version is parked under `.harness/pending/`, and
+`update` exits 2 like any other drift, even when upstream left the file alone. A `removed`
+or `renamed` migration now leaves such a file in place instead of deleting it. An
+unrecorded file whose bytes a release shipped refreshes as before, and an install with no
+unrecorded owned file sees no change; `init` and `update` never leave one. `update --force`
+still overwrites. The remedy is in `docs/runbooks/harness-upgrade.md`, 1.0.4 section.
 
 ### Security
 
@@ -194,6 +205,27 @@ this heading if none does. -->
   said the deletion action calls `DELETE /api/me`. The closure checks the `delete-account`
   Edge Function, on disk and declared in `supabase/config.toml`, and both docs now say so.
   `update` delivers both (#46).
+- **`update` keeps an owned file that has no manifest record unless a release shipped its
+  bytes.** `classifyDrift` reads a missing record as "unmodified", and the provenance check
+  1.0.2 added to the sweep returned early when there was no record, so `update` replaced
+  such a file with the harness's copy, recorded it and exited 0. The 1.0.2 entry listed
+  this as open. An unrecorded owned file appears when a release starts shipping a path
+  where the project already had its own file, when `enable` keeps a file at a module path
+  (it parks its own copy and records nothing, so its refusal lasted only until the next
+  `update`), when `disable` keeps a modified module file and drops its record and the
+  module is enabled again, or when a record is deleted by hand. `update` now asks whether
+  any release up to the running installer shipped the bytes on disk for that path, from the
+  same `template/shas/` tables (`releasedAnywhere` in `installer/lib/provenance.mjs`). When
+  one did, the file is refreshed and recorded as before. When none did, the file is kept,
+  the incoming copy is parked at `.harness/pending/<path>` with one note, and `update`
+  exits 2. Unlike a recorded fork it parks even when upstream left the file alone, and
+  `tsconfig.json` gets no exemption, because both of those rules rest on a record.
+  `--force` still overwrites it, and now says so in the `--force overwrote` note, in the
+  sweep and under `--refresh-seeded`. A `removed` or `renamed` migration leaves an
+  unrecorded file no release shipped in place with a note; the tables list owned paths
+  only, so that includes every unrecorded seeded file. `classifyDrift` does not change.
+  `docs/cli.md` and a new subsection of the upgrade runbook's 1.0.4 section describe the
+  case, and `update` re-plants the runbook (#48).
 
 ### Changed
 
@@ -338,6 +370,11 @@ this heading if none does. -->
   No test starts the `corpus_search` server, which imports `@modelcontextprotocol/sdk` and so
   resolves only inside a scaffold; `tests/gates/corpus-lib.test.mjs` tests the helper it
   calls (#47).
+- **An unrecorded owned file shows up only when `update` runs.** `doctor` reads manifest
+  records, so it names the parked copy once `update` has parked one but does not list an
+  owned file that has no record, and `gate-integrity` checks recorded files only, so the
+  file stays outside the integrity check until a human records it. `update --dry-run` names
+  it beforehand (#48).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -432,7 +469,17 @@ this heading if none does. -->
   skeleton, moved the entry and put the index back to this release's bytes with its sha
   re-recorded, and `provenance`, `gate-integrity`, `docs-sync` and `wiring` were green with
   `doctor` listing no fork of the index; an ownerless `/tools/mcp/` line added to its
-  CODEOWNERS redded `wiring` naming `project.json` and the rule (#47).
+  CODEOWNERS redded `wiring` naming `project.json` and the rule (#47). The
+  unrecorded-file cases in `tests/installer/update-provenance.test.mjs` (the sweep's park,
+  `--force`, a path new since an older `harnessVersion`, no tables at all, the file
+  `enable` kept, and a `removed` migration over an owned and a seeded file) were red before
+  the change and green after, and the cases for released bytes, dry-run parity and
+  `--refresh-seeded` with no record were green on both sides. The issue's reproduction, an
+  install whose `tools/validate.mjs` record was deleted and whose file was replaced, exited
+  0 with the file overwritten before and exited 2 after, with the file kept and the incoming
+  copy parked. `init` at every release tag from v0.1.3 through v1.0.3 on the core tier, and
+  at a sample of them on the standard and strict tiers, followed by this tree's `update`,
+  exited 0 without parking an unrecorded file (#48).
 
 ## [1.0.3] — 2026-09-23
 
