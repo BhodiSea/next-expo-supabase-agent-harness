@@ -29,22 +29,27 @@ import {
 const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
 const HELPER = fileURLToPath(new URL('../../template/base/tools/lib/corpus.mjs', import.meta.url))
 const SHIPPED_INDEX = JSON.parse(readFileSync(join(TEMPLATE, UPSTREAM_CORPUS), 'utf8'))
-// The built-in decision groups (tools/lib/provenance-rules.mjs) plus the seeded extension.
-// Listed rather than imported: provenance-rules.mjs resolves tools/decision-groups.json
-// against CLAUDE_PROJECT_DIR or the cwd at import time, and this suite must not depend on
-// where it runs.
-const GROUP_KEYS = [
-  'rls-policy',
-  'guc-identity',
-  'token-verification',
-  'vector-index',
-  'llm-sampling',
-  'tuning-constants',
-  'cryptography',
-  ...JSON.parse(readFileSync(join(TEMPLATE, 'tools/decision-groups.json'), 'utf8')).groups.map(
-    (/** @type {{ key: string }} */ g) => g.key,
-  ),
-]
+// Every decision-group key a scaffold rendered from this template knows: the built-in
+// groups of tools/lib/provenance-rules.mjs plus the seeded tools/decision-groups.json.
+// Read from provenance-rules.mjs itself, so a group added there cannot drift past this
+// suite, but in a CHILD process: that module resolves tools/decision-groups.json against
+// CLAUDE_PROJECT_DIR or the cwd at import time, so the child runs from the template with
+// both pointing at it, and this suite does not depend on where it runs.
+const RULES = fileURLToPath(
+  new URL('../../template/base/tools/lib/provenance-rules.mjs', import.meta.url),
+)
+const groupKeysRun = spawnSync(
+  process.execPath,
+  [
+    '--input-type=module',
+    '-e',
+    `const m = await import(${JSON.stringify(pathToFileURL(RULES).href)})\nprocess.stdout.write(JSON.stringify(m.DECISION_GROUPS.map((g) => g.key)))`,
+  ],
+  { cwd: TEMPLATE, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: TEMPLATE } },
+)
+assert.equal(groupKeysRun.status, 0, `${groupKeysRun.stdout ?? ''}${groupKeysRun.stderr ?? ''}`)
+/** @type {string[]} */
+const GROUP_KEYS = JSON.parse(groupKeysRun.stdout)
 
 const sha = (/** @type {string} */ text) => createHash('sha256').update(text, 'utf8').digest('hex')
 
