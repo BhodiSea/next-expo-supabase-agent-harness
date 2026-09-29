@@ -101,6 +101,15 @@ jobs:
       - name: Every floored package carries an unlapsed review
         run: node tools/check-framework-floor.mjs
 
+      # THE SURFACE DEFERRAL'S DATED HALF (1.1.0). A live row in tools/surfaces.json skips
+      # mobile-e2e and perf-lane on a pull request. A lapsed or void row stops skipping them
+      # there without a word, so this is where it goes red: on the schedule, naming the row,
+      # never on somebody's unrelated pull request. Its own step under !cancelled(), so a red
+      # floor step above cannot hide it. An absent or empty register is a NOTE.
+      - name: Every surface deferral is in date and matches the installer's record
+        if: ${{ !cancelled() }}
+        run: node tools/ci/surface-deferral.mjs --mode=review
+
   # The BACKUP EVIDENCE lane (0.9.9). It sits here, beside floor-review, because it is the
   # same KIND of job rather than the same subject: scheduled-only, never a PR blocker, and
   # asking a question whose answer changes without anyone touching the repository.

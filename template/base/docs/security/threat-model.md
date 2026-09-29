@@ -100,6 +100,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `license-exceptions` — protected path `^tools\/license-exceptions\.json$`
 - `eol-register` — protected path `^tools\/eol\.json$`
 - `support-register` — protected path `^tools\/support-register\.json$`
+- `surfaces-register` — protected path `^tools\/surfaces\.json$`
 - `backup-posture` — protected path `^tools\/backup-posture\.json$`
 - `expo-permissions` — protected path `^tools\/expo-permissions\.json$`
 - `expo-plugins` — protected path `^tools\/expo-plugins\.json$`
