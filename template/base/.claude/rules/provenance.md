@@ -20,9 +20,11 @@ SOURCE: docs/harness/README.md (provenance rule)
   tree-wide; both merge the group extensions in `tools/decision-groups.json`,
   which is how new decision classes join the taxonomy.
 - Cite version-pinned authorities. When the authority is pinned in the corpus
-  (`tools/mcp/corpus/index.json`), append `[corpus: <id>]` and verify it resolves
-  with the `corpus_search` MCP tool. Extend the corpus (id, title, url, version,
-  text) in the same PR that first cites a new id. The citation must JUSTIFY the
+  (`tools/mcp/corpus/index.json` or the project's `tools/mcp/corpus/project.json`),
+  append `[corpus: <id>]` and verify it resolves with the `corpus_search` MCP tool.
+  Add a new authority (id, title, url, version, text, sha256, groups) to
+  `tools/mcp/corpus/project.json`, never to the harness-owned `index.json`, in the
+  same PR that first cites it. The citation must JUSTIFY the
   decision, not merely resolve: cite an entry whose `groups` cover the site's
   decision class (cross-group escapes are human-reviewed entries in
   `tools/provenance-overrides.json`), and a bare URL grounds a citation only when

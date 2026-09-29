@@ -16,7 +16,7 @@
       "server": "corpus_search",
       "version": "self-authored @ this repo",
       "readOnly": true,
-      "reason": "citation grounding for the provenance gate — no network, reads only the local pinned corpus (tools/mcp/corpus/index.json)",
+      "reason": "citation grounding for the provenance gate — no network, reads only the local pinned corpus (tools/mcp/corpus/index.json and tools/mcp/corpus/project.json)",
       "tools": ["corpus_search", "corpus_resolve"]
     },
     {

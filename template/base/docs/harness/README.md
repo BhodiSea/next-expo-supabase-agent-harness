@@ -16,7 +16,7 @@ Every mechanism belongs to one of six layers:
 
 | # | Layer | Concrete mechanisms |
 |---|---|---|
-| 1 | **Grounding / context** | AGENTS.md + `.claude/rules/*.md`, the pinned corpus (`tools/mcp/corpus/index.json`), `specs/_template.md` |
+| 1 | **Grounding / context** | AGENTS.md + `.claude/rules/*.md`, the pinned corpus (`tools/mcp/corpus/index.json` + the project's `tools/mcp/corpus/project.json`), `specs/_template.md` |
 | 2 | **Generation** | plan-mode design first; data structures before code (the quality bar in AGENTS.md) |
 | 3 | **In-loop verification** | mid-turn MCP tools (`corpus_search`, `rls_verify`), `posttool-fast-check.mjs` per-edit feedback |
 | 4 | **Provenance capture** | `// SOURCE:` + `[corpus: <id>]` comments, `posttool-source-check.mjs`, `tools/check-sources.mjs`, one ADR per slice (`/adr`) |
@@ -422,9 +422,13 @@ control first — anything preventing a real probe is a SKIP, never a green.
 
 The chain runs **corpus → code → check → ADR → verification → gate**:
 
-1. **Pinned corpus** — `tools/mcp/corpus/index.json` holds version-pinned entries for
-   every external authority the code relies on; `corpus_search` serves it mid-turn —
-   no network, honest `NO_MATCH` over fabricated results.
+1. **Pinned corpus** — `tools/mcp/corpus/index.json` (the harness's, owned) and
+   `tools/mcp/corpus/project.json` (the project's, seeded) hold version-pinned entries
+   for every external authority the code relies on; `corpus_search` serves both
+   mid-turn — no network, honest `NO_MATCH` over fabricated results. A project adds an
+   authority to `project.json`: editing the owned index would fork it. Both files pass
+   the same lint (`tools/lib/corpus.mjs`), and a project id may not reuse an upstream
+   one.
 2. **In-code convention** — every non-trivial decision carries `// SOURCE:` with
    `[corpus: <id>]` when pinned.
 3. **Enforcement** — `posttool-source-check.mjs` per edit; `tools/check-sources.mjs`

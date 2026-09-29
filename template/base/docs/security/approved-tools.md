@@ -56,7 +56,7 @@ evidence every gate is made of is the file.
 
 | Tool | Type | Source / pin | Reviewed | Read-only | Rationale |
 |---|---|---|---|---|---|
-| `corpus_search` | MCP (local stdio) | `tools/mcp/corpus-search-server.mjs` @ this repo | self-authored | yes | citation grounding; no network, reads only the local pinned corpus (`tools/mcp/corpus/index.json`) |
+| `corpus_search` | MCP (local stdio) | `tools/mcp/corpus-search-server.mjs` @ this repo | self-authored | yes | citation grounding; no network, reads only the local pinned corpus (`tools/mcp/corpus/index.json` and `tools/mcp/corpus/project.json`) |
 | `rls_verify` | MCP (local stdio) | `tools/mcp/rls-verify-server.mjs` @ this repo | self-authored | yes | mid-turn cross-user RLS probe; connects only to the local `SUPABASE_DB_URL` and impersonates via `SET LOCAL ROLE authenticated` + a transaction-local `request.jwt.claims`; read-only, always rolled back |
 | `authoring-vertical-slice` | Skill | `.claude/skills/authoring-vertical-slice/` @ this repo | self-authored | — | the slice recipe (migration → RLS → DAL → route → screen → tests); bundled scripts reviewed with the harness itself |
 | `designing-mobile-ui` | Skill | `.claude/skills/designing-mobile-ui/` @ this repo | self-authored | — | the design doctrine (typography/spacing/motion/state choreography + per-surface checklists); prose only — ships NO scripts by design |

@@ -227,9 +227,25 @@ Cited corpus entries must carry a `groups` key covering the site's decision clas
 (reviewed cross-group escapes in `tools/provenance-overrides.json`); a bare-URL
 citation grounds only on a `tools/lib/citation-domains.mjs` allowlisted host.
 Consumer-added decision classes live in `tools/decision-groups.json`.
+The corpus is two files, merged by `tools/lib/corpus.mjs`: the harness's
+`tools/mcp/corpus/index.json` (owned, hash-pinned, mandatory) and the project's
+`tools/mcp/corpus/project.json` (seeded, `{ comment, entries }`, absent counts as
+empty; 1.0.4). A project adds an authority to `project.json`, never to the index.
+Both files pass the same per-entry lint (sha256 over `text`, non-empty
+title/url/version, a `groups` array of known keys), a project entry justifies only the
+groups it declares, and a group a project adds may be covered from `project.json`
+alone. The project file must parse as exactly `{ comment, entries }`, and an id the
+index already pins reds naming both files: a project adds authorities and never
+replaces one.
 **Anti-vacuity:** add `const timeoutMs = 5000` with no citation → FAIL with
 file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
-naming the mismatch.
+naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
+without its `sha256`, drop its `groups`, empty its `url`, break the JSON, make
+`entries` an object, add a top-level key, or reuse an id `index.json` pins → FAIL
+naming `project.json` (the last naming both files); cite an id neither file pins →
+FAIL naming both; delete `index.json` beside a `project.json` → FAIL naming
+`index.json` (fixtures: tests/gates/check-sources.test.mjs,
+tests/gates/corpus-lib.test.mjs).
 
 ### 9. boundaries — `node tools/check-exports-walls.mjs && node tools/check-workspace-deps.mjs`
 
@@ -1717,15 +1733,17 @@ this holds the mechanical slice of content: `## Context` / `## Decision` /
 `## Consequences`-or-`## Honest losses` / `## Sources`, prefix-matched (multi-part
 `## Decision 1 — …` headings are legitimate authorship), each with ≥ 40 characters
 of substance; a `**Status:**` in the closed vocabulary; every `[corpus: <id>]`
-resolving against `tools/mcp/corpus/index.json`; every bare source URL's host on
-the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
+resolving against `tools/mcp/corpus/index.json` or `tools/mcp/corpus/project.json`
+(skipped while either file is malformed, which `provenance` reds); every bare source
+URL's host on the `tools/lib/citation-domains.mjs` allowlist. `## Alternatives Considered` stays
 advisory on purpose — a shape gate that reds an honest "no alternative existed"
 teaches authors to fabricate alternatives. NO escape file: the remedy is always
 editing the ADR; an allowlist here would be a place to park unshaped ADRs forever.
 **Anti-vacuity:** falsify the budget sentence → FAIL naming both numbers; advertise
 `pnpm ghost` in a rule body → FAIL naming the file; strip `## Sources` from an ADR →
 FAIL naming the section; cite an unknown corpus id or an off-allowlist host → FAIL
-naming it (fixtures: tests/gates/check-docs-sync.test.mjs).
+naming it, and an id in neither corpus file names both (fixtures:
+tests/gates/check-docs-sync.test.mjs).
 
 **The deferral ledger (0.7.0).** The harness's prose makes dated promises —
 "Deferred to x.y.z", "out of scope for x.y.z" — and until this release nothing read
