@@ -367,14 +367,17 @@ this heading if none does. -->
   append-only deny naming the untracked proof; a migration `init` planted was denied on the
   manifest proof, under `HARNESS_ALLOW_SELF_EDIT=1` too; and `doctor --clean` removed a
   planted `apps/web/.next/`, `coverage/` and `.eslintcache` after `--dry-run` listed them
-  (#45). The new cases in
-  `tests/gates/check-perf-budget.test.mjs`, `tests/gates/check-expo-policy.test.mjs` and
-  `tests/gates/gate-helpers.test.mjs` were red before the gates changed and green after,
-  including the two stamp proofs, which ran the gate outside CI and got the warm stamp's OK
-  on the edited tree. On a rendered core
-  scaffold carrying the lane's three edits, `format`, `gate-integrity`, `perf-budget`,
-  `expo-policy` and `data-flow` passed, and the Canary 30, 31 and 32 steps, run as written,
-  each went red with its message and restored green (#46).
+  (#45). The new cases in `tests/gates/check-perf-budget.test.mjs`,
+  `tests/gates/check-expo-policy.test.mjs` and `tests/gates/gate-helpers.test.mjs` were red
+  on this release's base and green after, except the one showing the leak scan still runs
+  under the empty state, which held on both sides; the `NON-EMPTY array` and 11g cases
+  passed unchanged on both sides, and on the base the stamp proof, run outside CI, printed
+  `expo-policy: STAMPED` on the edited tree. `day0-empty-states`, replayed locally step by
+  step from the workflow text on a core scaffold rendered from this tree, passed the derived
+  Stop-chain union with `perf-budget` naming the reviewed empty state, and Canary 30, 31 and
+  32 each went red with its message and restored green. Leg A of `upgrade-linux` passed
+  locally from v1.0.3 with both gates and `tools/lib/stamp-inputs.mjs` re-planted and
+  `tools/store-tunables.json` untouched (#46).
 
 ## [1.0.3] — 2026-09-23
 

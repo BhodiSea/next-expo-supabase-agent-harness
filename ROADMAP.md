@@ -87,9 +87,13 @@ existing install. Where one changes what `update` does, its section says so.
   skips and no stamps.
   ([N04](design/FIELD-UPGRADES-2026-09.md#n04-a-ci-parity-flag-for-validate),
   issue #44)
-- **Legal empty states on day 0.** `perf-budget`, the event catalog and the
-  account-deletion closure stop requiring the worked example, and a factory
-  lane proves the chain green without it.
+- **Legal empty states on day 0.** `perf-budget` accepts `subjects: []` beside
+  a reviewed `emptySubjects` row, and an optional `accountDeletion.registry`
+  moves the command registry the account-deletion closure reads. The
+  `day0-empty-states` factory lane runs the Stop chain on both escapes and
+  proves each red. It keeps the example: the event-catalog leg, a generator
+  that discovers each vertical's catalog, changes the `contracts` verdict for
+  an existing install, so it moves to 1.1.0 (issue #39).
   ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
   issue #46)
 - **A project-side citation corpus.** The citation corpus splits into an owned
