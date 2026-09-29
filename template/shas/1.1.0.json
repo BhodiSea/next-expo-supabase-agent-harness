@@ -564,6 +564,15 @@
         ]
       },
       {
+        "sha256": "7224484b0a8a30b3953ffc75214df8250cdc09828e2cc56287cf13797df3386d",
+        "sites": [
+          [
+            2223,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "fc3bdda658e5b5b0a6f8b572a513b4de6b0931929faa2d5bc16289c83e924ea9",
         "sites": [
           [
@@ -722,6 +731,15 @@
     "docs/harness/README.md": [
       {
         "sha256": "213789fb7052b25714068200bdbc773888e08c1952f65ebefaedd92514ebe159",
+        "sites": [
+          [
+            17834,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "22a49f75dabec0194e6c197994649b16b18c68fd70fdc1ac9b1e21f3f53d4dbe",
         "sites": [
           [
             17834,
@@ -929,6 +947,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "8caea1bb8500ef01f74cc3ab177804b7dae1d1296d6f428e200719158de92389",
         "sites": [
@@ -1514,6 +1541,11 @@
         ]
       }
     ],
+    "tools/ci/lane-reuse.mjs": [
+      {
+        "sha256": "7ba2ea7c83af872b4a599714f61dd88d24947e678e704bb822f606e5cd0135aa"
+      }
+    ],
     "tools/ci/mint-device-user.mjs": [
       {
         "sha256": "2f1a7a27fc26f5260e5b6fb2d3a5669eb7d223314266064b584b6f85a95d051c"
@@ -1530,6 +1562,9 @@
       },
       {
         "sha256": "59111d42d6d7c8ac94bd1bf4c2e59a9fa452db9a899731d4e2a75005ad121972"
+      },
+      {
+        "sha256": "e7d46ad96adcda43dfd670e44079f14f0df6c9753f5be34e6a60a0aabec169bf"
       }
     ],
     "tools/ci/surface-deferral.mjs": [
@@ -1737,6 +1772,11 @@
     "tools/lib/jsonc.mjs": [
       {
         "sha256": "0b2b176cdcfb26244c3b77ae3ee54cf3b68ada7f0a9f134844a02676f183c63f"
+      }
+    ],
+    "tools/lib/lane-reuse.mjs": [
+      {
+        "sha256": "d180cc9995ecd2eb45952d9a83280e87ffa01ebc6af90684c8416b1794bcd101"
       }
     ],
     "tools/lib/live-controls.mjs": [

@@ -1682,7 +1682,10 @@ and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.
 `tools/ci/summarize-gate.mjs`, `tools/lib/gate.mjs`, `tools/lib/enforcement-surface.mjs`,
 `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/enforcement-tiers.md` and
 `docs/security/threat-model.md`; the register itself is withheld (the subsection below).
-What you may notice afterwards:
+Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
+re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
+`docs/harness/README.md` (the last subsection before RECOVERY). What you may notice
+afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1692,6 +1695,11 @@ What you may notice afterwards:
 - **The `changes` job checks out the tree and runs one more step**, the surface deferral
   below. With no register it prints `mobile-deferred=false` and reads nothing else, so
   every lane runs exactly as before.
+- **On a push to your default branch, some merge-gate lanes finish in seconds.** `static`,
+  `unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` reuse the pull
+  request run that already passed on the identical tree, name it, and appear under
+  `REUSED` in `gate-summary`. They now request `actions: read` and `pull-requests: read`.
+  The subsection on `quality-gate.yml` below says when a lane reuses and when it runs.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 

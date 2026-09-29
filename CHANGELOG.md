@@ -172,13 +172,16 @@ this heading if none does. -->
   future-dated row is live over every planted mobile file; and through the `changes`
   step's own `run:` line under `bash -eo pipefail`, where one appended byte turns the
   output from `true` to `false`. A 1.0.4 install updated by this installer got the CLI and
-  the new workflow but no register, and printed `mobile-deferred=false` (#56). For post-merge reuse, `tests/gates/lane-reuse.test.mjs` could not load
-  before `tools/lib/lane-reuse.mjs` existed, the wiring rules added to
+  the new workflow but no register, and printed `mobile-deferred=false` (#56). For
+  post-merge reuse, `tests/gates/lane-reuse.test.mjs` could not load before
+  `tools/lib/lane-reuse.mjs` existed, the wiring rules added to
   `tests/gates/workflow-lanes.test.mjs` listed every missing piece in each of the lanes, and
   the reuse cases of `tests/gates/summarize-gate.test.mjs` were red on a summary that named
-  no reused lane. After the change each is green, `actionlint` and `zizmor` report nothing
-  new on the rendered workflow, and the judge's line and function coverage is complete
-  (#57).
+  no reused lane. The judge went red a second time when its fixtures served the pull request
+  run the way GitHub serves it after a merge, with an empty `pull_requests` list: a judge
+  that looked for the pull request there missed on every merge. After the change each is
+  green, `actionlint` and `zizmor` report nothing on the rendered workflow, and the judge's
+  line and function coverage is complete (#57).
 
 ## [1.0.4] — 2026-09-29
 
