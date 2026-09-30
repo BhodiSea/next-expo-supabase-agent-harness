@@ -2,8 +2,8 @@
 
 The reviewer subagents each end with a verdict line, and the SubagentStop hook keeps the
 machine record of every verdict in `.harness/reviewer-ledger.jsonl`. Git ignores
-`.harness/`, so that record never reaches history. This directory is where the review of a
-change does: what each reviewer found, and what was done about it.
+`.harness/`, so that record never reaches history. This directory is where a change's
+review does: what each reviewer found, and what was done about it.
 
 ## One record per change
 
@@ -66,6 +66,7 @@ again. So end a change in this order:
 - **Never an `-- adr:` target.** A destructive migration's `-- adr:` line names the ADR in
   `docs/adr/`. The `migrations` gate checks only that the named file exists, so it would accept
   a record too; this rule is yours to keep.
-- **Read by no gate.** Nothing in the chain, the Stop hook or CI opens this directory, so a
-  missing or malformed record turns nothing red. A record is not an ADR to `adr-guard` either,
-  which looks for a change under `docs/adr/`.
+- **Read by no gate.** No check in the chain, the Stop hook or CI judges what a record says,
+  so a missing or malformed record turns nothing red. (A record in the diff still moves the
+  `wholeTurn` digest, like any other changed file; see above.) A record is not an ADR to
+  `adr-guard` either, which looks for a change under `docs/adr/`.
