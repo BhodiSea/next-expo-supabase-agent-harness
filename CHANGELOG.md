@@ -201,9 +201,12 @@ this heading if none does. -->
   change at `docs/reviews/<YYYYMMDD>-<slice>.md`, named like the change's ADR: a
   `## Round <n> — YYYY-MM-DD` section per round, holding a
   `| Reviewer | Verdict | Findings | Resolution |` table whose Verdict is the verdict line
-  exactly as returned, committed in the same change as its resolution. It says that
-  decisions go in the ADR, that a record is never an `-- adr:` target, and that no gate reads
-  the directory. The owned ADR template ends its Traceability section with a
+  exactly as returned and whose Findings take the reviewer bodies' `[SEVERITY] file:line`
+  form, committed in the same change as its resolution. A record's round counts dispatches
+  across the change, not the ledger's per-reviewer `round` that the round budget reads, and
+  a round the budget stopped is recorded with the human's decision. It says that decisions
+  go in the ADR, that a record is never an `-- adr:` target, and that no gate reads the
+  directory by name. The owned ADR template ends its Traceability section with a
   `Review record:` line, `docs/adr/README.md` gains a convention, `/adr` cross-checks a third
   coupling (rounds stay out of the ADR), and `/new-feature` ends by recording every round,
   `/verify-citations` included. The seeded `AGENTS.md` gains one sentence, which `update`
@@ -689,8 +692,10 @@ this heading if none does. -->
   and `check-seeded-migrations` reported the README neither withheld nor planted until its
   `DELIBERATE_PLANT` entry. A v1.0.3 and a v1.0.4 install updated by this installer each
   exited 0 with the README planted byte-identical to the template and recorded `seeded`, the
-  four owned files naming `docs/reviews/` and `AGENTS.md` untouched; `prompts` and
-  `docs-sync` were green on both, and `gate-integrity` on the v1.0.4 one (#64).
+  four owned files naming `docs/reviews/` and `AGENTS.md` untouched; `prompts`, `docs-sync`,
+  `gate-integrity` and `provenance` were green on both. A v1.0.3 install holding its own
+  `docs/reviews/README.md` kept it byte-identical through `update`, which exited 0 and parked
+  nothing (#64).
 
 ## [1.0.4] — 2026-09-29
 

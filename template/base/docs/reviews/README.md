@@ -2,8 +2,8 @@
 
 The reviewer subagents each end with a verdict line, and the SubagentStop hook keeps the
 machine record of every verdict in `.harness/reviewer-ledger.jsonl`. Git ignores
-`.harness/`, so that record never reaches history. This directory is where a change's
-review does: what each reviewer found, and what was done about it.
+`.harness/`, so that record never reaches history. This directory keeps a change's review
+in history: what each reviewer found, and what was done about it.
 
 ## One record per change
 
@@ -19,7 +19,7 @@ Each dispatch of the owed reviewers is a round. Append each round as its own sec
 
 | Reviewer | Verdict | Findings | Resolution |
 | -------- | ------- | -------- | ---------- |
-| security-reviewer | `VERDICT: BLOCK` | The UPDATE policy on `note_shares` has no `WITH CHECK`, so a member can move a share to another note. | Added a `WITH CHECK` that repeats the `USING` predicate. |
+| security-reviewer | `VERDICT: BLOCK` | `[HIGH] supabase/schemas/50_note_shares.sql:14 — the UPDATE policy has no WITH CHECK, so a member can move a share to another note` | Added a `WITH CHECK` that repeats the `USING` predicate. |
 | torvalds-reviewer | `VERDICT: PASS` | none | — |
 ```
 
@@ -29,13 +29,20 @@ Each dispatch of the owed reviewers is a round. Append each round as its own sec
   `VERDICT: BLOCK` or `VERDICT: FAIL` from a reviewer subagent, `CITATIONS: CLEAN` or
   `CITATIONS: REJECTED` from `/verify-citations`, `RLS: PASS` or `RLS: FAIL` from
   `/rls-check`, and `INVARIANTS: PASS` or `INVARIANTS: FAIL` from `/verify-invariants`.
-- **Findings:** each finding as the reviewer reported it, with the file it names, or `none`.
-  Separate several findings in one cell with `<br>`.
+- **Findings:** each finding as the reviewer reported it, in the `[SEVERITY] file:line — …`
+  form the reviewer bodies ask for, or `none`. Separate several findings in one cell with
+  `<br>`.
 - **Resolution:** for each finding, the fix that answered it (what changed, and where), or
   why it was declined.
 
 Commit a round in the same change as its resolution, so a finding never lands in history
 ahead of its fix.
+
+A round here counts dispatches across the whole change. It is not the `round` the
+SubagentStop hook writes into the ledger, which counts one reviewer's verdicts inside a
+review loop that a BLOCK opened, for the round budget the `reviewer-verdicts` Stop step
+judges. When that budget is spent, the step says to stop and hand the findings to the
+human: record that round as well, with the human's decision as its Resolution.
 
 ## The record is part of the diff
 
@@ -66,7 +73,9 @@ again. So end a change in this order:
 - **Never an `-- adr:` target.** A destructive migration's `-- adr:` line names the ADR in
   `docs/adr/`. The `migrations` gate checks only that the named file exists, so it would accept
   a record too; this rule is yours to keep.
-- **Read by no gate.** No check in the chain, the Stop hook or CI judges what a record says,
-  so a missing or malformed record turns nothing red. (A record in the diff still moves the
-  `wholeTurn` digest, like any other changed file; see above.) A record is not an ADR to
-  `adr-guard` either, which looks for a change under `docs/adr/`.
+- **Read by no gate.** No check in the chain, the Stop hook or CI reads this directory by
+  name or judges a record's shape or verdicts, so a missing or malformed record turns nothing
+  red. A record is still a file in the tree: the tree-wide scans cover it like any other
+  (`secrets` reads it, and `provenance` reds a `[corpus: <id>]` reference in it that does not
+  resolve), and in the diff it moves the `wholeTurn` digest (see above). A record is not an
+  ADR to `adr-guard` either, which looks for a change under `docs/adr/`.
