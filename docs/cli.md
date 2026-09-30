@@ -206,4 +206,4 @@ These are read by the installed gates and hooks, not by this CLI.
 | Variable | Meaning |
 |---|---|
 | `HARNESS_REQUIRE_TOOLCHAINS=1` | Gates that would skip because a database or toolchain is missing fail instead, and no gate honours a stamp from its last green run. `CI=true` has the same effect. `node tools/validate.mjs --ci-parity` sets it for one run and closes by naming each missing prerequisite. |
-| `HARNESS_ALLOW_SELF_EDIT=1` | Lets a human deliberately edit a guard-protected harness file. Not for routine use. |
+| `HARNESS_ALLOW_SELF_EDIT=1` | Lets a human deliberately edit a guard-protected harness file. Not for routine use. What it relaxes: [the doctrine](../template/base/docs/harness/README.md), section "What `HARNESS_ALLOW_SELF_EDIT=1` relaxes". |

@@ -105,7 +105,8 @@ are open for reasons a code change cannot fix:
   `tools/stop.floor.json` the Stop hook UNIONs into its chain, and CODEOWNERS
   review are the backstops. Reports that "the agent can edit its own gate with
   `HARNESS_ALLOW_SELF_EDIT=1`" describe the documented human escape hatch, not a
-  vulnerability.
+  vulnerability. What the flag relaxes, and what it does not, is listed in
+  [template/base/docs/harness/README.md](template/base/docs/harness/README.md).
 - **MCP tool calls are default-deny** (0.3.0). `.claude/hooks/pretool-mcp-guard.mjs`
   (matcher `mcp__.*`) reads the registry in `tools/approved-tools.json` and denies
   unregistered servers, tools outside a server's list, and write-shaped tool names

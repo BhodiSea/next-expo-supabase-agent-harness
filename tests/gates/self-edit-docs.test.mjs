@@ -54,6 +54,9 @@ function sectionOf(text, heading) {
   return (end === -1 ? rest : rest.slice(0, end)).join('\n')
 }
 
+/** @param {string} text @returns {string} the text with every whitespace run, newlines included, as one space */
+const flat = (text) => text.replace(/\s+/g, ' ')
+
 /** @param {string} text @returns {Set<string>} every `backticked` token in the text */
 const backticked = (text) => new Set([...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]))
 
@@ -115,15 +118,15 @@ test('the section keeps the layers the flag does NOT lift', () => {
   // The permission denies (layer 1) and the append-only migrations deny are the two a reader
   // is most likely to assume the flag lifts. CODEOWNERS is where a flagged change is judged.
   for (const phrase of ['permission denies', 'append-only migrations deny', 'CODEOWNERS']) {
-    assert.ok(section.includes(phrase), `the section never mentions the ${phrase}`)
+    assert.ok(flat(section).includes(phrase), `the section never mentions the ${phrase}`)
   }
 })
 
 test('the Stop-hook cost section no longer tells a human the flag trims floored steps', () => {
   const cost = sectionOf(doctrine, '## Stop-hook cost')
   assert.ok(cost !== null, `no "## Stop-hook cost" section in ${DOCTRINE}`)
-  assert.ok(!/comment steps out/.test(cost), cost)
-  assert.ok(cost.includes('`HARNESS_ALLOW_SELF_EDIT=1` relaxes none of these checks'), cost)
+  assert.ok(!/comment\s+steps\s+out/.test(cost), cost)
+  assert.ok(flat(cost).includes('`HARNESS_ALLOW_SELF_EDIT=1` relaxes none of these checks'), cost)
   for (const floor of ['tools/validate.floor.json', 'tools/stop.floor.json']) {
     assert.ok(cost.includes(floor), `the section must name ${floor}, the floor that keeps the step`)
   }
@@ -134,8 +137,8 @@ test('the catalog, the CLI page, SECURITY.md and CONTRIBUTING.md point at the se
   const catalog = read('template/base/docs/harness/gates-catalog.md')
   const gi = sectionOf(catalog, '### 2. gate-integrity — `node tools/check-gate-integrity.mjs`')
   assert.ok(gi !== null, 'no gate-integrity section in the catalog')
-  assert.ok(gi.includes(pointer), 'the catalog gate-integrity section must point at the doctrine section')
-  assert.ok(gi.includes('switches off only the last of these'), gi)
+  assert.ok(flat(gi).includes(pointer), 'the catalog gate-integrity section must point at the doctrine section')
+  assert.ok(flat(gi).includes('switches off only the last of these'), gi)
 
   const cliRow = read('docs/cli.md')
     .split(/\r?\n/)
@@ -144,13 +147,13 @@ test('the catalog, the CLI page, SECURITY.md and CONTRIBUTING.md point at the se
   assert.ok(cliRow?.includes('../template/base/docs/harness/README.md'), String(cliRow))
 
   assert.ok(
-    read('SECURITY.md').includes(
+    flat(read('SECURITY.md')).includes(
       'What the flag relaxes, and what it does not, is listed in [template/base/docs/harness/README.md](template/base/docs/harness/README.md).',
     ),
     'SECURITY.md must link the escape hatch it calls documented',
   )
 
-  const contributing = read('CONTRIBUTING.md')
+  const contributing = flat(read('CONTRIBUTING.md'))
   const at = contributing.indexOf('**Editing the machinery.**')
   assert.ok(at !== -1, 'CONTRIBUTING.md has no "Editing the machinery" paragraph')
   assert.ok(at < contributing.indexOf('## Coding standards'), 'the paragraph must precede Coding standards')

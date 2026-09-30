@@ -121,6 +121,14 @@ Root `devDependencies` are exact-pinned and never ship: the npm `files` list
 excludes every root config/lockfile, and with no `prepare` script `npx
 github:…` never installs them.
 
+**Editing the machinery.** `.claude/hooks/pretool-write-guard.mjs` denies the
+Edit and Write tools on the paths in its `PROTECTED` list unless the session
+was started with `HARNESS_ALLOW_SELF_EDIT=1`. The CI-shaped scripts
+(`scripts/ci/upgrade-lane.sh`, `scripts/ci/consumer-ci-static.sh`,
+`scripts/ci/run-stop-chain.mjs`) remove it before they run, because with it set
+a scaffold checks less than CI does. What it relaxes inside a scaffold is listed
+in `template/base/docs/harness/README.md`.
+
 ## Coding standards
 
 CI enforces the first three items below, so they are not a matter of taste in
