@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Gate: i18n — the locale seam is real, and nothing bypasses it.
 //
-// A Stop-chain step, NOT a member of the 21-gate floor (the floor stays frozen), and
-// turn-fatal from the first release: the catalog ships with init, so every install that has
-// the seam got it together with code that already satisfies this gate. An UPGRADED consumer
-// has no catalog until they adopt it — the absent-catalog skip below is that honesty, and
-// adopting the seam is the deliberate act that arms the gate.
+// A Stop-chain step, NOT a member of the 21-gate floor (the floor stays frozen). Its first
+// four checks were turn-fatal from the first release: the catalog ships with init, so every
+// install that has the seam got it together with code that already satisfies this gate. An
+// UPGRADED consumer has no catalog until they adopt it — the absent-catalog skip below is
+// that honesty, and adopting the seam is the deliberate act that arms the gate. 1.1.0 gave it
+// its first ramp: what the syntax-tree walk adds (see "TWO SCANS" below) is a NOTE on an
+// install seeded before 1.1.0, until 1.2.0.
 //
 // WHY IT IS A GATE AND NOT A GUIDELINE. In the harness this template was ported from, the
 // app once contained zero `Intl.`, a hardcoded English locale, and ~70 English literals
@@ -41,21 +43,51 @@
 //     imported polyfill that consumes it, and locale-data for a language no catalog locale
 //     resolves to is dead weight in the bundle.
 //
-// LIMITS, HONESTLY. This is a text scan, not a compiler: it sees the shapes copy takes, not
-// every expression that could produce a string. A message assembled at runtime from fragments,
-// or returned by a helper, is invisible to it. That is precisely why the pseudo-locale lane
-// exists (the RNTL fast lane + the Maestro device lane): under `en-XA` every catalog string is
-// visibly mangled, so any plain-English text still on screen is BY CONSTRUCTION a string that
-// never went through the catalog. The static check is fast and runs every turn; the
-// behavioural one is complete. Neither alone would be enough.
+// TWO SCANS (1.1.0, #76). Through 1.0.x checks 1 and 2 were regular expressions over
+// comment-blanked source text, each matching one quote form, and a JSX text run could not
+// hold `=`, `;`, a backtick or `$`. So `accessibilityLabel={'Close dialog'}`,
+// `` title: `Settings` ``, `label: "Don't have an account?"` in a .ts module and
+// `<h2>Plans from $5</h2>` all passed. 1.1.0 also walks the TypeScript syntax tree
+// (tools/lib/i18n-tree.mjs, one parse per file with the project's own `typescript`) and
+// reports the UNION of the two scans, for one release:
+//   - a finding both scans see, or only the expressions see, is hard, as it always was. One
+//     only the expressions see is tagged: the expressions retire in 1.2.0, and the walk does
+//     not read it as copy;
+//   - a finding only the tree walk sees is hard on a fresh install, and a NOTE below
+//     baseVersion 1.1.0, through rampNote until 1.2.0;
+//   - when `typescript` cannot load, the expressions still judge and the output says the
+//     walk did not run: a loud NOTE locally, a failure in CI (skip-local / fail-closed-CI).
 //
-// Over-detection reds with `tools/i18n-allow.json` as the reviewed escape (malformed or stale
-// entries FAIL, never open); it can never fail open.
+// LIMITS, HONESTLY. Neither scan is a type checker: each sees the shapes copy takes, not
+// every expression that could produce a string. A message assembled at runtime from
+// fragments, or returned by a helper, is invisible to both. That is precisely why the
+// pseudo-locale lane exists (the RNTL fast lane + the Maestro device lane): under `en-XA`
+// every catalog string is visibly mangled, so any plain-English text still on screen is BY
+// CONSTRUCTION a string that never went through the catalog. The static check is fast and
+// runs every turn; the behavioural one is complete. Neither alone would be enough.
+//
+// THE ESCAPE IS KEYED ON CONTENT. `tools/i18n-allow.json` entries are
+// {"key": <12 hex characters>, "reason": …}: a sha256 over the file's POSIX path, the
+// finding kind, the attribute or property name and the text with its whitespace collapsed,
+// which every FAIL line prints ready to paste. Both scans compute it from the same fields, so
+// one entry mutes a finding whichever reports it, and inserting a line above the string
+// moves nothing. A malformed entry, or a key that matches no finding, FAILS; the list never
+// fails open. The 1.0.x `{"site": "file:line"}` entries ride the second ramp: below
+// baseVersion 1.1.0 they still mute their line and print the key that replaces them, until
+// 1.2.0; on a fresh install they are malformed.
 // SOURCE: docs/harness/gates-catalog.md (i18n gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { fail, failures, ok, skipOrFail } from './lib/gate.mjs'
-import { blankComments, lineOf } from './lib/source-text.mjs'
+import { fail, failures, inCI, ok, rampNote, skipOrFail } from './lib/gate.mjs'
+import {
+  COPY_PROPS,
+  findingKey,
+  loadParser,
+  looksMachineFacing,
+  scanSource,
+  TEXT_ATTRS,
+} from './lib/i18n-tree.mjs'
+import { blankComments, lineOf, skipBalanced } from './lib/source-text.mjs'
 
 const GATE = 'i18n'
 const ALLOW_PATH = 'tools/i18n-allow.json'
@@ -129,7 +161,28 @@ if (adopted.length === 0) {
 }
 
 // ---- the reviewed escape (the rls-exempt pattern: malformed or stale FAILS, never opens) ----
-const allow = new Set()
+// Two entry shapes. {"key", "reason"} is the one a FAIL line prints. {"site": "file:line",
+// "reason"} is the 1.0.x shape: accepted here, and judged after the scan, where the ramp
+// decides whether it still mutes (baseVersion below 1.1.0) or is malformed (a fresh install).
+const KEY_SHAPE = /^[0-9a-f]{12}$/
+const SITE_SHAPE = /^[^:]+:\d+$/
+const ENTRY_SHAPE =
+  '{ "key": "<the 12 hex characters a FAIL line prints>", "reason": non-empty string }'
+/** @type {Map<string, { reason: string, used: boolean }>} */
+const allowKeys = new Map()
+/** @type {Map<string, { reason: string, used: boolean }>} */
+const allowSites = new Map()
+
+/** @param {unknown} entry */
+function entryKind(entry) {
+  if (entry === null || typeof entry !== 'object') return null
+  const e = /** @type {Record<string, unknown>} */ (entry)
+  if (typeof e.reason !== 'string' || e.reason.trim() === '') return null
+  if (typeof e.key === 'string' && KEY_SHAPE.test(e.key) && e.site === undefined) return 'key'
+  if (typeof e.site === 'string' && SITE_SHAPE.test(e.site) && e.key === undefined) return 'site'
+  return null
+}
+
 if (existsSync(ALLOW_PATH)) {
   let parsed
   try {
@@ -144,25 +197,48 @@ if (existsSync(ALLOW_PATH)) {
   if (!Array.isArray(entries)) {
     fail(
       GATE,
-      `${ALLOW_PATH} must be { "comment": …, "allow": [ { "site": "file:line", "reason": non-empty string } ] } — got ${JSON.stringify(parsed)}`,
+      `${ALLOW_PATH} must be { "comment": …, "allow": [ ${ENTRY_SHAPE} ] } — got ${JSON.stringify(parsed)}`,
     )
   }
   for (const entry of entries) {
-    const okShape =
-      entry !== null &&
-      typeof entry === 'object' &&
-      typeof entry.site === 'string' &&
-      /^[^:]+:\d+$/.test(entry.site) &&
-      typeof entry.reason === 'string' &&
-      entry.reason.trim() !== ''
-    if (!okShape) {
-      fail(
-        GATE,
-        `${ALLOW_PATH}: every entry must be { "site": "file:line", "reason": non-empty string } — got ${JSON.stringify(entry)}`,
-      )
+    const kind = entryKind(entry)
+    if (kind === null) {
+      fail(GATE, `${ALLOW_PATH}: every entry must be ${ENTRY_SHAPE} — got ${JSON.stringify(entry)}`)
     }
-    allow.add(entry.site)
+    const into = kind === 'key' ? allowKeys : allowSites
+    into.set(kind === 'key' ? entry.key : entry.site, { reason: entry.reason, used: false })
   }
+}
+
+// The second 1.1.0 ramp: a file:line entry keeps muting its line on an install seeded before
+// 1.1.0, until 1.2.0, and names the key that replaces it (printed after the scan).
+let honourSites = false
+if (allowSites.size > 0) {
+  if (
+    rampNote(
+      GATE,
+      '1.1.0',
+      'file:line site entries in tools/i18n-allow.json (content keys replace them)',
+      {
+        until: '1.2.0',
+      },
+    )
+  ) {
+    honourSites = true
+  }
+}
+
+// ---- the parser -------------------------------------------------------------------
+// The project's own `typescript`. Absent, the regular expressions judge alone and the output
+// says so: a loud NOTE here, and a failure in CI, where a walk that did not run must never
+// read as a pass.
+const ts = await loadParser()
+const WALK_MISSING =
+  'the syntax-tree walk did not run: `typescript` could not be loaded from this project (it is a root devDependency; run `pnpm install`)'
+if (ts === null && !inCI()) {
+  console.log(
+    `${GATE}: NOTE — ${WALK_MISSING}. The regular expressions judged alone, so copy only the walk finds went unseen; this gate FAILS CLOSED in CI`,
+  )
 }
 
 // The catalog declares its locales in ONE reviewable array (LOCALES in the surface's i18n
@@ -182,7 +258,184 @@ function readLocales(localesModule) {
 
 const isSourceFile = (rel) => /\.tsx?$/.test(rel) && !/[.-](test|spec)\.tsx?$/.test(rel)
 
+// ---- 1. the regular expressions (through 1.1.0; they retire in 1.2.0) ---------------
+// The shapes 1.0.x detected, unchanged, so nothing that reds in 1.0.3 stops redding while
+// both scans run. TEXT_ATTRS and COPY_PROPS (and looksMachineFacing) live in
+// tools/lib/i18n-tree.mjs, which both scans share.
+const ATTR_LITERAL = new RegExp(
+  `\\b(${TEXT_ATTRS.join('|')})\\s*=\\s*"([^"]*[A-Za-z]{2}[^"]*)"`,
+  'g',
+)
+const OBJECT_LITERAL = new RegExp(
+  `\\b(${COPY_PROPS.join('|')})\\s*:\\s*'([^']*[A-Za-z]{2}[^']*)'`,
+  'g',
+)
+
+// JSX text: a run between a tag close and the next tag open, containing two consecutive
+// letters. `{expr}` is not text (JSX splits on the brace) and a lone glyph (✕, ×) is not copy.
+//
+// TypeScript makes this harder than it looks, because `>` is also a generic close and half an
+// arrow. Three guards, all load-bearing:
+//   (?<!=)        — an arrow's `>` never opens JSX text. Without this, `ROUTES.map((r) => …)`
+//                   reports the code that follows it as user-facing copy.
+//   (?![(),.[>])  — a generic close ADJACENT to one of these is a type annotation or a call,
+//                   never the start of prose. 0.6.0 added this when the web surface was
+//                   brought into scope and produced four false positives that were all the
+//                   same shape: `useState<AppError | null>(null)` and
+//                   `submit(e: React.FormEvent<HTMLFormElement>): Promise<void>` — the run
+//                   ran from a generic close, across the intervening code, to the NEXT
+//                   generic open, and reported `"): Promise"` as copy. `apps/web` hits this
+//                   constantly because Server Actions and form handlers are typed that way;
+//                   `apps/mobile` happened not to, which is why five releases never saw it.
+//                   ADJACENCY is what keeps this narrow: `<p> (optional) note</p>` still
+//                   scans, because the paren there follows a space.
+//   =;`$          — excluded from the run. A generic close is followed by CODE, and code has
+//                   assignments, semicolons and template markers; prose does not. Prose's
+//                   punctuation (: , . ( ) … —) stays legal, because copy really does use it.
+//
+// The residual false NEGATIVES were stated rather than hidden: prose that opens with a bare
+// `(` or `)` immediately after a tag close, and a run that holds `$` (`Plans from $5`), is not
+// scanned. The syntax-tree walk reads JsxText nodes, where none of these guards is needed,
+// and it sees both.
+const JSX_TEXT = /(?<!=)>(?![(),.[>])\s*([^<>{}=;`$]*[A-Za-z]{2}[^<>{}=;`$]*?)\s*</g
+
+// Intl and toLocale*/toFixed. The optional member after `Intl.` and the balanced argument
+// list after a method are not part of what matches: they are the finding's TEXT, taken as
+// the tree walk takes it, so both scans key a finding the same way.
+const INTL_USE = /\bIntl\s*\.(?:\s*[A-Za-z_$][\w$]*)?|\.toLocale[A-Z]\w*\s*\(|\.toFixed\s*\(/g
+
+/** @param {string} source @param {RegExpMatchArray} m */
+function intlText(source, m) {
+  if (!m[0].endsWith('(')) return m[0]
+  const open = /** @type {number} */ (m.index) + m[0].length - 1
+  return source.slice(m.index, skipBalanced(source, open))
+}
+
+/**
+ * @typedef {{ kind: string, name: string, text: string, line: number, key: string }} Finding
+ * @typedef {Finding & { keys: string[], seen: 'regex' | 'regex-only' | 'both' | 'tree-only' }} Judged
+ */
+
+/** @param {string} file @param {string} kind @param {string} name @param {string} text @param {string} source @param {number} index @returns {Finding} */
+function finding(file, kind, name, text, source, index) {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  return {
+    kind,
+    name,
+    text: clean,
+    line: lineOf(source, index),
+    key: findingKey(file, kind, name, clean),
+  }
+}
+
+/**
+ * What the regular expressions report in one comment-blanked file.
+ * @param {string} file @param {string} source @returns {Finding[]}
+ */
+function regexScan(file, source) {
+  const out = []
+  const copy = (kind, name, text, index) => {
+    if (!looksMachineFacing(text)) out.push(finding(file, kind, name, text, source, index))
+  }
+  for (const m of source.matchAll(ATTR_LITERAL)) copy('attribute', m[1], m[2], m.index)
+  for (const m of source.matchAll(OBJECT_LITERAL)) copy('property', m[1], m[2], m.index)
+  // JSX text ONLY in .tsx. A plain .ts file has no JSX, but it does have generics — and
+  // `useListQuery<T>(fetcher: ListFetcher<T>)` looks exactly like a tag with text between it.
+  // The attribute and object-literal rules still run there (routes.ts and the data modules
+  // hold copy), so nothing is lost by not looking for JSX where there is none.
+  if (file.endsWith('.tsx')) {
+    for (const m of source.matchAll(JSX_TEXT)) copy('jsx-text', '', m[1], m.index)
+  }
+  for (const m of source.matchAll(INTL_USE)) {
+    out.push(finding(file, 'intl', '', intlText(source, m), source, m.index))
+  }
+  return out
+}
+
+/**
+ * The union of the two scans. A finding both report is ONE finding: matched on key and line
+ * first, then on kind, name and line, where an escape in the literal makes the two texts
+ * differ. It carries every key either scan computed, so an entry for either mutes it.
+ * @param {Finding[]} regex @param {Finding[] | null} tree null when the walk did not run
+ * @returns {Judged[]}
+ */
+function unite(regex, tree) {
+  if (tree === null) return regex.map((f) => ({ ...f, keys: [f.key], seen: 'regex' }))
+  const left = [...tree]
+  /** @type {(Finding | null)[]} */
+  const partner = regex.map((r) => {
+    const i = left.findIndex((t) => t.key === r.key && t.line === r.line)
+    return i === -1 ? null : left.splice(i, 1)[0]
+  })
+  /** @type {Judged[]} */
+  const out = regex.map((r, n) => {
+    let t = partner[n]
+    if (t === null) {
+      const i = left.findIndex((c) => c.kind === r.kind && c.name === r.name && c.line === r.line)
+      t = i === -1 ? null : left.splice(i, 1)[0]
+    }
+    if (t === null) return { ...r, keys: [r.key], seen: 'regex-only' }
+    return { ...t, keys: [...new Set([t.key, r.key])], seen: 'both' }
+  })
+  for (const t of left) out.push({ ...t, keys: [t.key], seen: 'tree-only' })
+  return out.sort((x, y) => x.line - y.line)
+}
+
+// What a FAIL line says about which scan saw the finding, now that there are two.
+const SEEN_TAG = {
+  regex: '',
+  both: '',
+  'regex-only':
+    ' [regular expressions only: the syntax-tree walk does not read this as copy, and this finding retires with the expressions in 1.2.0]',
+  'tree-only': ' [syntax-tree walk only: a shape the 1.0.x regular expressions never matched]',
+}
+
+/** @param {Judged} f */
+const pasteEntry = (f, why) => `{"key": "${f.keys[0]}", "reason": "<${why}>"}`
+
+/** @param {string} file @param {Judged} f @param {string} catalog */
+function copyMessage(file, f, catalog) {
+  const what =
+    f.kind === 'jsx-text'
+      ? 'JSX text'
+      : f.kind === 'attribute'
+        ? `${f.name} attribute`
+        : `${f.name}: property`
+  return `${file}:${f.line}: hardcoded user-facing string ${JSON.stringify(f.text)} (${what}) — a literal in a component is copy no translator can reach and no reviewer can grep. FIX: add a key to ${catalog} and render it through \`t('<key>')\` (\`const { t } = useI18n()\` in a component; the plain \`t\` export outside one). If this string is genuinely never shown to a human, add this reviewed entry to ${ALLOW_PATH}: ${pasteEntry(f, 'why no human reads it')}${SEEN_TAG[f.seen]}`
+}
+
+/** @param {string} file @param {Judged} f @param {string} i18nDir */
+function intlMessage(file, f, i18nDir) {
+  return `${file}:${f.line}: \`${f.text}\` outside ${i18nDir}/ — locale-sensitive formatting lives in ONE module or it disagrees with itself. \`.toFixed(2)\` in particular hardcodes \`.\` as the decimal mark, so a German reader gets "0.75" where they write "0,75". FIX: use formatCellValue / formatDate / formatRelativeTime from ${i18nDir}/; if this call genuinely must bypass the locale, add this reviewed entry to ${ALLOW_PATH}: ${pasteEntry(f, 'why it bypasses the locale')}${SEEN_TAG[f.seen]}`
+}
+
+/** file:line -> the keys of the findings on that line, for the site entries that name it. */
+const siteKeys = new Map()
+
+/**
+ * Whether the allowlist mutes a finding, marking every entry that does as used.
+ * @param {string} file @param {Judged} f
+ */
+function muted(file, f) {
+  let hit = false
+  for (const k of f.keys) {
+    const entry = allowKeys.get(k)
+    if (entry !== undefined) {
+      entry.used = true
+      hit = true
+    }
+  }
+  const site = allowSites.get(`${file}:${f.line}`)
+  if (site !== undefined) {
+    site.used = true
+    siteKeys.set(`${file}:${f.line}`, [...(siteKeys.get(`${file}:${f.line}`) ?? []), f.keys[0]])
+  }
+  return hit || (honourSites && site !== undefined)
+}
+
 const errs = []
+// Findings only the tree walk sees, held for the ramp after every surface is scanned.
+const treeOnly = []
 // Totals for the ok() line, accumulated across surfaces so the summary describes what RAN.
 const totals = { keys: 0, sources: 0, locales: 0, polyfills: 0 }
 
@@ -203,106 +456,25 @@ for (const surface of adopted) {
     )
   totals.sources += sources.length
 
-  // ---- 1. hardcoded user-facing strings ---------------------------------------------
-  // Attributes whose value a HUMAN READS (react-native names first — the a11y tree
-  // SPEAKS accessibilityLabel/Hint, so they are copy in the fullest sense).
-  // Everything else (testID, accessibilityRole — a token vocabulary, not prose —
-  // nativeID, id, key, name, href) is machine-facing and deliberately absent.
-  const TEXT_ATTRS = [
-    'accessibilityLabel',
-    'accessibilityHint',
-    'aria-label',
-    'aria-description',
-    'title',
-    'placeholder',
-    'label',
-    'alt',
-  ]
-  const ATTR_LITERAL = new RegExp(
-    `\\b(${TEXT_ATTRS.join('|')})\\s*=\\s*"([^"]*[A-Za-z]{2}[^"]*)"`,
-    'g',
-  )
-
-  // Object-literal copy: `label: 'Home'` in a navigator's options, `description:` in a
-  // registry, `title:`/`subtitle:` in action items, column headers in the matrix data module.
-  const OBJECT_LITERAL = /\b(label|title|subtitle|description)\s*:\s*'([^']*[A-Za-z]{2}[^']*)'/g
-
-  // JSX text: a run between a tag close and the next tag open, containing two consecutive
-  // letters. `{expr}` is not text (JSX splits on the brace) and a lone glyph (✕, ×) is not copy.
-  //
-  // TypeScript makes this harder than it looks, because `>` is also a generic close and half an
-  // arrow. Three guards, all load-bearing:
-  //   (?<!=)        — an arrow's `>` never opens JSX text. Without this, `ROUTES.map((r) => …)`
-  //                   reports the code that follows it as user-facing copy.
-  //   (?![(),.[>])  — a generic close ADJACENT to one of these is a type annotation or a call,
-  //                   never the start of prose. 0.6.0 added this when the web surface was
-  //                   brought into scope and produced four false positives that were all the
-  //                   same shape: `useState<AppError | null>(null)` and
-  //                   `submit(e: React.FormEvent<HTMLFormElement>): Promise<void>` — the run
-  //                   ran from a generic close, across the intervening code, to the NEXT
-  //                   generic open, and reported `"): Promise"` as copy. `apps/web` hits this
-  //                   constantly because Server Actions and form handlers are typed that way;
-  //                   `apps/mobile` happened not to, which is why five releases never saw it.
-  //                   ADJACENCY is what keeps this narrow: `<p> (optional) note</p>` still
-  //                   scans, because the paren there follows a space.
-  //   =;`$          — excluded from the run. A generic close is followed by CODE, and code has
-  //                   assignments, semicolons and template markers; prose does not. Prose's
-  //                   punctuation (: , . ( ) … —) stays legal, because copy really does use it.
-  //
-  // The residual false NEGATIVE is stated rather than hidden: prose that opens with a bare
-  // `(` or `)` immediately after a tag close is not scanned. That is the correct direction to
-  // lose in for a STATIC check whose own header says the behavioural half is the complete one —
-  // under `en-XA` the pseudo-locale lane mangles every catalog string, so plain English still on
-  // screen is by construction a string that bypassed the catalog.
-  const JSX_TEXT = /(?<!=)>(?![(),.[>])\s*([^<>{}=;`$]*[A-Za-z]{2}[^<>{}=;`$]*?)\s*</g
-
-  // A literal that is plainly not copy: a css/token/id-ish word with no spaces and no capital,
-  // a lone url/path, a testID-shaped kebab string.
-  function looksMachineFacing(text) {
-    const trimmed = text.trim()
-    if (trimmed === '') return true
-    if (/^[/#.][\w/#.-]*$/.test(trimmed)) return true // '/healthz', '/matrix', '.foo'
-    if (/^[a-z][\w-]*$/.test(trimmed) && !trimmed.includes(' ')) return true // 'gridcell', 'mod+k'
-    return false
-  }
-
-  function record(file, text, index, source, what) {
-    if (looksMachineFacing(text)) return
-    const line = lineOf(source, index)
-    if (allow.has(`${file}:${line}`)) return
-    errs.push(
-      `${file}:${line}: hardcoded user-facing string ${JSON.stringify(text.trim())} (${what}) — a literal in a component is copy no translator can reach and no reviewer can grep. FIX: add a key to ${CATALOG} and render it through \`t('<key>')\` (\`const { t } = useI18n()\` in a component; the plain \`t\` export outside one). If this string is genuinely never shown to a human, add a reviewed {"site": "${file}:${line}", "reason": …} entry to ${ALLOW_PATH}`,
-    )
-  }
-
-  for (const file of sources) {
-    const source = blankComments(readFileSync(file, 'utf8'))
-    for (const m of source.matchAll(ATTR_LITERAL))
-      record(file, m[2], m.index, source, `${m[1]} attribute`)
-    for (const m of source.matchAll(OBJECT_LITERAL))
-      record(file, m[2], m.index, source, `${m[1]}: property`)
-    // JSX text ONLY in .tsx. A plain .ts file has no JSX, but it does have generics — and
-    // `useListQuery<T>(fetcher: ListFetcher<T>)` looks exactly like a tag with text between it.
-    // The attribute and object-literal rules still run there (routes.ts and the data modules
-    // hold copy), so nothing is lost by not looking for JSX where there is none.
-    if (!file.endsWith('.tsx')) continue
-    for (const m of source.matchAll(JSX_TEXT)) record(file, m[1], m.index, source, 'JSX text')
-  }
-
-  // ---- 2. the Intl boundary ----------------------------------------------------------
-  const INTL_USE = /\bIntl\s*\.|\.toLocale[A-Z]\w*\s*\(|\.toFixed\s*\(/g
+  // ---- 1. hardcoded user-facing strings, and 2. the Intl boundary ------------------
+  // One read and one parse per file; both scans; their union judged once.
+  const copyErrs = []
   const boundary = []
   for (const file of sources) {
-    const source = blankComments(readFileSync(file, 'utf8'))
-    for (const m of source.matchAll(INTL_USE)) {
-      const line = lineOf(source, m.index)
-      if (allow.has(`${file}:${line}`)) continue
-      boundary.push(
-        `${file}:${line}: \`${m[0].trim()}\` outside ${I18N_DIR}/ — locale-sensitive formatting lives in ONE module or it disagrees with itself. \`.toFixed(2)\` in particular hardcodes \`.\` as the decimal mark, so a German reader gets "0.75" where they write "0,75". FIX: use formatCellValue / formatDate / formatRelativeTime from ${I18N_DIR}/`,
-      )
+    const text = readFileSync(file, 'utf8')
+    const judged = unite(
+      regexScan(file, blankComments(text)),
+      ts === null ? null : scanSource(ts, file, text),
+    )
+    for (const f of judged) {
+      if (muted(file, f)) continue
+      const message =
+        f.kind === 'intl' ? intlMessage(file, f, I18N_DIR) : copyMessage(file, f, CATALOG)
+      if (f.seen === 'tree-only') treeOnly.push(message)
+      else (f.kind === 'intl' ? boundary : copyErrs).push(message)
     }
   }
-  errs.push(...boundary)
+  errs.push(...copyErrs, ...boundary)
 
   // ---- 3. no dead catalog string -----------------------------------------------------
   const catalogSource = blankComments(readFileSync(CATALOG, 'utf8'))
@@ -400,6 +572,71 @@ for (const surface of adopted) {
   totals.polyfills += polyfills.size
 }
 
+// ---- the escape, judged -------------------------------------------------------------
+// A key that matches no finding is stale: a standing permission nobody reviewed, waiting for
+// a future string that hashes the same. With the walk absent it cannot be judged, since the
+// finding it names may be one only the walk sees.
+for (const [key, entry] of allowKeys) {
+  if (entry.used) continue
+  if (ts === null) {
+    console.log(
+      `${GATE}: NOTE — ${ALLOW_PATH}: key "${key}" matches no finding the regular expressions report; the syntax-tree walk did not run, so it is not judged stale here`,
+    )
+  } else {
+    errs.push(
+      `${ALLOW_PATH}: key "${key}" matches no finding — a stale entry is a standing permission nobody reviewed, waiting for a future string with the same path, kind, name and text. Delete it (reason was: ${JSON.stringify(entry.reason)}).`,
+    )
+  }
+}
+
+// file:line entries: inside the ramp they muted their line during the scan, and each names
+// the key that replaces it; outside it (a fresh install, or harness 1.2.0) they are malformed.
+for (const [site, entry] of allowSites) {
+  const keys = [...new Set(siteKeys.get(site) ?? [])]
+  const replacement = keys
+    .map((k) => `{"key": "${k}", "reason": ${JSON.stringify(entry.reason)}}`)
+    .join(', ')
+  if (honourSites) {
+    console.log(
+      keys.length > 0
+        ? `${GATE}: NOTE — ${ALLOW_PATH}: {"site": "${site}"} mutes this line until 1.2.0; replace it with ${replacement}, which stays on the string when the line moves`
+        : `${GATE}: NOTE — ${ALLOW_PATH}: {"site": "${site}"} matches no finding — a stale file:line entry; delete it`,
+    )
+  } else {
+    errs.push(
+      `${ALLOW_PATH}: {"site": "${site}"} — every entry must be ${ENTRY_SHAPE}. A file:line entry follows its line, not its string, and 1.1.0 replaced it with a content key: ${
+        keys.length > 0 ? `replace it with ${replacement}` : 'it matches no finding, so delete it'
+      }`,
+    )
+  }
+}
+
+// The first 1.1.0 ramp: copy only the syntax-tree walk finds is a NOTE on an install seeded
+// before 1.1.0, until 1.2.0, and hard everywhere else.
+if (treeOnly.length > 0) {
+  if (
+    rampNote(
+      GATE,
+      '1.1.0',
+      'copy only the syntax-tree walk finds (shapes the 1.0.x regular expressions miss)',
+      {
+        until: '1.2.0',
+      },
+    )
+  ) {
+    for (const message of treeOnly) console.log(`${GATE}: NOTE — ${message}`)
+  } else {
+    errs.push(...treeOnly)
+  }
+}
+
+// CI never judges with the regular expressions alone.
+if (ts === null && inCI()) {
+  errs.push(
+    `${WALK_MISSING} — in CI this gate fails closed rather than judge with the regular expressions alone`,
+  )
+}
+
 // ---- verdict -----------------------------------------------------------------------
 failures(
   GATE,
@@ -416,5 +653,9 @@ const scope = `${adopted.map((s) => s.key).join(' + ')} adopted${
 }`
 ok(
   GATE,
-  `${scope} — ${totals.keys} message key(s), ${totals.sources} source file(s) scanned, ${totals.locales} locale(s), ${totals.polyfills} polyfill(s) closed over, no hardcoded copy`,
+  `${scope} — ${totals.keys} message key(s), ${totals.sources} source file(s) scanned, ${totals.locales} locale(s), ${totals.polyfills} polyfill(s) closed over, no hardcoded copy (${
+    ts === null
+      ? 'regular expressions only: the syntax-tree walk did not run'
+      : 'regular expressions and the syntax-tree walk ran'
+  })`,
 )

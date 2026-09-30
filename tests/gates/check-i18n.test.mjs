@@ -671,10 +671,12 @@ treeTest('i18n: a finding only the tree walk sees is a NOTE below baseVersion 1.
   const fresh = runGate(fixture({ files }))
   assert.equal(fresh.code, 1, fresh.out)
 
-  // At the deadline the escape is over: harness 1.2.0 on the same 1.0.3 vintage reds.
+  // At the deadline the escape is over: harness 1.2.0 on the same 1.0.3 vintage reds, and
+  // the banner names THIS ramp (scripts/ci/stop-side-expiries.json binds it to this proof).
   const expired = runGate(fixture({ files, manifest: { ...UPDATED_FROM_103, harnessVersion: '1.2.0' } }))
   assert.equal(expired.code, 1, expired.out)
-  assert.ok(expired.out.includes('RAMP EXPIRED'), expired.out)
+  assert.match(expired.out, /i18n: RAMP EXPIRED — copy only the syntax-tree walk finds/)
+  assert.ok(expired.out.includes('"Close dialog" (accessibilityLabel attribute)'), expired.out)
 })
 
 treeTest('i18n: a finding BOTH scans see stays hard on a ramped install — only the new shapes ride the ramp', () => {
@@ -729,6 +731,15 @@ treeTest('i18n: site entries — below baseVersion 1.1.0 they still mute and nam
   assert.equal(fresh.code, 1, fresh.out)
   assert.ok(fresh.out.includes('every entry must be'), fresh.out)
   assert.ok(fresh.out.includes(`${SRC}/Widget.tsx:2`), fresh.out)
+  // A malformed site entry mutes nothing: the string it named reds beside it.
+  assert.ok(fresh.out.includes('"Ready to build" (JSX text)'), fresh.out)
+  assert.ok(fresh.out.includes(`replace it with {"key": "${key}", "reason": "a brand name"}`), fresh.out)
+
+  // At the deadline: harness 1.2.0 on the 1.0.3 vintage, and the banner names THIS ramp.
+  const expired = runGate(fixture({ files, allow, manifest: { ...UPDATED_FROM_103, harnessVersion: '1.2.0' } }))
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /i18n: RAMP EXPIRED — file:line site entries in tools\/i18n-allow\.json/)
+  assert.ok(expired.out.includes('every entry must be'), expired.out)
 })
 
 test('i18n: with the parser ABSENT the regular expressions still judge and the output says the walk did not run; CI fails closed', (t) => {
@@ -763,5 +774,5 @@ test('i18n: with the parser ABSENT the regular expressions still judge and the o
 treeTest('i18n: a clean tree reports that the syntax-tree walk ran', () => {
   const r = runGate(fixture({ files: { 'Uses.tsx': USES(['a.key']) } }))
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('syntax-tree walk'), r.out)
+  assert.ok(r.out.includes('regular expressions and the syntax-tree walk ran'), r.out)
 })

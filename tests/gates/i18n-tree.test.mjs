@@ -180,6 +180,36 @@ treeTest('parity: Intl, toLocale* and toFixed — the text is the matched expres
   ])
 })
 
+treeTest('the walk sees Intl the expressions cannot: bare, bracketed, optional; and a method not yet called', () => {
+  assert.deepEqual(
+    summary(
+      scan(
+        'apps/web/lib/fmt.ts',
+        [
+          'export const I = Intl',
+          "export const N = Intl['NumberFormat']",
+          'export const O = Intl?.PluralRules',
+          'export const f = n.toFixed',
+          'export const g = n?.toLocaleDateString?.()',
+          '',
+        ].join('\n'),
+      ),
+    ),
+    [
+      '1|intl||Intl',
+      "2|intl||Intl['NumberFormat']",
+      '3|intl||Intl?.PluralRules',
+      '4|intl||.toFixed',
+      '5|intl||.toLocaleDateString?.()',
+    ],
+  )
+  // A NAME is not a reference: a member called Intl, a property key, an import binding.
+  assert.deepEqual(
+    scan('apps/web/lib/names.ts', "import { Intl as I } from './x'\nexport const a = { Intl: 1 }\nexport const b = x.Intl\n"),
+    [],
+  )
+})
+
 treeTest('parity: the four shapes the regular expressions miss', () => {
   assert.deepEqual(
     summary(scan('apps/mobile/src/Dialog.tsx', "export const Close = () => <Text accessibilityLabel={'Close dialog'} />\n")),
