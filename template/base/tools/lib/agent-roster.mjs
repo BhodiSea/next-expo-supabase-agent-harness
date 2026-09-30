@@ -2,6 +2,9 @@
 // reviewer read-only policy, shared by the docs-sync gate
 // (tools/check-docs-sync.mjs) and, in the harness repo, the repo-side mirror
 // (scripts/check-plugin-manifest.mjs) — one parser, one allowlist, no second copy.
+// Since 1.1.0 it also holds the one definition of where a reviewer body's verdict
+// demand must sit (verdictDemandProblem, at the end of this file), which docs-sync
+// runs over every install and the harness's own tests run over the shipped bodies.
 //
 // parseFrontmatter is a dependency-free YAML SUBSET, deliberately NOT a YAML
 // implementation. The grammar is pinned to what the shipped agent files use
@@ -279,3 +282,43 @@ export function severityContractProblems(text) {
 
 /** @param {string} key */
 const repeatedLine = (key) => `\`${key}:\` is stated more than once — state it on one line`
+
+// ---- the verdict demand closes the body (1.1.0) ----------------------------------------
+// A reviewer body must END by demanding the verdict line, because the SubagentStop hook
+// reads a PASS only as the reply's terminal line. v1.0.1 shipped two bodies that carried
+// the demand and then asked for "the top 3 fixes" after it, in the same paragraph: every
+// review that obeyed its own body was bounced, and a presence test passed both.
+//
+// The rule, on a body trimmed, split into paragraphs on blank (or whitespace-only) lines
+// and whitespace-collapsed: the LAST paragraph is exactly VERDICT_DEMAND, optionally
+// followed by VERDICT_DEMAND_RATIONALE, the sentence every shipped body carries after it.
+// Nothing else may share that paragraph or follow it. One limit, stated in the catalog: an
+// EARLIER paragraph that asks for text after the verdict is not judged here; the hook still
+// bounces a PASS reply that obeys it (docs/harness/gates-catalog.md, docs-sync).
+export const VERDICT_DEMAND =
+  'End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`.'
+const VERDICT_DEMAND_RATIONALE =
+  'The prefix is what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose, so a caller (or a future receipt gate) cannot tell a verdict from a sentence.'
+// The 1.0.x presence test, verbatim: 'absent' is judged exactly as it always was.
+const DEMAND_PRESENCE = /`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/
+const CLOSINGS = new Set([VERDICT_DEMAND, `${VERDICT_DEMAND} ${VERDICT_DEMAND_RATIONALE}`])
+
+/**
+ * Where a reviewer body stands on the verdict demand. Pure; never throws.
+ *   'absent'      — the body never asks for `VERDICT: PASS` or `VERDICT: BLOCK`;
+ *   'not-closing' — it asks, but its last paragraph is not the demand (plus, optionally,
+ *                   the shipped rationale sentence);
+ *   null          — it closes on the demand.
+ * @param {unknown} body the whole file, frontmatter included; CRLF is accepted
+ * @returns {'absent' | 'not-closing' | null}
+ */
+export function verdictDemandProblem(body) {
+  const text = typeof body === 'string' ? body : ''
+  if (!DEMAND_PRESENCE.test(text.replace(/\s+/g, ' '))) return 'absent'
+  const paragraphs = text
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split(/\n[ \t]*\n/)
+  const last = (paragraphs.at(-1) ?? '').replace(/\s+/g, ' ').trim()
+  return CLOSINGS.has(last) ? null : 'not-closing'
+}

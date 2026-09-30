@@ -504,8 +504,9 @@ export const WRITE_PROTECTED = [
   // least protected. `.claude/rules/` is loaded into every turn; `.claude/agents/` decides
   // which reviewers exist and what they may touch; `.claude/commands/` and
   // `.claude/skills/` are the recipes a turn follows. An agent that can edit these can
-  // rewrite its own instructions, and the `docs-sync` roster check reads only frontmatter
-  // (name, model, tools) — never the body, where the instructions actually are. Layer 3
+  // rewrite its own instructions, and the `docs-sync` roster check reads frontmatter
+  // (name, model, tools) and, of a reviewer's body, only the closing verdict demand and the
+  // `Severities:`/`Blocking:` lines — never the instructions themselves. Layer 3
   // (prevention) did not exist for any of them.
   { id: 'claude-rules', re: /^\.claude\/rules\// },
   { id: 'claude-agents', re: /^\.claude\/agents\// },
