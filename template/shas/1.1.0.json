@@ -353,10 +353,10 @@
     ],
     ".claude/skills/authoring-e2ee-feature/SKILL.md": [
       {
-        "sha256": "a5a7b0ac4b9868d64735d1a5b8d38f2191c6057f30530051f22b04ded9090e1e"
+        "sha256": "0c668e99da7dafa9daa8fbed01cc67e1b3b3b768515ca8091264e87b28cab6f5"
       },
       {
-        "sha256": "f807b7b4d1d6de671f44bd404810603f25717953a14c65f472edead350586c15"
+        "sha256": "a5a7b0ac4b9868d64735d1a5b8d38f2191c6057f30530051f22b04ded9090e1e"
       }
     ],
     ".claude/skills/authoring-vertical-slice/SKILL.md": [

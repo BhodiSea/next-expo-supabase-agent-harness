@@ -887,14 +887,14 @@ this heading if none does. -->
   runbook says, then re-locking, turned `prompts` green with the fork's own line kept.
   One `--live` run on this release's pins, against Claude Code 2.1.285, scored 10/10:
   each reply ran on its reviewer's pin, every absence case ended `VERDICT: BLOCK` and named
-  its row id, and every control twin ended `VERDICT: PASS` (#66). For the always-loaded context, `tests/installer/rule-files.test.mjs` was red on
-  three of its six cases before the change: `encryption.md` named no scoped rule,
-  `.claude/rules/e2ee.md` did not exist, and the skill's Step 0 named neither file. With the
-  stub, the scoped rule, the skill pointer and the doctrine line in, all six pass, and with
-  `encryption.md` moved aside the citation case reds naming `guard-rules.mjs`. The seven
-  bullets in `e2ee.md` diff clean against the ones they replaced, and `gen-conformance-docs
-  --check` reported the crosswalk and the threat model in sync after the notes changed
-  (#67).
+  its row id, and every control twin ended `VERDICT: PASS` (#66). For the always-loaded
+  context, `tests/installer/rule-files.test.mjs` was red on three of its six cases before
+  the change: `encryption.md` named no scoped rule, `.claude/rules/e2ee.md` did not exist,
+  and the skill's Step 0 named neither file. With the stub, the scoped rule, the skill
+  pointer and the doctrine line in, all six pass, and with `encryption.md` moved aside the
+  citation case reds naming `guard-rules.mjs`. The seven bullets in `e2ee.md` diff clean
+  against the ones they replaced, and `gen-conformance-docs --check` reported the crosswalk
+  and the threat model in sync after the notes changed (#67).
 
 ## [1.0.4] — 2026-09-29
 

@@ -30,10 +30,9 @@ Do not start until all of these are true:
    it loads on its own only once a file under `packages/platform/crypto/`, a host seam under
    `apps/*/src/host/` or `docs/modules/e2ee/` has been read, and this recipe also edits
    migrations, `tools/data-flow.json` and `tools/pii-columns.json`, which its globs do not
-   reach. The
-   always-loaded `.claude/rules/encryption.md` holds only what applies with the module off;
-   the envelope and AAD construction, the wrapped-key erase lever, the export stance and the
-   audit-capture refusal every step below applies are in `e2ee.md`.
+   reach. The always-loaded `.claude/rules/encryption.md` holds only what applies with the
+   module off; the envelope and AAD construction, the wrapped-key erase lever, the export
+   stance and the audit-capture refusal every step below applies are in `e2ee.md`.
 2. **The module is enabled** — `packages/platform/crypto/` exists (`@app/crypto`). If it does
    not, the module is opt-in and enabling it is a separate, reviewed act: read
    `docs/modules/e2ee/README.md` first, in particular "What this deliberately does NOT solve".
