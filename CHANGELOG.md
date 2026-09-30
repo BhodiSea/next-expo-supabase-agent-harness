@@ -379,7 +379,8 @@ this heading if none does. -->
   is live every security reviewer's PASS reds with a finding that names Fact 16 (#62).
 - **The model record catches configuration, not forgery.** The transcript lives under
   `~/.claude/projects/`, outside the project, where the write guard does not reach, so a
-  session could edit it before the hook reads it. What the record catches is a reviewer
+  session could edit it before the hook reads it. A value not spelled like a model ID is
+  recorded as `null`, so it cannot write lines into the Stop output. What the record catches is a reviewer
   moved off its pin by an override, a substitution or a chain. The model judged is the one
   that wrote the verdict: an earlier line of the same run on another model is not judged. A
   full model ID in a pin or a list matches only itself, so a provider-prefixed ID or a
@@ -495,7 +496,8 @@ this heading if none does. -->
   security reviewer's PASS on a model off its list and named nothing, the lib helpers and
   the roster exports did not exist, `docs-sync` and the plugin-manifest mirror had no list to
   judge, and a green Stop printed nothing on stdout; two more asked the "did not run" red to
-  name the list. After the change each security-reviewer red runs, under both judgements, as
+  name the list, and two asked that a model value with a newline, a space or over 200
+  characters be no model at all. After the change each security-reviewer red runs, under both judgements, as
   a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and `RAMP EXPIRED` at harness
   2.1.0, and the three `ramp-ledger` pins that read the current fleet name the new site. A
   listed fallback and another reviewer's PASS off its list are green and named, a re-run on

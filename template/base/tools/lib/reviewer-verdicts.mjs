@@ -447,6 +447,18 @@ const ALIAS_FAMILIES = new Map([
   ['opusplan', ['opus', 'sonnet']],
 ])
 
+// A MODEL ID as Claude Code and the providers spell one: letters, digits and `. _ : @ / [ ] -`,
+// at most 200 characters (a Bedrock application-inference-profile ARN is the longest shape).
+// Anything else is not a model, a newline above all: the transcript is outside the write
+// guard (Fact 16), and the value is printed into the Stop output. `<synthetic>` fails it too.
+const MODEL_ID_RE = /^[A-Za-z0-9._:@/[\]-]{1,200}$/
+
+/** A trimmed model ID, or null for anything not spelled like one. @param {unknown} m */
+const modelIdOrNull = (m) => {
+  const t = typeof m === 'string' ? m.trim() : ''
+  return MODEL_ID_RE.test(t) ? t : null
+}
+
 /** Lower-cased, trimmed, and without a trailing context-window suffix such as `[1m]`. */
 const normalizeModel = (m) =>
   String(m)
@@ -503,9 +515,10 @@ export function classifyModel(model, pin, fallbacks) {
  * produced it at `message.model`, as a full ID; `attachment` lines carry none, and the
  * `model` attachment names the REQUESTED model, which after a failover is not the one that
  * ran, so it is never read. `<synthetic>` there would mark a line Claude Code wrote itself
- * (not observed, skipped defensively), which is never a model. A line that does not parse
- * is skipped, so a torn tail cannot hide the lines before it. The last model, because that
- * is the one that wrote the verdict.
+ * (not observed, skipped defensively), which is never a model, and so is any value not
+ * spelled like a model ID (MODEL_ID_RE). A line that does not parse is skipped, so a torn
+ * tail cannot hide the lines before it. The last model, because that is the one that wrote
+ * the verdict.
  * @param {unknown} raw
  * @returns {string|null}
  */
@@ -522,8 +535,7 @@ export function transcriptModel(raw) {
 function assistantModel(line) {
   const message = line?.message
   if (line?.type !== 'assistant' && message?.role !== 'assistant') return null
-  const model = typeof message?.model === 'string' ? message.model.trim() : ''
-  return model === '' || model === '<synthetic>' ? null : model
+  return modelIdOrNull(message?.model)
 }
 
 /** @param {{pin: string|null, fallbacks: string[]}} p */
@@ -579,8 +591,7 @@ export function judgeModel(who, entry, policy) {
     policy === null
       ? ` (.claude/agents/${who.agent}.md could not be read, so no pin or list is known)`
       : ''
-  const model =
-    typeof entry.model === 'string' && entry.model.trim() !== '' ? entry.model.trim() : null
+  const model = modelIdOrNull(entry.model)
   const cls = classifyModel(model, p.pin, p.fallbacks)
   if (cls === 'pinned') return { finding: null, line: null }
   const line = fallbackLine(who.agent, model, p, cls, why)

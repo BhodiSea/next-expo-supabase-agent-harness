@@ -2198,7 +2198,8 @@ dispatched with the Agent tool's `model` set to a listed model. Where the
 transcript holds the model was probed at Claude Code 2.1.285 (Fact 16). Honest
 limit: the transcript lives outside the project, so the record catches a
 configuration that moves a reviewer, not a session that forges its own
-transcript.
+transcript; a value not spelled like a model ID is recorded as `null`, so a
+forged one cannot write lines into the Stop output.
 **Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
 reviewer that never ran, last turn's PASS refused, the cross-session PASS
 refused, the BLOCK that blocks, the unparseable ledger failing closed, the
@@ -2232,7 +2233,8 @@ exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
 The model record (1.1.0): a transcript fixture in the observed shape on the pin
 records `pinned: true`, one off it, a mid-run fallback (the verdict's model wins),
 a failover whose model attachment still names the pin, and a synthetic or torn
-last line are pinned, and no readable transcript records `model: null` at exit 0;
+last line are pinned, and no readable transcript, or a value not spelled like a
+model ID, records `model: null` at exit 0;
 a security reviewer's PASS off its list, and one with `model: null`, red under
 both judgements as a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and
 `RAMP EXPIRED` at harness 2.1.0; a PASS on the full ID the pinned alias resolves
