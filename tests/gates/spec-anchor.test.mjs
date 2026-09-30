@@ -89,6 +89,16 @@ function snapshot(dir) {
   return out
 }
 
+/**
+ * The section `id` names in `src`, which must resolve.
+ * @param {string} src @param {string} id
+ */
+function sectionOf(src, id) {
+  const s = findSection(src, id)
+  if (s.kind !== 'ok') assert.fail(`#${id} did not resolve: ${s.kind}`)
+  return s
+}
+
 const NESTED = [
   '# Spec: nested',
   '',
@@ -129,8 +139,7 @@ test('the spec template keeps its comment block and SOURCE line, and says "and",
 })
 
 test('the spec template tells an author to give each decision its own ### heading', () => {
-  const section = findSection(readFileSync(TEMPLATE, 'utf8'), 'decisions')
-  assert.equal(section.kind, 'ok')
+  const section = sectionOf(readFileSync(TEMPLATE, 'utf8'), 'decisions')
   assert.match(section.text, /`###`/)
   assert.match(section.text, /specs\/<feature>\.md#/)
 })
@@ -154,8 +163,7 @@ test('headingId is GitHub\'s anchor form: lowercase, punctuation dropped, each s
 // Parsing
 
 test('a ## section includes its ### children, up to the next heading of its level', () => {
-  const s = findSection(NESTED, 'decisions')
-  assert.equal(s.kind, 'ok')
+  const s = sectionOf(NESTED, 'decisions')
   assert.equal(s.heading.line, 3)
   assert.match(s.text, /^## Decisions\n/)
   assert.match(s.text, /### Keyset cursor, not offset/)
@@ -164,15 +172,15 @@ test('a ## section includes its ### children, up to the next heading of its leve
 })
 
 test('a ### section stops at the next ### and at the next ##', () => {
-  const first = findSection(NESTED, 'keyset-cursor-not-offset')
+  const first = sectionOf(NESTED, 'keyset-cursor-not-offset')
   assert.equal(first.text, '### Keyset cursor, not offset\n\nChosen: keyset.\n')
-  const last = findSection(NESTED, 'one-index-serves-the-sort')
+  const last = sectionOf(NESTED, 'one-index-serves-the-sort')
   assert.equal(last.text, '### One index serves the sort\n\nChosen: the owner index.\n')
 })
 
 test('the last section runs to the end of the file, and the H1 section is the whole file', () => {
-  assert.equal(findSection(NESTED, 'out-of-scope').text, '## Out of scope\n\nNothing else.\n')
-  assert.equal(findSection(NESTED, 'spec-nested').text, `${NESTED.trimEnd()}\n`)
+  assert.equal(sectionOf(NESTED, 'out-of-scope').text, '## Out of scope\n\nNothing else.\n')
+  assert.equal(sectionOf(NESTED, 'spec-nested').text, `${NESTED.trimEnd()}\n`)
 })
 
 test('a heading line inside a code fence is not a heading', () => {
@@ -195,7 +203,7 @@ test('a heading line inside a code fence is not a heading', () => {
   ].join('\n')
   const ids = parseHeadings(src).map((h) => h.id)
   assert.deepEqual(ids, ['real', 'after'])
-  const real = findSection(src, 'real')
+  const real = sectionOf(src, 'real')
   assert.match(real.text, /## not a heading/, 'the fenced line stays in the body of its section')
   assert.doesNotMatch(real.text, /## After/)
 })
@@ -207,8 +215,8 @@ test('an unclosed fence runs to the end of the file', () => {
   )
 })
 
-test('ATX details: closing hashes are dropped, a hash with no space is text, an empty heading has no id', () => {
-  const src = ['## Closed ##', '#hashtag', '##', '####### seven', '   ### Indented three', ''].join('\n')
+test('ATX details: closing hashes are dropped, a hash with no space is text, an empty heading or id is skipped', () => {
+  const src = ['## Closed ##', '#hashtag', '##', '####### seven', '   ### Indented three', '## ???', ''].join('\n')
   const hs = parseHeadings(src)
   assert.deepEqual(
     hs.map((h) => [h.level, h.text, h.id, h.line]),
@@ -229,8 +237,7 @@ test('an unknown id and a duplicate id are refused, never guessed', () => {
   assert.equal(findSection(NESTED, 'no-such-id').kind, 'unknown')
   const dup = '## Notes\n\none\n\n## Other\n\n### Notes\n\ntwo\n'
   const s = findSection(dup, 'notes')
-  assert.equal(s.kind, 'ambiguous')
-  assert.deepEqual(s.lines, [1, 7])
+  assert.deepEqual(s.kind === 'ambiguous' ? s.lines : s.kind, [1, 7])
 })
 
 test('formatIndex prints id, line and heading text, one heading per line', () => {
@@ -252,10 +259,10 @@ test('formatIndex prints id, line and heading text, one heading per line', () =>
 // Path containment (pure half; the CLI adds the realpath half)
 
 test('specPath accepts a relative .md path under specs/ and refuses everything else', () => {
-  assert.deepEqual(specPath('specs/x.md'), { ok: true, rel: 'specs/x.md' })
-  assert.deepEqual(specPath('specs/sub/../x.md'), { ok: true, rel: 'specs/x.md' })
-  assert.deepEqual(specPath('specs\\sub\\x.md'), { ok: true, rel: 'specs/sub/x.md' })
-  assert.deepEqual(specPath('./specs/x.md'), { ok: true, rel: 'specs/x.md' })
+  assert.deepEqual(specPath('specs/x.md'), { kind: 'ok', rel: 'specs/x.md' })
+  assert.deepEqual(specPath('specs/sub/../x.md'), { kind: 'ok', rel: 'specs/x.md' })
+  assert.deepEqual(specPath('specs\\sub\\x.md'), { kind: 'ok', rel: 'specs/sub/x.md' })
+  assert.deepEqual(specPath('./specs/x.md'), { kind: 'ok', rel: 'specs/x.md' })
   for (const bad of [
     '../package.json',
     '..',
@@ -275,8 +282,8 @@ test('specPath accepts a relative .md path under specs/ and refuses everything e
     '',
   ]) {
     const r = specPath(bad)
-    assert.equal(r.ok, false, `${JSON.stringify(bad)} must be refused`)
-    assert.equal(typeof r.why, 'string')
+    assert.equal(r.kind, 'refused', `${JSON.stringify(bad)} must be refused`)
+    assert.match(r.kind === 'refused' ? r.why : '', /\S/)
   }
 })
 

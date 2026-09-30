@@ -19,7 +19,9 @@ from the template at `docs/adr/0000-adr-template.md`. Fill in every section:
   entries, ADR ids) behind the non-trivial choices in this slice.
 - **Traceability** — the RTM fragment: requirement -> migration / DAL / route /
   mobile-screen files -> vitest + jest test ids + the `tests/rls/db-context.ts`
-  isolation target.
+  isolation target. Each requirement cites the spec section it comes from as
+  `specs/<slice>.md#<id>` (`node tools/spec-anchor.mjs specs/<slice>.md` lists the ids);
+  cite the whole file only for a spec with no headings.
 
 Then cross-check two couplings:
 
