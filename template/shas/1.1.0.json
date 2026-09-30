@@ -195,7 +195,7 @@
     ],
     ".claude/hooks/stop-validate-gate.mjs": [
       {
-        "sha256": "4cdd088b4b3928e0fd032722c921c976388253c4aecdf04e17f21c35b99df23e"
+        "sha256": "4ebe74a451e89062f05f995c543d82e7a32b6d103a6d208aebeb02352fc40b2b"
       },
       {
         "sha256": "aea878ef2fdfb101061b32a0c465a04dc0da866bf5796874f23ace1fab0e7835"
@@ -203,7 +203,7 @@
     ],
     ".claude/hooks/subagent-verdict.mjs": [
       {
-        "sha256": "0e5f255cb0bf65cf7dba1953eedb75a65bc07f2599b5390718e307bb50ccdca6"
+        "sha256": "acdb652a00cd0f18d88a3e05caaa8fbf49f39e832e6cec8437e4007d4b9c2c09"
       },
       {
         "sha256": "d5e4f06af9bccda1df16e32760b43b3562dc3c19db1108d6f7da971f385bae2c"
@@ -792,15 +792,6 @@
     ],
     "docs/harness/README.md": [
       {
-        "sha256": "035906be158f02b0ed6f28d6501b3403e80a2a018fe328d0139a90c8266fac40",
-        "sites": [
-          [
-            19030,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "213789fb7052b25714068200bdbc773888e08c1952f65ebefaedd92514ebe159",
         "sites": [
           [
@@ -823,6 +814,15 @@
         "sites": [
           [
             18160,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "72bc99071ae41a9590d4a9146d2959801ed9970521b96bb09031afb955727957",
+        "sites": [
+          [
+            19030,
             "SECURITY_OWNERS"
           ]
         ]
@@ -892,7 +892,7 @@
         ]
       },
       {
-        "sha256": "f14c3ef57aac54696842a02741b61f0744490fe89840091cf68ca9e446c5afa2",
+        "sha256": "f054f5c96c13ae3fcd9487fa33ff09f2c05d704a68ab9425d1ac300792f0f812",
         "sites": [
           [
             123344,
@@ -1109,7 +1109,7 @@
         ]
       },
       {
-        "sha256": "69bd20528113ea28e75c56fb2c82403c2b2875d9650960ccc88dcb2451d0c806",
+        "sha256": "6e100b738f19f9372b6fcfa1e547e6c25df941aac1a6535b8f67b52881cc459b",
         "sites": [
           [
             14115,
@@ -1603,7 +1603,7 @@
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
       },
       {
-        "sha256": "8bcc56101727d72ab0407f91fc7d773e1cf2f56dace9bf52c492cb7245f12a16"
+        "sha256": "765ad01166164b44b5069e9ee9b2522ab01bfdd0b8776d9e622f06fb1c69a1f5"
       },
       {
         "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
@@ -1882,7 +1882,7 @@
     ],
     "tools/lib/agent-roster.mjs": [
       {
-        "sha256": "a2b3dd81ccab543113b734b05a5d3b38b7c694826f52e7177971138bdf28a515"
+        "sha256": "1d7452acb02a36aa83f09184de504587fc7b5b9e7dc19d1ad98d554a39063a6f"
       },
       {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
@@ -2057,10 +2057,10 @@
     ],
     "tools/lib/reviewer-verdicts.mjs": [
       {
-        "sha256": "aab147e205c1456c2888f5929cd69b6e08394d8735835b10330c64ec7ac263e1"
+        "sha256": "a7cb47c51a544f651eece0138d9e2bba4e1415f8be4e67b80873ab1a6005feeb"
       },
       {
-        "sha256": "d014ac596d58f2d9569fae94878ef516aee6fc8843cb291adbf84e20a80dea9f"
+        "sha256": "aab147e205c1456c2888f5929cd69b6e08394d8735835b10330c64ec7ac263e1"
       },
       {
         "sha256": "ff9774f95092c867b6304eb8f803c3d6dc5e74109fc143646a182893e7ec53f3"
