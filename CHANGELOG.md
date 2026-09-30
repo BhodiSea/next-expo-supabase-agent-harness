@@ -502,6 +502,28 @@ this heading if none does. -->
   plants `e2ee.md`; `AGENTS.md` is yours, and the runbook's 1.1.0 section says trimming it is
   optional. No gate, hook rule, lint rule, CI lane, floor or canary changes, and no ramp
   (#67).
+- **`essential-eight` and `conformance-map` stamp locally; CI judges both in full.** The
+  `docs-sync` step's second and third scripts graded both compliance registers in full at
+  every turn end, and `conformance-map` spawned the document generator each time. Each now
+  stamps through `stampGate`: a warm run over unchanged inputs prints
+  `<gate>: STAMPED — inputs unchanged since last green run` and exits 0. Each list in
+  `tools/lib/stamp-inputs.mjs` is what that verdict reads. `essential-eight` is keyed on its
+  register, `tools/harness.config.mjs`, `.github/workflows` and the libraries it imports;
+  `conformance-map` on its register, `tools/harness.config.mjs`, `.github/workflows`,
+  `.claude/hooks/lib/guard-rules.mjs`, `tools/modules.json`, the `docs/modules` tree (the
+  module markers), `tools/gen-conformance-docs.mjs` and its two documents, and the libraries
+  both import. Design record N19 keyed the stamp on every evidence path the registers cite,
+  but neither script opens those paths (a row's `proof` is judged as text), so they are not
+  inputs. `essential-eight`'s negative proof reads `supabase/config.toml` and the product
+  roots it scans for upload surfaces, and those are not inputs either: the proof now runs
+  first, on every run, and the script consults its stamp only when the proof finds nothing,
+  so a storage flip or an upload surface reds the turn it lands. Its findings now also join
+  the red for a missing, invalid or empty register. `CI=true` and
+  `HARNESS_REQUIRE_TOOLCHAINS=1` ignore both stamps, `update` and `graduate` delete them, and
+  a stamp register with no list for either gate (a fork `update` kept) means a full
+  judgement. The selftest's warm validate must print both stamp lines. The `docs-sync` line
+  of `harness.config.mjs` is unchanged, so the chain and both floors do not move, and there
+  is no ramp (#68).
 
 ### What stays open, honestly
 
@@ -684,6 +706,10 @@ this heading if none does. -->
   inaccurate: the second credits the `secrets` gate with the `EXPO_PUBLIC_`/`NEXT_PUBLIC_`
   name shapes, which the two write-guard rules and `expo-policy` hold, and the gate reads no
   name. Moving the full rule into the module is #86's, at 2.0.0 (#67).
+- **The register checks are stamped, not moved to release time.** Design record N19 left open
+  whether to run them only when a release is cut. They still run at every turn end, riding
+  the stamp when nothing they read changed, and `template/base` has no release checklist to
+  move them to. `check-docs-sync.mjs`, the step's first script, is not stamped (#68).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -899,7 +925,14 @@ this heading if none does. -->
   `tools/agents.lock.json` entry with `prompts` green, and left `AGENTS.md` as it was. With
   `encryption.md` edited and a file of the project's own at `e2ee.md`, both were kept, the
   incoming copies were parked, and `update` exited 2. A zero-edit core scaffold and one made
-  with `--modules e2ee` each validated green (#67).
+  with `--modules e2ee` each validated green (#67). For the register stamps, the tests-only commit was red on 33 cases: over a seeded
+  stamp and an empty register each script still printed `declares no requirements` and
+  exited 1, a green run over the shipped register recorded no `.harness/<gate>.ok`, and the
+  membership test in `tests/gates/gate-helpers.test.mjs` found no list for either gate. The
+  `CI=true` cases were green before and after, as they must be. After the change every case
+  is green. Consulting the stamp before the negative proof turns the storage, upload and
+  green-run cases red again, and dropping the guard for a register with no list for the
+  gate throws `TypeError: paths is not iterable` (#68).
 
 ## [1.0.4] — 2026-09-29
 

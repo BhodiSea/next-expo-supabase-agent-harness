@@ -213,9 +213,16 @@ None of these tightens a gate for an existing install. Where one changes what
   keep theirs.
   ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context),
   issue #67)
-- **Compliance register checks on a release cadence.** Locally the two
-  register checks run behind an input stamp. CI and releases always run them.
-  ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence))
+- **Compliance register checks behind an input stamp.** `essential-eight` and
+  `conformance-map`, the `docs-sync` step's register scripts, skip locally when
+  nothing their verdict reads has changed: the register, the chain config, the
+  workflows and, for the map, the guard rules, the module list and markers, and
+  the generator with its two documents. The cited evidence is not an input,
+  because neither script opens it. `essential-eight`'s negative proof still runs
+  on every run, before the stamp. CI always judges both in full; running them
+  only at release time is out of scope.
+  ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence),
+  issue #68)
 - **Provenance by decision class.** Mandatory where a citation guards a
   security decision, advisory elsewhere.
   ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere))
