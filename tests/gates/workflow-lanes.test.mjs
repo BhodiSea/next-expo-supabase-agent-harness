@@ -117,6 +117,8 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
     ['actions-lint.yml', 'workflow-hardening', /check-workflow-hardening\.mjs/],
     ['migration-safety.yml', 'squawk', /squawk/i],
     ['mutation.yml', 'stryker-full', /stryker|mutation/i],
+    // HARNESS-AUTHORED (1.1.0, #78): the job is named for the gate script it runs.
+    ['quality-gate.yml', 'edge-functions', /node tools\/check-edge-functions\.mjs/],
   ]
   for (const [file, id, needle] of WIRING) {
     const job = jobsOf(readFileSync(join(DIR, file), 'utf8')).find((j) => j.id === id)
@@ -127,6 +129,42 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
       `${file} job '${id}' no longer invokes the scanner it is named for — the check name survives, the behaviour does not, and a branch-protection rule only ever sees the name`,
     )
   }
+})
+
+test('the edge-functions lane: its own changes output and filter, the nightly net, deno pinned exactly (1.1.0, #78)', () => {
+  // The Edge Function typecheck is a JOB, not a chain step, so what makes it enforcement is
+  // decidable only here: that a PR touching a function arms it, that the schedule arms it
+  // regardless, and that the deno it runs is one exact release, never a range.
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  const jobs = jobsOf(text)
+  const job = jobs.find((j) => j.id === 'edge-functions')
+  assert.ok(job, "quality-gate.yml no longer defines the 'edge-functions' job")
+  assert.match(job.body, /^ {4}needs: \[changes\]$/m, job.body)
+  assert.match(job.body, /needs\.changes\.outputs\.edge-functions == 'true'/, job.body)
+  assert.match(job.body, /github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'/, job.body)
+  assert.match(job.body, /uses: denoland\/setup-deno@[0-9a-f]{40} # v\d+\.\d+\.\d+/, job.body)
+  assert.match(job.body, /^ {10}deno-version: \d+\.\d+\.\d+$/m, 'deno must be pinned to ONE release: a range resolves differently on the next run')
+  const changes = jobs.find((j) => j.id === 'changes')
+  assert.ok(changes, "quality-gate.yml no longer defines 'changes'")
+  assert.match(changes.body, /^ {6}edge-functions: \$\{\{ steps\.filter\.outputs\.edge-functions \}\}$/m)
+  const filter = /^ {12}edge-functions:\n((?: {14}.*\n)*)/m.exec(changes.body)
+  assert.ok(filter, "the changes job has no 'edge-functions' paths filter")
+  for (const path of ['supabase/functions/**', 'tools/check-edge-functions.mjs', '.harness/manifest.json']) {
+    assert.ok(filter[1].includes(`'${path}'`), `the edge-functions filter omits ${path}`)
+  }
+  const summary = jobs.find((j) => j.id === 'gate-summary')
+  assert.match(summary?.body ?? '', /^ {6}- edge-functions$/m, 'gate-summary does not wait for edge-functions')
+})
+
+test('the factory selftest runs the SAME deno release the edge-functions lane pins (1.1.0, #78)', () => {
+  // bootstrap-linux proves the gate prints OK on a fresh scaffold and Canary 38 proves it reds;
+  // both would prove it for a deno no consumer runs if the two pins drifted apart.
+  const pinOf = (text) => [...text.matchAll(/^ +deno-version: (\S+)$/gm)].map((m) => m[1])
+  const shipped = pinOf(readFileSync(join(DIR, 'quality-gate.yml'), 'utf8'))
+  const factory = pinOf(readFileSync(join(ROOT, '.github', 'workflows', 'selftest.yml'), 'utf8'))
+  assert.equal(shipped.length, 1, `quality-gate.yml pins deno ${String(shipped.length)} time(s)`)
+  assert.ok(factory.length >= 2, 'selftest.yml installs deno in the canary and bootstrap-linux jobs')
+  for (const pin of factory) assert.equal(pin, shipped[0], 'selftest.yml and quality-gate.yml pin different deno releases')
 })
 
 test('the device-lane paths filter covers the packages the installed app is MADE OF', () => {

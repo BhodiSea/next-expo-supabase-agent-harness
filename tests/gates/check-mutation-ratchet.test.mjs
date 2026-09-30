@@ -301,6 +301,85 @@ test('an EMPTY baseline is present and malformed, never absent; --write seeds fr
   assert.equal(written.survivors.length, 1)
 })
 
+// ── the Edge Function ramp (1.1.0, #78) ──────────────────────────────────────────────────
+// supabase/functions/*/ joined the mutation floor in 1.1.0. An install whose baseVersion
+// predates it has function code no test was ever asked to kill mutants in, so a NEW survivor
+// THERE is a NOTE with the deadline until 1.2.0; a survivor anywhere else is judged exactly
+// as before. The gate runs only in the mutation lane, which no upgrade-lane leg executes, so
+// scripts/ci/stop-side-expiries.json names this file as the proof that the ramp expires.
+
+const HELPER_TS = `export function pick(keys) {
+  if (keys.length === 1) return keys[0]
+  return undefined
+}
+`
+
+/** The report above plus one Survived mutant in an Edge Function helper. */
+function edgeReport({ withServer = false } = {}) {
+  const report = withServer ? reportFor() : { files: {} }
+  report.files['supabase/functions/delete-account/helper.ts'] = {
+    source: HELPER_TS,
+    mutants: [
+      {
+        status: 'NoCoverage',
+        mutatorName: 'EqualityOperator',
+        replacement: 'keys.length !== 1',
+        location: { start: { line: 2, column: 7 }, end: { line: 2, column: 23 } },
+      },
+    ],
+  }
+  return report
+}
+
+/** @param {string} dir @param {string} baseVersion @param {string} harnessVersion */
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ baseVersion, harnessVersion }))
+  return dir
+}
+
+test('RAMP: a new survivor under supabase/functions on a 1.0.3 install is a NOTE until 1.2.0', () => {
+  const dir = withManifest(fixture({ report: edgeReport(), baseline: { survivors: [] } }), '1.0.3', '1.1.0')
+  const r = run(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /mutation-ratchet: NOTE — 1 new surviving mutant\(s\) on the Edge Function surface/, r.out)
+  assert.match(r.out, /expires in 1\.2\.0/, r.out)
+  assert.match(r.out, /mutation-ratchet: NOTE — \(ramp\) supabase\/functions\/delete-account\/helper\.ts \[NoCoverage\] EqualityOperator/, r.out)
+})
+
+test('RAMP: the Edge Function NOTE does not excuse a survivor anywhere else', () => {
+  const dir = withManifest(
+    fixture({ report: edgeReport({ withServer: true }), baseline: { survivors: [] } }),
+    '1.0.3',
+    '1.1.0',
+  )
+  const r = run(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /mutation-ratchet: FAIL \(1\) — new surviving mutant/, r.out)
+  assert.match(r.out, /apps\/server\/src\/errors\.ts/, r.out)
+  assert.match(r.out, /NOTE — \(ramp\) supabase\/functions\/delete-account\/helper\.ts/, r.out)
+})
+
+test('RAMP EXPIRED: at harness 1.2.0 the Edge Function survivor fails, and the banner names this ramp', () => {
+  const dir = withManifest(fixture({ report: edgeReport(), baseline: { survivors: [] } }), '1.0.3', '1.2.0')
+  const r = run(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /mutation-ratchet: RAMP EXPIRED — 1 new surviving mutant\(s\) on the Edge Function surface/, r.out)
+  assert.match(r.out, /deadline of 1\.2\.0/, r.out)
+  assert.match(r.out, /supabase\/functions\/delete-account\/helper\.ts/, r.out)
+})
+
+test('a 1.1.0 install (and a fresh one) is held at once: the Edge Function survivor fails', () => {
+  for (const manifest of [['1.1.0', '1.1.0'], null]) {
+    const dir = fixture({ report: edgeReport(), baseline: { survivors: [] } })
+    if (manifest) withManifest(dir, manifest[0], manifest[1])
+    const r = run(dir)
+    assert.equal(r.code, 1, r.out)
+    assert.doesNotMatch(r.out, /NOTE/, r.out)
+    assert.match(r.out, /supabase\/functions\/delete-account\/helper\.ts/, r.out)
+  }
+})
+
 // ── MUTATE_GLOBS == isCritical (0.9.0): the mutated-surface definition lives twice ──────
 //
 // tools/lib/mutation-critical.mjs feeds the SAME critical surface to two consumers through
@@ -370,6 +449,18 @@ test('MUTATE_GLOBS and isCritical agree on every rule and carve-out class (drift
     'packages/verticals/notes/README.md',
     // vertical files OUTSIDE src/ (isCritical's verticals branch is path-shaped)
     'packages/verticals/notes/scripts/gen.ts',
+    // Edge Functions (1.1.0): the STARRED root supabase/functions/*/ — a handler, a nested
+    // helper and a _shared/ helper are mutated; the Deno.serve shell, tests, a file sitting
+    // directly under supabase/functions/ and non-function supabase/ trees are not.
+    'supabase/functions/delete-account/handler.ts',
+    'supabase/functions/delete-account/index.ts',
+    'supabase/functions/delete-account/handler.test.ts',
+    'supabase/functions/delete-account/lib/keys.ts',
+    'supabase/functions/_shared/cors.ts',
+    'supabase/functions/billing/index.ts',
+    'supabase/functions/types.d.ts',
+    'supabase/functions/index.ts',
+    'supabase/seed.ts',
   ]
   for (const path of corpus) {
     assert.equal(
@@ -378,6 +469,24 @@ test('MUTATE_GLOBS and isCritical agree on every rule and carve-out class (drift
       `${path}: isCritical=${String(isCritical(path))} but MUTATE_GLOBS say ${String(mutatedByGlobs(path))} — the two encodings of the critical surface have drifted (tools/lib/mutation-critical.mjs)`,
     )
   }
+})
+
+// ── Edge Functions (1.1.0, #78): the starred floor root supabase/functions/*/ ───────────
+//
+// A function's decisions live in its handler (the seeded delete-account/handler.ts), which
+// vitest runs in Node; its index.ts is a Deno.serve shell that imports a jsr: specifier and
+// starts a server as it loads, so no Node runner can import it and every mutant in it would
+// be NoCoverage. `deno check` covers the shell (tools/check-edge-functions.mjs).
+import { FLOOR_ROOTS } from '../../template/base/tools/lib/mutation-critical.mjs'
+
+test('Edge Functions: the handler is critical, the Deno.serve shell is not (both encodings)', () => {
+  assert.ok(FLOOR_ROOTS.includes('supabase/functions/*/'), FLOOR_ROOTS.join(', '))
+  assert.equal(isCritical('supabase/functions/delete-account/handler.ts'), true)
+  assert.equal(isCritical('supabase/functions/delete-account/index.ts'), false)
+  assert.equal(isCritical('supabase\\functions\\delete-account\\handler.ts'), true)
+  assert.equal(mutatedByGlobs('supabase/functions/delete-account/handler.ts'), true)
+  assert.equal(mutatedByGlobs('supabase/functions/delete-account/index.ts'), false)
+  assert.ok(MUTATE_GLOBS.includes('!supabase/functions/*/index.ts'), MUTATE_GLOBS.join(', '))
 })
 
 // ── the additive half (1.0.0): tools/mutation-scope-extra.json ─────────────────────────

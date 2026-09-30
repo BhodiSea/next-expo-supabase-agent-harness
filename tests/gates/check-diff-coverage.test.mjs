@@ -324,6 +324,36 @@ test('the SHIPPED vitest.config.ts parses: floors 50/40/45/50 and the exclusion 
   assert.ok(excludes.includes('packages/verticals/*/src/data/query-probes.ts'), excludes.join(', '))
   assert.ok(excludes.includes('packages/design-system/src/**'), excludes.join(', '))
   assert.ok(excludes.includes('apps/web/lib/rate-limit-runtime.ts'), excludes.join(', '))
+  // 1.1.0: an Edge Function's Deno.serve shell. No Node runner can import it (a jsr: import,
+  // a server started at load), so it is excluded here and typechecked by `deno check`.
+  assert.ok(excludes.includes('supabase/functions/*/index.ts'), excludes.join(', '))
+})
+
+test('Edge Functions (1.1.0): a changed handler is held to the vitest floors; the shell, tests and config are not', () => {
+  const { checked, findings } = evaluateDiffCoverage({
+    changedFiles: [
+      'supabase/functions/delete-account/handler.ts',
+      'supabase/functions/delete-account/index.ts',
+      'supabase/functions/delete-account/handler.test.ts',
+      'supabase/functions/delete-account/deno.json',
+      'supabase/functions/_shared/cors.ts',
+      'supabase/migrations/20260101000000_x.sql',
+    ],
+    maps: { vitest: {}, jest: null },
+    floors: BOTH,
+    vitestExcludes: parseCoverageExcludes(readShippedVitest()),
+  })
+  assert.deepEqual(checked, [
+    'supabase/functions/delete-account/handler.ts',
+    'supabase/functions/_shared/cors.ts',
+  ])
+  assert.deepEqual(
+    findings.map((f) => [f.file, f.kind, f.runner]),
+    [
+      ['supabase/functions/delete-account/handler.ts', 'uncovered', 'vitest'],
+      ['supabase/functions/_shared/cors.ts', 'uncovered', 'vitest'],
+    ],
+  )
 })
 
 test("comments inside the array are prose, not data: an apostrophe or `]` in a comment cannot drop later entries", () => {
@@ -570,6 +600,65 @@ test('CANARY — a 0.4.0-vintage install reds on the same file WITHOUT the banne
   assert.equal(r.code, 1, r.out)
   assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
   assert.ok(r.out.includes('apps/web/lib/quota.ts'), r.out)
+})
+
+// ---- the 1.1.0 Edge Function ramp -----------------------------------------------------
+// supabase/functions/ joined the measured surface in 1.1.0. vitest.config.ts measures a
+// directory there only once it holds a vitest suite, so an install's existing untested helper
+// never weighs on the aggregate — and this gate names a CHANGED one as absent from the map.
+// On an install whose baseVersion predates 1.1.0 that finding is a NOTE until 1.2.0.
+
+test('RAMP: an untested Edge Function helper on a 1.0.3 install is a NOTE until 1.2.0, exit 0', () => {
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'supabase/functions/delete-account/helper.ts')
+  withManifest(dir, '1.0.3', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /diff-coverage: NOTE — 1 finding\(s\) on the Edge Function surface/, r.out)
+  assert.match(r.out, /expires in 1\.2\.0/, r.out)
+  assert.match(r.out, /diff-coverage: NOTE — \(ramp\) supabase\/functions\/delete-account\/helper\.ts: absent from every coverage map/, r.out)
+})
+
+test('RAMP: the Edge Function NOTE does not excuse a finding anywhere else', () => {
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'supabase/functions/delete-account/helper.ts')
+  addUntracked(dir, 'packages/billing/src/invoice.ts')
+  withManifest(dir, '1.0.3', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /diff-coverage: FAIL \(1\)/, r.out)
+  assert.match(r.out, /packages\/billing\/src\/invoice\.ts: absent from every coverage map/, r.out)
+  assert.match(r.out, /NOTE — \(ramp\) supabase\/functions\/delete-account\/helper\.ts/, r.out)
+})
+
+test('RAMP EXPIRED: at harness 1.2.0 the Edge Function finding fails, and the banner names this ramp', () => {
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'supabase/functions/delete-account/helper.ts')
+  withManifest(dir, '1.0.3', '1.2.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /diff-coverage: RAMP EXPIRED — 1 finding\(s\) on the Edge Function surface/, r.out)
+  assert.match(r.out, /deadline of 1\.2\.0/, r.out)
+  assert.match(r.out, /supabase\/functions\/delete-account\/helper\.ts/, r.out)
+})
+
+test('a 1.1.0 install is held at once, and the finding says how a function directory gets measured', () => {
+  const dir = gitFixture({ vitestMap: {} })
+  addUntracked(dir, 'supabase/functions/delete-account/helper.ts')
+  withManifest(dir, '1.1.0', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.doesNotMatch(r.out, /NOTE/, r.out)
+  assert.match(r.out, /supabase\/functions\/delete-account\/helper\.ts: absent from every coverage map — an Edge Function directory is measured only once it holds a vitest suite/, r.out)
+})
+
+test('GREEN: a covered handler clears the floors like any other file', () => {
+  const file = 'supabase/functions/delete-account/handler.ts'
+  const dir = gitFixture({ vitestMap: { [file]: fileCov(file, { covered: 4, total: 4 }) } })
+  addUntracked(dir, file)
+  const r = runGate(dir, { ci: false })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('1 changed source file(s) clear the per-file floors'), r.out)
 })
 
 test('outside a git repo: loud SKIP locally, FAIL in CI (never a silent pass)', () => {
