@@ -88,6 +88,23 @@ by severity with `file:line` refs.
     diff touches `supabase/migrations/**`, `supabase/schemas/**`, or any policy, require
     the `security-reviewer` to run as well.
 
+## WHAT MUST ACCOMPANY IT
+
+The rubric above judges the lines a diff contains. This table judges the ones it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`; a row a step enforces
+still gets its line, because the step may not have run on the tree you were given.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `server-action-rate-limit` | a Server Action (an exported `…Action` in `apps/web/app/actions/**`) | an entry for it in `tools/rate-limit-budget.json` `actions`, and an `enforceActionRateLimit('<name>')` call in its module | `docs/harness/gates-catalog.md` | `rate-limits` |
+| `server-action-identity` | a Server Action | the caller's identity derived inside it from the verified session (`getUser()` / `getClaims()`, or a seam that calls one), never from its input | `.claude/rules/security-invariants.md` | `review only` |
+| `server-action-contract` | a Server Action | its input parsed against the same `@app/contracts` schema its tRPC twin validates, before any of it reaches domain code | `.claude/skills/authoring-vertical-slice/SKILL.md` | `review only` |
+| `server-action-outcome` | a Server Action | an `ActionOutcome` return from `@app/errors` for every domain failure, never a thrown one | `.claude/rules/boundaries.md` | `review only` |
+
 Flag ONLY genuine weakenings or gaps in these invariants — a new Server Action or a new
 public env var is routine slice work when it verifies identity and stays server/client
 clean.

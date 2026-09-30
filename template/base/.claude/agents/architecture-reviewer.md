@@ -60,6 +60,21 @@ answer it, don't gesture at it:
     (knip will red it later — earlier is cheaper), the comment describing the
     previous design.
 
+## WHAT MUST ACCOMPANY IT
+
+The rubric above judges the lines a diff contains. This table judges the ones it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`; a row a step enforces
+still gets its line, because the step may not have run on the tree you were given.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `interface-second-consumer` | a new interface, type alias, wrapper function or indirection | its second consumer or its test-double need, named in a comment, the pull request or an ADR | `.claude/agents/architecture-reviewer.md` | `review only` |
+| `client-export-census` | a `./client` subpath export on a package | a sanctioned entry with a reason in `tools/exports-walls.json` | `.claude/rules/boundaries.md` | `boundaries` |
+
 Flag ONLY findings that change what a maintainer would do — no style nits, no
 re-running of mechanical gates. Be specific; every finding names the fix.
 

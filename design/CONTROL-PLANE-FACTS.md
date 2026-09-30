@@ -15,6 +15,9 @@ the brief relies on, and the probe that still owes an observed payload.
 Fact 16 (2026-09-30) was probed against **Claude Code 2.1.285** in print mode: where the
 model a subagent ran on can be read, which output of a green Stop hook reaches the user, and
 the three answers the print-mode probe could not observe.
+Fact 17 (2026-09-30) was probed against **Claude Code 2.1.285** in print mode: how
+`claude -p --agent <name>` runs a reviewer on its pinned model, which the reviewer eval's
+`--live` mode relies on (1.1.0, #66).
 **Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
 sourced, re-verify-on-bump.
 
@@ -506,6 +509,61 @@ delete the obligations row `control-plane-facts-reviewer-model-probe` in the sam
 a later Claude Code moves the model off `message.model`, every entry records
 `model: null`, and the null finding names this Fact: fix `transcriptModel` and its fixture
 in the same diff.
+
+## Fact 17 — `claude -p --agent` runs a reviewer as the session, on its pin: observed
+
+**Status, 2026-09-30: observed against Claude Code 2.1.285 in print mode, except where a
+point says "not observed".** Recorded before `scripts/reviewer-eval.mjs --live` (1.1.0, #66)
+started recording reviewer replies, because the eval measures a reviewer body on the model
+its file pins, and #66 recorded as UNVERIFIED how a run could do that. Method: a scratch
+project holding one agent, `probe-reviewer`, pinned `model: haiku`, `tools: Read, Grep,
+Glob`, `disallowedTools: Write, Edit`, a `harnessFallbackModels` line, and a body that
+named a canary word (`MARMALADE-17`) and ended with the verdict demand. Five `claude -p`
+runs: `--agent probe-reviewer` with `--output-format json`; the same with `--model sonnet`
+under `--output-format stream-json --verbose`; the first again with the project's
+`.claude/settings.json` wiring a `SessionStart` and a `Stop` hook that each appended to a
+file; that once more under `--settings '{"disableAllHooks":true}' --strict-mcp-config`;
+and `--agent probe-missing`.
+
+1. **The agent's body is the session's instructions, its `tools:` line is the session's
+   tool set, and its pin is the session's model. Observed.** The reply named the canary
+   word and ended `VERDICT: PASS`. The stream's `init` event listed exactly
+   `["Read","Grep","Glob"]`. The JSON result's `modelUsage` had one key,
+   `claude-haiku-<version>-<yyyymmdd>`, a dated full ID of the pin's family, and every
+   assistant line's `message.model` was the same ID. The JSON `result` field is the
+   agent's own final message, so it is the reply to score, with no dispatching agent in
+   between.
+2. **`--model` overrides the pin. Observed.** With `--model sonnet`, `init.model`,
+   `modelUsage` and every `message.model` were the Sonnet ID. So the eval passes no
+   `--model`, and records the model from `modelUsage` rather than assuming the pin.
+3. **An install's hooks fire around the run, and `disableAllHooks` stops them. Observed.**
+   The `SessionStart` and `Stop` probe hooks both fired under `--agent`. An install's Stop
+   hook runs its whole `validate` chain, so the eval passes `--settings
+   '{"disableAllHooks":true}'`; under it neither probe hook fired, and the agent, its tools
+   and its pin were unchanged. `--strict-mcp-config` with no `--mcp-config` left
+   `mcp_servers` empty, so a reviewer's `mcp__rls_verify` grant has nothing behind it, as
+   it has nothing behind it with no local stack.
+4. **An agent the loader cannot find ends the run. Observed.** `--agent probe-missing`
+   exited 1 with `--agent 'probe-missing' not found. Available agents: …` and no result,
+   so a reviewer file that fails to load cannot be replaced by the default agent in
+   silence.
+5. **The eval's own run reads the install with no prompt. Observed.**
+   `node scripts/reviewer-eval.mjs --live <dir> --case screen-route-absent` ran
+   `accessibility-reviewer` (pin `sonnet`) in a fresh core-tier install with the case
+   applied. Its reply quoted `file:line` ranges from the overlay and from
+   `apps/mobile/src/routes.ts`, so its Read and Grep calls ran with no permission prompt
+   (the three tools are read-only and the files are under the working directory), and
+   `modelUsage` named the Sonnet ID.
+6. **Not observed.** Whether the session prompt `--agent` builds is byte-identical to the
+   one a subagent dispatched with the Agent tool receives (both add environment details to
+   the body; the probe compared behaviour, not bytes). Whether `--agent` resolves a family
+   alias to the main conversation's model the way a subagent's pin does (Fact 16, point 7):
+   with `--agent` the agent is the main conversation, and the pinned alias ran as a dated
+   full ID of its family. So an eval score measures the body and the pin as `--agent` runs
+   them, which is close to, and not proven equal to, a dispatched subagent.
+
+**Re-verify** on any Claude Code upgrade, and before a `--live` run whose score is compared
+with one recorded on another version: `live.json` records the version it ran on.
 
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 

@@ -86,6 +86,25 @@ against this rubric, ranking every finding CRITICAL / HIGH / MEDIUM / LOW with a
     envelope/transport policy, retries/timeouts, index choices) has a resolvable
     `// SOURCE:` (`--` in SQL), ideally `[corpus: <id>]`. Flag any that do not.
 
+## WHAT MUST ACCOMPANY IT
+
+The rubric above judges the lines a diff contains. This table judges the ones it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`; a row a step enforces
+still gets its line, because the step may not have run on the tree you were given.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `screen-route-states` | a screen (a route file under `apps/mobile/app/`) | its `src/routes.ts` entry, with the `loading`, `empty` and `error` test ids the screen renders | `docs/harness/gates-catalog.md` | `route-manifest` |
+| `screen-maestro-flow` | a screen | a Maestro flow at `maestro/flows/<id>.yaml` | `docs/harness/gates-catalog.md` | `mobile-perf` |
+| `screen-startup-budget` | a screen | a row for it in `tools/startup-budget.json` | `docs/harness/gates-catalog.md` | `mobile-perf` |
+| `web-page-meta` | a web page (`apps/web/app/**/page.tsx`) | a `page.meta.ts` beside it with an `id`, a `titleKey` the web catalog resolves, and the three state test ids the page renders (a `null` state only with a reviewed `unreachableStates` row) | `docs/harness/gates-catalog.md` | `route-manifest` |
+| `web-page-registry` | a web page | its entry in the regenerated `apps/web/lib/routes.generated.ts` | `docs/harness/gates-catalog.md` | `route-manifest` |
+| `contract-inventories` | a contract, procedure or event change | the regenerated inventories under `tools/generated/` | `.claude/skills/authoring-vertical-slice/SKILL.md` | `contracts` |
+
 Flag ONLY gaps that affect correctness, a stated requirement, or an invariant — do
 not over-report style nits as blockers. Be specific and merciless; do not soften; do
 not modify code.

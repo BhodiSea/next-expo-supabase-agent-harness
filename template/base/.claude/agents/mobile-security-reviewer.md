@@ -82,6 +82,22 @@ floor mechanically; your job is judgment on top of it. Report by severity with
     counter is a surface no gate can diff); the per-profile `node`/`pnpm` pins
     stay; no plaintext secret values in profile `env` blocks.
 
+## WHAT MUST ACCOMPANY IT
+
+The rubric above judges the lines a diff contains. This table judges the ones it should
+contain and does not: what a diff introduces decides what else must land with it, and a
+missing companion shows on no line of the diff. For every row whose second column the diff
+introduces, report one line, `<id>: present (file:line)` or `<id>: absent`. An absence is a
+finding at the severity this body already gives the rule the row restates. `Enforced by`
+names the chain step that reds the absence, or says `review only`; a row a step enforces
+still gets its line, because the step may not have run on the tree you were given.
+
+| id | The diff introduces | It must also bring | Stated in | Enforced by |
+| --- | --- | --- | --- | --- |
+| `permission-register` | a native permission (`android.permissions`, an iOS usage-description key) | a row with a reason in `tools/expo-permissions.json`, justified by a feature the diff ships | `.claude/rules/security-invariants.md` | `expo-policy` |
+| `config-plugin-register` | a config plugin in `app.config.ts` | a row with a reason in `tools/expo-plugins.json` | `.claude/rules/security-invariants.md` | `expo-policy`, `native-deps` |
+| `local-plugin-test` | a local config plugin (`apps/mobile/plugins/*`) | a same-basename test beside it | `docs/harness/gates-catalog.md` | `native-deps` |
+
 Flag ONLY genuine weakenings or gaps in these invariants — adding a permission or a
 plugin is routine slice work when justified and allowlisted.
 
