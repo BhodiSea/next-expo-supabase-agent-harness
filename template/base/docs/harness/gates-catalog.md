@@ -2170,7 +2170,7 @@ its 1.0.x meaning, and `prompt_id` stays in each entry and in the turn key.
 **The model a verdict ran on (1.1.0; the security finding behind a ramp until
 2.1.0).** A reviewer can run off the model its agent file pins: a per-invocation
 `model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an `availableModels`
-substitution, a `fallbackModel` chain (`design/CONTROL-PLANE-FACTS.md` Fact 15
+substitution, a `fallbackModel` chain (`design/CONTROL-PLANE-FACTS.md` Fact 16
 in the harness repository). The SubagentStop hook records `model`, read from the
 last assistant line of the subagent's own transcript at `agent_transcript_path`,
 and `pinned` in each ledger entry; what it cannot read is `null`, and neither the

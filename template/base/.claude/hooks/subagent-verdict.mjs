@@ -26,7 +26,7 @@
 // the mandated verdict line is read directly, and the VERDICT never comes from a transcript.
 //
 // ONE THING DOES, SINCE 1.1.0 (#62): the model the verdict ran on. No Subagent* payload names
-// a model (CONTROL-PLANE-FACTS, Fact 15), and a reviewer can run off its pin through a
+// a model (CONTROL-PLANE-FACTS, Fact 16), and a reviewer can run off its pin through a
 // per-invocation model, an override, an allowlist substitution or a fallback chain. So the
 // hook reads the subagent's OWN transcript, the JSONL at `agent_transcript_path`, for the
 // model of its last assistant line (tools/lib/reviewer-verdicts.mjs transcriptModel), and

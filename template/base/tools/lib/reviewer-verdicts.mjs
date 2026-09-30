@@ -429,7 +429,7 @@ export function latestCountedPass(agent, entries, current) {
 // rests on against the reviewer's hash-locked agent file: its `model` pin, and its
 // `harnessFallbackModels` list (tools/lib/agent-roster.mjs). What each Claude Code mechanism
 // does to a subagent's model, and what the transcript is documented to hold, is
-// design/CONTROL-PLANE-FACTS.md Fact 15. Pure, like the rest of this file: the caller reads.
+// design/CONTROL-PLANE-FACTS.md Fact 16. Pure, like the rest of this file: the caller reads.
 
 // THE ALIAS RULE, as data, never looked up live. A family alias resolves to the latest model
 // of its family, or to the main conversation's own model when that is in the family (so any
@@ -486,7 +486,7 @@ export function classifyModel(model, pin, fallbacks) {
 /**
  * The model that wrote a subagent's LAST assistant message, read from its transcript (the
  * JSONL at the SubagentStop payload's `agent_transcript_path`), or null. Documented shape is
- * thin (Fact 15): each assistant line is taken to carry its API response's model at
+ * thin (Fact 16): each assistant line is taken to carry its API response's model at
  * `message.model`, and `<synthetic>` there marks a line Claude Code wrote itself, which is
  * never a model. A line that does not parse is skipped, so a torn tail cannot hide the lines
  * before it. The last model, because that is the one that wrote the verdict.
@@ -537,7 +537,7 @@ function fallbackLine(agent, model, p, cls, why) {
 function modelFinding(agent, model, p, why) {
   const file = `.claude/agents/${agent}.md`
   if (model === null) {
-    return `${agent} returned PASS, but the hook could not read the model it ran on (model: null)${why}. A security reviewer's PASS counts only on a model its agent file names, and an unverifiable model fails toward re-review: run ${agent} again. If every run records null, Claude Code's transcript no longer carries the model where the hook reads it: re-probe design/CONTROL-PLANE-FACTS.md Fact 15.`
+    return `${agent} returned PASS, but the hook could not read the model it ran on (model: null)${why}. A security reviewer's PASS counts only on a model its agent file names, and an unverifiable model fails toward re-review: run ${agent} again. If every run records null, Claude Code's transcript no longer carries the model where the hook reads it: re-probe design/CONTROL-PLANE-FACTS.md Fact 16.`
   }
   return `${agent} returned PASS on ${model}, which is neither its pinned model (${p.pin ?? 'none readable'}) nor on its harnessFallbackModels list (${listText(p)})${why}. A security reviewer's PASS counts only on a model its hash-locked agent file names. Run ${agent} again on its pin or a listed model (the per-invocation model parameter selects one); a configuration that forces this model (CLAUDE_CODE_SUBAGENT_MODEL_FORCE, an availableModels allowlist, a fallbackModel chain) lands a re-run on the same model, so lift it, or, if this model is one you accept for security review, add it to harnessFallbackModels in ${file} in a reviewed diff (the file is write-guarded and hashed in tools/agents.lock.json, so that is a human act).`
 }

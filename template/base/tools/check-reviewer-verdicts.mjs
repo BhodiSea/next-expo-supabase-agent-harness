@@ -48,7 +48,7 @@
 // 2.1.0. The hook records `model` (read from the subagent's own transcript; null when it
 // cannot) and `pinned` beside each verdict, because a reviewer can run off its pin: a
 // per-invocation model, CLAUDE_CODE_SUBAGENT_MODEL(_FORCE), an availableModels substitution,
-// a fallbackModel chain (design/CONTROL-PLANE-FACTS.md, Fact 15). The step judges the model of
+// a fallbackModel chain (design/CONTROL-PLANE-FACTS.md, Fact 16). The step judges the model of
 // the entry each owed reviewer's verdict rests on (the latest entry of the turn under the
 // 1.0.x judgement, the one the stale class judges; the latest counted PASS under v2) against
 // the reviewer's hash-locked agent file: its `model` pin, or an entry of its

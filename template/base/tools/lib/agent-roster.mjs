@@ -39,7 +39,7 @@ export const SECURITY_REVIEWERS = [
 // an inline list read with splitList. Claude Code ignores a key it does not recognize, and
 // the prefix keeps any future Claude Code field from taking this name, so Claude Code never
 // acts on the list: it is what reviewer-verdicts judges a verdict's recorded model against
-// (design/CONTROL-PLANE-FACTS.md, Fact 15). The file hash in tools/agents.lock.json covers it;
+// (design/CONTROL-PLANE-FACTS.md, Fact 16). The file hash in tools/agents.lock.json covers it;
 // the lock's `models` map keeps the pin alone.
 export const FALLBACK_MODELS_KEY = 'harnessFallbackModels'
 

@@ -367,11 +367,11 @@ this heading if none does. -->
 - **The model record rests on a transcript shape nobody has probed.** No Subagent* payload
   names a model, and the documentation does not say where the subagent's transcript records
   one. The hook reads `message.model` on the transcript's assistant lines, and
-  `design/CONTROL-PLANE-FACTS.md` Fact 15 says that is an assumption. The session that wrote
+  `design/CONTROL-PLANE-FACTS.md` Fact 16 says that is an assumption. The session that wrote
   1.1.0 could not start Claude Code, so the probe is the owner's, and the obligations row
   `control-plane-facts-reviewer-model-probe` holds it. If the model is not there, every
   entry records `model: null`, and where the check is live every security reviewer's PASS
-  reds with a finding that names Fact 15 (#62).
+  reds with a finding that names Fact 16 (#62).
 - **The model record catches configuration, not forgery.** The transcript lives under
   `~/.claude/projects/`, outside the project, where the write guard does not reach, so a
   session could edit it before the hook reads it. What the record catches is a reviewer

@@ -1299,7 +1299,7 @@ const LISTED_FULL = 'claude-fable-5-1'
 const OFF_LIST = 'claude-sonnet-5'
 
 /**
- * A subagent transcript, shaped as design/CONTROL-PLANE-FACTS.md Fact 15 records it
+ * A subagent transcript, shaped as design/CONTROL-PLANE-FACTS.md Fact 16 records it
  * (documented, NOT yet probed): JSONL, one line per message, each assistant line carrying the
  * model of the API response that produced it at `message.model`. The last model is the one
  * that wrote the verdict. `tail` lines are appended verbatim (a synthetic line, a torn one).
@@ -1659,7 +1659,7 @@ test('judgeModel: every branch — nothing, a named line, or a finding and a lin
 
   const unread = j(sec, { model: null })
   assert.match(String(unread.finding), NULL_FINDING)
-  assert.match(String(unread.finding), /Fact 15/)
+  assert.match(String(unread.finding), /Fact 16/)
   assert.match(String(unread.line), /security-reviewer's PASS carries model: null/)
 
   assert.deepEqual(j(other, { model: OFF_LIST }).finding, null)

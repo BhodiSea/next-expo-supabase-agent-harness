@@ -187,7 +187,7 @@ const STAMPED_WHY = 'inputs unchanged since their last green run, so they did NO
 // stamp line. These are listed on a GREEN run through the one channel that reaches anyone at
 // exit 0: stderr and plain stdout from a hook that exits 0 go to the debug log only, while a
 // JSON `systemMessage` on stdout is shown to the user and does not continue the turn
-// (design/CONTROL-PLANE-FACTS.md, Fact 15). A fallback is never silent.
+// (design/CONTROL-PLANE-FACTS.md, Fact 16). A fallback is never silent.
 const FALLBACK_RE = /^[\w-]+: FALLBACK MODEL — /
 const FALLBACK_WHY = "a reviewer verdict ran on a model other than the reviewer's pinned one"
 

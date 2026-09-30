@@ -1578,7 +1578,7 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
 // `reviewer-verdicts` step prints one `<gate>: FALLBACK MODEL — …` line per such verdict, and
 // the hook lists them. On a GREEN run it must use the one channel that reaches anyone at exit
 // 0: stderr and plain stdout go to the debug log only, and a JSON `systemMessage` on stdout is
-// shown to the user without continuing the turn (design/CONTROL-PLANE-FACTS.md, Fact 15).
+// shown to the user without continuing the turn (design/CONTROL-PLANE-FACTS.md, Fact 16).
 test('stop gate (#62): a green run shows every FALLBACK MODEL line to the user through systemMessage, at exit 0', () => {
   const step = `node -e "console.log(process.env.X_FB); console.log('reviewer-verdicts: OK - 1 owed')"`
   const line =
