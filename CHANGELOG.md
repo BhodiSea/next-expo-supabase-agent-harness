@@ -1116,15 +1116,16 @@ this heading if none does. -->
   `scripts/lib/floor-advisories.mjs` existed. With the script and the lib in, its one
   remaining red was the job-shape case, until `hygiene.yml` had the job. The first
   dispatched run of the job on the branch (hygiene run 36711735348) then read the vendor's
-  listing and failed on every advisory whose range was free text, on six whose open lower
+  listing and failed on every advisory whose range was free text, on those whose open lower
   bound read as covering patched probes, and on GHSA-vcvr-r3jv-pc5j. OSV listed every one
   of them except the last, and matched none of them to a probe. The cases for letting OSV
-  decide what it lists were red on 9 of 32 before that change. After it every case passes,
-  and `check-canary-coverage` runs the file for both registry entries. Against live OSV and
+  decide what it lists were red before that change. After it every case passes, and
+  `check-canary-coverage` runs the file for both registry entries. Against live OSV and
   the listing rebuilt from that run's log, the one failure left was GHSA-vcvr-r3jv-pc5j on
   16.3.3 and 16.3.5, and the second dispatched run (hygiene run 36713025908) failed on that
   advisory alone, naming its CVE alias, its date after `reviewedOn`, the floor and the pin,
-  while every other job of the workflow passed (#81).
+  while every other job of the workflow passed. The third (hygiene run 36714772895), after
+  one listing's OSV lookups were sent together, printed the same single failure (#81).
 
 ## [1.0.4] — 2026-09-29
 
