@@ -1562,13 +1562,13 @@ this heading if none does. -->
   of the leg's own and ran the generator, and `graduate` advanced `baseVersion` 0.3.0 to
   1.1.0. A zero-edit core scaffold rendered from this tree passed `validate --report-all` with
   `schema-rls` OK (#74).
-  For the rpc and upsert rows, the tests-only commit was red on 18 of the 42 cases of
+  For the rpc and upsert rows, the tests-only commit was red on 18 of the 45 cases of
   `tests/gates/check-query-shapes.test.mjs`: ten threw `db.rpc is not a function`, the two
-  upsert recorder cases found `op: "select"` and an empty payload, `parseIndexes` marked no primary key, and each
-  of the five upsert gate fixtures redded with `uses .upsert()` and OFFSET advice, the tenant
-  ones also with `select on tenant table "notes" with no org_id equality`. After the change
-  its 43 cases pass: an rpc row carries
-  its argument names and not the value, the four 1.0.x row kinds keep their exact key list,
+  upsert recorder cases found `op: "select"` and an empty payload, `parseIndexes` marked no
+  primary key, and each of the five upsert gate fixtures redded with `uses .upsert()` and
+  OFFSET advice, the tenant ones also with `select on tenant table "notes" with no org_id
+  equality`. After the change its 46 cases pass: an rpc row carries its argument names and
+  not the value, the four 1.0.x row kinds keep their exact key list,
   renaming the function in the fixture migration reds naming `public.accept_invitation` and
   PGRST202, a missing or unknown argument name reds naming it, dropping the unique index an
   upsert names reds naming `ON CONFLICT (handle)`, and an upsert with no `onConflict` on a
