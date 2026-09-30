@@ -1,8 +1,10 @@
 # Lint the CI itself: actionlint (workflow syntax + shellcheck on run: blocks) and
 # zizmor (workflow security audit — pin hygiene, untrusted inputs, credential exposure).
-# House rule enforced in review + zizmor config: EVERY job carries harden-runner, and on
-# `windows-*` runners it uses `egress-policy: audit` (the agent cannot block egress on
-# Windows — an audit entry is honest; a silently absent sensor is not).
+# House rule: EVERY job starts with harden-runner, and on `windows-*` runners it uses
+# `egress-policy: audit` (the agent cannot block egress on Windows — an audit entry is
+# honest; a silently absent sensor is not). Since 1.1.0 the `workflow-hardening` job below
+# checks that rule by position, with the workflow-level bash default and a ceiling on every
+# job, over every workflow in this directory; `harden-runner-coverage` still counts.
 # SOURCE: docs/harness/README.md (workflow linting / CI-for-the-CI)
 name: actions-lint
 
@@ -11,11 +13,17 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/zizmor.yml'
+      - 'tools/check-workflow-hardening.mjs'
+      - 'tools/lib/workflow-hardening.mjs'
+      - '.harness/manifest.json'
   push:
     branches: ['{{DEFAULT_BRANCH}}']
     paths:
       - '.github/workflows/**'
       - '.github/zizmor.yml'
+      - 'tools/check-workflow-hardening.mjs'
+      - 'tools/lib/workflow-hardening.mjs'
+      - '.harness/manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -86,11 +94,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # Deterministic grep-level enforcement of the house rule: every job in every
-      # workflow declares harden-runner as its first action, Windows jobs included
-      # (audit mode there). Exempt: reusable-workflow call jobs (`uses:` jobs have
-      # no steps of their own) and self-hosted jobs (the agent targets GitHub-hosted
-      # VMs; egress control on self-hosted boxes belongs to their host firewall).
+      # Grep-level coverage of the house rule, and it COUNTS: per `*.yml` file, the
+      # harden-runner lines must be at least the runnable jobs (the `runs-on:`/`uses:`
+      # lines at four spaces, less reusable-workflow calls and self-hosted jobs). A count
+      # cannot see position, which job a line belongs to, a comment, a `.yaml` file, a
+      # workflow indented another way, or `egress-policy`; since 1.1.0 the
+      # `workflow-hardening` job below checks each of those. This loop keeps its id, name
+      # and verdict. Exempt here as there: reusable-workflow call jobs (`uses:` jobs have
+      # no steps of their own) and self-hosted jobs (the agent targets GitHub-hosted VMs;
+      # egress control on self-hosted boxes belongs to their host firewall).
       - name: Every job carries harden-runner
         shell: bash
         run: |
@@ -107,3 +119,32 @@ jobs:
             fi
           done
           exit "$status"
+
+  # THE HOUSE RULES OVER THIS PROJECT'S OWN WORKFLOWS (1.1.0). tools/check-workflow-hardening.mjs
+  # holds every workflow here, `.yml` and `.yaml`, to what every workflow the harness ships
+  # already meets: a workflow-level `defaults.run.shell: bash` (an un-shelled `producer | tee`
+  # reports tee's status), a whole-number `timeout-minutes` on every job (none inherits
+  # GitHub's 360), and harden-runner as each job's FIRST step, `egress-policy: audit` on
+  # Windows. A finding names `<file>#<job>`. Ramped: an install whose baseVersion predates
+  # 1.1.0 gets NOTEs until 1.2.0. No install: the check reads committed files only, which is
+  # why the manifest is in the `paths:` lists above (graduating moves the verdict).
+  workflow-hardening:
+    name: workflow hardening (bash default, job ceilings, harden-runner first)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Every workflow meets the house rules
+        run: node tools/check-workflow-hardening.mjs

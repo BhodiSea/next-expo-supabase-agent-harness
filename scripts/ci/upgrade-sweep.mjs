@@ -350,7 +350,10 @@ const SWEEPS = {
   // the round budget is a Stop step's, which no leg runs (stop-side-expiries.json names its
   // unit proof). docs-sync's verdict-demand ramp (#72) adds no step for the same reason as
   // the contract's: it judges a FORKED reviewer body, and the re-planted shipped bodies all
-  // close on the demand, so it has nothing to NOTE on any leg.
+  // close on the demand, so it has nothing to NOTE on any leg. workflow-hardening's ramp
+  // (#73) adds no step either: the gate is CI-only, so no leg runs it
+  // (stop-side-expiries.json names its unit proof), and a leg's workflows are the shipped
+  // ones `update` re-plants, which all meet its rules.
   '1.1.0': {},
 }
 
