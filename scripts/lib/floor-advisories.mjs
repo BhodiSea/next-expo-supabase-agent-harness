@@ -570,18 +570,36 @@ const npmEntries = (advisory, name) =>
   )
 
 /**
- * One upstream advisory: skipped when withdrawn or not about this package on npm; judged by
- * OSV when OSV lists it (see the header); judged on its own ranges when OSV does not list it
- * yet, which is the head start the upstream feed is read for.
- * @param {Context} ctx
- * @param {{ name: string, advisory: Record<string, any>, probes: Probe[], recorded: Set<string> }} input
+ * @typedef {{ listed: boolean, problem?: undefined } | { problem: string, listed?: undefined }} Lookup
  */
-async function judgeUpstream(ctx, { name, advisory, probes, recorded }) {
-  const entries = npmEntries(advisory, name)
-  if ((advisory.withdrawn_at !== null && advisory.withdrawn_at !== undefined) || entries.length === 0) return
+
+/**
+ * Which feed decides one upstream advisory. Null when there is nothing to decide (withdrawn,
+ * or not about this package on npm); "OSV lists it" without a request when an OSV answer
+ * already named one of its ids; otherwise OSV's answer for its GHSA id. The lookups for one
+ * listing are sent together, so a slow OSV costs one timeout, not one per advisory.
+ * @param {Context} ctx
+ * @param {string} name
+ * @param {Record<string, any>} advisory
+ * @returns {null | Lookup | Promise<Lookup>}
+ */
+function lookupFor(ctx, name, advisory) {
+  const withdrawn = advisory.withdrawn_at !== null && advisory.withdrawn_at !== undefined
+  if (withdrawn || npmEntries(advisory, name).length === 0) return null
+  if (upstreamIds(advisory).some((id) => ctx.osvSeen.has(`${name}\u0000${id}`))) return { listed: true }
+  return osvLists(ctx.fetchPage, name, advisory.ghsa_id)
+}
+
+/**
+ * One upstream advisory, given its lookup: judged by OSV when OSV lists it (see the header);
+ * judged on its own ranges when OSV does not list it yet, which is the head start the
+ * upstream feed is read for.
+ * @param {Context} ctx
+ * @param {{ name: string, advisory: Record<string, any>, probes: Probe[], recorded: Set<string>, lookup: Lookup | null }} input
+ */
+function judgeUpstream(ctx, { name, advisory, probes, recorded, lookup }) {
+  if (lookup === null) return
   const ids = upstreamIds(advisory)
-  const seen = ids.some((id) => ctx.osvSeen.has(`${name}\u0000${id}`))
-  const lookup = seen ? { listed: true } : await osvLists(ctx.fetchPage, name, advisory.ghsa_id)
   if (lookup.problem !== undefined) {
     ctx.problems.push(lookup.problem)
     return
@@ -592,7 +610,7 @@ async function judgeUpstream(ctx, { name, advisory, probes, recorded }) {
   }
   ctx.counts.upstreamOnly += 1
   const isRecorded = ids.some((id) => recorded.has(id))
-  for (const entry of entries) judgeRange(ctx, { name, advisory, entry, probes, isRecorded })
+  for (const entry of npmEntries(advisory, name)) judgeRange(ctx, { name, advisory, entry, probes, isRecorded })
 }
 
 /**
@@ -808,7 +826,8 @@ async function upstreamHalf(ctx) {
     if (problem !== null) ctx.problems.push(problem)
     const probes = ctx.probes.filter((p) => p.name === name && p.role !== 'canary')
     const recorded = ctx.floorRows.get(name)?.recorded ?? new Set()
-    for (const advisory of items) await judgeUpstream(ctx, { name, advisory, probes, recorded })
+    const lookups = await Promise.all(items.map((advisory) => lookupFor(ctx, name, advisory)))
+    items.forEach((advisory, i) => judgeUpstream(ctx, { name, advisory, probes, recorded, lookup: lookups[i] }))
     const found = recordedRowsUpstream(items, name, recorded)
     ctx.counts.recordedRows += found
     if (found === 0 && problem === null) {
