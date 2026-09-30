@@ -155,7 +155,8 @@ and a `validate-gate` record per gate named in the LAST `VALIDATE_TIMINGS` line 
 printed, green or red. The guards, the PostToolUse hooks and `subagent-verdict.mjs` append a
 `hook-event` record for each deny, provenance block, Biome warning and reviewer bounce, naming
 the rule id (or, at an inline deny site, a telemetry label that is not a rule id); an allowed
-call writes nothing. A record holds enumerated values, ids, timestamps and counts, never file
+call writes nothing. Since 1.1.0 the source check also appends one `advisory` record per
+class of each uncited advisory-class site, with the rule `provenance/<class>`. A record holds enumerated values, ids, timestamps and counts, never file
 content, command text, paths or messages. The file is written **only inside an install**,
 when `.harness/manifest.json` exists in the working directory, and it is **never trimmed**.
 To reset it a human deletes it: the write guard and the bash guard deny an agent's edits and

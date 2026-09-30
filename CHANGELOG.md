@@ -41,9 +41,9 @@ position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and ad
 release row (#72).
 A second new seeded file is planted the same way as `tools/field-notes.json`: `update` writes
 `docs/reviews/README.md` (see Added) where an install has none, and no gate reads it (#64).
-`provenance` relaxes instead (see Changed): three decision classes become advisory, which
-needs no ramp, and its one new red is a malformed promotion list no install carries yet
-(#69).
+`provenance` relaxes rather than tightens (see Changed): three decision classes become
+advisory, so it needs no ramp, and its one new red is a malformed promotion list that no
+install carries yet (#69).
 
 ### Security
 

@@ -236,10 +236,10 @@
     ],
     ".claude/hooks/lib/hookio.mjs": [
       {
-        "sha256": "9a4b2af6434716fd79fcdb7decdd25c61c0d9e5262cc15740d549d8a7d490996"
+        "sha256": "1a39f901cf9ba220aa0362ce8d280e40d44c9fd6a8252085b60e958b84810ba5"
       },
       {
-        "sha256": "b34dc8935aad1f4b5a330535bbbe024ac14b764aba27408fc6376436cf5ca552"
+        "sha256": "9a4b2af6434716fd79fcdb7decdd25c61c0d9e5262cc15740d549d8a7d490996"
       }
     ],
     ".claude/hooks/lib/turn-outcomes.mjs": [
@@ -962,19 +962,19 @@
         ]
       },
       {
-        "sha256": "92f0a4ec29f26d42f701d5da4e4184d7406cbee2264e76b3bb671835b36fbe90",
+        "sha256": "b4bee84fb7e3216858985e6da44c04ca20f04c590870c35e6fe174e54c025cfe",
         "sites": [
           [
-            19911,
+            19030,
             "SECURITY_OWNERS"
           ]
         ]
       },
       {
-        "sha256": "b4bee84fb7e3216858985e6da44c04ca20f04c590870c35e6fe174e54c025cfe",
+        "sha256": "bcca5a69e1972ceb93483b710662482ffbb95219df299a113e3e027256adfedc",
         "sites": [
           [
-            19030,
+            20058,
             "SECURITY_OWNERS"
           ]
         ]
@@ -1025,15 +1025,6 @@
       }
     ],
     "docs/harness/gates-catalog.md": [
-      {
-        "sha256": "21d5953f83b2c8bba47b947743ac87fbe91d23665411d41144f4b2768f5f424a",
-        "sites": [
-          [
-            124772,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
       {
         "sha256": "38d5e752fef25c747bec57de8c23fab1db3f3637a523b70471ad6b8bf6945554",
         "sites": [
@@ -1102,6 +1093,15 @@
         "sites": [
           [
             123533,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "ef6cb5fe0fc099945ec4e5583a7581847fcd4089a2aa12f50e340adc224a1c4f",
+        "sites": [
+          [
+            124772,
             "SECURITY_TXT_EXPIRES"
           ]
         ]

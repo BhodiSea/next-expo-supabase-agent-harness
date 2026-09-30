@@ -277,10 +277,10 @@ replaces one.
 file:line (an uncited `const timeoutMs = 5000` prints an ADVISORY line naming
 `tuning-constants` and passes, and FAILs once `"mandatory": ["tuning-constants"]` promotes
 it; `"mandatory": ["x"]` → FAIL); cite a corpus entry whose groups do not cover a
-mandatory site's class → FAIL naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
-without its `sha256`, drop its `groups`, empty its `url`, break the JSON, make
-`entries` an object, add a top-level key, or reuse an id `index.json` pins → FAIL
-naming `project.json` (the last naming both files); cite an id neither file pins →
+mandatory site's class → FAIL naming the mismatch; in `tools/mcp/corpus/project.json`,
+change an entry's `text` without its `sha256`, drop its `groups`, empty its `url`, break
+the JSON, make `entries` an object, add a top-level key, or reuse an id `index.json` pins
+→ FAIL naming `project.json` (the last naming both files); cite an id neither file pins →
 FAIL naming both; delete `index.json` beside a `project.json` → FAIL naming
 `index.json` (fixtures: tests/gates/check-sources.test.mjs,
 tests/gates/corpus-lib.test.mjs).
