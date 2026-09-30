@@ -137,6 +137,17 @@ test('an UNRECORDED advisory on a floor probe fails, naming the id, the feed and
   assert.match(r.out, /Move both review dates in the same commit/)
 })
 
+test('a feed-supplied id reaches the log with its control characters replaced', () => {
+  const responses = {
+    ...cleanResponses(),
+    'osv:next@16.3.3': { status: 200, body: { vulns: [{ id: 'GHSA-\u001b[31mred', aliases: [] }] } },
+  }
+  const r = run({ responses })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /GHSA-\?\[31mred listed by osv/)
+  assert.ok(!r.out.includes('\u001b'), 'an ESC byte reached the log')
+})
+
 test('the same advisory RECORDED under its CVE alias prints a NOTE and passes', () => {
   const responses = { ...cleanResponses(), 'osv:next@16.3.3': { status: 200, body: { vulns: [osvVuln(FRESH)] } } }
   const r = run({ responses, floor: floorDoc([RECORDED, FRESH_CVE]) })
@@ -448,7 +459,13 @@ function jobBody(text, id) {
   const heads = [...region.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)]
   const i = heads.findIndex((m) => m[1] === id)
   if (i === -1) return null
-  return region.slice(heads[i].index, heads[i + 1]?.index ?? region.length)
+  // Comment lines dropped: the next job's header comment sits above its heading, inside
+  // this slice, and prose there is not the job's configuration.
+  return region
+    .slice(heads[i].index, heads[i + 1]?.index ?? region.length)
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n')
 }
 
 test('the job COPIES registers-clockful: same trigger, clock, pins and posture, plus the token', () => {
