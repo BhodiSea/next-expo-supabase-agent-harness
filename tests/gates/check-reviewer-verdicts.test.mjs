@@ -1299,40 +1299,56 @@ const LISTED_FULL = 'claude-fable-5-1'
 const OFF_LIST = 'claude-sonnet-5'
 
 /**
- * A subagent transcript, shaped as design/CONTROL-PLANE-FACTS.md Fact 16 records it
- * (documented, NOT yet probed): JSONL, one line per message, each assistant line carrying the
- * model of the API response that produced it at `message.model`. The last model is the one
- * that wrote the verdict. `tail` lines are appended verbatim (a synthetic line, a torn one).
- * @param {string[]} models @param {string[]} [tail]
+ * A subagent transcript in the shape design/CONTROL-PLANE-FACTS.md Fact 16 OBSERVED (Claude
+ * Code 2.1.285): JSONL whose lines are `user`, `attachment` or `assistant`. One `attachment`
+ * of type `model` tells the agent which model it is (`told`, the requested one: after a
+ * failover it still names the pin). Each API response writes one `assistant` line per
+ * content block, a `thinking` line with `stop_reason: null` and then the `text` or
+ * `tool_use` line, and each carries the model that produced it at `message.model`. The
+ * file ends on an `attachment`, not on an assistant line. The last assistant model is the
+ * one that wrote the verdict. `tail` lines are appended verbatim (a synthetic line, a torn
+ * one).
+ * @param {string[]} models @param {string[]} [tail] @param {{ told?: string }} [o]
  */
-function transcriptOf(models, tail = []) {
+function transcriptOf(models, tail = [], { told = models[0] ?? 'none' } = {}) {
+  const common = { isSidechain: true, agentId: 'a9', sessionId: 's1', version: '2.1.285' }
   /** @type {Array<Record<string, unknown>>} */
   const lines = [
-    { type: 'user', isSidechain: true, message: { role: 'user', content: 'Review the migration.' } },
+    { ...common, type: 'user', message: { role: 'user', content: 'Review the migration.' } },
+    { ...common, type: 'attachment', attachment: { type: 'environment' } },
+    {
+      ...common,
+      type: 'attachment',
+      attachment: { type: 'model', text: `You are powered by the model ${told}.` },
+    },
   ]
+  /** @param {string} model @param {number} i @param {'thinking'|'text'|'tool_use'} kind @param {string|null} stop */
+  const reply = (model, i, kind, stop) => ({
+    ...common,
+    type: 'assistant',
+    requestId: `req_${String(i)}`,
+    message: {
+      model,
+      id: `msg_${String(i)}`,
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: kind, text: kind === 'text' ? 'checked the policies\n\nVERDICT: PASS' : '' }],
+      stop_reason: stop,
+    },
+  })
   for (const [i, model] of models.entries()) {
     const last = i === models.length - 1
-    lines.push({
-      type: 'assistant',
-      isSidechain: true,
-      agentId: 'a9',
-      message: {
-        id: `msg_${String(i)}`,
-        type: 'message',
-        role: 'assistant',
-        model,
-        content: [{ type: 'text', text: last ? 'checked the policies\n\nVERDICT: PASS' : 'reading' }],
-        stop_reason: last ? 'end_turn' : 'tool_use',
-      },
-    })
+    lines.push(reply(model, i, 'thinking', null))
+    lines.push(last ? reply(model, i, 'text', 'end_turn') : reply(model, i, 'tool_use', 'tool_use'))
     if (!last) {
       lines.push({
+        ...common,
         type: 'user',
-        isSidechain: true,
         message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] },
       })
     }
   }
+  lines.push({ ...common, type: 'attachment', attachment: { type: 'prompt_snapshot' } })
   return `${[...lines.map((l) => JSON.stringify(l)), ...tail].join('\n')}\n`
 }
 
@@ -1379,6 +1395,20 @@ test('HOOK (#62) — a verdict off the pin records pinned: false, and the VERDIC
   )
   assert.equal(mid.code, 0, mid.out)
   assert.deepEqual([onlyLedgerLine(mid.dir).model, onlyLedgerLine(mid.dir).pinned], [OFF_LIST, false])
+})
+
+test('HOOK (#62) — after a failover the model attachment still names the pin, and the hook records the model that ran', () => {
+  // Fact 16, point 2 (observed): with a fallback chain, the pinned model's failed request
+  // leaves no assistant line, every assistant line carries the fallback's ID, and the
+  // `model` attachment still tells the agent it is the pinned model. The verdict ran on the
+  // fallback, so that is what the ledger records.
+  const r = runHook(
+    stopPayload({
+      agent_transcript_path: transcriptFile(transcriptOf([OFF_LIST], [], { told: PINNED_FULL })),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.deepEqual([onlyLedgerLine(r.dir).model, onlyLedgerLine(r.dir).pinned], [OFF_LIST, false])
 })
 
 test('HOOK (#62) — a synthetic line and a torn line are not models; the last real model is', () => {
@@ -1568,6 +1598,23 @@ test('CANARY (#62) — an agent file the step cannot read gives a security revie
   assert.match(r.out, /\.claude\/agents\/security-reviewer\.md could not be read/)
 })
 
+// A reviewer whose pin cannot run never reaches SubagentStop (Fact 16, point 5, observed): no
+// entry is written and the step reds "did not run". That red is where the agent learns it
+// may dispatch the reviewer on a listed model, which is what the list is for.
+const RUN_ON_LIST =
+  /If security-reviewer cannot run on its pinned model, dispatch it with the Agent tool's `model` parameter set to a model the harnessFallbackModels line of \.claude\/agents\/security-reviewer\.md names: a verdict on a listed model counts, and is named at Stop\./
+
+test('CANARY (#62) — a reviewer that never ran is told it may run on a listed model, under both judgements', () => {
+  const v1 = runStep(fixture({ ledger: [entry('design-reviewer', 'PASS')] }))
+  assert.equal(v1.code, 1, v1.out)
+  assert.match(v1.out, /security-reviewer did not run this turn/)
+  assert.match(v1.out, RUN_ON_LIST)
+  const v2 = runStep(committedChange())
+  assert.equal(v2.code, 1, v2.out)
+  assert.match(v2.out, /security-reviewer has not returned a verdict in this session/)
+  assert.match(v2.out, RUN_ON_LIST)
+})
+
 // ── the pure helpers, in-process (the lib coverage floor reads tests/gates only) ──
 
 test('modelMatches: an alias matches every full ID of its family; a full ID matches only itself', () => {
@@ -1671,6 +1718,10 @@ test('judgeModel: every branch — nothing, a named line, or a finding and a lin
   assert.match(String(noList.finding), /nor on its harnessFallbackModels list \(none listed\)/)
   const noFile = j(sec, { model: PINNED_FULL }, null)
   assert.match(String(noFile.finding), /\.claude\/agents\/security-reviewer\.md could not be read/)
+})
+
+test('fallbackHint: the one sentence both judgements append to a reviewer that never ran', () => {
+  assert.match(String(ledgerLib.fallbackHint?.('security-reviewer')), RUN_ON_LIST)
 })
 
 test('latestCountedPass: the LATEST PASS the v2 judgement counts, for that agent only', () => {
