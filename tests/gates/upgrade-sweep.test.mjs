@@ -32,7 +32,7 @@
 // template/migrations.json
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -41,6 +41,8 @@ import {
   AUTH_MFA_BLOCK,
   computeSweepSet,
   createdTablesIn,
+  doctrineMigration,
+  nextMigrationStamp,
   readTextOrNull,
   reconcileDataFlowExclusions,
 } from '../../scripts/ci/upgrade-sweep.mjs'
@@ -125,6 +127,7 @@ test('the 0.6.0 -> 0.7.0 hop sweeps NOTHING — the expiry release withholds no 
     tomlSectionRenames: [],
     tomlSectionAppends: [],
     reconcileDataFlowExclusions: false,
+    grantDoctrine: false,
   })
 })
 
@@ -383,18 +386,37 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
   )
   assert.deepEqual(
     MIGRATIONS['1.1.0'].seedOnInitOnly,
-    ['tools/surfaces.json'],
-    'the 1.1.0 record must withhold the surface register (#56)',
+    [
+      'tools/surfaces.json',
+      'supabase/migrations/20260930000000_three_role_revoke.sql',
+      'supabase/tests/rls_grants.generated.test.sql',
+    ],
+    'the 1.1.0 record must withhold the surface register (#56), and the doctrine migration and the generated grant assertions (#74)',
   )
   assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.4', '1.1.0'))
-  const { adopt, tomlSectionAppends, reconcileDataFlowExclusions } = computeSweepSet(
+  const { adopt, tomlSectionAppends, reconcileDataFlowExclusions, grantDoctrine } = computeSweepSet(
     MIGRATIONS,
     '1.0.4',
     '1.1.0',
   )
+  // The swept leg adopts NEITHER #74 file: it runs the runbook's two steps instead.
   assert.deepEqual(adopt, ['tools/eol.json'])
   assert.deepEqual(tomlSectionAppends, [])
   assert.equal(reconcileDataFlowExclusions, false)
+  assert.equal(grantDoctrine, true)
+  assert.equal(computeSweepSet(MIGRATIONS, '1.0.3', '1.0.4').grantDoctrine, false)
+})
+
+test('nextMigrationStamp sorts after every migration the install has, and doctrineMigration carries the adr marker', () => {
+  assert.equal(
+    nextMigrationStamp(['20260101000000_a.sql', '20260203000100_b.sql', 'README.md', 'x_c.sql']),
+    '20260203000101',
+  )
+  assert.equal(nextMigrationStamp([]), '00000000000001')
+  const text = doctrineMigration('20260203000101', 'REVOKE ALL ON TABLE public.notes FROM authenticated;\n')
+  assert.match(text, /^-- 20260203000101_three_role_revoke/)
+  assert.match(text, /^-- adr: docs\/adr\/20260930-three-role-revoke\.md$/m)
+  assert.ok(text.endsWith('REVOKE ALL ON TABLE public.notes FROM authenticated;\n'))
 })
 
 test('reconcileDataFlowExclusions only ever REMOVES: a stale exclusion goes, a real one stays, nothing is added', () => {
@@ -591,4 +613,55 @@ test('CLI: a hop with no toml edit due never reads config.toml', () => {
   assert.equal(r.code, 1, `${r.stdout}${r.stderr}`)
   assert.match(r.stderr, /upgrade-sweep: nothing to adopt/)
   assert.doesNotMatch(r.stderr, /EISDIR/)
+})
+
+// ── 1.1.0 (#74): the swept leg runs the runbook's two steps, never a copy ──────────────
+const TEMPLATE_TOOLS = fileURLToPath(new URL('../../template/base/tools/', import.meta.url))
+
+/** An install with the owned grant tooling and one table in the two-revoke shape. */
+function grantInstall() {
+  const dir = sweepInstall({ full: false })
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  for (const rel of ['gen-grant-assertions.mjs', 'lib/table-grants.mjs', 'lib/sql-parse.mjs']) {
+    copyFileSync(join(TEMPLATE_TOOLS, rel), join(dir, 'tools', rel))
+  }
+  mkdirSync(join(dir, 'supabase/migrations'), { recursive: true })
+  mkdirSync(join(dir, 'supabase/tests'), { recursive: true })
+  writeFileSync(join(dir, 'supabase/config.toml'), '[db]\nmajor_version = 17\n')
+  writeFileSync(
+    join(dir, 'supabase/migrations/20260101000100_notes.sql'),
+    `CREATE TABLE public.notes (id uuid PRIMARY KEY);
+REVOKE ALL ON TABLE public.notes FROM anon;
+REVOKE ALL ON TABLE public.notes FROM service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;
+`,
+  )
+  return dir
+}
+
+test('CLI (1.1.0): the sweep writes the doctrine SQL in a NEW migration, then generates the assertions', () => {
+  const install = grantInstall()
+  const repo = sweepRepo({ '1.0.4': {}, '1.1.0': {} })
+  const r = runSweep(install, repo, '1.0.4', '1.1.0')
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  assert.match(r.stdout, /supabase\/migrations\/20260101000101_three_role_revoke\.sql/)
+  const written = readFileSync(join(install, 'supabase/migrations/20260101000101_three_role_revoke.sql'), 'utf8')
+  assert.match(written, /^-- adr: docs\/adr\/20260930-three-role-revoke\.md$/m)
+  assert.ok(
+    written.endsWith(
+      'REVOKE ALL ON TABLE public.notes FROM authenticated;\nGRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;\n',
+    ),
+    written,
+  )
+  const generated = readFileSync(join(install, 'supabase/tests/rls_grants.generated.test.sql'), 'utf8')
+  assert.match(generated, /\('public\.notes', 'authenticated', 'TRUNCATE', false\)/)
+  // The harness's own migration is never copied in.
+  assert.deepEqual(readdirSync(join(install, 'supabase/migrations')).sort(), [
+    '20260101000100_notes.sql',
+    '20260101000101_three_role_revoke.sql',
+  ])
+  // A second sweep over the swept tree finds the doctrine held and the file in sync.
+  const again = runSweep(install, repo, '1.0.4', '1.1.0')
+  assert.equal(again.code, 1, `${again.stdout}${again.stderr}`)
+  assert.match(again.stderr, /upgrade-sweep: nothing to adopt/)
 })

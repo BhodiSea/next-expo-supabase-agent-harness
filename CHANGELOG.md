@@ -25,8 +25,9 @@ that lands after this bump either ships behind a ramp of its own, opened at 1.1.
 tightens nothing for an existing install, and adds its entry below.
 The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
 0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
-set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
-Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
+set, one `rampExtensions` entry and three `seedOnInitOnly` paths (`tools/surfaces.json`, see
+Added, and the grant bound's migration and generated test, see Changed), and injects no chain
+step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
 re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
 behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
@@ -53,6 +54,9 @@ project's own workflows, with a deadline of 1.2.0, and adds one release row and 
 `scripts/ci/stop-side-expiries.json` entry (#73).
 The SQL history fold (see Changed) opens six more at 1.1.0, one in each gate whose verdict
 it moves, each with a deadline of 1.2.0, and adds one release row that anchors all six (#75).
+`schema-rls`' grant bound (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, over
+three kinds of finding, and adds one release row and one guard rule. Every install below 1.1.0
+meets it on `profiles` and `notes` (#74).
 
 ### Security
 
@@ -738,6 +742,56 @@ this heading if none does. -->
   expiries. The sweep, before 1.2.0, is the runbook's 1.1.0 section: fix what the fold
   exposes in a NEW migration, or add an `authz-adr` entry to `tools/migrations-allow.json`
   for an already-applied `ALTER POLICY` (#75).
+- **`schema-rls` bounds grants by policies, holds every table to the three-role revoke, and
+  keeps a generated pgTAP privilege assertion in sync, behind a ramp until 1.2.0.** The
+  POLICY → GRANT closure only asked whether a policy had a grant behind it, and its fold of
+  the grant history started empty, so it never saw what Supabase's default privileges hand a
+  role on a new `public` table. The 1.0.2 escape was a grant wider than its policies, and no
+  static check found it: the shipped tree without
+  `20260920000000_authenticated_write_revoke.sql` passed `schema-rls`. The owned
+  `tools/lib/table-grants.mjs` now folds the history a second time, in two halves. The
+  default-seeded half starts each `public` table with every table privilege of the configured
+  major for `anon`, `authenticated` and `service_role`: eight on PostgreSQL 17, `MAINTAIN`
+  among them, and seven below it, read from `[db].major_version`. The explicit half starts it
+  with none. Three findings come of it:
+  - **the bound**: a privilege `anon` or `authenticated` holds, directly, through `PUBLIC` or
+    on columns, that no PERMISSIVE policy for that operation (or `ALL`) admits, naming the
+    role, `public` or no role, with a predicate that is not literally `false`. TRUNCATE,
+    REFERENCES, TRIGGER and MAINTAIN are never admitted. A reviewed row in the new,
+    tolerated-absent `tools/grant-bound-allow.json` (`{table, role, privilege, reason}`) lets
+    one stand, and a row naming a privilege nobody holds reds;
+  - **the doctrine** (`docs/adr/20260930-three-role-revoke.md`): for each of the three roles,
+    the default-seeded half holds nothing the explicit half does not;
+  - **the generated file**: `supabase/tests/rls_grants.generated.test.sql`, one `is_empty`
+    over `has_table_privilege(…) IS DISTINCT FROM expected` for every table a migration
+    creates, each role and each privilege, rendered by the new owned
+    `tools/gen-grant-assertions.mjs` with rows sorted by code unit, must exist and match. The
+    generator refuses while the doctrine fails, naming the tables and printing the
+    statements that clear them, so no committed row depends on whether the platform applied
+    its default.
+
+  Every finding prints the `REVOKE` and `GRANT` that clear it. The fold normalises what
+  `parseGrants` misreads, where an upper bound would fail open: `WITH GRANT OPTION`,
+  `GRANTED BY`, `CASCADE`, `GROUP`, `REVOKE GRANT OPTION FOR`, column lists and several
+  tables in one statement; a schema-wide statement reaches only the tables that exist at
+  that point; and a `GRANT` or `REVOKE` it cannot read is a finding. All three pass through
+  `rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the
+  generated grant assertions', { until: '1.2.0' })`: NOTE lines below `baseVersion` 1.1.0, a
+  plain red on a fresh scaffold, and `RAMP EXPIRED` from harness 1.2.0. The new migration
+  `20260930000000_three_role_revoke.sql` applies the doctrine to `profiles` and `notes`, and
+  the declarative twins `10_account.sql` and `20_notes.sql` and the push-notifications
+  module's migration and `30_push_tokens.sql` gain the same revoke. `update` withholds the
+  migration and the generated file (`seedOnInitOnly`), and the runbook's 1.1.0 section gives
+  the SQL, then the generator command. `pnpm gen` runs the generator (`gen:grants`), and the
+  authoring surfaces the 1.0.2 grant teaching changed now say to regenerate the file, never
+  to edit a table list or a `plan()` by hand; `AGENTS.md` and `supabase/AGENTS.md` are
+  seeded, so the runbook carries their sentences. `security-reviewer`'s
+  `table-authenticated-revoke` and `table-privilege-assertion` rows name `schema-rls` as
+  their enforcer. The allow file is registered in `ESCAPE_LISTS`, `TOLERATED_ABSENT`, the
+  proposable set and the new `grant-bound-allow` write-guard rule, and the obligations row
+  `grant-bound-ramp-expiry` owes the expiry. The swept upgrade leg runs the runbook's two
+  steps through a new `SWEEPS['1.1.0'].grantDoctrine` step and adopts neither withheld file
+  (#74).
 
 ### What stays open, honestly
 
@@ -1033,6 +1087,24 @@ this heading if none does. -->
 - **The six new ramps also end at 2.0.0 in this lineage.** 1.2.0 is the deadline issue #75
   fixes, and every comparison is `>=`, so the 2.0.0 record owes these expiries beside #71's
   two, #72's and #73's (#75).
+- **The grant bound assumes the platform default, and some objects stay outside it.**
+  Sequences, custom roles and views are not folded. `ALTER DEFAULT PRIVILEGES` is not read:
+  an install that narrowed its defaults sees extra findings, and one that WIDENED them in a
+  schema other than `public` holds more than the bound sees, which only the generated pgTAP
+  assertion catches, against a running database (#74).
+- **Column privileges are bounded but not asserted.** The bound counts a column-level grant
+  as held; `has_table_privilege` does not see one, so the generated file has no row for it
+  (#74).
+- **The closure still misreads `WITH GRANT OPTION`.** The POLICY → GRANT closure keeps its
+  own reading of `parseGrants`, which takes `… TO authenticated WITH GRANT OPTION` as a grant
+  to a role of that name, so it reds the policies' grants as missing. That fails closed, and
+  only the bound normalises the statement (#74).
+- **A local stack that has not run the doctrine migration reds the generated assertion.**
+  `supabase start` on an existing volume applies no new migration, so the first `pnpm
+  db:test` after pulling the change reds until `pnpm db:reset`: in the live proof it named
+  the four privileges on `profiles` and `notes`. The red is accurate (#74).
+- **The grant bound's ramp also ends at 2.0.0 in this lineage.** 1.2.0 is the deadline issue
+  #74 fixes, so the 2.0.0 record owes this expiry beside the other 1.2.0-dated ones (#74).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
