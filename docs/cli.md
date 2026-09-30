@@ -55,6 +55,13 @@ being written, because `wiring` reds a hook on disk that nothing wires. Merge
 its entry into your settings and run `update` again to have it written and
 recorded. The upgrade runbook's 1.1.0 section describes the flow.
 
+`update` never edits `pnpm-workspace.yaml` or `package.json`. When a release
+recorded a security floor for a catalog pin (`catalogPinFloors` in
+`template/migrations.json`) and your catalog does not provably meet it, `update`
+prints a `CATALOG PIN FLOOR` note naming the package, the pin and the floor,
+and parks the list at `.harness/pending/pin-floors.json`. The exit code does not
+change, and the file is deleted once every floor is met.
+
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to update. Default `.` |
@@ -82,6 +89,12 @@ path and the manifest are still restored.
 re-recorded fork of a harness-owned file as `info`, which does not change the
 exit code. It also lists, as `info`, each register proposal waiting in
 `harness-proposals/` for [`apply-proposal`](#apply-proposal-id).
+
+It warns once for each catalog pin below a security floor a release recorded,
+which makes the exit code 2; a floor never makes it 1. The pin is judged by the
+lower bound of its catalog value, and a value that is not a version is treated
+as below the floor. Once every floor is met, `doctor` deletes
+`.harness/pending/pin-floors.json` and says so as `info`.
 
 It also prints a toolchain report as `info` lines. For `node`, `pnpm`, the
 Supabase CLI (the workspace copy in `node_modules/.bin` and the one on `PATH`)
