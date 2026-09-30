@@ -481,9 +481,10 @@ test('the validate-runner heading is INERT: not required, and unable to satisfy 
 // ── agent roster: "read-only by construction" is machine-asserted.
 // The GREEN baseline above already proves the SHIPPED roster parses clean —
 // fixture() copies the real .claude/agents in by default. The frontmatter checks
-// carry no ramp: every fork of a reviewer was made under them. The one ramped
-// roster rule is the 1.1.0 verdict-demand position below, because `update` keeps a
-// re-recorded fork of an owned body (1.0.2) that was never judged for it. ──
+// carry no ramp: every fork of a reviewer was made under them. The two ramped
+// roster rules are 1.1.0's severity contract (#71) and verdict-demand position
+// (#72) below, because `update` keeps a re-recorded fork of an owned body (1.0.2)
+// that was never judged for either. ──
 
 function shippedAgent(name) {
   return readFileSync(join(ROSTER_TEMPLATE, name), 'utf8')

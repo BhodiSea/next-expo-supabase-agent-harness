@@ -238,9 +238,15 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   that `baseVersion` until 1.2.0.
   ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget),
   issue #71)
-- **`docs-sync` holds the verdict demand to the end of the body.** Presence is
-  checked today. Position is what #23 had to fix.
-  ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body))
+- **`docs-sync` holds the verdict demand to the end of the body.** Each
+  reviewer body's last paragraph must be the verdict demand, optionally
+  followed by its shipped rationale sentence, so nothing is asked for after the
+  line the SubagentStop hook reads last; presence stays a hard red on every
+  vintage. One ramp opened at 1.1.0 holds the position check as NOTEs below that
+  `baseVersion` until 1.2.0. An earlier paragraph that asks for text after the
+  verdict is still not caught.
+  ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body),
+  issue #72)
 - **A CI self-lint job.** The shipped `actions-lint` workflow holds a
   project's own workflows to a bash default and a ceiling on every job.
   ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings))

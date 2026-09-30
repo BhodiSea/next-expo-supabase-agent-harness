@@ -283,7 +283,7 @@ export function severityContractProblems(text) {
 /** @param {string} key */
 const repeatedLine = (key) => `\`${key}:\` is stated more than once — state it on one line`
 
-// ---- the verdict demand closes the body (1.1.0) ----------------------------------------
+// ── THE VERDICT DEMAND CLOSES THE BODY (1.1.0, #72) ─────────────────────────────────────
 // A reviewer body must END by demanding the verdict line, because the SubagentStop hook
 // reads a PASS only as the reply's terminal line. v1.0.1 shipped two bodies that carried
 // the demand and then asked for "the top 3 fixes" after it, in the same paragraph: every

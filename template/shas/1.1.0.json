@@ -1975,9 +1975,6 @@
     ],
     "tools/lib/agent-roster.mjs": [
       {
-        "sha256": "07e7c915f57f913d30d8f31947e19ae943b6e19247e41f16e04b6dcad02e0704"
-      },
-      {
         "sha256": "1d7452acb02a36aa83f09184de504587fc7b5b9e7dc19d1ad98d554a39063a6f"
       },
       {
@@ -1985,6 +1982,9 @@
       },
       {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
+      },
+      {
+        "sha256": "e40ecd90208f2cb065bba27d2ab438ea948410bd4d0ed854f262f8d6d6220b58"
       }
     ],
     "tools/lib/agent-surface.mjs": [
