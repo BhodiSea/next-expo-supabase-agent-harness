@@ -1925,6 +1925,22 @@ test('budget — spent with no PASS: the budget finding REPLACES the "resume tha
   assert.equal(r.out.match(/^ {2}- security-reviewer /gm)?.length, 1, `one finding for the reviewer: ${r.out}`)
 })
 
+test('budget — spent, the budget finding also REPLACES that reviewer\'s model finding (#62), which says to run it again', () => {
+  // The fourth round is a PASS from the same run on a model off security-reviewer's list: v2
+  // alone would count it and the model check would red it with "run security-reviewer again".
+  // Past the budget a re-run clears nothing, so the reviewer gets one finding: the budget's.
+  const dir = committedChange()
+  writeLedger(dir, [
+    ...spentLoop(dir),
+    bound(dir, 'security-reviewer', 'PASS', { model: OFF_LIST, pinned: false }),
+    ...wholeTurnPasses(dir),
+  ])
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /security-reviewer used its round budget of 3/)
+  assert.equal(r.out.match(/^ {2}- security-reviewer /gm)?.length, 1, `one finding for the reviewer: ${r.out}`)
+})
+
 test('GREEN (budget) — a loop the same run closes WITHIN the budget spends nothing, and a new loop starts at round 1', () => {
   const dir = committedChange()
   const [b1, b2] = spentLoop(dir)
@@ -1954,22 +1970,26 @@ test('budget — entries an earlier hook wrote count ONE round each, and name no
   ])
 })
 
-test('budget — with no merge base the 1.0.x judgement decides, and a spent budget still reds', () => {
-  // The session's earlier prompts spent the loop; this prompt's PASS is bound to the tree, so
-  // the 1.0.x judgement alone is green. The budget is judged over the session all the same.
+test('budget — with no merge base there is no change set: the budget does not judge, says so, and the 1.0.x judgement decides', () => {
+  // The budget judges the change set #70's merge base keys, and it clears a loop the way v2
+  // clears a BLOCK: only the SAME run's PASS. The 1.0.x judgement clears a BLOCK on a later
+  // prompt with ANY run's bound PASS. Judged here, the budget would red a loop the verdict
+  // itself calls closed: a BLOCK, then two fresh runs that PASS on later prompts.
   const dir = fixture()
-  const earlier = { prompt_id: 'an-earlier-prompt', blocking: ['- [HIGH] x.sql:1 — y'] }
+  const earlier = { prompt_id: 'an-earlier-prompt' }
   writeLedger(dir, [
-    entry('security-reviewer', 'BLOCK', earlier),
-    entry('security-reviewer', 'BLOCK', earlier),
-    entry('security-reviewer', 'BLOCK', earlier),
-    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+    entry('security-reviewer', 'BLOCK', { ...earlier, agent_id: 'r1', blocking: ['- [HIGH] x.sql:1 — y'] }),
+    entry('security-reviewer', 'PASS', { ...earlier, agent_id: 'r2' }),
+    entry('security-reviewer', 'PASS', { agent_id: 'r3', path_state: digestFor(dir, 'security-reviewer') }),
   ])
-  const r = runStep(dir)
-  assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /reviewer-verdicts: NOTE — no merge base/)
-  assert.match(r.out, /security-reviewer used its round budget of 3/)
-  assert.match(r.out, /\[HIGH\] x\.sql:1 — y/)
+  for (const vintage of [null, /** @type {[string, string]} */ (['1.1.0', '1.1.0'])]) {
+    setVintage(dir, vintage)
+    const r = runStep(dir)
+    assert.equal(r.code, 0, `${JSON.stringify(vintage)}: ${r.out}`)
+    assert.match(r.out, /reviewer-verdicts: NOTE — no merge base/)
+    assert.match(r.out, /nor did the per-reviewer round budget/, r.out)
+    assert.doesNotMatch(r.out, /used its round budget/, r.out)
+  }
 })
 
 test('budget — a parked tools/lib/reviewer-verdicts.mjs without the budget judge is ONE finding naming it', () => {

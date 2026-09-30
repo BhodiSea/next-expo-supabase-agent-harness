@@ -78,9 +78,11 @@
 // past the budget never clears it, and the step reds with the recorded findings and says to
 // stop and hand them to the human. That finding replaces the reviewer's own v1 or v2 finding,
 // which would say to run it again. An entry an earlier or parked hook wrote counts as one
-// round, with no recorded findings. With no merge base the budget is judged all the same, over
-// the reviewers the 1.0.x judgement owes. The hook cannot carry this ramp, because a hook has
-// no NOTE channel, so the ramp lives here.
+// round, with no recorded findings. With no merge base there is no change set, so the budget,
+// like v2, does not judge, and the no-merge-base NOTE says so: its loops close only on the
+// same run's PASS, the v2 rule, and under the 1.0.x judgement a later prompt's PASS from any
+// run clears a BLOCK, so judging it there would red a loop the verdict calls closed. The hook
+// cannot carry this ramp, because a hook has no NOTE channel, so the ramp lives here.
 //
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
 // a read-only agent whose tools, pinned model, fallback list and body are hashed in
@@ -360,7 +362,11 @@ const V1_HINT = `Each finding names a reviewer whose own definition says it MUST
 
 /** The 1.0.x verdict, when it is the one that decides. @returns {never} */
 function v1Verdict() {
-  failures(GATE, [...budgetLive, ...withoutSpent([...v1Findings, ...modelVerdict(v1Model)])], V1_HINT)
+  failures(
+    GATE,
+    [...budgetLive, ...withoutSpent([...v1Findings, ...modelVerdict(v1Model)])],
+    V1_HINT,
+  )
   if (rosterNoted || bindingNoted) {
     ok(GATE, 'NOTE-only on this pre-ramp install (each ramp names its deadline above)')
   }
@@ -501,8 +507,9 @@ function budgetFindings(agents) {
     .filter((b) => b.finding !== null)
 }
 
-// v2's owed set is the change set where v2 judges; with no merge base it is the 1.0.x one.
-const budgetFound = budgetFindings((v2.ran ? v2Owed : owed).map((o) => o.agent))
+// The change set is v2's owed set. With no merge base there is none, and the budget does not
+// judge: it clears a loop by v2's rule, and the 1.0.x judgement that decides there does not.
+const budgetFound = v2.ran ? budgetFindings(v2Owed.map((o) => o.agent)) : []
 const budgetNoted =
   budgetFound.length > 0 &&
   rampNote(GATE, '1.1.0', 'the per-reviewer round budget', { until: '1.2.0' })
@@ -516,9 +523,10 @@ const budgetSpent = budgetNoted ? [] : budgetFound
 const budgetLive = budgetSpent.map((b) => b.finding)
 
 /**
- * A finding list without the other findings of a reviewer whose budget is spent: they say to
- * run it again, and a round past the budget clears nothing. Every per-reviewer finding opens
- * with the reviewer's name and a space, which is what this matches.
+ * A finding list without the other findings of a reviewer whose budget is spent (its v1 or
+ * v2 finding, and its model finding): they say to run it again, and a round past the budget
+ * clears nothing. Every per-reviewer finding opens with the reviewer's name and a space,
+ * which is what this matches.
  * @param {string[]} list
  */
 const withoutSpent = (list) =>
@@ -532,7 +540,7 @@ const withoutSpent = (list) =>
 // untracked pnpm-lock.yaml the v2 set would owe both whole-turn reviewers for.
 if (!v2.ran) {
   console.log(
-    `${GATE}: NOTE — no merge base: this branch has no upstream and this is not a CI pull-request run, so the reviewer ledger v2 did not judge it, and the 1.0.x judgement below is the verdict (it owes reviewers on uncommitted changes only). Set the branch's upstream to the branch it will merge into (\`git branch --set-upstream-to=origin/main\`, say) and v2 judges everything since the merge base with it.`,
+    `${GATE}: NOTE — no merge base: this branch has no upstream and this is not a CI pull-request run, so the reviewer ledger v2 did not judge it, nor did the per-reviewer round budget, and the 1.0.x judgement below is the verdict (it owes reviewers on uncommitted changes only). Set the branch's upstream to the branch it will merge into (\`git branch --set-upstream-to=origin/main\`, say) and v2 judges everything since the merge base with it.`,
   )
   v1Verdict()
 }
@@ -566,7 +574,10 @@ if (v1Findings.length > 0) {
 }
 failures(
   GATE,
-  [...budgetLive, ...withoutSpent([...v2Found, ...modelVerdict(v2.model ?? { findings: [], lines: [] })])],
+  [
+    ...budgetLive,
+    ...withoutSpent([...v2Found, ...modelVerdict(v2.model ?? { findings: [], lines: [] })]),
+  ],
   `Each finding names a reviewer this branch's diff owes a verdict: the merge-base diff against ${String(v2.base)}, deletions included, and every non-empty diff for a whole-turn reviewer. A BLOCK stands until the same reviewer passes, and a PASS counts when the tree at its dispatch, at its verdict and now are the same. The triggers are reviewed data in ${TRIGGERS}; the ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStart and SubagentStop.`,
 )
 ok(

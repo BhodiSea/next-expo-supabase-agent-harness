@@ -2188,9 +2188,10 @@ kind of block spends. From 1.1.0:
   passes over a tree that did not move under it. A loop still open after its third round
   is spent: `reviewer-verdicts` reds with every blocking finding the reviewer recorded and
   tells the agent to stop and hand them to you, and a PASS recorded after that never clears
-  it. The budget is a constant of the owned `tools/lib/reviewer-verdicts.mjs`, not a field
-  of the seeded `tools/reviewer-triggers.json`, so there is nothing to add to your trigger
-  table.
+  it. The budget is judged over the change set the reviewer ledger v2 keys, so on a branch
+  with no upstream it does not judge, and `NOTE — no merge base` says so. It is a constant
+  of the owned `tools/lib/reviewer-verdicts.mjs`, not a field of the seeded
+  `tools/reviewer-triggers.json`, so there is nothing to add to your trigger table.
 
 **When a budget is spent.** The step keeps redding for as long as that reviewer is owed in
 this session, and the agent is told not to run it again. The findings are yours to decide:

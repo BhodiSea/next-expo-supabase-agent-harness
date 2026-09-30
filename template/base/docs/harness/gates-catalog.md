@@ -2281,10 +2281,13 @@ tree that did not move under it. A loop still open after `ROUND_BUDGET` rounds (
 `tools/lib/reviewer-verdicts.mjs`, the BLOCK's own round included) is spent: a verdict
 past the budget never clears it, and the step reds with every recorded blocking
 finding and says to stop and hand them to the human. That finding replaces the
-reviewer's own v1 or v2 finding, which would say to run it again. A new session starts
-every budget afresh, and that is a human's act. An entry an earlier or parked hook wrote
-counts as one round, with no recorded findings. The budget is judged over v2's owed set,
-and with no merge base over the 1.0.x one.
+reviewer's other findings (its v1 or v2 finding and its model finding), which would say
+to run it again. A new session starts every budget afresh, and that is a human's act. An
+entry an earlier or parked hook wrote counts as one round, with no recorded findings. The
+budget is judged over v2's owed set, the change set. With no merge base there is none, so
+the budget does not judge, and the no-merge-base NOTE says so: it closes a loop only on
+the same run's PASS, while the 1.0.x judgement that decides there clears a BLOCK with any
+run's PASS on a later prompt.
 **Anti-vacuity (1.1.0):** drop `Blocking:` from `security-reviewer.md` → `docs-sync`
 FAIL naming the file; send a PASS containing `- [HIGH] supabase/migrations/x.sql:3 — …`
 → the hook exits 2 with the shape `pass-with-blocking-finding`

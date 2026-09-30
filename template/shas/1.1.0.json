@@ -889,15 +889,6 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
-        "sha256": "23b9f728774c18e01602d4f5363200fa7a2162039d1b1184aa48faae574b6ebf",
-        "sites": [
-          [
-            123344,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
-      {
         "sha256": "38d5e752fef25c747bec57de8c23fab1db3f3637a523b70471ad6b8bf6945554",
         "sites": [
           [
@@ -938,6 +929,15 @@
         "sites": [
           [
             121286,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "a7e79664199dc24f5b5a676975394f26e41f8040baf545ecad62a4fca8b73507",
+        "sites": [
+          [
+            123344,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1187,15 +1187,6 @@
         ]
       },
       {
-        "sha256": "aee41724aac43a4cf60f85f02b6f18c0151d4d836d45a66cd2630fa98a5a402e",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
         "sites": [
           [
@@ -1206,6 +1197,15 @@
       },
       {
         "sha256": "f3eaa6d27057344d8936c51414d334bb039cc82da912e562fa85151f0933c080",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "f45b91be753759c0eb9295483c4df2eca853d202d4772f1cff84a76f53b74044",
         "sites": [
           [
             14115,
@@ -1666,13 +1666,13 @@
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
       },
       {
-        "sha256": "b03ecf6005e446390cb7c4764492c25e9e0f4f9eda40cebf92635677064b5698"
-      },
-      {
         "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
       },
       {
         "sha256": "c1f532742c44eee08e7b40bdcc664469f453372ae06ab861eaafd47eb8f65d29"
+      },
+      {
+        "sha256": "f7bd7697c1d352b6ecca63eb42b9d297188d1faad4e5396f918e472d31202c7b"
       }
     ],
     "tools/check-rls-manifest.mjs": [

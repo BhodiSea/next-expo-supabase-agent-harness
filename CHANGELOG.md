@@ -315,8 +315,10 @@ this heading if none does. -->
   every later verdict of that reviewer in the session is its next round, and the loop
   closes when the same run passes over a tree that did not move under it. A loop still
   open after three rounds reds with the recorded findings and says to hand them to the
-  human, and a PASS recorded after that never clears it. The budget is a constant of the
-  owned `tools/lib/reviewer-verdicts.mjs`, so the seeded trigger table does not change.
+  human, and a PASS recorded after that never clears it. The budget judges the change set
+  v2 keys, so with no merge base it does not judge, as v2 does not. The budget is a constant
+  of the owned `tools/lib/reviewer-verdicts.mjs`, so the seeded trigger table does not
+  change.
   The contract parser and the round count are pure helpers in `tools/lib/`, and the
   runbook's 1.1.0 section says how to add the contract to a forked body (#71).
 
@@ -427,7 +429,11 @@ this heading if none does. -->
 - **1.2.0 arrives at 2.0.0 in this lineage.** Both new ramps take the deadline issue #71
   sets, the next minor. This lineage cuts 2.0.0 directly after 1.1.0, and every comparison
   is `>=`, so the 2.0.0 record owes both expiries, beside the `version-sync` arrival row that
-  targets the same release (#71).
+  targets the same release. The budget's deadline also comes before the reviewer ledger
+  v2's (2.1.0): at 2.0.0 an install whose `baseVersion` is below 1.1.0 meets a live budget,
+  whose loops close by v2's rule (the same run's PASS), while v2 itself still prints NOTEs
+  and the 1.0.x judgement decides. The 2.0.0 record decides whether to let it expire there
+  or to re-open it to 2.1.0 as a reviewed `rampExtensions` entry (#71).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -557,7 +563,11 @@ this heading if none does. -->
   each case is green: the hook exits exactly 2 on that PASS and 0 on the same reply once
   the body's `Blocking:` line is gone, each budget red runs as a plain red where it is live,
   a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0, and the three
-  `ramp-ledger` cases that read the current fleet at older versions name the two new sites
+  `ramp-ledger` cases that read the current fleet at older versions name the two new sites.
+  Two more cases were red first on top of the model record: with no merge base the budget
+  reded a loop the 1.0.x judgement had closed (a BLOCK, then two fresh runs' PASSes on
+  later prompts), and a spent budget left the reviewer's model finding beside its own; both
+  are green once the budget judges only v2's change set and replaces that finding too
   (#71).
 
 ## [1.0.4] — 2026-09-29
