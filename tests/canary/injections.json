@@ -221,6 +221,10 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-contract-drift.test.mjs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 33: the example declares EVENT_CATALOG as a number → the event-catalog generator must FAIL naming its file"
       }
     ],
     "query-shapes": [
@@ -1194,7 +1198,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/run-stop-chain.test.mjs",
-        "note": "1.0.4 (#46): the job's baseline is the same DERIVED Stop-chain union as selftest.yml#canary (scripts/ci/run-stop-chain.mjs, whose death-tests these are), run on a scaffold whose perf-budget.json declares subjects: [] beside an emptySubjects row plus a reviewed matrix exempt row, and whose store-tunables.json names accountDeletion.registry. The job then executes Canary 30, 31 and 32, which the #steps selftest-kind proofs for perf-budget and expo-policy grep-match into this workflow; the fixture reds for both keys live in tests/gates/check-perf-budget.test.mjs and tests/gates/check-expo-policy.test.mjs."
+        "note": "1.0.4 (#46): the job's baseline is the same DERIVED Stop-chain union as selftest.yml#canary (scripts/ci/run-stop-chain.mjs, whose death-tests these are), run on a scaffold whose perf-budget.json declares subjects: [] beside an emptySubjects row plus a reviewed matrix exempt row, and whose store-tunables.json names accountDeletion.registry. The job then executes Canary 30, 31 and 32, which the #steps selftest-kind proofs for perf-budget and expo-policy grep-match into this workflow; the fixture reds for both keys live in tests/gates/check-perf-budget.test.mjs and tests/gates/check-expo-policy.test.mjs. 1.1.0 (#82): the event-catalog leg runs the contracts generator directly on the same scaffold: in sync with the example opted in and nothing else printed, then, with packages/verticals/notes moved aside, a write that drops exactly the three notes.* rows instead of throwing; Canary 33 (the #steps selftest-kind proof for contracts) turns the example's EVENT_CATALOG into a number and requires the generator to red naming its ./client. The generator's own fixture proofs, over the 1.0.x, fresh and adopted tree shapes, live in tests/gates/gen-event-catalog.test.mjs, and the discovery helper's in tests/gates/event-catalogs.test.mjs."
       }
     ],
     "selftest.yml#canary-mutation": [

@@ -372,8 +372,12 @@ this heading if none does. -->
   slice skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md`, and
   `docs/harness/gates-catalog.md`, and plants the library; the example's `client.ts`, the
   platform events comment and the root `package.json` are seeded, so an install keeps its
-  own, and `template/migrations.json` carries nothing for this item. No chain step, gate,
-  ramp, floor or canary changes (#82).
+  own, and `template/migrations.json` carries nothing for this item. The `day0-empty-states`
+  factory lane gains the event-catalog leg 1.0.4 left for this release: on its scaffold the
+  generator regenerates the committed catalog with nothing else printed, writes it without
+  the example's three rows while `packages/verticals/notes` is moved aside, and in Canary 33
+  reds naming the example's `client.ts` once its `EVENT_CATALOG` is a number. No chain step,
+  gate, ramp or floor changes (#82).
 
 ### Changed
 
@@ -1174,7 +1178,21 @@ this heading if none does. -->
   kinds of tree regenerate the committed five rows byte for byte, a vertical whose
   `EVENT_CATALOG` is `42` fails closed naming its file, one that names it only in a comment
   is listed as not catalogued, a tree without the example writes the two platform rows, and
-  a vertical that opts in is catalogued with no edit to the generator (#82).
+  a vertical that opts in is catalogued with no edit to the generator. On a fresh core-tier
+  scaffold rendered from this tree, `--check` printed `tools/generated/event-catalog.json:
+  in sync (5 events)` and nothing else, and `contracts`, `dead-code` and `format` were
+  green. Proof A: with `client.ts` back on `export { noteEvents }` and `@app/notes` in the
+  root devDependencies, `--check` and `contracts` stayed in sync, and with the
+  `EVENT_CATALOG` line restored beside that dependency `--check` stayed in sync with no
+  duplicate. Proof B, a probe vertical whose `EVENT_CATALOG` is `42`, exited 1 naming
+  `packages/verticals/probe/src/client.ts`; proof C, the name only in a comment, printed
+  `@app/probe is not catalogued` and stayed in sync; proof D, the example moved aside, wrote
+  the catalog with exactly the three `notes.*` rows removed. The v1.0.3 generator in the
+  same scaffold threw `Cannot find package '@app/notes'` with the example in place or moved
+  aside. Proof D runs the generator directly: through `pnpm exec`, pnpm's pre-run dependency
+  check re-installs the changed workspace, and that install fails while `packages/api` and
+  `apps/web` depend on the missing vertical. The two new `day0-empty-states` steps, replayed
+  on that scaffold, passed, and with the v1.0.3 generator both failed (#82).
 
 ## [1.0.4] — 2026-09-29
 

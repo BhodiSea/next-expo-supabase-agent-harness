@@ -564,8 +564,9 @@ jobs:
   # the three edits land IN the baseline commit: left dirty, gate-integrity reds them.
   # Removing the whole example would turn red things other items own (the pgTAP proofs
   # on the notes table, the registers naming the example, the matrix route's startup,
-  # suppression, knip and Maestro rows), so this lane removes nothing. No Supabase stack:
-  # run-stop-chain.mjs prints its declared exclusions, as in the canary job.
+  # suppression, knip and Maestro rows), so this lane removes nothing; from 1.1.0 (#82) its
+  # event-catalog leg moves the example aside for one generator run and puts it back. No
+  # Supabase stack: run-stop-chain.mjs prints its declared exclusions, as in the canary job.
   day0-empty-states:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -702,6 +703,68 @@ jobs:
         run: |
           env -u GITHUB_BASE_REF node tools/check-perf-budget.mjs
           env -u GITHUB_BASE_REF node tools/check-expo-policy.mjs
+      # 1.1.0 (#82). THE EVENT-CATALOG LEG. The generator finds each vertical's catalog in
+      # its ./client (EVENT_CATALOG), so it no longer imports the example by name: on this
+      # fresh scaffold it regenerates the committed five rows with no "not catalogued" line,
+      # and with the example moved aside it writes the catalog without the example's three
+      # rows instead of throwing. The generator runs through ./node_modules/.bin/tsx, not
+      # `pnpm exec`: pnpm's pre-run dependency check re-installs when the workspace changes,
+      # and that install fails while packages/api and apps/web depend on a vertical that is
+      # gone. The rest of the chain still needs the example (#85 removes it at 2.0.0).
+      - name: 'Event catalog: the opted-in example regenerates the committed catalog; moved aside, exactly its three rows drop'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check > catalog.log 2>&1 || { cat catalog.log; exit 1; }
+          if [ "$(cat catalog.log)" != 'tools/generated/event-catalog.json: in sync (5 events)' ]; then
+            cat catalog.log
+            echo '::error::DAY0: the fresh scaffold did not regenerate the committed five-event catalog with nothing else printed'; exit 1
+          fi
+          mv packages/verticals/notes "$RUNNER_TEMP/notes-aside"
+          status=0
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs > catalog.log 2>&1 || status=$?
+          mv "$RUNNER_TEMP/notes-aside" packages/verticals/notes
+          if [ "$status" != 0 ]; then
+            cat catalog.log
+            echo '::error::DAY0: the event-catalog generator failed on a tree without the example'; exit 1
+          fi
+          node -e '
+            const { execFileSync } = require("node:child_process")
+            const fs = require("node:fs")
+            const path = "tools/generated/event-catalog.json"
+            const committed = JSON.parse(execFileSync("git", ["show", `HEAD:${path}`], { encoding: "utf8" }))
+            const kept = committed.filter((row) => !row.name.startsWith("notes."))
+            if (committed.length - kept.length !== 3) throw new Error(`${path}: expected three notes.* rows in the committed catalog`)
+            const want = `${JSON.stringify(kept, null, 2)}\n`
+            const got = fs.readFileSync(path, "utf8")
+            if (got !== want) {
+              console.error(got)
+              throw new Error(`DAY0: without the example ${path} must lose exactly the three notes.* rows`)
+            }
+          '
+          git checkout -q -- tools/generated/event-catalog.json
+          echo 'OK: in sync with the example opted in; without it the generator dropped exactly its three rows'
+      - name: 'Canary 33: the example declares EVENT_CATALOG as a number → the event-catalog generator must FAIL naming its file'
+        working-directory: ${{ runner.temp }}/day0
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const f = "packages/verticals/notes/src/client.ts"
+            const from = "export { noteEvents as EVENT_CATALOG } from \u0027./events.js\u0027\n"
+            const s = fs.readFileSync(f, "utf8")
+            if (!s.includes(from)) throw new Error(f + ": anchor not found: " + from)
+            fs.writeFileSync(f, s.replace(from, "export const EVENT_CATALOG = 42\n"))
+          '
+          if ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check > canary33.log 2>&1; then
+            cat canary33.log
+            echo '::error::CANARY: the event-catalog generator PASSED a vertical whose EVENT_CATALOG is not a catalog — the export is not checked'; exit 1
+          fi
+          if ! grep -qF 'packages/verticals/notes/src/client.ts: EVENT_CATALOG is not an event catalog' canary33.log; then
+            cat canary33.log
+            echo "::error::CANARY: the generator reddened WITHOUT naming the vertical's ./client — wrong failure path (log above)"; exit 1
+          fi
+          git checkout -q -- packages/verticals/notes/src/client.ts
+          ./node_modules/.bin/tsx tools/gen-event-catalog.mjs --check
+          echo 'canary OK: the generator went red naming packages/verticals/notes/src/client.ts'
 
   canary-mutation:
     name: 'canary-mutation: an untested branch must red the mutation lane — and nothing else'
