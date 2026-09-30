@@ -29,6 +29,8 @@ Each dispatch of the owed reviewers is a round. Append each round as its own sec
   `VERDICT: BLOCK` or `VERDICT: FAIL` from a reviewer subagent, `CITATIONS: CLEAN` or
   `CITATIONS: REJECTED` from `/verify-citations`, `RLS: PASS` or `RLS: FAIL` from
   `/rls-check`, and `INVARIANTS: PASS` or `INVARIANTS: FAIL` from `/verify-invariants`.
+  `/verify-citations` ends on the `citation-verifier`'s `VERDICT:` line as well; record
+  both lines.
 - **Findings:** each finding as the reviewer reported it, in the `[SEVERITY] file:line — …`
   form the reviewer bodies ask for, or `none`. Separate several findings in one cell with
   `<br>`.

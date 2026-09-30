@@ -212,7 +212,8 @@ this heading if none does. -->
   `/verify-citations` included. The seeded `AGENTS.md` gains one sentence, which `update`
   does not deliver; the runbook's 1.1.0 section gives it to copy. The README is the only
   seeded file under `docs/`, so `update` plants it where it is absent and leaves a project's
-  own copy byte-identical instead of parking over it, and
+  own copy byte-identical, where an owned path would have parked the incoming copy beside
+  it and exited 2, and
   `scripts/check-seeded-migrations.mjs` records it as a deliberate plant.
   `tests/gates/review-records.test.mjs` holds that no shipped gate, hook or workflow names
   `docs/reviews`, that a record owes no path-triggered reviewer, and that the README carries
