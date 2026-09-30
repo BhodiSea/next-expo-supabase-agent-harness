@@ -76,6 +76,86 @@ GRANT EXECUTE ON FUNCTION public.iso(text) TO authenticated;
 -- so an assertion deleted in a hurry cannot pass as a smaller suite.
 SELECT plan(61);
 
+-- ── the fixture table, as the migration role ────────────────────────────────
+-- Every behavioural assertion below reads and writes public.pgtap_fixture, a table
+-- this transaction builds and the ROLLBACK at the bottom removes, rather than the
+-- worked example's table, so a project that deletes the example keeps this proof of
+-- isolation. Between the markers is the RLS skeleton the authoring-vertical-slice
+-- skill teaches (references/migration-rls.md), with the table named pgtap_fixture and
+-- two slice columns added. It is built here, before the first role switch, and it
+-- runs on the real scope helpers: nothing in this file redefines
+-- private.member_org_ids() or private.member_ranks(). What stays on the real tables
+-- is rls_structure.test.sql and the recursion probe below, which reads every RLS
+-- target. Keep the markers, and keep the region in step with the skeleton.
+-- fixture:begin
+CREATE TABLE public.pgtap_fixture (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- THE TENANT KEY, NOT NULL with a declared FK, as the skeleton teaches.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  -- ATTRIBUTION, not authorization: it appears only in the delete policy's author arm.
+  owner_id uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  -- The slice columns the assertions write, as 20_notes.sql declares them.
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+-- A row may not change tenant.
+CREATE TRIGGER pgtap_fixture_freeze_org
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
+
+CREATE TRIGGER pgtap_fixture_set_updated_at
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX pgtap_fixture_org_id_created_at_id_idx
+  ON public.pgtap_fixture (org_id, created_at DESC, id DESC);
+
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as well
+-- [corpus: postgres/rls-force]
+ALTER TABLE public.pgtap_fixture ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pgtap_fixture FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.pgtap_fixture FROM anon;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM service_role;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.pgtap_fixture TO authenticated;
+
+-- Reading is MEMBERSHIP; writing is RANK.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
+CREATE POLICY pgtap_fixture_select_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_insert_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_update_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_delete_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (
+    coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
+    OR (
+      owner_id = (SELECT auth.uid())
+      AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+    )
+  );
+-- fixture:end
+
 -- ── identities, as the migration role ───────────────────────────────────────
 -- auth.users belongs to the Auth service and `authenticated` holds no grant on
 -- it, so the identities are created here and nothing else is. Four seats in org
@@ -177,7 +257,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
     '{"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated"}', true);
   PERFORM set_config('role', 'authenticated', true);
-  INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
   VALUES ('aaaa0001-0000-4000-8000-000000000001', public.iso('org_a')::uuid,
           '11111111-1111-4111-8111-111111111111', 'owner note', 'written by the owner');
   -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
@@ -189,10 +269,10 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
     '{"sub": "33333333-3333-4333-8333-333333333333", "role": "authenticated"}', true);
   PERFORM set_config('role', 'authenticated', true);
-  INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
   VALUES ('aaaa0002-0000-4000-8000-000000000002', public.iso('org_a')::uuid,
           '33333333-3333-4333-8333-333333333333', 'member note', 'written by a rank-20 member');
-  INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
   VALUES ('aaaa0003-0000-4000-8000-000000000003', public.iso('org_a')::uuid,
           '33333333-3333-4333-8333-333333333333', 'member second note', 'for the self-delete case');
   -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
@@ -202,7 +282,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
     '{"sub": "55555555-5555-4555-8555-555555555555", "role": "authenticated"}', true);
   PERFORM set_config('role', 'authenticated', true);
-  INSERT INTO public.notes (id, org_id, owner_id, title, body)
+  INSERT INTO public.pgtap_fixture (id, org_id, owner_id, title, body)
   VALUES ('bbbb0001-0000-4000-8000-000000000001', public.iso('org_b')::uuid,
           '55555555-5555-4555-8555-555555555555', 'outsider note', 'a different tenant entirely');
 
@@ -223,7 +303,7 @@ SET LOCAL ROLE authenticated;
 -- possible reason. Three rows: both of the member's and the owner's own — and
 -- NOT the outsider's, even though it exists in the same table.
 SELECT results_eq(
-  $$ SELECT count(*)::bigint FROM public.notes $$,
+  $$ SELECT count(*)::bigint FROM public.pgtap_fixture $$,
   $$ VALUES (3::bigint) $$,
   'the owner of org A sees exactly the three notes in org A'
 );
@@ -233,7 +313,7 @@ SELECT results_eq(
 -- `owner_id = (SELECT auth.uid())` would break it while passing every
 -- cross-tenant assertion in this file.
 SELECT results_eq(
-  $$ SELECT title FROM public.notes
+  $$ SELECT title FROM public.pgtap_fixture
       WHERE owner_id = '33333333-3333-4333-8333-333333333333'::uuid
       ORDER BY title $$,
   $$ VALUES ('member note'::text), ('member second note'::text) $$,
@@ -244,12 +324,12 @@ SELECT results_eq(
 -- that the statement does not raise, and that it returns nothing. The literal
 -- note id is what keeps this non-vacuous — that row certainly exists.
 SELECT lives_ok(
-  $$ SELECT id FROM public.notes WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
   'a cross-org read does not raise - RLS filters rows, it does not reject statements'
 );
 
 SELECT is_empty(
-  $$ SELECT id FROM public.notes WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
   'a cross-org note read returns the EMPTY SET, disclosing not even existence'
 );
 
@@ -277,13 +357,13 @@ SELECT results_eq(
 -- Writes across the boundary match nothing and raise nothing. The absence of an
 -- error is the point: a caller cannot distinguish "no such row" from "not yours".
 SELECT lives_ok(
-  $$ UPDATE public.notes SET title = 'tampered'
+  $$ UPDATE public.pgtap_fixture SET title = 'tampered'
       WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
   'a cross-org UPDATE matches no rows and raises nothing'
 );
 
 SELECT lives_ok(
-  $$ DELETE FROM public.notes
+  $$ DELETE FROM public.pgtap_fixture
       WHERE id = 'bbbb0001-0000-4000-8000-000000000001'::uuid $$,
   'a cross-org DELETE matches no rows and raises nothing'
 );
@@ -292,7 +372,7 @@ SELECT lives_ok(
 -- filter, so WITH CHECK has to reject the statement outright. Nothing is
 -- disclosed by that — the caller supplied the org id, so they already knew it.
 SELECT throws_ok(
-  $$ INSERT INTO public.notes (org_id, owner_id, title)
+  $$ INSERT INTO public.pgtap_fixture (org_id, owner_id, title)
      VALUES (public.iso('org_b')::uuid,
              '11111111-1111-4111-8111-111111111111'::uuid, 'smuggled') $$,
   '42501'::char(5),
@@ -348,13 +428,13 @@ SET LOCAL ROLE authenticated;
 
 -- A viewer READS the org — that is what the seat is for.
 SELECT results_eq(
-  $$ SELECT count(*)::bigint FROM public.notes $$,
+  $$ SELECT count(*)::bigint FROM public.pgtap_fixture $$,
   $$ VALUES (3::bigint) $$,
   'a rank-10 viewer reads every note in their org'
 );
 
 SELECT throws_ok(
-  $$ INSERT INTO public.notes (org_id, owner_id, title)
+  $$ INSERT INTO public.pgtap_fixture (org_id, owner_id, title)
      VALUES (public.iso('org_a')::uuid,
              '44444444-4444-4444-8444-444444444444'::uuid, 'viewer write') $$,
   '42501'::char(5),
@@ -363,9 +443,9 @@ SELECT throws_ok(
 );
 
 -- A viewer cannot delete even their own org's rows.
-DELETE FROM public.notes WHERE id = 'aaaa0002-0000-4000-8000-000000000002'::uuid;
+DELETE FROM public.pgtap_fixture WHERE id = 'aaaa0002-0000-4000-8000-000000000002'::uuid;
 SELECT results_eq(
-  $$ SELECT count(*)::bigint FROM public.notes
+  $$ SELECT count(*)::bigint FROM public.pgtap_fixture
       WHERE id = 'aaaa0002-0000-4000-8000-000000000002'::uuid $$,
   $$ VALUES (1::bigint) $$,
   'a rank-10 viewer DELETE matches no rows - the note survives'
@@ -380,7 +460,7 @@ SET LOCAL ROLE authenticated;
 
 -- THE OTHER DIRECTION of the same floor: rank 20 succeeds where rank 10 failed.
 SELECT lives_ok(
-  $$ INSERT INTO public.notes (org_id, owner_id, title)
+  $$ INSERT INTO public.pgtap_fixture (org_id, owner_id, title)
      VALUES (public.iso('org_a')::uuid,
              '33333333-3333-4333-8333-333333333333'::uuid, 'member write') $$,
   'a rank-20 member CAN insert - the floor admits exactly the rank above the one it refused'
@@ -388,17 +468,17 @@ SELECT lives_ok(
 
 -- A member may delete their OWN note (the `owner_id = auth.uid() AND rank >= 20`
 -- arm of the delete policy).
-DELETE FROM public.notes WHERE id = 'aaaa0003-0000-4000-8000-000000000003'::uuid;
+DELETE FROM public.pgtap_fixture WHERE id = 'aaaa0003-0000-4000-8000-000000000003'::uuid;
 SELECT is_empty(
-  $$ SELECT id FROM public.notes WHERE id = 'aaaa0003-0000-4000-8000-000000000003'::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE id = 'aaaa0003-0000-4000-8000-000000000003'::uuid $$,
   'a rank-20 member CAN delete their own note - the author arm of the delete policy'
 );
 
 -- …but not a colleague's, which needs rank 30. Both arms of that policy carry a
 -- rank term, so neither can be read as "or if you wrote it" without a seat.
-DELETE FROM public.notes WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid;
+DELETE FROM public.pgtap_fixture WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid;
 SELECT results_eq(
-  $$ SELECT count(*)::bigint FROM public.notes
+  $$ SELECT count(*)::bigint FROM public.pgtap_fixture
       WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid $$,
   $$ VALUES (1::bigint) $$,
   'a rank-20 member CANNOT delete a colleague note - one rank below the floor of 30'
@@ -421,9 +501,9 @@ SELECT lives_ok(
   'a rank-30 admin elevates before administering — the JIT door (RAP-13)'
 );
 
-DELETE FROM public.notes WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid;
+DELETE FROM public.pgtap_fixture WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid;
 SELECT is_empty(
-  $$ SELECT id FROM public.notes WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE id = 'aaaa0001-0000-4000-8000-000000000001'::uuid $$,
   'a rank-30 admin CAN delete a colleague note - the same statement the member could not run'
 );
 
@@ -445,13 +525,13 @@ SET LOCAL "request.jwt.claims" TO '{"sub": "55555555-5555-4555-8555-555555555555
 SET LOCAL ROLE authenticated;
 
 SELECT results_eq(
-  $$ SELECT title FROM public.notes $$,
+  $$ SELECT title FROM public.pgtap_fixture $$,
   $$ VALUES ('outsider note'::text) $$,
   'org B still holds exactly its own note, unrenamed by the cross-org UPDATE and unremoved by the cross-org DELETE'
 );
 
 SELECT is_empty(
-  $$ SELECT id FROM public.notes WHERE org_id = public.iso('org_a')::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE org_id = public.iso('org_a')::uuid $$,
   'org B sees none of org A rows - isolation holds in both directions'
 );
 
@@ -643,7 +723,7 @@ SELECT is_empty(
 -- the whole table-anchored design was chosen for: no token to expire, no cache to
 -- clear, the next statement simply returns nothing.
 SELECT is_empty(
-  $$ SELECT id FROM public.notes WHERE org_id = public.iso('org_a')::uuid $$,
+  $$ SELECT id FROM public.pgtap_fixture WHERE org_id = public.iso('org_a')::uuid $$,
   'a removed member loses the org data immediately - revocation is a row delete, not a token expiry'
 );
 
@@ -751,7 +831,7 @@ SET LOCAL "request.jwt.claims" TO '';
 SET LOCAL ROLE authenticated;
 
 SELECT is_empty(
-  $$ SELECT id FROM public.notes $$,
+  $$ SELECT id FROM public.pgtap_fixture $$,
   'the authenticated role with no identity claim matches no row - absent identity fails closed'
 );
 
@@ -770,14 +850,15 @@ RESET ROLE;
 -- ════════════════════════════════════════════════════════════════════════════
 -- Deliberately loud, for the reason argued in the header: anon holds no grant
 -- on these tables, so the denial happens at the table level and is independent
--- of which rows exist. This is also what fails if a future migration re-grants
--- anon by accident (a `db diff` draft re-adding Supabase default privileges is
--- the likely way that happens).
+-- of which rows exist. A future migration that re-grants anon on a real table by
+-- accident (a `db diff` draft re-adding Supabase default privileges is the likely
+-- way that happens) is caught by rls_structure.test.sql, which reads the grants
+-- of every RLS target; the first assertion here observes the fixture's REVOKE.
 -- SOURCE: transaction-local role/GUC scoping [corpus: postgres/guc-set-local]
 SET LOCAL ROLE anon;
 
 SELECT throws_ok(
-  $$ SELECT id FROM public.notes $$,
+  $$ SELECT id FROM public.pgtap_fixture $$,
   '42501'::char(5),
   NULL::text,
   'the anon role is denied at the table level (SQLSTATE 42501) - it holds no grant here'

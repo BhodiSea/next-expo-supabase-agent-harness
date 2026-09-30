@@ -145,6 +145,28 @@ this heading if none does. -->
   row and the three files the entry lists. A new factory test runs `docs-sync` at the
   package version against the shipped ledger, so the next arrival reds the bump commit
   rather than the zero-edit scaffold (#39).
+- **The behavioural pgTAP proofs run on a fixture table, not on the worked example.**
+  `rls_isolation.test.sql`, `mfa_aal2.test.sql` and `audit_immutability.test.sql` proved
+  isolation, the aal2 rail and audit capture by writing to `public.notes`, so a project
+  that deleted the example had to delete or rewrite those proofs with it. Each suite now
+  builds `public.pgtap_fixture` inside its own transaction, as the migration role and
+  before its first role switch, between `-- fixture:begin` and `-- fixture:end`, and its
+  ROLLBACK removes it. The region is the RLS skeleton of the `authoring-vertical-slice`
+  skill with the table renamed, plus the `title` and `body` columns of `20_notes.sql`;
+  `mfa_aal2` adds the example's MFA rail and `audit_immutability` the example's audit
+  trigger, each renamed. What moved to the fixture: every read, write, update and delete
+  that exercises a policy, the rail or the trigger, the inserts that seed them, the trail
+  lookups by table name, and the table name in the forged trail row. What stays on the real
+  tables: `rls_structure.test.sql`, the shape assertions at the top of `mfa_aal2` (the
+  example's `notes_mfa_aal2` policy), the `pg_trigger` coverage read of
+  `audit_immutability`, and `rls_isolation`'s recursion probe, which still reads every RLS
+  target. The fixture runs on the real `private.member_org_ids()`, `private.member_ranks()`,
+  `private.mfa_satisfied()` and `audit.write_row()`, and each suite's `plan()` count is
+  unchanged. The new factory test `tests/gates/pgtap-fixture-shape.test.mjs` holds each
+  region to the skeleton and each addition to its source, as a pure function over the
+  files. The suites are seeded, so the change reaches new scaffolds only: `update` does not
+  rewrite them, and the runbook's 1.1.0 section says how to pull them. No gate, chain step,
+  hook rule or CI job changes (#58).
 
 ### What stays open, honestly
 
@@ -177,6 +199,16 @@ this heading if none does. -->
   grants. This release changes neither; the three-role revoke on the example is #74's to
   apply, and that half can become a region once the example grants what it teaches. Until
   then the skeleton reads `<t>` above its generated half and `notes` in it (#59).
+- **No pgTAP suite writes to the example any more.** Its own rank floors are no longer
+  proven behaviourally (the `rank-floor` form requires a rank from the ladder, not a
+  particular one); its MFA policy is judged by `schema-rls`, which checks that the policy
+  calls `mfa_satisfied()`, is RESTRICTIVE and FOR ALL and carries USING and WITH CHECK, but
+  not that the predicate is only that call; and its audit trigger by `tenancy`'s tenant
+  argument check. The supabase-js twin, `tests/rls/cross-tenant-isolation.test.ts`, still
+  exercises `public.notes`: it reaches the stack only through the API and has no
+  transaction to build a fixture in, and what stays on the example there is #85's. The
+  fixture regions are copies held to the skeleton by the factory test, not generated from
+  it, because #59's generator copies spans verbatim and has no renaming step (#58).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -221,7 +253,18 @@ this heading if none does. -->
   A 1.0.4 install updated by this installer took the three owned files, re-recorded their
   `tools/agents.lock.json` entries and stayed green on `prompts`, and kept its seeded
   `20_notes.sql` without markers; one whose `dal-dto.md` was edited kept that copy, got the
-  new one under `.harness/pending/`, and `update` exited 2 (#59).
+  new one under `.harness/pending/`, and `update` exited 2 (#59). For the fixture table,
+  `tests/gates/pgtap-fixture-shape.test.mjs` failed its live cases on the v1.0.3 suites:
+  none had a fixture region, and each named `public.notes` outside the recursion probe.
+  With the regions in, every case passes, and each rule has a planted failing input. In a
+  zero-edit scaffold on a local stack `pnpm test:rls` passed, which also showed that the
+  suite's role can create the fixture's audit trigger. Replacing `private.member_org_ids()`
+  with a function that returns every org, `private.mfa_satisfied()` with one that returns
+  true, and `audit.write_row()` with one that inserts nothing each failed fixture
+  assertions in its suite ("a cross-org note read returns the EMPTY SET", "aal1 +
+  enrolled: ZERO ROWS", "the write produced an audit row"), and the suites were green again
+  after `db:reset`. A 1.0.4 install kept its suites on `update`; `--refresh-seeded` pulled
+  an unedited one and parked an edited one, exiting 2 (#58).
 
 ## [1.0.4] — 2026-09-29
 

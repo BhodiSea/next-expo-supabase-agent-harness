@@ -783,6 +783,15 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "9c956ff1b65c5ec3aaa363f69c68fef79ee48ed93ff35ccaa1c14d316b74f236",
+        "sites": [
+          [
+            121286,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -958,6 +967,15 @@
     "docs/runbooks/harness-upgrade.md": [
       {
         "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "56545256c7dc040cae45a00003e45111061cfcaf47e207c6fcc4f524e6bb6640",
         "sites": [
           [
             14115,
@@ -1592,6 +1610,19 @@
     ],
     "tools/conformance-map.json": [
       {
+        "sha256": "2db2fd72cb9a2a3c59a713ee6a0f5d07f91a3e6424527d602c4b38b6201f49d6",
+        "sites": [
+          [
+            640693,
+            "APP_SCHEME"
+          ],
+          [
+            700547,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "5e9c281c0c6250f0b8828f91f13c5bccf0e792655c3ff258af4d51380b0fe6ec",
         "sites": [
           [
@@ -1626,6 +1657,9 @@
       }
     ],
     "tools/essential-eight.json": [
+      {
+        "sha256": "672a511d2783afad98d45e132c2a3110671674a3024eb1d15e7d048e7ce30914"
+      },
       {
         "sha256": "f073d5bdab63ce81694a6a5ec6d4aad8a3075db7650b9a9a557063536e64ff90"
       }

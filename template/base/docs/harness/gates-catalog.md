@@ -784,7 +784,10 @@ the policy stands → FAIL; define the helpers with no policy using them → FAI
 table's only `SELECT` policy `RESTRICTIVE` → FAIL "no PERMISSIVE policy FOR SELECT". The
 **executed** twin is the pgTAP suite itself, run against a live stack both ways: green on
 the shipped rail, red on the vendor policy with the two rows an enrolled `aal1` session
-should never have seen.
+should never have seen. Since 1.1.0 the suite runs the rail on a table it builds inside its
+own transaction, `public.pgtap_fixture`, with the example's policy text renamed, so the
+proof survives a project deleting the example; the example's own copy is held by the static
+rules above.
 
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 

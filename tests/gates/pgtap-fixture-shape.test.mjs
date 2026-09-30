@@ -182,9 +182,6 @@ function tableParts(stmt) {
   }
 }
 
-/** @param {string} s */
-const clip = (s) => (s.length > 160 ? `${s.slice(0, 157)}...` : s)
-
 // ─── the model: what every fixture region must be ────────────────────────────
 
 /**
@@ -388,10 +385,10 @@ function judgeRegion(suite, regionText, model, problems) {
     const what = stmt === addition[0] && spec !== undefined
       ? `${spec.label} as written in ${spec.file}, renamed to ${FIXTURE}`
       : 'the skeleton statement'
-    problems.push(`${suite.name}: the fixture region lacks ${what}: ${clip(stmt)}`)
+    problems.push(`${suite.name}: the fixture region lacks ${what}: ${stmt}`)
   }
   for (const stmt of left) {
-    problems.push(`${suite.name}: the fixture region carries a statement that is neither the skeleton's nor the suite's one addition: ${clip(stmt)}`)
+    problems.push(`${suite.name}: the fixture region carries a statement that is neither the skeleton's nor the suite's one addition: ${stmt}`)
   }
 }
 
