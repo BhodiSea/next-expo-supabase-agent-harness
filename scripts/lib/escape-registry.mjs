@@ -90,6 +90,9 @@ export const TOLERATED_ABSENT = new Set([
   'tools/retrofit-accept.json',
   'tools/secret-scan-allow.json',
   'tools/migrations-allow.json',
+  // 1.1.0 (#74): schema-rls' grant-bound allowances. The gate reads it absent-as-empty, and
+  // a (table, role, privilege) row is a privilege no policy admits, allowed to stand.
+  'tools/grant-bound-allow.json',
 ])
 
 // Explicitly out of population, with the reason. tools/harness.config.mjs is reviewed

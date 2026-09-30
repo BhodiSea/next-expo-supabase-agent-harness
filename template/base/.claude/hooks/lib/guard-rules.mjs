@@ -479,6 +479,11 @@ export const WRITE_PROTECTED = [
   // pair — so it is exactly the class this block exists for, and it shipped without a
   // rule for the same reason security-headers.json did: nothing compared the lists.
   { id: 'migrations-allow', re: /^tools\/migrations-allow\.json$/ },
+  // 1.1.0 (#74), tolerated-absent the same way. schema-rls' grant bound demands that every
+  // privilege anon or authenticated holds is admitted by a policy; a row here lets one stand
+  // without a policy. CREATING the file is the widening, so an agent must not be able to
+  // write its own allowance mid-turn — a human reviews the (table, role, privilege, reason).
+  { id: 'grant-bound-allow', re: /^tools\/grant-bound-allow\.json$/ },
   // The framework SECURITY floor (0.5.0). Unlike its neighbours in this block it is
   // harness-OWNED rather than seeded — `update` must be able to carry a new advisory to
   // an existing install — but the agent-time hazard is identical and sharper: the file
