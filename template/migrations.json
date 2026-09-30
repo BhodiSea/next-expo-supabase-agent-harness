@@ -1,5 +1,5 @@
 {
-  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS — the floor chain — and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content — `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). seedOnInitOnly is a PURE list of path patterns read by a matcher — never put a comment string in it; a stray entry ending in '/' would silently withhold an entire subtree (scripts/check-seeded-migrations.mjs asserts every pattern names a path the template actually ships). Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs.",
+  "//": "Per-version upgrade records applied by `update` to already-installed harnesses. Keys are released versions; each entry may carry: removed (stale template paths to delete when sha-unmodified), renamed (old path -> new path), promotedModules (opt-in modules folded into the default harness), configSteps (gate steps injected into the consumer's gate config: {name, cmd, after, array}; array defaults to VALIDATE_STEPS — the floor chain — and is 'STOP_HOOK_STEPS' for the non-floor turn-fatal checks. harness.config.mjs is SEEDED, so `update` never overwrites it: this injection is the ONLY way a new step reaches an existing install), configCommandUpdates (from-guarded canonical-command rewrites: {name, from, to}), seedOnInitOnly (NEW seeded exemplar paths a newer template ships as init-time-only starting content — `update` must NOT auto-plant them into an existing install; a trailing '/' matches the whole subtree, no slash matches an exact file; collected across ALL versions, not just pending, and pullable on demand via `update --refresh-seeded <path>`). seedOnInitOnly is a PURE list of path patterns read by a matcher — never put a comment string in it; a stray entry ending in '/' would silently withhold an entire subtree (scripts/check-seeded-migrations.mjs asserts every pattern names a path the template actually ships). catalogPinFloors (1.1.0) are reviewed security floors for SEEDED catalog pins, each {name, minVersion (plain x.y.z), advisory, why}: every floor in a record at or below the installer version is judged against the consumer's pnpm-workspace.yaml by the entry's lower bound, `update` names each one not provably met and parks it at .harness/pending/pin-floors.json, `doctor` warns on it (exit 2, never 1) and deletes the parked file once every floor is met, and neither ever writes the catalog; scripts/check-dependency-channel.mjs holds each floor's shape and the template's own pin to it. Entries are applied in version order for manifest.harnessVersion < v <= installer version. See installer/lib/migrations.mjs.",
   "0.2.0": {
     "//": [
       "THE MULTI-TENANCY RELEASE. The governing rule for this record is one sentence: an `update` must leave an existing install GREEN. Five gates are injected, and every one carries an adoption seam keyed on the manifest's baseVersion — so what this record has to get right is which FILES arrive.",
@@ -972,6 +972,20 @@
         "0.11.1"
       ],
       "why": "The whole 1.0.0 NOTE fleet but its re-opened arrival site falls due: auth-posture's [auth.hook] trail posture where the trail is adopted, boundaries' anatomy widening and its census module-name closure, docs-sync's AGENTS.md gate list, resilience, suppressions, and version-sync's vendor-support register. A 0.11.x install meets those seven sites and nothing older; every vintage below 0.11.0 meets them on top of whatever the sections above already owed it. The sweep is the 1.0.0 one, unchanged (docs/runbooks/harness-upgrade.md, 1.0.0 section; scripts/ci/upgrade-sweep.mjs SWEEPS['1.0.0'], which upgrade-lane leg E executes before it requires graduate to succeed), and the 1.1.0 section lists what arrives. Read the count off `node scripts/ci/ramp-expectations.mjs <base> 1.1.0`, never off this paragraph."
-    }
+    },
+    "catalogPinFloors": [
+      {
+        "name": "vitest",
+        "minVersion": "4.1.11",
+        "advisory": "GHSA-82fw-gwwq-j7x9",
+        "why": "4.1.10 is affected by GHSA-82fw-gwwq-j7x9 (moderate): path traversal through the @vitest/mocker redirect mock allows an arbitrary file read. Every release from 0.1.3 through 1.0.2 shipped 4.1.10, so meeting the floor is a patch on the same major. Raise vitest and @vitest/coverage-v8 together; the coverage package peer-pins the identical vitest."
+      },
+      {
+        "name": "@vitest/coverage-v8",
+        "minVersion": "4.1.11",
+        "advisory": "GHSA-82fw-gwwq-j7x9",
+        "why": "@vitest/coverage-v8 peer-pins the identical vitest, so it moves to 4.1.11 with it (GHSA-82fw-gwwq-j7x9)."
+      }
+    ]
   }
 }

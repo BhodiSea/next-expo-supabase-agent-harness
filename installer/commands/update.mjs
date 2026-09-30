@@ -26,6 +26,7 @@ import {
   writeManifest,
 } from '../lib/manifest.mjs'
 import {
+  applyCatalogPinFloors,
   applyConfigCommandUpdates,
   applyDependencyObligations,
   applyConfigSteps,
@@ -385,6 +386,18 @@ export async function update(
   // whose lockfile no longer matches its manifests fails the `pnpm install
   // --frozen-lockfile` the shipped workflows run twelve times.
   applyDependencyObligations({
+    targetDir,
+    report,
+    migrations,
+    version: installerVersion(),
+    dryRun: opts.dryRun,
+  })
+
+  // The pin-floor channel (1.1.0): unconditional for the same reason, since the consumer
+  // raises the pin, not this run. It judges each seeded catalog pin a release recorded a
+  // security floor for, and it EMITS the same way: a note per floor, parked at
+  // .harness/pending/pin-floors.json, self-clearing, and never a change to the exit code.
+  applyCatalogPinFloors({
     targetDir,
     report,
     migrations,

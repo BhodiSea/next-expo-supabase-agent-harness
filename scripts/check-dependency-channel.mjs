@@ -19,6 +19,13 @@
 // `machinery-lint` checks out at the runner's default depth, and a verdict that depends on
 // clone depth is a verdict that passes for the wrong reason. Without the tag this SKIPS and
 // says so; in CI (CI=true) the same condition FAILS. The lint job sets fetch-depth: 0.
+//
+// AND THE PIN FLOORS (1.1.0, #83). A `catalogPinFloors` record is the one kind `doctor`
+// judges by VERSION, so this check owns both of its preconditions: every floor is well formed
+// (`update` builds its note and `doctor` its warning from these fields), and the template's
+// own catalog meets it, judged by the same judgePinFloor() `doctor` runs, or every fresh
+// scaffold would warn on its first `doctor`. Neither half needs the tag: a floor is about the
+// tree being shipped, not about what it gained.
 // SOURCE: template/migrations.json (the 0.4.0 record states the hole in its own words)
 //   usage: node scripts/check-dependency-channel.mjs [repo-root]
 import { execFileSync } from 'node:child_process'
@@ -26,6 +33,7 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { judgePinFloor } from '../installer/lib/migrations.mjs'
 import { highestReleaseBelow } from './lib/ramp-sites.mjs'
 
 // With a repo-root argument it judges THAT tree — files AND git history, so the red-proof
@@ -201,6 +209,56 @@ for (const [v, entry] of Object.entries(migrations)) {
   }
 }
 
+// 5. catalogPinFloors (1.1.0): each floor well formed, and met by the template's own catalog.
+const PLAIN_VERSION = /^\d+\.\d+\.\d+$/
+
+/** @param {string} v @param {Record<string, unknown>} f @returns {string[]} */
+function floorShapeProblems(v, f) {
+  const out = []
+  for (const field of ['name', 'minVersion', 'advisory', 'why']) {
+    if (typeof f?.[field] !== 'string' || f[field].length === 0) {
+      out.push(`template/migrations.json ${v}: a catalogPinFloors entry is missing a non-empty \`${field}\``)
+    }
+  }
+  const label = `template/migrations.json ${v} catalogPinFloors \`${String(f?.name)}\``
+  if (typeof f?.minVersion === 'string' && f.minVersion !== '' && !PLAIN_VERSION.test(f.minVersion)) {
+    out.push(`${label}: \`minVersion\` ${f.minVersion} is not a plain x.y.z version — \`doctor\` compares a pin's lower bound against it.`)
+  }
+  if (typeof f?.why === 'string' && f.why !== '' && f.why.length < 40) {
+    out.push(
+      `${label}: \`why\` is ${String(f.why.length)} chars — it is the only thing telling a consumer why they must raise a seeded pin.`,
+    )
+  }
+  return out
+}
+
+/** @param {string} v @param {{ name: string, minVersion: string }} f @returns {string[]} */
+function floorTemplateProblems(v, f) {
+  const { verdict, found } = judgePinFloor(workspaceYaml, f)
+  if (verdict === 'absent') {
+    return [
+      `catalogPinFloors names \`${f.name}\` but the template's own catalog does not pin it — a stale floor (template/migrations.json ${v}). \`doctor\` does not judge an absent key, so it guards nothing.`,
+    ]
+  }
+  if (verdict === 'unmet') {
+    return [
+      `template/migrations.json ${v} floors \`${f.name}\` at ${f.minVersion}, but template/base/pnpm-workspace.yaml pins \`${f.name}: ${found}\`, which is below it or cannot be proven at or above it. Every fresh scaffold would warn in \`doctor\`; raise the template pin with the floor.`,
+    ]
+  }
+  return []
+}
+
+let floorCount = 0
+for (const [v, entry] of Object.entries(migrations)) {
+  if (!/^\d+\.\d+\.\d+/.test(v)) continue
+  for (const f of entry.catalogPinFloors ?? []) {
+    floorCount += 1
+    const shape = floorShapeProblems(v, f)
+    problems.push(...shape)
+    if (shape.length === 0) problems.push(...floorTemplateProblems(v, f))
+  }
+}
+
 if (problems.length > 0) {
   console.error(`DEPENDENCY CHANNEL: ${String(problems.length)} problem(s):`)
   for (const p of problems) console.error(`  - ${p}`)
@@ -211,5 +269,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `DEPENDENCY CHANNEL: CLEAN (vs ${tag}: ${String(added.length)} catalog addition(s), ${String(referenced.size)} reference(s) across ${String(scanned)} owned config(s), ${String(obligated.size)} obligation(s))`,
+  `DEPENDENCY CHANNEL: CLEAN (vs ${tag}: ${String(added.length)} catalog addition(s), ${String(referenced.size)} reference(s) across ${String(scanned)} owned config(s), ${String(obligated.size)} obligation(s), ${String(floorCount)} pin floor(s))`,
 )
