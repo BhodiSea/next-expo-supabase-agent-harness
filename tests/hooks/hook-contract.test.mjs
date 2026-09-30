@@ -1100,6 +1100,17 @@ test('an agent can stage a proposal: the write guard, the bash guard and the set
     tool_input: { file_path: 'harness-proposals/allow-trademark.json', content: proposal },
   })
   assert.equal(denied(w), false, w.stdout)
+  // PROT_DIRS names `.harness/`, not `harness-proposals/`: a shell that lists, reads or
+  // makes the directory, or reads the base, is not denied either.
+  for (const command of [
+    'mkdir -p harness-proposals',
+    'ls harness-proposals/',
+    'cat harness-proposals/allow-trademark.json',
+    'git rev-parse HEAD:tools/i18n-allow.json',
+  ]) {
+    const b = runHook('pretool-bash-guard.mjs', { tool_name: 'Bash', tool_input: { command } })
+    assert.equal(denied(b), false, `${command}: ${b.stdout}`)
+  }
   const settings = JSON.parse(readFileSync(join(TEMPLATE, '.claude/settings.json'), 'utf8'))
   const writeDenies = (settings.permissions?.deny ?? []).filter((r) => /^(?:Edit|Write|MultiEdit)\(\.\//.test(r))
   assert.ok(writeDenies.length >= 4, 'fixture precondition: the shipped settings deny writes by path')
