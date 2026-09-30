@@ -15,15 +15,44 @@
 //   - the ADR's traceability rows name tests that exist;
 //   - the 1.1.0 record withholds the new files from `update` and tells an existing install,
 //     through a seededSourceFixes probe the v1.0.3 index.ts matches, how to pull them.
+//
+// The cases that read TypeScript source (the shape of handler.ts and index.ts, and the
+// evaluated vitest.config.ts) run through tsTest, which loads the root's own `typescript`: where
+// it is not installed (selftest.yml's installer-unit runs the suite with no install) they SKIP
+// loudly by name, and under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (lint.yml's machinery-lint, which
+// installs the root) a compiler that cannot load FAILS. The #76 convention (i18n-tree.test.mjs).
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import ts from 'typescript'
 import { probeMatchesBroken } from '../../installer/lib/migrations.mjs'
 import { edgeSuiteDirs } from '../../template/base/tools/lib/mutation-critical.mjs'
+
+/** The root's `typescript`, or null where nothing is installed. */
+const ts = await import('typescript').then(
+  (m) => m.default ?? m,
+  () => null,
+)
+const REQUIRE_TS = process.env.HARNESS_TEST_REQUIRE_TYPESCRIPT === '1'
+
+/** A case that needs the compiler: skipped loudly without it, failed if this lane requires it. */
+function tsTest(name, fn) {
+  if (ts !== null) return test(name, fn)
+  if (REQUIRE_TS) {
+    return test(name, () =>
+      assert.fail('typescript cannot be imported, and HARNESS_TEST_REQUIRE_TYPESCRIPT=1 says this lane reads the TypeScript source'),
+    )
+  }
+  return test(
+    name,
+    {
+      skip: 'typescript is not installed here (selftest.yml installer-unit runs with no install); lint.yml machinery-lint runs this case with the compiler',
+    },
+    fn,
+  )
+}
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const FN = join(REPO, 'template', 'stack', 'supabase', 'functions', 'delete-account')
@@ -44,7 +73,7 @@ function codeOnly(src) {
   return out.replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, '""')
 }
 
-test('handler.ts names no Deno global and imports nothing at runtime (vitest runs it in Node)', () => {
+tsTest('handler.ts names no Deno global and imports nothing at runtime (vitest runs it in Node)', () => {
   const src = read(FN, 'handler.ts')
   const code = codeOnly(src)
   assert.doesNotMatch(code, /\bDeno\b/, 'handler.ts reaches a Deno global, so Node cannot run it')
@@ -57,7 +86,7 @@ test('handler.ts names no Deno global and imports nothing at runtime (vitest run
   assert.match(src, /^import type \{ SupabaseClient \} from '@supabase\/supabase-js'$/m)
 })
 
-test('index.ts is the shell: the handler, the runtime binding, and nothing else', () => {
+tsTest('index.ts is the shell: the handler, the runtime binding, and nothing else', () => {
   const code = codeOnly(read(FN, 'index.ts'))
   const imports = [...read(FN, 'index.ts').matchAll(/^import .* from '([^']+)'$/gm)].map((m) => m[1])
   assert.deepEqual(imports, ['@supabase/supabase-js', './handler.ts'])
@@ -109,7 +138,7 @@ function tree(files) {
 const VITEST_SUITE = "import { expect, it } from 'vitest'\nit('x', () => { expect(1).toBe(1) })\n"
 const DENO_SUITE = "import { assertEquals } from 'jsr:@std/assert'\nDeno.test('x', () => assertEquals(1, 1))\n"
 
-test('vitest.config.ts collects every vitest suite under supabase/functions, and never a `deno test` file', async () => {
+tsTest('vitest.config.ts collects every vitest suite under supabase/functions, and never a `deno test` file', async () => {
   const dir = tree({
     'supabase/functions/fn/handler.ts': 'export const x = 1\n',
     'supabase/functions/fn/handler.test.ts': VITEST_SUITE,
@@ -141,14 +170,14 @@ test('vitest.config.ts collects every vitest suite under supabase/functions, and
   )
 })
 
-test('vitest.config.ts with no supabase/functions at all: no Edge Function entry, and the config still loads', async () => {
+tsTest('vitest.config.ts with no supabase/functions at all: no Edge Function entry, and the config still loads', async () => {
   const { include, coverage } = await loadConfig(tree({ 'README.md': 'x\n' }))
   assert.equal(include.filter((p) => p.startsWith('supabase/')).length, 0)
   assert.equal(coverage.filter((p) => p.startsWith('supabase/')).length, 0)
   assert.ok(include.includes('packages/*/src/**/*.test.ts'), 'the rest of unit-node is untouched')
 })
 
-test('the SHIPPED tree: the delete-account suite runs and its directory is measured', async () => {
+tsTest('the SHIPPED tree: the delete-account suite runs and its directory is measured', async () => {
   const dir = tree({
     'supabase/functions/delete-account/handler.test.ts': read(FN, 'handler.test.ts'),
     'supabase/functions/delete-account/handler.ts': read(FN, 'handler.ts'),

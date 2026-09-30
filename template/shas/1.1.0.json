@@ -805,6 +805,15 @@
         ]
       },
       {
+        "sha256": "9be6c4e35e0a7aea52700114d3ebcda9a2fc990948042860ba0aa77180d786e8",
+        "sites": [
+          [
+            2223,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
+      {
         "sha256": "fc3bdda658e5b5b0a6f8b572a513b4de6b0931929faa2d5bc16289c83e924ea9",
         "sites": [
           [
@@ -870,6 +879,9 @@
     ],
     "biome.jsonc": [
       {
+        "sha256": "18eca1ff390547b131eee475269a7fa6ac4e5bfb75868cb820aac389cb80991e"
+      },
+      {
         "sha256": "e81b72a6390511ad59bcfb4571b76914776150e4bb2a11077b140c93acc6cf9f"
       }
     ],
@@ -932,6 +944,9 @@
     "docs/adr/20260720-account-deletion.md": [
       {
         "sha256": "459fe98db0248627afee6281d2215ed39aca7983c6c1027086d95207fd112ed1"
+      },
+      {
+        "sha256": "6351e80af04e15c56d0b4428ab3c45e74fa71d6126b670cdf6a6c512c87adfe3"
       }
     ],
     "docs/adr/20260812-mfa-aal2.md": [
@@ -1116,6 +1131,9 @@
         "sha256": "1f3cd7e83a49682abbfa6255ea1588dfe27471a1d5258afc3ac6d5c7fe16baa3"
       },
       {
+        "sha256": "7f263f5a08db36693ffa96057c10169d64d7c4e32d765461a98aa1a6747b2c0d"
+      },
+      {
         "sha256": "9a3751b35ff3780635bd5ad5c534da658fbf0b82570e7fa554010600a1392b71"
       }
     ],
@@ -1251,6 +1269,15 @@
         "sites": [
           [
             125366,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "ec38c2a4e9e932778c52ffbfc223efff668c75be6a45c1da4276fb5846e964fc",
+        "sites": [
+          [
+            143294,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1492,6 +1519,15 @@
       },
       {
         "sha256": "0be9a3b751549a019ce51975221e8f9c3ae617512cb26ad02da87b758fbfa5b9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "13784323e82038caa00f568fc4d39b202f84b07ad5df758cf211d3407a535c90",
         "sites": [
           [
             14115,
@@ -1801,6 +1837,9 @@
     "eslint.config.mjs": [
       {
         "sha256": "a8f05faf4ea28da5de8a57660766e372e5a9554376fdc3b2fe067571b024f55d"
+      },
+      {
+        "sha256": "e6296ec2d4bae1db470919b59d31f85e92e84f460ab873fb84ee384365fc08f9"
       }
     ],
     "knip.json": [
@@ -2016,6 +2055,9 @@
     "tools/check-diff-coverage.mjs": [
       {
         "sha256": "4b547705af55d67c44f05fd009b9876d3aea60dab9673845e6020cee12d6f307"
+      },
+      {
+        "sha256": "dde2df75c8ea60205f86d7a3543691b2f98b613b3eb1ebd53a8de174c8ffe2ee"
       }
     ],
     "tools/check-docs-sync.mjs": [
@@ -2053,6 +2095,11 @@
     "tools/check-eas-update.mjs": [
       {
         "sha256": "bfed4636578137dcc1cd227ed29418f0c8037d5209567bae47ce161fd7a45b1a"
+      }
+    ],
+    "tools/check-edge-functions.mjs": [
+      {
+        "sha256": "19ebdb855729f741d97789534190060658767e06d8121a8a2b3f952a3efdb195"
       }
     ],
     "tools/check-essential-eight.mjs": [
@@ -2136,6 +2183,9 @@
     "tools/check-mutation-ratchet.mjs": [
       {
         "sha256": "8b239d6859f20616b5f47fd9460e35727bc75a2f4e06ee33e97207802cfbc75d"
+      },
+      {
+        "sha256": "ef4758e24fbcf72700ce51320e4e98e5b67635a57b51e3f8e7836aaede5ac23b"
       }
     ],
     "tools/check-native-deps.mjs": [
@@ -2433,6 +2483,19 @@
         ]
       },
       {
+        "sha256": "617eb56f9b618995cd740d1af3e2b6108bc0f4f3e43e1ddbbbf41fa728159179",
+        "sites": [
+          [
+            642060,
+            "APP_SCHEME"
+          ],
+          [
+            701904,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "67c674d73ee45ef11fd960db671c09be03aa0388aeb310af9e4881dae841e29d",
         "sites": [
           [
@@ -2680,6 +2743,9 @@
         "sha256": "b79b3bcc546e9da89fea41a11b70e1d7da59e74f74c4d3e65af83059c5ea9ec1"
       },
       {
+        "sha256": "cf68940a4e2f3e45068cebd7eb063dbf2e3e1b4e25634ff8b94be534c75f5140"
+      },
+      {
         "sha256": "e0cd1fb59e4126b6bd2941a4ce30347fe01f09872a1d5ce6a97a320e257575c0"
       }
     ],
@@ -2735,6 +2801,9 @@
       }
     ],
     "tools/lib/mutation-critical.mjs": [
+      {
+        "sha256": "64f4ee4f520a8cd13b237803e1c7c77cc96af8176d2df5505f61b2f00863d9e6"
+      },
       {
         "sha256": "80dbc6f059ee3f796ef484495f35749def6ca07cfc63d87cf5d272c9d2579dba"
       }
@@ -2944,6 +3013,9 @@
     ],
     "tools/mutation-scope.mjs": [
       {
+        "sha256": "6c16f8177bb677b06ee5f0365547095b7edc1eb9e1ee9032ad655be9dded7293"
+      },
+      {
         "sha256": "74d0daf2becd29f8bdb3c01701eda3f2cb3d4d4a7f66fb4022ccb0447653ba28"
       }
     ],
@@ -3001,6 +3073,9 @@
     "vitest.config.ts": [
       {
         "sha256": "718b8cc1bcbd38874f120ed6312f92a2a5452180a7b6a69c6ca71060470eab67"
+      },
+      {
+        "sha256": "fbe935c3211a83383e082c76d3e24bd986ebfd317e6ee2ccf459d70b4ee9a8c2"
       }
     ]
   }
