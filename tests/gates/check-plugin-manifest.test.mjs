@@ -57,6 +57,40 @@ test('RED: a manifest referencing a dangling agent path is dead on install, and 
   assert.match(out, /plugin\.json agents: \.\/template\/base\/\.claude\/agents\/ghost\.md does not exist/)
 })
 
+/** The live plugin surface, copied: the green baseline a single skew is measured against. */
+function surfaceCopy() {
+  const dir = mkdtempSync(join(tmpdir(), 'nsah-plugin-'))
+  cpSync(join(REPO, '.claude-plugin'), join(dir, '.claude-plugin'), { recursive: true })
+  mkdirSync(join(dir, 'template/base/.claude'), { recursive: true })
+  for (const sub of ['agents', 'commands', 'skills']) {
+    cpSync(join(REPO, `template/base/.claude/${sub}`), join(dir, `template/base/.claude/${sub}`), {
+      recursive: true,
+    })
+  }
+  return dir
+}
+
+// 1.1.0 (#62): the repo-side mirror applies docs-sync's fallback-list rule to the SHIPPED
+// roster, so a list that splits to nothing, or repeats an entry, reds this repository's CI
+// before a scaffold ever runs docs-sync. One skew, one finding.
+test('RED (#62): a shipped reviewer whose harnessFallbackModels list is empty or repeats an entry', () => {
+  for (const [skew, want] of /** @type {Array<[string, RegExp]>} */ ([
+    ['harnessFallbackModels: ,', /security-reviewer\.md: 'harnessFallbackModels' is present but lists no model/],
+    ['harnessFallbackModels: fable, fable', /security-reviewer\.md: 'harnessFallbackModels' repeats 'fable'/],
+  ])) {
+    const dir = surfaceCopy()
+    const agent = join(dir, 'template/base/.claude/agents/security-reviewer.md')
+    const body = readFileSync(agent, 'utf8')
+    const planted = body.replace(/^harnessFallbackModels:.*$/m, skew)
+    assert.ok(planted.includes(skew), `the shipped file must carry a list to skew (${skew})`)
+    writeFileSync(agent, planted)
+    const { code, out } = run([dir])
+    assert.equal(code, 1, `${skew}:\n${out}`)
+    assert.match(out, /PLUGIN MANIFEST: 1 problem\(s\):/)
+    assert.match(out, want)
+  }
+})
+
 test('GREEN: the repo that ships the plugin surface passes its own gate', () => {
   const { code, out } = run([])
   assert.equal(code, 0, out)
