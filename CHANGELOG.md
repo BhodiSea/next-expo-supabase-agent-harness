@@ -59,6 +59,9 @@ three kinds of finding, and adds one release row and one guard rule. Every insta
 meets it on `profiles` and `notes` (#74).
 `query-shapes` judges a DAL's `rpc()` and `upsert()` calls with no ramp (see Fixed): a
 probed DAL that made either call could not pass before (#79).
+The `i18n` step's syntax-tree walk (see Changed) opens the gate's first two ramps at 1.1.0,
+each with a deadline of 1.2.0, and adds one release row: copy only the walk finds, and the
+1.0.x `site` entries its content keys replace (#76).
 
 ### Security
 
@@ -828,6 +831,35 @@ this heading if none does. -->
   `grant-bound-ramp-expiry` owes the expiry. The swept upgrade leg runs the runbook's two
   steps through a new `SWEEPS['1.1.0'].grantDoctrine` step and adopts neither withheld file
   (#74).
+- **The `i18n` step walks the TypeScript syntax tree beside its regular expressions, and
+  its allowlist is keyed on content, behind two ramps until 1.2.0.** The step found copy
+  with regular expressions over comment-blanked text, one quote form each, and a JSX text
+  run could not hold `=`, `;`, a backtick or `$`. So `accessibilityLabel={'Close dialog'}`,
+  `` title: `Settings` `` and `label: "Don't have an account?"` in a `.ts` module, and
+  `<h2>Plans from $5</h2>` all passed. Its escape was keyed on `file:line`: a line inserted
+  above an allowlisted string redded the string again and left the entry muting whatever
+  now sat on that line. Five places said a stale entry failed, and nothing checked. The new
+  owned `tools/lib/i18n-tree.mjs` parses each scanned file once with the project's own
+  `typescript`, a root devDependency of every release, and reports JSX text, a listed
+  attribute or `label`/`title`/`subtitle`/`description` property whose value is a string or
+  a template literal with no substitutions, bare or inside `{…}`, and `Intl`, `toLocale*`
+  and `toFixed`, through the filters the expressions apply. The gate reports the union. A
+  finding the expressions see stays hard, and one only they see is tagged as retiring in
+  1.2.0. A finding only the walk sees goes through its own `rampNote`, opened at 1.1.0 until
+  1.2.0: a dated NOTE below `baseVersion` 1.1.0, a plain red on a fresh scaffold, and
+  `RAMP EXPIRED` from harness 1.2.0. `tools/i18n-allow.json` entries become
+  `{"key", "reason"}`: the key is 12 hex characters of a sha256 over the POSIX path, the
+  finding kind, the attribute or property name and the whitespace-collapsed text, which
+  both scans compute. Each FAIL line prints the entry to paste, and a key that matches no
+  finding reds. A 1.0.x `site` entry goes through a second ramp with the same window: below
+  1.1.0 it still mutes its line and prints the key that replaces it, and on a fresh
+  scaffold it is malformed. When `typescript` cannot load, the expressions judge alone
+  behind a loud NOTE, and in CI the step fails closed. The factory's `installer-unit` job
+  installs nothing, so the walk's tests skip there by name and run in `lint.yml`'s
+  `machinery-lint`, where a parser that cannot load fails them, under the scanner's own
+  coverage floor; Canary 34 proves the walk on the installed canary scaffold. The
+  obligations row `i18n-syntax-tree-ramp-expiry` owes both expiries and the removal of the
+  expressions and of `site` entries. No chain step, guard rule or floor entry (#76).
 
 ### What stays open, honestly
 
@@ -1156,6 +1188,21 @@ this heading if none does. -->
 - **No shipped manifest carries an rpc or upsert row.** The web app's two tenancy RPCs are
   called from Server Actions, not from a vertical's DAL, and the push-notifications slice
   that upserts has no query-probes file, so the rules are proven on fixtures (#79).
+- **The expressions and `site` entries leave at 1.2.0, which arrives at 2.0.0 here.** Both
+  i18n ramps take the deadline issue #76 fixes, the next minor. This lineage cuts 2.0.0
+  directly after 1.1.0, so the 2.0.0 record owes both expiries, and that release removes
+  the regular expressions, once the scanner's fixture-parity test is still green, and the
+  `site` shape, or re-opens the ramps as reviewed `rampExtensions` entries (#76).
+- **The walk reads literals, not values.** A string reached through a variable, a
+  conditional, a concatenation or a helper is invisible to both scans, as it was to one;
+  the pseudo-locale lane is still the check that is complete (#76).
+- **Without `typescript` the walk does not run.** Locally the step says so, judges with
+  the expressions alone, and cannot tell a key that matches none of their findings from a
+  stale one; only CI fails closed. Every release's root `package.json` lists `typescript`,
+  so an installed tree has it (#76).
+- **A key names its text.** Editing an allowlisted string, or moving it to another file,
+  reds the old key as stale and the string as new, by design: the entry was reviewed for
+  that text in that file (#76).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1587,6 +1634,18 @@ this heading if none does. -->
   `onConflict: 'id'`, for which it named `notes_pkey (org_id, id)`. A zero-edit core
   scaffold rendered from this tree passed `validate --report-all` on 36 steps, where
   `contracts` regenerated its seeded manifest byte-identical and `query-shapes` was OK (#79).
+  For the i18n syntax-tree walk, the tests-only commit was red on 14 cases. The four shapes
+  each printed `i18n: OK … no hardcoded copy`, a `key` entry was refused as malformed
+  (`every entry must be { "site": "file:line", … }`), a `site` entry muted its line on a
+  fresh tree, no output said the walk had not run, and `tests/gates/i18n-tree.test.mjs`
+  could not load the lib. After the change each case is green: the walk alone finds every
+  string the gate's fixtures red and none of its not-copy fixtures, each ramp runs as a NOTE
+  on a 1.0.3 manifest, a plain red with none and `RAMP EXPIRED` at harness 1.2.0, and a
+  copy of the gate where `typescript` cannot resolve reds on the expressions, says the walk
+  did not run, and exits 1 under `CI=true`. In a checkout with no install, as
+  `installer-unit` runs, the walk's 25 tests skip by name and the `template/base/tools/lib/**`
+  floor holds. The walk finds nothing in the template's `apps/` source, nor in that of any
+  tag from v0.6.0 through v1.0.4 (#76).
 
 ## [1.0.4] — 2026-09-29
 
