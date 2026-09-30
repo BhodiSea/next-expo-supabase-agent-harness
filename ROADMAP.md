@@ -330,10 +330,15 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   variable or a helper is still seen by neither scan.
   ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree),
   issue #76)
-- **The web build in the chain, and a browser test per route.** A web app that
-  does not compile can pass the local chain today, and no closure asks whether
-  a route has a browser test.
-  ([R08](design/FIELD-UPGRADES-2026-09.md#r08-the-web-build-in-the-chain-and-a-browser-test-per-route))
+- **The web build in the chain, and a browser test per route.** A stamped
+  `web-compile` step runs `next build` after `build`, so a web app that does not
+  compile reds the chain and `static`, and `route-manifest` asks that some spec
+  under `apps/web/e2e` names a state test id of every registered web route; the
+  seeded suite gains specs for `notes` and `security`. Two ramps opened at 1.1.0
+  hold both as NOTEs below that `baseVersion` until 1.2.0, and `docs-sync`'s
+  gate-list escape re-opens for the 37th step.
+  ([R08](design/FIELD-UPGRADES-2026-09.md#r08-the-web-build-in-the-chain-and-a-browser-test-per-route),
+  issue #77)
 
 ### 2.0.0, breaking
 
