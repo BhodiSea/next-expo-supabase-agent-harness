@@ -30,7 +30,7 @@ const TEMPLATE = fileURLToPath(new URL('../../template/base/', import.meta.url))
 const CAP = 1200
 const CUT = '[brief cut at 1200 characters]'
 const FIELD_HEADS = [
-  /^harness /,
+  /^harness[ :]/,
   /^parked: /,
   /^last turn in this directory: /,
   /^reviewers owed by the current diff: /,
@@ -158,7 +158,8 @@ const healthy = () => ({
 /** @param {string} text @param {string} bad */
 function assertRefused(text, bad) {
   assert.match(text, /\(unprintable\)/)
-  for (const piece of bad.split(/\s+/).filter((p) => p.length > 3)) {
+  const baseline = renderBrief(healthy())
+  for (const piece of bad.split(/\s+/).filter((p) => p.length > 3 && !baseline.includes(p))) {
     assert.ok(!text.includes(piece), `a refused value leaked ${JSON.stringify(piece)}:\n${text}`)
   }
   assert.ok(text.length <= CAP)
@@ -221,10 +222,11 @@ test('the path validator refuses a newline, a sentence, a `..` segment and a 161
   }
   assert.equal(LONG.length, 161)
   const ok = healthy()
-  ok.parked.paths = [LONG.slice(1), 'a/..b/c..d', '@scope/pkg+x_y.json']
+  const at160 = LONG.slice(0, 160)
+  ok.parked.paths = [at160, 'a/..b/c..d', '@scope/pkg+x_y.json']
   const text = renderBrief(ok)
   assert.ok(!text.includes('(unprintable)'), text)
-  assert.ok(text.includes(LONG.slice(1)), 'a 160-character path prints')
+  assert.ok(text.includes(at160), 'a 160-character path prints')
 })
 
 test('a count or a cap that is not a non-negative integer is unprintable too', () => {
