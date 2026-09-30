@@ -5,6 +5,11 @@
       "detail": "the surface 0.4.0 added",
       "proof": "tests/gates/check-diff-coverage.test.mjs",
       "note": "Stop-chain step: it reads the coverage maps the two unit steps just wrote, and no lane runs the Stop chain (rls-isolation/unit/mobile-unit fail closed under CI without a full toolchain). Its 0.4.0 surface ramp (until 0.5.0) therefore expires where only the unit proof looks."
+    },
+    {
+      "detail": "the Edge Function surface",
+      "proof": "tests/gates/check-diff-coverage.test.mjs",
+      "note": "The 1.1.0 Edge Function ramp (#78, until 1.2.0), in the same structurally-unexecuted position as the 0.4.0 surface ramp: diff-coverage is a Stop step and no lane runs the Stop chain. The proof file spawns the real gate on an untested supabase/functions helper: a NOTE on a 1.0.3 manifest at harness 1.1.0, RAMP EXPIRED naming 'the Edge Function surface' at harness 1.2.0, and a plain red on a 1.1.0 manifest."
     }
   ],
   "reviewer-verdicts": [
@@ -63,6 +68,27 @@
       "detail": "file:line site entries",
       "proof": "tests/gates/check-i18n.test.mjs",
       "note": "The 1.1.0 site-entry ramp (#76), until 1.2.0, in the same position: a Stop-chain step no leg runs. The proof file plants a {\"site\": \"file:line\"} entry in tools/i18n-allow.json under a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp and the entry reds as malformed, beside the NOTE that names its replacement key on 1.0.3 at 1.1.0 and the malformed red with no manifest."
+    }
+  ],
+  "mutation-ratchet": [
+    {
+      "detail": "the Edge Function surface",
+      "proof": "tests/gates/check-mutation-ratchet.test.mjs",
+      "note": "CI-only: the ratchet runs in the mutation lane after Stryker, which no upgrade-lane leg runs. Its 1.1.0 Edge Function ramp (#78, until 1.2.0) therefore expires where only the unit proof looks: the proof file hands the real gate a report with a survivor under supabase/functions and asserts a NOTE on a 1.0.3 manifest at harness 1.1.0, RAMP EXPIRED naming 'the Edge Function surface' at harness 1.2.0, and a plain red on a 1.1.0 manifest or none."
+    }
+  ],
+  "edge-functions": [
+    {
+      "detail": "the Edge Function surface",
+      "proof": "tests/gates/check-edge-functions.test.mjs",
+      "note": "CI-only: not a chain member, like web-e2e and workflow-hardening. Its home is quality-gate.yml's edge-functions job in the consumer's own CI, which no upgrade-lane leg runs. Its 1.1.0 ramp (#78, until 1.2.0) therefore expires where only the unit proof looks: the proof file spawns the real gate on the unchanged v1.0.3 function with no deno.json and asserts a NOTE on a 1.0.3 manifest at harness 1.1.0, RAMP EXPIRED naming 'the Edge Function surface' at harness 1.2.0, and a plain red on a 1.1.0 manifest."
+    }
+  ],
+  "mutation-scope": [
+    {
+      "detail": "the Edge Function surface",
+      "proof": "tests/gates/mutation-scope.test.mjs",
+      "note": "CI-only: the scoper runs at the head of the mutation lane, which no upgrade-lane leg runs. Its 1.1.0 ramp (#78, until 1.2.0) withholds a changed supabase/functions file whose directory holds no vitest suite, since Stryker's vitest runner stops with 'No tests were executed' and writes no report when no test relates to a mutated file. The proof file spawns the real scoper in a git fixture: a NOTE on stderr and a clean --mutate list on a 1.0.3 manifest at harness 1.1.0, RAMP EXPIRED naming 'the Edge Function surface' and exit 1 at harness 1.2.0, and a plain FAIL naming the file on a 1.1.0 manifest or none."
     }
   ]
 }

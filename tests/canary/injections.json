@@ -62,6 +62,11 @@
         "kind": "fixture",
         "ref": "tests/gates/eslint-custom-rules.test.mjs",
         "note": "0.9.5: the two new custom rules' RuleTester red-proofs, both LOCAL rules precisely to avoid the plugin-channel hazard the canary above records. env-through-register: a raw process.env read of a non-public name reds, a computed read reds as un-reviewable, bare process.env reds as the whole-environment smuggle, while literal NEXT_PUBLIC_/EXPO_PUBLIC_/NODE_ENV reads and non-process `env` members stay clean. no-suppressed-complexity: the sonarjs/cognitive-complexity disable directive is itself the error in both line and block form, and a directive naming the rule itself reds as the stacking evasion."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 37: getSession() in an Edge Function → the lint step must FAIL (no-unverified-session reaches supabase/functions)",
+        "note": "1.1.0 (#78). Until 1.1.0 the config's global ignore read `supabase/**`, and a later block cannot reach anything a global ignore lists, so the three blocks that NAMED supabase/functions (no-unverified-session, service-role-edge-functions-only, crypto-primitives-one-door) reached nothing: a getSession() in the one function holding the service-role key passed lint, and the getSession block's own comment cited an Edge Function as a case that passed every layer. The global ignore now lets supabase/functions/ back in and a parser block (the TypeScript parser, no project service) makes those blocks live unedited. The canary appends a getSession() call to the seeded delete-account index.ts in a rendered scaffold and requires eslint to red on local/no-unverified-session. Run against the 1.0.3 config it FAILS: eslint exits 0 on the ignored file (measured 2026-09-30 on a rendered core scaffold)."
       }
     ],
     "suppressions": [
@@ -632,6 +637,11 @@
         "kind": "fixture",
         "ref": "tests/gates/lane-reuse.test.mjs",
         "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative. On a hit the push run cites the pull request run's mutation verdict, which was scoped to the pull request's diff; the push run it replaces scoped against HEAD and mutated nothing."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/mutation-scope.test.mjs",
+        "note": "1.1.0 (#78): the lane's scoper over the Edge Functions. supabase/functions/*/ is on the mutated floor, and StrykerJS's vitest runner stops with 'No tests were executed' and writes no report when every file handed to --mutate is one no suite imports, so the ratchet would never speak. The fixture spawns the real tools/mutation-scope.mjs in a git fixture: a changed handler in a directory with a vitest suite is scoped on every vintage; the Deno.serve shell never is; a changed file in a directory with no vitest suite (a `deno test` file does not count) is a FAIL naming the file and the suite it needs on a 1.1.0 install or none, a NOTE on stderr with the file withheld and stdout still the bare --mutate list on a 1.0.3 install at harness 1.1.0, and RAMP EXPIRED naming 'the Edge Function surface' at harness 1.2.0."
       }
     ],
     "runtime-rls": [
@@ -880,6 +890,18 @@
         "kind": "fixture",
         "ref": "tests/gates/deploy-record.test.mjs",
         "note": "The RB-02 binding proven in both directions: a complete pair (backup fact + deploy manifest) emits the record binding data/applications/settings at the deployment's own point in time WITH the verified exclusions carried in the artefact (the Vault root key above all); a missing backup fact, a never-completed daily backup ('a promise, not a record'), and a malformed manifest each red and emit nothing. The Management-API half is the same vendor boundary backup-evidence records."
+      }
+    ],
+    "edge-functions": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-edge-functions.test.mjs",
+        "note": "HARNESS-AUTHORED (1.1.0, #78): the CI-only gate tools/check-edge-functions.mjs, run by quality-gate.yml's path-filtered and nightly edge-functions job. The fixture spawns the REAL gate: no function (or only a _shared/ directory) is OK with the count; a function with no deno.json, no deno.lock, an unparsable deno.json or a jsr:/npm: import pinned to a range fails naming it, whether or not deno is present; with no deno on PATH it prints SKIPPED locally and FAILS under CI=true; through a POSIX deno stub (those cases skip loudly on win32) a pinned function is checked as `deno check --frozen --config <fn>/deno.json --lock=<fn>/deno.lock <fn>/index.ts` and a type error fails with deno's own TS2322 line. The ramp: the unchanged v1.0.3 delete-account index.ts with no deno.json on a 1.0.3 manifest at harness 1.1.0 prints NOTEs (even in CI, a missing deno included) and exits 0; at harness 1.2.0 it prints RAMP EXPIRED naming 'the Edge Function surface' and exits 1; a 1.1.0 manifest is held at once. A last case runs a REAL deno over the shipped function when one is on PATH (skipping loudly otherwise): green, then red on an injected type error."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 38: a type error in the delete-account shell → edge-functions must FAIL (deno check, frozen lock)",
+        "note": "The same gate on a rendered scaffold with the deno the lane pins (denoland/setup-deno at the version quality-gate.yml's edge-functions job names; tests/gates/workflow-lanes.test.mjs holds the two equal). The control first: the untouched delete-account function typechecks against its deno.json and frozen deno.lock. Then `const canaryN: number = 'x'` appended to index.ts must red the gate with TS2322 in its output. bootstrap-linux additionally requires the gate to print OK, never SKIPPED, on its fresh scaffold."
       }
     ]
   },

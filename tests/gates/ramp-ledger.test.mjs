@@ -761,9 +761,14 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // 0.7.0 itself, so it counts as expired, not noting. The same release RE-OPENED docs-sync's
   // gate-list site at (1.1.0, 1.2.0), which stays noting here as it was at (1.0.0, 1.1.0), so
   // it moves no count.
+  // FORTY-FIVE since 1.1.0 added FOUR for the Edge Function surface (#78), all minVersion
+  // 1.1.0 due 1.2.0: diff-coverage's and mutation-ratchet's findings under supabase/functions/,
+  // the CI-only edge-functions typecheck, and mutation-scope's untested function files. All
+  // four WIDEN the set: diff-coverage's only other ramp (0.4.0's surface ramp) is inert at this
+  // vintage, and the other three gates carry no other ramp.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 41)
+  assert.equal(fresh.noting.length, 45)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -771,9 +776,13 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'boundaries',
       'data-flow',
       'db-limits',
+      'diff-coverage',
       'docs-sync',
+      'edge-functions',
       'i18n',
       'migrations',
+      'mutation-ratchet',
+      'mutation-scope',
       'observability',
       'query-shapes',
       'rate-limits',
@@ -789,7 +798,7 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open, all advisory for this vintage at harness 0.7.0 (1.1.0 adds workflow-hardening, i18n, route-manifest and web-compile)',
+    'what 0.7.0 opened plus what 0.8.0, 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open, all advisory for this vintage at harness 0.7.0 (1.1.0 adds workflow-hardening, i18n, route-manifest and web-compile, and diff-coverage, edge-functions, mutation-ratchet and mutation-scope for the Edge Function surface)',
   )
 
   // The why is a pointer a consumer follows, so its three load-bearing references are pinned
@@ -852,9 +861,13 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'boundaries',
       'data-flow',
       'db-limits',
+      'diff-coverage',
       'docs-sync',
+      'edge-functions',
       'i18n',
       'migrations',
+      'mutation-ratchet',
+      'mutation-scope',
       'observability',
       'query-shapes',
       'rate-limits',
@@ -870,7 +883,7 @@ test('the SHIPPED 0.8.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, and route-manifest and web-compile, #77)',
+    'what 0.8.0 opened (the 0.9.0 record owes those two) plus what 0.9.0, 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (the later records owe these; 1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, route-manifest and web-compile (#77), and the four Edge Function surface gates (#78))',
   )
 
   // The one deadline this release moves, recorded rather than quiet — the second entry of
@@ -950,9 +963,13 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'boundaries',
       'data-flow',
       'db-limits',
+      'diff-coverage',
       'docs-sync',
+      'edge-functions',
       'i18n',
       'migrations',
+      'mutation-ratchet',
+      'mutation-scope',
       'query-shapes',
       'rate-limits',
       'resilience',
@@ -967,7 +984,7 @@ test('the SHIPPED 0.9.0 rampExpiry record equals what the shipped call sites com
       'wiring',
       'workflow-hardening',
     ],
-    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, and route-manifest and web-compile, #77)',
+    'what 0.9.0 OPENS (the 0.10.0 record owes those two) plus what 0.9.5, 0.9.9, 0.10.0, 0.11.0, 1.0.0 and 1.1.0 open (1.1.0 adds reviewer-verdicts, the ledger v2, workflow-hardening, the five SQL gates of the history fold, i18n, the syntax-tree walk, route-manifest and web-compile (#77), and the four Edge Function surface gates (#78))',
   )
   // …and the 0.9.0-opened pair in isolation, which is the assertion that does NOT drift
   // as later releases open their own ramps: filter by the minVersion that names them.
@@ -1078,16 +1095,34 @@ const GATE_LIST = 'AGENTS.md gate-list lockstep after an injected chain step'
 const WEB_COMPILE = 'the web compile step (next build over apps/web)'
 const BROWSER_CLOSURE =
   'the per-route browser closure (a spec under apps/web/e2e naming a state test id of every registered web route)'
+// The Edge Function surface (1.1.0, #78): four sites, all opened at minVersion 1.1.0 and due
+// 1.2.0 — diff-coverage's and mutation-ratchet's findings under supabase/functions/ (template
+// literals, so the detail is the source text, backticks and count expression included), the
+// CI-only edge-functions typecheck, and mutation-scope's changed function files with no vitest
+// suite (the scoper sorts last: tools/mutation-scope.mjs follows every check-*.mjs). Each names
+// "the Edge Function surface", the substring the obligations row and
+// scripts/ci/stop-side-expiries.json key on.
+const EDGE_DIFF_COVERAGE =
+  '`${String(edgeFindings.length)} finding(s) on the Edge Function surface (supabase/functions/, measured since 1.1.0)`'
+const EDGE_TYPECHECK =
+  "'the Edge Function surface (deno check of supabase/functions/*/index.ts against its own deno.json and frozen deno.lock)'"
+const EDGE_MUTATION =
+  '`${String(edgeFresh.length)} new surviving mutant(s) on the Edge Function surface (supabase/functions/*/, on the mutated floor since 1.1.0)`'
+const EDGE_SCOPE =
+  '`${String(unsuited.length)} changed file(s) on the Edge Function surface with no vitest suite in their directory (supabase/functions/*/, on the mutated floor since 1.1.0)`'
 /** The 1.1.0-opened sites, in the order the scanner lists them. */
 const OPENED_110 = [
   `'${SQL_FOLD}'`, // check-data-flow.mjs
   `'${SQL_FOLD}'`, // check-db-limits.mjs
+  EDGE_DIFF_COVERAGE, // check-diff-coverage.mjs
   `'${GATE_LIST}'`, // check-docs-sync.mjs
   `'${SEVERITY_CONTRACT}'`,
   `'${VERDICT_DEMAND}'`,
+  EDGE_TYPECHECK, // check-edge-functions.mjs
   `'${I18N_SITE_ENTRIES}'`, // check-i18n.mjs
   `'${I18N_TREE_ONLY}'`, // check-i18n.mjs
   `'${ALTER_POLICY_ADR}'`, // check-migrations.mjs
+  EDGE_MUTATION, // check-mutation-ratchet.mjs
   `'${SQL_FOLD}'`, // check-query-shapes.mjs
   `'${MODEL_CHECK}'`,
   `'${ROUND_BUDGET}'`,
@@ -1099,6 +1134,7 @@ const OPENED_110 = [
   `'${WEB_COMPILE}'`, // check-web-build.mjs
   `'${BROWSER_CLOSURE}'`, // check-web-routes.mjs
   `'${WORKFLOW_HARDENING}'`,
+  EDGE_SCOPE, // mutation-scope.mjs
 ]
 
 test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
@@ -1189,9 +1225,13 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'boundaries',
         'data-flow',
         'db-limits',
+        'diff-coverage',
         'docs-sync',
+        'edge-functions',
         'i18n',
         'migrations',
+        'mutation-ratchet',
+        'mutation-scope',
         'query-shapes',
         'resilience',
         'reviewer-verdicts',
@@ -1203,7 +1243,7 @@ test('the SHIPPED 1.0.0 rampExpiry record equals what the shipped call sites com
         'web-compile',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps and #77's two`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps, #77's two and the Edge Function surface's four`,
     )
   }
   // v0.10.0 meets exactly ONE expiring gate — data-flow — the smallest non-zero wave and
@@ -1244,9 +1284,13 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'boundaries',
         'data-flow',
         'db-limits',
+        'diff-coverage',
         'docs-sync',
+        'edge-functions',
         'i18n',
         'migrations',
+        'mutation-ratchet',
+        'mutation-scope',
         'query-shapes',
         'resilience',
         'reviewer-verdicts',
@@ -1258,7 +1302,7 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
         'web-compile',
         'workflow-hardening',
       ],
-      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps and #77's two`,
+      `the six-gate 1.0.0 fleet at base ${base}, plus the 1.1.0 ledger v2, workflow-hardening, the SQL history fold, i18n's two ramps, #77's two and the Edge Function surface's four`,
     )
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
@@ -1270,13 +1314,13 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
   // deadline, and the severity contract's two sites (#71), docs-sync's verdict-demand
   // position (#72), workflow-hardening's rules (#73), the SQL history fold's six (#75),
-  // schema-rls' grant bound (#74), the i18n gate's two ramps (#76), and #77's re-opened
-  // gate-list escape, web-compile step and browser closure, below their 1.2.0 deadline;
-  // nothing else.
+  // schema-rls' grant bound (#74), the i18n gate's two ramps (#76), #77's re-opened
+  // gate-list escape, web-compile step and browser closure, and the Edge Function surface's
+  // four (#78), below their 1.2.0 deadline; nothing else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
     OPENED_110,
-    '1.0.0 meets only the nineteen 1.1.0-opened sites under the current fleet',
+    '1.0.0 meets only the twenty-three 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1347,17 +1391,19 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     // due, and the gate list's paste is the consumer's. So do the reviewer ledger v2, the
     // security-reviewer model check, the severity contract's two sites, docs-sync's
     // verdict-demand position, workflow-hardening's rules, the SQL history fold's six sites,
-    // schema-rls' grant bound, the i18n gate's two ramps and #77's two sites this release opens.
+    // schema-rls' grant bound, the i18n gate's two ramps, #77's two sites and the Edge Function
+    // surface's four (#78) this release opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the nineteen 1.1.0-opened NOTEs, the
+  // Every 1.0.x vintage meets NOTHING expired and exactly the twenty-three 1.1.0-opened NOTEs, the
   // two re-opened escapes, the reviewer ledger v2, the security-reviewer model check, the
   // severity contract's two sites, docs-sync's verdict-demand position,
   // workflow-hardening's rules (#73), the SQL history fold's six (#75), schema-rls' grant
-  // bound (#74), the i18n gate's two ramps (#76) and #77's two — the inverse proof
+  // bound (#74), the i18n gate's two ramps (#76), #77's two and the Edge Function surface's
+  // four (#78) — the inverse proof
   // that the wave is dated, not blanket. Filtered by the minVersion that names them first, so
   // a site opened at any other version fails here on its own line, and each later 1.1.0 ramp
   // joins OPENED_110 in the diff that opens it.
@@ -1371,7 +1417,7 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.deepEqual(
       at.noting.map((s) => s.detail),
       OPENED_110,
-      `${base} meets only the nineteen 1.1.0-opened sites`,
+      `${base} meets only the twenty-three 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)

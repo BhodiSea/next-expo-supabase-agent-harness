@@ -710,6 +710,7 @@ jobs:
       mobile: ${{ steps.filter.outputs.mobile }}
       web: ${{ steps.filter.outputs.web }}
       db: ${{ steps.filter.outputs.db }}
+      edge-functions: ${{ steps.filter.outputs.edge-functions }}
       # 1.1.0: a live row in tools/surfaces.json (the mobile surface is not built yet).
       # Read ONLY by the pull_request arm of mobile-e2e and perf-lane, and shown by
       # gate-summary; `mobile-deferral` is `<until>: <reason>` and is never interpolated
@@ -829,6 +830,15 @@ jobs:
               - 'tools/lib/sql-parse.mjs'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+            # The Edge Function typecheck (edge-functions, 1.1.0): the functions themselves
+            # (each index.ts shell, its handler, deno.json and deno.lock), the gate and its
+            # helpers, the manifest its ramp reads, and this workflow, which pins deno.
+            edge-functions:
+              - 'supabase/functions/**'
+              - 'tools/check-edge-functions.mjs'
+              - 'tools/lib/gate.mjs'
+              - '.harness/manifest.json'
+              - '.github/workflows/quality-gate.yml'
 
       # THE SURFACE DEFERRAL (1.1.0). A project building its web surface first records the
       # mobile surface as not built yet in tools/surfaces.json, a dated, reviewed row, and
@@ -955,6 +965,61 @@ jobs:
           export SUPABASE_DB_URL="$DB_URL"
           time psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seeds/scale.sql
           node tools/check-db-perf.mjs
+
+  # ---------------------------------------------------------------------------
+  # edge-functions (1.1.0) — every Supabase Edge Function TYPECHECKS against the exact
+  # dependency versions it deploys with: `deno check --frozen` of each
+  # supabase/functions/<fn>/index.ts against that function's own deno.json and deno.lock
+  # (tools/check-edge-functions.mjs). Nothing Node-side can load a Deno.serve shell (`tsc -b`
+  # never reaches supabase/), so without this lane a type error in service-role code passes
+  # every other one. The code a function DECIDES with lives in its handler, which the `unit`
+  # and `mutation` lanes reach; this lane is the type half over the shell.
+  #
+  # A JOB, NOT A 37TH CHAIN STEP: deno is not a workspace dependency, and the chain is held to
+  # a wall-clock budget (scripts/chain-budget.json). Path-filtered on the functions and the
+  # gate, plus the nightly schedule and manual dispatch as the unconditional net. A tree with
+  # no functions reports OK with the count, so the lane stays green when there are none.
+  #
+  # deno comes from denoland/setup-deno at an EXACT version. Renovate's github-actions manager
+  # reads `deno-version` as the npm `deno` package and proposes each bump in its own PR, under
+  # the same five-day age rule as every npm update; its deno manager bumps each function's
+  # deno.json and deno.lock together. The module cache is keyed on the deno.lock files, so the
+  # network only fills a cache the lockfiles pin. Measured (2026-09-30, deno 2.9.6, the seeded
+  # function): a cold check downloads 13 MB (supabase-js and its five npm packages) in about
+  # 2.5 s; a warm one takes under 0.2 s. The binary itself is one download per run.
+  # ---------------------------------------------------------------------------
+  edge-functions:
+    name: edge functions (deno check against deno.json + frozen deno.lock)
+    needs: [changes]
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.changes.outputs.edge-functions == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.6
+          cache: true
+
+      # No install: the gate is node built-ins plus the deno above. CI=true, so a missing
+      # deno fails closed here rather than skipping.
+      - name: Typecheck every Edge Function (deno check --frozen)
+        run: node tools/check-edge-functions.mjs
 
   native:
     name: native (prebuild determinism + expo-doctor + gradle assembleDebug)
@@ -1571,7 +1636,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # THE ONE CHECK AN ENTERPRISE CAN MARK REQUIRED.
   #
-  # This workflow runs thirteen jobs and several are path-filtered, so a branch
+  # This workflow runs fourteen jobs and several are path-filtered, so a branch
   # protection rule had to either enumerate every job by name — a list that goes
   # stale the day a job is added or renamed, silently, with the branch still
   # "protected" — or mark none of them. Neither is a control.
@@ -1609,6 +1674,8 @@ jobs:
       # not wait for — it can fail after gate-summary has already reported green, which is
       # the failure mode this fan-in exists to make impossible.
       - web-build
+      # 1.1.0: the Edge Function typecheck.
+      - edge-functions
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -457,6 +457,44 @@
       ],
       "reason": "RE-OPENED AT 1.1.0 (#77), the fourth move of this escape (0.6.0, 0.8.0 and 1.0.0 before it). The 1.1.0 record's configSteps injects web-compile, so every existing chain grows to 37 steps while the seeded AGENTS.md documents 36 (or fewer); the 1.0.0-opened escape reached its until at 1.1.0, inert for every 1.0.x install and expired for every older one. It re-opens at minVersion 1.1.0 with the byte-matched rampExtensions entry in the \"1.1.0\" record, and only ADDITIVE drift rides it. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the other 1.1.0 ramps that target the same release. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose AGENTS.md still documents fewer steps than its chain), with its sweep in that release's runbook section (paste the chain's names into the \"The N gates, in order:\" sentence and the N-step chain line; upgrade-lane leg E's §3 rewrite performs exactly that), and this row is deleted in the same diff; OR the ramp is extended again by a reviewed rampExtensions entry and this row re-targeted.",
       "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "edge-functions-surface-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-diff-coverage.mjs",
+          "mustContain": "the Edge Function surface"
+        },
+        {
+          "file": "template/base/tools/check-edge-functions.mjs",
+          "mustContain": "the Edge Function surface"
+        },
+        {
+          "file": "template/base/tools/check-mutation-ratchet.mjs",
+          "mustContain": "the Edge Function surface"
+        },
+        {
+          "file": "template/base/tools/mutation-scope.mjs",
+          "mustContain": "the Edge Function surface"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#78). 1.1.0 brings supabase/functions under the checks that never reached it: diff-coverage's SRC_RE gains supabase/functions/ (vitest.config.ts measures a directory there once it holds a vitest suite, and each function's Deno.serve shell, index.ts, is in COVERAGE_EXCLUDE), the mutation floor gains the starred root supabase/functions/*/ with index.ts carved out (and tools/mutation-scope.mjs judges a changed function file whose directory holds no vitest suite, which Stryker's vitest runner cannot mutate), and the new CI-only gate tools/check-edge-functions.mjs (quality-gate.yml's edge-functions job) runs `deno check --frozen` of each function's index.ts against its own deno.json (exact jsr:/npm: versions) and deno.lock. An install whose baseVersion predates 1.1.0 has function code none of the three was ever asked to hold, and `update` delivers the owned gates, config and workflow but not the seeded handler split, deno.json and deno.lock, so each of the four passes its findings under supabase/functions (check-edge-functions also a missing deno, deno.json or deno.lock; mutation-scope withholds the untested file from the run) through one rampNote(GATE, '1.1.0', '<n> …the Edge Function surface…', { until: '1.2.0' }): NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. The deadline is the one issue #78 fixes. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes these four expiries beside the other 1.1.0 ramps that target the same release. None of the four runs in an upgrade-lane leg (diff-coverage is a Stop step, the scoper, the ratchet and the typecheck are CI-only), so scripts/ci/stop-side-expiries.json names the unit proof that executes each RAMP EXPIRED branch. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this row's population (every vintage below 1.1.0 with function code), with its sweep in that release's runbook section (pull the split with `update --refresh-seeded supabase/functions/delete-account/`, give each own function a deno.json with exact versions, its deno.lock and a vitest suite in its directory, then run the edge-functions gate by hand before graduating), and this row is deleted in the same diff; OR the ramps are extended by reviewed rampExtensions entries and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "edge-functions-complexity-seeded-exemption",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/eslint.config.mjs",
+          "mustContain": "supabase/functions/delete-account/index.ts"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#78). eslint.config.mjs now lints supabase/functions (the TypeScript parser, no project service) with sonarjs/cognitive-complexity at 15 and local/no-suppressed-complexity. The config is harness-OWNED, so `update` arms the rules on every install at once, while the delete-account index.ts every 1.0.x install carries is SEEDED and measures 16 (its readKey): an upgrading consumer would meet a hard-red lint step on a file `update` cannot rewrite and they never touched. A lint rule cannot carry a rampNote, so that one path sits in the complexity block's `ignores` as its ramp, paired with the 1.1.0 seededSourceFixes instruction (gate lint) that `doctor` surfaces: pull the split with `update --refresh-seeded supabase/functions/delete-account/`, which replaces the 1.0.x file with a one-call shell and moves readKey into handler.ts, where it measures under 15. The security rules (no-unverified-session, crypto-primitives-one-door) are NOT exempted: the seeded file passes both. This is the pairing env-through-register-seeded-exemption set at 0.9.5 and 0.10.0 discharged. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, so the 2.0.0 cut owes the removal of the ignore line, once the source fix has had a release to land. Discharge = the exemption line is removed from eslint.config.mjs and this row is deleted in the same diff; OR the row is re-targeted in a reviewed diff that says why the fix has not landed.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }
