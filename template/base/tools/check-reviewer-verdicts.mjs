@@ -62,8 +62,9 @@
 // already forces a model off the list would otherwise red on the first Stop after `update`,
 // with a re-run that lands on the same model. And the list is how a reviewer whose pin
 // cannot run still runs: that run never reaches SubagentStop (Fact 16, observed), so it
-// writes no entry, and the "did not run" finding of both judgements ends with
-// fallbackHint(): dispatch the reviewer with the Agent tool's `model` set to a listed model.
+// writes no entry, and every "did not run" finding of both judgements, the one for a ledger
+// that does not exist yet included, ends with fallbackHint(): dispatch the reviewer with the
+// Agent tool's `model` set to a listed model.
 // Nothing ramps that sentence; it changes no verdict.
 //
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
@@ -283,7 +284,7 @@ function judgeV1(owed, files) {
   if (turnRead === null) {
     return {
       errs: [
-        `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.`,
+        `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.${owed.map((o) => hintFor(o.agent)).join('')}`,
       ],
       stale: [],
       model,
