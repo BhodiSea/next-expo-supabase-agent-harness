@@ -103,7 +103,7 @@ does, its section says so.
   `day0-empty-states` factory lane runs the Stop chain on both escapes and
   proves each red. It keeps the example: the event-catalog leg, a generator
   that discovers each vertical's catalog, changes the `contracts` verdict for
-  an existing install, so it moves to 1.1.0 (issue #39).
+  an existing install, so it moves to 1.1.0 (issue #82).
   ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
   issue #46)
 - **A project-side citation corpus.** The citation corpus splits into an owned
@@ -148,6 +148,15 @@ None of these tightens a gate for an existing install. Where one changes what
   `pull-requests: read`, and `update` parks the new workflow beside a fork.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree),
   issue #57)
+- **Event catalogs found in each vertical.** A vertical opts in by exporting
+  its catalog from `./client` as `EVENT_CATALOG`, so the generator no longer
+  imports the example by name and a new vertical needs no edit to an owned,
+  hash-pinned file. Until 2.0.0 the generator still reads the example's old
+  export while an install's root `package.json` lists it, so existing installs
+  regenerate the same catalog. Nothing checks that a vertical opts in: that
+  needs a `gate-proposal` of its own.
+  ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
+  issue #82)
 - **Database proofs on a fixture table.** The isolation, MFA and audit pgTAP
   suites build `public.pgtap_fixture` inside their transaction from the
   vertical-slice skill's RLS skeleton, so deleting the example does not delete
