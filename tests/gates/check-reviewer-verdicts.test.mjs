@@ -1613,6 +1613,12 @@ test('CANARY (#62) — a reviewer that never ran is told it may run on a listed 
   assert.equal(v2.code, 1, v2.out)
   assert.match(v2.out, /security-reviewer has not returned a verdict in this session/)
   assert.match(v2.out, RUN_ON_LIST)
+  // The likeliest shape of all: the first review on a fresh install, whose pin failed, so no
+  // SubagentStop ever wrote the ledger file.
+  const none = runStep(fixture())
+  assert.equal(none.code, 1, none.out)
+  assert.match(none.out, /does not exist — no reviewer ran at all this turn/)
+  assert.match(none.out, RUN_ON_LIST)
 })
 
 // ── the pure helpers, in-process (the lib coverage floor reads tests/gates only) ──
