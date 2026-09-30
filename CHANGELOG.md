@@ -696,7 +696,8 @@ this heading if none does. -->
   four owned files naming `docs/reviews/` and `AGENTS.md` untouched; `prompts`, `docs-sync`,
   `gate-integrity` and `provenance` were green on both. A v1.0.3 install holding its own
   `docs/reviews/README.md` kept it byte-identical through `update`, which exited 0 and parked
-  nothing (#64).
+  nothing. In a zero-edit core scaffold, which carries the README, `validate --report-all`
+  exited 0 with no step left unrun, `secrets` and `provenance` among its green steps (#64).
 
 ## [1.0.4] — 2026-09-29
 
