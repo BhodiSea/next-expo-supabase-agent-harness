@@ -169,10 +169,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   reaches data through the tRPC client (`src/lib/trpc/**`) or a vertical's `./client`,
   and holds its Supabase session only in `LargeSecureStore` (`src/lib/supabase/**`) —
   never JS-visible storage, never a log line.
-- **No `EXPO_PUBLIC_`- or `NEXT_PUBLIC_`-prefixed secret-shaped names** (`*KEY|SECRET|
-  TOKEN|PASSWORD|PRIVATE`) — both prefixes are inlined into their shipped bundle. The
-  public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
-  `EXPO_PUBLIC_*` transport only; the service-role key and any provider secret stay
+- **The public config is `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE` /
+  `EXPO_PUBLIC_*` transport only**; the service-role key and any provider secret stay
   server-env.
 - **Store identity is locked** in `tools/identity.lock.json` (bundle id /
   package) — it is upgrade identity and never changes. `version`,
@@ -187,17 +185,13 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   Every iOS usage string is reviewed in `tools/expo-permissions.json` `ios[]`,
   and an auth surface requires the account-deletion surface (a
   `session.deleteAccount` procedure — Apple 5.1.1(v)).
-- **`WITH RECURSIVE` requires a `CYCLE` clause or visited guard** — graph data
-  loops forever otherwise.
 - **Prompt lock discipline:** every LLM prompt file is versioned in its name
   (`extract.v1.md`) and hash-locked in `tools/prompts.lock.json`. Changing a
   prompt = new `.vN` file + re-run the eval + deliberate lock update (the lock
   is write-guard-protected).
-- **Shell hygiene** (bash-guard enforced): no `rm -rf`, no force-push, no
-  `git reset --hard`, no `git commit --no-verify`, no reading `.env*` /
-  `.dev-auth/`, no `pnpm update` (Renovate owns bumps), no `knip --fix`, no
-  destructive raw SQL outside migrations, and store/signing credentials
-  (`EXPO_TOKEN`, Android keystores, Apple API keys) never touch shell or repo.
+- **Shell hygiene** (bash-guard enforced): no destructive raw SQL outside migrations,
+  and store/signing credentials (`EXPO_TOKEN`, Android keystores, Apple API keys)
+  never touch shell or repo.
 
 ## Quality bar
 
