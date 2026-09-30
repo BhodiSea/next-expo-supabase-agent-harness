@@ -1695,8 +1695,8 @@ run; the suites themselves are seeded and stay as they are (their subsection bel
 The reviewer ledger v2 re-plants `tools/check-reviewer-verdicts.mjs`,
 `tools/lib/git-diff.mjs`, `tools/lib/reviewer-verdicts.mjs`,
 `.claude/hooks/subagent-verdict.mjs`, `.claude/settings.json`,
-`docs/harness/gates-catalog.md` and `docs/harness/README.md`; its two seeded texts are yours
-to copy (the last subsection before RECOVERY). What you may notice afterwards:
+`docs/harness/gates-catalog.md` and `docs/harness/README.md`; its three seeded texts are
+yours to copy (the last subsection before RECOVERY). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1938,7 +1938,16 @@ expires. A fresh 1.1.0 scaffold is judged by v2 from the start.
    same reviewer passes). Triggers are reviewed data in
    ```
 
-5. **Before you graduate, run the owed reviewers once more.** Entries a 1.0.x hook wrote
+5. **Ignore the local stack's branch marker.** `.gitignore` is seeded too. `supabase start`
+   writes `supabase/.branches/_current_branch` beside `supabase/.temp/`, and an untracked
+   file is part of the owed set, so without this line a clean tree with the stack up owes
+   both whole-turn reviewers. Add it under your `supabase/.temp/` line:
+
+   ```
+   supabase/.branches/
+   ```
+
+6. **Before you graduate, run the owed reviewers once more.** Entries a 1.0.x hook wrote
    carry no v2 digests, so v2 counts none of them. Read what v2 would say off the NOTEs,
    with an upstream set, and graduate when they are gone.
 

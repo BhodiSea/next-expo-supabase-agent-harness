@@ -198,8 +198,11 @@ this heading if none does. -->
   one. With no merge base (no upstream, and not a CI pull-request run) v2 does not judge
   and the step says so; every clean-scaffold run in this repository's CI takes that path.
   `tools/reviewer-triggers.json` and `AGENTS.md` are seeded, so the runbook's 1.1.0 section
-  gives their new text, and the `SubagentStart` block for a forked `.claude/settings.json`
-  (#70).
+  gives their new text, and the `SubagentStart` block for a forked `.claude/settings.json`.
+  The seeded `.gitignore` now also ignores `supabase/.branches/`, which `supabase start`
+  writes beside `supabase/.temp/`: an untracked file is part of the owed set, so without the
+  line a clean tree with the stack up owed both whole-turn reviewers. That line reaches fresh
+  scaffolds only, and the runbook gives it too (#70).
 
 ### What stays open, honestly
 
@@ -322,7 +325,14 @@ this heading if none does. -->
   and `tests/hooks/subagent-verdict-pathstate.test.mjs` on six cases. After the change each
   v2 red runs as a NOTE on a 1.0.3 manifest, a plain red on a 1.1.0 one and `RAMP EXPIRED`
   at harness 2.1.0, the two relaxations are green on 1.1.0 and red on 1.0.3, and the six
-  `ramp-ledger` pins that read the current fleet at older versions name the new site (#70).
+  `ramp-ledger` pins that read the current fleet at older versions name the new site. A
+  zero-edit core scaffold took the no-upstream path in the canary baseline, the real Stop
+  hook with the stack up and the stamped Stop-chain run, each green. The stamped run counted
+  `supabase/.branches/_current_branch`, untracked after `supabase start`, as a changed file;
+  the case that pins the new `.gitignore` line was red on exactly that path before it. A
+  core scaffold rendered after the line, given an upstream and a migration committed before
+  Stop, left a clean tree, redded naming `security-reviewer` and both whole-turn reviewers,
+  and at `baseVersion` 1.0.4 printed the same three as NOTEs and passed (#70).
 
 ## [1.0.4] — 2026-09-29
 

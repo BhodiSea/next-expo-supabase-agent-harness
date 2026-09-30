@@ -2153,7 +2153,8 @@ moving tree, the missing start record, the stale PASS, the unjudged
 `torvalds-reviewer` and the other session's PASS. Each red runs as a NOTE on a
 1.0.3 manifest, a plain red on 1.1.0 and `RAMP EXPIRED` at harness 2.1.0; the
 settled PASS and the same-prompt clear are green on 1.1.0 and red on 1.0.3; the
-no-upstream path and `reviewChanges()` are pinned too. The dispatch record and
+no-upstream path and `reviewChanges()` are pinned too, with the seeded
+`.gitignore` keeping what `supabase start` writes out of the owed set. The dispatch record and
 `path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
 and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
 exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
