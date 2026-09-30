@@ -1,0 +1,30 @@
+{
+  "reviewer": "security-reviewer",
+  "kind": "table",
+  "expect": "PASS",
+  "mustName": [],
+  "twin": "table-revoke-absent",
+  "why": "The control twin: the same table with all three revokes before the grant, the -- adr: marker and the ADR it names.",
+  "edits": [
+    {
+      "path": "tests/rls/db-context.ts",
+      "after": "export const ISOLATION_TARGETS: IsolationTarget[] = [",
+      "lines": [
+        "  {",
+        "    table: 'bookmarks',",
+        "    ownerColumn: 'org_id',",
+        "    provision: 'direct',",
+        "    scopeValue: (ctx) => ctx.teamOrgId,",
+        "    row: (ctx) => ({ org_id: ctx.teamOrgId, url: 'https://example.test/rls-probe', label: 'rls probe' }),",
+        "  },"
+      ]
+    },
+    {
+      "path": "supabase/tests/rls_structure.test.sql",
+      "after": "INSERT INTO rls_targets (table_name, owner_column) VALUES",
+      "lines": [
+        "  ('bookmarks', 'org_id'),"
+      ]
+    }
+  ]
+}

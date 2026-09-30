@@ -23,7 +23,7 @@
 //   - no test runs `--live`, which spends model calls and stays on a maintainer's machine.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { after, test } from 'node:test'
@@ -45,6 +45,14 @@ const scratch = (prefix) => {
   const d = mkdtempSync(join(tmpdir(), prefix))
   made.push(d)
   return d
+}
+/** A file's text, or null when it cannot be read: one read, no check-then-use. */
+const readOrNull = (p) => {
+  try {
+    return readFileSync(p, 'utf8')
+  } catch {
+    return null
+  }
 }
 const run = (...args) => spawnSync(process.execPath, [SCRIPT, ...args], { cwd: ROOT, encoding: 'utf8' })
 
@@ -97,10 +105,10 @@ test('every overlay applies to a fresh core-tier install, and each case owes its
     const { changed, problems } = evalLib.applyCase(c, dir)
     assert.deepEqual(problems, [], `${c.name}: the overlay does not apply`)
     assert.deepEqual(changed, evalLib.caseChanges(c), `${c.name}: the overlay touched other paths than it declares`)
-    for (const p of changed) assert.ok(existsSync(join(dir, p)), `${c.name}: ${p} was not written`)
+    for (const p of changed) assert.notEqual(readOrNull(join(dir, p)), null, `${c.name}: ${p} was not written`)
     for (const o of c.overlay) {
-      assert.ok(!existsSync(join(pristine, o.path)), `${c.name}: ${o.path} must be a NEW file`)
-      assert.equal(readFileSync(join(dir, o.path), 'utf8'), readFileSync(o.source, 'utf8'))
+      assert.equal(readOrNull(join(pristine, o.path)), null, `${c.name}: ${o.path} must be a NEW file`)
+      assert.equal(readOrNull(join(dir, o.path)), readFileSync(o.source, 'utf8'))
     }
     const owed = owedByTurn(changed, TRIGGERS).map((o) => o.agent)
     assert.ok(owed.includes(c.reviewer), `${c.name}: its files do not make ${c.reviewer} owed (owed: ${owed.join(', ')})`)
@@ -211,8 +219,16 @@ test('bad usage exits 1: no mode, an unknown flag, --score without a readable di
 })
 
 test('no test runs --live', () => {
-  // The flag is spelled in two halves here so this file does not match its own scan.
+  // An invocation passes the flag as a string literal, so that is what is scanned for, with
+  // comments stripped. The flag is assembled here so this file does not match itself.
   const flag = `--${'live'}`
+  const literal = new RegExp(`(['"\`])${flag}\\1`)
+  const code = (text) =>
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//'))
+      .join('\n')
   const tests = []
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
@@ -222,6 +238,9 @@ test('no test runs --live', () => {
     }
   }
   walk(join(ROOT, 'tests'))
-  const offenders = tests.filter((p) => readFileSync(p, 'utf8').includes(flag)).map((p) => relative(ROOT, p))
+  assert.ok(tests.length > 50, `the scan found only ${tests.length} test files`)
+  const offenders = tests.filter((p) => literal.test(code(readFileSync(p, 'utf8')))).map((p) => relative(ROOT, p))
   assert.deepEqual(offenders, [])
+  // The scan can fail: an invocation written the way a test would write one is caught.
+  assert.ok(literal.test(code(`run(${JSON.stringify(flag)}, dir)`)))
 })

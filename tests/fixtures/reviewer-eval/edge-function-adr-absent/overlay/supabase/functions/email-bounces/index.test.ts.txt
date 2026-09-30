@@ -1,0 +1,50 @@
+// supabase/functions/email-bounces/index.test.ts — the signature check, the one thing
+// standing between the public internet and the service role. Run with `deno test`.
+import { assertEquals } from 'jsr:@std/assert@1'
+
+const SECRET = 'test-secret'
+const encoder = new TextEncoder()
+
+async function sign(timestamp: string, body: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`)))
+  return Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:54321')
+Deno.env.set('SUPABASE_SECRET_KEY', 'sb_secret_test')
+Deno.env.set('EMAIL_BOUNCE_WEBHOOK_SECRET', SECRET)
+
+let handler: (req: Request) => Promise<Response> = () => Promise.reject(new Error('not served'))
+Deno.serve = ((h: (req: Request) => Promise<Response>) => {
+  handler = h
+}) as unknown as typeof Deno.serve
+await import('./index.ts')
+
+const post = (headers: Record<string, string>, body: string) =>
+  handler(new Request('http://localhost/email-bounces', { method: 'POST', headers, body }))
+
+Deno.test('a tampered body is refused', async () => {
+  const ts = String(Date.now())
+  const signature = await sign(ts, '{"email":"a@example.test"}')
+  const res = await post({ 'x-bounce-timestamp': ts, 'x-bounce-signature': signature }, '{"email":"b@example.test"}')
+  assertEquals(res.status, 401)
+})
+
+Deno.test('a stale timestamp is refused', async () => {
+  const ts = String(Date.now() - 10 * 60 * 1000)
+  const body = '{"email":"a@example.test"}'
+  const res = await post({ 'x-bounce-timestamp': ts, 'x-bounce-signature': await sign(ts, body) }, body)
+  assertEquals(res.status, 401)
+})
+
+Deno.test('a request with no signature is refused', async () => {
+  const res = await post({ 'x-bounce-timestamp': String(Date.now()) }, '{"email":"a@example.test"}')
+  assertEquals(res.status, 401)
+})

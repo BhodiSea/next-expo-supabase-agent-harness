@@ -1,0 +1,29 @@
+{
+  "reviewer": "accessibility-reviewer",
+  "kind": "screen",
+  "expect": "BLOCK",
+  "mustName": [
+    "screen-route-states"
+  ],
+  "twin": "screen-complete",
+  "why": "A new screen that renders its three data states with test ids and a retry in its error card, but has no src/routes.ts entry: nothing declares the states, so the sweep that proves them perceivable never reaches this screen.",
+  "edits": [
+    {
+      "path": "apps/mobile/src/i18n/catalog.ts",
+      "after": "  'route.security': 'Security',",
+      "lines": [
+        "  'route.identities': 'Sign-in methods',"
+      ]
+    },
+    {
+      "path": "apps/mobile/src/i18n/catalog.ts",
+      "after": "  'security.unenroll.failed': 'The authenticator was not removed.',",
+      "lines": [
+        "  'identities.body': 'The ways you can sign in to this account.',",
+        "  'identities.empty.title': 'No sign-in methods found',",
+        "  'identities.empty.description': 'This account has no linked sign-in method yet. Try again after signing in once more.',",
+        "  'identities.error.title': 'Could not load your sign-in methods.',"
+      ]
+    }
+  ]
+}

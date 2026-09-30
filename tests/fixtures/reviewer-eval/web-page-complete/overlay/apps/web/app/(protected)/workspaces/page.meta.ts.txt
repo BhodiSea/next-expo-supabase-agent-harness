@@ -1,0 +1,17 @@
+import type { WebRouteMeta } from '../../../lib/routes'
+
+// The workspaces page's registry entry. `path` and `file` are absent on purpose: the App Router
+// decides both from where this file sits, and tools/gen-web-routes.mjs writes them into
+// apps/web/lib/routes.generated.ts.
+export const meta = {
+  id: 'workspaces',
+  titleKey: 'route.workspaces',
+  states: {
+    loading: 'workspaces-loading',
+    empty: 'workspaces-empty',
+    // NULL, with a reviewed reason in tools/web-route-allowlist.json: resolveOrgs() returns an
+    // EMPTY list on a failed seat lookup rather than throwing, so this page renders its empty
+    // surface where another would render an error one.
+    error: null,
+  },
+} as const satisfies WebRouteMeta

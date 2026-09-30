@@ -1,0 +1,51 @@
+{
+  "reviewer": "accessibility-reviewer",
+  "kind": "screen",
+  "expect": "PASS",
+  "mustName": [],
+  "twin": "screen-route-absent",
+  "why": "The control twin: the same screen with its src/routes.ts entry declaring the three state ids it renders, its Maestro flow and its startup-budget row.",
+  "edits": [
+    {
+      "path": "apps/mobile/src/i18n/catalog.ts",
+      "after": "  'route.security': 'Security',",
+      "lines": [
+        "  'route.identities': 'Sign-in methods',"
+      ]
+    },
+    {
+      "path": "apps/mobile/src/i18n/catalog.ts",
+      "after": "  'security.unenroll.failed': 'The authenticator was not removed.',",
+      "lines": [
+        "  'identities.body': 'The ways you can sign in to this account.',",
+        "  'identities.empty.title': 'No sign-in methods found',",
+        "  'identities.empty.description': 'This account has no linked sign-in method yet. Try again after signing in once more.',",
+        "  'identities.error.title': 'Could not load your sign-in methods.',"
+      ]
+    },
+    {
+      "path": "apps/mobile/src/routes.ts",
+      "before": "] as const satisfies readonly RouteEntry[]",
+      "lines": [
+        "  {",
+        "    id: 'identities',",
+        "    titleKey: 'route.identities',",
+        "    path: '/identities',",
+        "    file: 'identities',",
+        "    states: {",
+        "      loading: 'identities-loading',",
+        "      empty: 'identities-empty',",
+        "      error: 'identities-error',",
+        "    },",
+        "  },"
+      ]
+    },
+    {
+      "path": "tools/startup-budget.json",
+      "before": "    \"security\": { \"maxTotalTimeMs\": 15000 }",
+      "lines": [
+        "    \"identities\": { \"maxTotalTimeMs\": 15000 },"
+      ]
+    }
+  ]
+}

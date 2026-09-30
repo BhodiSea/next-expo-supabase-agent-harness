@@ -1,0 +1,83 @@
+-- 20261001000000_bookmarks — create public.bookmarks, an org's shared links.
+--
+-- APPLIED HISTORY, NOT DESIRED STATE. The declarative source is
+-- supabase/schemas/50_bookmarks.sql; this file is the `supabase db diff -f bookmarks`
+-- draft, read and re-cased. Append-only: it is never edited once committed.
+CREATE TABLE public.bookmarks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- The TENANT KEY. Every policy filters by it, and the freeze trigger keeps a row in
+  -- the org that wrote it.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  url text NOT NULL,
+  label text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  -- Bounds, not validation: the zod DTO is the input contract. These hold for callers
+  -- that reach the table by another path.
+  CONSTRAINT bookmarks_url_length CHECK (char_length(url) BETWEEN 1 AND 2048),
+  CONSTRAINT bookmarks_label_length CHECK (char_length(label) BETWEEN 1 AND 200),
+  -- The tenant column leads the primary key, as on every tenant table.
+  PRIMARY KEY (org_id, id)
+);
+
+CREATE TRIGGER bookmarks_set_updated_at
+  BEFORE UPDATE ON public.bookmarks
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- The tenant column LEADS, so every policy's qual is an Index Cond, and the trailing
+-- (created_at DESC, id DESC) is the list's keyset order.
+-- SOURCE: https://www.postgresql.org/docs/17/indexes-multicolumn.html
+CREATE INDEX bookmarks_org_id_created_at_id_idx
+  ON public.bookmarks (org_id, created_at DESC, id DESC);
+
+-- org_id is immutable: without this an UPDATE that passes its own policy could hand
+-- the row to another tenant. No WHEN clause.
+CREATE TRIGGER bookmarks_freeze_org
+  BEFORE UPDATE ON public.bookmarks
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
+
+-- Every org-scoped table is audited, with no WHEN clause (docs/adr/20260202-audit-trail.md).
+CREATE TRIGGER bookmarks_audit
+  AFTER INSERT OR UPDATE OR DELETE ON public.bookmarks
+  FOR EACH ROW EXECUTE FUNCTION audit.write_row('org_id', 'id');
+
+-- FORCE subjects the table owner to these policies as well.
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as
+-- well [corpus: postgres/rls-force]
+ALTER TABLE public.bookmarks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookmarks FORCE ROW LEVEL SECURITY;
+
+-- A GRANT adds a privilege and removes none. The platform default grants ALL on a new
+-- public table to anon, authenticated and service_role, so each loses it first, and
+-- authenticated then gets exactly the four verbs the policies below admit.
+-- adr: docs/adr/20261001-bookmarks.md
+-- SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+REVOKE ALL ON TABLE public.bookmarks FROM anon;
+REVOKE ALL ON TABLE public.bookmarks FROM service_role;
+REVOKE ALL ON TABLE public.bookmarks FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.bookmarks TO authenticated;
+
+-- Four per-operation policies, TO authenticated, each drawn from the predicate forms in
+-- tools/tenancy.json. Reading is membership; writing is rank.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an
+-- initPlan [corpus: postgres/rls-initplan]
+CREATE POLICY bookmarks_select_org ON public.bookmarks
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row [corpus: postgres/rls-force]
+CREATE POLICY bookmarks_insert_org ON public.bookmarks
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY bookmarks_update_org ON public.bookmarks
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may
+-- remove [corpus: postgres/rls-force]
+CREATE POLICY bookmarks_delete_org ON public.bookmarks
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);

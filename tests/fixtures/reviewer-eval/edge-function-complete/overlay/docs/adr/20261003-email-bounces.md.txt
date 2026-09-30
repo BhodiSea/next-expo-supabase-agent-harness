@@ -1,0 +1,58 @@
+# 20261003 — Retire invitations to addresses that hard-bounce
+
+- **Status:** Accepted
+- **Date:** 2026-10-03
+- **Slice:** email-bounces
+
+## Context
+
+An invitation to an address that hard-bounces stays pending for seven days, the admin who
+sent it cannot tell why nobody joined, and the provider keeps retrying a dead address. The
+provider reports each hard bounce to a webhook, signed, with no user session behind it.
+
+## Decision
+
+A new Edge Function, `supabase/functions/email-bounces/index.ts`, answers the five
+questions `supabase/functions/README.md` asks:
+
+1. **What does it do that RLS cannot?** It acts with no user present: the bounce names an
+   address, not a caller, and the invitations it retires belong to orgs the provider knows
+   nothing about. No policy a signed-in user runs under, and no tRPC procedure running as
+   one, can be invoked by the provider.
+2. **Which tables, which operations?** `public.invitations`, SELECT and DELETE, granted to
+   `service_role` in `supabase/migrations/20261003000000_email_bounces_grant.sql` and
+   listed in `supabase/tests/rls_structure.test.sql`'s `service_role_grant_allow`.
+3. **What authenticates the caller?** Not a JWT: `verify_jwt = false` in
+   `supabase/config.toml`, because the provider cannot mint one. The function checks an
+   HMAC-SHA256 over the timestamp and the raw body, keyed with
+   `EMAIL_BOUNCE_WEBHOOK_SECRET` (set with `supabase secrets set`, never committed),
+   compares it in constant time, and refuses a request more than five minutes old.
+4. **What is the blast radius if the key leaks?** SELECT and DELETE on pending
+   invitations: someone holding the service key could read and cancel invitations,
+   nothing else.
+5. **How is it tested?** A Deno test of the signature check (a valid signature, a
+   tampered body, a stale timestamp) runs beside the function; the grant is asserted by
+   the pgTAP allowlist.
+
+## Alternatives Considered
+
+- **Let invitations expire** — rejected: the admin learns nothing for a week.
+- **A tRPC procedure** — rejected: the provider has no session to call it with.
+
+## Consequences
+
+The provider's webhook secret is one more secret to rotate. A spoofed bounce needs the
+secret; a replayed one is refused after five minutes.
+
+## Sources
+
+- `supabase/functions/README.md` — the rule every function must clear.
+- <https://www.postgresql.org/docs/17/sql-delete.html> — DELETE ... WHERE needs SELECT
+  on the columns it reads.
+
+## Traceability
+
+| Requirement | Migration / DAL / route / UI files | Test ids |
+| ----------- | ---------------------------------- | -------- |
+| R1: a signed bounce retires the address's pending invitations | `supabase/functions/email-bounces/index.ts` | `email-bounces > retires on a valid signature` |
+| R2: service_role reaches invitations only | `supabase/migrations/20261003000000_email_bounces_grant.sql` | `rls_structure.test.sql > service_role grant allowlist` |

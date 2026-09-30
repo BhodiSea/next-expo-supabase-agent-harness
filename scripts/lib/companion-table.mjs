@@ -19,7 +19,7 @@
 
 export const COMPANION_HEADING = '## WHAT MUST ACCOMPANY IT'
 
-export const COMPANION_COLUMNS = [
+const COMPANION_COLUMNS = [
   'id',
   'The diff introduces',
   'It must also bring',
@@ -43,7 +43,7 @@ function cellsOf(line) {
 }
 
 /** The backticked spans of a cell, in order. @param {string} cell @returns {string[]} */
-export function codeSpans(cell) {
+function codeSpans(cell) {
   return [...cell.matchAll(/`([^`]+)`/g)].map((m) => m[1])
 }
 
