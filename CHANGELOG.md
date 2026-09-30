@@ -1202,7 +1202,10 @@ this heading if none does. -->
   passed and `knip --strict` exited 0. There, moving the example aside still threw on the
   old import, as under 1.0.x, and dropping `@app/notes` from the root in the same change
   wrote the two platform rows. The same render with its generator edited kept the edit,
-  parked the new one at `.harness/pending/tools/gen-event-catalog.mjs` and exited 2 (#82).
+  parked the new one at `.harness/pending/tools/gen-event-catalog.mjs` and exited 2.
+  `scripts/ci/upgrade-lane.sh` from v1.0.3 and from v1.0.4 each ended OK on 36 steps with
+  `contracts` and `dead-code` green, the generator delivered at this tree's bytes and
+  nothing parked (#82).
 
 ## [1.0.4] — 2026-09-29
 
