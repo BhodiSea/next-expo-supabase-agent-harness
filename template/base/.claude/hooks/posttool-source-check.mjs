@@ -10,7 +10,9 @@
 //   - only ADVISORY-class sites (tools/lib/provenance-rules.mjs ADVISORY_DECISION_GROUPS,
 //     less any seeded promotion): exit 0 with one JSON object on stdout,
 //     {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":…}}, which
-//     Claude Code adds to the model's context beside the tool result, and nothing else.
+//     Claude Code adds to the model's context beside the tool result, and nothing else
+//     (observed at Claude Code 2.1.285, and in the hook-output schema since 2.0.0, below
+//     the required floor: design/CONTROL-PLANE-FACTS.md, Fact 18).
 // A fork of the rules lib that predates the split has no isMandatorySite, and every site
 // then blocks, as before.
 //

@@ -41,6 +41,9 @@ position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and ad
 release row (#72).
 A second new seeded file is planted the same way as `tools/field-notes.json`: `update` writes
 `docs/reviews/README.md` (see Added) where an install has none, and no gate reads it (#64).
+`provenance` relaxes instead (see Changed): three decision classes become advisory, which
+needs no ramp, and its one new red is a malformed promotion list no install carries yet
+(#69).
 
 ### Security
 
@@ -524,6 +527,34 @@ this heading if none does. -->
   judgement. The selftest's warm validate must print both stamp lines. The `docs-sync` line
   of `harness.config.mjs` is unchanged, so the chain and both floors do not move, and there
   is no ramp (#68).
+- **`provenance` reds only the classes that guard a security decision; three become
+  advisory.** Every decision class blocked alike: an uncited `timeoutMs` failed the gate
+  and exit-2'd the per-edit hook exactly as an uncited `CREATE POLICY` did, and the gate's
+  own documented anti-vacuity proof was the `timeoutMs`. The owned
+  `tools/lib/provenance-rules.mjs` now exports `ADVISORY_DECISION_GROUPS`: `vector-index`,
+  `llm-sampling` and `tuning-constants`. Every other class stays mandatory, the other
+  built-ins, the seeded `mobile-security`, any group a project adds and any later built-in
+  alike, and a site that matches any mandatory class is judged whole, as before.
+  `findUncitedDecisionSites` now returns each site's `groups` through the one matcher the
+  cited-site finder shares. An uncited site or a group-match miss whose classes are all
+  advisory prints `provenance: ADVISORY (n) — file:line [class]` on every run, green or
+  red, and never reds; the summary and OK lines say so instead of `0 flagged`.
+  Resolvability, the host allowlist, corpus integrity and the coverage lockstep stay hard
+  for every class. The seeded `tools/decision-groups.json` may carry a top-level
+  `"mandatory": ["<key>"]` that promotes a class back, parsed from the object the lib
+  already reads by the new pure `parseMandatoryPromotions()`; a value that is not an array
+  or a key that is not a group fails closed, and nothing in the file can demote a class.
+  `posttool-source-check` exits 2 only on a mandatory site, and its stderr then lists the
+  file's advisory sites too, marked advisory; for advisory sites alone it exits 0 with one
+  PostToolUse `additionalContext` object on stdout, which reaches the model beside the tool
+  result. Each advisory finding is counted per class in the telemetry log, as a
+  `hook-event` with `rule` `provenance/<class>` and `outcome` `advisory`. The factory's
+  PostToolUse adapter now forwards the shipped hook's stdout as well as its stderr and exit
+  code. The `citation-verifier` body lists an uncited advisory-class site at MEDIUM, so it
+  never makes the verdict `CITATIONS: REJECTED` on its own. The gate and the hook reach the
+  new exports through the rules namespace, so a parked fork of the lib keeps every class
+  mandatory. A relaxation with one new red, a malformed `mandatory` list, which no existing
+  file carries: no ramp, no chain step and no floor changes (#69).
 
 ### What stays open, honestly
 
@@ -710,6 +741,20 @@ this heading if none does. -->
   whether to run them only when a release is cut. They still run at every turn end, riding
   the stamp when nothing they read changed, and `template/base` has no release checklist to
   move them to. `check-docs-sync.mjs`, the step's first script, is not stamped (#68).
+- **An existing install's seeded files keep their old text.** The comment of
+  `tools/decision-groups.json` that documents `mandatory`, and the `citation-verifier`
+  sentence in `tools/reviewer-triggers.json`, are seeded, so `update` does not rewrite
+  them. The key works without the comment; the runbook's 1.1.0 section shows it (#69).
+- **Advisory findings reach the model, not the Stop summary.** The hook's
+  `additionalContext` and the gate's ADVISORY lines are the whole report: the Stop hook
+  does not list them on a green turn, and the telemetry counts the per-edit hook's
+  findings, not the gate's tree-wide ones (#69).
+- **The factory adapter reads template/base/ only.** It runs the shipped hook with
+  `template/base/` as its cwd, so an edit under `template/stack/`, `template/modules/` or
+  `template/presets/` is read at a path that does not exist there, and the hook exits 0.
+  Run in a copy of the layout, an uncited `jwtVerify` under `template/stack/` passed at
+  exit 0 while the same file under `template/base/` exited 2. Out of this item's scope,
+  and left for its own issue (#69).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
