@@ -1,7 +1,7 @@
 # Gates catalog
 
 Companion to [the harness doctrine](./README.md). One section per default-on gate (the
-36-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
+37-step `VALIDATE_STEPS` chain in `tools/harness.config.mjs`), the Stop-hook runtime
 suites, the CI-only lanes, every opt-in module, and the gates we considered and rejected.
 
 Every section carries an **anti-vacuity proof**: how to inject a violation and watch the
@@ -1686,7 +1686,39 @@ stamp, so a warm validate re-runs the real export.
 export succeeds, gate FAILs on bundle purity; halve `gzip.total` in the baseline →
 FAIL naming measured vs baseline × ratioCap and the re-baseline ceremony.
 
-### 31. styleguide — `node tools/check-styleguide-manifest.mjs`
+### 31. web-compile — `node tools/check-web-build.mjs`
+
+The web app must COMPILE: `pnpm --filter web exec next build --webpack` over `apps/web`,
+since 1.1.0. `types` typechecks and does not bundle, so a Client Component that imports a
+server-only module, an import only the bundler fails to resolve, or an RSC boundary
+violation all pass it, and `build` is the mobile export. Until this step a web app that did
+not compile passed the whole chain and the `static` job; only the path-filtered `web-build`
+lane ran `next build`. It compiles only: the client-bundle purity scan stays in that lane
+(`build-check.mjs --web`), which reads a real build's `.next/static`.
+
+Stamped, which is what makes a full Next build affordable in a chain every turn ends on.
+The inputs are `apps/web`, `packages`, `tsconfig.base.json`, `pnpm-workspace.yaml` and
+`pnpm-lock.yaml` plus the machinery; `.next` and `dist` are never hashed; CI never honours
+a stamp, so `static` builds on every pull request. The binary runs through `exec`, never a
+`package.json` script an agent could redefine, and `--webpack` matches the seeded script.
+It runs after `types`, whose `tsc -b` emits the declarations Next's own type check reads:
+run alone on a fresh clone it reds with TS6305 and names that command. For each Supabase key
+the build needs that neither the caller nor an `apps/web/.env*` file sets, it supplies the
+`web-build` job's placeholder, byte for byte, and prints which keys it filled (the stamp
+hashes files, not the environment). The build rewrites the committed
+`apps/web/next-env.d.ts`, and the step restores it, so the tree stays clean and a second run
+stamp-hits. Skips loudly without `apps/web` or `node_modules`; fails closed in CI.
+
+Shipped **ramped** (`minVersion 1.1.0`, `until 1.2.0`): `update` injects the step into an
+existing chain, so below that baseVersion a failed build is a NOTE carrying the output. A
+ramped failure records no stamp, so the NOTE repeats, and `graduate` stays refused, until
+the app compiles. The ramp is consulted only once the build has failed.
+**Anti-vacuity:** add `import '../lib/auth/session'` (it opens with `import 'server-only'`)
+under the `'use client'` directive of `app/providers.tsx` → `types` stays green and
+`web-compile: FAIL` carries Next's `You're importing a module that depends on
+"server-only"` error (selftest Canary 35).
+
+### 32. styleguide — `node tools/check-styleguide-manifest.mjs`
 
 The design system is DATA, and the token VALUES are owned by `@app/design-tokens`
 (the TypeScript modules in `packages/design-tokens/src`, OKLCH). This gate does two
@@ -1725,7 +1757,7 @@ naming the literal; call `Animated.timing` from a screen → FAIL pointing at th
 spell `shadowOpacity:` outside src/theme → FAIL; style a raw `<Pressable>` in a second
 home file → FAIL naming the base; name a non-existent token in `accentTokens` → FAIL.
 
-### 32. perf-budget — `node tools/check-perf-budget.mjs`
+### 33. perf-budget — `node tools/check-perf-budget.mjs`
 
 Median-of-N full react-test-renderer mount time over REAL feature subjects,
 asserted against `tools/perf-budget.json` (write-guard-protected; raising a budget
@@ -1764,7 +1796,7 @@ subject that does not exist → FAIL naming it; with `subjects: []`, blank the
 a dir that still ships `perfSubject.tsx` → FAIL `… exists but is not declared`
 (the factory's `day0-empty-states` lane runs both legs).
 
-### 33. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
+### 34. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 
 Every screen and every page is REGISTERED. Two scripts, one step — the shape
 `boundaries` has used since 0.1.x — because the two routers share no rule: expo-router
@@ -1776,7 +1808,7 @@ every line, which is two parsers with worse names.
 **The mobile half** (`check-route-manifest.mjs`) — a hand-authored manifest, re-derived.
 **The web half** (`check-web-routes.mjs`, 0.6.0) — a generated registry.
 
-#### 28a. the mobile half — `apps/mobile/src/routes.ts`
+#### 34a. the mobile half — `apps/mobile/src/routes.ts`
 
 `apps/mobile/src/routes.ts` ROUTES must be non-empty;
 every entry carries id / titleKey (a catalog KEY, so route names are translatable)
@@ -1793,7 +1825,7 @@ the router serves. Static, <100ms.
 orphan; empty the ROUTES array → FAIL ("vacuous pass"); drop `states.error` → FAIL
 naming the entry and key.
 
-#### 28b. the web half — `apps/web/lib/routes.generated.ts` (0.6.0)
+#### 34b. the web half — `apps/web/lib/routes.generated.ts` (0.6.0)
 
 The commitment `docs/harness/enforcement-tiers.md` dated to 0.6.0, in its own words:
 *"the App Router has no equivalent registry, so a web page can land with no id, no
@@ -1835,13 +1867,29 @@ Shipped **ramped** (`minVersion 0.6.0`, `until 0.7.0`): an install created befor
 pages and no `page.meta.ts` anywhere, and projects grow into gates rather than being
 ambushed by them.
 
+**And a browser test per route (1.1.0).** Mobile closes every route through a Maestro flow
+to a startup budget; the web lane was judged on aggregates only, and the seeded suite
+rendered one of its three routes (`notes` was visited only as an anonymous redirect,
+`security` never). Now, for every registered route, some `*.spec.*` under `apps/web/e2e`
+must name one of its non-null declared state test ids as a quoted literal, read with
+comments blanked. State test ids are globally unique, so a literal names exactly one route.
+A `null` state is never demanded; a route whose every state is null has no id a spec could
+name, and is chrome to allowlist. The check reads text: it proves a spec names the state,
+and the web-e2e lane proves the spec passes. Its findings are a list of their own behind a
+ramp of their own (`minVersion 1.1.0`, `until 1.2.0`), consulted only once findings exist:
+the seeded `notes.spec.ts` and `security.spec.ts` are `seedOnInitOnly`, so an install
+created earlier carries a spec for `orgs` only.
+
 **Anti-vacuity:** add `app/(protected)/o/[orgSlug]/settings/page.tsx` with no
 `page.meta.ts` → FAIL naming the page and the URL it would be served at; declare a state
 test id nothing in the segment renders → FAIL; delete `app/not-found.tsx` → FAIL; change a
 meta's `id` without regenerating → FAIL ("stale"); allowlist a page that no longer exists
-→ FAIL; declare `error: null` with no reviewed reason → FAIL.
+→ FAIL; declare `error: null` with no reviewed reason → FAIL; remove every literal of an
+`orgs` state test id from `apps/web/e2e` (today the three `'orgs-empty'` lines in
+`authenticated.spec.ts`) → FAIL naming `orgs (/o)` and both of its non-null ids (selftest
+Canary 36).
 
-### 34. security-headers — `node tools/check-security-headers.mjs`
+### 35. security-headers — `node tools/check-security-headers.mjs`
 
 The web response posture, asserted BY VALUE. The gate EVALUATES
 `apps/web/lib/security-headers.ts` under `node --experimental-strip-types` (no
@@ -1905,7 +1953,7 @@ shorten the HSTS `max-age` → FAIL; drop `camera=()` → FAIL; drop `x-org-id` 
 missing a section FAILS rather than silently skipping the checks that section governed,
 and a `decisions.coep` reason shorter than 20 characters FAILS.
 
-### 35. e2e — `node tools/check-e2e.mjs`
+### 36. e2e — `node tools/check-e2e.mjs`
 
 The agent-time fast lane: the WHOLE react-native suite in `apps/mobile` (jest-expo
 + React Native Testing Library) — the states sweep over every ROUTES entry
@@ -1924,7 +1972,7 @@ both runners. The ON-DEVICE proof is the CI Maestro lane, deliberately not here
 **Anti-vacuity:** break a state testID in a screen → the states sweep (and thus
 the gate) reds; empty the jest suite → FAIL vacuous-pass.
 
-### 36. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
+### 37. docs-sync — `node tools/check-docs-sync.mjs && node tools/check-essential-eight.mjs && node tools/check-conformance-map.mjs`
 
 The agent-facing documentation cannot lie about the gate: CLAUDE.md stays a pure
 `@AGENTS.md` include; the AGENTS.md "The N gates, in order: ..." sentence must

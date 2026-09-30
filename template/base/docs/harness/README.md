@@ -30,7 +30,7 @@ gate could enforce deterministically.
 ## One gate config, three enforcement layers
 
 `tools/harness.config.mjs` is the single source of truth for what "done" means:
-`VALIDATE_STEPS` (the 36-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
+`VALIDATE_STEPS` (the 37-step chain `pnpm validate` runs) and `STOP_HOOK_STEPS` (what the
 Stop hook runs — validate plus the runtime suites). Three enforcement layers consume it
 and can therefore never disagree:
 
@@ -42,7 +42,7 @@ and can therefore never disagree:
    `validate` to `true` in package.json (an auto-accepted, unguarded edit) and pass a
    hollow gate. **The Stop gate defines done** locally.
 3. **CI** → re-runs `node tools/validate.mjs --min-floor`, which reads the FROZEN
-   snapshot `tools/validate.floor.json` — a verbatim copy of all 36 canonical steps that
+   snapshot `tools/validate.floor.json` — a verbatim copy of all 37 canonical steps that
    the runner trusts OVER the local config, and **FAILS CLOSED** (missing/corrupt
    snapshot → exit 1) rather than degrade to a possibly-weakened config. **The CI floor**
    means editing the config can ADD steps but can never weaken the non-negotiable ones
@@ -351,9 +351,9 @@ every stamp, so the first run after either re-proves everything.
 
 - **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
   `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
-  `query-shapes`, `rate-limits`, `security-headers`, `tenancy` and `version-sync` in the
-  validate chain, (1.1.0) `essential-eight` and `conformance-map`, the second and third
-  scripts of the `docs-sync` step, the `eas-update` module gate, and (1.0.4) the
+  `query-shapes`, `rate-limits`, `security-headers`, `tenancy`, `version-sync` and (1.1.0)
+  `web-compile` in the validate chain, (1.1.0) `essential-eight` and `conformance-map`, the
+  second and third scripts of the `docs-sync` step, the `eas-update` module gate, and (1.0.4) the
   `rls-isolation` Stop step. Nothing else is: steps are never chosen by classifying the
   diff. `essential-eight` runs its negative proof before it consults its stamp, and stamps
   only when the proof finds nothing (docs/harness/gates-catalog.md, the `docs-sync` section).
