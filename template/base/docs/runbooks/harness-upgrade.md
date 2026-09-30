@@ -3024,8 +3024,10 @@ What the gate now checks, and the fix for each red:
   name, and no other. An OUT parameter is a result, not an argument.
 - **`upsert into public.<table> ON CONFLICT (…) — no UNIQUE index or primary key …`.** Put
   the exact columns of a UNIQUE index or of the primary key in `onConflict`, in any order,
-  or add the index in a migration. With no `onConflict` the target is the primary key, so
-  the table needs one.
+  or add the index in a new migration; the finding lists the ones the table holds. On a
+  tenant table the index carries the tenant column, because `tenancy` reds a UNIQUE there
+  that omits it, so the conflict target names it too. With no `onConflict` the target is
+  the primary key, so the table needs one.
 - **`upsert into tenant table "<table>" writes no <tenant column>`.** Write the tenant column
   in the payload, as an insert does.
 

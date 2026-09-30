@@ -1519,7 +1519,9 @@ the function lacks, or PostgREST finds no function with that argument list (PGRS
 **upsert arbiter**: the conflict columns equal, as a set, the columns of a UNIQUE index or
 primary key that still exists; with no `onConflict` they are the primary key's, which is
 what PostgREST targets, and PostgreSQL raises an error when ON CONFLICT inference finds no
-such index. **upsert tenant**: on a tenant table the payload carries the tenant column, as
+such index. Its finding lists the arbiters the table holds, and on a tenant table the target
+or index it proposes carries the tenant column, which `tenancy` requires of every UNIQUE
+there. **upsert tenant**: on a tenant table the payload carries the tenant column, as
 an insert's does. The limits, stated in the gate's header too: the parser does not model
 `DROP FUNCTION`, so a dropped function still resolves; `resolveFunction` matches on the name
 alone, so overloads collapse to the last definition; index parsing drops the predicate of a

@@ -739,10 +739,35 @@ test('RED (1.1.0): an upsert with no matching arbiter — the anti-vacuity drop 
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('upsert into public.profiles ON CONFLICT (handle)'), r.out)
   assert.ok(r.out.includes('no UNIQUE index or primary key'), r.out)
+  // The finding names the arbiters the table does hold, so the fix can pick one.
+  assert.ok(r.out.includes('public.profiles holds profiles_pk (id)'), r.out)
+  assert.ok(r.out.includes('CREATE UNIQUE INDEX profiles_handle_key ON public.profiles (handle);'), r.out)
   // A superset or subset of an index's columns is not an arbiter: the match is a set.
   const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [await handleUpsertRow('handle,id')] }))
   assert.equal(r2.code, 1, r2.out)
   assert.ok(r2.out.includes('ON CONFLICT (handle, id)'), r2.out)
+})
+
+test('RED (1.1.0): on a tenant table the index a no-arbiter finding proposes leads with the tenant column', async () => {
+  // tenancy reds a UNIQUE that omits org_id on a tenant table, so proposing
+  // `CREATE UNIQUE INDEX … (id)` would trade this red for that one.
+  const row = await recordRow('notes', 'saveNote#byId', 'saveNote', (db) =>
+    db.from('notes').upsert({ id: 'x', org_id: 'o' }, { onConflict: 'id' }).select('id').limit(1),
+  )
+  const r = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [row] }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('upsert into public.notes ON CONFLICT (id)'), r.out)
+  assert.ok(r.out.includes('public.notes holds notes_pkey (org_id, id)'), r.out)
+  // (org_id, id) is the primary key already, so the fix is the conflict target, not an index.
+  assert.ok(r.out.includes("Pass onConflict: 'org_id,id', the columns of notes_pkey."), r.out)
+  assert.ok(!r.out.includes('ON public.notes (id);'), r.out)
+  const titled = await recordRow('notes', 'saveNote#byTitle', 'saveNote', (db) =>
+    db.from('notes').upsert({ org_id: 'o', title: 't' }, { onConflict: 'title' }).select('id').limit(1),
+  )
+  const r2 = runGate(fixture({ migration: MIGRATION_CALLS, shapes: [titled] }))
+  assert.equal(r2.code, 1, r2.out)
+  assert.ok(r2.out.includes('CREATE UNIQUE INDEX notes_org_id_title_key ON public.notes (org_id, title);'), r2.out)
+  assert.ok(r2.out.includes('On a tenant table a UNIQUE carries org_id'), r2.out)
 })
 
 test('RED (1.1.0): an upsert with no onConflict on a table with no primary key', async () => {
@@ -751,6 +776,7 @@ test('RED (1.1.0): an upsert with no onConflict on a table with no primary key',
   const r = runGate(fixture({ migration, shapes: [await handleUpsertRow(null)] }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('upsert into public.profiles with no onConflict targets the primary key'), r.out)
+  assert.ok(r.out.includes('public.profiles holds profiles_handle_key (handle)'), r.out)
 })
 
 test('RED (1.1.0): a tenant upsert that writes no tenant column', async () => {

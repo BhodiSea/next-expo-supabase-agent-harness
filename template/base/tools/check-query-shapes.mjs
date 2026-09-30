@@ -235,6 +235,33 @@ function arbiterOf(shape) {
   return unique.find((idx) => columnSet(idx.columns.map((c) => c.name)) === want) ?? null
 }
 
+/**
+ * Rule 9's red. It names the arbiters the table does hold, so the fix can pick one, and the
+ * index it proposes leads with the tenant column on a tenant table: `tenancy` reds a UNIQUE
+ * there that omits it, so proposing `(id)` would trade this red for that one.
+ */
+function noArbiterFinding(shape, at) {
+  const target = `public.${shape.table}`
+  const unique = indexes.filter((idx) => idx.table === shape.table && idx.unique)
+  const held = unique.map((idx) => `${idx.name} (${idx.columns.map((c) => c.name).join(', ')})`)
+  const holds = `${target} holds ${held.length > 0 ? held.join('; ') : 'no UNIQUE index'}`
+  if (shape.onConflict === null) {
+    return `${at}: upsert into ${target} with no onConflict targets the primary key, as PostgREST resolves it, and no migration gives ${target} one — there is no arbiter for the conflict (${holds}). Add a primary key, or pass onConflict naming the columns of a UNIQUE index.`
+  }
+  const cols = shape.onConflict
+  const tenantLed = untenanted.has(shape.table) || cols.includes(tenantColumn)
+  const key = tenantLed ? cols : [tenantColumn, ...cols]
+  const match = unique.find((idx) => columnSet(idx.columns.map((c) => c.name)) === columnSet(key))
+  const fix =
+    match === undefined
+      ? `Pass onConflict naming the columns of one it holds, or add one in a new migration: CREATE UNIQUE INDEX ${shape.table}_${key.join('_')}_key ON ${target} (${key.join(', ')});`
+      : `Pass onConflict: '${key.join(',')}', the columns of ${match.name}.`
+  const why = tenantLed
+    ? ''
+    : ` On a tenant table a UNIQUE carries ${tenantColumn} (tenancy reds one that omits it), so the conflict target names it too.`
+  return `${at}: upsert into ${target} ON CONFLICT (${cols.join(', ')}) — no UNIQUE index or primary key on ${target} has exactly those columns (${holds}), so PostgreSQL cannot infer an arbiter and the statement fails at runtime. ${fix}${why}`
+}
+
 /** Rules 9 and 10, plus the served line when the arbiter resolves. */
 function upsertFindings(shape, at) {
   const out = []
@@ -246,17 +273,7 @@ function upsertFindings(shape, at) {
   const arbiter = arbiterOf(shape)
   if (arbiter !== null)
     return { findings: out, served: `${shape.id} -> ON CONFLICT ${arbiter.name}` }
-  const target = `public.${shape.table}`
-  if (shape.onConflict === null) {
-    out.push(
-      `${at}: upsert into ${target} with no onConflict targets the primary key, as PostgREST resolves it, and no migration gives ${target} one — there is no arbiter for the conflict. Add a primary key, or pass onConflict naming the columns of a UNIQUE index.`,
-    )
-  } else {
-    const cols = shape.onConflict
-    out.push(
-      `${at}: upsert into ${target} ON CONFLICT (${cols.join(', ')}) — no UNIQUE index or primary key on ${target} has exactly those columns, so PostgreSQL cannot infer an arbiter and the statement fails at runtime. Name the columns of a unique index that exists, or add one: CREATE UNIQUE INDEX ${shape.table}_${cols.join('_')}_key ON ${target} (${cols.join(', ')});`,
-    )
-  }
+  out.push(noArbiterFinding(shape, at))
   return { findings: out, served: null }
 }
 

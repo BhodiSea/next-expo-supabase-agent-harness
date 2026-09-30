@@ -1133,6 +1133,15 @@
         ]
       },
       {
+        "sha256": "3c94f7dfbbc21fbf25904b5b4f896f0d654dc0aa4708523f5cf7618dd9c93bd3",
+        "sites": [
+          [
+            138354,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
@@ -1155,15 +1164,6 @@
         "sites": [
           [
             121025,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
-      {
-        "sha256": "8cb15715d28851f10582b021e7e3fbf7334b75656305287f1cc464cdbf1ab9f7",
-        "sites": [
-          [
-            138177,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1530,15 +1530,6 @@
         ]
       },
       {
-        "sha256": "70c72c5dae9930d382f7b1ccc233d3b90555285a63ba5aa636b9bb84c7062bcc",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "8caea1bb8500ef01f74cc3ab177804b7dae1d1296d6f428e200719158de92389",
         "sites": [
           [
@@ -1630,6 +1621,15 @@
       },
       {
         "sha256": "f6556b5a5313d21dbaffd57fed2d832003281fa1dcfcb5cb08d3f44710859a97",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "f8108a3faa7dbae250bbf4ac144ef205c66adebd5c83e5f6518091d98582da29",
         "sites": [
           [
             14115,
@@ -2112,7 +2112,7 @@
         "sha256": "5a70f945d492fbc117482d42ec5c507e77d2d232b736285ea108cf4fce450626"
       },
       {
-        "sha256": "a335b3de1f3398c7faf79213dd2bde33a6325f0513c2622d3c4d3371ff44ac3b"
+        "sha256": "80f52f615cb1ebce5b4594573cacbcff15fbc9f861ce3bed92a93997277e24e3"
       }
     ],
     "tools/check-rate-limits.mjs": [

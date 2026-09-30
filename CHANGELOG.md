@@ -451,6 +451,8 @@ this heading if none does. -->
   answers PGRST202 otherwise; an upsert's conflict columns must equal, as a set, the columns
   of a UNIQUE index or of the primary key, since PostgreSQL raises an error when ON CONFLICT
   inference finds none; and a tenant upsert must write the tenant column, as an insert must.
+  An arbiter finding lists the UNIQUE indexes the table holds, and on a tenant table the
+  target or index it proposes carries the tenant column, which `tenancy` requires.
   The unreviewed-method and `max_rows` rules still judge both. `tools/lib/sql-parse.mjs`
   marks each index entry's `primaryKey`, named or not, which an upsert with no `onConflict`
   needs, and splits a function's parameter list at paren depth 0, so `numeric(10,2)` is one
@@ -1567,13 +1569,24 @@ this heading if none does. -->
   upsert recorder cases found `op: "select"` and an empty payload, `parseIndexes` marked no
   primary key, and each of the five upsert gate fixtures redded with `uses .upsert()` and
   OFFSET advice, the tenant ones also with `select on tenant table "notes" with no org_id
-  equality`. After the change its 46 cases pass: an rpc row carries its argument names and
-  not the value, the four 1.0.x row kinds keep their exact key list,
+  equality`. The arbiter finding's advice was red on three more assertions before it was
+  fixed: on `notes` it proposed `CREATE UNIQUE INDEX notes_id_key ON public.notes (id)`,
+  which `tenancy` reds. After the change the file's 47 cases pass: an rpc row carries its
+  argument names and not the value, the four 1.0.x row kinds keep their exact key list,
   renaming the function in the fixture migration reds naming `public.accept_invitation` and
   PGRST202, a missing or unknown argument name reds naming it, dropping the unique index an
   upsert names reds naming `ON CONFLICT (handle)`, and an upsert with no `onConflict` on a
-  table whose primary key is the named constraint `notes_pk` passes, served by `notes_pk`
-  (#79).
+  table whose primary key is the named constraint `notes_pk` passes, served by `notes_pk`.
+  In a rendered core scaffold, a scratch vertical whose DAL calls
+  `rpc('accept_invitation', { p_token })` and upserts into `notes` twice made
+  `tsx tools/gen-query-shapes.mjs` throw `TypeError: db.rpc is not a function` with the
+  recorder as it stood before this change. With it, the manifest gained those three rows,
+  no notes row changed, and `query-shapes` passed with
+  `-> rpc public.accept_invitation` and `-> ON CONFLICT notes_pkey`. It then redded on each
+  injected fault: `{ token }` for `{ p_token }`, an upsert with no `org_id`, and
+  `onConflict: 'id'`, for which it named `notes_pkey (org_id, id)`. A zero-edit core
+  scaffold rendered from this tree passed `validate --report-all` on 36 steps, where
+  `contracts` regenerated its seeded manifest byte-identical and `query-shapes` was OK (#79).
 
 ## [1.0.4] — 2026-09-29
 
