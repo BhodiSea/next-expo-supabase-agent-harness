@@ -1306,6 +1306,7 @@ const OFF_LIST = 'claude-sonnet-5'
  * @param {string[]} models @param {string[]} [tail]
  */
 function transcriptOf(models, tail = []) {
+  /** @type {Array<Record<string, unknown>>} */
   const lines = [
     { type: 'user', isSidechain: true, message: { role: 'user', content: 'Review the migration.' } },
   ]

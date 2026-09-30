@@ -737,10 +737,12 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // the set — boundaries, auth-posture and version-sync already carry ramps at this
   // vintage). TWENTY-FIVE since 1.1.0 added ONE, the reviewer ledger v2 (minVersion 1.1.0,
   // due 2.1.0), which does NOT widen the set: reviewer-verdicts already carries its 0.7.0
-  // binding ramp at this vintage.
+  // binding ramp at this vintage. TWENTY-SIX since 1.1.0 added a second on the same gate,
+  // the security-reviewer model check (#62, minVersion 1.1.0, due 2.1.0), which does not
+  // widen it either.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 25)
+  assert.equal(fresh.noting.length, 26)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -987,6 +989,10 @@ const ARRIVAL = "the arrival of tools/eol.json's removalTarget dates"
 // advisory for every vintage below 1.1.0 at every version below 2.1.0.
 const LEDGER_V2 =
   'the reviewer ledger v2 judgement (a merge-base owed set with deletions, standing BLOCKs, dispatch-bound verdicts and whole-turn reviewers)'
+// The security-reviewer model check (1.1.0, #62): the same gate, the same (1.1.0, 2.1.0)
+// window, and earlier in check-reviewer-verdicts.mjs than the ledger v2 site, so it sorts first.
+const MODEL_CHECK =
+  'the security-reviewer model check (a PASS from a security reviewer counts only on its pinned model or on a model its harnessFallbackModels list names)'
 
 test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
@@ -1131,12 +1137,13 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // At 1.0.1's own release a 1.0.0 install met NO note at all. These pins read the CURRENT
   // fleet at a historical version and move with each reviewed ramp change, in the same diff:
   // since 1.1.0 re-opened version-sync's eol arrival at minVersion 1.1.0, that one site reads
-  // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so does the
-  // reviewer ledger v2 1.1.0 opened, below its 2.1.0 deadline; nothing else.
+  // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so do the
+  // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
+  // deadline; nothing else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
-    [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
-    '1.0.0 meets only the two 1.1.0-opened sites under the current fleet',
+    [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+    '1.0.0 meets only the three 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1201,23 +1208,23 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.equal(at.expired.length, 7, `${base} must meet the seven 1.0.0-opened expiries`)
     assert.ok(at.expired.every((s) => s.minVersion === '1.0.0'))
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
-    // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So does
-    // the reviewer ledger v2 this release opens.
+    // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So do
+    // the reviewer ledger v2 and the security-reviewer model check this release opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+      [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the two 1.1.0-opened NOTEs, the
-  // re-opened arrival and the reviewer ledger v2 — the inverse proof that the wave is
-  // dated, not blanket.
+  // Every 1.0.x vintage meets NOTHING expired and exactly the three 1.1.0-opened NOTEs, the
+  // re-opened arrival, the reviewer ledger v2 and the security-reviewer model check — the
+  // inverse proof that the wave is dated, not blanket.
   for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
     const at = classifyForInstall(base, '1.1.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      [`'${LEDGER_V2}'`, `"${ARRIVAL}"`],
-      `${base} meets only the two 1.1.0-opened sites`,
+      [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+      `${base} meets only the three 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)

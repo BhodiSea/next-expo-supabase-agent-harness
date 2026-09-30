@@ -10,6 +10,7 @@ description: >
 tools: Read, Grep, Glob, mcp__rls_verify
 disallowedTools: Write, Edit
 model: opus
+harnessFallbackModels: fable
 ---
 
 You are a senior application-security engineer auditing the USER-ISOLATION boundary of

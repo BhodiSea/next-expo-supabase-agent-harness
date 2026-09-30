@@ -7,6 +7,7 @@ description: >
 tools: Read, Grep, Glob, mcp__corpus_search
 disallowedTools: Write, Edit
 model: sonnet
+harnessFallbackModels: opus, fable
 ---
 
 <!--

@@ -7,6 +7,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: opus
+harnessFallbackModels: fable
 ---
 
 You are a brutally honest principal engineer reviewing a whole-feature change for an

@@ -26,6 +26,70 @@ export const REVIEWER_AGENTS = [
   'web-security-reviewer',
 ]
 
+// The security reviewers (1.1.0, #62): the reviewers whose PASS counts only on a model their
+// hash-locked agent file names, the pin or an entry of its fallback list. Every other
+// reviewer's verdict on another model still counts, and is named at Stop.
+export const SECURITY_REVIEWERS = [
+  'mobile-security-reviewer',
+  'security-reviewer',
+  'web-security-reviewer',
+]
+
+// The fallback list's frontmatter key (1.1.0, #62): `harnessFallbackModels: fable, <full id>`,
+// an inline list read with splitList. Claude Code ignores a key it does not recognize, and
+// the prefix keeps any future Claude Code field from taking this name, so Claude Code never
+// acts on the list: it is what reviewer-verdicts judges a verdict's recorded model against
+// (design/CONTROL-PLANE-FACTS.md, Fact 15). The file hash in tools/agents.lock.json covers it;
+// the lock's `models` map keeps the pin alone.
+export const FALLBACK_MODELS_KEY = 'harnessFallbackModels'
+
+/**
+ * An agent file's model policy: its pin and its fallback list, or null when the frontmatter
+ * does not parse. A file with no list has `fallbacks: []`; one with no `model` has `pin: null`.
+ * @param {unknown} text the whole agent file
+ * @returns {{ pin: string|null, fallbacks: string[] }|null}
+ */
+export function modelPolicy(text) {
+  if (typeof text !== 'string') return null
+  const parsed = parseFrontmatter(text)
+  if (!parsed.ok) return null
+  const pin = parsed.data.model?.trim()
+  return { pin: pin ? pin : null, fallbacks: splitList(parsed.data[FALLBACK_MODELS_KEY]) }
+}
+
+/**
+ * What is wrong with an agent's fallback list, one sentence each: [] when the list is absent
+ * or well formed. A list that is present must name at least one model and name each one once;
+ * the pin counts as an entry, compared case-insensitively.
+ * @param {any} fm parsed frontmatter data (parseFrontmatter's `data`)
+ * @returns {string[]}
+ */
+export function fallbackListProblems(fm) {
+  if (fm === undefined || fm === null || !Object.hasOwn(fm, FALLBACK_MODELS_KEY)) return []
+  const entries = splitList(fm[FALLBACK_MODELS_KEY])
+  if (entries.length === 0) {
+    return [
+      `'${FALLBACK_MODELS_KEY}' is present but lists no model — name at least one (\`${FALLBACK_MODELS_KEY}: fable\`), or delete the key and let the pin alone count`,
+    ]
+  }
+  const seen = new Set([
+    String(fm.model ?? '')
+      .trim()
+      .toLowerCase(),
+  ])
+  const problems = []
+  for (const e of entries) {
+    const key = e.toLowerCase()
+    if (seen.has(key)) {
+      problems.push(
+        `'${FALLBACK_MODELS_KEY}' repeats '${e}' — each model is named once, and the pin already counts`,
+      )
+    }
+    seen.add(key)
+  }
+  return problems
+}
+
 // Genuinely read-only capabilities ONLY: file reads/searches, documentation
 // fetches, and the two read-only MCP probes the roster ships (`rls_verify` is a
 // transaction-local isolation probe; `corpus_search` is a corpus lookup —

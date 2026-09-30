@@ -22,6 +22,11 @@
       "detail": "reviewer ledger v2",
       "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
       "note": "The 1.1.0 reviewer ledger v2 ramp (#70), until 2.1.0, in the same structurally-unexecuted position: the Stop chain runs in no upgrade-lane leg, and v2 needs a merge base, a session's ledger and the SubagentStart dispatch records besides. The proof file executes every v2 red on a 1.0.3 manifest at harness 2.1.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
+    },
+    {
+      "detail": "security-reviewer model check",
+      "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+      "note": "The 1.1.0 security-reviewer model check ramp (#62), until 2.1.0, in the same position: it judges the model recorded on a reviewer's ledger entry, which exists only after a live SubagentStop. The proof file executes the off-list and model: null reds, under the 1.0.x judgement and under v2, on a 1.0.3 manifest at harness 2.1.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
     }
   ],
   "web-e2e": [

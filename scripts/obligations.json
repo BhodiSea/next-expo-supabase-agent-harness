@@ -276,6 +276,33 @@
       "reason": "The 1.1.0 SessionStart brief (#60) prints the harness brief on SessionStart and relies on three documented facts nobody here has observed: that plain stdout on exit 0 is added to the context for this event, that exit 2 does not block it, and the payload's shape (source startup|resume|clear|compact|fork). The session that wrote 1.1.0 could not start a Claude Code session to probe them, so Fact 15 records them as documentation-sourced and states why the hook cannot block or leak on any answer: it never reads stdin, never exits 2 and caps its output at 1,200 characters. Discharge = run the Fact 15 probe on a real Claude Code, record the version, the payload keys per source and whether the marker line reached the context in Fact 15 (which moves this anchor), and delete this row in the same diff; if plain stdout does not reach the context, switch the hook to hookSpecificOutput.additionalContext first.",
       "reviewedOn": "2026-09-30",
       "evidence": "https://code.claude.com/docs/en/hooks"
+    },
+    {
+      "id": "reviewer-verdicts-model-check-ramp-expiry",
+      "kind": "release",
+      "target": "2.1.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-reviewer-verdicts.mjs",
+          "mustContain": "the security-reviewer model check (a PASS from a security reviewer counts only on its pinned model or on a model its harnessFallbackModels list names)"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#62, N12). The subagent-verdict hook records the model each verdict ran on (read from the subagent's own transcript; null when it cannot) and whether it is the pin, and reviewer-verdicts judges that model against the reviewer's hash-locked agent file: a PASS from mobile-security-reviewer, security-reviewer or web-security-reviewer counts only on its pinned model or a model its harnessFallbackModels list names, an alias matching every model ID of its family, and model: null counts as off the list. The versioned split alone (an entry with no model field is judged as before) does not protect an install whose configuration already forces a model off the list (CLAUDE_CODE_SUBAGENT_MODEL_FORCE, an availableModels substitution, a fallbackModel chain): a re-run lands on the same model, so a hard red on the first Stop after `update` could only drain the block cap. So on an install whose baseVersion predates 1.1.0 the findings print as NOTEs, through one rampNote call, while every non-pinned verdict is still named on every Stop. The deadline is 2.1.0, as for the reviewer ledger v2 ramp beside it and for its reason: this lineage cuts 2.0.0 directly after 1.1.0, so a 1.2.0 or 2.0.0 deadline would expire the escape at the very next release with no notice window. Discharge = the 2.1.0 record's rampExpiry naming this site's population (every vintage below 1.1.0), with its sweep in the runbook's 2.1.0 section: run each owed security reviewer on its pin or a listed model, or add the model the install's configuration forces to that reviewer's harnessFallbackModels in a reviewed diff. The site is Stop-only, so scripts/ci/stop-side-expiries.json names the unit proof that executes its RAMP EXPIRED branch.",
+      "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "control-plane-facts-reviewer-model-probe",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "design/CONTROL-PLANE-FACTS.md",
+          "mustContain": "reviewer-model questions documentation-sourced, not probed, no Claude Code version observed"
+        }
+      ],
+      "reason": "The reviewer model record (1.1.0, #62) rests on answers read from the Claude Code documentation on 2026-09-30 and not observed: that no Subagent* payload names a model; that each assistant line of the subagent transcript at agent_transcript_path carries its model at message.model (undocumented; it is the one assumption the reader makes), with <synthetic> marking lines Claude Code writes itself; that a green Stop hook's JSON systemMessage is shown to the user at exit 0 while its stderr reaches only the debug log; and how each mechanism that moves a subagent off its pin behaves. The session that wrote 1.1.0 could not register a probe hook or spawn a subagent, so Fact 15 records the documentation, names the probe and says what fails if an answer is wrong: a reader that finds no model records model: null, which reds every security reviewer's PASS where the model check is live. Discharge = run the Fact 15 probe on a real Claude Code, record the version, the transcript lines around the model (on the pin, under a per-invocation model, under CLAUDE_CODE_SUBAGENT_MODEL_FORCE and, if one can be made to fail over, a fallbackModel chain) and where a green Stop's systemMessage is shown, in Fact 15 (which moves this anchor); fix transcriptModel and its fixture in the same diff if the model is not where it reads; and delete this row in the same diff.",
+      "reviewedOn": "2026-09-30",
+      "evidence": "design/CONTROL-PLANE-FACTS.md"
     }
   ]
 }

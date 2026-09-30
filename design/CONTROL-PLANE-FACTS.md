@@ -388,9 +388,10 @@ to quote it). Write the result here, and delete the obligations row
 
 ## Fact 16 — the model a subagent ran on, and the channel a green Stop can speak on: documented, NOT yet observed
 
-**Status, 2026-09-30: reviewer-model questions documentation-sourced, not probed, no Claude
-Code version observed.** Recorded before `reviewer-verdicts` started judging the model a
-reviewer's verdict ran on (1.1.0, #62). The session that wrote it could not register a probe
+**Status, 2026-09-30:
+reviewer-model questions documentation-sourced, not probed, no Claude Code version observed.**
+Recorded before `reviewer-verdicts` started judging the model a reviewer's verdict ran on
+(1.1.0, #62). The session that wrote it could not register a probe
 hook or spawn a subagent of its own, so each answer below is what the three pages say, read
 on 2026-09-30 from `code.claude.com/docs/en/hooks`, `/sub-agents` and `/model-config` (the
 full Markdown of each page, not a summary), and each names what the probe must confirm. The
