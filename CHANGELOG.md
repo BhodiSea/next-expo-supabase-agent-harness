@@ -39,6 +39,8 @@ reviewer severity contract and the round budget (see Changed) open two more ramp
 each with a deadline of 1.2.0, and add two release rows (#71). `docs-sync`'s verdict-demand
 position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and adds one
 release row (#72).
+A second new seeded file is planted the same way as `tools/field-notes.json`: `update` writes
+`docs/reviews/README.md` (see Added) where an install has none, and no gate reads it (#64).
 
 ### Security
 
@@ -191,6 +193,27 @@ this heading if none does. -->
   `package.json` is seeded. A project's own specs are never rewritten: one written with bold
   labels has no section ids, and the reviewer reads it whole. No gate, chain step, Stop
   step, hook rule or CI job changes (#63).
+- **Review rounds get a record of their own, outside the ADR: `docs/reviews/`.** No shipped
+  file said where reviewer findings go. `/new-feature` runs the reviewer subagents and then
+  `/adr`, the ADR template has no section for reviews, and the machine records
+  (`.harness/reviewer-ledger.jsonl`, `.harness/verdict-bounces.jsonl`) sit under
+  `.harness/`, which git ignores. A new seeded `docs/reviews/README.md` defines one record per
+  change at `docs/reviews/<YYYYMMDD>-<slice>.md`, named like the change's ADR: a
+  `## Round <n> — YYYY-MM-DD` section per round, holding a
+  `| Reviewer | Verdict | Findings | Resolution |` table whose Verdict is the verdict line
+  exactly as returned, committed in the same change as its resolution. It says that
+  decisions go in the ADR, that a record is never an `-- adr:` target, and that no gate reads
+  the directory. The owned ADR template ends its Traceability section with a
+  `Review record:` line, `docs/adr/README.md` gains a convention, `/adr` cross-checks a third
+  coupling (rounds stay out of the ADR), and `/new-feature` ends by recording every round,
+  `/verify-citations` included. The seeded `AGENTS.md` gains one sentence, which `update`
+  does not deliver; the runbook's 1.1.0 section gives it to copy. The README is the only
+  seeded file under `docs/`, so `update` plants it where it is absent and leaves a project's
+  own copy byte-identical instead of parking over it, and
+  `scripts/check-seeded-migrations.mjs` records it as a deliberate plant.
+  `tests/gates/review-records.test.mjs` holds that no shipped gate, hook or workflow names
+  `docs/reviews`, that a record owes no path-triggered reviewer, and that the README carries
+  no corpus reference. No chain step, gate, guard rule or ramp (#64).
 
 ### Fixed
 
@@ -493,6 +516,19 @@ this heading if none does. -->
   check would change what a gate judges and needs a `gate-proposal` issue of its own. Ids
   are GitHub's anchors for plain headings: a heading holding a link or `_emphasis_` can get
   an id that differs from GitHub's, and only `#` headings count, not underlined ones (#63).
+- **Recording a round moves the whole-turn reviewers' binding.** Review records were meant
+  to stay off every trigger path, so that recording a round could not send that round's own
+  verdict stale, and no path in the `reviewers` list matches `docs/**`. The `wholeTurn` class
+  (#70) binds each PASS to the whole diff, though, so a record written after a
+  `torvalds-reviewer` or `citation-verifier` PASS sends it stale. `docs/reviews/README.md`
+  gives the order that ends it: record every round, then run the whole-turn reviewers once
+  more over the diff that holds the record, and leave that confirming run out of it. Keeping
+  `docs/reviews/` out of the whole-turn digest would change a verdict, so it needs its own
+  `gate-proposal` and a ramp, and this release does not do it (#64).
+- **"Never an `-- adr:` target" is prose.** The `migrations` gate checks only that the path
+  an `-- adr:` line names exists, so a review record would satisfy it. Restricting it to
+  `docs/adr/` would change a verdict, which also needs its own `gate-proposal` and a ramp
+  (#64).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -645,6 +681,16 @@ this heading if none does. -->
   whose `validate --report-all` passed, `node tools/spec-anchor.mjs specs/_template.md`
   printed the index, `#security-invariants` printed that section, `#no-such-id` exited 1,
   `../package.json` exited 2, and the tree stayed clean (#63).
+  For review records, the new `fileMode` assertion was red first, and so were both new
+  lifecycle cases, before the README existed and again with it in the template but not in
+  `SEEDED_FILES`: `update` then recorded the planted copy `owned`, and over a project's own
+  copy with no record it exited 2 and parked the incoming one. Four of the six cases of
+  `tests/gates/review-records.test.mjs` were red before the README and the pointers existed,
+  and `check-seeded-migrations` reported the README neither withheld nor planted until its
+  `DELIBERATE_PLANT` entry. A v1.0.3 and a v1.0.4 install updated by this installer each
+  exited 0 with the README planted byte-identical to the template and recorded `seeded`, the
+  four owned files naming `docs/reviews/` and `AGENTS.md` untouched; `prompts` and
+  `docs-sync` were green on both, and `gate-integrity` on the v1.0.4 one (#64).
 
 ## [1.0.4] — 2026-09-29
 

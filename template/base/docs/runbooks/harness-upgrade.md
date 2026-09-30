@@ -1718,13 +1718,17 @@ subsection below). The severity contract re-plants the eight reviewer bodies und
 subsection below). The verdict-demand rule re-plants `tools/check-docs-sync.mjs`,
 `tools/lib/agent-roster.mjs`, `docs/harness/gates-catalog.md`, and the comments of
 `tools/gen-agents-lock.mjs` and `.claude/hooks/lib/guard-rules.mjs`; it changes no reviewer
-body (the last subsection before RECOVERY). The spec anchors add `tools/spec-anchor.mjs` and
+body (its subsection below). The spec anchors add `tools/spec-anchor.mjs` and
 `tools/lib/spec-anchor.mjs`, and re-plant `specs/_template.md`,
 `.claude/commands/new-feature.md`, `.claude/commands/adr.md` and
 `.claude/agents/torvalds-reviewer.md` (`update` re-records their `tools/agents.lock.json`
 entries), `docs/adr/0000-adr-template.md`, `docs/harness/README.md` and
 `tools/conformance-map.json`; nothing of it is seeded, and your own specs stay as they are.
-What you may notice afterwards:
+Review records plant the seeded `docs/reviews/README.md` when your install has none, and
+re-plant `docs/adr/0000-adr-template.md`, `docs/adr/README.md`, `.claude/commands/adr.md`
+and `.claude/commands/new-feature.md` (`update` re-records the two commands'
+`tools/agents.lock.json` entries); their `AGENTS.md` sentence is yours to copy (the last
+subsection before RECOVERY). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1783,7 +1787,7 @@ What you may notice afterwards:
 - **`docs-sync` may print a NOTE that a reviewer body you forked does not close on its
   verdict demand.** Only a reviewer body whose last paragraph is not the verdict demand, or
   a fork of `tools/lib/agent-roster.mjs`, produces one; every shipped body conforms. The
-  last subsection before RECOVERY gives the fix.
+  subsection on the verdict demand below gives the fix.
 - **The spec template has `##` headings, and `node tools/spec-anchor.mjs` prints one
   section.** The bold labels of `specs/_template.md` are now headings, with a new
   `Decisions` section whose entries each take a `###` heading, and a heading's id is its
@@ -1794,6 +1798,10 @@ What you may notice afterwards:
   and the reviewer reads it whole. Nothing reads the tool's output, and no gate changes.
   If you edited one of the owned files above, your copy stays, the new one is parked under
   `.harness/pending/`, and `update` exits 2 while it stays there.
+- **A new `docs/reviews/README.md` appears, untracked, and `/adr` and `/new-feature` point
+  at it.** It says where review rounds go. No gate reads it, so it changes no verdict. If
+  you already had a file at that path, `update` left it exactly as it was and parked
+  nothing.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2321,6 +2329,45 @@ same merge clears both.
 **One limit.** Only the last paragraph is checked. An earlier paragraph that asks for text
 after the verdict line still passes `docs-sync`, and the hook still bounces every PASS that
 obeys it, so read your fork for that too.
+
+### Review records: `docs/reviews/`
+
+Reviewer findings had no place in history: the ledger under `.harness/` is ignored by git,
+and the ADR template has no section for them. From 1.1.0 a change keeps its review at
+`docs/reviews/<YYYYMMDD>-<slice>.md`, named like its ADR, with a `## Round <n> — YYYY-MM-DD`
+section per round holding a `| Reviewer | Verdict | Findings | Resolution |` table.
+`docs/reviews/README.md` defines the shape, the ADR template's Traceability section links
+the record, and `/adr` and `/new-feature` tell the agent to write it. No gate reads the
+directory, so a missing or malformed record turns nothing red.
+
+`update` plants `docs/reviews/README.md` where your install has none, and never rewrites or
+parks over one you already have. The owned files above reach you as usual. One text does
+not:
+
+1. **The `AGENTS.md` sentence.** `AGENTS.md` is yours, so `update` does not touch it. In its
+   Provenance list, extend the ADR bullet so it reads:
+
+   ```
+   - Emit one ADR per slice via `/adr <slice>` (records in `docs/adr/`); then run
+     `/verify-citations` until it returns `CITATIONS: CLEAN`. Review rounds go in
+     `docs/reviews/<YYYYMMDD>-<slice>.md`, never in the ADR.
+   ```
+
+   It spends one line of the file's `~350` budget.
+
+Two things to know once you keep records:
+
+- **The whole-turn reviewers see the record.** No path in the `reviewers` list of
+  `tools/reviewer-triggers.json` matches `docs/**`, so writing a record leaves those
+  reviewers' verdicts standing; keep it that way if you add trigger paths. The `wholeTurn`
+  class, where your table has one, binds each PASS to the whole diff, the record included,
+  so a round recorded after a `torvalds-reviewer` or `citation-verifier` PASS sends it stale.
+  The README's "The record is part of the diff" section gives the order that ends there:
+  record every round, then run the whole-turn reviewers once more over the diff that holds
+  the record, and leave that confirming run out of it.
+- **An `-- adr:` marker names the ADR, never the record.** The `migrations` gate checks only
+  that the named file exists, so it would accept a record; the rule is written down, not
+  enforced.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
