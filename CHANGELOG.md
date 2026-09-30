@@ -894,7 +894,12 @@ this heading if none does. -->
   pointer and the doctrine line in, all six pass, and with `encryption.md` moved aside the
   citation case reds naming `guard-rules.mjs`. The seven bullets in `e2ee.md` diff clean
   against the ones they replaced, and `gen-conformance-docs --check` reported the crosswalk
-  and the threat model in sync after the notes changed (#67).
+  and the threat model in sync after the notes changed. An `update` from a v1.0.4 core
+  install planted `e2ee.md`, re-planted the stub and the skill, re-recorded the skill's
+  `tools/agents.lock.json` entry with `prompts` green, and left `AGENTS.md` as it was. With
+  `encryption.md` edited and a file of the project's own at `e2ee.md`, both were kept, the
+  incoming copies were parked, and `update` exited 2. A zero-edit core scaffold and one made
+  with `--modules e2ee` each validated green (#67).
 
 ## [1.0.4] — 2026-09-29
 
