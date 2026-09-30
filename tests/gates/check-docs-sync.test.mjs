@@ -689,6 +689,105 @@ test('the SHIPPED fallback lists (#62): never a weaker family for a security rev
   })
 })
 
+// ── the reviewer severity contract (1.1.0, #71, ramped until 1.2.0) ──
+// Every reviewer body states `Severities:` and `Blocking:` on lines of their own, Blocking a
+// subset of Severities and holding the floor (CRITICAL, HIGH). The SubagentStop hook reads the
+// Blocking line; docs-sync holds its shape. Ramped, unlike the rest of the roster check:
+// `update` parks a locally modified owned body instead of overwriting it, so without the ramp
+// a project's edited body would red on the upgrade that delivered the check.
+
+const withoutBlocking = (name) => shippedAgent(name).replace(/^Blocking:.*\n/m, '')
+
+test('RED: a reviewer body with no `Blocking:` line reds LIVE on a fresh tree, naming the file', () => {
+  const body = withoutBlocking('security-reviewer.md')
+  assert.ok(!/^Blocking:/m.test(body), 'the fixture must actually drop the line')
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'security-reviewer.md': body } }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /docs-sync: FAIL/)
+  assert.match(r.out, /\.claude\/agents\/security-reviewer\.md: no `Blocking:` line/)
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\).*security-reviewer\.md/)
+})
+
+test('RED: a `Blocking:` line that omits CRITICAL, or names a severity `Severities:` lacks, reds', () => {
+  const narrowed = shippedAgent('torvalds-reviewer.md').replace(/^Blocking:.*$/m, 'Blocking: HIGH')
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'torvalds-reviewer.md': narrowed } }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /torvalds-reviewer\.md: `Blocking:` omits CRITICAL/)
+
+  const outside = shippedAgent('design-reviewer.md').replace(
+    /^Blocking:.*$/m,
+    'Blocking: CRITICAL, HIGH, UGLY',
+  )
+  const o = runGate(fixture({ agents: shippedAgents, roster: { 'design-reviewer.md': outside } }))
+  assert.equal(o.code, 1, o.out)
+  assert.match(o.out, /design-reviewer\.md: `Blocking:` names UGLY, which `Severities:` does not list/)
+})
+
+test('RAMP: the contract finding is a dated NOTE on a 1.0.3 install, and RAMP EXPIRED at harness 1.2.0', () => {
+  const roster = { 'security-reviewer.md': withoutBlocking('security-reviewer.md') }
+  // NOTE branch: baseVersion 1.0.3 predates the 1.1.0 ramp, harness 1.1.0 is before its deadline.
+  const noted = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster,
+      manifest: { harnessVersion: '1.1.0', baseVersion: '1.0.3', files: {} },
+    }),
+  )
+  assert.equal(noted.code, 0, noted.out)
+  assert.match(noted.out, /the reviewer severity contract/)
+  assert.match(noted.out, /expires in 1\.2\.0/)
+  assert.match(noted.out, /docs-sync: NOTE — \(ramp\) \.claude\/agents\/security-reviewer\.md: no `Blocking:` line/)
+
+  // RAMP EXPIRED branch: the same install at harness 1.2.0. (The shipped census deferral also
+  // targets 1.2.0 and reds here on its own; the assertions name this ramp's finding.)
+  const expired = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster,
+      manifest: { harnessVersion: '1.2.0', baseVersion: '1.0.3', files: {} },
+    }),
+  )
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /docs-sync: RAMP EXPIRED — the reviewer severity contract/)
+  assert.match(expired.out, /deadline of 1\.2\.0/)
+  assert.match(expired.out, /security-reviewer\.md: no `Blocking:` line/)
+
+  // A 1.1.0 install is live from day one: the same body reds plainly, no banner.
+  const live = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster,
+      manifest: { harnessVersion: '1.1.0', baseVersion: '1.1.0', files: {} },
+    }),
+  )
+  assert.equal(live.code, 1, live.out)
+  assert.doesNotMatch(live.out, /RAMP EXPIRED — the reviewer severity contract/)
+  assert.match(live.out, /security-reviewer\.md: no `Blocking:` line/)
+})
+
+test('a parked tools/lib/agent-roster.mjs without the contract judge is ONE finding naming it, through the same ramp', () => {
+  // docs-sync reaches the judge through a NAMESPACE import: a fork of the lib that `update`
+  // parked while it re-planted this gate must not fail at link time, and must not pass the
+  // contract silently either.
+  const lib = readFileSync(join(TOOLS, 'lib/agent-roster.mjs'), 'utf8')
+  const fork = lib.replace('export function severityContractProblems(', 'function notExported(')
+  assert.notEqual(fork, lib, 'the fixture must actually drop the export')
+  const files = { 'tools/lib/agent-roster.mjs': fork }
+  const live = runGate(fixture({ agents: shippedAgents, files }))
+  assert.equal(live.code, 1, live.out)
+  assert.match(live.out, /tools\/lib\/agent-roster\.mjs has no severityContractProblems export/)
+  assert.match(live.out, /8 reviewer bod/)
+  const noted = runGate(
+    fixture({
+      agents: shippedAgents,
+      files,
+      manifest: { harnessVersion: '1.1.0', baseVersion: '1.0.3', files: {} },
+    }),
+  )
+  assert.equal(noted.code, 0, noted.out)
+  assert.match(noted.out, /NOTE — \(ramp\) tools\/lib\/agent-roster\.mjs has no severityContractProblems export/)
+})
+
 // ── the pinned frontmatter grammar itself (tools/lib/agent-roster.mjs) ──
 
 test('agent-roster parser: scalars, quotes, folded/literal blocks, inline + bracketed lists, comments', () => {

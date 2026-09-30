@@ -159,7 +159,7 @@ function writeLedger(dir, entries) {
 const digestFor = (dir, agent, files = [CHANGED]) =>
   pathStateDigest(agent, TRIGGERS, files, (p) => readFileSync(join(dir, p)))
 
-function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
+function runStep(dir, { session = SESSION, prompt = PROMPT, step = STEP } = {}) {
   const env = { ...process.env }
   delete env.HARNESS_REQUIRE_TOOLCHAINS
   // THE FIXTURE IS A DIFFERENT REPOSITORY, and this is the fourth time that has had to be
@@ -181,7 +181,7 @@ function runStep(dir, { session = SESSION, prompt = PROMPT } = {}) {
   else env.HARNESS_SESSION_ID = session
   if (prompt === null) delete env.HARNESS_PROMPT_ID
   else env.HARNESS_PROMPT_ID = prompt
-  const res = spawnSync(process.execPath, [STEP], { cwd: dir, encoding: 'utf8', env })
+  const res = spawnSync(process.execPath, [step], { cwd: dir, encoding: 'utf8', env })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
 
@@ -245,6 +245,11 @@ test('GREEN: a reviewer PASS is recorded, keyed to session and prompt', () => {
     path_state_stop: null,
     model: null,
     pinned: null,
+    // The severity contract and the round (1.1.0, #71): security-reviewer's body declares
+    // `Blocking:`, this PASS lists no finding at those severities, and it opens no loop.
+    blocking: [],
+    round: 1,
+    overBudget: false,
   })
 })
 
@@ -1779,4 +1784,209 @@ test('latestCountedPass: the LATEST PASS the v2 judgement counts, for that agent
   assert.equal(ledgerLib.latestCountedPass('security-reviewer', entries, cur)?.model, 'second')
   assert.equal(ledgerLib.latestCountedPass('design-reviewer', entries, cur), undefined)
   assert.equal(ledgerLib.latestCountedPass('security-reviewer', entries, null), undefined)
+})
+
+// ── THE SEVERITY CONTRACT AND THE ROUND BUDGET (1.1.0, #71) ─────────────────────────
+//
+// The hook records each verdict's `round` in its reviewer's review loop and the reply's
+// `blocking` finding lines (the severities the body's `Blocking:` line names), and flags
+// `overBudget` past the budget, still exiting 0. The Stop step judges the budget: when an owed
+// reviewer's loop is still open after its ROUND_BUDGET rounds, the BLOCK stands for good in
+// this session, a PASS recorded after the budget never clears it, and the step reds with the
+// recorded findings and says to hand them to the human. It rides its own ramp, opened at 1.1.0
+// until 1.2.0, so every red below is executed as a plain red where it is live, a NOTE on a
+// 1.0.3 manifest at harness 1.1.0, and RAMP EXPIRED at harness 1.2.0.
+
+/** Run the hook in an EXISTING project tree, so consecutive verdicts share one ledger. */
+function runHookIn(dir, payload) {
+  const res = spawnSync(process.execPath, [HOOK], {
+    cwd: dir,
+    encoding: 'utf8',
+    input: JSON.stringify(payload),
+  })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+test('HOOK (1.1.0) — each verdict records its round and its blocking findings; past the budget it still exits 0', () => {
+  const first = runHook({
+    hook_event_name: 'SubagentStop',
+    agent_type: 'security-reviewer',
+    agent_id: 'a1',
+    session_id: 's1',
+    prompt_id: 'p1',
+    last_assistant_message: '- [HIGH] supabase/migrations/x.sql:3 — no WITH CHECK\n- [LOW] x.sql:9 — a nit\n\nVERDICT: BLOCK',
+  })
+  assert.equal(first.code, 0, first.out)
+  for (let i = 0; i < 3; i += 1) {
+    const r = runHookIn(first.dir, {
+      hook_event_name: 'SubagentStop',
+      agent_type: 'security-reviewer',
+      agent_id: 'a1',
+      session_id: 's1',
+      prompt_id: `p${String(i + 2)}`,
+      last_assistant_message: i < 2 ? '- [CRITICAL] y.sql:1 — z\n\nVERDICT: BLOCK' : 'fixed\n\nVERDICT: PASS',
+    })
+    assert.equal(r.code, 0, `the hook never exits 2 on the budget: ${r.out}`)
+  }
+  // Another session's verdicts are another budget.
+  runHookIn(first.dir, {
+    hook_event_name: 'SubagentStop',
+    agent_type: 'security-reviewer',
+    agent_id: 'b1',
+    session_id: 's2',
+    prompt_id: 'q1',
+    last_assistant_message: 'VERDICT: PASS',
+  })
+  const rows = readFileSync(join(first.dir, '.harness/reviewer-ledger.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l))
+  assert.deepEqual(
+    rows.map((r) => [r.round, r.overBudget, r.blocking]),
+    [
+      [1, false, ['- [HIGH] supabase/migrations/x.sql:3 — no WITH CHECK']],
+      [2, false, ['- [CRITICAL] y.sql:1 — z']],
+      [3, false, ['- [CRITICAL] y.sql:1 — z']],
+      [4, true, []],
+      [1, false, []],
+    ],
+  )
+})
+
+/** Three BLOCKs from one run, each with its findings: a review loop at its budget. */
+const spentLoop = (dir) => [
+  bound(dir, 'security-reviewer', 'BLOCK', {
+    prompt_id: 'an-earlier-prompt',
+    blocking: ['- [HIGH] supabase/migrations/29990101_x.sql:1 — the INSERT policy has no WITH CHECK'],
+  }),
+  bound(dir, 'security-reviewer', 'BLOCK', {
+    prompt_id: 'an-earlier-prompt',
+    blocking: ['- [HIGH] supabase/migrations/29990101_x.sql:1 — the INSERT policy has no WITH CHECK'],
+  }),
+  bound(dir, 'security-reviewer', 'BLOCK', {
+    blocking: ['- [CRITICAL] supabase/migrations/29990101_x.sql:1 — FORCE ROW LEVEL SECURITY is gone'],
+  }),
+]
+
+const BUDGET_VINTAGES = /** @type {Array<[string, [string, string] | null]>} */ ([
+  ['no manifest', null],
+  ['a 1.1.0 manifest', ['1.1.0', '1.1.0']],
+  ['a 1.0.3 manifest', ['1.0.3', '1.1.0']],
+  ['a 1.0.3 manifest at harness 1.2.0', ['1.0.3', '1.2.0']],
+])
+
+/**
+ * One round-budget red, on every vintage its ramp distinguishes: a plain red where it is live,
+ * a NOTE (exit 0, the rest of the verdict green) on a 1.0.3 manifest at harness 1.1.0, and
+ * RAMP EXPIRED at the 1.2.0 deadline, where the v2 ramp still holds but the budget does not.
+ * @param {string} dir @param {RegExp[]} patterns
+ */
+function assertBudgetRed(dir, patterns) {
+  for (const [label, vintage] of BUDGET_VINTAGES) {
+    setVintage(dir, vintage)
+    const r = runStep(dir)
+    for (const p of patterns) assert.match(r.out, p, `${label}: ${r.out}`)
+    if (vintage === null || vintage[0] === '1.1.0') {
+      assert.equal(r.code, 1, `${label}: a plain red: ${r.out}`)
+      assert.match(r.out, /reviewer-verdicts: FAIL/, label)
+      assert.doesNotMatch(r.out, /RAMP EXPIRED|NOTE — the per-reviewer round budget/, `${label}: ${r.out}`)
+    } else if (vintage[1] === '1.1.0') {
+      assert.equal(r.code, 0, `${label}: NOTE-only: ${r.out}`)
+      assert.match(r.out, /reviewer-verdicts: NOTE — the per-reviewer round budget/, label)
+      assert.match(r.out, /expires in 1\.2\.0/, label)
+    } else {
+      assert.equal(r.code, 1, `${label}: the expiry is a hard red: ${r.out}`)
+      assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED — the per-reviewer round budget/, label)
+      assert.match(r.out, /deadline of 1\.2\.0/, label)
+    }
+  }
+}
+
+test('ANTI-VACUITY (budget) — rounds up to the budget with a BLOCK standing, then a PASS: FAIL naming the budget and the findings', () => {
+  // Without the budget this tree is GREEN under v2: the same agent_id passes at the current
+  // digest, which clears every BLOCK it returned. The PASS is the reviewer's fourth round.
+  const dir = committedChange()
+  writeLedger(dir, [...spentLoop(dir), bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)])
+  assertBudgetRed(dir, [
+    /security-reviewer used its round budget of 3/,
+    /hand these findings to the human/,
+    /\[HIGH\] supabase\/migrations\/29990101_x\.sql:1 — the INSERT policy has no WITH CHECK/,
+    /\[CRITICAL\] supabase\/migrations\/29990101_x\.sql:1 — FORCE ROW LEVEL SECURITY is gone/,
+  ])
+})
+
+test('budget — spent with no PASS: the budget finding REPLACES the "resume that reviewer" advice it contradicts', () => {
+  const dir = committedChange()
+  writeLedger(dir, [...spentLoop(dir), ...wholeTurnPasses(dir)])
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /security-reviewer used its round budget of 3/)
+  assert.doesNotMatch(r.out, /resume that reviewer/, 'a further round would be past the budget')
+  assert.equal(r.out.match(/^ {2}- security-reviewer /gm)?.length, 1, `one finding for the reviewer: ${r.out}`)
+})
+
+test('GREEN (budget) — a loop the same run closes WITHIN the budget spends nothing, and a new loop starts at round 1', () => {
+  const dir = committedChange()
+  const [b1, b2] = spentLoop(dir)
+  writeLedger(dir, [
+    b1,
+    b2,
+    bound(dir, 'security-reviewer', 'PASS'),
+    // A later BLOCK opens a new loop, and the same run clears it in its second round.
+    bound(dir, 'security-reviewer', 'BLOCK', { blocking: ['- [HIGH] a.sql:1 — b'] }),
+    bound(dir, 'security-reviewer', 'PASS'),
+    ...wholeTurnPasses(dir),
+  ])
+  for (const vintage of [null, /** @type {[string, string]} */ (['1.1.0', '1.1.0'])]) {
+    setVintage(dir, vintage)
+    const r = runStep(dir)
+    assert.equal(r.code, 0, `${JSON.stringify(vintage)}: ${r.out}`)
+  }
+})
+
+test('budget — entries an earlier hook wrote count ONE round each, and name no findings', () => {
+  const dir = committedChange()
+  const legacy = { ...entry('security-reviewer', 'BLOCK'), prompt_id: 'an-earlier-prompt' }
+  writeLedger(dir, [legacy, { ...legacy }, { ...legacy }, bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)])
+  assertBudgetRed(dir, [
+    /security-reviewer used its round budget of 3/,
+    /No finding was recorded/,
+  ])
+})
+
+test('budget — with no merge base the 1.0.x judgement decides, and a spent budget still reds', () => {
+  // The session's earlier prompts spent the loop; this prompt's PASS is bound to the tree, so
+  // the 1.0.x judgement alone is green. The budget is judged over the session all the same.
+  const dir = fixture()
+  const earlier = { prompt_id: 'an-earlier-prompt', blocking: ['- [HIGH] x.sql:1 — y'] }
+  writeLedger(dir, [
+    entry('security-reviewer', 'BLOCK', earlier),
+    entry('security-reviewer', 'BLOCK', earlier),
+    entry('security-reviewer', 'BLOCK', earlier),
+    entry('security-reviewer', 'PASS', { path_state: digestFor(dir, 'security-reviewer') }),
+  ])
+  const r = runStep(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /reviewer-verdicts: NOTE — no merge base/)
+  assert.match(r.out, /security-reviewer used its round budget of 3/)
+  assert.match(r.out, /\[HIGH\] x\.sql:1 — y/)
+})
+
+test('budget — a parked tools/lib/reviewer-verdicts.mjs without the budget judge is ONE finding naming it', () => {
+  const dir = committedChange()
+  // The step and its libs run from the fixture's own tools/, the way an install runs them, so
+  // the parked fork is the lib the step actually loads.
+  const lib = join(dir, 'tools/lib/reviewer-verdicts.mjs')
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
+  cpSync(STEP, join(dir, 'tools/check-reviewer-verdicts.mjs'))
+  const text = readFileSync(lib, 'utf8')
+  const fork = text.replace('export function judgeRoundBudget(', 'function notExported(')
+  assert.notEqual(fork, text, 'the fixture must actually drop the export')
+  writeFileSync(lib, fork)
+  // Bound AFTER the copy: the copied files are untracked, so they are part of the owed diff.
+  writeLedger(dir, [bound(dir, 'security-reviewer', 'PASS'), ...wholeTurnPasses(dir)])
+  const r = runStep(dir, { step: join(dir, 'tools/check-reviewer-verdicts.mjs') })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /tools\/lib\/reviewer-verdicts\.mjs has no judgeRoundBudget export/)
 })
