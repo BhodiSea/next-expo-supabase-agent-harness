@@ -557,7 +557,9 @@ verdict (read from the subagent's own transcript; `null` when it cannot be read)
 `pinned`, whether that model matches the pin. Each reviewer file also carries a
 `harnessFallbackModels: a, b` list, the models the harness accepts in place of the pin,
 never a weaker family than the pin. Claude Code ignores the key, so it chooses nothing:
-to run a reviewer on a listed model, pass it as the per-invocation `model`. The file hash
+to run a reviewer on a listed model, pass it as the per-invocation `model`. A reviewer
+whose pin cannot run ends before SubagentStop and writes no entry, so the step's "did not
+run" red says exactly that. The file hash
 in `tools/agents.lock.json` covers the list, and the lock's `models` map keeps the pin.
 `reviewer-verdicts` judges the recorded model: the pin counts, and so does any model ID of
 the pin's family when the pin is an alias; a listed model counts and is named; any other

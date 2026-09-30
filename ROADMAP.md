@@ -222,9 +222,11 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   `reviewer-verdicts` names every verdict off its pin, on a green turn too, and
   a security reviewer's PASS counts only on its pin or a listed model. That
   finding is a NOTE below `baseVersion` 1.1.0 until 2.1.0. Where the transcript
-  records the model is documented only thinly and not yet probed. Planned as
-  no-ramp; the ramp is what keeps an install whose configuration already
-  forces a model off the list from redding on its first Stop.
+  records the model was probed at Claude Code 2.1.285 in print mode; how the
+  terminal, VS Code and the desktop app show the green-turn notice is not yet
+  observed. Planned as no-ramp; the ramp is what keeps an install whose
+  configuration already forces a model off the list from redding on its first
+  Stop.
   ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models),
   issue #62)
 - **A severity contract and a round budget.** Reviewer bodies say which

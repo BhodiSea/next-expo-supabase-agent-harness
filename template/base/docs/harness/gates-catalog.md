@@ -2192,9 +2192,12 @@ or a listed model, or adding the model to the list in a reviewed diff, because a
 configuration that forces a model lands a re-run on the same one. An entry with
 no `model` field, as every pre-1.1.0 entry is, is judged exactly as before. On an
 install whose `baseVersion` predates 1.1.0 the finding prints as a NOTE until
-2.1.0. Honest limits: the transcript's model field is documented only thinly and
-not yet probed, and the transcript lives outside the project, so the record
-catches a configuration that moves a reviewer, not a session that forges its own
+2.1.0. A reviewer whose pin cannot run ends before SubagentStop and writes no
+entry, so its "did not run" finding, under both judgements, says it may be
+dispatched with the Agent tool's `model` set to a listed model. Where the
+transcript holds the model was probed at Claude Code 2.1.285 (Fact 16). Honest
+limit: the transcript lives outside the project, so the record catches a
+configuration that moves a reviewer, not a session that forges its own
 transcript.
 **Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
 reviewer that never ran, last turn's PASS refused, the cross-session PASS
@@ -2226,16 +2229,18 @@ no-upstream path and `reviewChanges()` are pinned too, with the seeded
 `path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
 and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
 exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
-The model record (1.1.0): a transcript fixture on the pin records `pinned: true`,
-one off it, a mid-run fallback (the verdict's model wins) and a synthetic or torn
+The model record (1.1.0): a transcript fixture in the observed shape on the pin
+records `pinned: true`, one off it, a mid-run fallback (the verdict's model wins),
+a failover whose model attachment still names the pin, and a synthetic or torn
 last line are pinned, and no readable transcript records `model: null` at exit 0;
 a security reviewer's PASS off its list, and one with `model: null`, red under
 both judgements as a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and
 `RAMP EXPIRED` at harness 2.1.0; a PASS on the full ID the pinned alias resolves
 to is green and silent, a listed fallback is green and named, another reviewer
 off its list is green and named, a re-run on the pin clears an off-list PASS,
-and an entry with no `model` field is judged as before. The alias rule and the
-other helpers run in-process there, and tests/hooks/hook-contract.test.mjs holds
+and an entry with no `model` field is judged as before; a reviewer that never
+ran is told, under both judgements, that it may run on a listed model. The alias
+rule and the other helpers run in-process there, and tests/hooks/hook-contract.test.mjs holds
 a green Stop to exit 0 with each `FALLBACK MODEL` line in a JSON
 `systemMessage` on stdout, and nothing on stdout when there is none.
 

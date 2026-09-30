@@ -269,7 +269,9 @@ this heading if none does. -->
   frontmatter pin and no gate read it. `subagent-verdict.mjs` now records `model`, read from
   the last assistant line of the subagent's own transcript at `agent_transcript_path`, and
   `pinned` in every ledger entry; what it cannot read is `null`, and neither the verdict nor
-  the exit code depends on it. An agent file may carry a `harnessFallbackModels: a, b` list,
+  the exit code depends on it. Where the transcript holds the model was probed against
+  Claude Code 2.1.285, not read off a page (`design/CONTROL-PLANE-FACTS.md` Fact 16). An
+  agent file may carry a `harnessFallbackModels: a, b` list,
   which Claude Code ignores and the harness reads. The eight shipped reviewers carry one,
   none naming a weaker family than its pin, and `docs-sync` (and, over the source,
   `check-plugin-manifest`) reds a list that names nothing or repeats an entry. The step
@@ -284,8 +286,10 @@ this heading if none does. -->
   1.1.0 is, is judged as before. On an install whose `baseVersion` is below 1.1.0 the
   finding prints as a NOTE until 2.1.0, because a configuration that already forces a model
   off the list would otherwise red on the first Stop, and a re-run lands on the same model.
-  The lock's `models` map keeps the pin alone, no session fallback chain ships, so
-  `tools/cc-floor.json` does not move, and no chain step is added (#62).
+  A reviewer whose pin cannot run never reaches SubagentStop, so its "did not run" red, under
+  both judgements, now says it may be dispatched with the Agent tool's `model` set to a
+  listed model. The lock's `models` map keeps the pin alone, no session fallback chain
+  ships, so `tools/cc-floor.json` does not move, and no chain step is added (#62).
 
 ### What stays open, honestly
 
@@ -364,14 +368,15 @@ this heading if none does. -->
   note from a gate in the middle of a `validate --report-all` run may appear only in
   `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
   propose a note for a human to apply; that is #65's to add (#61).
-- **The model record rests on a transcript shape nobody has probed.** No Subagent* payload
-  names a model, and the documentation does not say where the subagent's transcript records
-  one. The hook reads `message.model` on the transcript's assistant lines, and
-  `design/CONTROL-PLANE-FACTS.md` Fact 16 says that is an assumption. The session that wrote
-  1.1.0 could not start Claude Code, so the probe is the owner's, and the obligations row
-  `control-plane-facts-reviewer-model-probe` holds it. If the model is not there, every
-  entry records `model: null`, and where the check is live every security reviewer's PASS
-  reds with a finding that names Fact 16 (#62).
+- **The model record was probed in print mode only.** `design/CONTROL-PLANE-FACTS.md` Fact 16
+  observed, at Claude Code 2.1.285, that each assistant line of the subagent's transcript
+  carries its model at `message.model`, and that a green Stop's `systemMessage` surfaces as
+  a notice in the stream-json output. How the interactive terminal, the VS Code extension
+  and the desktop app show that notice, whether the plugin loader accepts the
+  `harnessFallbackModels` key, and whether the main agent may edit a transcript were not
+  observed; the obligations row `control-plane-facts-reviewer-model-probe` holds them. If a
+  later Claude Code moves the model, every entry records `model: null`, and where the check
+  is live every security reviewer's PASS reds with a finding that names Fact 16 (#62).
 - **The model record catches configuration, not forgery.** The transcript lives under
   `~/.claude/projects/`, outside the project, where the write guard does not reach, so a
   session could edit it before the hook reads it. What the record catches is a reviewer
@@ -481,16 +486,22 @@ this heading if none does. -->
   for `gate-integrity` printed one line after its FIX line, its newline collapsed and its
   ESC bytes removed, and an invalid file printed the one invalid-JSON line there instead;
   each run's output was otherwise byte-identical to the run without a file (#61).
-  For the model record, 25 new cases were red before the change: the hook's entry carried
-  no `model` or `pinned`, the step passed a security reviewer's PASS on a model off its list
-  and named nothing, the lib helpers and the roster exports did not exist, `docs-sync` and
-  the plugin-manifest mirror had no list to judge, and a green Stop printed nothing on
-  stdout. After the change each security-reviewer red runs, under both judgements, as a
-  plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and `RAMP EXPIRED` at harness
+  For the model record, the Fact 16 probe ran first, in six print-mode runs against Claude
+  Code 2.1.285: an alias pin, a per-invocation `model` and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+  each left the model that ran at `message.model` on the transcript's assistant lines; a
+  pin that answered HTTP 404 ended the subagent with no SubagentStop, and under a fallback
+  chain the same pin produced an ordinary PASS from the fallback. Then 25 new cases were red
+  before the change: the hook's entry carried no `model` or `pinned`, the step passed a
+  security reviewer's PASS on a model off its list and named nothing, the lib helpers and
+  the roster exports did not exist, `docs-sync` and the plugin-manifest mirror had no list to
+  judge, and a green Stop printed nothing on stdout; two more asked the "did not run" red to
+  name the list. After the change each security-reviewer red runs, under both judgements, as
+  a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and `RAMP EXPIRED` at harness
   2.1.0, and the three `ramp-ledger` pins that read the current fleet name the new site. A
   listed fallback and another reviewer's PASS off its list are green and named, a re-run on
-  the pin clears an off-list PASS, and a green Stop's `systemMessage` carries each line. The
-  transcript fixture is shaped from the documentation, not from a probe (#62).
+  the pin clears an off-list PASS, a transcript in the observed shape records the model that
+  ran even when its model attachment names the pin, and a green Stop's `systemMessage`
+  carries each line (#62).
 
 ## [1.0.4] — 2026-09-29
 

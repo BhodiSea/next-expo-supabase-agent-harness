@@ -2128,12 +2128,16 @@ that expires in 2.1.0. A fresh 1.1.0 scaffold is judged from the start.
    `HARNESS_ALLOW_SELF_EDIT=1`, re-record the lock with
    `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write`, and re-record the
    file's sha in `.harness/manifest.json` (the 1.0.2 section, "Forking an owned file").
-2. **If `update` parked one of your reviewer files,** your copy has no list, so only its pin
+2. **If a reviewer cannot run on its pin** (the Agent tool reports a model error, and the
+   Stop red says the reviewer did not run), dispatch it with the Agent tool's `model` set
+   to a model its `harnessFallbackModels` line names. The red says so too. That verdict
+   counts, and is named.
+3. **If `update` parked one of your reviewer files,** your copy has no list, so only its pin
    counts. Merge the parked copy to take the list.
-3. **If every PASS records `model: null`,** the hook cannot find the model in your Claude
+4. **If every PASS records `model: null`,** the hook cannot find the model in your Claude
    Code's transcript. That is a harness defect, not yours: report it with your Claude Code
    version.
-4. **Before you graduate,** read the NOTEs, fix what they name, and graduate when they are
+5. **Before you graduate,** read the NOTEs, fix what they name, and graduate when they are
    gone.
 
 ## RECOVERY — when an `update` is interrupted or fails
