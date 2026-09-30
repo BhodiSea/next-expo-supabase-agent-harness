@@ -528,7 +528,10 @@ const handleUpsertRow = (onConflict = 'handle') =>
       .limit(1),
   )
 
-/** A tenant upsert on the notes table, targeting its primary key by default. */
+/**
+ * A tenant upsert on the notes table, targeting its primary key by default.
+ * @param {Record<string, string>} [payload]
+ */
 const noteUpsertRow = (payload = { id: 'x', org_id: 'o', title: 't' }) =>
   recordRow('notes', 'saveNote#upsert', 'saveNote', (db) =>
     db.from('notes').upsert(payload).select('id').limit(1),
@@ -633,7 +636,9 @@ test('PARSE (1.1.0): rpc and upsert rows parse; a missing rpc/onConflict key or 
   assert.throws(() => parseShapes(JSON.stringify([noRpc])), /bad or missing "rpc"/)
   assert.throws(() => parseShapes(JSON.stringify([noConflict])), /bad or missing "onConflict"/)
   assert.throws(() => parseShapes(JSON.stringify([{ ...rpc, rpc: { name: '', args: [] } }])), /"rpc"/)
-  assert.throws(() => parseShapes(JSON.stringify([{ ...upsert, onConflict: [] }])), /"onConflict"/)
+  assert.throws(() => parseShapes(JSON.stringify([{ ...upsert, onConflict: 'handle' }])), /"onConflict"/)
+  // An empty option records [] and parses: the arbiter rule, not the parser, judges it.
+  assert.equal(parseShapes(JSON.stringify([{ ...upsert, onConflict: [] }])).length, 1)
   assert.throws(() => parseShapes(JSON.stringify([{ ...upsert, table: null }])), /bad or missing "table"/)
   assert.throws(() => parseShapes(JSON.stringify([listShape({ table: null })])), /bad or missing "table"/)
   assert.throws(() => parseShapes(JSON.stringify([{ ...rpc, table: 'notes' }])), /bad or missing "table"/)
@@ -778,4 +783,34 @@ test('RED (1.1.0): the extra and ceiling rules still judge an rpc row', async ()
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('uses .range()'), r.out)
   assert.ok(r.out.includes('exceeds [api].max_rows'), r.out)
+})
+
+test('GREEN/RED (1.1.0): parameter modes, mode-prefixed names and unnamed parameters are read from the declaration', async () => {
+  const migration = `${MIGRATION_OK}
+CREATE FUNCTION public.set_role(INOUT invite_rank smallint, VARIADIC out_tags text[], OUT result text)
+LANGUAGE sql AS $$ SELECT 1, 'x' $$;
+CREATE FUNCTION public.echo(jsonb) RETURNS jsonb LANGUAGE sql AS $$ SELECT $1 $$;
+CREATE FUNCTION public.scale(double precision) RETURNS float8 LANGUAGE sql AS $$ SELECT $1 $$;
+`
+  const call = (fn, args) =>
+    recordRow('orgs', `${fn}#call`, fn, (db) => db.rpc(fn, args))
+  // An INOUT and a VARIADIC parameter are inputs, and a name starting with "in" or "out" is
+  // not a mode (parseFunctions' own reading takes "INOUT invite_rank" for a parameter "out").
+  const green = runGate(
+    fixture({
+      migration,
+      shapes: [
+        await call('set_role', { invite_rank: 1, out_tags: [] }),
+        // Unnamed input parameters cannot be matched by name: resolved, arguments not judged.
+        await call('echo', { anything: 1 }),
+        await call('scale', { x: 1 }),
+      ],
+    }),
+  )
+  assert.equal(green.code, 0, green.out)
+  assert.ok(green.out.includes('orgs.scale#call -> rpc public.scale'), green.out)
+  const red = runGate(fixture({ migration, shapes: [await call('set_role', { rank: 1, result: 'r' })] }))
+  assert.equal(red.code, 1, red.out)
+  assert.ok(red.out.includes('without its required parameter(s) invite_rank, out_tags'), red.out)
+  assert.ok(red.out.includes('names rank, result, which public.set_role has no input parameter called'), red.out)
 })
