@@ -10,7 +10,7 @@
 // test has to be able to say which one it means.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -563,4 +563,129 @@ test('a `removed` migration keeps an unrecorded file no release shipped — owne
       report.notes.join('\n'),
     )
   }
+})
+
+// ── A NEW HOOK THAT A KEPT SETTINGS FILE DOES NOT WIRE (1.1.0, #60) ─────────────────────
+//
+// `wiring` requires every top-level hook file on disk to be wired. Since 1.0.2 `update` keeps
+// a forked or retrofit-merged `.claude/settings.json` and parks the incoming copy, so a NEW
+// hook would land on disk with nothing wiring it, and `wiring` would red an install nobody
+// touched. The sweep reaches `.claude/hooks/` before `.claude/settings.json`, so the decision
+// is made in a pass before the loop: a hook the kept settings do not wire is parked with them.
+
+const BRIEF = '.claude/hooks/session-brief.mjs'
+const SETTINGS = '.claude/settings.json'
+
+/** The install as a 1.0.x `update` left it: no brief hook, no record of one. @param {string} dir */
+function withoutBrief(dir) {
+  rmSync(join(dir, BRIEF))
+  const manifest = manifestOf(dir)
+  delete manifest.files[BRIEF]
+  writeManifestOf(dir, manifest)
+}
+
+/** The shipped settings minus the SessionStart block, as JSON text. @param {string} dir @param {(s: any) => void} [edit] */
+function settingsWithoutBrief(dir, edit = () => {}) {
+  const settings = JSON.parse(read(dir, SETTINGS))
+  delete settings.hooks.SessionStart
+  edit(settings)
+  return `${JSON.stringify(settings, null, 2)}\n`
+}
+
+/** @param {string} dir */
+function runWiring(dir) {
+  const res = spawnSync(process.execPath, ['tools/check-wiring.mjs'], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CI: '', GITHUB_BASE_REF: '', HARNESS_REQUIRE_TOOLCHAINS: '' },
+  })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+test('a KEPT-fork settings.json: the new hook it does not wire is parked beside it, and `wiring` stays green', async () => {
+  const dir = await freshInstall('epah-prov-brief-fork-')
+  withoutBrief(dir)
+  const fork = settingsWithoutBrief(dir, (s) => s.permissions.allow.push('Bash(pnpm storybook)'))
+  recordBytes(dir, SETTINGS, fork)
+  // An earlier variant in range: upstream changed the settings since this install's version.
+  const releasedShas = tablesWith({ [SETTINGS]: [{ sha256: sha256('an earlier settings variant\n') }] })
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+  assert.equal(res.code, 2, res.out)
+  const report = parseReport(res.out)
+
+  assert.equal(read(dir, SETTINGS), fork, 'the fork is kept')
+  assert.ok(!existsSync(join(dir, BRIEF)), 'the hook must not land where nothing wires it')
+  assert.ok(existsSync(join(dir, '.harness', 'pending', BRIEF)), 'the hook is parked')
+  assert.ok(existsSync(join(dir, '.harness', 'pending', SETTINGS)), 'with the settings that wire it')
+  assert.deepEqual(
+    report.drift.map((d) => d.path).filter((p) => p === BRIEF || p === SETTINGS).sort(),
+    [BRIEF, SETTINGS].sort(),
+  )
+  assert.ok(!report.written.includes(BRIEF), report.written.join('\n'))
+  assert.equal(manifestOf(dir).files[BRIEF], undefined, 'a parked hook is not recorded')
+  const note = report.notes.find((n) => n.startsWith(`${BRIEF}:`)) ?? ''
+  assert.match(note, /does not wire it/)
+  assert.match(note, /SessionStart/)
+  assert.match(note, /run `update` again/)
+
+  const w = runWiring(dir)
+  assert.equal(w.code, 0, w.out)
+  assert.match(w.out, /8 hooks wired/)
+})
+
+test('a PRISTINE settings.json: update writes both the settings and the hook, and `wiring` stays green', async () => {
+  const dir = await freshInstall('epah-prov-brief-pristine-')
+  withoutBrief(dir)
+  const older = settingsWithoutBrief(dir)
+  recordBytes(dir, SETTINGS, older)
+  // The bytes an earlier release shipped: a pristine install, refreshed in place.
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: tablesWith({ [SETTINGS]: [{ sha256: sha256(older) }] }) })
+  assert.equal(res.code, 0, res.out)
+  const report = parseReport(res.out)
+  assert.ok(report.written.includes(SETTINGS) && report.written.includes(BRIEF), report.written.join('\n'))
+  assert.ok(existsSync(join(dir, BRIEF)))
+  assert.ok(!existsSync(join(dir, '.harness', 'pending', BRIEF)), 'nothing parked')
+  assert.equal(manifestOf(dir).files[BRIEF].sha256, sha256(read(dir, BRIEF)), 'the new hook is recorded')
+  assert.ok(!report.notes.some((n) => n.startsWith(`${BRIEF}:`)), report.notes.join('\n'))
+
+  const w = runWiring(dir)
+  assert.equal(w.code, 0, w.out)
+  assert.match(w.out, /9 hooks wired/)
+})
+
+test('a kept fork that ALREADY wires the hook (the entry merged by hand): update writes the hook and records it', async () => {
+  const dir = await freshInstall('epah-prov-brief-merged-')
+  const shipped = JSON.parse(read(dir, SETTINGS))
+  withoutBrief(dir)
+  const merged = settingsWithoutBrief(dir, (s) => {
+    s.hooks.SessionStart = shipped.hooks.SessionStart
+    s.permissions.allow.push('Bash(pnpm storybook)')
+  })
+  recordBytes(dir, SETTINGS, merged)
+  const releasedShas = tablesWith({ [SETTINGS]: [{ sha256: sha256('an earlier settings variant\n') }] })
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+  const report = parseReport(res.out)
+  assert.equal(read(dir, SETTINGS), merged, 'the fork is still kept')
+  assert.ok(report.written.includes(BRIEF), report.written.join('\n'))
+  assert.equal(manifestOf(dir).files[BRIEF].sha256, sha256(read(dir, BRIEF)))
+  assert.ok(!existsSync(join(dir, '.harness', 'pending', BRIEF)))
+  const w = runWiring(dir)
+  assert.equal(w.code, 0, w.out)
+  assert.match(w.out, /9 hooks wired/)
+})
+
+test('a --dry-run reports the parked hook exactly as the real run does, and writes nothing', async () => {
+  const dir = await freshInstall('epah-prov-brief-dry-')
+  withoutBrief(dir)
+  recordBytes(dir, SETTINGS, settingsWithoutBrief(dir, (s) => s.permissions.allow.push('Bash(pnpm storybook)')))
+  const releasedShas = tablesWith({ [SETTINGS]: [{ sha256: sha256('an earlier settings variant\n') }] })
+  const dry = await captureUpdate({ dir, dryRun: true, report: 'json' }, { releasedShas })
+  assert.ok(!existsSync(join(dir, '.harness', 'pending', BRIEF)), 'a dry run parks nothing')
+  const real = await captureUpdate({ dir, report: 'json' }, { releasedShas })
+  const pick = (/** @type {string} */ out) => {
+    const r = parseReport(out)
+    return { drift: r.drift.filter((d) => d.path === BRIEF), notes: r.notes.filter((n) => n.startsWith(`${BRIEF}:`)) }
+  }
+  assert.deepEqual(pick(dry.out), pick(real.out))
+  assert.equal(pick(real.out).notes.length, 1)
 })
