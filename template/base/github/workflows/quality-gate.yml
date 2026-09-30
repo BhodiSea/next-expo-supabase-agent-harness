@@ -831,12 +831,14 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
             # The Edge Function typecheck (edge-functions, 1.1.0): the functions themselves
-            # (each index.ts shell, its handler, deno.json and deno.lock), the gate and its
-            # helpers, the manifest its ramp reads, and this workflow, which pins deno.
+            # (each index.ts shell, its handler, deno.json and deno.lock), the gate and the
+            # tools/lib modules it imports (workflow-lanes.test.mjs derives that list from
+            # its source), the manifest its ramp reads, and this workflow, which pins deno.
             edge-functions:
               - 'supabase/functions/**'
               - 'tools/check-edge-functions.mjs'
               - 'tools/lib/gate.mjs'
+              - 'tools/lib/fs-walk.mjs'
               - '.harness/manifest.json'
               - '.github/workflows/quality-gate.yml'
 

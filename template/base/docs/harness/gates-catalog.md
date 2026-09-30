@@ -2956,7 +2956,7 @@ tests/gates/severity-contract.test.mjs.
   proposes bumps; its deno manager bumps each function's `deno.json` and `deno.lock`
   together), with the module cache keyed on the lockfiles. Locally a missing deno SKIPS
   loudly; in CI it fails closed. **The job:** path-filtered on `supabase/functions/**`, the
-  gate, `tools/lib/gate.mjs`, `.harness/manifest.json` and the workflow, plus the nightly
+  gate and the `tools/lib` modules it imports, `.harness/manifest.json` and the workflow, plus the nightly
   schedule and manual dispatch; gate-summary waits for it. A job and not a chain step,
   because deno is not a workspace dependency and the chain has a wall-clock budget, so
   `graduate` never runs it: run it by hand before graduating. **Measured** (2026-09-30,

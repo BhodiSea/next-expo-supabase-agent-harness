@@ -131,6 +131,28 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
   }
 })
 
+/**
+ * Every tools/lib module a template gate reaches through relative imports, as `lib/<file>`.
+ * @param {string} gate a file under template/base/tools
+ * @returns {string[]}
+ */
+function toolsLibClosure(gate) {
+  const TOOLS = join(ROOT, 'template', 'base', 'tools')
+  const seen = new Set()
+  const visit = (rel) => {
+    const src = readFileSync(join(TOOLS, rel), 'utf8')
+    for (const m of src.matchAll(/^import [^'"]*['"](\.{1,2}\/[^'"]+\.mjs)['"]/gm)) {
+      const next = join(rel, '..', m[1]).split('\\').join('/')
+      if (next.startsWith('lib/') && !seen.has(next)) {
+        seen.add(next)
+        visit(next)
+      }
+    }
+  }
+  visit(gate)
+  return [...seen].sort()
+}
+
 test('the edge-functions lane: its own changes output and filter, the nightly net, deno pinned exactly (1.1.0, #78)', () => {
   // The Edge Function typecheck is a JOB, not a chain step, so what makes it enforcement is
   // decidable only here: that a PR touching a function arms it, that the schedule arms it
@@ -151,6 +173,11 @@ test('the edge-functions lane: its own changes output and filter, the nightly ne
   assert.ok(filter, "the changes job has no 'edge-functions' paths filter")
   for (const path of ['supabase/functions/**', 'tools/check-edge-functions.mjs', '.harness/manifest.json']) {
     assert.ok(filter[1].includes(`'${path}'`), `the edge-functions filter omits ${path}`)
+  }
+  // The gate's own import closure under tools/lib, DERIVED from its source rather than listed:
+  // a helper the gate starts importing arms the lane without anyone remembering the filter.
+  for (const lib of toolsLibClosure('check-edge-functions.mjs')) {
+    assert.ok(filter[1].includes(`'tools/${lib}'`), `the edge-functions filter omits tools/${lib}, which the gate imports`)
   }
   const summary = jobs.find((j) => j.id === 'gate-summary')
   assert.match(summary?.body ?? '', /^ {6}- edge-functions$/m, 'gate-summary does not wait for edge-functions')
