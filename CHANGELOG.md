@@ -925,14 +925,22 @@ this heading if none does. -->
   `tools/agents.lock.json` entry with `prompts` green, and left `AGENTS.md` as it was. With
   `encryption.md` edited and a file of the project's own at `e2ee.md`, both were kept, the
   incoming copies were parked, and `update` exited 2. A zero-edit core scaffold and one made
-  with `--modules e2ee` each validated green (#67). For the register stamps, the tests-only commit was red on 33 cases: over a seeded
-  stamp and an empty register each script still printed `declares no requirements` and
-  exited 1, a green run over the shipped register recorded no `.harness/<gate>.ok`, and the
+  with `--modules e2ee` each validated green (#67).
+  For the register stamps, the tests-only commit was red on 33 cases: over a seeded stamp
+  and an empty register each script still printed `declares no requirements` and exited 1,
+  a green run over the shipped register recorded no `.harness/<gate>.ok`, and the
   membership test in `tests/gates/gate-helpers.test.mjs` found no list for either gate. The
   `CI=true` cases were green before and after, as they must be. After the change every case
   is green. Consulting the stamp before the negative proof turns the storage, upload and
   green-run cases red again, and dropping the guard for a register with no list for the
-  gate throws `TypeError: paths is not iterable` (#68).
+  gate throws `TypeError: paths is not iterable`. In a zero-edit core scaffold the first
+  `validate --report-all` judged both scripts and the second printed both `STAMPED` lines;
+  with `HARNESS_REQUIRE_TOOLCHAINS=1` each printed its full summary, and on the warm stamp
+  an `expo-document-picker` import under `apps/mobile/src`, and then
+  `[storage] enabled = true`, each made `essential-eight` exit 1 naming the finding. A
+  v1.0.4 core install updated by this installer exited 0 and stamped both on the second
+  run; one whose `tools/lib/stamp-inputs.mjs` had been edited kept it, parked the new one,
+  exited 2, and judged both scripts in full on every run (#68).
 
 ## [1.0.4] — 2026-09-29
 
