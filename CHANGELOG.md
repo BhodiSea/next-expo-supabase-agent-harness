@@ -30,7 +30,9 @@ Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
 re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
 behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
-row and one condition row to the register (#70).
+row and one condition row to the register (#70). One new seeded file is planted
+rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
+install has none, and it changes no verdict (#61).
 
 ### Security
 
@@ -420,18 +422,19 @@ this heading if none does. -->
   Two hook cases added in review were red first as well: run from a subdirectory the hook
   printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
   install it printed the 1.0.x set the Stop step does not decide on (#60).
-  For field notes, the new
-  cases of `tests/gates/gate-helpers.test.mjs` were red first: the renderer and its cap
-  constant did not exist, a failing gate printed nothing after its FIX line with a note in
-  place, and an invalid file printed no line. The `field-notes` canary let a write to
-  `tools/field-notes.json` through, and the canary closure named a canary with no rule. With
-  only the `SEEDED_FILES` entry in, the shipped-lists registry test and
-  `check-escape-registry` reported the file unguarded and missing from `ESCAPE_LISTS`, and
-  `check-seeded-migrations` reported it neither withheld nor planted; the rule, the
+  For field notes, the new cases of `tests/gates/gate-helpers.test.mjs` were red first (9 of
+  38): the renderer and its cap constant did not exist, a failing gate printed nothing after
+  its FIX line with a note in place, and an invalid file printed no line. The `field-notes`
+  canary let a write to `tools/field-notes.json` through, and the canary closure named a
+  canary with no rule. With only the `SEEDED_FILES` entry in, the shipped-lists registry test
+  and `check-escape-registry` reported the file unguarded and missing from `ESCAPE_LISTS`,
+  and `check-seeded-migrations` reported it neither withheld nor planted; the rule, the
   `advisory` kind and the plant each cleared its own finding. A 1.0.4 install updated by this
-  installer got the empty file planted, untracked, and `gate-integrity` stayed green over it.
-  A note there printed one line after `gate-integrity`'s FIX line, with an ESC byte in its
-  text removed, and the output was otherwise byte-identical to the run without it (#61).
+  installer exited 0 and got the empty file planted, untracked and byte-identical to the
+  template, and `gate-integrity` stayed green over it. With an owned file tampered, a note
+  for `gate-integrity` printed one line after its FIX line, its newline collapsed and its
+  ESC bytes removed, and an invalid file printed the one invalid-JSON line there instead;
+  each run's output was otherwise byte-identical to the run without a file (#61).
 
 ## [1.0.4] — 2026-09-29
 
