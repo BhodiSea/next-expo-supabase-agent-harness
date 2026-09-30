@@ -168,9 +168,10 @@ review. The last two are conventions the maintainer will ask for.
 
 1. Add a `## [x.y.z] — YYYY-MM-DD` section to `CHANGELOG.md`.
 2. Bump the version everywhere the lockstep gate looks: `package.json`,
-   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **eight**
+   `.claude-plugin/plugin.json`, `CITATION.cff`, and the **nine**
    `HARNESS_HOOK_VERSION` stamps under `template/base/.claude/hooks/`
-   (`subagent-verdict.mjs` joined them in 0.6.0 and `launch.mjs` in 1.0.0 — the
+   (`subagent-verdict.mjs` joined them in 0.6.0, `launch.mjs` in 1.0.0 and
+   `session-brief.mjs` in 1.1.0 — the
    gate iterates the directory, so the count follows the tree rather than this
    sentence). The bump also starts the new version's released-sha table
    (`node scripts/generate-released-shas.mjs --current`) and adds the predecessor

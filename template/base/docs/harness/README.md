@@ -75,13 +75,17 @@ Exit-code semantics (the crux of the design):
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
 | SubagentStart | `*` | `.claude/hooks/subagent-verdict.mjs` | (1.1.0) records the tree each reviewer is dispatched on in `.harness/reviewer-dispatch.jsonl`, never in the ledger; exits 0, because SubagentStart cannot block, and a missing record surfaces at Stop |
+| SessionStart | `""` (all five sources) | `.claude/hooks/session-brief.mjs` | (1.1.0) prints the harness brief into context: version, base, tier and mode; parked upgrades; how the last turn in this directory ended; the reviewers the current diff owes. Enumerated fields, closed validators, capped at 1,200 characters; exits 0 on every path and writes nothing |
 | SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict (1.1.0) |
 
 Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
 `node "$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs" <hook>.mjs` — a hook that cannot
 LOAD exits 2 and blocks, instead of the exit-1 fail-open a torn `lib/hookio.mjs`
 produced, which disarmed every guard at once; a torn `launch.mjs` itself is the stated
-residual, one tiny import-free file wide), and **every command is
+residual, one tiny import-free file wide). The session-start brief is the one hook invoked
+directly (`node "$CLAUDE_PROJECT_DIR/.claude/hooks/session-brief.mjs"`): SessionStart cannot
+block, so the launcher's "failing closed, action blocked" would be false there, and the
+brief exits 0 on every path instead. **Every command is
 `node "$CLAUDE_PROJECT_DIR/…"`** (0.3.0). Before that
 the commands were bare paths relying on the executable bit, and `check-gate-integrity`
 hashes CONTENT and never MODE — so `chmod -x` on the Stop hook silently disarmed the turn
@@ -577,6 +581,39 @@ leg for any agent that touches real data (see
 
 `.claude/statusline.mjs` renders `model | branch±dirty | gate: pnpm validate` — a
 standing reminder of the gate command (a live validate per render would be too slow).
+
+## The session-start brief
+
+The statusline is one line and cannot say what state the install is in. The brief does, on
+every SessionStart (`startup`, `resume`, `clear`, `compact`, `fork`) and on demand as
+`node tools/harness-status.mjs`, which prints the same bytes:
+
+```
+harness <version> (base <baseVersion>) · tier <core|standard|strict> · mode <bootstrap|retrofit>
+parked: <n>                                   (then up to five paths under .harness/pending/)
+last turn in this directory: green | none recorded | <n> consecutive block(s), cap <cap> | ended red at the cap (<gates>)
+reviewers owed by the current diff: <n>       (then up to five `<agent> (<path>)` entries)
+```
+
+It is an injection surface, so it is closed rather than merely short. The fields are
+enumerated and printed in that order. Every value passes a closed validator (versions are
+`x.y.z`, tier and mode come from closed sets, agent and gate names are lowercase words,
+paths are repository-relative with no `..` segment and at most 160 characters) or prints as
+`(unprintable)`. No file content is ever read into it. The whole brief is capped at 1,200
+characters and cut at a line with a fixed marker. A source that cannot be read prints
+`<field>: unavailable`. All of it lives in `tools/lib/harness-brief.mjs`, which the write
+guard covers; the hook and the CLI are thin wrappers.
+
+- **The last turn** is read over the whole turn ledger, every session's records: a new
+  session's id matches none of the earlier ones, so a session that ended red at the cap
+  would otherwise read as green. The cap is the one `.claude/settings.json` hands every hook
+  through its `env`, so a terminal run prints the cap the session runs under.
+- **The owed reviewers** are the set Stop step `reviewer-verdicts` decides on, from the same
+  libs: the reviewer ledger v2's set (the merge-base diff with deletions, plus the whole-turn
+  reviewers) where v2 is live and the branch has an upstream, the 1.0.x set (uncommitted
+  changes) otherwise. Outside a git repository it is `unavailable`, never 0.
+- **Read-only.** Neither the hook nor the CLI writes anything, `.harness/turn.lock`
+  included, and the hook reads no stdin, so no payload byte reaches the brief.
 
 ## Threat model / honest limits
 

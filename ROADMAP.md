@@ -158,9 +158,16 @@ None of these tightens a gate for an existing install. Where one changes what
   example grants what it teaches (the three-role revoke, #74).
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
   issue #59)
-- **A session-start brief and `harness:status`.** Enumerated, length-capped
-  install state at the start of a session and on demand.
-  ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command))
+- **A session-start brief and `harness:status`.** A `SessionStart` hook and
+  `node tools/harness-status.mjs` print the same four fields: the version,
+  base and tier, the parked upgrades, how the last turn ended, and the
+  reviewers the current diff owes. Every value passes a closed validator, the
+  brief is capped at 1,200 characters, and the hook exits 0 on every path. An
+  install whose `.claude/settings.json` is a kept fork gets the hook parked
+  beside it until the `SessionStart` entry is merged. The `SessionStart`
+  payload is documented, not yet probed (CONTROL-PLANE-FACTS Fact 15).
+  ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command),
+  issue #60)
 - **Per-gate field notes.** A seeded, write-guarded file of short notes
   printed under a gate's FAIL line.
   ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines))

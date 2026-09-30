@@ -61,8 +61,8 @@ supabase-js 2, tRPC 11, zod 4.
 
 - **PreToolUse guards.** Hooks check every shell command, file write and MCP
   call against a data table of 143 guard-rule ids before the agent's tool runs.
-  Eight hooks are wired: seven guards and a launcher that fails closed if a
-  hook cannot load.
+  Nine hooks are wired: seven guards, a launcher that fails closed if a hook
+  cannot load, and a session-start brief.
 - **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS
   isolation tests against a real Postgres, both unit suites with coverage,
   per-file diff coverage, duplication, i18n, test quality, the mobile perf
