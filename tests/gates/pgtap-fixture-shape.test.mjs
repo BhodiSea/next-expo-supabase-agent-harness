@@ -373,13 +373,13 @@ function takeEach(have, expected) {
  */
 function judgeRegion(suite, regionText, model, problems) {
   const stmts = statementsOf(regionText)
-  const tables = stmts.filter(isCreateTable)
-  judgeTable(suite.name, tables[0], model, problems)
+  // The first CREATE TABLE is judged line by line; any second one is left over below.
+  const rest = [...stmts]
+  const at = rest.findIndex(isCreateTable)
+  const table = at === -1 ? undefined : rest.splice(at, 1)[0]
+  judgeTable(suite.name, table, model, problems)
   const addition = suite.addition === null ? [] : [model.additions[suite.addition]]
-  const { missing, left } = takeEach(
-    stmts.filter((s) => s !== tables[0]),
-    [...model.statements, ...addition],
-  )
+  const { missing, left } = takeEach(rest, [...model.statements, ...addition])
   for (const stmt of missing) {
     const spec = suite.addition === null ? undefined : ADDITIONS[suite.addition]
     const what = stmt === addition[0] && spec !== undefined
@@ -572,6 +572,13 @@ test('rule 1: a marker that does not parse is red, never read as prose', () => {
   assertRed(planted, /^audit_immutability\.test\.sql:\d+: this line names a fixture marker but is not one/)
 })
 
+test('rule 1: an end marker above its begin marker is red', () => {
+  const planted = withSuite('mfa_aal2.test.sql', (t) =>
+    replaceOnce(replaceOnce(t, `${BEGIN}\n`, `${END}\n`), `${END}\n\n`, `${BEGIN}\n\n`),
+  )
+  assertRed(planted, /^mfa_aal2\.test\.sql: '-- fixture:end' \(line \d+\) comes before '-- fixture:begin'/)
+})
+
 test('rule 1: a region that opens after the first role switch is red', () => {
   const planted = withSuite('rls_isolation.test.sql', (t) =>
     replaceOnce(t, `${BEGIN}\n`, `SET LOCAL ROLE authenticated;\n${BEGIN}\n`),
@@ -609,6 +616,24 @@ test("rule 2: a CREATE TABLE that drops a skeleton column line's constraint is r
     ),
   )
   assertRed(planted, /^audit_immutability\.test\.sql: the fixture's CREATE TABLE lacks the skeleton's line 'org_id uuid NOT NULL REFERENCES public\.orgs \(id\) ON DELETE CASCADE'$/)
+})
+
+test('rule 2: a region whose CREATE TABLE names another table is red, and so is one with none', () => {
+  const renamed = withSuite('rls_isolation.test.sql', (t) =>
+    replaceOnce(t, `CREATE TABLE public.${FIXTURE} (`, 'CREATE TABLE public.other_fixture ('),
+  )
+  assertRed(renamed, /^rls_isolation\.test\.sql: the fixture's CREATE TABLE must open 'CREATE TABLE public\.pgtap_fixture \(', found 'CREATE TABLE public\.other_fixture \('$/)
+  const none = withSuite('rls_isolation.test.sql', (t) =>
+    replaceOnce(t, `CREATE TABLE public.${FIXTURE} (`, `CREATE UNLOGGED TABLE public.${FIXTURE} (`),
+  )
+  assertRed(none, /^rls_isolation\.test\.sql: the fixture region has no CREATE TABLE$/)
+})
+
+test('rule 2: a second CREATE TABLE in the region is red', () => {
+  const planted = withSuite('audit_immutability.test.sql', (t) =>
+    replaceOnce(t, `${END}\n`, `CREATE TABLE public.${FIXTURE}_two (id int PRIMARY KEY);\n${END}\n`),
+  )
+  assertRed(planted, /^audit_immutability\.test\.sql: the fixture region carries a statement that is neither .*: CREATE TABLE public\.pgtap_fixture_two /)
 })
 
 test('rule 2: a CREATE TABLE with a column beyond the slice columns is red', () => {
