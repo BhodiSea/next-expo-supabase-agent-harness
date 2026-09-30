@@ -222,6 +222,21 @@ export const BASH_RULES = [
     allowWhen: (_cmd, ctx) => ctx.selfEdit,
   },
   {
+    // 1.1.0. An agent may STAGE a register edit (the whole proposed file, under
+    // harness-proposals/) but not apply it: applying is the decision the write guard
+    // reserves for a human. The installer verb refuses without a terminal on stdin and
+    // stdout; this is the second layer, denying the INVOCATION, in the shape of
+    // gen-lock-writer. `apply-proposal` must be a WHOLE argument (after whitespace, an
+    // optional quote, and ending at whitespace, a quote, a separator or the end), so a
+    // command that only names the verb's files, such as its test or a lint of it, is not
+    // matched.
+    id: 'apply-proposal-invocation',
+    re: /\b(?:node|pnpm|npx|tsx)\b[^|;&]*\s["']?apply-proposal["']?(?=[\s"'|;&]|$)/,
+    message:
+      'Blocked: `apply-proposal` writes a staged register edit into place, and applying it is the decision the write guard reserves for a human. Leave the proposal in harness-proposals/ and tell the user its id; they review the diff and apply it in their own terminal (HARNESS_ALLOW_SELF_EDIT=1 lifts this).',
+    allowWhen: (_cmd, ctx) => ctx.selfEdit,
+  },
+  {
     id: 'git-hookspath-repoint',
     re: /git\s+(?:-[a-zA-Z]+\s+)*config\b[^|;&]*core\.hooksPath|git\s+-c\s*core\.hooksPath/,
     message: 'Blocked: repointing core.hooksPath disables the lefthook commit-time layer.',

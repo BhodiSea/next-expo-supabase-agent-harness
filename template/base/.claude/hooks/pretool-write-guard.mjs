@@ -148,7 +148,7 @@ const protectedRow =
 if (protectedRow !== undefined) {
   denyTool(
     'PreToolUse',
-    'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. SOURCE: docs/harness/README.md (tamper evidence)',
+    'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. To change a reviewed register under tools/ (an allowlist, a budget, a register), write the whole proposed file as a proposal in harness-proposals/<id>.json, which a human applies with `apply-proposal <id>` (docs/harness/README.md, "Proposing a register edit"). SOURCE: docs/harness/README.md (tamper evidence)',
     telemetry(protectedRow.id),
   )
 }

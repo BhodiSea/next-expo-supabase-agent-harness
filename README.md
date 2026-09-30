@@ -60,7 +60,7 @@ supabase-js 2, tRPC 11, zod 4.
 ## How it works
 
 - **PreToolUse guards.** Hooks check every shell command, file write and MCP
-  call against a data table of 144 guard-rule ids before the agent's tool runs.
+  call against a data table of 145 guard-rule ids before the agent's tool runs.
   Nine hooks are wired: seven guards, a launcher that fails closed if a hook
   cannot load, and a session-start brief.
 - **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS
@@ -90,6 +90,7 @@ scaffold.
 | `doctor` | Report whether an install is healthy. |
 | `enable <module>` / `disable <module>` | Add or remove an opt-in module. |
 | `graduate` | Advance the install's base version once ramped checks are clean. |
+| `apply-proposal [<id>]` | Apply, as a human in a terminal, a register edit an agent staged in `harness-proposals/`: it shows the reason and the diff and writes the file once you type its path. No id lists them. `--dry-run`. |
 
 Full flag and placeholder reference: [docs/cli.md](docs/cli.md), or `--help`.
 

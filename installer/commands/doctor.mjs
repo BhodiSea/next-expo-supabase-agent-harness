@@ -11,7 +11,8 @@
 // apps/mobile/.expo/, coverage/, .stryker-tmp/, .eslintcache) — after checking each one is
 // inside the install, not reached through a symlink, ignored by git and holds no tracked
 // file. `--clean --dry-run` only lists them.
-// Nothing else is written, and neither changes the exit code.
+// Nothing else is written, and neither changes the exit code. Neither does the list of
+// register proposals staged under harness-proposals/ (1.1.0, #65), which is `info`.
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -27,6 +28,7 @@ import {
   unappliedSeededSourceFixes,
   unmetDependencyObligations,
 } from '../lib/migrations.mjs'
+import { proposalLines } from '../lib/proposals.mjs'
 import { classifyProvenance, readReleasedShas } from '../lib/provenance.mjs'
 import { cleanResidue, probeCommand, toolchainReport } from '../lib/toolchain.mjs'
 
@@ -140,6 +142,16 @@ function classifyPending({ targetDir, errors, warnings, infos }) {
     infos.push('every seeded source fix is applied — removing the stale .harness/pending/source-fixes.json')
     rmSync(join(pendingRoot, 'source-fixes.json'), { force: true })
   }
+}
+
+// Staged register edits (1.1.0, #65). A proposal under harness-proposals/ is a decision
+// waiting for a human, like a parked upgrade, but it is not damage and not drift: INFO, so
+// the exit code does not move for it. Hoisted beside classifyPending for the complexity
+// ratchet, and a file that is not a valid proposal is named here too, rather than surfacing
+// only when someone runs the verb.
+/** @param {string} targetDir @param {string[]} infos */
+function namePendingProposals(targetDir, infos) {
+  for (const line of proposalLines(targetDir)) infos.push(`pending register proposal: ${line}`)
 }
 
 // Dependency-resolution pin (0.9.0): the lockfile must be COMMITTED, not merely present —
@@ -319,6 +331,7 @@ export async function doctor(opts, { releasedShas = readReleasedShas(), probe = 
   }
 
   classifyPending({ targetDir, errors, warnings, infos })
+  namePendingProposals(targetDir, infos)
 
   // Commit-time layer: lefthook must actually be INSTALLED into .git/hooks —
   // a committed lefthook.yml with uninstalled hooks is a silently dormant gate.
