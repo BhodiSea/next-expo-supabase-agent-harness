@@ -24,8 +24,9 @@
 // judges by VERSION, so this check owns both of its preconditions: every floor is well formed
 // (`update` builds its note and `doctor` its warning from these fields), and the template's
 // own catalog meets it, judged by the same judgePinFloor() `doctor` runs, or every fresh
-// scaffold would warn on its first `doctor`. Neither half needs the tag: a floor is about the
-// tree being shipped, not about what it gained.
+// scaffold would warn on its first `doctor`. Neither half reads the tag, since a floor is
+// about the tree being shipped rather than what it gained, but both run after the tag is
+// resolved, so a clone without tags skips them with the rest (and fails closed in CI).
 // SOURCE: template/migrations.json (the 0.4.0 record states the hole in its own words)
 //   usage: node scripts/check-dependency-channel.mjs [repo-root]
 import { execFileSync } from 'node:child_process'
