@@ -296,6 +296,31 @@ this heading if none does. -->
   `design/CONTROL-PLANE-FACTS.md` Fact 17 probed. The eval exits 0 whatever the score, and
   it is not a chain step, a hook, a workflow or a CI check; a score threshold needs a
   `gate-proposal` of its own. No chain step, gate, guard rule, seeded file or ramp (#66).
+- **A scheduled factory lane compares the shipped framework floor with the published
+  advisories: `floor-advisories`.** Nothing compared the floor in
+  `template/base/tools/framework-floor.json`, or the catalog pin in
+  `template/base/pnpm-workspace.yaml`, with an advisory feed: `registers-clockful` reads
+  only the review dates, `version-sync` compares the pin with the floor, and `factory-sca`
+  scans a lockfile that resolves no `next`. So the vendor's security release of 2026-08-25
+  sat inside a live review window and was noticed only when the window lapsed (see 1.0.2).
+  The new `hygiene.yml` job runs `scripts/check-floor-advisories.mjs` on `schedule` and
+  `workflow_dispatch` only, never on a pull request or a push. For each floored package it
+  probes every `minPatchByMajor` version and the exact catalog pin, because a range can
+  include the pin without including the floor, on two feeds: OSV, and the upstream
+  repository's published advisories, which listed GHSA-2xp9-vwfh-vxw4 on the release day
+  while OSV's record of it is dated after the review had lapsed. The job fails on each
+  advisory that affects a probe, is not withdrawn and matches no row of the floor by its
+  id or an alias, and the line names the advisory and its aliases, the feed, the published
+  date against `reviewedOn`, the probe and the remedy: re-read it, then raise the floor and
+  the pin or record the row, and move both review dates in the same commit. An advisory
+  the floor records prints a NOTE. It fails closed on a feed that does not answer or
+  answers in the wrong shape, on a next page left unread at the page cap, on an upstream
+  range syntax no test covers, on a missing or ranged pin and on an empty floor; and each
+  floored package needs a canary version on which OSV returns an advisory, and an upstream
+  listing that holds one of its recorded rows, so a wrong query cannot read as clean. The
+  job copies `registers-clockful` and adds only the job's read-only `GITHUB_TOKEN`. The
+  check is factory-only: nothing under `template/` changes, no consumer gate, chain step
+  or verdict moves, and `template/migrations.json` carries nothing for it (#81).
 
 ### Fixed
 
@@ -779,6 +804,18 @@ this heading if none does. -->
   it auditable. `gate-integrity`'s OK line names the commit rules the flag skipped, but a
   green Stop hook does not show that line, so the skip is visible only in `pnpm validate`
   output. The committed diff, reviewed under CODEOWNERS, stays the record (#80).
+- **The upstream listing's live shape is proven by the job, not by a fixture.** The
+  fixtures record the documented shape of both feeds. The session that built the lane
+  reached OSV but was refused the upstream repository's REST listing, so the first read
+  of it is the job's own run: a range syntax the evaluator has not seen reds rather than
+  passes, and the fix is a tested case in `rangeIncludes()` (#81).
+- **A red lands in the factory, not in an install.** The lane judges the seeds. An
+  existing install learns of a new floor through a harness release, where `update`
+  re-plants the owned `framework-floor.json` and a runbook note carries the seeded pin,
+  and its own `osv-scan` lane covers only its own lockfile (#81).
+- **Each floored package needs a canary and an upstream repository in the lane's map.**
+  `next` has both. A package added to the floor reds the lane until both are added to
+  `scripts/lib/floor-advisories.mjs` (#81).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1058,6 +1095,14 @@ this heading if none does. -->
   and its OK line read `41 escape list(s) clean` without the flag and named both rules
   `not run` with it; one whose `docs/harness/README.md` had been edited kept it, parked the
   new copy and exited 2 (#80).
+  For the advisory lane, `tests/gates/floor-advisories.test.mjs` could not load before
+  `scripts/lib/floor-advisories.mjs` existed. With the script and the lib in, its one
+  remaining red was the job-shape case, until `hygiene.yml` had the job. After the change
+  every case passes, and `check-canary-coverage` runs the file for both registry entries.
+  Run live from here, OSV answered every probe and the canary, and the script failed
+  closed on the upstream listing, which this session's network refused (HTTP 403); with
+  that listing replaced by a recorded page holding GHSA-2xp9-vwfh-vxw4, the live OSV
+  answers judged the shipped floor and pin clean (#81).
 
 ## [1.0.4] — 2026-09-29
 
