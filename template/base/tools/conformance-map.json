@@ -113,6 +113,7 @@
     "migrations": "Append-only migration discipline and the DML/ADR markers are change-management hygiene; the schema controls that DO map (RLS, grants, audit) are claimed by schema-rls and tenancy, and claiming this step too would count one artefact twice.",
     "parity": "Web/mobile feature parity has no security-requirement subject.",
     "build": "That the tree compiles is a precondition of every other control, not a requirement any standard states.",
+    "web-compile": "That the web app compiles is a precondition of every other control, as for build. Its one security-bearing refusal, a Client Component importing a server-only module, backstops the server/client boundary whose named controls are the lint rules, the depcruise layering and the web-build lane's client-bundle purity scan, so it is not claimed as a row's evidence beside them.",
     "styleguide": "Design-token discipline has no security-requirement subject.",
     "perf-budget": "Bundle and interaction budgets have no security-requirement subject; the effect-cleanup leak scan is availability hygiene, not a standard’s row.",
     "e2e": "The e2e step asserts spec PRESENCE for routes; the security-bearing e2e specs themselves are claimed by the web-e2e lane rows.",
@@ -6583,7 +6584,7 @@
       "evidenceTier": "documentation",
       "negativeProof": null,
       "negativeCanary": null,
-      "note": "The seeded sign-in masks the password (secureTextEntry, autoCorrect off, textContentType) but no gate or test asserts it and nothing generalises it to future sensitive fields; there is no screenshot or app-switcher snapshot protection (FLAG_SECURE, expo-screen-capture, blur on background), no clipboard restriction, no notification-content policy. The designing-mobile-ui skill and the Input primitive are where such defaults would live; none of the 36 gates, the Stop chain or the reviewers' checklists names the subject.",
+      "note": "The seeded sign-in masks the password (secureTextEntry, autoCorrect off, textContentType) but no gate or test asserts it and nothing generalises it to future sensitive fields; there is no screenshot or app-switcher snapshot protection (FLAG_SECURE, expo-screen-capture, blur on background), no clipboard restriction, no notification-content policy. The designing-mobile-ui skill and the Input primitive are where such defaults would live; none of the 37 gates, the Stop chain or the reviewers' checklists names the subject.",
       "reviewedOn": "2026-08-16"
     },
     {
@@ -6781,7 +6782,7 @@
       "evidenceTier": "system-generated-artefact",
       "negativeProof": null,
       "negativeCanary": null,
-      "note": "The harness ships secure-by-construction defaults enforced by the 36-step validate chain (tools/harness.config.mjs VALIDATE_STEPS) that the Stop chain re-runs as its first step and CI mirrors against a frozen floor (tools/validate.floor.json); gate-integrity sha-pins the enforcement files and wiring proves the hooks are connected. What it does NOT do is perform or record the risk assessment the phrase 'based on the risks' presupposes (Article 13(2)): the level of cybersecurity is the harness author's reviewed default, not a level derived from the consumer's own product risk, and nothing in the tree carries a product risk register or risk assessment: the only threat-model text is docs/harness/README.md's 'Threat model / honest limits' section, which describes the HARNESS's own limits, not a consumer product's risks, and specs/_template.md's '## Security invariants' section is a per-feature spec question, not an Article 13(2) assessment. Whether the default is 'appropriate' for a given product is the manufacturer's determination, which is why the row is shared and partial rather than covered.",
+      "note": "The harness ships secure-by-construction defaults enforced by the 37-step validate chain (tools/harness.config.mjs VALIDATE_STEPS) that the Stop chain re-runs as its first step and CI mirrors against a frozen floor (tools/validate.floor.json); gate-integrity sha-pins the enforcement files and wiring proves the hooks are connected. What it does NOT do is perform or record the risk assessment the phrase 'based on the risks' presupposes (Article 13(2)): the level of cybersecurity is the harness author's reviewed default, not a level derived from the consumer's own product risk, and nothing in the tree carries a product risk register or risk assessment: the only threat-model text is docs/harness/README.md's 'Threat model / honest limits' section, which describes the HARNESS's own limits, not a consumer product's risks, and specs/_template.md's '## Security invariants' section is a per-feature spec question, not an Article 13(2) assessment. Whether the default is 'appropriate' for a given product is the manufacturer's determination, which is why the row is shared and partial rather than covered.",
       "reviewedOn": "2026-09-30"
     },
     {

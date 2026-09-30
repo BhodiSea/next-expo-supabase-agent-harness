@@ -173,6 +173,10 @@
       "class": "toolchain",
       "measuredMs": 48
     },
+    "web-compile": {
+      "class": "toolchain",
+      "measuredMs": null
+    },
     "styleguide": {
       "class": "toolchain",
       "measuredMs": 705

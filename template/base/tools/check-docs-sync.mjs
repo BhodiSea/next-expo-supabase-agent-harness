@@ -148,13 +148,21 @@ if (!listMatch) {
   // `update` cannot rewrite a project's memory file, so the consumer is the only one who
   // can fix it, and hard-redding them on an upgrade they did not ask for is precisely the
   // ambush this mechanism exists to prevent. The NOTE below tells them exactly what to
-  // paste. Expires at 1.1.0; the move is excused by the byte-matched `rampExtensions`
-  // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it —
-  // and the 1.1.0 record's rampExpiry paid its expiry, which discharged the obligations
-  // row docs-sync-gate-list-ramp-expiry. It opens at minVersion 1.0.0, NOT at the 0.8.0
+  // paste. It was due at 1.1.0; the move is excused by the byte-matched `rampExtensions`
+  // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it — and
+  // 1.1.0 extends it again rather than letting it expire (below). It opened at minVersion 1.0.0, NOT at the 0.8.0
   // the previous re-open used: an escape opened at or below the population it protects is
   // inert for exactly that population (the 0.11.1 lesson), and every install below 1.0.0
   // receives the two steps.
+  //
+  // RE-OPENED AT 1.1.0 (#77), for the FOURTH time and for the same reason. 1.1.0 injects
+  // `web-compile` after `build` through the "1.1.0" record's configSteps, so every existing
+  // chain grows to 37 while its seeded AGENTS.md still documents 36 (or fewer), and the escape
+  // above had just expired at 1.1.0: it opened at 1.0.0, so it is inert for every 1.0.x install
+  // and expired for every older one. It opens at minVersion 1.1.0 now, which covers all of
+  // them, and ends at 1.2.0. The move is excused by the byte-matched `rampExtensions` entry in
+  // template/migrations.json "1.1.0", and the 1.2.0 record owes its expiry (obligations row
+  // docs-sync-gate-list-ramp-expiry).
   //
   // The comment lives HERE and not inside the condition: scripts/check-ramp-ledger.mjs reads the
   // line preceding `rampNote(` to decide whether the result is consumed, and a comment between
@@ -162,8 +170,8 @@ if (!listMatch) {
   if (listErrs.length > 0) {
     if (
       additiveOnly &&
-      rampNote(GATE, '1.0.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
-        until: '1.1.0',
+      rampNote(GATE, '1.1.0', 'AGENTS.md gate-list lockstep after an injected chain step', {
+        until: '1.2.0',
       })
     ) {
       for (const e of listErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)

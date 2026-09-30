@@ -57,6 +57,21 @@ export const STAMP_INPUTS = {
     'pnpm-lock.yaml',
     'tools/lib/bundle-measure.mjs',
   ]),
+  // THE WEB COMPILE (1.1.0): `next build --webpack` over apps/web. Its verdict reads the app
+  // (next.config.ts, next-env.d.ts, the postcss config and any apps/web/.env* file among it),
+  // every workspace package the app bundles (transpilePackages compiles their raw source), the
+  // base tsconfig both extend, the workspace layout, and the lockfile that fixes every
+  // resolution. `.next` and each package's `dist` are STAMP_EXCLUDES, so neither the build's
+  // own output nor `types`' tsc -b output churns it; the step restores the committed
+  // next-env.d.ts the build rewrites, which is what lets a second run hit. The environment is
+  // not hashed: the step prints the placeholder keys it filled instead.
+  'web-compile': withMachinery('tools/check-web-build.mjs', [
+    'apps/web',
+    'packages',
+    'tsconfig.base.json',
+    'pnpm-workspace.yaml',
+    'pnpm-lock.yaml',
+  ]),
   // contract inventory regen-diff (action + event inventories) + tsconfig project-
   // references sync + the G18 bounded-wire-string sweep (its reviewed allow list is an
   // input: narrowing an entry must re-arm the gate on the very next validate, never ride

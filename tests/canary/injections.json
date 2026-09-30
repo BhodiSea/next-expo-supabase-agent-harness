@@ -273,6 +273,17 @@
         "ref": "Canary 12: a tiny committed perf-baseline → the build gzip ratchet must FAIL"
       }
     ],
+    "web-compile": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-web-build.test.mjs",
+        "note": "1.1.0 (#77), driven by a fake pnpm with sh and .cmd twins: a `next build` that exits 1 reds naming the step and carrying the tool output, and records no stamp; the build is invoked as `--filter web exec next build --webpack`, never a script name; an exit 0 records .harness/web-compile.ok and the next run over unchanged inputs prints `web-compile: STAMPED` without building; an edit under apps/web re-runs it, and so does an edit under packages, while a new file under apps/web/.next does not; CI=true ignores the stamp; no apps/web and no node_modules each SKIP loudly locally and FAIL under HARNESS_REQUIRE_TOOLCHAINS=1; each unset key receives the placeholder the shipped web-build job's 'Build the web app' step spells (read from quality-gate.yml, value for value) and the step names the keys it filled, a key the caller sets passes through unchanged, and a key an apps/web/.env* file defines is left for Next; the committed apps/web/next-env.d.ts the build rewrites is restored on a green and on a red build; a TS6305 failure names the `types` command that emits the declarations; and the 1.1.0 ramp: on a 1.0.3 manifest at harness 1.1.0 a failed build is a NOTE naming `expires in 1.2.0`, exits 0 and records no stamp (so the next run builds again), a green build on that manifest prints no NOTE, at harness 1.2.0 it is RAMP EXPIRED, and on a 1.1.0 manifest it reds plainly."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 35: a server-only import in a client module → web-compile must FAIL on the build error while types stays green"
+      }
+    ],
     "styleguide": [
       {
         "kind": "fixture",
@@ -312,7 +323,11 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-web-routes.test.mjs",
-        "note": "the App Router half (0.6.0, the second script in this one step): an apps/web/app page with no colocated page.meta.ts reds and the message names the URL it would be served at; a declared state test id that nothing in the route's OWN segment renders reds (the web half has no runtime states sweep, so this is what keeps a declaration from being a claim nothing checks) and a CHILD segment's markup does not satisfy a parent's declaration; app/not-found.tsx missing reds; a meta change without regenerating reds apps/web/lib/routes.generated.ts as stale; an allowlist entry naming a deleted page reds; a null state with no reviewed unreachableStates row reds; two pages resolving to one URL through route groups red; a titleKey absent from the web catalog reds"
+        "note": "the App Router half (0.6.0, the second script in this one step): an apps/web/app page with no colocated page.meta.ts reds and the message names the URL it would be served at; a declared state test id that nothing in the route's OWN segment renders reds (the web half has no runtime states sweep, so this is what keeps a declaration from being a claim nothing checks) and a CHILD segment's markup does not satisfy a parent's declaration; app/not-found.tsx missing reds; a meta change without regenerating reds apps/web/lib/routes.generated.ts as stale; an allowlist entry naming a deleted page reds; a null state with no reviewed unreachableStates row reds; two pages resolving to one URL through route groups red; a titleKey absent from the web catalog reds; 1.1.0 (#77) adds THE PER-ROUTE BROWSER CLOSURE, anti-vacuity included: with every quoted literal of an orgs state test id removed from apps/web/e2e (today the three 'orgs-empty' lines in authenticated.spec.ts) the gate reds naming `orgs (/o)` and both of its non-null ids, while notes and security stay closed by their own seeded specs; an id that survives only in a `//` or `/* */` comment does not count; a null state is never demanded (orgs' reviewed error: null is absent from the finding, and naming 'orgs-loading' alone closes the route); an id in a helper module that is not a *.spec.* does not count; the shipped suite closes all three routes; and the ramp is its own list: on a 1.0.3 manifest at harness 1.1.0 the finding is a NOTE with `expires in 1.2.0` and exit 0, silent when every route is covered, RAMP EXPIRED at harness 1.2.0, plain red on a 1.1.0 manifest, and a registry finding beside it (a page with no meta) still reds while the closure NOTEs"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 36: every orgs state test id removed from apps/web/e2e → route-manifest must FAIL naming orgs"
       }
     ],
     "security-headers": [

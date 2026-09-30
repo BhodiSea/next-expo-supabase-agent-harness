@@ -163,61 +163,67 @@ test('RED: a drifted gate list names the documented vs actual chains', () => {
 // hard red there is a gate ambushing an update. The distinction has to be decidable, or
 // the fix is just "ramp everything", which retires the check.
 
-test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-1.0.0 install', () => {
+/** The shipped AGENTS.md as an install scaffolded before 1.1.0 carries it: 36 steps, no web-compile. */
+const agentsBefore110 = () =>
+  shippedAgents
+    .replace(/The (\d+) gates, in order:/, 'The 36 gates, in order:')
+    .replace(/the (\d+)-step chain/, 'the 36-step chain')
+    .replace(' `web-compile`,', '')
+
+test('RAMP: a chain that only GAINED steps is a dated NOTE on a pre-1.1.0 install', () => {
   // Every documented gate still exists, in order — so the difference is steps something
   // else added, and the only thing that adds steps to a seeded config is `update`.
   //
-  // THE RAMP MOVED A THIRD TIME IN 1.0.0 and these tests moved with it, in the same diff —
-  // exactly as the 0.6.0 and 0.8.0 moves before it. The 0.8.0 ramp expired at 0.9.0; 1.0.0
-  // injects `suppressions` and `resilience` via configSteps, so the same ambush is live
-  // again for every install whose AGENTS.md still says 34 (or fewer) — and this time the
-  // escape opens at minVersion 1.0.0, ABOVE the whole population it protects (the 0.11.1
-  // lesson: an escape opened at or below its population is inert for exactly them). A
-  // ramp's tests are pinned to its version by construction — leaving them on the old one is
-  // how a re-opened escape ends up asserting the previous release's deadline.
-  const r = runGate(
-    fixture({
-      agents: shippedAgents
-        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
-        .replace(/the (\d+)-step chain/, 'the 29-step chain')
+  // THE RAMP MOVED A FOURTH TIME IN 1.1.0 (#77) and these tests moved with it, in the same
+  // diff — exactly as the 0.6.0, 0.8.0 and 1.0.0 moves before it. The 1.0.0-opened escape
+  // reached its until at 1.1.0, and 1.1.0 injects `web-compile` after `build` through
+  // configSteps, so every install whose AGENTS.md still says 36 (or fewer) meets the same
+  // ambush again. The escape opens at minVersion 1.1.0, above the whole population it
+  // protects (the 0.11.1 lesson). A ramp's tests are pinned to its version by construction —
+  // leaving them on the old one is how a re-opened escape ends up asserting the previous
+  // release's deadline.
+  for (const [baseVersion, agents] of [
+    // The population the move is for: a 1.0.x install, one step behind.
+    ['1.0.4', agentsBefore110()],
+    // And an older one, several steps behind — additive all the same.
+    [
+      '0.11.1',
+      agentsBefore110()
+        .replace(/The (\d+) gates, in order:/, 'The 34 gates, in order:')
+        .replace(/the (\d+)-step chain/, 'the 34-step chain')
         .replace(' `wiring`,\n  `secrets`,', '')
         .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '1.0.0', baseVersion: '0.11.1', files: {} },
-    }),
-  )
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('expires in 1.1.0'), `the NOTE must carry its deadline:\n${r.out}`)
-  assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
+    ],
+  ]) {
+    const r = runGate(fixture({ agents, manifest: { harnessVersion: '1.1.0', baseVersion, files: {} } }))
+    assert.equal(r.code, 0, `${baseVersion}: ${r.out}`)
+    assert.ok(r.out.includes('expires in 1.2.0'), `the NOTE must carry its deadline:\n${r.out}`)
+    assert.ok(r.out.includes('steps the UPDATE injected'), r.out)
+    assert.ok(r.out.includes('Paste the 37 names above'), r.out)
+  }
 })
 
-test('the re-opened gate-list ramp EXPIRES at harness 1.1.0 — the branch EXECUTED', () => {
+test('the re-opened gate-list ramp EXPIRES at harness 1.2.0 — the branch EXECUTED', () => {
   // The registered proof for the release the deadline arrives, written beside the ramp it
-  // proves (the check-observability.test.mjs twin at its own 0.9.0 expiry): the same
-  // additive drift that NOTEs above hard-fails once the harness reads 1.1.0, because the
-  // 0.9.0→1.1.0 extension was the deadline's LAST move — the injected steps' escape must
-  // die on schedule or the lockstep check it escapes never returns.
+  // proves: the same additive drift that NOTEs above hard-fails once the harness reads
+  // 1.2.0, because the 1.1.0→1.2.0 extension is the deadline's latest move — the injected
+  // step's escape must die on schedule or the lockstep check it escapes never returns.
   const r = runGate(
     fixture({
-      agents: shippedAgents
-        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
-        .replace(/the (\d+)-step chain/, 'the 29-step chain')
-        .replace(' `wiring`,\n  `secrets`,', '')
-        .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '1.1.0', baseVersion: '0.11.1', files: {} },
+      agents: agentsBefore110(),
+      manifest: { harnessVersion: '1.2.0', baseVersion: '1.0.4', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)
-  assert.match(r.out, /docs-sync: RAMP EXPIRED/)
-  assert.match(r.out, /deadline of 1\.1\.0/)
+  assert.match(r.out, /docs-sync: RAMP EXPIRED — AGENTS\.md gate-list lockstep/)
+  assert.match(r.out, /deadline of 1\.2\.0/)
 })
 
 test('RED: the same additive drift is LIVE on a fresh install — no legacy, no ramp', () => {
   const r = runGate(
     fixture({
-      agents: shippedAgents
-        .replace(/The (\d+) gates, in order:/, 'The 29 gates, in order:')
-        .replace('`gate-integrity`, `wiring`, `secrets`,', '`gate-integrity`,'),
-      manifest: { harnessVersion: '1.0.0', baseVersion: '1.0.0', files: {} },
+      agents: agentsBefore110(),
+      manifest: { harnessVersion: '1.1.0', baseVersion: '1.1.0', files: {} },
     }),
   )
   assert.equal(r.code, 1, r.out)

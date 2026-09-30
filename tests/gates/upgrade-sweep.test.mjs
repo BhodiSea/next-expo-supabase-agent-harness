@@ -376,9 +376,11 @@ test('1.0.4 — the hop from 1.0.3 has a reviewed sweep posture, and adopts no p
 test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the corrected eol register rides the derived pass', () => {
   // The 1.1.0 record moves the template's uuid removalTarget to 1.2.0 and carries a
   // seededSourceFixes probe on tools/eol.json, so computeSweepSet throws until SWEEPS
-  // carries a '1.1.0' entry. The entry is empty: the derived pass already adopts the fix's
-  // own path, which is the whole remedy. The one withheld path, the surface register
-  // (#56), is read absent-as-empty, so a swept leg adopts none of it.
+  // carries a '1.1.0' entry. The derived pass already adopts the fix's own path, which is
+  // the whole remedy for the uuid re-date. The surface register (#56) is read
+  // absent-as-empty, so a swept leg adopts none of it. The two seeded browser specs (#77)
+  // are what clears route-manifest's per-route closure NOTE, so a swept leg adopts exactly
+  // those two, by name (adoptSeedOnInitOnly would plant the surface register too).
   const fixes = MIGRATIONS['1.1.0'].seededSourceFixes ?? []
   assert.ok(
     fixes.some((f) => (f.paths ?? []).includes('tools/eol.json')),
@@ -390,8 +392,10 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
       'tools/surfaces.json',
       'supabase/migrations/20260930000000_three_role_revoke.sql',
       'supabase/tests/rls_grants.generated.test.sql',
+      'apps/web/e2e/notes.spec.ts',
+      'apps/web/e2e/security.spec.ts',
     ],
-    'the 1.1.0 record must withhold the surface register (#56), and the doctrine migration and the generated grant assertions (#74)',
+    'the 1.1.0 record must withhold the surface register (#56), the doctrine migration and the generated grant assertions (#74), and the two seeded browser specs (#77)',
   )
   assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.4', '1.1.0'))
   const { adopt, tomlSectionAppends, reconcileDataFlowExclusions, grantDoctrine } = computeSweepSet(
@@ -399,8 +403,14 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
     '1.0.4',
     '1.1.0',
   )
-  // The swept leg adopts NEITHER #74 file: it runs the runbook's two steps instead.
-  assert.deepEqual(adopt, ['tools/eol.json'])
+  // The swept leg adopts NEITHER #74 file: it runs the runbook's two steps instead. It
+  // adopts the two browser specs (#77) by name, and never the surface register.
+  assert.deepEqual(adopt, [
+    'apps/web/e2e/notes.spec.ts',
+    'apps/web/e2e/security.spec.ts',
+    'tools/eol.json',
+  ])
+  assert.ok(!adopt.includes('tools/surfaces.json'), 'the surface register is never adopted')
   assert.deepEqual(tomlSectionAppends, [])
   assert.equal(reconcileDataFlowExclusions, false)
   assert.equal(grantDoctrine, true)
