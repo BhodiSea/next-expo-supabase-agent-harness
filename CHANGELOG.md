@@ -1297,8 +1297,9 @@ this heading if none does. -->
   `SWEEPS` had no `'1.1.0'` entry. After the fixed cost each is clean. `upgrade-linux` ran
   locally four times, on three legs. Leg A, from v1.0.3 and from v1.0.4, parked the uuid
   fix, took the harness's register and graduated un-swept to 1.1.0. Leg M, from v0.11.0,
-  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`,
-  the other five gates had nothing to withhold, and `graduate` refused on the red chain.
+  met the seven expiries and nothing older: `docs-sync`'s gate list printed `RAMP EXPIRED`
+  (at the release it prints a NOTE instead, because #77 re-opens that site), the other five
+  gates had nothing to withhold, and `graduate` refused on the red chain.
   Leg E, from v0.3.0, ran the 1.0.0 sweep and `graduate` moved it to 1.1.0. A v1.0.4
   scaffold updated without the register pull printed the arrival as a NOTE that expires in
   1.2.0, and at a simulated harness 1.2.0 as `RAMP EXPIRED`; `update --refresh-seeded
@@ -1745,19 +1746,27 @@ this heading if none does. -->
   two web jobs was red on the old `quality-gate.yml`, naming `web-e2e`. After the change
   every case passes, `check-ramp-ledger` and `check-obligations` are clean with the two new
   sites, the moved gate-list site and their three rows, and the `ramp-ledger` pins that read
-  the current fleet at older versions name them. On a zero-edit core scaffold with this
-  tree's files copied in, `next build --webpack` failed with TS6305 before `tsc -b` and
-  passed after it in 35 to 39 s on four cores; `node tools/check-web-build.mjs` filled all
-  six placeholder keys, passed, left `git status --porcelain apps/web` empty, and printed
-  `web-compile: STAMPED` on the next run and again after a `tsc -b` re-run. With
-  `import '../lib/auth/session'` under `'use client'` in `app/providers.tsx`, `tsc -b` stayed
-  green and the step failed carrying Next's `You're importing a module that depends on
-  "server-only"`; with the three `'orgs-empty'` literals renamed, `check-web-routes.mjs`
-  failed naming `orgs (/o)` and both of its ids. `docs-sync`, `check-essential-eight`,
-  `check-conformance-map`, `secrets` and `provenance` passed over the patched scaffold, and
-  `validate --list` showed 37 steps. On a local Supabase stack, Playwright ran
-  `notes.spec.ts`, `security.spec.ts` and `authenticated.spec.ts` against a production
-  build: 5 of 5 passed (#77).
+  the current fleet at older versions name them. A case added while integrating the item
+  was red first too: with a kept `tools/lib/stamp-inputs.mjs` that has no `web-compile`
+  list, the step crashed with `TypeError: paths is not iterable`; it now builds in full and
+  records no stamp. On a zero-edit core scaffold rendered from this tree,
+  `node tools/check-web-build.mjs` run first, before any `tsc -b`, filled all six
+  placeholder keys, failed with TS6305 and printed the `tsc -b` command that fixes it.
+  `validate --report-all` then passed on 37 steps with nothing unrun, `web-compile` taking
+  49 s; the second run printed `web-compile: STAMPED` and took 38 s in all; `git status
+  --porcelain` was empty; and `HARNESS_REQUIRE_TOOLCHAINS=1 node tools/validate.mjs
+  --min-floor` passed with a real build. With `import '../lib/auth/session'` under
+  `'use client'` in `app/providers.tsx`, `tsc -b` stayed green and the step failed carrying
+  Next's `You're importing a module that depends on "server-only"`; with the baseVersion set
+  to 1.0.4, the same failure was a NOTE, exit 0, with no stamp recorded, and `apps/web` was
+  clean after both failed builds. With the three `'orgs-empty'` literals renamed,
+  `check-web-routes.mjs` failed naming `orgs (/o)` and both of its non-null ids. On a local
+  Supabase stack (CLI 2.118.0), Playwright ran `notes.spec.ts`, `security.spec.ts` and
+  `authenticated.spec.ts` against a production build: 5 of 5 passed. `upgrade-linux` leg A,
+  from v1.0.4, ended with validate exit 0 on 37 steps: `web-compile` OK, and the closure
+  (naming `notes` and `security`) and the gate list as NOTEs that expire in 1.2.0, so
+  `graduate` refused. Leg E, from v0.3.0, compiled the old web app, adopted the two specs in
+  its sweep and graduated to 1.1.0 (#77).
 
 ## [1.0.4] — 2026-09-29
 

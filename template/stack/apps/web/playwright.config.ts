@@ -39,7 +39,7 @@ export default defineConfig({
     // anything about production. Both disappear against `next start`, and a real
     // regression in either would still red.
     //
-    // The cost is one `next build` per lane: 35 to 39 s for this app, measured cold on a
+    // The cost is one `next build` per lane: 35 to 49 s for this app, measured cold on a
     // four-core Linux machine at 1.1.0 (the chain's web-compile step runs the same build).
     // That is the price of the suite testing the artifact that gets deployed.
     command: 'pnpm run build && pnpm run start',
