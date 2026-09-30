@@ -1531,6 +1531,28 @@ test('source-check skips json, tests, and machine-generated adapters', () => {
   }
 })
 
+test('source-check: a mandatory site blocks, and the block also lists the file\'s advisory sites as advisory (#69)', () => {
+  // 1.1.0: exit 2 only when a MANDATORY site is uncited. The same stderr names any uncited
+  // advisory-class site in the file, marked as advisory, and stdout stays empty: one channel.
+  mkdirSync(join(proj, 'apps/server/src'), { recursive: true })
+  const mixed = join(proj, 'apps/server/src/mixed.ts')
+  writeFileSync(mixed, 'const claims = await jwtVerify(token, jwks)\nexport const opts = { timeoutMs: 5000 }\n')
+  const r = runHook('posttool-source-check.mjs', { tool_input: { file_path: mixed } })
+  assert.equal(r.code, 2, r.stderr)
+  assert.equal(r.stdout, '')
+  assert.ok(r.stderr.includes(`${mixed}:1  const claims = await jwtVerify(token, jwks)`), r.stderr)
+  assert.match(r.stderr, /advisory/i)
+  assert.ok(r.stderr.includes(`${mixed}:2 [tuning-constants]`), r.stderr)
+
+  // The advisory site alone does not block.
+  const alone = join(proj, 'apps/server/src/advisory-only.ts')
+  writeFileSync(alone, 'export const opts = { timeoutMs: 5000 }\n')
+  const a = runHook('posttool-source-check.mjs', { tool_input: { file_path: alone } })
+  assert.equal(a.code, 0, a.stderr)
+  assert.equal(a.stderr, '')
+  assert.equal(JSON.parse(a.stdout).hookSpecificOutput.hookEventName, 'PostToolUse')
+})
+
 // ── stop-validate-gate ────────────────────────────────────────────────────────
 // Portable pass/fail steps (the hook-contracts CI lane also runs on Windows,
 // where `true`/`false` are not commands).

@@ -8,7 +8,8 @@
 // A fixture that completes cleanly exits 0. hook-contract.test.mjs already covers the
 // guards' malformed-stdin path and source-check's jwtVerify/FORCE-RLS cited/uncited
 // basics; the source-check cases here are additive (distinct decision groups, the
-// SOURCE-window boundary, the broken-rules-module fail-closed path, comment/skip edges).
+// SOURCE-window boundary, the advisory-class exit 0 with its additionalContext, the
+// broken-rules-module fail-closed path, comment/skip edges).
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -160,17 +161,19 @@ test('source-check fails CLOSED (exit 2) when the provenance-rules module is bro
   assert.match(res.stderr, /failing closed/i)
 })
 
-test('source-check flags an uncited decision site and passes a cited one (hnsw + set_config)', () => {
-  // Distinct decision groups from hook-contract's jwtVerify/FORCE-RLS coverage:
-  // vector-index (USING hnsw) in SQL and guc-identity (set_config) in TS.
-  const uncitedSql = join(proj, 'packages/schema/drizzle/9101_idx.sql')
-  writeFileSync(uncitedSql, 'CREATE INDEX ON items USING hnsw (embedding vector_cosine_ops);\n')
+test('source-check flags an uncited decision site and passes a cited one (SET LOCAL + set_config)', () => {
+  // Distinct decision groups from hook-contract's jwtVerify/FORCE-RLS coverage, both
+  // MANDATORY (1.1.0, #69): guc-identity in SQL (SET LOCAL) and in TS (set_config). The SQL
+  // case was `USING hnsw` until vector-index became an advisory class; it is the advisory
+  // case below now.
+  const uncitedSql = join(proj, 'packages/schema/drizzle/9101_guc.sql')
+  writeFileSync(uncitedSql, "SET LOCAL app.user_id = '00000000-0000-0000-0000-000000000000';\n")
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: uncitedSql } }).code, 2)
 
-  const citedSql = join(proj, 'packages/schema/drizzle/9102_idx.sql')
+  const citedSql = join(proj, 'packages/schema/drizzle/9102_guc.sql')
   writeFileSync(
     citedSql,
-    '-- SOURCE: https://github.com/pgvector/pgvector [corpus: pgvector/hnsw]\nCREATE INDEX ON items USING hnsw (embedding vector_cosine_ops);\n',
+    "-- SOURCE: https://www.postgresql.org/docs/current/sql-set.html\nSET LOCAL app.user_id = '00000000-0000-0000-0000-000000000000';\n",
   )
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: citedSql } }).code, 0)
 
@@ -187,16 +190,38 @@ test('source-check flags an uncited decision site and passes a cited one (hnsw +
 })
 
 test('source-check honors the 3-line SOURCE window (cited 3 lines above passes, 4 fails)', () => {
+  // A mandatory token (cryptography's `aeadSeal(`): the window proof was `maxRetries` until
+  // tuning-constants became an advisory class (1.1.0, #69), and an advisory site outside the
+  // window no longer exits 2.
   const within = join(proj, 'apps/server/src/win-ok.ts')
-  writeFileSync(within, '// SOURCE: https://example.com/retries\nconst a = 1\nconst b = 2\nconst maxRetries = 5\n')
+  writeFileSync(within, '// SOURCE: https://example.com/aead\nconst a = 1\nconst b = 2\nconst sealed = aeadSeal(key, iv, pt)\n')
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: within } }).code, 0)
 
   const outside = join(proj, 'apps/server/src/win-far.ts')
   writeFileSync(
     outside,
-    '// SOURCE: https://example.com/retries\nconst a = 1\nconst b = 2\nconst c = 3\nconst maxRetries = 5\n',
+    '// SOURCE: https://example.com/aead\nconst a = 1\nconst b = 2\nconst c = 3\nconst sealed = aeadSeal(key, iv, pt)\n',
   )
   assert.equal(runHook('posttool-source-check.mjs', { tool_input: { file_path: outside } }).code, 2)
+})
+
+test('source-check: an uncited ADVISORY-class site (USING hnsw) exits 0 with additionalContext on stdout, and nothing else', () => {
+  // 1.1.0 (#69): vector-index is advisory. The hook no longer blocks on it; it tells the
+  // model through PostToolUse `additionalContext` (a JSON object on stdout at exit 0), and
+  // writes nothing to stderr.
+  const f = join(proj, 'packages/schema/drizzle/9103_idx.sql')
+  writeFileSync(f, 'CREATE INDEX ON items USING hnsw (embedding vector_cosine_ops);\n')
+  const r = runHook('posttool-source-check.mjs', { tool_input: { file_path: f } })
+  assert.equal(r.code, 0, r.stderr)
+  assert.equal(r.stderr, '')
+  const out = JSON.parse(r.stdout)
+  assert.deepEqual(Object.keys(out), ['hookSpecificOutput'])
+  assert.deepEqual(Object.keys(out.hookSpecificOutput), ['hookEventName', 'additionalContext'])
+  assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse')
+  const ctx = out.hookSpecificOutput.additionalContext
+  assert.equal(typeof ctx, 'string')
+  assert.ok(ctx.includes(`${f}:1`), ctx)
+  assert.ok(ctx.includes('[vector-index]'), ctx)
 })
 
 test('source-check does not flag a decision keyword that only appears in a comment', () => {
