@@ -2340,9 +2340,9 @@ section per round holding a `| Reviewer | Verdict | Findings | Resolution |` tab
 the record, and `/adr` and `/new-feature` tell the agent to write it. No gate reads the
 directory, so a missing or malformed record turns nothing red.
 
-`update` plants `docs/reviews/README.md` where your install has none, and never rewrites or
-parks over one you already have. The owned files above reach you as usual. One text does
-not:
+`update` plants `docs/reviews/README.md` where your install has none, and leaves one you
+already have exactly as it is, with nothing parked beside it. The owned files above reach
+you as usual. One text does not:
 
 1. **The `AGENTS.md` sentence.** `AGENTS.md` is yours, so `update` does not touch it. In its
    Provenance list, extend the ADR bullet so it reads:
