@@ -383,7 +383,7 @@ for (const shape of shapes) {
 
 // THE 1.1.0 HISTORY FOLD RAMP (#75). An index a DROP TABLE took with it no longer serves a
 // shape. That finding is new judgement of applied history the old parser could not read, so on
-// an install whose baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0; a finding both
+// an install whose baseVersion predates 1.1.0 it was a dated NOTE until 1.2.0 (expired at 2.0.0); a finding both
 // readings produce stays hard. tools/lib/sql-fold-ramp.mjs replays this script over the
 // pre-fold history to tell them apart.
 const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))

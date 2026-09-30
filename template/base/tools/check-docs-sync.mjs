@@ -36,7 +36,7 @@
 //      floor (CRITICAL, HIGH) — and the verdict demand's POSITION (#72): the
 //      body's last paragraph must be the demand, so nothing is asked for after
 //      the line the SubagentStop hook reads last. A body forked before 1.1.0
-//      gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
+//      got dated NOTEs until 1.2.0 (expired at 2.0.0); a fresh scaffold is live from day one.
 //   3b/3c/3d (0.9.5). AGENTS.md's own line-budget sentence is checked for
 //      truth (a claims-check, not a size cap — no sentence, no check); the
 //      advertised-command closure extends from AGENTS.md into the bodies of
@@ -161,7 +161,7 @@ if (!listMatch) {
   // above had just expired at 1.1.0: it opened at 1.0.0, so it is inert for every 1.0.x install
   // and expired for every older one. It opens at minVersion 1.1.0 now, which covers all of
   // them, and ends at 1.2.0. The move is excused by the byte-matched `rampExtensions` entry in
-  // template/migrations.json "1.1.0", and the 1.2.0 record owes its expiry (obligations row
+  // template/migrations.json "1.1.0", and the 2.0.0 record, the first at or past 1.2.0, carries its expiry (obligations row
   // docs-sync-gate-list-ramp-expiry).
   //
   // The comment lives HERE and not inside the condition: scripts/check-ramp-ledger.mjs reads the

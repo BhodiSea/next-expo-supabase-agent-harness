@@ -126,7 +126,7 @@ jobs:
   # reports tee's status), a whole-number `timeout-minutes` on every job (none inherits
   # GitHub's 360), and harden-runner as each job's FIRST step, `egress-policy: audit` on
   # Windows. A finding names `<file>#<job>`. Ramped: an install whose baseVersion predates
-  # 1.1.0 gets NOTEs until 1.2.0. No install: the check reads committed files only, which is
+  # 1.1.0 got NOTEs until 1.2.0 (expired at 2.0.0). No install: the check reads committed files only, which is
   # why the manifest is in the `paths:` lists above (graduating moves the verdict).
   workflow-hardening:
     name: workflow hardening (bash default, job ceilings, harden-runner first)

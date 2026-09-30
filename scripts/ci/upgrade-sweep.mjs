@@ -398,6 +398,19 @@ const SWEEPS = {
     grantDoctrine: true,
     extraAdopt: ['apps/web/e2e/notes.spec.ts', 'apps/web/e2e/security.spec.ts'],
   },
+  // 2.0.0 (the bump) withholds no path. Its one seededSourceFixes set is the uuid re-date on
+  // tools/eol.json, for the fifth release running (the harness moved its own removalTarget from
+  // 1.2.0 to 2.1.0), and the DERIVED pass adopts that path from HEAD, which is the whole remedy:
+  // the copied register carries the re-affirmed row, so the re-opened version-sync arrival ramp
+  // has nothing to NOTE. The eighteen 1.1.0-opened sites that expire here need no step of their
+  // own: '1.1.0' above is their sweep, and every leg that meets them crosses 1.1.0 too. The two
+  // retirements that come with the expiry need none either. The i18n gate is a Stop step no leg
+  // runs, and a leg's tools/i18n-allow.json is the empty seed, with no site entry in it. The
+  // lint exemption for the seeded delete-account index.ts is gone, and a swept leg already ends
+  // on the 1.1.0 shell through '1.1.0''s derived pass. The round budget's extension to 2.1.0 is
+  // a Stop step's. Empty, and written down, because computeSweepSet asks every version that
+  // withholds a path or parks a seeded-source fix for a reviewed posture.
+  '2.0.0': {},
 }
 
 /**

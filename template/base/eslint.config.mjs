@@ -143,17 +143,14 @@ export default tseslint.config(
     // The complexity contract over the functions (1.1.0): the ≤ 15 the rest of the tree meets,
     // with its suppression hole closed the same way (no-suppressed-complexity, tests included).
     //
-    // ONE DATED EXEMPTION. The delete-account index.ts that every 1.0.x install carries measures
-    // 16 (its readKey), and it is SEEDED, so `update` cannot deliver the 1.1.0 handler split
-    // that fixes it: without the exemption this block would red `lint` on every upgraded install
-    // at once, over a file the install did not write. A lint rule cannot carry a rampNote, so the
-    // path sits here as the ramp — the pairing the env-through-register block records from 0.9.5 —
-    // with the 1.1.0 seededSourceFixes instruction `doctor` surfaces (pull the split with
-    // `update --refresh-seeded supabase/functions/delete-account/`), and the 1.2.0 release
-    // removes it. Register row: edge-functions-complexity-seeded-exemption. The shipped 1.1.0
-    // index.ts is a one-call shell, so the exemption costs a fresh scaffold nothing.
+    // THE DATED EXEMPTION IS GONE (2.0.0). 1.1.0 kept the seeded delete-account index.ts every
+    // 1.0.x install carries (it measures 16, its readKey) out of this block for one release,
+    // because `update` cannot rewrite a seeded file, and paired it with the seededSourceFixes
+    // instruction `doctor` surfaces: pull the split with
+    // `update --refresh-seeded supabase/functions/delete-account/`. The first release at or past
+    // 1.2.0 removes it, and that is this lineage's 2.0.0: an install that has not pulled the
+    // split now meets `lint` red on that file, and the 2.0.0 runbook section names the pull.
     files: ['supabase/functions/**/*.ts'],
-    ignores: ['supabase/functions/delete-account/index.ts'],
     plugins: { sonarjs, local: localRules },
     rules: {
       'sonarjs/cognitive-complexity': ['error', 15],

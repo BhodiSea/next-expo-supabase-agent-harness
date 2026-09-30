@@ -1798,8 +1798,10 @@ test('latestCountedPass: the LATEST PASS the v2 judgement counts, for that agent
 // reviewer's loop is still open after its ROUND_BUDGET rounds, the BLOCK stands for good in
 // this session, a PASS recorded after the budget never clears it, and the step reds with the
 // recorded findings and says to hand them to the human. It rides its own ramp, opened at 1.1.0
-// until 1.2.0, so every red below is executed as a plain red where it is live, a NOTE on a
-// 1.0.3 manifest at harness 1.1.0, and RAMP EXPIRED at harness 1.2.0.
+// until 1.2.0 and extended at the 2.0.0 cut to 2.1.0, the reviewer ledger v2 deadline it
+// depends on (the 2.0.0 record's rampExtensions entry), so every red below is executed as a
+// plain red where it is live, a NOTE on a 1.0.3 manifest at harness 1.1.0 and at harness
+// 2.0.0, and RAMP EXPIRED at harness 2.1.0.
 
 /** Run the hook in an EXISTING project tree, so consecutive verdicts share one ledger. */
 function runHookIn(dir, payload) {
@@ -1876,13 +1878,15 @@ const BUDGET_VINTAGES = /** @type {Array<[string, [string, string] | null]>} */ 
   ['no manifest', null],
   ['a 1.1.0 manifest', ['1.1.0', '1.1.0']],
   ['a 1.0.3 manifest', ['1.0.3', '1.1.0']],
-  ['a 1.0.3 manifest at harness 1.2.0', ['1.0.3', '1.2.0']],
+  ['a 1.0.3 manifest at harness 2.0.0', ['1.0.3', '2.0.0']],
+  ['a 1.0.3 manifest at harness 2.1.0', ['1.0.3', '2.1.0']],
 ])
 
 /**
  * One round-budget red, on every vintage its ramp distinguishes: a plain red where it is live,
- * a NOTE (exit 0, the rest of the verdict green) on a 1.0.3 manifest at harness 1.1.0, and
- * RAMP EXPIRED at the 1.2.0 deadline, where the v2 ramp still holds but the budget does not.
+ * a NOTE (exit 0, the rest of the verdict green) on a 1.0.3 manifest at harness 1.1.0 and at
+ * harness 2.0.0, where 1.2.0 would have arrived had the 2.0.0 cut not extended it, and RAMP
+ * EXPIRED at the 2.1.0 deadline, which it shares with the v2 ramp whose change set it judges.
  * @param {string} dir @param {RegExp[]} patterns
  */
 function assertBudgetRed(dir, patterns) {
@@ -1894,14 +1898,14 @@ function assertBudgetRed(dir, patterns) {
       assert.equal(r.code, 1, `${label}: a plain red: ${r.out}`)
       assert.match(r.out, /reviewer-verdicts: FAIL/, label)
       assert.doesNotMatch(r.out, /RAMP EXPIRED|NOTE — the per-reviewer round budget/, `${label}: ${r.out}`)
-    } else if (vintage[1] === '1.1.0') {
+    } else if (vintage[1] !== '2.1.0') {
       assert.equal(r.code, 0, `${label}: NOTE-only: ${r.out}`)
       assert.match(r.out, /reviewer-verdicts: NOTE — the per-reviewer round budget/, label)
-      assert.match(r.out, /expires in 1\.2\.0/, label)
+      assert.match(r.out, /expires in 2\.1\.0/, label)
     } else {
       assert.equal(r.code, 1, `${label}: the expiry is a hard red: ${r.out}`)
       assert.match(r.out, /reviewer-verdicts: RAMP EXPIRED — the per-reviewer round budget/, label)
-      assert.match(r.out, /deadline of 1\.2\.0/, label)
+      assert.match(r.out, /deadline of 2\.1\.0/, label)
     }
   }
 }

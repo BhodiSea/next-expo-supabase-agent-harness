@@ -271,7 +271,7 @@ function browserClosure(routes) {
 
 let closureErrs = browserClosure(entries)
 let closureSummary = `${String(entries.length)} route(s) each named by a spec under ${E2E_DIR}`
-// ITS OWN RAMP, opened at 1.1.0 until 1.2.0, and consulted only once findings exist: rampNote
+// ITS OWN RAMP, opened at 1.1.0 until 1.2.0 (expired at 2.0.0), and consulted only once findings exist: rampNote
 // prints its NOTE on every armed call, and a NOTE over a clean tree would refuse `graduate`
 // for nothing (the 0.6.0 ramp below records the wave that shipped exactly that). The specs
 // this closure asks for are seeded, and `update` does not plant them into an existing

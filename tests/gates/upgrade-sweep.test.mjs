@@ -426,6 +426,34 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
   assert.equal(computeSweepSet(MIGRATIONS, '1.0.3', '1.0.4').grantDoctrine, false)
 })
 
+// ── 2.0.0: the uuid re-date parks a fix again, and the expiring 1.1.0 fleet needs no new step ──
+test('2.0.0 — the hop from 1.1.0 has a reviewed sweep posture, and a hop from 1.0.4 still sweeps with 1.1.0', () => {
+  // The 2.0.0 record moves the template's uuid removalTarget from 1.2.0 to 2.1.0 and carries a
+  // seededSourceFixes probe on tools/eol.json, so computeSweepSet throws until SWEEPS carries a
+  // '2.0.0' entry. The derived pass adopts the fix's path, which is the whole remedy. The 1.1.0
+  // fleet that expires here is cleared by SWEEPS['1.1.0'], and every leg that meets it crosses
+  // 1.1.0 too, so a hop from 1.0.4 still runs the grant doctrine and adopts the browser specs.
+  const fixes = MIGRATIONS['2.0.0'].seededSourceFixes ?? []
+  assert.ok(
+    fixes.some((f) => (f.paths ?? []).includes('tools/eol.json')),
+    'the 2.0.0 record must park the uuid re-date on tools/eol.json',
+  )
+  assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.1.0', '2.0.0'))
+  const own = computeSweepSet(MIGRATIONS, '1.1.0', '2.0.0')
+  assert.deepEqual(own.adopt, ['tools/eol.json'])
+  assert.equal(own.grantDoctrine, false)
+  assert.deepEqual(own.tomlSectionAppends, [])
+  assert.equal(own.reconcileDataFlowExclusions, false)
+  const across = computeSweepSet(MIGRATIONS, '1.0.4', '2.0.0')
+  assert.equal(across.grantDoctrine, true, 'the expiring grant bound still needs the 1.1.0 doctrine step')
+  for (const p of ['apps/web/e2e/notes.spec.ts', 'apps/web/e2e/security.spec.ts', 'supabase/functions/delete-account/index.ts']) {
+    assert.ok(across.adopt.includes(p), `a hop from 1.0.4 must still adopt ${p}`)
+  }
+  // The delete-account split is what the retired lint exemption waited for: a swept leg that
+  // crosses 1.1.0 ends on the 1.1.0 shell, so the complexity block has nothing to red there.
+  assert.equal(across.adopt.filter((p) => p === 'tools/eol.json').length, 2, 'both re-dates park the same path')
+})
+
 test('nextMigrationStamp sorts after every migration the install has, and doctrineMigration carries the adr marker', () => {
   assert.equal(
     nextMigrationStamp(['20260101000000_a.sql', '20260203000100_b.sql', 'README.md', 'x_c.sql']),

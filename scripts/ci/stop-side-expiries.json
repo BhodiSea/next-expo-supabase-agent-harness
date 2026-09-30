@@ -36,7 +36,7 @@
     {
       "detail": "per-reviewer round budget",
       "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
-      "note": "The 1.1.0 per-reviewer round budget ramp (#71), until 1.2.0, in the same structurally-unexecuted position: it judges the rounds a session's ledger records, which exist only after live SubagentStop verdicts. The proof file executes every budget red on a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest. docs-sync's severity-contract ramp opened beside it is NOT registered here: docs-sync is in the validate chain, so the upgrade lane runs its expiry itself."
+      "note": "The 1.1.0 per-reviewer round budget ramp (#71), until 2.1.0 since the 2.0.0 cut extended it beside the reviewer ledger v2 ramp it depends on, in the same structurally-unexecuted position: it judges the rounds a session's ledger records, which exist only after live SubagentStop verdicts. The proof file executes every budget red on a 1.0.3 manifest at harness 2.1.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 2.0.0 and the plain red on a 1.1.0 manifest. docs-sync's severity-contract ramp opened beside it is NOT registered here: docs-sync is in the validate chain, so the upgrade lane runs its expiry itself."
     }
   ],
   "web-e2e": [
@@ -56,18 +56,6 @@
       "detail": "the workflow hardening rules",
       "proof": "tests/gates/check-workflow-hardening.test.mjs",
       "note": "CI-only: not a chain member at all, like web-e2e. Its home is actions-lint.yml's workflow-hardening job in the consumer's own CI, which no upgrade-lane leg runs, and the Stop chain never names it. Its 1.1.0 ramp over a project's own workflows (#73, until 1.2.0) therefore expires where only the unit proof looks: the proof file spawns the real gate on a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
-    }
-  ],
-  "i18n": [
-    {
-      "detail": "copy only the syntax-tree walk finds",
-      "proof": "tests/gates/check-i18n.test.mjs",
-      "note": "The 1.1.0 tree-only ramp (#76), until 1.2.0. i18n is a Stop-chain step, not a validate step, so no upgrade-lane leg runs it and its expiry fires in no lane. The proof file puts a string only the syntax-tree walk sees (accessibilityLabel={'Close dialog'}) under a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp and the finding reds, beside the NOTE on 1.0.3 at 1.1.0 and the plain red with no manifest."
-    },
-    {
-      "detail": "file:line site entries",
-      "proof": "tests/gates/check-i18n.test.mjs",
-      "note": "The 1.1.0 site-entry ramp (#76), until 1.2.0, in the same position: a Stop-chain step no leg runs. The proof file plants a {\"site\": \"file:line\"} entry in tools/i18n-allow.json under a 1.0.3 manifest at harness 1.2.0 and asserts the RAMP EXPIRED banner names this ramp and the entry reds as malformed, beside the NOTE that names its replacement key on 1.0.3 at 1.1.0 and the malformed red with no manifest."
     }
   ],
   "mutation-ratchet": [

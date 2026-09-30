@@ -113,7 +113,7 @@ const SURFACE_RAMP_030 = '0.3.0'
 // RAMPED TIGHTENING (1.1.0, #84) — who planted an untracked escape list. Rule 3's plant
 // exemption now also asks tools/lib/planted-shas.json, the generated union of the released-sha
 // tables' `planted` maps. An install below baseVersion 1.1.0 meets the new finding as a NOTE
-// until harness 1.2.0; the remedy is the step the NOTE already asks for: commit the file.
+// until harness 1.2.0, which expired at 2.0.0; the remedy is the step the NOTE already asks for: commit the file.
 const PLANTED_SHAS = 'tools/lib/planted-shas.json'
 const PLANT_RAMP = '1.1.0'
 

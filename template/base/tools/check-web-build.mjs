@@ -171,7 +171,7 @@ if (filled.length > 0) {
 const failure = compile(env)
 if (failure !== null) {
   const detail = failureDetail(failure)
-  // THE RAMP (1.1.0, until 1.2.0). `update` injects this step into an existing chain through
+  // THE RAMP (1.1.0, until 1.2.0; expired at 2.0.0). `update` injects this step into an existing chain through
   // the 1.1.0 record's configSteps, so a web app that stopped compiling before the install
   // upgraded would red on a check it never had. Below baseVersion 1.1.0 a failed build is a
   // NOTE carrying the output; fresh scaffolds are held to it at once. A ramped failure records

@@ -67,7 +67,10 @@
 // Agent tool's `model` set to a listed model.
 // Nothing ramps that sentence; it changes no verdict.
 //
-// THE ROUND BUDGET (1.1.0, #71), behind a second ramp opened at 1.1.0, until 1.2.0. Nothing
+// THE ROUND BUDGET (1.1.0, #71), behind a second ramp opened at 1.1.0, until 2.1.0 since the
+// 2.0.0 cut, which extended it from 1.2.0 to the v2 deadline: the budget judges v2's change
+// set and closes a loop by v2's rule, so an install still judged by the 1.0.x rule (every
+// vintage below 1.1.0, until 2.1.0) must not meet it live before v2 is live. Nothing
 // else bounds a fix-and-re-review loop: the turn-wide block cap counts every kind of block,
 // and when it is spent the turn ends with the findings standing. The hook records each
 // verdict's `round` and its `blocking` finding lines. This step counts each owed reviewer's
@@ -512,7 +515,7 @@ function budgetFindings(agents) {
 const budgetFound = v2.ran ? budgetFindings(v2Owed.map((o) => o.agent)) : []
 const budgetNoted =
   budgetFound.length > 0 &&
-  rampNote(GATE, '1.1.0', 'the per-reviewer round budget', { until: '1.2.0' })
+  rampNote(GATE, '1.1.0', 'the per-reviewer round budget', { until: '2.1.0' })
 if (budgetNoted) {
   console.log(
     `${GATE}: NOTE — ${String(budgetFound.length)} round-budget finding(s) withheld by the 1.1.0 ramp:`,

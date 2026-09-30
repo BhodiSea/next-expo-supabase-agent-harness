@@ -224,11 +224,21 @@ test('the 1.1.0 record withholds the new function files and parks a fix the v1.0
   )
 })
 
-test("eslint.config.mjs: the dated exemption covers exactly the seeded shell, and only the complexity block", () => {
+test('eslint.config.mjs: the 2.0.0 cut removed the dated exemption, so the complexity block reaches every function file', () => {
+  // 1.1.0 parked the delete-account split for existing installs (the seededSourceFixes entry
+  // above) and exempted the seeded 1.0.x shell from the complexity block for one release, under
+  // the register row edge-functions-complexity-seeded-exemption. The row's discharge is the
+  // exemption's removal, owed by the first release at or past 1.2.0: this lineage's 2.0.0.
   const config = read(REPO, 'template', 'base', 'eslint.config.mjs')
-  assert.equal(config.match(/'supabase\/functions\/delete-account\/index\.ts'/g)?.length, 1)
-  const block = config.slice(config.indexOf("ignores: ['supabase/functions/delete-account/index.ts']"))
-  assert.match(block.slice(0, 400), /'sonarjs\/cognitive-complexity': \['error', 15\]/)
+  assert.equal(config.match(/supabase\/functions\/delete-account\/index\.ts/g), null, 'the dated exemption is still in the config')
+  assert.match(
+    config,
+    /files: \['supabase\/functions\/\*\*\/\*\.ts'\],\n {4}plugins: \{ sonarjs, local: localRules \},\n {4}rules: \{\n {6}'sonarjs\/cognitive-complexity': \['error', 15\],/,
+    'the complexity block must cover every function file with no ignores',
+  )
   assert.match(config, /^ {6}'supabase\/\*',\n {6}'!supabase\/functions\/',$/m, 'the global ignore must let supabase/functions back in')
-  assert.match(config, /edge-functions-complexity-seeded-exemption/)
+  assert.doesNotMatch(config, /edge-functions-complexity-seeded-exemption/)
+  // The discharge closes the row: no register row may still name the exemption.
+  const obligations = JSON.parse(read(REPO, 'scripts', 'obligations.json'))
+  assert.equal(obligations.obligations.some((r) => r.id === 'edge-functions-complexity-seeded-exemption'), false)
 })

@@ -524,7 +524,7 @@ if (!quotaAdopted) {
 // or an ALTER POLICY: a metered table dropped and re-created without its triggers, a usage
 // table that no longer exists. What only the folded views produce is new judgement of applied
 // history the old parser could not read, so on an install whose baseVersion predates 1.1.0 it
-// is a dated NOTE until 1.2.0; what both readings produce stays hard. The replay stops here, so
+// was a dated NOTE until 1.2.0 (expired at 2.0.0); what both readings produce stays hard. The replay stops here, so
 // the source-tree walks below run once. tools/lib/sql-fold-ramp.mjs tells the two apart.
 const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
 if (!fold.replayed) {

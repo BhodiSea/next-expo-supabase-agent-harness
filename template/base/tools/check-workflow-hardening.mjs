@@ -24,7 +24,7 @@
 // number.
 //
 // RAMPED. The rules are new for a project's own workflows, so an install whose baseVersion
-// predates 1.1.0 gets its findings as NOTEs, with the deadline, until 1.2.0; a fresh 1.1.0
+// predates 1.1.0 got its findings as NOTEs until 1.2.0 (expired at 2.0.0); a fresh 1.1.0
 // scaffold is held to them at once. Every workflow the harness ships passes them in every
 // tier (tests/gates/check-workflow-hardening.test.mjs), so a NOTE is about a workflow the
 // project wrote or edited.

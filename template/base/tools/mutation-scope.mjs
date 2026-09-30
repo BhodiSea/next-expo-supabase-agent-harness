@@ -95,7 +95,7 @@ let critical = changed.filter((f) => isCritical(f, extraRoots)).sort()
 // imports, it stops with "No tests were executed" and writes no report, so the ratchet never
 // speaks. An Edge Function directory reaches the unit surface when it holds a vitest suite
 // (vitest.config.ts measures exactly those), so a changed file in one that holds none is judged
-// HERE: withheld with a NOTE on an install whose baseVersion predates 1.1.0 (until 1.2.0), and a
+// HERE: withheld with a NOTE on an install whose baseVersion predates 1.1.0 (until 1.2.0, expired at 2.0.0), and a
 // FAIL naming the one green path otherwise. Everything this prints goes to STDERR: stdout is the
 // --mutate list.
 const withSuite = edgeSuiteDirs()

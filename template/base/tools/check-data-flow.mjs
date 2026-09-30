@@ -350,7 +350,7 @@ if (existsSync(SCHEMAS_DIR)) {
 // Every finding above that reads the column facts can move when the history holds a DROP TABLE:
 // a reviewed entry for a dropped table goes stale, a link into it stops existing. What only the
 // folded facts produce is new judgement of applied history the old parser could not read, so on
-// an install whose baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0; what both readings
+// an install whose baseVersion predates 1.1.0 it was a dated NOTE until 1.2.0 (expired at 2.0.0); what both readings
 // produce stays exactly where it was. tools/lib/sql-fold-ramp.mjs replays this script over the
 // pre-fold history to tell them apart. Its own block, not a widening of the ramps below, for the
 // reason the 0.7.0 block gives.

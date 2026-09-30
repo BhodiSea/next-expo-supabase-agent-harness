@@ -7,14 +7,14 @@
 // @formatjs polyfill/locale-data closure, asserted BOTH ways, with the LOCALES array parse
 // failing closed.
 //
-// THE SYNTAX-TREE WALK (1.1.0, #76). The gate runs two scans and reports their union: the
-// regular expressions it has always run, and a walk of the TypeScript syntax tree
-// (tools/lib/i18n-tree.mjs, whose own tests are tests/gates/i18n-tree.test.mjs). This gate
-// HAS a ramp path now, two rampNote calls opened at 1.1.0 and due 1.2.0: a finding only the
-// tree walk sees, and a file:line `site` entry in tools/i18n-allow.json, are NOTEs below
-// baseVersion 1.1.0 and hard on a fresh install. The tests that need the walk run through
-// treeTest below: selftest.yml's installer-unit runs this suite with no install, so there
-// `typescript` cannot load and they skip loudly, and lint.yml's machinery-lint, which
+// THE SYNTAX-TREE WALK (1.1.0, #76), AND ONLY THE WALK (2.0.0). 1.1.0 ran two scans and
+// reported their union, the 1.0.x regular expressions and a walk of the TypeScript syntax tree
+// (tools/lib/i18n-tree.mjs, whose own tests are tests/gates/i18n-tree.test.mjs), behind two
+// rampNote calls due 1.2.0. 1.2.0 was never cut, so they fell due at 2.0.0, and 2.0.0 retired
+// what they carried: the regular expressions and the file:line `site` entry. The walk is now
+// the one scan, with no ramp, on every install. So every test that needs a finding runs
+// through treeTest below: selftest.yml's installer-unit runs this suite with no install, so
+// there `typescript` cannot load and they skip loudly, and lint.yml's machinery-lint, which
 // installs the root, runs them with HARNESS_TEST_REQUIRE_TYPESCRIPT=1, where a missing
 // parser is a failure. The parser-absent path is exercised everywhere, by running a copy of
 // the gate from a temp directory where `typescript` cannot resolve.
@@ -70,8 +70,9 @@ const keyOf = (file, kind, name, text) =>
     .digest('hex')
     .slice(0, 12)
 
-// A manifest as `update` leaves it on an install seeded at 1.0.3 and now running 1.1.0.
-const UPDATED_FROM_103 = { harnessVersion: '1.1.0', baseVersion: '1.0.3', files: {} }
+// A manifest as `update` leaves it on an install seeded at 1.0.3 and now running 2.0.0: the
+// vintage the retired 1.1.0 ramps used to carry.
+const UPDATED_FROM_103 = { harnessVersion: '2.0.0', baseVersion: '1.0.3', files: {} }
 const SRC = 'apps/mobile/src'
 const APP = 'apps/mobile/app'
 
@@ -184,7 +185,7 @@ export function Widget() {
 }
 `
 
-test('i18n: a hardcoded JSX text child reds, naming the string', () => {
+treeTest('i18n: a hardcoded JSX text child reds, naming the string', () => {
   const dir = fixture({
     files: {
       'Widget.tsx': `export function Widget() {
@@ -200,7 +201,7 @@ test('i18n: a hardcoded JSX text child reds, naming the string', () => {
   assert.ok(r.out.includes('JSX text'), r.out)
 })
 
-test('i18n: the expo-router app/ tree is scanned too — copy in a screen file reds', () => {
+treeTest('i18n: the expo-router app/ tree is scanned too — copy in a screen file reds', () => {
   const dir = fixture({
     files: { 'Uses.tsx': USES(['a.key']) },
     appFiles: {
@@ -216,7 +217,7 @@ test('i18n: the expo-router app/ tree is scanned too — copy in a screen file r
   assert.ok(r.out.includes('apps/mobile/app/index.tsx'), r.out)
 })
 
-test('i18n: a hardcoded user-facing ATTRIBUTE reds — the RN a11y names included', () => {
+treeTest('i18n: a hardcoded user-facing ATTRIBUTE reds — the RN a11y names included', () => {
   for (const attr of [
     'accessibilityLabel',
     'accessibilityHint',
@@ -243,7 +244,7 @@ test('i18n: a hardcoded user-facing ATTRIBUTE reds — the RN a11y names include
   }
 })
 
-test('i18n: copy in an OBJECT literal reds — data modules and navigator options hold copy too', () => {
+treeTest('i18n: copy in an OBJECT literal reds — data modules and navigator options hold copy too', () => {
   for (const key of ['label', 'title', 'subtitle', 'description']) {
     const dir = fixture({
       files: {
@@ -258,7 +259,7 @@ test('i18n: copy in an OBJECT literal reds — data modules and navigator option
   }
 })
 
-test('i18n: machine-facing literals are NOT copy (a path, a token, a kebab id)', () => {
+treeTest('i18n: machine-facing literals are NOT copy (a path, a token, a kebab id)', () => {
   const dir = fixture({
     files: {
       'Widget.tsx': `export function Widget() {
@@ -272,7 +273,7 @@ test('i18n: machine-facing literals are NOT copy (a path, a token, a kebab id)',
   assert.equal(r.code, 0, r.out)
 })
 
-test('i18n: TypeScript generics are not JSX — a .ts file with <T> reds nothing', () => {
+treeTest('i18n: TypeScript generics are not JSX — a .ts file with <T> reds nothing', () => {
   const dir = fixture({
     files: {
       'useListQuery.ts': `export function useListQuery<T>(fetcher: ListFetcher<T>): T | null {
@@ -286,7 +287,7 @@ test('i18n: TypeScript generics are not JSX — a .ts file with <T> reds nothing
   assert.equal(r.code, 0, r.out)
 })
 
-test('i18n: an arrow function is not a tag — `=>` never opens JSX text', () => {
+treeTest('i18n: an arrow function is not a tag — `=>` never opens JSX text', () => {
   const dir = fixture({
     files: {
       'Widget.tsx': `const keys = SHORTCUTS.map((shortcut) => [shortcut.id, shortcut.keys])
@@ -301,7 +302,7 @@ export function Widget() {
   assert.equal(r.code, 0, r.out)
 })
 
-test('i18n: Intl / toLocale* / toFixed outside apps/mobile/src/i18n reds', () => {
+treeTest('i18n: Intl / toLocale* / toFixed outside apps/mobile/src/i18n reds', () => {
   for (const call of [
     'new Intl.NumberFormat("en").format(1)',
     'value.toLocaleString()',
@@ -316,7 +317,7 @@ test('i18n: Intl / toLocale* / toFixed outside apps/mobile/src/i18n reds', () =>
   }
 })
 
-test('i18n: .toFixed(2) reds with the reason — it hardcodes the decimal mark', () => {
+treeTest('i18n: .toFixed(2) reds with the reason — it hardcodes the decimal mark', () => {
   const dir = fixture({
     files: { 'fmt.ts': 'export const x = value.toFixed(2)\n', 'Uses.tsx': USES(['a.key']) },
   })
@@ -358,7 +359,7 @@ test('i18n: an EMPTY catalog fails — the seam cannot be adopted and vacuous at
   assert.ok(r.out.includes('declares no message keys'), r.out)
 })
 
-test('i18n: the reviewed allowlist mutes findings by content KEY (copy AND boundary); malformed FAILS CLOSED', () => {
+treeTest('i18n: the reviewed allowlist mutes findings by content KEY (copy AND boundary); malformed FAILS CLOSED', () => {
   const files = {
     'Widget.tsx': 'export function Widget() {\n  return <h2>Ready to build</h2>\n}\n',
     'fmt.ts': 'export const x = value.toFixed(2)\n',
@@ -410,7 +411,7 @@ test('i18n: the reviewed allowlist mutes findings by content KEY (copy AND bound
   assert.ok(broken.out.includes('not valid JSON'), broken.out)
 })
 
-test('i18n: a content key stays on its string when a line is inserted above it; a site entry does not', () => {
+treeTest('i18n: a content key stays on its string when a line is inserted above it', () => {
   const before = 'export function Widget() {\n  return <h2>Ready to build</h2>\n}\n'
   const after = `export const inserted = 1\n${before}`
   const key = keyOf(`${SRC}/Widget.tsx`, 'jsx-text', '', 'Ready to build')
@@ -419,36 +420,6 @@ test('i18n: a content key stays on its string when a line is inserted above it; 
     const r = runGate(fixture({ files: { 'Widget.tsx': body, 'Uses.tsx': USES(['a.key']) }, allow }))
     assert.equal(r.code, 0, r.out)
   }
-  // The line-keyed escape it replaces, on an install still inside its ramp: after the
-  // insert the string reds again (it is on line 3 now) and the entry matches nothing.
-  const site = runGate(
-    fixture({
-      manifest: UPDATED_FROM_103,
-      files: { 'Widget.tsx': after, 'Uses.tsx': USES(['a.key']) },
-      allow: { comment: 'x', allow: [{ site: `${SRC}/Widget.tsx:2`, reason: 'a brand name' }] },
-    }),
-  )
-  assert.equal(site.code, 1, site.out)
-  assert.ok(site.out.includes(`${SRC}/Widget.tsx:3: hardcoded user-facing string "Ready to build"`), site.out)
-})
-
-test('i18n: one key mutes a finding whichever scanner reports it — the regular expressions alone included', () => {
-  const dir = fixture({
-    files: {
-      'Widget.tsx': 'export function Widget() {\n  return <input placeholder="Search commands" />\n}\n',
-      'Uses.tsx': USES(['a.key']),
-    },
-    allow: {
-      comment: 'x',
-      allow: [{ key: keyOf(`${SRC}/Widget.tsx`, 'attribute', 'placeholder', 'Search commands'), reason: 'r' }],
-    },
-  })
-  assert.equal(runGate(dir).code, 0)
-  const copy = gateWithoutParser(dir)
-  if (copy === null) return
-  const r = runGate(dir, { gate: copy })
-  assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('syntax-tree walk did not run'), r.out)
 })
 
 test('i18n: the gate SELF-DISABLES when the locale seam is not adopted', () => {
@@ -657,92 +628,60 @@ treeTest('i18n: a key entry that matches no finding is STALE and reds', () => {
   assert.ok(r.out.includes(`"${stale}" matches no finding`), r.out)
 })
 
-treeTest('i18n: a finding only the tree walk sees is a NOTE below baseVersion 1.1.0 until 1.2.0, hard on a fresh install', () => {
+treeTest('i18n: 2.0.0 — a shape the 1.0.x expressions missed is hard on every install, a 1.0.3 vintage included, with no ramp', () => {
+  // 1.1.0 ramped a finding only the tree walk saw (a NOTE below baseVersion 1.1.0, until
+  // 1.2.0). 1.2.0 arrived at the 2.0.0 cut, and 2.0.0 retired the ramp with the expressions it
+  // was measured against: there is one scan, so there is nothing "only" it sees.
   const files = {
     'Dialog.tsx': "export const Close = () => <Text accessibilityLabel={'Close dialog'} />\n",
     'Uses.tsx': USES(['a.key']),
   }
-  const ramped = runGate(fixture({ files, manifest: UPDATED_FROM_103 }))
-  assert.equal(ramped.code, 0, ramped.out)
-  assert.match(ramped.out, /i18n: NOTE — .*expires in 1\.2\.0/)
-  assert.ok(ramped.out.includes('"Close dialog" (accessibilityLabel attribute)'), ramped.out)
-  assert.ok(ramped.out.includes(keyOf(`${SRC}/Dialog.tsx`, 'attribute', 'accessibilityLabel', 'Close dialog')), ramped.out)
-
-  const fresh = runGate(fixture({ files }))
-  assert.equal(fresh.code, 1, fresh.out)
-
-  // At the deadline the escape is over: harness 1.2.0 on the same 1.0.3 vintage reds, and
-  // the banner names THIS ramp (scripts/ci/stop-side-expiries.json binds it to this proof).
-  const expired = runGate(fixture({ files, manifest: { ...UPDATED_FROM_103, harnessVersion: '1.2.0' } }))
-  assert.equal(expired.code, 1, expired.out)
-  assert.match(expired.out, /i18n: RAMP EXPIRED — copy only the syntax-tree walk finds/)
-  assert.ok(expired.out.includes('"Close dialog" (accessibilityLabel attribute)'), expired.out)
+  const key = keyOf(`${SRC}/Dialog.tsx`, 'attribute', 'accessibilityLabel', 'Close dialog')
+  for (const manifest of [UPDATED_FROM_103, null]) {
+    const r = runGate(fixture({ files, manifest }))
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('"Close dialog" (accessibilityLabel attribute)'), r.out)
+    assert.ok(r.out.includes(`{"key": "${key}", "reason": `), r.out)
+    assert.doesNotMatch(r.out, /RAMP EXPIRED|i18n: NOTE|ramp: live|syntax-tree walk only/)
+  }
 })
 
-treeTest('i18n: a finding BOTH scans see stays hard on a ramped install — only the new shapes ride the ramp', () => {
-  const r = runGate(
-    fixture({
-      manifest: UPDATED_FROM_103,
-      files: {
-        'Widget.tsx': 'export function Widget() {\n  return <h2>Ready to build</h2>\n}\n',
-        'Uses.tsx': USES(['a.key']),
-      },
-    }),
-  )
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('"Ready to build" (JSX text)'), r.out)
-})
-
-treeTest('i18n: a finding only the regular expressions see stays hard and is tagged as retiring in 1.2.0', () => {
-  // `title = "…"` in a .ts module is an assignment, not a JSX attribute: the attribute
-  // expression matches it, and the tree walk does not.
+treeTest('i18n: 2.0.0 — the retired expressions own shape no longer reds: `title = "…"` in a .ts module is an assignment, not copy', () => {
+  // The attribute expression matched `title = "…"` anywhere; the walk reads an assignment as
+  // what it is. 1.1.0 kept it hard and tagged it as retiring in 1.2.0, and 2.0.0 retired it.
   const r = runGate(
     fixture({
       files: { 'page.ts': 'let title = "Account settings"\nexport { title }\n', 'Uses.tsx': USES(['a.key']) },
     }),
   )
-  assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('"Account settings" (title attribute)'), r.out)
-  assert.match(r.out, /regular expressions only.*1\.2\.0/)
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /Account settings|regular expressions only/)
 })
 
-treeTest('i18n: site entries — below baseVersion 1.1.0 they still mute and name their replacement key; on a fresh install they are malformed', () => {
+test('i18n: 2.0.0 — a 1.0.x {"site"} entry is malformed on every install, a 1.0.3 vintage included, and names what replaces it', () => {
+  // The second 1.1.0 ramp kept a file:line entry muting its line below baseVersion 1.1.0 until
+  // 1.2.0. 2.0.0 retired the shape: the list fails closed on it, as on any malformed entry, and
+  // the message says where the replacement key comes from.
   const files = {
     'Widget.tsx': 'export function Widget() {\n  return <h2>Ready to build</h2>\n}\n',
     'Uses.tsx': USES(['a.key']),
   }
-  const allow = {
-    comment: 'x',
-    allow: [
-      { site: `${SRC}/Widget.tsx:2`, reason: 'a brand name' },
-      { site: `${SRC}/Widget.tsx:9`, reason: 'a line that holds nothing now' },
-    ],
+  const allow = { comment: 'x', allow: [{ site: `${SRC}/Widget.tsx:2`, reason: 'a brand name' }] }
+  for (const manifest of [UPDATED_FROM_103, null]) {
+    const r = runGate(fixture({ files, allow, manifest }))
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('every entry must be'), r.out)
+    assert.ok(r.out.includes(`"site":"${SRC}/Widget.tsx:2"`), r.out)
+    assert.match(r.out, /retired at 2\.0\.0/)
+    assert.match(r.out, /prints the \{"key"\} entry that replaces it/)
+    assert.doesNotMatch(r.out, /RAMP EXPIRED|ramp: live/)
   }
-  const key = keyOf(`${SRC}/Widget.tsx`, 'jsx-text', '', 'Ready to build')
-  const ramped = runGate(fixture({ files, allow, manifest: UPDATED_FROM_103 }))
-  assert.equal(ramped.code, 0, ramped.out)
-  assert.match(ramped.out, /i18n: NOTE — .*site.*expires in 1\.2\.0/)
-  assert.ok(ramped.out.includes(`{"key": "${key}", "reason": `), ramped.out)
-  // An unmatched site entry is a NOTE inside the ramp, never a pass it can hide behind.
-  assert.ok(ramped.out.includes(`${SRC}/Widget.tsx:9`), ramped.out)
-  assert.match(ramped.out, /Widget\.tsx:9.*matches no finding/)
-
-  const fresh = runGate(fixture({ files, allow }))
-  assert.equal(fresh.code, 1, fresh.out)
-  assert.ok(fresh.out.includes('every entry must be'), fresh.out)
-  assert.ok(fresh.out.includes(`${SRC}/Widget.tsx:2`), fresh.out)
-  // A malformed site entry mutes nothing: the string it named reds beside it.
-  assert.ok(fresh.out.includes('"Ready to build" (JSX text)'), fresh.out)
-  assert.ok(fresh.out.includes(`replace it with {"key": "${key}", "reason": "a brand name"}`), fresh.out)
-
-  // At the deadline: harness 1.2.0 on the 1.0.3 vintage, and the banner names THIS ramp.
-  const expired = runGate(fixture({ files, allow, manifest: { ...UPDATED_FROM_103, harnessVersion: '1.2.0' } }))
-  assert.equal(expired.code, 1, expired.out)
-  assert.match(expired.out, /i18n: RAMP EXPIRED — file:line site entries in tools\/i18n-allow\.json/)
-  assert.ok(expired.out.includes('every entry must be'), expired.out)
 })
 
-test('i18n: with the parser ABSENT the regular expressions still judge and the output says the walk did not run; CI fails closed', (t) => {
+test('i18n: with the parser ABSENT, checks 1 and 2 are not judged, the output says so, and CI fails closed', (t) => {
+  // Since 2.0.0 the walk is the only scan, so a missing `typescript` leaves the copy and
+  // Intl-boundary checks unjudged. Locally that is a loud NOTE, never a silent pass; in CI a
+  // failure. The dead-key and locale-data checks do not need the parser and still judge.
   const red = fixture({
     files: {
       'Widget.tsx': 'export function Widget() {\n  return <h2>Ready to build</h2>\n}\n',
@@ -755,24 +694,26 @@ test('i18n: with the parser ABSENT the regular expressions still judge and the o
     return
   }
   const local = runGate(red, { gate: redGate })
-  assert.equal(local.code, 1, local.out)
-  assert.ok(local.out.includes('"Ready to build" (JSX text)'), local.out)
-  assert.ok(local.out.includes('syntax-tree walk did not run'), local.out)
+  assert.equal(local.code, 0, local.out)
+  assert.match(local.out, /i18n: NOTE — the syntax-tree walk did not run/)
+  assert.match(local.out, /Hardcoded copy and the Intl boundary were NOT judged/)
+  assert.doesNotMatch(local.out, /Ready to build|regular expressions/)
 
-  const clean = fixture({ files: { 'Uses.tsx': USES(['a.key']) } })
-  const cleanGate = gateWithoutParser(clean)
-  assert.ok(cleanGate)
-  const cleanLocal = runGate(clean, { gate: cleanGate })
-  assert.equal(cleanLocal.code, 0, cleanLocal.out)
-  assert.match(cleanLocal.out, /i18n: NOTE — the syntax-tree walk did not run/)
+  const dead = fixture({ catalog: ['a.key', 'orphan.key'], files: { 'Uses.tsx': USES(['a.key']) } })
+  const deadGate = gateWithoutParser(dead)
+  assert.ok(deadGate)
+  const deadLocal = runGate(dead, { gate: deadGate })
+  assert.equal(deadLocal.code, 1, deadLocal.out)
+  assert.ok(deadLocal.out.includes("'orphan.key' is never rendered"), deadLocal.out)
 
-  const ci = runGate(clean, { gate: cleanGate, ci: true })
+  const ci = runGate(red, { gate: redGate, ci: true })
   assert.equal(ci.code, 1, ci.out)
   assert.ok(ci.out.includes('syntax-tree walk did not run'), ci.out)
 })
 
-treeTest('i18n: a clean tree reports that the syntax-tree walk ran', () => {
+treeTest('i18n: a clean tree reports that the syntax-tree walk ran, and nothing else', () => {
   const r = runGate(fixture({ files: { 'Uses.tsx': USES(['a.key']) } }))
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('regular expressions and the syntax-tree walk ran'), r.out)
+  assert.ok(r.out.includes('(the syntax-tree walk ran)'), r.out)
+  assert.doesNotMatch(r.out, /regular expressions/)
 })
