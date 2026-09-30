@@ -28,7 +28,8 @@
 //
 //   usage: node scripts/check-floor-advisories.mjs [--responses=<file>] [--floor=<path>] [--workspace=<path>]
 //   --responses loads recorded answers keyed by feed and probe (`osv:next@16.3.3`,
-//   `upstream:next`, `<key>#<cursor>` for a later page) and sends no request at all.
+//   `upstream:next`, `<key>#<cursor>` for a later page, and `osv-id:<GHSA id>` for OSV's
+//   record of an upstream advisory) and sends no request at all.
 //   GITHUB_TOKEN, when set, authenticates the upstream listing (the unauthenticated REST
 //   limit is 60 requests an hour); the job passes its read-only token.
 // SOURCE: scripts/lib/floor-advisories.mjs · scripts/check-register-freshness.mjs (the
@@ -41,6 +42,7 @@ import { fileURLToPath } from 'node:url'
 import {
   checkFloorAdvisories,
   OSV_QUERY_URL,
+  OSV_VULN_URL,
   parseArgs,
   recordedTransport,
   USAGE,
@@ -53,11 +55,13 @@ const USER_AGENT =
   'Mozilla/5.0 (compatible; next-expo-supabase-agent-harness/floor-advisories; +https://github.com/BhodiSea/next-expo-supabase-agent-harness)'
 // Whole-string shapes for everything that reaches a request, checked immediately before it
 // is sent: the upstream listing's first page and every next-page link GitHub hands back
-// (which may name the repository by id), and the package name and version in an OSV body.
+// (which may name the repository by id), the package name and version in an OSV body, and
+// the advisory id in an OSV record URL (it comes from the upstream feed).
 const UPSTREAM_URL =
   /^https:\/\/api\.github\.com\/(?:repos\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+|repositories\/\d+)\/security-advisories\?[\w.~%&=+-]*$/
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
+const GHSA_ID = /^GHSA(?:-[0-9a-z]{4}){3}$/
 
 const parsed = parseArgs(process.argv.slice(2))
 if (parsed.error !== undefined) {
@@ -111,24 +115,35 @@ function nextLink(link) {
 }
 
 /** @type {import('./lib/floor-advisories.mjs').FetchPage} */
-async function livePage(request) {
-  const signal = AbortSignal.timeout(TIMEOUT_MS)
-  if (request.feed === 'osv') {
-    const pkg = /** @type {any} */ (request.payload)?.package?.name
-    const version = /** @type {any} */ (request.payload)?.version
-    if (!PACKAGE_NAME.test(String(pkg)) || !EXACT_VERSION.test(String(version))) {
-      throw new Error(`refusing to query OSV for ${JSON.stringify(pkg)}@${JSON.stringify(version)}: not a package name and exact version`)
-    }
-    const token = /** @type {any} */ (request.payload)?.page_token
-    const body = { package: { name: pkg, ecosystem: 'npm' }, version, ...(typeof token === 'string' ? { page_token: token } : {}) }
-    const res = await fetch(OSV_QUERY_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'user-agent': USER_AGENT },
-      body: JSON.stringify(body),
-      signal,
-    })
-    return { status: res.status, body: await jsonBody(res), next: null }
+async function osvQuery(request) {
+  const pkg = /** @type {any} */ (request.payload)?.package?.name
+  const version = /** @type {any} */ (request.payload)?.version
+  if (!PACKAGE_NAME.test(String(pkg)) || !EXACT_VERSION.test(String(version))) {
+    throw new Error(`refusing to query OSV for ${JSON.stringify(pkg)}@${JSON.stringify(version)}: not a package name and exact version`)
   }
+  const token = /** @type {any} */ (request.payload)?.page_token
+  const body = { package: { name: pkg, ecosystem: 'npm' }, version, ...(typeof token === 'string' ? { page_token: token } : {}) }
+  const res = await fetch(OSV_QUERY_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'user-agent': USER_AGENT },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+  return { status: res.status, body: await jsonBody(res), next: null }
+}
+
+/** @type {import('./lib/floor-advisories.mjs').FetchPage} */
+async function osvRecord(request) {
+  const id = request.url.startsWith(OSV_VULN_URL) ? request.url.slice(OSV_VULN_URL.length) : ''
+  if (!GHSA_ID.test(id)) {
+    throw new Error(`refusing to request ${JSON.stringify(request.url)}: not an OSV record URL for a GHSA id`)
+  }
+  const res = await fetch(`${OSV_VULN_URL}${id}`, { headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT_MS) })
+  return { status: res.status, body: await jsonBody(res), next: null }
+}
+
+/** @type {import('./lib/floor-advisories.mjs').FetchPage} */
+async function upstreamListing(request) {
   if (!UPSTREAM_URL.test(request.url)) {
     throw new Error(`refusing to request ${JSON.stringify(request.url)}: not a GitHub repository-advisories URL`)
   }
@@ -140,15 +155,23 @@ async function livePage(request) {
   }
   const token = process.env.GITHUB_TOKEN
   if (typeof token === 'string' && token !== '') headers.authorization = `Bearer ${token}`
-  const res = await fetch(request.url, { headers, signal })
+  const res = await fetch(request.url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) })
   return { status: res.status, body: await jsonBody(res), next: nextLink(res.headers.get('link')) }
+}
+
+/** The live transport: one sender per feed. */
+const LIVE = { osv: osvQuery, 'osv-id': osvRecord, upstream: upstreamListing }
+
+/** @type {import('./lib/floor-advisories.mjs').FetchPage} */
+function livePage(request) {
+  return LIVE[request.feed](request)
 }
 
 /**
  * Print the verdict and exit: 1 on any failure, 0 otherwise.
  * @param {string[]} failures
  * @param {string[]} notes
- * @param {{ probes: number, canaries: number, recordedRows: number }} [counts]
+ * @param {import('./lib/floor-advisories.mjs').Counts} [counts]
  * @returns {never}
  */
 function report(failures, notes, counts) {
@@ -162,7 +185,7 @@ function report(failures, notes, counts) {
     process.exit(1)
   }
   process.stdout.write(
-    `FLOOR ADVISORIES: CLEAN (${String(counts.probes)} probe(s) with no unrecorded advisory; ${String(counts.canaries)} canary(ies) answered with advisories; ${String(counts.recordedRows)} recorded row(s) found upstream)\n`,
+    `FLOOR ADVISORIES: CLEAN (${String(counts.probes)} probe(s) with no unrecorded advisory; ${String(counts.canaries)} canary(ies) answered with advisories; ${String(counts.recordedRows)} recorded row(s) found upstream; ${String(counts.upstreamOnly)} upstream-only advisory(ies) judged on their own ranges)\n`,
   )
   process.exit(0)
 }
