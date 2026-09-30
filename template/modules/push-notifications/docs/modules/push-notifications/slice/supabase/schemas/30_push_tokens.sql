@@ -65,11 +65,14 @@ CREATE INDEX push_device_tokens_owner_id_created_at_id_idx
 ALTER TABLE public.push_device_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.push_device_tokens FORCE ROW LEVEL SECURITY;
 
--- Grants are the outer gate: anon has no business here, and service_role's grant
--- is revoked because BYPASSRLS makes the grant the only lever over it — an Edge
--- Function reaches this table only via a later, ADR'd migration that grants it.
+-- Grants are the outer gate: anon has no business here, service_role's grant is
+-- revoked because BYPASSRLS makes the grant the only lever over it — an Edge
+-- Function reaches this table only via a later, ADR'd migration that grants it —
+-- and authenticated's default is revoked so the role holds exactly the four verbs
+-- its policies admit (docs/adr/20260930-three-role-revoke.md).
 REVOKE ALL ON TABLE public.push_device_tokens FROM anon;
 REVOKE ALL ON TABLE public.push_device_tokens FROM service_role;
+REVOKE ALL ON TABLE public.push_device_tokens FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.push_device_tokens TO authenticated;
 
 -- Four per-operation policies, TO authenticated, each with a real predicate and
