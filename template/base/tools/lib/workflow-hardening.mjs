@@ -159,15 +159,16 @@ export function jobsOf(text) {
 // ── the shell rule ─────────────────────────────────────────────────────────────────────
 
 /**
- * Whether the top-level `defaults:` block at `at` selects exactly `bash` for `run:`.
- * @param {string[]} lines @param {number} at
+ * The shell the top-level `defaults:` block at `at` selects for `run:`, as written; null
+ * when it selects none this reading can see.
+ * @param {string[]} lines @param {number} at @returns {string | null}
  */
-function selectsBash(lines, at) {
+function defaultShell(lines, at) {
   const block = lines.slice(at + 1, blockEnd(lines, at))
   const run = keysOf(block).get('run')
-  if (!run || scalar(run.value) !== '') return false
+  if (!run || scalar(run.value) !== '') return null
   const shell = keysOf(block.slice(run.at + 1, blockEnd(block, run.at))).get('shell')
-  return shell !== undefined && scalar(shell.value) === 'bash'
+  return shell === undefined ? null : scalar(shell.value)
 }
 
 /**
@@ -187,9 +188,17 @@ function shellFindings(file, lines) {
   }
   if (!/^\s+(-\s+)?run:/m.test(text)) return []
   const at = lines.findIndex((l) => /^defaults:\s*(#.*)?$/.test(l))
-  if (at === -1 || !selectsBash(lines, at)) {
+  const shell = at === -1 ? null : defaultShell(lines, at)
+  if (shell === null) {
     return [
       `${file}: no workflow-level \`defaults.run.shell: bash\` — an un-shelled step runs without pipefail, so \`producer | tee\` reports tee's status`,
+    ]
+  }
+  if (shell !== 'bash') {
+    // A custom command runs exactly as written; only the plain `bash` gets GitHub's
+    // `--noprofile --norc -eo pipefail`. One spelling keeps the rule a string comparison.
+    return [
+      `${file}: the workflow-level \`defaults.run.shell\` is \`${shell}\`, not \`bash\` — only \`shell: bash\` runs as \`bash --noprofile --norc -eo pipefail {0}\`; write it that way`,
     ]
   }
   const jobsAt = lines.findIndex((l) => /^jobs:/.test(l))
