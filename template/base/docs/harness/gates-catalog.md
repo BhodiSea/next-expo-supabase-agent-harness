@@ -2111,9 +2111,10 @@ deletions and both sides of a rename included and `.harness/` left out. So a
 migration committed before Stop is still owed, and a deleted policy owes
 `security-reviewer`. A push moves an upstream that is the branch's own remote
 branch, so there the owed set shrinks to what is not pushed yet; an upstream
-set to the branch it will merge into keeps the whole branch owed. The ledger is read for the whole session. A BLOCK stands
-until the SAME `agent_id` returns PASS at the current digest; a fresh run is a
-second opinion and retracts nothing. A PASS counts, in its own prompt or a
+set to the branch it will merge into keeps the whole branch owed. The ledger is
+read for the whole session. A BLOCK stands until the SAME `agent_id` returns
+PASS at the current digest; a fresh run is a second opinion and retracts
+nothing. A PASS counts, in its own prompt or a
 later one, only when three digests agree: the one the hook recorded at
 `SubagentStart` (`path_state_start`, from `.harness/reviewer-dispatch.jsonl`),
 the one it recorded at the verdict (`path_state_stop`), and the one now. A

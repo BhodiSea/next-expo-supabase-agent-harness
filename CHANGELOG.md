@@ -313,7 +313,8 @@ this heading if none does. -->
   after `db:reset`. A 1.0.4 install kept its suites on `update`; `--refresh-seeded` pulled
   an unedited one and parked an edited one, exiting 2 (#58).
   For the reviewer ledger v2, `tests/gates/check-reviewer-verdicts.test.mjs` was red on 24
-  new cases before the change. The headline, in a clone whose branch tracks origin/main,
+  cases before the change: 23 new ones, and the hook's exact entry shape, which gains the v2
+  fields. The headline, in a clone whose branch tracks origin/main,
   printed "reviewer-verdicts: OK — no reviewer is owed a verdict by this diff (0 changed
   file(s))" for a committed migration; the rest could not reach `reviewChanges()` or the
   v2 helpers, and the hook's entry had no v2 fields. `tests/hooks/hook-contract.test.mjs`
