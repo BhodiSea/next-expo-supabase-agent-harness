@@ -251,8 +251,12 @@ function floorTemplateProblems(v, f) {
 
 let floorCount = 0
 for (const [v, entry] of Object.entries(migrations)) {
-  if (!/^\d+\.\d+\.\d+/.test(v)) continue
-  for (const f of entry.catalogPinFloors ?? []) {
+  if (!/^\d+\.\d+\.\d+/.test(v) || entry.catalogPinFloors === undefined) continue
+  if (!Array.isArray(entry.catalogPinFloors)) {
+    problems.push(`template/migrations.json ${v}: \`catalogPinFloors\` must be a list of floors — the installer maps over it.`)
+    continue
+  }
+  for (const f of entry.catalogPinFloors) {
     floorCount += 1
     const shape = floorShapeProblems(v, f)
     problems.push(...shape)

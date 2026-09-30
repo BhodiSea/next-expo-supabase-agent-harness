@@ -910,7 +910,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-dependency-channel.test.mjs",
-        "note": "0.7.0, includes the tag-time pin: the baseline resolves STRICTLY BELOW the version being cut (highestReleaseBelow), so the v0.6.0 self-predecessor class cannot regress. 1.1.0 (#83) adds the catalogPinFloors half: a floor missing its name or advisory, a minVersion that is not a plain x.y.z, a why under 40 chars, a floor naming a package the template catalog does not pin, and a template pin below its own floor (a caret range with a low bound, a lower patch, a dist-tag) each red through the same judgePinFloor() doctor runs, and the CLEAN line counts the floors"
+        "note": "0.7.0, includes the tag-time pin: the baseline resolves STRICTLY BELOW the version being cut (highestReleaseBelow), so the v0.6.0 self-predecessor class cannot regress. 1.1.0 (#83) adds the catalogPinFloors half: a floor missing its name or advisory, a minVersion that is not a plain x.y.z, a why under 40 chars, a floor naming a package the template catalog does not pin, and a template pin below its own floor (a caret range with a low bound, a lower patch, a dist-tag) each red through the same judgePinFloor() doctor runs, a catalogPinFloors value that is not a list reds by name instead of crashing, and the CLEAN line counts the floors"
       }
     ],
     "check-eol-target.mjs": [

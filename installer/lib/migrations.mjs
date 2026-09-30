@@ -368,20 +368,24 @@ export const DEPENDENCY_OBLIGATIONS_PATH = '.harness/pending/dependencies.json'
 // this key" is the obligation check's question, and a false "already met" is the only
 // dangerous answer — so the probe is anchored to a catalog-entry shape rather than a bare
 // substring. Hoisted out of unmetDependencyObligations in 1.0.4 so `doctor`'s toolchain
-// report reads the Supabase CLI's pin through the same anchor.
+// report reads the Supabase CLI's pin through the same anchor, and read by the pin floors
+// (1.1.0), for which a present key read as ABSENT is the dangerous answer: an absent key is
+// not judged. So the key may carry either YAML quote, as long as both sides match — a YAML
+// formatter rewrites `'@vitest/coverage-v8':` as `"@vitest/coverage-v8":`, and before 1.1.0
+// that line read as no entry at all.
 /**
  * The value of an indented `name:` entry in a pnpm-workspace.yaml text, with a trailing
  * comment and surrounding quotes removed ('' for a key with no value), or null when no such
- * entry exists.
+ * entry exists. The key may be bare, 'single-quoted' or "double-quoted".
  * @param {string} workspaceYaml
  * @param {string} name
  * @returns {string | null}
  */
 export function catalogEntry(workspaceYaml, name) {
   const key = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const m = new RegExp(`^\\s{2,}'?${key}'?\\s*:(.*)$`, 'm').exec(workspaceYaml)
+  const m = new RegExp(`^\\s{2,}(['"]?)${key}\\1\\s*:(.*)$`, 'm').exec(workspaceYaml)
   if (!m) return null
-  return m[1]
+  return m[2]
     .replace(/\s+#.*$/, '')
     .trim()
     .replace(/^(['"])(.*)\1$/, '$2')

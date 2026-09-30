@@ -382,6 +382,14 @@ this heading if none does. -->
   the example's three rows while `packages/verticals/notes` is moved aside, and in Canary 33
   reds naming the example's `client.ts` once its `EVENT_CATALOG` is a number. No chain step,
   gate, ramp or floor changes (#82).
+- **A double-quoted catalog key is read as the entry it is.** The installer's one catalog
+  probe, `catalogEntry` in `installer/lib/migrations.mjs`, accepted a bare or single-quoted
+  key only, so a `pnpm-workspace.yaml` a YAML formatter had rewritten to
+  `"eslint-plugin-jsx-a11y": ^6.10.2` read as having no such entry. `doctor` then reported a
+  met dependency obligation as an unmet `ERROR`, and its toolchain report named no Supabase
+  CLI pin for a double-quoted `"supabase"` key. The key may now carry either quote, as long
+  as both sides match. The catalog pin floors (see Changed) read through the same probe, and
+  for them a present key read as absent would never be judged (#83).
 
 ### Changed
 
@@ -1258,7 +1266,11 @@ this heading if none does. -->
   install updated by this installer exited 0, printed a `CATALOG PIN FLOOR (1.1.0)` note for
   each package and parked both floors; `doctor` then warned on both with no `ERROR`, and with
   the pins raised by hand it removed the parked file. A v1.0.3 install updated the same way
-  got no note and no file (#83).
+  got no note and no file. Through the probe as 1.0.4 shipped it, a double-quoted
+  `"@vitest/coverage-v8": 4.1.10` read as absent, so no floor was judged, and a double-quoted
+  obligation key read as unmet; both cases, and the one-home anchor case, were red until
+  `catalogEntry` took either quote. A `catalogPinFloors` value that was not a list crashed
+  `check-dependency-channel` with a `TypeError` until it was named as a problem (#83).
 
 ## [1.0.4] — 2026-09-29
 

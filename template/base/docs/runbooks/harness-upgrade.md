@@ -2689,7 +2689,8 @@ an `info` line; it is an instruction, not a parked upgrade, so there is nothing 
 from it. A pin is judged by the lower bound of its catalog value: `^4.1.11` and `>=4.1.11`
 meet the floor, `^4.1.10` does not, even where your lockfile resolved something newer, and a
 value that is not a version (a dist-tag, an `npm:` alias, a URL) cannot be proven to meet
-it, so it warns too. A package you removed from the catalog is not judged.
+it, so it warns too. The key is found whether it is bare, single-quoted or double-quoted,
+and a package you removed from the catalog is not judged.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
