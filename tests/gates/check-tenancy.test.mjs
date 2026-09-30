@@ -1377,3 +1377,87 @@ test('RED: the audit schema published in [api].schemas', () => {
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes("schema 'audit' is listed in [api].schemas"), r.out)
 })
+
+// ── 1.1.0 (#75): the history fold — ALTER POLICY and DROP TABLE ────────────────
+// The live fold here read CREATE POLICY and DROP POLICY only, so a predicate rewritten by
+// ALTER POLICY kept its CREATE text in judgment, and a dropped table kept its columns. The
+// header's rule still holds — a wrong predicate is a hard red regardless of manifest vintage —
+// for every finding the 1.0.x reading also produces; only a finding the fold alone produces
+// rides the 1.1.0 ramp until 1.2.0 (the REGRESSION case above is unchanged).
+
+const ALTER_SELECT = 'ALTER POLICY notes_select_org ON public.notes USING (org_id = (SELECT auth.uid()));'
+const PRE_FOLD = { baseVersion: '1.0.3', harnessVersion: '1.1.0', files: {} }
+const PRE_FOLD_EXPIRED = { baseVersion: '1.0.3', harnessVersion: '1.2.0', files: {} }
+
+test('RED (1.1.0, repro 3): ALTER POLICY to a tenant column compared to a user id', () => {
+  const r = runGate(fixture({ migration: tenancyMigration({ extra: ALTER_SELECT }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('notes: policy notes_select_org USING matches NO reviewed predicate form'), r.out)
+  assert.ok(r.out.includes("saw 'org_id = (select auth.uid())'"), r.out)
+})
+
+test('GREEN (1.1.0): ALTER POLICY to another reviewed form is judged on the new text and passes', () => {
+  const r = runGate(
+    fixture({
+      migration: tenancyMigration({
+        notesSelect: 'USING (org_id = (SELECT auth.uid()))',
+        extra: 'ALTER POLICY notes_select_org ON public.notes USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));',
+      }),
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (1.1.0): a dropped table named in untenantedTables is a stale entry', () => {
+  const widgets = `CREATE TABLE public.widgets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE
+);`
+  const config = (c) => ({
+    ...c,
+    untenantedTables: [{ table: 'widgets', reason: 'account-scoped device registry, deliberately not org data' }],
+  })
+  const kept = runGate(fixture({ migration: tenancyMigration({ extra: widgets }), config }))
+  assert.equal(kept.code, 0, kept.out)
+  const r = runGate(
+    fixture({ migration: tenancyMigration({ extra: `${widgets}\nDROP TABLE public.widgets;` }), config }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("untenantedTables names 'widgets' but no migration creates it"), r.out)
+})
+
+test('RAMP (1.1.0): the ALTER-only finding is a NOTE on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(fixture({ migration: tenancyMigration({ extra: ALTER_SELECT }), manifest: PRE_FOLD }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /tenancy: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.ok(r.out.includes('tenancy: NOTE — (ramp) notes: policy notes_select_org USING matches NO reviewed predicate form'), r.out)
+})
+
+test('RAMP (1.1.0): the ALTER-only finding is RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(fixture({ migration: tenancyMigration({ extra: ALTER_SELECT }), manifest: PRE_FOLD_EXPIRED }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('tenancy: RAMP EXPIRED — the SQL history fold'), r.out)
+  assert.ok(r.out.includes('matches NO reviewed predicate form'), r.out)
+})
+
+test('RAMP (1.1.0): with no manifest the ALTER-only finding is a plain red', () => {
+  const r = runGate(fixture({ migration: tenancyMigration({ extra: ALTER_SELECT }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('NOTE — (ramp)'), r.out)
+})
+
+test('RAMP (1.1.0): a wrong CREATE predicate stays hard on a 1.0.3 install even with a fold in the history', () => {
+  // Both readings produce it, so the ramp does not reach it: the header's rule, intact.
+  const r = runGate(
+    fixture({
+      migration: tenancyMigration({
+        notesSelect: 'USING (org_id = (SELECT auth.uid()))',
+        extra: 'ALTER POLICY notes_delete_org ON public.notes TO authenticated;',
+      }),
+      manifest: PRE_FOLD,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('matches NO reviewed predicate form'), r.out)
+  assert.ok(!r.out.includes('NOTE — (ramp) notes: policy notes_select_org'), r.out)
+})

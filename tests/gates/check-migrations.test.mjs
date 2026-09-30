@@ -245,6 +245,8 @@ for (const [label, sql] of [
   ['DROP FUNCTION', 'DROP FUNCTION public.set_updated_at();'],
   ['DISABLE TRIGGER', 'ALTER TABLE public.notes DISABLE TRIGGER notes_audit;'],
   ['REVOKE FROM authenticated', 'REVOKE ALL ON TABLE public.notes FROM authenticated;'],
+  // 1.1.0 (#75): ALTER POLICY replaces the predicate, roles or check a reviewer approved.
+  ['ALTER POLICY', 'ALTER POLICY notes_select_own ON public.notes USING (true);'],
 ]) {
   test(`RED (0.2.0): ${label} without an \`-- adr:\` is an unrecorded authorization removal`, () => {
     const dir = fixture()
@@ -468,4 +470,113 @@ test('0.4.0: the unexempted failure NAMES the escape, because the in-file fix re
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('tools/migrations-allow.json'), r.out)
   assert.ok(r.out.includes('editing a committed migration reds the append-only rule'), r.out)
+})
+
+// ---- 1.1.0 (#75): ALTER POLICY is an authorization change ---------------------------
+//
+// Before 1.1.0 no rule here named ALTER POLICY, so rewriting a reviewed predicate to
+// `USING (true)` needed no ADR while dropping the same policy did. The rename-only form
+// changes no control and stays free. These findings ride a ramp of their own (1.1.0 until
+// 1.2.0), not the 0.2.0 bucket whose ramp ended at 0.4.0, and an already-applied migration
+// is acknowledged through the existing `authz-adr` entry in tools/migrations-allow.json.
+
+const ALTER_USING = "SET lock_timeout = '3s';\nALTER POLICY notes_select_own ON public.notes USING (true);\n"
+
+/** @param {string} dir @param {{ baseVersion: string, harnessVersion: string }} manifest */
+function writeManifest(dir, manifest) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ ...manifest, files: {} }))
+}
+
+test('GREEN (1.1.0): a rename-only ALTER POLICY changes no control and needs no ADR', () => {
+  const dir = fixture()
+  appendMigration(
+    dir,
+    '0001_rename.sql',
+    'ALTER POLICY notes_select_own ON public.notes RENAME TO notes_select_mine;\n',
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (1.1.0): a rename beside a rewrite in the same file still needs the ADR', () => {
+  // Judged per statement: the rename does not excuse the file.
+  const dir = fixture()
+  appendMigration(
+    dir,
+    '0001_rename.sql',
+    `ALTER POLICY notes_select_own ON public.notes RENAME TO notes_select_mine;\n${ALTER_USING}`,
+  )
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('ALTER POLICY removes an authorization control'), r.out)
+})
+
+test('GREEN (1.1.0): ALTER POLICY with a resolvable `-- adr:` is a recorded decision', () => {
+  const dir = fixture()
+  addAdr(dir, '0001-open-notes.md')
+  appendMigration(dir, '0001_alter.sql', `-- adr: docs/adr/0001-open-notes.md\n${ALTER_USING}`)
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (1.1.0): ALTER POLICY with an `-- adr:` naming a missing file', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', `-- adr: docs/adr/9999-not-written.md\n${ALTER_USING}`)
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('referenced ADR docs/adr/9999-not-written.md does not exist'), r.out)
+})
+
+test('GREEN (1.1.0): an APPLIED ALTER POLICY is acknowledged by the existing authz-adr entry', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', ALTER_USING)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'alter policy')
+  assert.equal(runGate(dir).code, 1, 'precondition: the finding must be red without the file')
+  writeAllow(dir, { allow: [{ file: '0001_alter.sql', rule: 'authz-adr', reason: REASON }] })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('reviewed exemption'), r.out)
+  assert.ok(r.out.includes('ALTER POLICY removes an authorization control'), r.out)
+})
+
+test('RAMP (1.1.0): the ALTER POLICY finding is a NOTE on a 1.0.3 install at harness 1.1.0', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', ALTER_USING)
+  writeManifest(dir, { baseVersion: '1.0.3', harnessVersion: '1.1.0' })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /migrations: NOTE — ALTER POLICY as an authorization change .*expires in 1\.2\.0/)
+  assert.ok(r.out.includes('migrations: NOTE — (ramp) supabase/migrations/0001_alter.sql: ALTER POLICY removes an authorization control'), r.out)
+})
+
+test('RAMP (1.1.0): the ALTER POLICY finding is RAMP EXPIRED and red at harness 1.2.0', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', ALTER_USING)
+  writeManifest(dir, { baseVersion: '1.0.3', harnessVersion: '1.2.0' })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('migrations: RAMP EXPIRED — ALTER POLICY as an authorization change'), r.out)
+  assert.ok(r.out.includes('ALTER POLICY removes an authorization control'), r.out)
+})
+
+test('RAMP (1.1.0): with no manifest the ALTER POLICY finding is a plain red', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', ALTER_USING)
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('NOTE — (ramp)'), r.out)
+})
+
+test('RAMP (1.1.0): the 1.1.0 ramp does not reach a DROP POLICY finding in the same file', () => {
+  // The 0.2.0 bucket's findings are the old model's: at harness 1.1.0 they stay hard, and
+  // folding them into the new ramp would re-open an escape the ratchet counted closed.
+  const dir = fixture()
+  appendMigration(dir, '0001_alter.sql', `${ALTER_USING}DROP POLICY notes_update_own ON public.notes;\n`)
+  writeManifest(dir, { baseVersion: '1.0.3', harnessVersion: '1.1.0' })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('DROP POLICY removes an authorization control'), r.out)
+  assert.ok(r.out.includes('NOTE — (ramp) supabase/migrations/0001_alter.sql: ALTER POLICY'), r.out)
 })

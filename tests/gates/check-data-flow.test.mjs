@@ -522,3 +522,39 @@ ALTER TABLE public.t DROP CONSTRAINT t_subject_fkey;
   assert.equal(col.references, null)
   assert.equal(col.onDelete, null)
 })
+
+// ── 1.1.0 (#75): the history fold reaches the column facts ─────────────────────────────
+// parseColumnFacts never forgot a table, so a DROP TABLE left every column, and every foreign
+// key into the dropped table, in the facts this gate closes over. Folded, the reviewed entries
+// that describe the dropped table go stale — a finding only the fold produces, which rides the
+// 1.1.0 ramp until 1.2.0.
+const DROP_INVITATIONS = 'DROP TABLE public.invitations CASCADE;\n'
+
+test('RED (1.1.0): a dropped table leaves the entries that reviewed it stale', () => {
+  const r = runGate(fixture({ extraSql: DROP_INVITATIONS }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /severed\[\] reviews invitations\.invited_by, which is no longer a SET NULL link/)
+  assert.match(r.out, /retained\[\] names invitations\.email, which no migration in supabase\/migrations creates/)
+  // No manifest: the ramp cannot arm, so nothing is withheld.
+  assert.doesNotMatch(r.out, /NOTE — \(ramp\)/)
+  // …and the tree without the drop is green, so these are the drop's findings.
+  assert.equal(runGate(fixture()).code, 0)
+})
+
+test('RAMP (1.1.0): the fold-only findings are NOTEs on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(
+    fixture({ extraSql: DROP_INVITATIONS, manifest: { baseVersion: '1.0.3', harnessVersion: '1.1.0' } }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /data-flow: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.match(r.out, /data-flow: NOTE — \(ramp\) tools\/data-flow\.json severed\[\] reviews invitations\.invited_by/)
+})
+
+test('RAMP (1.1.0): the fold-only findings are RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(
+    fixture({ extraSql: DROP_INVITATIONS, manifest: { baseVersion: '1.0.3', harnessVersion: '1.2.0' } }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /data-flow: RAMP EXPIRED — the SQL history fold/)
+  assert.match(r.out, /severed\[\] reviews invitations\.invited_by/)
+})

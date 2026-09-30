@@ -446,3 +446,51 @@ test('selectSql REFUSES an unrecognized filter operator rather than dropping it'
 test('selectSql refuses a write shape — a gate must not mutate what it measures', () => {
   assert.throws(() => selectSql(listShape({ op: 'delete' })), /is a delete, not a read/)
 })
+
+// ── 1.1.0 (#75): the history fold reaches the index lookup ────────────────────────────
+// parseIndexes folded index and constraint drops but never a DROP TABLE, so a table dropped
+// and re-created without its sort index still read as served. Folded, the re-created table
+// starts fresh: a finding only the fold produces, which rides the 1.1.0 ramp until 1.2.0.
+const RECREATED = `${MIGRATION_OK}
+DROP TABLE public.notes;
+CREATE TABLE public.notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
+  PRIMARY KEY (org_id, id)
+);
+`
+
+/** @param {{ baseVersion: string, harnessVersion: string } | null} manifest */
+function recreatedFixture(manifest) {
+  const dir = fixture({ migration: RECREATED })
+  if (manifest !== null) {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ ...manifest, files: {} }))
+  }
+  return dir
+}
+
+test('RED (1.1.0): the index a dropped table took with it no longer serves the page', () => {
+  const r = runGate(recreatedFixture(null))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('(notes.listNotes#page): no index on public.notes serves it'), r.out)
+  // The point read is still served, by the re-created table's own primary key.
+  assert.ok(!r.out.includes('(notes.getNote#byId): no index'), r.out)
+  assert.ok(!r.out.includes('NOTE — (ramp)'), r.out)
+})
+
+test('RAMP (1.1.0): the fold-only finding is a NOTE on a 1.0.3 install at harness 1.1.0', () => {
+  const r = runGate(recreatedFixture({ baseVersion: '1.0.3', harnessVersion: '1.1.0' }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /query-shapes: NOTE — the SQL history fold .*expires in 1\.2\.0/)
+  assert.ok(r.out.includes('query-shapes: NOTE — (ramp) tools/generated/query-shapes.json (notes.listNotes#page): no index'), r.out)
+})
+
+test('RAMP (1.1.0): the fold-only finding is RAMP EXPIRED and red at harness 1.2.0', () => {
+  const r = runGate(recreatedFixture({ baseVersion: '1.0.3', harnessVersion: '1.2.0' }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('query-shapes: RAMP EXPIRED — the SQL history fold'), r.out)
+  assert.ok(r.out.includes('no index on public.notes serves it'), r.out)
+})
