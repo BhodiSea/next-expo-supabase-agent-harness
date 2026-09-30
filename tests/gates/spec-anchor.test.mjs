@@ -215,6 +215,37 @@ test('an unclosed fence runs to the end of the file', () => {
   )
 })
 
+test('a heading line inside an HTML comment is not a heading, and a comment and a fence do not open inside each other', () => {
+  const src = [
+    '## Kept',
+    '<!-- a one-line comment -->',
+    '## Also kept',
+    '<!--',
+    '## Decisions',
+    '```',
+    '-->',
+    '## After the comment',
+    '```',
+    '<!--',
+    '## inside the fence',
+    '```',
+    '## After the fence',
+    '  <!-- opens here',
+    '## still commented --> closes here',
+    '## Last',
+  ].join('\n')
+  assert.deepEqual(
+    parseHeadings(src).map((h) => h.id),
+    ['kept', 'also-kept', 'after-the-comment', 'after-the-fence', 'last'],
+  )
+  assert.match(
+    sectionOf(src, 'also-kept').text,
+    /^<!--\n## Decisions\n```\n-->\n$/m,
+    'a commented-out section stays in the body of the section around it',
+  )
+  assert.equal(findSection(src, 'decisions').kind, 'unknown', 'a commented-out heading has no id')
+})
+
 test('ATX details: closing hashes are dropped, a hash with no space is text, an empty heading or id is skipped', () => {
   const src = ['## Closed ##', '#hashtag', '##', '####### seven', '   ### Indented three', '## ???', ''].join('\n')
   const hs = parseHeadings(src)

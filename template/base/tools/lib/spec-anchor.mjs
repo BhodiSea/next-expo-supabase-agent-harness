@@ -14,19 +14,22 @@
 //
 // ONLY ATX HEADINGS (`#` to `######`, at most three leading spaces) count, and never one
 // inside a fenced code block (``` or ~~~, closed by a run of the same character at least
-// as long). A line indented four spaces is code, not a heading, and a heading whose text
-// yields an empty id (`## ???`) has nothing to cite and is left out. CRLF and a leading BOM
-// read exactly as LF.
+// as long) or inside an HTML comment that opens a line (`<!--`, closed on the line that
+// holds `-->`), so a section commented out of a spec has no id, as on GitHub. A line
+// indented four spaces is code, not a heading, and a heading whose text yields an empty id
+// (`## ???`) has nothing to cite and is left out. CRLF and a leading BOM read exactly as LF.
 // SOURCE: docs/harness/README.md (Spec-first SOP) [corpus: harness/doctrine]
 import { posix } from 'node:path'
 import { toPosix } from './fs-walk.mjs'
 
 const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
+const COMMENT_OPEN = /^ {0,3}<!--/
 const NOT_IN_ID = /[^\p{L}\p{M}\p{Nd}\p{Nl}\p{Pc} -]/gu
 
 /**
  * GitHub's anchor for a heading's text.
+ * @public exported for the harness repo's gate suite (tests/gates/spec-anchor.test.mjs)
  * @param {string} text
  */
 export const headingId = (text) => text.toLowerCase().replace(NOT_IN_ID, '').replace(/ /g, '-')
@@ -52,17 +55,45 @@ function fenceAfter(open, line) {
 }
 
 /**
+ * Whether an HTML comment is still open after `line`: one opens only at the start of a line
+ * and closes on the line that holds `-->` after its opener (CommonMark's HTML block kind 2).
+ * @param {boolean} open
+ * @param {string} line
+ */
+function commentAfter(open, line) {
+  if (open) return !line.includes('-->')
+  const m = COMMENT_OPEN.exec(line)
+  return m !== null && !line.includes('-->', m[0].length)
+}
+
+/** @typedef {{ fence: { char: string, len: number } | null, comment: boolean }} Block */
+
+/**
+ * One step of the block state: an open comment or fence swallows the other's markers.
+ * @param {Block} block
+ * @param {string} line
+ * @returns {Block}
+ */
+function blockAfter(block, line) {
+  if (block.comment) return { fence: null, comment: commentAfter(true, line) }
+  if (block.fence !== null) return { fence: fenceAfter(block.fence, line), comment: false }
+  const fence = fenceAfter(null, line)
+  return { fence, comment: fence === null && commentAfter(false, line) }
+}
+
+/**
  * @typedef {{ level: number, text: string, id: string, line: number }} Heading
  * @param {string[]} lines
  * @returns {Heading[]}
  */
 function headingsOf(lines) {
   const out = []
-  let fence = null
+  /** @type {Block} */
+  let block = { fence: null, comment: false }
   lines.forEach((line, i) => {
-    const inside = fence !== null
-    fence = fenceAfter(fence, line)
-    if (inside || fence !== null) return
+    const inside = block.fence !== null || block.comment
+    block = blockAfter(block, line)
+    if (inside || block.fence !== null || block.comment) return
     const m = ATX.exec(line)
     const id = m?.[2] ? headingId(m[2]) : ''
     if (id !== '') out.push({ level: m[1].length, text: m[2], id, line: i + 1 })

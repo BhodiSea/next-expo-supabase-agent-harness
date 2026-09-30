@@ -176,9 +176,9 @@ this heading if none does. -->
   `specs/<feature>.md#security-invariants` is also a link on GitHub. The new owned
   `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints that heading and everything
   under it, up to the next heading of the same or a higher level, and with no `#<id>` prints
-  an index of id, line and heading. It skips headings inside code fences and reads CRLF as
-  LF. An unknown id, or one that two headings produce, exits 1 and lists the ids on stderr;
-  it does not guess GitHub's `-1` suffix. A path that is not a `.md` file under `specs/`
+  an index of id, line and heading. It skips headings inside code fences and HTML comments,
+  as GitHub does, and reads CRLF as LF. An unknown id, or one that two headings produce,
+  exits 1 and lists the ids on stderr; it does not guess GitHub's `-1` suffix. A path that is not a `.md` file under `specs/`
   exits 2 with nothing on stdout, an absolute path, one that leaves through `..` and a
   symlink out included. It writes nothing, and the parsing is the pure
   `tools/lib/spec-anchor.mjs`. `/new-feature` has the main thread run it for each section a

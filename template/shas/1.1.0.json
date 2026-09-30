@@ -2242,7 +2242,7 @@
     ],
     "tools/lib/spec-anchor.mjs": [
       {
-        "sha256": "5cb92894a97320443794367e8ead2f5f66757499517fff21408dc922209a305d"
+        "sha256": "8ddcdfb81e1e56e29a0b86e997a2b320caa7875fe273633080d5abc151e57451"
       }
     ],
     "tools/lib/sql-parse.mjs": [
