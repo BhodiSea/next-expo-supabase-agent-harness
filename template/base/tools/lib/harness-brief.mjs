@@ -93,7 +93,10 @@ function installLines(f) {
 function parkedLines(f) {
   if (!isObject(f) || !Array.isArray(f.paths)) return [`${FIELD.parked}: unavailable`]
   const paths = f.paths
-  return [`${FIELD.parked}: ${String(paths.length)}`, ...listLines(paths.slice(0, LIST_MAX).map(path), paths.length)]
+  return [
+    `${FIELD.parked}: ${String(paths.length)}`,
+    ...listLines(paths.slice(0, LIST_MAX).map(path), paths.length),
+  ]
 }
 
 /** @param {Record<string, any>} f */
