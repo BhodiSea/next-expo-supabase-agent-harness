@@ -6,8 +6,10 @@ against **Claude Code 2.1.232 / SDK 0.3.232**, `CLAUDE_CODE_ENTRYPOINT=claude-vs
 same probe method — a probe hook in `.claude/settings.local.json` capturing raw stdin,
 plus the empirical exit-code matrix for Fact 12 and the advisory re-query for Fact 10).
 Facts 1, 2, 3, 5, 6, 10 and 12 were re-verified by execution; Facts 7, 8, 9, 11 and 13
-are documentation-sourced and were re-read, not re-probed. **Re-verify on any Claude
-Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
+are documentation-sourced and were re-read, not re-probed. Fact 14 (read 2026-09-30) is
+documentation-sourced and has **not** been probed: it records what is documented about
+`agent_id` across a resumed subagent, and the probe that still owes an observed answer.
+**Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
 sourced, re-verify-on-bump.
 
 ## Why this file exists
@@ -282,6 +284,50 @@ does not hard-deny the tool — a non-matching call falls through to the PROMPT 
 deny rule (`Write(./.claude/hooks/**)`) holds over any allow, from any scope ("deny rules from
 any scope are evaluated before allow rules"). The shipped scaffold settings carried bare
 `Bash`/`WebFetch`/`WebSearch` allows at 0.8.0; 0.9.0 drops them.
+
+## Fact 14 — `agent_id` across a RESUMED subagent: documented, NOT yet observed
+
+**Status, 2026-09-30: documentation-sourced, not probed, no Claude Code version observed.**
+Recorded before the reviewer ledger v2 (1.1.0, #70) coded its standing-BLOCK rule, because
+that rule keys on `agent_id`: a BLOCK stands until the SAME `agent_id` returns PASS at the
+current digest. The session that wrote 1.1.0 could not start a Claude Code session of its
+own, so the probe below did not run; it is an owner step, and the rule is built to fail
+closed on either answer.
+
+What the documentation states, read 2026-09-30:
+
+- The subagents page: *"Claude uses the `SendMessage` tool with the agent's ID or name as
+  the `to` field to resume it"*, and *"Resuming starts a new run of the agent under the same
+  ID, so a subagent that had already failed or completed shows as running again in the task
+  list and in the Agent SDK's task events."* So a resumed reviewer is documented to keep its
+  `agent_id`.
+- The hooks page: `SubagentStart` *"Fires when a subagent is spawned"*, and its payload
+  carries `agent_id` (*"Unique identifier for the subagent"*), `agent_type` and `prompt_id`,
+  as SubagentStop's does (Facts 2 and 3). **Whether `SubagentStart` fires again when a
+  completed subagent is resumed is not stated anywhere.**
+
+What the ledger v2 relies on, and what happens if either reading is wrong:
+
+1. **A resumed reviewer keeps its `agent_id`.** That is what lets a reviewer clear its own
+   BLOCK: fix what it named, resume it, and its PASS at the current digest clears the
+   BLOCK. If a resume issued a new id instead, the resumed PASS would read as a second
+   opinion, which retracts nothing, and the BLOCK would stand for the rest of the session.
+   That fails closed: a new session starts from an empty ledger view, because the ledger is
+   session-scoped.
+2. **`SubagentStart` fires for the resumed run.** The hook records a dispatch digest at
+   every `SubagentStart` and pairs a verdict with the LATEST dispatch record for its
+   (`session_id`, `agent_id`). If a resume fires no `SubagentStart`, the resumed verdict
+   pairs with the original dispatch: when the tree moved in between (the usual case after
+   fixing a BLOCK), its start and stop digests differ and the PASS is not counted. That also
+   fails closed, and the finding says the tree moved during the review.
+
+**The probe**, the same method as Facts 2 and 3: a probe hook for `SubagentStart` and
+`SubagentStop` in `.claude/settings.local.json` that appends raw stdin to a scratch file;
+spawn a trivial subagent and let it finish; resume it with `SendMessage`; let it finish
+again. Record the Claude Code version, the `agent_id` on all four payloads, and whether a
+second `SubagentStart` arrived. If the id changes, or no second `SubagentStart` arrives,
+write it here and open an issue against the standing-BLOCK rule: the rule stays fail-closed,
+but a reviewer could then clear its own BLOCK only in a new session.
 
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
