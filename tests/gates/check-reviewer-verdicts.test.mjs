@@ -82,6 +82,7 @@ import {
 import { REVIEWER_AGENTS } from '../../template/base/tools/lib/agent-roster.mjs'
 // NAMESPACE imports for the 1.1.0 surface: a test that reaches a missing export gets a
 // TypeError in ITS case, while every older case in this file still runs.
+import * as rosterLib from '../../template/base/tools/lib/agent-roster.mjs'
 import * as gitDiff from '../../template/base/tools/lib/git-diff.mjs'
 import * as ledgerLib from '../../template/base/tools/lib/reviewer-verdicts.mjs'
 
@@ -799,14 +800,17 @@ test('CANARY — a bounce leaves a RECORD: what the last line was and why it did
 })
 
 test('every reviewer body ENDS with the verdict demand — nothing may follow the line it asks for', () => {
-  // A test, not a gate: check-docs-sync asserts the phrase APPEARS, and two bodies carried
-  // it while instructing the opposite ("Follow it with the top 3 fixes").
+  // Two bodies once carried the demand while instructing the opposite ("Follow it with the
+  // top 3 fixes"). Since 1.1.0 (#72) the position is ONE definition, verdictDemandProblem()
+  // in tools/lib/agent-roster.mjs, which docs-sync runs over every install's reviewer
+  // bodies; this pins the shipped ones to it. The `follow it with` scan stays as a second,
+  // wider net: it also catches the phrase in an EARLIER paragraph, which the position rule
+  // does not judge.
   for (const agent of REVIEWER_AGENTS) {
-    const body = readFileSync(join(AGENTS, `${agent}.md`), 'utf8').trimEnd()
-    const lastParagraph = body.split(/\n\s*\n/).at(-1)?.replace(/\s+/g, ' ') ?? ''
-    assert.match(
-      lastParagraph,
-      /^End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`\./,
+    const body = readFileSync(join(AGENTS, `${agent}.md`), 'utf8')
+    assert.equal(
+      rosterLib.verdictDemandProblem(body),
+      null,
       `${agent}: the LAST paragraph must be the verdict demand`,
     )
     assert.ok(!/follow it with/i.test(body), `${agent}: asks for text AFTER the verdict line`)

@@ -20,8 +20,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseFrontmatter, splitList } from '../../template/base/tools/lib/agent-roster.mjs'
-// A NAMESPACE import for the 1.1.0 surface (#62): a case that reaches a missing export fails
-// in ITS case, and every older case in this file still runs.
+// A NAMESPACE import for the 1.1.0 surface (#62, #71, #72): a case that reaches a missing
+// export fails in ITS case, and every older case in this file still runs.
 import * as roster from '../../template/base/tools/lib/agent-roster.mjs'
 
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
@@ -480,8 +480,10 @@ test('the validate-runner heading is INERT: not required, and unable to satisfy 
 
 // ── agent roster: "read-only by construction" is machine-asserted.
 // The GREEN baseline above already proves the SHIPPED roster parses clean —
-// fixture() copies the real .claude/agents in by default. Deliberately no ramp
-// cases: the roster is harness-owned, so it refreshes with the gate. ──
+// fixture() copies the real .claude/agents in by default. The frontmatter checks
+// carry no ramp: every fork of a reviewer was made under them. The one ramped
+// roster rule is the 1.1.0 verdict-demand position below, because `update` keeps a
+// re-recorded fork of an owned body (1.0.2) that was never judged for it. ──
 
 function shippedAgent(name) {
   return readFileSync(join(ROSTER_TEMPLATE, name), 'utf8')
@@ -788,6 +790,173 @@ test('a parked tools/lib/agent-roster.mjs without the contract judge is ONE find
   assert.match(noted.out, /NOTE — \(ramp\) tools\/lib\/agent-roster\.mjs has no severityContractProblems export/)
 })
 
+// ── the verdict demand CLOSES the body (1.1.0, #72) ──────────────────────────────────
+// Through 1.0.4 this gate asked only whether a reviewer body CONTAINED the demand, while its
+// failure text said the body must END on it. v1.0.1 shipped two bodies whose closing
+// paragraph asked for the top 3 fixes after the verdict line, and the SubagentStop hook,
+// which reads a PASS only as the terminal line, bounced every review that obeyed them. The
+// position is judged by verdictDemandProblem() in tools/lib/agent-roster.mjs: 'absent'
+// (today's presence test, never ramped) or 'not-closing' (the last paragraph is not the
+// demand, optionally followed by the shipped rationale sentence). 'not-closing' rides a ramp
+// opened at 1.1.0 until 1.2.0, because since 1.0.2 `update` keeps a re-recorded fork of an
+// owned body, and no fork made before 1.1.0 was ever judged for position.
+
+const DEMAND_DETAIL = 'reviewer bodies closing on the verdict demand'
+const NOT_CLOSING = 'reviewer body does not close on the verdict demand'
+const ABSENT = 'reviewer does not demand a machine-readable verdict'
+// The v1.0.1 torvalds-reviewer shape: the fixes asked for AFTER the demand, closing the SAME
+// paragraph. A rule that only looked for the demand in the last paragraph passes it.
+/** @param {string} name */
+const v101Shape = (name) => `${shippedAgent(name).trimEnd()} Follow it with the top 3 fixes.\n`
+/** @param {string} name */
+const withoutDemand = (name) =>
+  shippedAgent(name).replace(/\nEnd with exactly one final line:[\s\S]*$/, '\n')
+// harnessVersion 1.1.0 on a 1.0.3 base is the state `update` leaves; 1.1.0 is safe for the
+// NOTE branch because the auth-posture-cli-census deferral now targets 1.2.0. At 1.2.0 that
+// deferral ARRIVES and reds too, so the expiry test pins its own banner and finding rather
+// than the exit code alone.
+const UPDATED_FROM_103 = { harnessVersion: '1.1.0', baseVersion: '1.0.3', files: {} }
+const AT_DEADLINE = { harnessVersion: '1.2.0', baseVersion: '1.0.3', files: {} }
+const FRESH_110 = { harnessVersion: '1.1.0', baseVersion: '1.1.0', files: {} }
+
+test('RED (live): the v1.0.1 shape — fixes asked for after the demand, same paragraph — names the file', () => {
+  const planted = v101Shape('torvalds-reviewer.md')
+  assert.match(planted, /`VERDICT: BLOCK`\. The prefix[\s\S]*sentence\. Follow it with the top 3 fixes\.\n$/)
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'torvalds-reviewer.md': planted } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`.claude/agents/torvalds-reviewer.md: ${NOT_CLOSING}`), r.out)
+  assert.ok(!r.out.includes(`NOTE — ${DEMAND_DETAIL}`), `no manifest: the check is live\n${r.out}`)
+})
+
+test('RED: a paragraph after the demand reds, naming the file', () => {
+  const planted = `${shippedAgent('security-reviewer.md').trimEnd()}\n\nThen list the top 3 fixes, most important first.\n`
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'security-reviewer.md': planted } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`.claude/agents/security-reviewer.md: ${NOT_CLOSING}`), r.out)
+})
+
+test('RED: a body with no demand reds on every vintage — presence is never ramped', () => {
+  const stripped = withoutDemand('design-reviewer.md')
+  // Since 1.1.0 (#71) the severity paragraph names both verdicts too, so the precondition is
+  // the presence test itself, not the bare string.
+  assert.ok(
+    !/`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/.test(stripped.replace(/\s+/g, ' ')),
+    'fixture must actually remove the demand',
+  )
+  for (const manifest of [undefined, UPDATED_FROM_103, AT_DEADLINE, FRESH_110]) {
+    const r = runGate(
+      fixture({ agents: shippedAgents, roster: { 'design-reviewer.md': stripped }, manifest }),
+    )
+    const label = JSON.stringify(manifest ?? 'no manifest')
+    assert.equal(r.code, 1, `${label}\n${r.out}`)
+    assert.ok(r.out.includes(`.claude/agents/design-reviewer.md: ${ABSENT}`), `${label}\n${r.out}`)
+    assert.ok(!r.out.includes('(ramp) .claude/agents/design-reviewer.md'), `${label}\n${r.out}`)
+  }
+})
+
+test('GREEN: CRLF copies of every shipped reviewer body stay green', () => {
+  // .gitattributes checks the bodies out as LF, so the CRLF copies are planted explicitly:
+  // an editor on Windows that rewrites a body must not turn it red.
+  const crlf = Object.fromEntries(
+    roster.REVIEWER_AGENTS.map((a) => [`${a}.md`, shippedAgent(`${a}.md`).replace(/\r?\n/g, '\r\n')]),
+  )
+  assert.ok(Object.values(crlf).every((t) => t.includes('\r\n') && !/[^\r]\n/.test(t)))
+  const r = runGate(fixture({ agents: shippedAgents, roster: crlf }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('8/8 reviewers read-only'), r.out)
+})
+
+test('RAMP: on a pre-1.1.0 install the finding is a dated NOTE naming the file, and exit 0', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster: { 'torvalds-reviewer.md': v101Shape('torvalds-reviewer.md') },
+      manifest: UPDATED_FROM_103,
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes(`docs-sync: NOTE — ${DEMAND_DETAIL}`), r.out)
+  assert.ok(r.out.includes('expires in 1.2.0'), `the NOTE must carry its deadline:\n${r.out}`)
+  assert.ok(
+    r.out.includes(`docs-sync: NOTE — (ramp) .claude/agents/torvalds-reviewer.md: ${NOT_CLOSING}`),
+    r.out,
+  )
+})
+
+test('the verdict-demand ramp EXPIRES at harness 1.2.0 — the branch EXECUTED', () => {
+  const planted = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster: { 'torvalds-reviewer.md': v101Shape('torvalds-reviewer.md') },
+      manifest: AT_DEADLINE,
+    }),
+  )
+  assert.equal(planted.code, 1, planted.out)
+  assert.ok(planted.out.includes(`docs-sync: RAMP EXPIRED — ${DEMAND_DETAIL}`), planted.out)
+  assert.match(planted.out, /deadline of 1\.2\.0/)
+  assert.ok(planted.out.includes(`.claude/agents/torvalds-reviewer.md: ${NOT_CLOSING}`), planted.out)
+  assert.ok(!planted.out.includes('(ramp) .claude/agents/torvalds-reviewer.md'), planted.out)
+  // The control: the shipped roster at the same versions reaches no banner of this ramp —
+  // the banner and the finding above are the planted body's, not the arrived deferral's.
+  const control = runGate(fixture({ agents: shippedAgents, manifest: AT_DEADLINE }))
+  assert.ok(!control.out.includes(DEMAND_DETAIL), control.out)
+  assert.ok(!control.out.includes(NOT_CLOSING), control.out)
+})
+
+test('RED: a 1.1.0-vintage install is live from day one — a plain red, no banner', () => {
+  const r = runGate(
+    fixture({
+      agents: shippedAgents,
+      roster: { 'architecture-reviewer.md': v101Shape('architecture-reviewer.md') },
+      manifest: FRESH_110,
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`.claude/agents/architecture-reviewer.md: ${NOT_CLOSING}`), r.out)
+  assert.ok(!r.out.includes('RAMP EXPIRED'), r.out)
+  assert.ok(!r.out.includes(`NOTE — ${DEMAND_DETAIL}`), r.out)
+})
+
+// `update` re-plants an unmodified gate and parks the incoming copy of a FORKED lib, so a
+// 1.1.0 check-docs-sync.mjs can run over an agent-roster.mjs that lacks the helper. A named
+// import would fail at link time, before any check runs; the namespace import must degrade
+// to today's presence test plus ONE finding naming the stale lib, through the same ramp.
+const LIB_EXPORTS_103 = new Set(['REVIEWER_AGENTS', 'REVIEWER_READONLY_TOOLS', 'parseFrontmatter', 'splitList'])
+const staleRosterLib = () =>
+  readFileSync(join(TOOLS, 'lib/agent-roster.mjs'), 'utf8').replace(
+    /^export (function|const) (\w+)/gm,
+    (whole, kind, name) => (LIB_EXPORTS_103.has(name) ? whole : `${kind} ${name}`),
+  )
+
+test('a parked fork of tools/lib/agent-roster.mjs: the gate still loads and names the stale lib', () => {
+  const forked = staleRosterLib()
+  const exported = [...forked.matchAll(/^export (?:function|const) (\w+)/gm)].map((m) => m[1])
+  assert.deepEqual(new Set(exported), LIB_EXPORTS_103, 'precondition: the fork exports only the 1.0.x names')
+  const files = { 'tools/lib/agent-roster.mjs': forked }
+
+  const live = runGate(fixture({ agents: shippedAgents, files }))
+  assert.doesNotMatch(live.out, /SyntaxError|does not provide an export named/, live.out)
+  assert.equal(live.code, 1, live.out)
+  assert.match(live.out, /tools\/lib\/agent-roster\.mjs has no verdictDemandProblem export/)
+
+  const ramped = runGate(fixture({ agents: shippedAgents, files, manifest: UPDATED_FROM_103 }))
+  assert.equal(ramped.code, 0, ramped.out)
+  assert.ok(ramped.out.includes(`docs-sync: NOTE — ${DEMAND_DETAIL}`), ramped.out)
+  assert.match(ramped.out, /NOTE — \(ramp\) tools\/lib\/agent-roster\.mjs has no verdictDemandProblem export/)
+
+  // Presence is still judged over the fork, with today's test, and still never ramped.
+  const absent = runGate(
+    fixture({
+      agents: shippedAgents,
+      files,
+      roster: { 'design-reviewer.md': withoutDemand('design-reviewer.md') },
+      manifest: UPDATED_FROM_103,
+    }),
+  )
+  assert.equal(absent.code, 1, absent.out)
+  assert.ok(absent.out.includes(`.claude/agents/design-reviewer.md: ${ABSENT}`), absent.out)
+})
+
 // ── the pinned frontmatter grammar itself (tools/lib/agent-roster.mjs) ──
 
 test('agent-roster parser: scalars, quotes, folded/literal blocks, inline + bracketed lists, comments', () => {
@@ -835,6 +1004,78 @@ test('agent-roster parser: everything outside the pinned grammar FAILS — never
     const parsed = parseFrontmatter(text)
     assert.equal(parsed.ok, false, `${label} must fail to parse`)
     assert.ok(parsed.error.length > 0, label)
+  }
+})
+
+// ── the verdict-demand judgement itself (tools/lib/agent-roster.mjs, 1.1.0) ──
+// In-process, so the tools/lib/** coverage floor measures it (selftest runs that floor
+// over tests/gates/*.test.mjs only).
+
+const DEMAND = 'End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`.'
+const RATIONALE =
+  'The prefix is what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose, so a caller (or a future receipt gate) cannot tell a verdict from a sentence.'
+
+test('verdictDemandProblem: absent, not-closing or null, row by row', () => {
+  const judge = roster.verdictDemandProblem
+  assert.equal(typeof judge, 'function', 'tools/lib/agent-roster.mjs must export verdictDemandProblem')
+  /** @type {Array<[string, unknown, 'absent' | 'not-closing' | null]>} */
+  const rows = [
+    ['the demand alone', `Review the diff.\n\n${DEMAND}\n`, null],
+    ['the demand, then the shipped rationale', `Review.\n\n${DEMAND} ${RATIONALE}\n`, null],
+    [
+      'hard-wrapped at any column',
+      'Review.\n\nEnd with exactly one\nfinal line: `VERDICT: PASS` or\n`VERDICT: BLOCK`. The prefix is what makes\nthe outcome machine-readable — a bare `PASS` can occur anywhere in\nprose, so a caller (or a future receipt gate) cannot tell a verdict from a sentence.\n',
+      null,
+    ],
+    ['CRLF line endings', `Review.\r\n\r\n${DEMAND}\r\n${RATIONALE}\r\n`, null],
+    ['trailing blank and whitespace-only lines', `Review.\n\n${DEMAND}   \n\n \t\n\n`, null],
+    ['frontmatter, then only the demand', `---\nname: x\n---\n\n${DEMAND}\n`, null],
+    [
+      'v1.0.1 torvalds-reviewer: the fixes close the same paragraph',
+      `Review.\n\n${DEMAND} ${RATIONALE} Follow it with the top 3 fixes.\n`,
+      'not-closing',
+    ],
+    [
+      'v1.0.1 architecture-reviewer: a shorter rationale, then the fixes',
+      `Review.\n\n${DEMAND} The prefix\nis what makes the outcome machine-readable — a bare \`PASS\` can occur anywhere in\nprose. Follow it with the top 3 fixes.\n`,
+      'not-closing',
+    ],
+    ['a paragraph after the demand', `Review.\n\n${DEMAND} ${RATIONALE}\n\nThen list the fixes.\n`, 'not-closing'],
+    ['a whitespace-only line still separates paragraphs', `${DEMAND}\n \t\nMore.\n`, 'not-closing'],
+    ['the demand only in an earlier paragraph', `${DEMAND}\n\nReview the diff.\n`, 'not-closing'],
+    ['the demand reworded', 'Review.\n\nFinish with `VERDICT: PASS` or `VERDICT: BLOCK`.\n', 'not-closing'],
+    ['the rationale before the demand', `Review.\n\n${RATIONALE} ${DEMAND}\n`, 'not-closing'],
+    ['a sentence of your own after the demand', `Review.\n\n${DEMAND} Then stop.\n`, 'not-closing'],
+    ['no demand at all', 'Review the diff and say PASS or FAIL.\n', 'absent'],
+    ['only one of the two forms', 'End with exactly one final line: `VERDICT: PASS`.\n', 'absent'],
+    ['the empty body', '', 'absent'],
+    ['not a string', undefined, 'absent'],
+  ]
+  for (const [label, body, expected] of rows) {
+    assert.equal(judge(body), expected, label)
+  }
+  // …and every shipped reviewer body, LF and CRLF, is at the bar.
+  for (const agent of roster.REVIEWER_AGENTS) {
+    const body = shippedAgent(`${agent}.md`)
+    assert.equal(judge(body), null, agent)
+    assert.equal(judge(body.replace(/\n/g, '\r\n')), null, `${agent} (CRLF)`)
+  }
+})
+
+test("verdictDemandProblem's 'absent' is exactly the 1.0.x presence test", () => {
+  // The gate keeps that test as its fallback over a parked fork of the lib, so the two
+  // definitions must agree on every row that has the demand's words in some order.
+  const PRESENCE = /`VERDICT: PASS`\s+or\s+`VERDICT: BLOCK`/
+  for (const body of [
+    DEMAND,
+    `x ${DEMAND} y`,
+    '`VERDICT: PASS`\n  or\n\t`VERDICT: BLOCK`',
+    '`VERDICT: PASS` and `VERDICT: BLOCK`',
+    '`VERDICT: BLOCK` or `VERDICT: PASS`',
+    'VERDICT: PASS or VERDICT: BLOCK',
+  ]) {
+    const present = PRESENCE.test(body.replace(/\s+/g, ' '))
+    assert.equal(roster.verdictDemandProblem(body) === 'absent', !present, JSON.stringify(body))
   }
 })
 
