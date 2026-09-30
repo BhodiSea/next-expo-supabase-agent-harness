@@ -316,8 +316,10 @@ test('catalogOf: a valid catalog comes back as the same value', () => {
   assert.equal(catalogOf(empty, 'x'), empty)
 })
 
-test('catalogOf: null, a number, a string and undefined throw naming where', () => {
-  for (const value of [null, 42, 'notes.created', undefined]) {
+test('catalogOf: null, a number, a string, undefined and an array throw naming where', () => {
+  // An array is an object, but a catalog is keyed by wire name: even an empty one is
+  // refused, so a vertical that exports a list learns so at once.
+  for (const value of [null, 42, 'notes.created', undefined, [], [VALID['notes.created']]]) {
     assert.throws(
       () => catalogOf(value, 'packages/verticals/probe/src/client.ts'),
       (e) => {

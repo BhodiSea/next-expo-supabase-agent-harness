@@ -1338,7 +1338,8 @@ PostgREST rather than merely present in the catalog.
 (1) Contract-inventory regen-diff: regenerate the three committed inventories —
 `tools/generated/action-inventory.json` (every tRPC procedure `appRouter` exposes),
 `tools/generated/event-catalog.json` (every event the platform + vertical
-catalogs declare) and `tools/generated/query-shapes.json` (every statement the DALs
+catalogs declare; a vertical is catalogued when its `./client` entry exports its
+catalog as `EVENT_CATALOG`, from 1.1.0) and `tools/generated/query-shapes.json` (every statement the DALs
 issue, recorded by driving them through the harness-owned recording port) — from the
 LIVE values and diff against the committed copies, so adding OR removing an action,
 event or query without `pnpm gen` reds. Needs an install (tsx, to walk the runtime

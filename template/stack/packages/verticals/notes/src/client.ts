@@ -59,9 +59,11 @@ export type {
 } from './events.js'
 // The event vocabulary. Names and payload shapes are shared so a client-side
 // cache can invalidate on the same facts a server-side sink records. The
-// CATALOG rides this barrel too: the contracts generator walks it, and a
-// catalog reachable only from the server barrel would be invisible to it.
-export { noteEvents } from './events.js'
+// CATALOG rides this barrel too, under the one name the event-catalog generator
+// looks for: tools/gen-event-catalog.mjs loads a vertical's ./client only when
+// it declares EVENT_CATALOG, and a catalog reachable only from the server barrel
+// would be invisible to it.
+export { noteEvents as EVENT_CATALOG } from './events.js'
 // Input schemas — validated identically wherever a form lives.
 export {
   CreateNoteSchema,

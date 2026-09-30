@@ -45,7 +45,6 @@
     "@stryker-mutator/api",
     "@app/api",
     "@app/events",
-    "@app/notes",
     "postgres"
   ],
   // `mkfifo` is a POSIX system utility, not a package: tests/installer/rollback.test.mjs
