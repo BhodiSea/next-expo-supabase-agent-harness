@@ -31,9 +31,11 @@
 // hook reads the subagent's OWN transcript, the JSONL at `agent_transcript_path`, for the
 // model of its last assistant line (tools/lib/reviewer-verdicts.mjs transcriptModel), and
 // records it as `model` beside `pinned`, whether that model matches the agent file's pin.
-// That transcript's shape is documented only thinly and is NOT yet probed, so the read is
-// bookkeeping in the strict sense: anything it cannot read is `model: null`, and neither the
-// verdict nor the exit code ever depends on it. The Stop step decides what a null means.
+// Where the model sits was probed, not read off a page (Fact 16, observed at Claude Code
+// 2.1.285): each assistant line carries the model that produced it at `message.model`, and
+// the file is complete when SubagentStop runs. The read is still bookkeeping in the strict
+// sense: anything it cannot read is `model: null`, and neither the verdict nor the exit code
+// ever depends on it. The Stop step decides what a null means.
 //
 // TWO THINGS IT DOES, IN ORDER:
 //   1. BLOCKS a reviewer whose final message carries no readable verdict (exit 2, which

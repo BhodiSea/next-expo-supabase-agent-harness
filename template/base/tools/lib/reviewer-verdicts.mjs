@@ -369,7 +369,7 @@ function owedClause(owed) {
 function uncountedFinding(owed, pass, current) {
   const a = owed.agent
   if (pass === undefined) {
-    return `${a} has not returned a verdict in this session, and ${owedClause(owed)}. ${owed.why ?? ''} Run it, then end the turn.`
+    return `${a} has not returned a verdict in this session, and ${owedClause(owed)}. ${owed.why ?? ''} Run it, then end the turn. ${fallbackHint(a)}`
   }
   if (typeof pass.path_state_stop !== 'string') {
     return `${a} returned PASS with no ledger v2 binding: a hook from before 1.1.0 wrote the entry, or the hook could not compute the digest. An unverifiable attestation fails toward re-review: run ${a} again.`
@@ -428,7 +428,7 @@ export function latestCountedPass(agent, entries, current) {
 // every verdict, and the Stop step judges the model of the entry an owed reviewer's verdict
 // rests on against the reviewer's hash-locked agent file: its `model` pin, and its
 // `harnessFallbackModels` list (tools/lib/agent-roster.mjs). What each Claude Code mechanism
-// does to a subagent's model, and what the transcript is documented to hold, is
+// does to a subagent's model, and what the transcript was observed to hold, is
 // design/CONTROL-PLANE-FACTS.md Fact 16. Pure, like the rest of this file: the caller reads.
 
 // THE ALIAS RULE, as data, never looked up live. A family alias resolves to the latest model
@@ -473,6 +473,19 @@ export function modelMatches(spec, model) {
 }
 
 /**
+ * The sentence a reviewer that never returned a verdict gets (1.1.0, #62). A reviewer whose
+ * pinned model cannot run never reaches SubagentStop (CONTROL-PLANE-FACTS Fact 16, point 5,
+ * observed): no entry is written, and this red is the one place the agent can learn that
+ * the reviewer may run on a model its hash-locked file lists. Claude Code picks no model
+ * from the list; the per-invocation `model` parameter does.
+ * @param {string} agent
+ * @returns {string}
+ */
+export function fallbackHint(agent) {
+  return `If ${agent} cannot run on its pinned model, dispatch it with the Agent tool's \`model\` parameter set to a model the harnessFallbackModels line of .claude/agents/${agent}.md names: a verdict on a listed model counts, and is named at Stop.`
+}
+
+/**
  * Where a recorded model stands against an agent's pin and its fallback list.
  * @param {unknown} model @param {string|null} pin @param {readonly string[]|undefined} fallbacks
  * @returns {'pinned' | 'listed' | 'off-list' | 'unknown'}
@@ -485,11 +498,14 @@ export function classifyModel(model, pin, fallbacks) {
 
 /**
  * The model that wrote a subagent's LAST assistant message, read from its transcript (the
- * JSONL at the SubagentStop payload's `agent_transcript_path`), or null. Documented shape is
- * thin (Fact 16): each assistant line is taken to carry its API response's model at
- * `message.model`, and `<synthetic>` there marks a line Claude Code wrote itself, which is
- * never a model. A line that does not parse is skipped, so a torn tail cannot hide the lines
- * before it. The last model, because that is the one that wrote the verdict.
+ * JSONL at the SubagentStop payload's `agent_transcript_path`), or null. The shape is
+ * Fact 16's, observed at Claude Code 2.1.285: every `assistant` line carries the model that
+ * produced it at `message.model`, as a full ID; `attachment` lines carry none, and the
+ * `model` attachment names the REQUESTED model, which after a failover is not the one that
+ * ran, so it is never read. `<synthetic>` there would mark a line Claude Code wrote itself
+ * (not observed, skipped defensively), which is never a model. A line that does not parse
+ * is skipped, so a torn tail cannot hide the lines before it. The last model, because that
+ * is the one that wrote the verdict.
  * @param {unknown} raw
  * @returns {string|null}
  */
@@ -537,7 +553,7 @@ function fallbackLine(agent, model, p, cls, why) {
 function modelFinding(agent, model, p, why) {
   const file = `.claude/agents/${agent}.md`
   if (model === null) {
-    return `${agent} returned PASS, but the hook could not read the model it ran on (model: null)${why}. A security reviewer's PASS counts only on a model its agent file names, and an unverifiable model fails toward re-review: run ${agent} again. If every run records null, Claude Code's transcript no longer carries the model where the hook reads it: re-probe design/CONTROL-PLANE-FACTS.md Fact 16.`
+    return `${agent} returned PASS, but the hook could not read the model it ran on (model: null)${why}. A security reviewer's PASS counts only on a model its agent file names, and an unverifiable model fails toward re-review: run ${agent} again. If every run records null, your Claude Code no longer writes the model where the hook reads it (message.model on the transcript's assistant lines, the harness repository's design/CONTROL-PLANE-FACTS.md Fact 16): that is a harness defect, so report it with your Claude Code version.`
   }
   return `${agent} returned PASS on ${model}, which is neither its pinned model (${p.pin ?? 'none readable'}) nor on its harnessFallbackModels list (${listText(p)})${why}. A security reviewer's PASS counts only on a model its hash-locked agent file names. Run ${agent} again on its pin or a listed model (the per-invocation model parameter selects one); a configuration that forces this model (CLAUDE_CODE_SUBAGENT_MODEL_FORCE, an availableModels allowlist, a fallbackModel chain) lands a re-run on the same model, so lift it, or, if this model is one you accept for security review, add it to harnessFallbackModels in ${file} in a reviewed diff (the file is write-guarded and hashed in tools/agents.lock.json, so that is a human act).`
 }

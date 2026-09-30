@@ -60,7 +60,11 @@
 // field, as every entry a pre-1.1.0 hook wrote is, is judged exactly as before. Below
 // baseVersion 1.1.0 the findings print as NOTEs until 2.1.0: an install whose configuration
 // already forces a model off the list would otherwise red on the first Stop after `update`,
-// with a re-run that lands on the same model.
+// with a re-run that lands on the same model. And the list is how a reviewer whose pin
+// cannot run still runs: that run never reaches SubagentStop (Fact 16, observed), so it
+// writes no entry, and the "did not run" finding of both judgements ends with
+// fallbackHint(): dispatch the reviewer with the Agent tool's `model` set to a listed model.
+// Nothing ramps that sentence; it changes no verdict.
 //
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
 // a read-only agent whose tools, pinned model, fallback list and body are hashed in
@@ -206,6 +210,14 @@ function collectModel(into, one) {
   if (one.line !== null) into.lines.push(one.line)
 }
 
+/**
+ * The fallback-list sentence for a reviewer that never ran (1.1.0, #62), with its leading
+ * space, or nothing when a parked pre-1.1.0 lib lacks the helper.
+ * @param {string} agent
+ */
+const hintFor = (agent) =>
+  typeof verdicts.fallbackHint === 'function' ? ` ${verdicts.fallbackHint(agent)}` : ''
+
 const TORN_REMEDY =
   "this turn's own verdict lines must be readable, so it fails CLOSED. Run the reviewer again: the ledger is append-only and the LATEST entry is the one judged, so a fresh well-formed PASS supersedes the torn line. (The file is write-guard-protected — clearing it wholesale is a human act under HARNESS_ALLOW_SELF_EDIT=1, and re-running the reviewer makes that unnecessary.)"
 
@@ -227,7 +239,7 @@ function judgeOneV1(o, entries, files) {
   const mine = entries.filter((e) => e.agent_type === o.agent)
   if (mine.length === 0) {
     return {
-      err: `${o.agent} did not run this turn, and \`${o.because}\` is why it is owed. ${o.why ?? ''} Run it, then end the turn.`,
+      err: `${o.agent} did not run this turn, and \`${o.because}\` is why it is owed. ${o.why ?? ''} Run it, then end the turn.${hintFor(o.agent)}`,
     }
   }
   if (mine.some((e) => e.verdict === 'BLOCK')) {
