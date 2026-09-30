@@ -19,8 +19,9 @@
 //
 // Input it cannot read is a finding, never a pass: no workflow directory, no workflow in it,
 // a file it cannot read, a workflow with no `jobs:` block or no job in it, a line under
-// `jobs:` that is not a job id, a job with no readable `steps:` list, a ceiling that is not a
-// whole number.
+// `jobs:` that is not a job id, a job with no readable `steps:` list, a first step with
+// neither `uses:` nor `run:` (a YAML alias, a flow mapping), a ceiling that is not a whole
+// number.
 //
 // RAMPED. The rules are new for a project's own workflows, so an install whose baseVersion
 // predates 1.1.0 gets its findings as NOTEs, with the deadline, until 1.2.0; a fresh 1.1.0

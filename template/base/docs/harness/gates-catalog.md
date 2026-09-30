@@ -2658,7 +2658,8 @@ tests/gates/severity-contract.test.mjs.
   `[A-Za-z_][A-Za-z0-9_-]*`, and comment lines are skipped. Input it cannot read is a
   finding, never a pass: no workflow directory or none in it, a file it cannot read, no
   `jobs:` block or no job in it, a line under `jobs:` that is not a job id, a job with no
-  readable `steps:` list, a ceiling that is not a whole number. The job runs on a pull
+  readable `steps:` list, a first step with neither `uses:` nor `run:` (a YAML alias, a flow
+  mapping), a ceiling that is not a whole number. The job runs on a pull
   request or push that touches a workflow, `.github/zizmor.yml`, the script, its library or
   `.harness/manifest.json`, with no install. It is not a chain step, so `graduate` never
   runs it: run it by hand before graduating. **Ramped:** an install whose `baseVersion`

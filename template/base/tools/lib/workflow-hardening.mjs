@@ -261,13 +261,29 @@ function firstStep(lines, steps) {
 }
 
 /**
- * What a step uses (`- uses:` on its dash line, or `uses:` among its keys), else null.
+ * A step's own keys (`- uses:` on its dash line, or `uses:` among the keys under it).
  * @param {string[]} step
  */
-function stepUses(step) {
-  const lines = [step[0].replace(/^(\s*)- /, '$1  '), ...step.slice(1)]
-  const uses = keysOf(lines).get('uses')
-  return uses ? scalar(uses.value) : null
+function stepKeys(step) {
+  return keysOf([step[0].replace(/^(\s*)- /, '$1  '), ...step.slice(1)])
+}
+
+/**
+ * Why the first step is not harden-runner, or null when it is. A step with neither `uses:`
+ * nor `run:` among its keys (a YAML alias, a flow mapping) is one this reading cannot
+ * resolve: named as written, never taken for a `run:` step and never a pass.
+ * @param {string} where @param {string[]} step @returns {string | null}
+ */
+function firstStepProblem(where, step) {
+  const keys = stepKeys(step)
+  const uses = keys.get('uses')
+  if (uses === undefined && !keys.has('run')) {
+    return `${where}: the first step is not a step this check can read (${step[0].trim()}) — a step it cannot read is never a pass; write harden-runner as a \`- uses:\` step, first`
+  }
+  const used = uses === undefined ? null : scalar(uses.value)
+  if (used !== null && used.startsWith(HARDEN_RUNNER)) return null
+  const what = used === null ? 'is a run: step' : `uses ${used}`
+  return `${where}: the first step ${what}, not step-security/harden-runner — every step before it runs with no egress sensor; make harden-runner the first step (egress-policy: audit on windows-*)`
 }
 
 /**
@@ -327,13 +343,8 @@ function sensorFindings(where, lines, keys) {
   const step = firstStep(lines, keys.get('steps'))
   if (step === null)
     return [`${where}: no steps: list this check can read — a job it cannot read is never a pass`]
-  const uses = stepUses(step)
-  if (uses === null || !uses.startsWith(HARDEN_RUNNER)) {
-    const what = uses === null ? 'is a run: step' : `uses ${uses}`
-    return [
-      `${where}: the first step ${what}, not step-security/harden-runner — every step before it runs with no egress sensor; make harden-runner the first step (egress-policy: audit on windows-*)`,
-    ]
-  }
+  const problem = firstStepProblem(where, step)
+  if (problem !== null) return [problem]
   const windows = windowsSource(lines, keys)
   const audits = step.some(
     (l) =>
