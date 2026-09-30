@@ -608,11 +608,26 @@ function plantedByRelease(p) {
   const sha = createHash('sha256').update(bytes).digest('hex')
   const recorded = manifest.answers
   const answers = recorded !== null && typeof recorded === 'object' ? recorded : {}
-  return variants.some((v) => {
-    if (!Array.isArray(v?.sites)) return v?.sha256 === sha
+  return variants.some((v) => explainedBy(v, bytes, sha, answers))
+}
+
+/**
+ * Does ONE planted variant explain these bytes? A variant that cannot be read (a `sites`
+ * entry that is not an [offset, token] pair) explains nothing: the evidence file is owned and
+ * sub-check 1 already reds an edited copy, and a malformed one must read as "not planted",
+ * never crash the gate before it reports.
+ * @param {{ sha256?: unknown, sites?: unknown }} v @param {Buffer} bytes @param {string} sha
+ * @param {Record<string, unknown>} answers
+ * @returns {boolean}
+ */
+function explainedBy(v, bytes, sha, answers) {
+  if (!Array.isArray(v?.sites)) return v?.sha256 === sha
+  try {
     const source = derender(bytes.toString('utf8'), v.sites, answers)
     return source !== null && createHash('sha256').update(source).digest('hex') === v.sha256
-  })
+  } catch {
+    return false
+  }
 }
 
 /**

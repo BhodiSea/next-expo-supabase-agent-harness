@@ -83,8 +83,9 @@ function readAllTables() {
   const tables = new Map()
   let names = []
   try {
+    // Version tables only: with --out, planted-shas.json is written into the same directory.
     names = readdirSync(outDir)
-      .filter((n) => n.endsWith('.json'))
+      .filter((n) => /^\d+\.\d+\.\d+\.json$/.test(n))
       .sort()
   } catch {
     return tables

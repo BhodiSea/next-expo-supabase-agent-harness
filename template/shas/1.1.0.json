@@ -2159,10 +2159,10 @@
         "sha256": "14264daff1fde1eaf619d70574c73beb5c3003557cf2b67464f212d7f0ad8048"
       },
       {
-        "sha256": "386b09777e8fd83b710ec3d15e8dcfa6f15c571a8dc9a4aa38b52ce74dcbf4e2"
+        "sha256": "71e1d02ba5c930bea386404ee9c7b8a0d8b0efbf5db7435d547eeaf2cdd79fae"
       },
       {
-        "sha256": "71e1d02ba5c930bea386404ee9c7b8a0d8b0efbf5db7435d547eeaf2cdd79fae"
+        "sha256": "ff9a26229ddac5b416113b4c2be997e30708f35038b3c270947d4583bf631f8f"
       }
     ],
     "tools/check-gbnf.mjs": [
