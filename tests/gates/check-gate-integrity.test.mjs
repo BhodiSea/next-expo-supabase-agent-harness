@@ -527,6 +527,33 @@ test('a placeholder-bearing escape list: the rendered plant is a NOTE, one added
   assert.ok(widened.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), widened.out)
 })
 
+test('unusable evidence explains nothing: a malformed or missing planted-shas.json reads as unplanted, never a crash (#84)', () => {
+  // The evidence file is owned, so an edited copy is already a sub-check 1 red. Re-recording
+  // its sha (the fork route) isolates the plant rule: a `sites` entry that is not an
+  // [offset, token] pair must make the variant explain nothing, and the gate must still report.
+  const fx = plantScaffold({ base: '1.1.0', harness: '1.1.0' })
+  const planted = 'tools/rls-exempt.json'
+  fx.git('rm', '--cached', '-q', planted)
+  fx.commitAll('an install predating the list')
+  const evidencePath = join(fx.repo, 'tools/lib/planted-shas.json')
+  const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
+  assert.ok(evidence.files[planted]?.every((v) => Array.isArray(v.sites)), 'rls-exempt.json variants carry sites')
+  evidence.files[planted] = evidence.files[planted].map((v) => ({ ...v, sites: [7, 'SECURITY_OWNERS'] }))
+  writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`)
+  fx.reRecord('tools/lib/planted-shas.json')
+  const malformed = fx.run()
+  assert.equal(malformed.code, 1, malformed.out)
+  assert.ok(!/TypeError|at plantedByRelease/.test(malformed.out), `the gate crashed instead of reporting:\n${malformed.out}`)
+  assert.ok(malformed.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), malformed.out)
+
+  // Missing: sub-check 1 names it, and the untracked list is unplanted rather than a plant.
+  rmSync(evidencePath)
+  const missing = fx.run()
+  assert.equal(missing.code, 1, missing.out)
+  assert.ok(missing.out.includes('tools/lib/planted-shas.json'), missing.out)
+  assert.ok(missing.out.includes(`- ${planted}: escape hatch present but not committed, and ${NO_RELEASE}.`), missing.out)
+})
+
 for (const tier of ['core', 'strict']) {
   test(`a fresh ${tier} scaffold before its first commit: every escape list is a release plant, exit 0 (#84)`, () => {
     const fx = plantScaffold({ tier, commit: false })
