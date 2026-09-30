@@ -295,9 +295,16 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   verdict is still not caught.
   ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body),
   issue #72)
-- **A CI self-lint job.** The shipped `actions-lint` workflow holds a
-  project's own workflows to a bash default and a ceiling on every job.
-  ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings))
+- **A CI self-lint job.** The shipped `actions-lint` workflow runs a
+  `workflow-hardening` job that holds a project's own workflows, `.yml` and
+  `.yaml`, to a workflow-level bash default, a ceiling on every job and
+  harden-runner as each job's first step, in audit mode on Windows, where
+  `harden-runner-coverage` beside it only counts. One ramp opened at 1.1.0
+  holds its findings as NOTEs below that `baseVersion` until 1.2.0. It reads
+  YAML's shape rather than parsing YAML, so a flow mapping or an anchor is
+  reported as unreadable, and `graduate` does not run it.
+  ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings),
+  issue #73)
 - **Grants bounded by policies.** A static upper bound on what `authenticated`
   is granted, generated privilege-exactness assertions, and the three-role
   revoke doctrine with its ADR.

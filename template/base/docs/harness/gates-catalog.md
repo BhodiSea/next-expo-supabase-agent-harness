@@ -2644,8 +2644,10 @@ tests/gates/severity-contract.test.mjs.
   rules every workflow the harness ships already meets, by the pure rules in
   `tools/lib/workflow-hardening.mjs`: (1) a workflow-level `defaults.run.shell: bash`
   above `jobs:`, because GitHub runs an un-shelled step as `bash -e` without `pipefail`, so
-  `producer | tee file` reports tee's status (the one workflow that publishes OpenSSF
-  Scorecard results must carry no top-level `defaults` or `env` instead); (2) a whole-number
+  `producer | tee file` reports tee's status; it is spelled exactly `bash`, the one spelling
+  GitHub runs with `-eo pipefail`, so a custom command such as `bash -el {0}` is a finding
+  (the one workflow that publishes OpenSSF Scorecard results must carry no top-level
+  `defaults` or `env` instead); (2) a whole-number
   `timeout-minutes` on every job that can take one, from 1 to 360 on a GitHub-hosted runner
   and to 7200 on a self-hosted one (the platform's own limits; a job with none inherits 360),
   and none on a reusable-workflow call; (3) `step-security/harden-runner` as the FIRST step

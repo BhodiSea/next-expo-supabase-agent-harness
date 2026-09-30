@@ -2723,7 +2723,9 @@ From 1.1.0 the `workflow-hardening` job in `actions-lint.yml` runs
        shell: bash
    ```
 
-   A workflow with no `run:` step needs none, and the one workflow that publishes OpenSSF
+   Write it as plain `bash`: GitHub adds `-eo pipefail` only to that spelling, so a custom
+   command such as `bash -el {0}` is reported even where it sets `pipefail` itself. A
+   workflow with no `run:` step needs none, and the one workflow that publishes OpenSSF
    Scorecard results must carry no top-level `defaults` or `env` instead.
 2. **A ceiling on every job.** A whole number of `timeout-minutes` at job level, from 1 to
    360 on a GitHub-hosted runner and to 7200 on a self-hosted one: those are the platform's

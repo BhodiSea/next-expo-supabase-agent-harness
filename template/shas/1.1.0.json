@@ -1062,15 +1062,6 @@
         ]
       },
       {
-        "sha256": "3dc2a1695a786424eba3b758f62defb9134478357334e3b523088608b9cd0fa9",
-        "sites": [
-          [
-            125366,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
-      {
         "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
@@ -1135,6 +1126,15 @@
       },
       {
         "sha256": "de3d300dd92676e9971edf9ed1dc22afc76b9575d21c9c8ae76105baddce5a7e",
+        "sites": [
+          [
+            125366,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "eb4af40b175433ffa27fb6692bfd11ff3aa5a6a2cf024fceb1c05bd23d10adf9",
         "sites": [
           [
             125366,
@@ -1387,15 +1387,6 @@
         ]
       },
       {
-        "sha256": "2cec4148db676375ccab06c53b1630c65808eaf2a6eadfbe0ef548f301c2af0b",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
         "sites": [
           [
@@ -1442,6 +1433,15 @@
       },
       {
         "sha256": "6fa6950cb745cf466df90a2a6b05e2d23d03aa37d3dc6501c76267fa48002d0a",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "87713f82218a01dc7894d51f03fb63c55309af47da303b708b802c2d478f2989",
         "sites": [
           [
             14115,
@@ -2630,7 +2630,7 @@
     ],
     "tools/lib/workflow-hardening.mjs": [
       {
-        "sha256": "92e34bd84ddc5a765b121840751f600fef2223ca02cbceecf6bfc5cd310d3ee7"
+        "sha256": "8864c1677800a344b2957f0f472b566c326e56d33b2dd7a088f3903d063a903a"
       }
     ],
     "tools/mcp/README.md": [

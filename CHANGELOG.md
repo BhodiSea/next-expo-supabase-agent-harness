@@ -344,7 +344,8 @@ this heading if none does. -->
   `tools/lib/workflow-hardening.mjs`, which the factory test imports, so one rule set judges
   the shipped workflows (under the factory's 240-minute bar) and a project's own. The new
   CI-only gate `tools/check-workflow-hardening.mjs` reads every `.github/workflows/*.yml`
-  and `*.yaml` and requires a workflow-level `defaults.run.shell: bash` above `jobs:`, a
+  and `*.yaml` and requires a workflow-level `defaults.run.shell: bash` above `jobs:`,
+  spelled exactly so because GitHub adds `pipefail` to no custom command, a
   whole-number `timeout-minutes` on every job that can take one (1 to 360 on a
   GitHub-hosted runner and to 7200 on a self-hosted one, the platform's own limits), and
   `step-security/harden-runner` as the first step of every job that is neither a
@@ -1320,7 +1321,7 @@ this heading if none does. -->
   For the project workflow rules, the tests-only commit could not load the missing library;
   with a stub that exported its names and no rules, 26 of the 35 cases in the two workflow
   test files failed while both bash controls passed: the shipped `harden-runner-coverage`
-  loop exited 0, with no output, on the issue's fixture and on each of the seven shapes it
+  loop exited 0 on the issue's fixture, with no output, and on each of the seven shapes it
   misses. After the change the 47 cases of the issue's three test files pass. `init` of each
   tier followed by `node tools/check-workflow-hardening.mjs` printed OK over 9, 14 and 19
   workflows (32, 42 and 49 jobs). In the core scaffold, moving harden-runner below
@@ -1330,7 +1331,7 @@ this heading if none does. -->
   install updated by this installer exited 0 with both files planted and the new job in
   place; with the issue's fixture added the gate printed four `NOTE — (ramp)` lines that
   expire in 1.2.0 and exited 0, and at a simulated harness 1.2.0 it printed `RAMP EXPIRED`
-  and exited 1. One whose `actions-lint.yml` had been edited and re-recorded kept it, parked
+  and exited 1. One whose `actions-lint.yml` had been edited and committed kept it, parked
   the new copy and exited 2 (#73).
 
 ## [1.0.4] — 2026-09-29
