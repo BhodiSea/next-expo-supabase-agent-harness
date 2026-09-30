@@ -1709,13 +1709,13 @@ install has none (its subsection below). The reviewer model record re-plants
 `tools/lib/agent-roster.mjs`, `tools/check-docs-sync.mjs`, the eight reviewer files under
 `.claude/agents/` (and re-records their `tools/agents.lock.json` entries),
 `docs/harness/gates-catalog.md` and `docs/harness/README.md`; nothing of it is seeded (its
-subsection below). The severity contract re-plants the eight
-reviewer bodies under `.claude/agents/`, and `update` re-records their
-`tools/agents.lock.json` entries, with `.claude/hooks/subagent-verdict.mjs`,
-`tools/check-docs-sync.mjs`, `tools/check-reviewer-verdicts.mjs`,
-`tools/lib/agent-roster.mjs`, `tools/lib/reviewer-verdicts.mjs`,
-`docs/harness/gates-catalog.md` and `docs/harness/README.md`; a reviewer body you edited is
-kept and the new one parked (its subsection below). What you may notice afterwards:
+subsection below). The severity contract re-plants the eight reviewer bodies under
+`.claude/agents/` (`update` re-records their `tools/agents.lock.json` entries),
+`.claude/hooks/subagent-verdict.mjs`, `tools/check-docs-sync.mjs`,
+`tools/check-reviewer-verdicts.mjs`, `tools/lib/agent-roster.mjs`,
+`tools/lib/reviewer-verdicts.mjs`, `docs/harness/gates-catalog.md` and
+`docs/harness/README.md`; a reviewer body you edited is kept and the new one parked (its
+subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
