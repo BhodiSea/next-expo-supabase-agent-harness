@@ -79,15 +79,7 @@ deadline of 1.2.0, and adds one release row. `update` plants two new owned files
 `tools/lib/planted-shas.json` and `tools/lib/derender.mjs`, and every released-sha table gains
 a `planted` map (#84).
 
-### Security
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
-
 ### Added
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **A dated, content-tripwired deferral for the device lanes: `tools/surfaces.json`.** A
   project building its web surface first had no way to say so: the `mobile` paths filter
@@ -458,9 +450,6 @@ this heading if none does. -->
   chain step (#78).
 
 ### Fixed
-
-<!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **The doctrine says what `HARNESS_ALLOW_SELF_EDIT=1` relaxes, and no longer offers it as a
   way to trim the Stop hook.** The flag's reach was spread over the guard hooks, a generator
