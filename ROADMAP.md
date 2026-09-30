@@ -25,8 +25,10 @@ when they fall due.
   `floor-advisories` job in `hygiene.yml` asks OSV and the upstream
   repository's published advisories about every framework floor and the
   catalog pin, so that a security release is noticed when it ships and not
-  when a review window happens to end. This bullet leaves the list once a
-  scheduled run of the released tree is green end to end.
+  when a review window happens to end. Its first run is red on a real
+  advisory, GHSA-vcvr-r3jv-pc5j, which covers the 16.x floor and the pin
+  and waits on the maintainer's floor decision. This bullet leaves the list
+  once a scheduled run of the released tree is green end to end.
 - **Find why the scheduled device lane's perf-harness phase goes red.** The
   mutation journey of issue #10 has passed since 1.0.0 fixed it, but
   `maestro-smoke` still failed on seven of the fourteen scheduled runs from

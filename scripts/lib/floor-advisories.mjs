@@ -34,16 +34,18 @@
 //
 // FAIL CLOSED, every way. A non-2xx status, a timeout, a body of the wrong shape, a `vulns`
 // that is not an array, a page token still unfollowed at the cap, a missing recorded
-// response, an upstream range whose syntax no test covers: each is a failure, never "no
-// advisories". Anti-vacuity: zero probes fails; each floored package needs a canary — a
-// version the repository records as affected — on which OSV must return at least one
-// advisory; and the upstream listing must hold at least one of the package's recorded rows
-// under npm, or a wrong repository or a changed response shape would look clean.
+// response, an OSV lookup that is neither a record nor 404, a range whose syntax no test
+// covers in an advisory OSV does not list yet: each is a failure, never "no advisories".
+// Anti-vacuity: zero probes fails; each floored package needs a canary — a version the
+// repository records as affected — on which OSV must return at least one advisory; and the
+// upstream listing must hold at least one of the package's recorded rows under npm, or a
+// wrong repository or a changed response shape would look clean.
 //
 // PURE apart from the injected `fetchPage`: no fs, no process, no clock. The script owns
 // every read, every request and the exit code; recorded responses are data here.
 // SOURCE: https://docs.github.com/en/rest/security-advisories/repository-advisories ·
-// https://google.github.io/osv.dev/post-v1-query/ · https://ossf.github.io/osv-schema/ ·
+// https://google.github.io/osv.dev/post-v1-query/ · https://google.github.io/osv.dev/get-v1-vulns/ ·
+// https://ossf.github.io/osv-schema/ ·
 // https://docs.github.com/en/code-security/tutorials/fix-reported-vulnerabilities/write-security-advisories
 // (the affected-versions syntax) · template/base/tools/lib/framework-floor.mjs (compareVersions)
 import { compareVersions } from '../../template/base/tools/lib/framework-floor.mjs'

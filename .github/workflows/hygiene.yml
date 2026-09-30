@@ -120,7 +120,8 @@ jobs:
   # `next` — so the vendor's 2026-08-25 security release sat inside a live review window and
   # was noticed only when the window lapsed. This job asks OSV and the upstream repository's
   # published advisories about every minPatchByMajor version and the exact pin, and reds on
-  # any advisory that affects one and is not a row in the floor. A copy of
+  # any advisory that affects one and is not a row in the floor. OSV decides what it lists;
+  # the vendor's free-text range is read only for an advisory OSV does not list yet. A copy of
   # registers-clockful, schedule/dispatch-only because the verdict changes with the feeds and
   # not with the commit; its one addition is the job's read-only token, which lifts the
   # upstream listing off the unauthenticated REST limit.
