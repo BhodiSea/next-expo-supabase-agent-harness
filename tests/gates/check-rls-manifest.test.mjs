@@ -871,6 +871,16 @@ test('RED (1.1.0, Guard): DROP TABLE of a table no migration created is an unres
   assert.match(r.out, /ghost: DROP TABLE in \S+0001_thing\.sql names a table no earlier migration creates/)
 })
 
+test('GREEN (1.1.0, Guard): an applied drop of a table made outside the migrations, exempted with a reason', () => {
+  const r = runGate(
+    fixture({
+      migration: migration({ extra: 'DROP TABLE public.ghost;' }),
+      exempt: '{"comment":"x","exempt":[{"table":"ghost","reason":"created from the dashboard in 2025, dropped by 0001"}]}\n',
+    }),
+  )
+  assert.equal(r.code, 0, r.out)
+})
+
 test('GREEN (1.1.0, Guard): DROP TABLE IF EXISTS on an unknown table is a no-op, not a finding', () => {
   const r = runGate(fixture({ migration: migration({ extra: 'DROP TABLE IF EXISTS public.ghost;' }) }))
   assert.equal(r.code, 0, r.out)

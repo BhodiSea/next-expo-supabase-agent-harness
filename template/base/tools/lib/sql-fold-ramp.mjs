@@ -12,8 +12,10 @@
 //
 // Telling the three apart needs the old reading's findings, so the gate replays ITSELF over the
 // pre-fold history (sql-parse.mjs preFoldHistory) in a worker thread — "the twin" — and the
-// two finding lists are compared as text. Replaying the whole script, not a copy of its rules,
-// is the point: a second hand-written copy of seven gates' judgement is a second thing to drift.
+// two finding lists are compared as text with every number masked, so a finding whose only
+// difference is a count the fold moved (schema-rls' aal2 policy count) is recognised as one
+// both readings make and stays hard. Replaying the whole script, not a copy of its rules, is
+// the point: a second hand-written copy of seven gates' judgement is a second thing to drift.
 //
 // A worker thread, not a child process and not a flag. The twin is recognisable only by the
 // workerData this module passes, so no argument or environment variable can put a real run into
@@ -84,6 +86,13 @@ function replay(gateUrl) {
 }
 
 /**
+ * A finding as the two readings are compared: every run of digits masked. Masking can only
+ * make a fold finding match an old one, so it can only keep a finding hard, never lift one.
+ * @param {string} finding
+ */
+const comparable = (finding) => finding.replace(/\d+/g, '#')
+
+/**
  * The findings only the fold produces, in the gate's order and deduplicated.
  *
  * `lists` is every finding list the gate has built by its report point. Inside the twin this
@@ -105,8 +114,8 @@ export async function foldOnlyFindings(gateUrl, lists, touched) {
   if (!touched || found.length === 0) return { foldOnly: [], replayed: true }
   const legacy = await replay(gateUrl)
   if (legacy === null) return { foldOnly: [], replayed: false }
-  const before = new Set(legacy)
-  return { foldOnly: found.filter((f) => !before.has(f)), replayed: true }
+  const before = new Set(legacy.map(comparable))
+  return { foldOnly: found.filter((f) => !before.has(comparable(f))), replayed: true }
 }
 
 /**

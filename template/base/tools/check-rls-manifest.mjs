@@ -398,10 +398,14 @@ for (const table of [...createdTables].sort()) {
 // A drop or a rewrite the fold cannot place (1.1.0). Guessing either way would be wrong: read
 // as a no-op, a real policy change goes unjudged; read as applied, the gate judges a table or
 // a policy the history never showed it. DROP TABLE IF EXISTS on an unknown table is a no-op in
-// the database and here, so only the unconditional form is reported.
+// the database and here, so only the unconditional form is reported. A table made OUTSIDE the
+// migrations (the dashboard, an extension) and dropped by an applied one is acknowledged the
+// way every other table outside this gate's model is: a reviewed reason in the exemption list.
+// For a dropped table that is all the entry can do — nothing of it is left to judge.
 for (const { table, stmt } of unresolvedTableDrops(allStatements)) {
+  if (exempt.has(table)) continue
   errs.push(
-    `${table}: DROP TABLE in ${fileOf(stmt)} names a table no earlier migration creates — the history cannot drop what it never made. Create it in an earlier migration, or write DROP TABLE IF EXISTS if the drop is a deliberate no-op`,
+    `${table}: DROP TABLE in ${fileOf(stmt)} names a table no earlier migration creates — the history cannot drop what it never made. In a new migration write DROP TABLE IF EXISTS if the drop is a deliberate no-op; if an applied migration dropped a table made outside the migrations, record that with a reason in ${EXEMPT}`,
   )
 }
 for (const { table, name, stmt } of livePolicies.unresolved) {
