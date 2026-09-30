@@ -776,9 +776,10 @@ must leave that role holding that privilege. Three carve-outs, each load-bearing
 predicate that is literally `false` needs no grant (that is how the tenancy spine says
 "never"), a `RESTRICTIVE` policy only subtracts rows and so carries no reachability
 claim, and a policy with no `TO` clause names no role to close over. **The reverse
-direction is not asserted:** `GRANT SELECT, DELETE ON TABLE public.orgs TO
+direction is not asserted for `service_role`:** `GRANT SELECT, DELETE ON TABLE public.orgs TO
 service_role` is a legitimate ADR'd grant with no policy behind it, because
-`service_role` bypasses row security. Ramped `0.6.0` → `0.7.0`, unlike the negation set:
+`service_role` bypasses row security. (For `anon` and `authenticated` it is, from 1.1.0:
+the grant bound below.) Ramped `0.6.0` → `0.7.0`, unlike the negation set:
 here there IS a legacy population, because on a pre-flip project the missing grant
 genuinely works.
 SOURCE: https://supabase.com/docs/guides/api (Data API grants and exposed schemas)
@@ -788,7 +789,8 @@ policies); `USING (true)` → FAIL naming the vacuous predicate; a per-row `auth
 FAIL "per row"; drop the owner index → FAIL naming the missing leading column; add a table
 to one registry but not the other → FAIL naming the gap; append a `DISABLE ROW LEVEL
 SECURITY` to a fresh migration → FAIL naming the file (selftest Canary 22); delete the
-one `GRANT` line from the **shipped** `notes` migration → FAIL naming the policy, the
+notes `GRANT` line from the **shipped** tree (since 1.1.0 the one in the three-role revoke
+migration, which re-grants after its `REVOKE ALL`) → FAIL naming the policy, the
 date and the exact statement that discharges it (which is what makes the shipped-tree
 green non-vacuous, as opposed to a fixture merely shaped like it).
 
@@ -861,6 +863,58 @@ so a finding both readings produce stays hard at every vintage. **Anti-vacuity:*
 (true)"; `DROP TABLE public.thing` and a bare re-create with ENABLE and FORCE → FAIL on all
 four operations and the owner index; `DROP TABLE public.ghost` → FAIL unresolved; and a
 table created then dropped → GREEN.
+
+**The grant bound, the three-role revoke doctrine and the generated grant assertions
+(1.1.0).** The closure above folds explicit statements only and starts empty, so it never
+saw what Supabase's default privileges hand a role on a new `public` table — ALL, for
+`anon`, `authenticated` and `service_role` — and the 1.0.2 escape was exactly a grant wider
+than its policies, found by a runtime assertion after the local CLI moved, never by this
+gate. `tools/lib/table-grants.mjs` now walks the history a second time in two halves: a
+**default-seeded** fold that starts each `public` table with every table privilege of the
+configured major for the three roles (eight on PostgreSQL 17, `MAINTAIN` among them; seven
+below it, read from `[db].major_version`), and an **explicit** fold that starts it with
+none. Three findings come of it, one ramp for all three:
+
+- **The bound.** Every privilege `anon` or `authenticated` holds in the default-seeded fold,
+  directly, through `PUBLIC` or on columns, must be admitted by a PERMISSIVE policy for that
+  operation (or `ALL`) naming the role, `public` or no role, whose predicate is not literally
+  `false`. `TRUNCATE`, `REFERENCES`, `TRIGGER` and `MAINTAIN` are never admitted — row
+  security does not apply to them — so they are revoked, or listed with a reason in the
+  tolerated-absent `tools/grant-bound-allow.json` as `{table, role, privilege, reason}`. A row
+  naming a privilege the role does not hold, or one a policy already admits, is a finding.
+- **The doctrine** (`docs/adr/20260930-three-role-revoke.md`). For each of the three roles,
+  the default-seeded fold holds nothing the explicit fold does not: the table revoked the
+  default from every role, and whatever a role keeps was granted explicitly. That keeps
+  `service_role` to ADR'd grants without judging them against policies, and it is what makes
+  a committed expectation independent of whether the platform applied its default.
+- **The generated file.** `supabase/tests/rls_grants.generated.test.sql` must equal what
+  `tools/gen-grant-assertions.mjs` renders from the explicit fold — one `is_empty` over
+  `has_table_privilege(…) IS DISTINCT FROM expected` for every table a migration creates,
+  each of the three roles and every table privilege, with its own `plan()`, rows sorted by
+  code unit. Checked while the doctrine holds; until then the generator refuses, naming the
+  tables and printing the statements that clear them.
+
+Every finding prints the exact `REVOKE` and `GRANT` that clear it. The parse is normalised
+where an upper bound would fail OPEN: `… TO authenticated WITH GRANT OPTION` is a grant to
+`authenticated` (not to a role of that name), `GRANTED BY`, `CASCADE` and `GROUP` are read
+off, `REVOKE GRANT OPTION FOR` leaves the privilege, a column list and several tables in one
+statement are read, a schema-wide statement reaches only the tables that exist at that
+point, and a `GRANT` or `REVOKE` the fold cannot read is itself a finding. Out of scope:
+sequences, custom roles, views and `ALTER DEFAULT PRIVILEGES` (the bound keeps assuming the
+platform default). The hand-written assertions in `rls_structure.test.sql` stay: the
+`service_role` allowlist and the seat and quota shapes state intent. Ramped through
+`rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the generated grant assertions', { until: '1.2.0' })`:
+an install seeded before 1.1.0 has tables that predate the doctrine (profiles and notes on
+every vintage), and `update` withholds the migration and the generated file.
+SOURCE: https://www.postgresql.org/docs/17/ddl-priv.html
+**Anti-vacuity:** the shipped tree without
+`supabase/migrations/20260920000000_authenticated_write_revoke.sql` → FAIL on all seven
+read-only tables (it printed OK before), and without
+`supabase/migrations/20260930000000_three_role_revoke.sql` → FAIL on `profiles` and `notes`
+only; `GRANT ALL`, a grant behind a deny-all policy, `WITH GRANT OPTION`, a schema-wide
+`REVOKE` before a later `CREATE TABLE`, a table that never revokes from `service_role`, a
+stale allow row and a stale or missing generated file → FAIL; the generated file passes on a
+live stack and fails on an injected `GRANT TRUNCATE ON public.notes TO authenticated`.
 
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 

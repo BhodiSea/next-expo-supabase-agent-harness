@@ -201,6 +201,13 @@ INSERT INTO rls_targets (table_name, owner_column) VALUES
 SELECT has_table('public', 'push_device_tokens', 'public.push_device_tokens exists');
 ```
 
+The exact-privilege assertions are GENERATED, not edited: after copying the migration,
+run `node tools/gen-grant-assertions.mjs` (step 9's `pnpm gen` runs it too) and commit
+the rewritten `supabase/tests/rls_grants.generated.test.sql`, which then asserts what anon,
+authenticated and service_role hold on `push_device_tokens`. `schema-rls` reds while that
+file is stale, and the slice's migration revokes the platform default from all three roles
+first, which the gate requires of every table (1.1.0).
+
 ## 6. The expo-notifications seam (mobile)
 
 See the README's seam section for the full reasoning; the mechanical steps:

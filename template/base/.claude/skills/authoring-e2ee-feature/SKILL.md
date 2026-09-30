@@ -109,8 +109,9 @@ boundary and an encrypted table gets no relief from it. In the SAME migration: `
 never `TO public`) using only the two legal predicate shapes over `org_id`, a leading-column
 owner index that carries the ORDERING as well as the filter, `REVOKE ALL` from `anon`,
 `service_role` and `authenticated` (the platform default grants all three, and a GRANT removes
-nothing), then the explicit `GRANT` per operation the policies admit, and the audit trigger with **no `WHEN`
-clause**. Read `.claude/skills/authoring-vertical-slice/references/migration-rls.md` and
+nothing), then the explicit `GRANT` per operation the policies admit (and
+`node tools/gen-grant-assertions.mjs` to regenerate the exact-privilege assertions, never by
+hand), and the audit trigger with **no `WHEN` clause**. Read `.claude/skills/authoring-vertical-slice/references/migration-rls.md` and
 follow it exactly — including re-casing the RLS statements to UPPERCASE so the provenance
 heuristic can see them.
 

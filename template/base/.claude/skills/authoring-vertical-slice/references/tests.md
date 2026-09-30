@@ -41,6 +41,11 @@ Run via `supabase test db`; each suite is one transaction ending in `ROLLBACK`.
   shape), no policy granted to `public`/`anon`, the owner column as the LEADING column of some
   index, `anon` and `service_role` holding no DML grant, and the positive control that
   `authenticated` holds all four grants (so a too-locked-down database fails too).
+- `rls_grants.generated.test.sql` asserts the EXACT table privileges anon, authenticated and
+  service_role hold on every table a migration creates. It is GENERATED: run
+  `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it) after any grant change and commit
+  the result. Never add a row, a table list or a `plan()` bump by hand — `schema-rls` reds a
+  stale copy.
 - `rls_isolation.test.sql` proves BEHAVIOUR through raw role-switch: it impersonates a tenant
   with `SET LOCAL "request.jwt.claims"` + `SET LOCAL ROLE authenticated` (the shape a real
   request arrives with — no identity GUC), and pins the empty-set principle: a cross-tenant

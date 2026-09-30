@@ -89,10 +89,14 @@ Hard rules (each is gate- or hook-enforced; write SQL that passes on the first r
    is not subject to row security at all. The `migrations` gate treats
    `REVOKE … FROM authenticated` as a change to an authorization control, so the file
    carries `-- adr: docs/adr/<this slice's ADR>` and that file must exist (`/adr <slice>`).
-   Then add the table to the privilege-exactness assertion in
-   `supabase/tests/rls_structure.test.sql`: its table list when clients may only read it,
-   a sibling `is_empty(...)` over the same seven privileges (and a `plan()` bump) when
-   they may write. `FORCE` closes the table-OWNER hole; it does NOT close the BYPASSRLS hole —
+   `schema-rls` holds every table to this (1.1.0): a privilege `anon` or `authenticated`
+   holds that no policy admits reds, and so does a role that keeps the platform default
+   (`docs/adr/20260930-three-role-revoke.md`). Then regenerate the privilege-exactness
+   assertion: `node tools/gen-grant-assertions.mjs` (`pnpm gen` runs it) rewrites
+   `supabase/tests/rls_grants.generated.test.sql` from the migrations; commit it. Never edit
+   its rows, a table list or a `plan()` by hand — `schema-rls` reds a stale copy, and the
+   generator refuses, naming the table, while it still keeps the default for any of the
+   three roles. `FORCE` closes the table-OWNER hole; it does NOT close the BYPASSRLS hole —
    the REVOKE is the ONLY lever over `service_role`, so it reaches a table only via
    a LATER, ADR-governed migration granting it explicitly, per table, narrowly
    (never `GRANT ALL ON ALL TABLES`). See `supabase/functions/README.md`.
@@ -119,7 +123,7 @@ Workflow: read the existing schema and migrations → edit `supabase/schemas/*.s
 → `supabase db diff -f <slice>` → READ the generated draft and re-case the RLS
 keywords (the diff engine is BLIND to policy ALTERs and column privileges — a
 policy change reads as drop+create, a rename as nothing) → Write the migration
-ONCE → add the `ISOLATION_TARGETS` + `rls_targets` rows. Verify with
+ONCE → add the `ISOLATION_TARGETS` + `rls_targets` rows → `node tools/gen-grant-assertions.mjs`. Verify with
 `pnpm db:reset` (applies the chain), `pnpm db:test` (pgTAP structure + isolation),
 `pnpm db:types` (regenerate the Supabase type mirror the `types-drift` gate diffs),
 and `pnpm test:rls` (needs `pnpm db:up`; fresh-applies the whole chain from zero,

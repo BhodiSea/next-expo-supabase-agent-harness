@@ -44,8 +44,12 @@ Every user-scoped table carries, IN THE SAME migration:
   removes none**, so granting four verbs on top of that default leaves TRUNCATE (which row
   security never sees), REFERENCES and TRIGGER in place. Because the `migrations` gate treats
   `REVOKE ... FROM authenticated` as a change to an authorization control, the file carries
-  `-- adr: docs/adr/<this slice's ADR>`, and that file has to exist. Extend the
-  privilege-exactness assertion in `supabase/tests/rls_structure.test.sql` to cover the table.
+  `-- adr: docs/adr/<this slice's ADR>`, and that file has to exist. `schema-rls` holds every
+  table to these three revokes and the exact grant (1.1.0,
+  `docs/adr/20260930-three-role-revoke.md`). Then run `node tools/gen-grant-assertions.mjs`
+  (`pnpm gen` runs it) and commit the regenerated
+  `supabase/tests/rls_grants.generated.test.sql`: it asserts the exact privilege set of every
+  table, the new one included. Never edit its rows, a table list or a `plan()` by hand.
 
 `-- SOURCE: <authority> [corpus: <id>]` on every decision line (FORCE, each CREATE POLICY, the
 initPlan sub-select, the index). Destructive DDL (DROP TABLE/COLUMN, TRUNCATE) requires
