@@ -1175,7 +1175,7 @@
     "lint.yml#machinery-lint": [
       {
         "kind": "steps",
-        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates 1.1.0 (#76): plus machinery-i18n-tree, which runs tests/gates/i18n-tree.test.mjs and tests/gates/check-i18n.test.mjs (both registered #steps i18n fixture proofs) with the root toolchain, so `typescript` loads, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (a parser that cannot load fails there, never skips) and a coverage floor on template/base/tools/lib/i18n-tree.mjs"
+        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates. 1.1.0 (#76): plus machinery-i18n-tree, which runs tests/gates/i18n-tree.test.mjs and tests/gates/check-i18n.test.mjs (both registered #steps i18n fixture proofs) with the root toolchain, so `typescript` loads, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (a parser that cannot load fails there, never skips) and a coverage floor on template/base/tools/lib/i18n-tree.mjs"
       }
     ],
     "release.yml#release": [
