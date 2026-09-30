@@ -135,6 +135,26 @@ this heading if none does. -->
   `wiring` stays green, and once the entry is merged the next `update` writes and records
   it. No chain step, gate, guard rule or floor changes, `HOOK_FLOOR` and `doctor`'s hook list
   stay as they are, and no ramp (#60).
+- **A failing gate can print the project's own note under its FIX line:
+  `tools/field-notes.json`.** What a project learns about a gate in its own tree (the fixture
+  it trips on, the fix that is usually right) had nowhere to live but agent memory or an
+  instructions file that keeps growing. A new seeded file,
+  `{"notes": {"<gate>": "one string"}}`, keyed on the token the gate's FAIL line prints,
+  now adds one `FIELD-NOTE[<gate>]: <text>` line right after that gate's `FIX[<gate>]` line.
+  `tools/lib/gate.mjs` sends the FIX line of `fail`, `failures` and CI-mode `skipOrFail`
+  through one helper that reads the file there and nowhere else, after the FAIL and FIX lines
+  have printed, and prints what the exported, pure `renderFieldNote` returns: whitespace
+  collapsed, control and format characters removed, the text capped at
+  `FIELD_NOTE_MAX_CHARS` code points without splitting a surrogate pair, a foreign key or a
+  non-string value ignored, and one fixed line for a file that is not valid JSON. A note
+  never prints on a pass, a stamp hit or a local skip, is not a stamp input, and cannot
+  change an exit code or hide a finding: the FAIL, bullet and FIX lines are byte-identical
+  with and without it. The file is write-guarded (`field-notes`), because its text reaches
+  an agent while it decides how to make a red go away. The factory's escape registry declares
+  it `advisory` rather than listing it in `ESCAPE_LISTS`, since it exempts nothing and raises
+  no budget. `update` plants the empty skeleton into an existing install; absent, it prints
+  nothing. The catalog's shared-behavior paragraph names the prefix, the key, the cap's
+  constant and the steps no note can reach. No chain step and no ramp (#61).
 
 ### Fixed
 
@@ -304,6 +324,13 @@ this heading if none does. -->
   hook moved out of `.harness/pending/` by hand instead has no manifest record, and `wiring`'s
   parked NOTE, like `doctor`'s, still says to reconcile the parked copy into its real path
   (#60).
+- **A field note reaches only the gates that fail through `tools/lib/gate.mjs`.** `format`,
+  `types`, `lint`, `dead-code`, `architecture`, `unit` and `mobile-unit` run third-party
+  tools, and `rls-isolation`'s runner prints its own `[rls]` lines, so none of them prints a
+  note. When a failed Stop step's output is long, the Stop hook keeps its head and tail, so a
+  note from a gate in the middle of a `validate --report-all` run may appear only in
+  `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
+  propose a note for a human to apply; that is #65's to add (#61).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -393,6 +420,18 @@ this heading if none does. -->
   Two hook cases added in review were red first as well: run from a subdirectory the hook
   printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
   install it printed the 1.0.x set the Stop step does not decide on (#60).
+  For field notes, the new
+  cases of `tests/gates/gate-helpers.test.mjs` were red first: the renderer and its cap
+  constant did not exist, a failing gate printed nothing after its FIX line with a note in
+  place, and an invalid file printed no line. The `field-notes` canary let a write to
+  `tools/field-notes.json` through, and the canary closure named a canary with no rule. With
+  only the `SEEDED_FILES` entry in, the shipped-lists registry test and
+  `check-escape-registry` reported the file unguarded and missing from `ESCAPE_LISTS`, and
+  `check-seeded-migrations` reported it neither withheld nor planted; the rule, the
+  `advisory` kind and the plant each cleared its own finding. A 1.0.4 install updated by this
+  installer got the empty file planted, untracked, and `gate-integrity` stayed green over it.
+  A note there printed one line after `gate-integrity`'s FIX line, with an ESC byte in its
+  text removed, and the output was otherwise byte-identical to the run without it (#61).
 
 ## [1.0.4] — 2026-09-29
 
