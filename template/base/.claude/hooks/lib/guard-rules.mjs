@@ -576,6 +576,10 @@ export const WRITE_PROTECTED = [
   { id: 'dto-bounds-allow', re: /^tools\/dto-bounds-allow\.json$/ }, // exempting a wire string from the .max() bound is a human decision
   { id: 'duplication-allow', re: /^tools\/duplication-allow\.json$/ }, // accepting a code clone is a human decision
   { id: 'vertical-anatomy-allow', re: /^tools\/vertical-anatomy-allow\.json$/ }, // a deviation from the worked vertical anatomy is a human decision
+  // Per-gate field notes (1.1.0). A note exempts nothing, but tools/lib/gate.mjs prints it
+  // under the gate's FIX line, so its text reaches an agent at the very moment it is
+  // deciding how to make that red go away: what it says there is a human's call.
+  { id: 'field-notes', re: /^tools\/field-notes\.json$/ },
   { id: 'i18n-allow', re: /^tools\/i18n-allow\.json$/ }, // letting a string bypass the catalog is a human decision
   { id: 'test-quality-allow', re: /^tools\/test-quality-allow\.json$/ }, // letting a disabled or assertion-free test stand is a human decision
   { id: 'rls-runner', re: /^tests\/rls\/run-rls\.mjs$/ }, // the RLS runner the Stop hook invokes directly

@@ -195,6 +195,13 @@ export const SEEDED_FILES = new Set([
   // logic as duplication-allow — the boundaries gate's own failure text points the
   // consumer at a reviewed entry here.
   'tools/vertical-anatomy-allow.json',
+  // 1.1.0 (#61): per-gate field notes, printed under a gate's FIX line when it fails
+  // (tools/lib/gate.mjs). Seeded rather than owned for the allow-files' reason: the rows
+  // are what THIS project learned about a gate in its own tree, so `update` must plant the
+  // empty skeleton when absent and never clobber a project's notes. Unlike its neighbours
+  // it exempts nothing and raises no budget, so it is write-guarded but not in
+  // ESCAPE_LISTS (scripts/lib/escape-registry.mjs declares it `advisory`).
+  'tools/field-notes.json',
   'tools/decision-groups.json',
   // 1.0.4: the project's own citation authorities, merged with the owned, hash-pinned
   // tools/mcp/corpus/index.json by tools/lib/corpus.mjs. Seeded for the reason

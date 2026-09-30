@@ -55,6 +55,83 @@ function fixHint(gate) {
   return `FIX[${gate}]: reproduce with \`${cmd}\`; docs: docs/harness/gates-catalog.md ("${gate}")`
 }
 
+// ---- field notes (1.1.0) ----------------------------------------------------------
+// tools/field-notes.json is the project's own line under a gate's FIX line: what it learned
+// about that gate in its tree (the fixture it trips on, the fix that is usually right).
+// `{"notes": {"<gate>": "one string"}}`, keyed on the token of `<gate>: FAIL`. PRINT-ONLY:
+// the note is read on the three failure paths alone, after the FAIL, bullet and FIX lines
+// have printed and just before exit(1), so it can neither change a verdict nor hide a
+// finding, and it never prints on ok(), a stamp hit or a local skip. It is not a stamp
+// input (a stamp records a green run; a note prints on a red one). The file is seeded and
+// write-guarded: its text reaches an agent at the moment it decides how to make a red go
+// away, so it is a human's to write.
+// SOURCE: docs/harness/gates-catalog.md ("Shared behavior") [corpus: harness/doctrine]
+export const FIELD_NOTE_MAX_CHARS = 300
+const FIELD_NOTES_PATH = 'tools/field-notes.json'
+const GATE_TOKEN = /^[a-z0-9-]+$/
+
+// Whitespace (newlines included) collapses to one space; control, format and lone-surrogate
+// code points are removed (ESC, C1, bidirectional overrides, zero-width characters), so a
+// note cannot drive a terminal, reorder the line it sits on or carry text nobody can see.
+// Property escapes, not a \x00-\x1f class: the machinery ESLint config bans control
+// characters in regex literals (no-control-regex).
+/** @param {string} value @returns {string} */
+function sanitizeNote(value) {
+  const text = value
+    .replace(/\p{White_Space}+/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, '')
+    .replace(/ {2,}/g, ' ')
+    .trim()
+  // Counted in code points, so the cut never splits a surrogate pair.
+  const points = [...text]
+  if (points.length <= FIELD_NOTE_MAX_CHARS) return text
+  return `${points
+    .slice(0, FIELD_NOTE_MAX_CHARS - 1)
+    .join('')
+    .trimEnd()}…`
+}
+
+/**
+ * The field-note line for `gate`, or null when there is none. Pure: `raw` is the text of
+ * tools/field-notes.json, or null when the file is absent. Invalid JSON renders one fixed
+ * line naming the file; a `notes` that is not an object, a key outside [a-z0-9-] and a
+ * value that is not a string render nothing. It never throws.
+ * @public exported for the harness repo's gate suite (tests/gates/gate-helpers.test.mjs)
+ * @param {string} gate @param {string | null} raw @returns {string | null}
+ */
+export function renderFieldNote(gate, raw) {
+  if (raw === null) return null
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return `FIELD-NOTE[${gate}]: ${FIELD_NOTES_PATH} is not valid JSON; no note printed`
+  }
+  const notes = parsed?.notes
+  if (notes === null || typeof notes !== 'object' || Array.isArray(notes)) return null
+  if (!GATE_TOKEN.test(gate) || !Object.hasOwn(notes, gate)) return null
+  const value = notes[gate]
+  if (typeof value !== 'string') return null
+  const text = sanitizeNote(value)
+  return text === '' ? null : `FIELD-NOTE[${gate}]: ${text}`
+}
+
+// The one tail every failure path prints: the FIX line, then the project's note for this
+// gate when it has one. The notes file is read relative to the working directory, as
+// readManifest reads .harness/, and any read error (absence included) prints nothing.
+/** @param {string} gate */
+function printRemedy(gate) {
+  console.error(fixHint(gate))
+  let raw
+  try {
+    raw = readFileSync(FIELD_NOTES_PATH, 'utf8')
+  } catch {
+    return
+  }
+  const line = renderFieldNote(gate, raw)
+  if (line !== null) console.error(line)
+}
+
 // The three exits below are annotated `@returns {never}` DELIBERATELY, and it is not
 // cosmetic. Under `checkJs: true` TypeScript infers `void` for a function whose body ends in
 // `process.exit()`, so at every `if (bad) fail(...)` call site the code after the branch is
@@ -72,7 +149,7 @@ export function ok(gate, msg) {
 /** @param {string} gate @param {string} msg @returns {never} */
 export function fail(gate, msg) {
   console.error(`${gate}: FAIL — ${msg}`)
-  console.error(fixHint(gate))
+  printRemedy(gate)
   process.exit(1)
 }
 
@@ -105,7 +182,7 @@ export function skipOrFail(gate, reason) {
     console.error(
       `${gate}: FAIL — ${reason} (skips are not allowed in CI: set up the prerequisite or remove the surface)`,
     )
-    console.error(fixHint(gate))
+    printRemedy(gate)
     process.exit(1)
   }
   console.log(`${gate}: SKIPPED — ${reason} (this gate FAILS CLOSED in CI)`)
@@ -117,7 +194,7 @@ export function failures(gate, list, hint) {
   console.error(`${gate}: FAIL (${list.length})`)
   for (const f of list) console.error(`  - ${f}`)
   if (hint) console.error(hint)
-  console.error(fixHint(gate))
+  printRemedy(gate)
   process.exit(1)
 }
 
