@@ -762,6 +762,57 @@ test('update refreshes unmodified owned files, preserves drift, never touches se
   assert.equal(readFileSync(seeded, 'utf8'), '# mine now\n', 'seeded file must never be touched')
 })
 
+// 1.1.0 (#64): docs/reviews/README.md is SEEDED, and planted by `update` only where it is
+// absent. Every other file under docs/ is owned, and an owned path with no manifest record
+// whose bytes no release shipped is parked (the 1.0.4 rule), so a consumer who already keeps
+// a docs/reviews/README.md of their own would get `update` exiting 2 over it. Both cases start
+// the way an install that predates the file looks: no record for the path.
+const REVIEWS_README = 'docs/reviews/README.md'
+
+/** @param {string} dir @param {string} rel */
+function dropManifestRecord(dir, rel) {
+  const path = join(dir, '.harness/manifest.json')
+  const manifest = JSON.parse(readFileSync(path, 'utf8'))
+  delete manifest.files[rel]
+  writeFileSync(path, JSON.stringify(manifest, null, 2))
+}
+
+test('update plants docs/reviews/README.md where it is absent, with the template bytes and a seeded record (#64)', () => {
+  const source = join(TEMPLATE, 'base', REVIEWS_README)
+  assert.ok(existsSync(source), `the template must ship ${REVIEWS_README}`)
+  const dir = mkdtempSync(join(tmpdir(), 'epah-reviews-plant-'))
+  assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
+  rmSync(join(dir, REVIEWS_README))
+  dropManifestRecord(dir, REVIEWS_README)
+
+  const r = run(['update', '--dir', dir])
+  assert.equal(r.code, 0, r.out)
+  const templateBytes = readFileSync(source, 'utf8')
+  assert.equal(readFileSync(join(dir, REVIEWS_README), 'utf8'), templateBytes)
+  const record = JSON.parse(readFileSync(join(dir, '.harness/manifest.json'), 'utf8')).files[
+    REVIEWS_README
+  ]
+  assert.equal(record?.mode, 'seeded', JSON.stringify(record))
+  assert.equal(record?.sha256, sha256(templateBytes))
+})
+
+test('update leaves a docs/reviews/README.md it has no record of byte-identical, and parks nothing (#64)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-reviews-keep-'))
+  assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
+  const ours = '# Our review log\n\nRounds live in the tracker, not here.\n'
+  writeFileSync(join(dir, REVIEWS_README), ours)
+  dropManifestRecord(dir, REVIEWS_README)
+
+  const r = run(['update', '--dir', dir])
+  assert.equal(r.code, 0, r.out)
+  assert.equal(readFileSync(join(dir, REVIEWS_README), 'utf8'), ours)
+  assert.equal(
+    existsSync(join(dir, '.harness/pending', REVIEWS_README)),
+    false,
+    'a consumer file with no record must not have the incoming copy parked beside it',
+  )
+})
+
 test('update NEVER overwrites a re-recorded fork — through the real CLI and the shipped tables (1.0.2)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-fork-'))
   assert.equal(run(['init', '--dir', dir, '--yes', ...SETS]).code, 0)
