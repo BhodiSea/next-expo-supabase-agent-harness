@@ -103,7 +103,7 @@
     },
     {
       "agent": "citation-verifier",
-      "why": "Its definition says it MUST BE USED before finishing a feature, so it is summoned before a turn ends, like torvalds-reviewer, and until 1.1.0 its verdict was recorded and never judged. The `provenance` chain gate still reds tree-wide on an uncited decision site; this class judges the other half, that the reviewer which checks each citation resolves actually ran on this diff."
+      "why": "Its definition says it MUST BE USED before finishing a feature, so it is summoned before a turn ends, like torvalds-reviewer, and until 1.1.0 its verdict was recorded and never judged. The `provenance` chain gate still reds tree-wide on an uncited decision site in a mandatory class (an advisory-class site is reported, not a red, since 1.1.0); this class judges the other half, that the reviewer which checks each citation resolves actually ran on this diff."
     }
   ],
 

@@ -64,7 +64,9 @@ Exit-code semantics (the crux of the design):
 - **any other non-zero** — non-blocking error; the action proceeds. Security hooks must
   therefore always use exit 2 (or the structured deny), never exit 1.
 - `PostToolUse` cannot un-run a tool; its exit 2 surfaces stderr so the model fixes what
-  just landed.
+  just landed. At exit 0, a `hookSpecificOutput.additionalContext` string in a JSON object
+  on stdout is added to the model's context beside the tool result without blocking it:
+  the source check's answer to an advisory-class site (1.1.0).
 
 | Event | Matcher | Script | Enforces |
 |---|---|---|---|
@@ -72,7 +74,7 @@ Exit-code semantics (the crux of the design):
 | PreToolUse | `Edit\|Write\|MultiEdit\|NotebookEdit` | `.claude/hooks/pretool-write-guard.mjs` | blocks invariant-violating file **content** before it lands; denies edits to harness-owned paths |
 | PreToolUse | `mcp__.*` | `.claude/hooks/pretool-mcp-guard.mjs` | default-deny over `tools/approved-tools.json`: unregistered servers, tools outside a server's list, and write-shaped tool names on a `readOnly` server |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
-| PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
+| PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:`: exits 2 when a site in a mandatory class is uncited (its stderr also lists the file's advisory-class sites, marked advisory); for advisory-class sites alone (`vector-index`, `llm-sampling`, `tuning-constants`, 1.1.0) exits 0 with a `hookSpecificOutput.additionalContext` note on stdout |
 | Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green; on a green turn shows the user any `FALLBACK MODEL` lines as a JSON `systemMessage` (1.1.0), because stderr from a hook that exits 0 reaches only the debug log |
 | SubagentStart | `*` | `.claude/hooks/subagent-verdict.mjs` | (1.1.0) records the tree each reviewer is dispatched on in `.harness/reviewer-dispatch.jsonl`, never in the ledger; exits 0, because SubagentStart cannot block, and a missing record surfaces at Stop |
 | SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict, and the `model` it ran on, read from the subagent's own transcript, beside `pinned` (1.1.0); it also blocks a PASS that lists a finding at a severity the body's `Blocking:` line names, and records each verdict's blocking findings and its round in the reviewer's review loop, which the Stop step holds to a budget (1.1.0) |
@@ -521,7 +523,11 @@ The chain runs **corpus → code → check → ADR → verification → gate**:
 2. **In-code convention** — every non-trivial decision carries `// SOURCE:` with
    `[corpus: <id>]` when pinned.
 3. **Enforcement** — `posttool-source-check.mjs` per edit; `tools/check-sources.mjs`
-   tree-wide in validate/CI (identical heuristic, so the two can never disagree).
+   tree-wide in validate/CI (identical heuristic, so the two can never disagree). A
+   site in a mandatory class blocks the edit and reds the gate; a site whose classes are
+   all advisory (`vector-index`, `llm-sampling`, `tuning-constants`, unless
+   `tools/decision-groups.json` promotes one with `"mandatory"`) is reported and
+   blocks nothing (1.1.0).
 4. **`/adr`** — one ADR per slice into `docs/adr/`, its Sources section reconciled
    against every inline `// SOURCE:` in the slice.
 5. **`/verify-citations`** — the read-only `citation-verifier` subagent resolves each

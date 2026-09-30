@@ -502,7 +502,7 @@ test('parseMandatoryPromotions: NOT AN ARRAY — fails closed, a string and null
 test('parseMandatoryPromotions: UNKNOWN KEY — fails closed, naming the key and the known ones', () => {
   assert.throws(
     () => parseMandatoryPromotions({ mandatory: ['tuning-constants', 'x'] }, KNOWN),
-    (err) => {
+    (/** @type {Error} */ err) => {
       assert.match(err.message, /tools\/decision-groups\.json: "mandatory" names \["x"\]/)
       assert.match(err.message, /known: rls-policy, vector-index, tuning-constants, mobile-security/)
       return true

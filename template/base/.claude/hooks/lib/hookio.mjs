@@ -43,8 +43,8 @@ export function block(reason) {
 
 // ---- THE TELEMETRY LOG (1.0.4) ------------------------------------------------------
 // `.harness/telemetry.jsonl`: append-only and NEVER trimmed, one JSON record per Stop step
-// and per in-turn hook event (a guard deny, a source-check block, a fast-check warning, a
-// SubagentStop bounce). The turn ledger keeps its last 200 rows and records only THAT a turn
+// and per in-turn hook event (a guard deny, a source-check block, a source-check advisory
+// finding per class since 1.1.0, a fast-check warning, a SubagentStop bounce). The turn ledger keeps its last 200 rows and records only THAT a turn
 // blocked; this records what each step cost and which rule fired, so a red that was fixed
 // inside the same turn still leaves a trace.
 //
@@ -88,7 +88,7 @@ const idOrNull = (v) => (typeof v === 'string' ? v : null)
  * One in-turn hook event. From the payload it takes ONLY `session_id`, `prompt_id` and
  * `tool_name`, and each only when it is a string.
  * @param {{ hook: string, rule: string, input?: unknown }} meta
- * @param {'deny' | 'block' | 'warn' | 'bounce'} outcome
+ * @param {'deny' | 'block' | 'warn' | 'bounce' | 'advisory'} outcome
  */
 export function recordHookEvent(meta, outcome) {
   try {

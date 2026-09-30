@@ -85,7 +85,24 @@ const BUILTIN_DECISION_GROUPS = [
   },
 ]
 
-// G27 — the CONSUMER's own decision classes. The six built-in groups cover THIS stack's
+// THE ADVISORY CLASSES (1.1.0, #69). A decision class is MANDATORY unless it is named here:
+// an uncited site, or a group-match miss, in a mandatory class reds the gate and blocks the
+// per-edit hook, as every class did before 1.1.0. These three guard no security decision —
+// an index choice, a sampling parameter, a retry or timeout constant — so a missing citation
+// on one is REPORTED on every run (the gate prints an ADVISORY line, the hook hands the model
+// an additionalContext note) and is never a red on its own. Everything else is mandatory:
+// the other built-ins, the seeded mobile-security, any group a project adds, and any
+// built-in a later release adds, because the default for a class this list does not name is
+// the old, strict one. A site that matches ANY mandatory class is mandatory. The seeded
+// tools/decision-groups.json can PROMOTE an advisory class back (its "mandatory" list,
+// parsed below) and cannot demote anything: this constant is the only place a class becomes
+// advisory, and it is owned and sha-pinned. Resolvability, the host allowlist, corpus
+// integrity and the coverage lockstep stay hard for every class — a citation that is written
+// must be true.
+// SOURCE: docs/harness/README.md (provenance; one heuristic, two enforcement layers) [corpus: harness/doctrine]
+export const ADVISORY_DECISION_GROUPS = Object.freeze(['vector-index', 'llm-sampling', 'tuning-constants'])
+
+// G27 — the CONSUMER's own decision classes. The built-in groups cover THIS stack's
 // security/LLM surface, but a consumer's domain constants (a RAG chunk size, a similarity
 // threshold, an epsilon, a sampling seed) carried no citation duty at all — they are the
 // research decisions a research-grade artifact most needs grounded. tools/decision-groups.json
@@ -95,21 +112,26 @@ const BUILTIN_DECISION_GROUPS = [
 // one group there — `mobile-security` (ATS/cleartext exceptions, Android permission
 // strings, runtimeVersion policy, the updates URL) — because those are exactly the
 // mobile decision sites the design record locks; consumers extend the file, never
-// shrink it.
+// shrink it. The file is read ONCE: its `groups` are validated here and its `mandatory`
+// promotions in parseMandatoryPromotions, from the same parsed object.
 // SOURCE: docs/harness/README.md (provenance; one heuristic, two enforcement layers) [corpus: harness/doctrine]
-function loadConsumerDecisionGroups() {
+function readConsumerDecisionFile() {
   const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd()
   const path = resolve(root, 'tools/decision-groups.json')
-  if (!existsSync(path)) return []
-  let parsed
+  if (!existsSync(path)) return null
   try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'))
+    return JSON.parse(readFileSync(path, 'utf8'))
   } catch (e) {
     // Fail CLOSED: a malformed extension file must not silently disable citation duty.
     // The gate reds; the hook (fail-closed handlers) blocks.
     throw new Error(`tools/decision-groups.json is not valid JSON (${e.message})`)
   }
-  const list = parsed?.groups
+}
+
+/** @param {unknown} parsed the parsed tools/decision-groups.json, or null when it is absent */
+function loadConsumerDecisionGroups(parsed) {
+  if (parsed === null) return []
+  const list = /** @type {{ groups?: unknown }} */ (parsed)?.groups
   if (!Array.isArray(list)) {
     throw new Error(
       'tools/decision-groups.json must carry a "groups" ARRAY of {key, description, patterns}',
@@ -146,7 +168,65 @@ function loadConsumerDecisionGroups() {
   })
 }
 
-export const DECISION_GROUPS = [...BUILTIN_DECISION_GROUPS, ...loadConsumerDecisionGroups()]
+/**
+ * The seeded file's top-level `"mandatory": ["<key>", …]` (1.1.0, #69): the classes a project
+ * PROMOTES to mandatory. Absent (no file, or no key) promotes nothing, so a file written
+ * before 1.1.0 behaves exactly as it did. A value that is not an array, or an entry that is
+ * not a known group key, fails CLOSED like the file's other shape errors: a typo'd promotion
+ * would silently leave the class advisory while a reviewer believes it was promoted. It can
+ * only add: nothing here, or anywhere in the seeded file, demotes a class.
+ * @public exported for the harness repo's gate suite (tests/gates/provenance-rules.test.mjs)
+ * @param {unknown} parsed the parsed tools/decision-groups.json, or null when it is absent
+ * @param {Iterable<string>} knownKeys every built-in and consumer group key
+ * @returns {string[]}
+ */
+export function parseMandatoryPromotions(parsed, knownKeys) {
+  if (parsed === null || typeof parsed !== 'object' || !Object.hasOwn(parsed, 'mandatory')) return []
+  const list = /** @type {{ mandatory: unknown }} */ (parsed).mandatory
+  if (!Array.isArray(list)) {
+    throw new Error(
+      `tools/decision-groups.json: "mandatory" must be an ARRAY of decision-group keys — got ${JSON.stringify(list)}`,
+    )
+  }
+  const known = [...knownKeys]
+  const unknown = list.filter((k) => typeof k !== 'string' || !known.includes(k))
+  if (unknown.length > 0) {
+    throw new Error(
+      `tools/decision-groups.json: "mandatory" names ${JSON.stringify(unknown)}, not a known decision-group key (known: ${known.join(', ')}) — a promotion must name a group exactly`,
+    )
+  }
+  return [...new Set(list)]
+}
+
+const CONSUMER_FILE = readConsumerDecisionFile()
+
+export const DECISION_GROUPS = [...BUILTIN_DECISION_GROUPS, ...loadConsumerDecisionGroups(CONSUMER_FILE)]
+
+const PROMOTED = new Set(
+  parseMandatoryPromotions(
+    CONSUMER_FILE,
+    DECISION_GROUPS.map((g) => g.key),
+  ),
+)
+
+/**
+ * Is this decision class mandatory? Yes unless the owned advisory list names it and the
+ * seeded file does not promote it — so an unknown key is mandatory too.
+ * @param {string} key
+ */
+export function isMandatoryGroup(key) {
+  return !ADVISORY_DECISION_GROUPS.includes(key) || PROMOTED.has(key)
+}
+
+/**
+ * Is a decision site mandatory? Yes when ANY class it matches is. A site with no class at
+ * all (a combined-matcher hit no single group re-matches, or a finding from a copy of this
+ * lib that predates `groups`) is mandatory: the split only ever relaxes a site it can name.
+ * @param {unknown} groups the site's decision-group keys
+ */
+export function isMandatorySite(groups) {
+  return !Array.isArray(groups) || groups.length === 0 || groups.some((g) => isMandatoryGroup(g))
+}
 
 // Combined matcher — every built-in and consumer group's patterns, in order.
 export const DECISION = new RegExp(
@@ -218,9 +298,22 @@ export function gateScansFile(file) {
 
 const COMMENT_START = /^(\/\/|\*|\/\*|--)/
 
+/**
+ * The decision-group keys a line matches, in taxonomy order: the ONE group matcher both
+ * finders below use (1.1.0), so the class an uncited site is judged by and the class a cited
+ * site must be justified for can never disagree.
+ * @public exported for the harness repo's gate suite (tests/gates/provenance-rules.test.mjs)
+ * @param {string} line
+ * @returns {string[]}
+ */
+export function decisionGroupsOf(line) {
+  return DECISION_GROUPS.filter((g) => g.patterns.some((p) => p.test(line))).map((g) => g.key)
+}
+
 // The heuristic itself: flag decision keywords appearing in CODE (not in comments
 // that merely mention them) with no SOURCE citation in the window above.
-// Returns [{ line, excerpt }] with 1-based line numbers.
+// Returns [{ line, excerpt, groups }] with 1-based line numbers; `groups` (1.1.0) are the
+// decision classes the line matched, which decide whether the finding is mandatory.
 export function findUncitedDecisionSites(src) {
   const lines = src.split('\n')
   const flagged = []
@@ -229,7 +322,9 @@ export function findUncitedDecisionSites(src) {
     if (COMMENT_START.test(trimmed)) return
     if (!DECISION.test(ln)) return
     const window = lines.slice(Math.max(0, i - SOURCE_WINDOW_LINES), i + 1).join('\n')
-    if (!CITED.test(window)) flagged.push({ line: i + 1, excerpt: trimmed.slice(0, 80) })
+    if (!CITED.test(window)) {
+      flagged.push({ line: i + 1, excerpt: trimmed.slice(0, 80), groups: decisionGroupsOf(ln) })
+    }
   })
   return flagged
 }
@@ -286,10 +381,7 @@ export function findCitedDecisionSites(src) {
       }
     }
     if (srcIdx === -1) return // uncited — findUncitedDecisionSites owns that failure
-    const groups = DECISION_GROUPS.filter((g) => g.patterns.some((p) => p.test(ln))).map(
-      (g) => g.key,
-    )
-    sites.push({ line: i + 1, groups, payload: payloadAt(lines, srcIdx) })
+    sites.push({ line: i + 1, groups: decisionGroupsOf(ln), payload: payloadAt(lines, srcIdx) })
   })
   return sites
 }
@@ -320,10 +412,10 @@ export function extractHttpsUrlHosts(payload) {
 // ASYMMETRY NOTE: only the tree-wide gate calls this. The PostToolUse hook
 // stays presence-only (findUncitedDecisionSites) by design: resolvability
 // needs disk/corpus context (does the path exist? does the id resolve?) that a
-// per-edit hook deliberately does not load — the hook can only block or pass,
-// so it enforces the cheap presence floor and the gate owns everything
-// semantic. Same reason the hook never gains the corpus group-match: no corpus
-// load per edit.
+// per-edit hook deliberately does not load, so it enforces the cheap presence
+// floor — blocking on a mandatory class, advising on an advisory one (1.1.0) —
+// and the gate owns everything semantic. Same reason the hook never gains the
+// corpus group-match: no corpus load per edit.
 export function payloadResolves(payload, cwd = process.cwd()) {
   if (new RegExp(CORPUS_REF.source).test(payload)) return true
   for (const raw of payload.split(/\s+/)) {

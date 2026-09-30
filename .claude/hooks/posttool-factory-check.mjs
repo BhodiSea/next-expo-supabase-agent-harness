@@ -17,6 +17,13 @@
 // Advisory by construction: PostToolUse feedback informs the turn, and the tree-wide
 // closure is `check-sources.mjs` inside validate. This hook exists so a missing citation
 // is noticed while the author still remembers why the line is there.
+//
+// ALL THREE CHANNELS PASS THROUGH (1.1.0, #69). Until then the shipped hook spoke only by
+// exiting 2 with stderr, so forwarding stderr and the exit code was the whole verdict. Since
+// the advisory split it answers an advisory-class site with a PostToolUse
+// `additionalContext` object on STDOUT at exit 0; an adapter that dropped stdout would turn
+// that answer into silence. tests/hooks/posttool-factory-check.test.mjs proves the three
+// channels arrive byte for byte.
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -53,7 +60,8 @@ const res = spawnSync(process.execPath, [SHIPPED], {
   cwd: TEMPLATE_ROOT,
   env: { ...process.env, CLAUDE_PROJECT_DIR: TEMPLATE_ROOT },
 })
-// The shipped hook's own exit code and stderr are the verdict — passing them through
-// unaltered is what makes this an adapter rather than a second opinion.
+// The shipped hook's own exit code, stdout and stderr are the verdict — passing them
+// through unaltered is what makes this an adapter rather than a second opinion.
+if (res.stdout) process.stdout.write(res.stdout)
 if (res.stderr) process.stderr.write(res.stderr)
 process.exit(res.status ?? 0)

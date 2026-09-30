@@ -250,6 +250,19 @@ Cited corpus entries must carry a `groups` key covering the site's decision clas
 (reviewed cross-group escapes in `tools/provenance-overrides.json`); a bare-URL
 citation grounds only on a `tools/lib/citation-domains.mjs` allowlisted host.
 Consumer-added decision classes live in `tools/decision-groups.json`.
+**Mandatory and advisory classes (1.1.0).** Three built-in classes are advisory:
+`vector-index`, `llm-sampling` and `tuning-constants` (the owned
+`ADVISORY_DECISION_GROUPS` in `tools/lib/provenance-rules.mjs`). An uncited site, or a
+group-match miss, whose classes are all advisory prints
+`provenance: ADVISORY (n) — file:line [class]` on every run and is not a red; the hook
+answers it with `additionalContext` at exit 0 instead of blocking. Every other class is
+mandatory: `rls-policy`, `guc-identity`, `token-verification`, `cryptography`, the seeded
+`mobile-security`, any group a project adds and any built-in a later release adds. A site
+that matches any mandatory class is judged whole, as before. A top-level
+`"mandatory": ["<key>"]` in `tools/decision-groups.json` promotes an advisory class, and
+nothing in that file can demote one; a `mandatory` that is not an array, or names a key
+that is not a group, fails closed. Resolvability, the host allowlist, corpus integrity
+and the coverage lockstep stay hard for every class.
 The corpus is two files, merged by `tools/lib/corpus.mjs`: the harness's
 `tools/mcp/corpus/index.json` (owned, hash-pinned, mandatory) and the project's
 `tools/mcp/corpus/project.json` (seeded, `{ comment, entries }`, absent counts as
@@ -260,9 +273,11 @@ groups it declares, and a group a project adds may be covered from `project.json
 alone. The project file must parse as exactly `{ comment, entries }`, and an id the
 index already pins reds naming both files: a project adds authorities and never
 replaces one.
-**Anti-vacuity:** add `const timeoutMs = 5000` with no citation → FAIL with
-file:line; cite a corpus entry whose groups do not cover the flagged class → FAIL
-naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
+**Anti-vacuity:** add `await jwtVerify(token, jwks)` with no citation → FAIL with
+file:line (an uncited `const timeoutMs = 5000` prints an ADVISORY line naming
+`tuning-constants` and passes, and FAILs once `"mandatory": ["tuning-constants"]` promotes
+it; `"mandatory": ["x"]` → FAIL); cite a corpus entry whose groups do not cover a
+mandatory site's class → FAIL naming the mismatch; in `tools/mcp/corpus/project.json`, change an entry's `text`
 without its `sha256`, drop its `groups`, empty its `url`, break the JSON, make
 `entries` an object, add a top-level key, or reuse an id `index.json` pins → FAIL
 naming `project.json` (the last naming both files); cite an id neither file pins →
