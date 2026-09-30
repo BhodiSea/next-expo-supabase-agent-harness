@@ -986,6 +986,24 @@ this heading if none does. -->
   v1.0.4 core install updated by this installer exited 0 and stamped both on the second
   run; one whose `tools/lib/stamp-inputs.mjs` had been edited kept it, parked the new one,
   exited 2, and judged both scripts in full on every run (#68).
+  For the provenance advisory split, the tests-only commit was red on 12 cases. The three
+  advisory greens printed `3 decision site(s) lack an inline` and exited 1, a wrong-group
+  cite on a `timeoutMs` red naming `decision group 'tuning-constants' is not justified`,
+  and `"mandatory": ["x"]` and a non-array `mandatory` each printed `provenance: OK`,
+  because the key was ignored. `tests/gates/provenance-rules.test.mjs` could not load
+  (`does not provide an export named 'ADVISORY_DECISION_GROUPS'`). The hook exited 2 on an
+  uncited `USING hnsw`, wrote no advisory event, and did not mark the advisory site in a
+  mixed file; and the new `tests/hooks/posttool-factory-check.test.mjs` showed the adapter
+  dropping a stub hook's stdout (`stdout: ''` for `OUT apps/server/src/x.ts`) while it
+  forwarded the stderr and exit 3. After the change each case is green, and so are the
+  reds that were already red and must stay so: `runtimeVersion`, `jwtVerify` beside
+  `timeoutMs` on one line, a promoted `timeoutMs`, a project-added group with its corpus
+  coverage in place, and `// SOURCE: trust me` above a `timeoutMs`. The rendered scaffold
+  in `check-sources.test.mjs` passes and prints no `ADVISORY` line. The channel the hook
+  now speaks on was probed first (`design/CONTROL-PLANE-FACTS.md` Fact 18): in print mode
+  against Claude Code 2.1.285, a PostToolUse hook's `additionalContext` at exit 0 reached
+  the model, which quoted it, and the 2.0.0 bundle validates and applies the field, below
+  the 2.1.163 floor, so `tools/cc-floor.json` does not move (#69).
 
 ## [1.0.4] — 2026-09-29
 

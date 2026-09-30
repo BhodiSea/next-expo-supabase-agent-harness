@@ -100,7 +100,11 @@ const BUILTIN_DECISION_GROUPS = [
 // integrity and the coverage lockstep stay hard for every class — a citation that is written
 // must be true.
 // SOURCE: docs/harness/README.md (provenance; one heuristic, two enforcement layers) [corpus: harness/doctrine]
-export const ADVISORY_DECISION_GROUPS = Object.freeze(['vector-index', 'llm-sampling', 'tuning-constants'])
+export const ADVISORY_DECISION_GROUPS = Object.freeze([
+  'vector-index',
+  'llm-sampling',
+  'tuning-constants',
+])
 
 // G27 — the CONSUMER's own decision classes. The built-in groups cover THIS stack's
 // security/LLM surface, but a consumer's domain constants (a RAG chunk size, a similarity
@@ -181,7 +185,8 @@ function loadConsumerDecisionGroups(parsed) {
  * @returns {string[]}
  */
 export function parseMandatoryPromotions(parsed, knownKeys) {
-  if (parsed === null || typeof parsed !== 'object' || !Object.hasOwn(parsed, 'mandatory')) return []
+  if (parsed === null || typeof parsed !== 'object' || !Object.hasOwn(parsed, 'mandatory'))
+    return []
   const list = /** @type {{ mandatory: unknown }} */ (parsed).mandatory
   if (!Array.isArray(list)) {
     throw new Error(
@@ -200,7 +205,10 @@ export function parseMandatoryPromotions(parsed, knownKeys) {
 
 const CONSUMER_FILE = readConsumerDecisionFile()
 
-export const DECISION_GROUPS = [...BUILTIN_DECISION_GROUPS, ...loadConsumerDecisionGroups(CONSUMER_FILE)]
+export const DECISION_GROUPS = [
+  ...BUILTIN_DECISION_GROUPS,
+  ...loadConsumerDecisionGroups(CONSUMER_FILE),
+]
 
 const PROMOTED = new Set(
   parseMandatoryPromotions(

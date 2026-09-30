@@ -2400,7 +2400,7 @@
         "sha256": "05cbc11aa1acc35464be245058bcaf471ab15d8f1110d86290b21a92e718f18d"
       },
       {
-        "sha256": "bcad40e55fc1677accc3504829274c5d70b0cc9d43c2c79e3f9d8035d1eb39ad"
+        "sha256": "a13518dde1c19438bdf9a54702622aebe92b0c589cbcee82a9441633acad7cce"
       }
     ],
     "tools/lib/query-recorder.mjs": [
