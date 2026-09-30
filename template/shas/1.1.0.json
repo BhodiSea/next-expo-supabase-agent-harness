@@ -953,6 +953,15 @@
         ]
       },
       {
+        "sha256": "5aa99138616bd08c2a702b1fc140c923d0a29254528d7be2fe19a20eabf37d61",
+        "sites": [
+          [
+            20134,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "80a5ccdaf1d9411b3c0231f6597c8d4da5871f7939c47bd5774448d7e1fa3f63",
         "sites": [
           [
@@ -1093,6 +1102,15 @@
         "sites": [
           [
             123533,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "de3d300dd92676e9971edf9ed1dc22afc76b9575d21c9c8ae76105baddce5a7e",
+        "sites": [
+          [
+            125366,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1307,6 +1325,15 @@
       },
       {
         "sha256": "098f792c0a23687fac0815f918dc06a793d0a2eae120c3dffedb758a128479e9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "21a7c4c1cf38843078b25cf3ec09b9d374be0abd7aaa1db086e8ae200de78138",
         "sites": [
           [
             14115,
@@ -1820,6 +1847,9 @@
     "tools/check-gate-integrity.mjs": [
       {
         "sha256": "14264daff1fde1eaf619d70574c73beb5c3003557cf2b67464f212d7f0ad8048"
+      },
+      {
+        "sha256": "71e1d02ba5c930bea386404ee9c7b8a0d8b0efbf5db7435d547eeaf2cdd79fae"
       }
     ],
     "tools/check-gbnf.mjs": [
