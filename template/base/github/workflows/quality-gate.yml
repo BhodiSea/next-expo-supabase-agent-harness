@@ -1436,8 +1436,16 @@ jobs:
       - name: Install Chromium (+ OS deps)
         run: pnpm --filter web exec playwright install --with-deps chromium
 
+      # Next's own type check (the `pnpm run build` Playwright's webServer runs) reads each
+      # referenced workspace package's emitted declarations, and a fresh checkout has none:
+      # without this step the build fails with TS6305 before the server ever starts (1.1.0,
+      # #77). `tsc -b apps/web` builds exactly the projects apps/web references.
+      - name: Build the workspace declarations Next's type check reads
+        run: pnpm exec tsc -b apps/web
+
       # The runner enforces the non-vacuous, axe-bearing closure, then runs the suite;
-      # Playwright's webServer boots `next dev` against the stack above.
+      # Playwright's webServer builds and starts a PRODUCTION server (`pnpm run build &&
+      # pnpm run start`, apps/web/playwright.config.ts) against the stack above.
       - name: Web browser lane (closure + playwright + axe)
         run: node tools/check-web-e2e.mjs
 
@@ -1458,11 +1466,16 @@ jobs:
   # contradicting each other on a secret-exfiltration control, and the one a security
   # reviewer opens was the one that overstated.
   #
-  # A JOB RATHER THAN A CHAIN STEP, for the reason the tier row itself gave: a `next build`
-  # is minutes, not seconds, and the validate chain is held to a wall-clock budget
-  # (scripts/chain-budget.json). Path-filtered on `web` so it does not run on a mobile-only
-  # PR — and the tier row now SAYS "(path-filtered)", because a control that skips is not
-  # a control that ran.
+  # THE PURITY SCAN IS A JOB; THE COMPILE IS A CHAIN STEP TOO (1.1.0). Through 1.0.x this job
+  # was the only place outside the web-e2e server start that ran `next build`, on the
+  # argument that a build is minutes and the validate chain is held to a wall-clock budget
+  # (scripts/chain-budget.json) — so a web app that did not compile passed the chain and the
+  # `static` job. The chain's `web-compile` step (tools/check-web-build.mjs) now compiles the
+  # app on a stamp miss, which makes it affordable locally, and `static` builds on every PR
+  # because CI never honours a stamp. This job keeps what only it does: the purity scan of a
+  # real build's CLIENT output. Path-filtered on `web` so it does not run on a mobile-only
+  # PR — and the tier row SAYS "(path-filtered)", because a control that skips is not a
+  # control that ran.
   #
   # It scans `.next/static/**` only: `.next/server/**` legitimately contains the
   # service-role factory and every server-only import, so scanning it would red on correct
@@ -1497,6 +1510,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Next's own type check reads each referenced workspace package's emitted declarations,
+      # which `tsc -b` writes and a fresh checkout does not have: without this step the build
+      # below fails with TS6305 (1.1.0, #77). The chain's web-compile step needs no such step,
+      # because it runs after `types`.
+      - name: Build the workspace declarations Next's type check reads
+        run: pnpm exec tsc -b apps/web
+
       # `next build` parses BOTH env schemas at build time and fails without either. The
       # public half is obvious; the SERVER half is not, and the first real run of this lane
       # is what found it — `Collecting page data` imports the tRPC route, which imports
@@ -1525,6 +1545,11 @@ jobs:
       # the scan RUNS against real `next build` client output and reds on a key-shaped
       # value planted there, which is the property the lane exists for and which
       # tests/gates/build-check-web.test.mjs pins in both directions.
+      #
+      # The chain's web-compile step (tools/check-web-build.mjs, 1.1.0) builds with exactly
+      # these values for every key its caller leaves unset, and the harness's
+      # tests/gates/check-web-build.test.mjs reads THIS step to hold the two in lockstep:
+      # change them together.
       - name: Build the web app
         env:
           NODE_ENV: production

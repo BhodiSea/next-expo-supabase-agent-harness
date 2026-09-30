@@ -266,6 +266,43 @@ test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.
   }
 })
 
+test('a lane that runs `next build` from a fresh checkout builds the workspace declarations first (1.1.0)', () => {
+  // THE SAME DEFECT CLASS AS THE NODE_ENV TEST ABOVE, found the same way: by running the
+  // build, not by reading the job (#77). apps/web's tsconfig REFERENCES the composite
+  // workspace packages, and Next's own type check (the "Running TypeScript" phase of `next
+  // build`) reads each reference's EMITTED declarations — which `tsc -b` writes and a fresh
+  // checkout does not have. So `pnpm --filter web build` straight after `pnpm install` fails
+  // with TS6305 ("Output file '…/dist/index.d.ts' has not been built from source file") on
+  // every import of an @app/* package, and the lane never reaches its purity scan or its
+  // first browser assertion. Measured on a zero-edit scaffold: red without, green with.
+  //
+  // The chain's web-compile step needs no such step: it runs after `types`, whose `tsc -b`
+  // writes them. A CI job that builds on its own has no `types` before it.
+  //
+  // BASE workflows only, and the one module job this leaves out is named rather than
+  // excused: ci-web-deploy's attest-web builds with `pnpm --filter web run build` and has
+  // the same TS6305 gap, and it also publishes only the NEXT_PUBLIC_* half of the env the
+  // build parses (quality-gate.yml's web-build step records the server half failing
+  // `Collecting page data`). Fixing one without the other would not make that lane pass, so
+  // both are left to that module's own change rather than half-fixed here.
+  const BUILDS_WEB = /pnpm --filter web (?:run )?build\b|node tools\/check-web-e2e\.mjs/
+  const DECLARATIONS = /^\s*run: pnpm exec tsc -b (?:apps\/web|\.)/m
+  const lanes = []
+  for (const { label, text } of BASE) {
+    for (const job of jobsOf(text)) {
+      const build = BUILDS_WEB.exec(job.body)
+      if (build === null) continue
+      lanes.push(job.id)
+      const tsc = DECLARATIONS.exec(job.body)
+      assert.ok(
+        tsc !== null && tsc.index < build.index,
+        `${label} job \`${job.id}\` builds the web app from a fresh checkout without running \`pnpm exec tsc -b apps/web\` first — Next's type check then fails with TS6305 on every @app/* import, so the lane can never pass.`,
+      )
+    }
+  }
+  assert.deepEqual(lanes.sort(), ['web-build', 'web-e2e'], 'the two shipped lanes that build the web app')
+})
+
 // ── POST-MERGE LANE REUSE (1.1.0, #57) ──────────────────────────────────────────────────────
 //
 // Six lanes of the merge gate run on `pull_request` AND on the `push` its merge produces, and
