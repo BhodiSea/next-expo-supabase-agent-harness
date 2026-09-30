@@ -17,6 +17,14 @@
 // line are what the scheduled job would produce given those feeds. The live half (does the
 // feed still answer in this shape) is the job's own, and its anti-vacuity is the canary and
 // the recorded-row checks proven red here.
+//
+// THE UPSTREAM RULE, from the first live run (hygiene.yml run 36711735348). The vendor's
+// repository advisories carry FREE-TEXT ranges (space-joined, comma-as-or, x-ranges, typos)
+// and often an open lower bound whose upper bound lives in `patched_versions`, so judging
+// every listed range reds forever and names patched versions. OSV lists the same advisory
+// days later with normalised ranges and matches the version itself. So an upstream advisory
+// OSV already lists is judged by OSV (the probe queries), and only one OSV does not list yet
+// (`osv-id:<GHSA>` answers 404) is judged on its own range, where an unknown syntax fails.
 // SOURCE: scripts/check-floor-advisories.mjs · scripts/lib/floor-advisories.mjs
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -31,6 +39,7 @@ import {
   catalogPins,
   deriveProbes,
   MAX_PAGES,
+  patchedOnLine,
   rangeIncludes,
   UPSTREAM_REPOS,
 } from '../../scripts/lib/floor-advisories.mjs'
@@ -78,6 +87,15 @@ function upstreamAdvisory(ghsa, cve, range, extra = {}) {
 
 const EMPTY = { status: 200, body: {} }
 
+/** OSV's answer for an advisory it does not list yet (GET /v1/vulns/<id>). */
+const NOT_IN_OSV = { status: 404, body: { code: 5, message: 'Vulnerability not found' } }
+
+/** @param {...string} ids */
+const notInOsv = (...ids) => Object.fromEntries(ids.map((id) => [`osv-id:${id}`, NOT_IN_OSV]))
+
+/** OSV's record of an advisory it lists, naming the package under npm. @param {string} id */
+const inOsv = (id) => ({ [`osv-id:${id}`]: { status: 200, body: { id, affected: [{ package: { ecosystem: 'npm', name: 'next' } }] } } })
+
 /** The clean feed set: nothing on any probe, the canary lit, the recorded row upstream. */
 function cleanResponses() {
   return {
@@ -120,6 +138,7 @@ test('the clean feeds pass, and the CLEAN line carries the counts it stands on',
   assert.match(r.out, /3 probe\(s\)/)
   assert.match(r.out, /1 canary\(ies\)/)
   assert.match(r.out, /1 recorded row\(s\)/)
+  assert.match(r.out, /0 upstream-only advisory\(ies\)/)
 })
 
 test('an UNRECORDED advisory on a floor probe fails, naming the id, the feed and the probe', () => {
@@ -185,11 +204,14 @@ test('the PIN probe fails on its own, with every floor probe clean', () => {
   assert.doesNotMatch(r.out, /next@16\.3\.3 \(floor/)
 })
 
-test('an UPSTREAM advisory whose range covers a probe fails, and one both feeds list is reported once', () => {
-  const fresh = upstreamAdvisory(FRESH, FRESH_CVE, '>= 16.0.0, < 16.3.6')
+test('an advisory both feeds list is reported once, judged by OSV and dated by the earlier feed', () => {
+  // OSV lists it, so its own range is not read (it would cover everything) and no
+  // `osv-id:` lookup is sent: a lookup here would fail as a missing recorded response.
+  const fresh = upstreamAdvisory(FRESH, FRESH_CVE, '< 99.0.0')
   const responses = {
     ...cleanResponses(),
     'osv:next@16.3.3': { status: 200, body: { vulns: [osvVuln(FRESH)] } },
+    'osv:next@16.3.5': { status: 200, body: { vulns: [osvVuln(FRESH)] } },
     'upstream:next': { status: 200, body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), fresh] },
   }
   const r = run({ responses })
@@ -203,7 +225,7 @@ test('an UPSTREAM advisory whose range covers a probe fails, and one both feeds 
   assert.equal(r.out.match(new RegExp(`- ${FRESH}`, 'g'))?.length, 1, r.out)
 })
 
-test('an upstream advisory alone fails too, and one naming another package or ecosystem is ignored', () => {
+test('an UPSTREAM advisory OSV does not list yet fails when its range covers a probe; another package or ecosystem is ignored', () => {
   const other = upstreamAdvisory('GHSA-oth1-oth1-oth1', null, '< 99.0.0')
   other.vulnerabilities = [
     { package: { ecosystem: 'npm', name: 'react' }, vulnerable_version_range: '< 99.0.0' },
@@ -215,6 +237,7 @@ test('an upstream advisory alone fails too, and one naming another package or ec
       status: 200,
       body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), other, upstreamAdvisory(FRESH, null, '= 15.5.24')],
     },
+    ...notInOsv(FRESH),
   }
   const r = run({ responses })
   assert.equal(r.code, 1, r.out)
@@ -224,22 +247,137 @@ test('an upstream advisory alone fails too, and one naming another package or ec
 })
 
 test('an upstream advisory whose RANGE SYNTAX no test covers fails, and does not read as clean', () => {
-  for (const range of ['^16.0.0', '16.x', '>= 16.0.0 < 16.3.6', '>= 16.0.0 || < 15.0.0', '']) {
+  // Shapes the vendor has actually written (run 36711735348), plus npm's own.
+  for (const range of ['^16.0.0', '~16.3.0', '16.x', '>= 16.0 < 16.3.6', '=> 16.0.0 < 16.3.6', '15.0.0 - 16.3.6', '>15.0.4 and <16.3.6', '10.0.0 <= 16.3.6', '>= 16.0.0,', '']) {
     const responses = {
       ...cleanResponses(),
       'upstream:next': {
         status: 200,
         body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), upstreamAdvisory(FRESH, null, range)],
       },
+      ...notInOsv(FRESH),
     }
     const r = run({ responses })
     assert.equal(r.code, 1, `${range}: ${r.out}`)
     assert.match(r.out, /range syntax no test covers/, range)
     assert.match(r.out, new RegExp(FRESH), range)
   }
-  const responses = cleanResponses()
+  const responses = { ...cleanResponses(), ...notInOsv(FRESH) }
   responses['upstream:next'].body.push({ ...upstreamAdvisory(FRESH, null, 'x'), vulnerabilities: [{ package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: null }] })
   assert.equal(run({ responses }).code, 1)
+})
+
+test('an upstream advisory OSV already lists is judged by OSV, never by its own free-text range', () => {
+  // The first live run's false reds: an open lower bound whose upper bound lives in
+  // patched_versions reads as covering every probe, and an x-range reads as unknown. OSV
+  // lists both, answered nothing for any probe, and so nothing fails.
+  const listed = 'GHSA-3x4c-7xq6-9pq8'
+  const xrange = 'GHSA-g77x-44xx-532m'
+  const responses = {
+    ...cleanResponses(),
+    'upstream:next': {
+      status: 200,
+      body: [
+        upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'),
+        upstreamAdvisory(listed, 'CVE-2026-27980', '>= 10.0.0', { vulnerabilities: [{ package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: '>= 10.0.0', patched_versions: '15.5.14, 16.1.7' }] }),
+        upstreamAdvisory(xrange, null, '13.x'),
+      ],
+    },
+    ...inOsv(listed),
+    ...inOsv(xrange),
+  }
+  const r = run({ responses })
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /GHSA-3x4c|GHSA-g77x/)
+  assert.match(r.out, /0 upstream-only advisory\(ies\)/)
+  // A record OSV holds under another package is not OSV answering for this one: the range is read.
+  const other = {
+    ...responses,
+    [`osv-id:${listed}`]: { status: 200, body: { id: listed, affected: [{ package: { ecosystem: 'PyPI', name: 'next' } }] } },
+  }
+  const r2 = run({ responses: other })
+  assert.equal(r2.code, 1, r2.out)
+  assert.match(r2.out, /GHSA-3x4c-7xq6-9pq8 \(aliases: CVE-2026-27980\) listed by upstream/)
+})
+
+test('the OSV lookup fails closed: an answer that is neither a record nor 404 is not "not listed"', () => {
+  /** @type {Array<[unknown, RegExp]>} */
+  const cases = [
+    [{ status: 500, body: null }, /osv-id:GHSA-new1-new1-new1: HTTP 500/],
+    [{ status: 200, body: [] }, /osv-id:GHSA-new1-new1-new1: the body is not an OSV record/],
+    [{ error: 'TimeoutError' }, /osv-id:GHSA-new1-new1-new1: timed out/],
+  ]
+  for (const [answer, expected] of cases) {
+    const responses = { ...cleanResponses(), [`osv-id:${FRESH}`]: answer }
+    responses['upstream:next'].body.push(upstreamAdvisory(FRESH, null, '< 1.0.0'))
+    const r = run({ responses })
+    assert.equal(r.code, 1, `${JSON.stringify(answer)}: ${r.out}`)
+    assert.match(r.out, expected)
+  }
+  // And a missing recorded lookup is a failure too.
+  const responses = cleanResponses()
+  responses['upstream:next'].body.push(upstreamAdvisory(FRESH, null, '< 1.0.0'))
+  assert.match(run({ responses }).out, /no recorded response for osv-id:GHSA-new1-new1-new1/)
+})
+
+test('THE FIRST LIVE FINDING: GHSA-vcvr-r3jv-pc5j, upstream on its day and not yet in OSV, fails on the floor and the pin', () => {
+  // Recorded from hygiene.yml run 36711735348 and the advisory page: Critical, published
+  // 2026-09-22, affected ">= 16.2.0 < 16.3.6", patched 16.3.6; OSV answered 404 for it.
+  const vcvr = upstreamAdvisory('GHSA-vcvr-r3jv-pc5j', 'CVE-2026-94545', '>= 16.2.0 < 16.3.6', {
+    published_at: '2026-09-22T16:00:00Z',
+    vulnerabilities: [{ package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: '>= 16.2.0 < 16.3.6', patched_versions: '16.3.6' }],
+  })
+  const responses = {
+    ...cleanResponses(),
+    'upstream:next': { status: 200, body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), vcvr] },
+    ...notInOsv('GHSA-vcvr-r3jv-pc5j'),
+  }
+  const r = run({ responses })
+  assert.equal(r.code, 1, r.out)
+  assert.match(
+    r.out,
+    /GHSA-vcvr-r3jv-pc5j \(aliases: CVE-2026-94545\) listed by upstream — published 2026-09-22 \(upstream\), after reviewedOn 2026-09-20 — affects next@16\.3\.3 \(floor, 16\.x line\), next@16\.3\.5 \(catalog pin\) — not recorded/,
+  )
+  assert.doesNotMatch(r.out, /next@15\.5\.24 \(floor/)
+  assert.match(r.out, /FLOOR ADVISORIES: 1 problem\(s\)/)
+})
+
+test('a patched version on the probe line itself clears the probe, whatever the free-text range says', () => {
+  // GHSA-2xp9-vwfh-vxw4 as the vendor listed it: ">= 10.0.0 < 15.5.24" and "< 16.3.3", patched
+  // "15.5.24, 16.3.3". Read alone, "< 16.3.3" covers 15.5.24; the patched list says it is fixed.
+  const shape = upstreamAdvisory(FRESH, null, 'x', {
+    vulnerabilities: [
+      { package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: '>= 10.0.0 < 15.5.24', patched_versions: '15.5.24, 16.3.3' },
+      { package: { ecosystem: 'npm', name: 'next' }, vulnerable_version_range: '< 16.3.3', patched_versions: '15.5.24, 16.3.3' },
+    ],
+  })
+  const responses = {
+    ...cleanResponses(),
+    'upstream:next': { status: 200, body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), shape] },
+    ...notInOsv(FRESH),
+  }
+  assert.equal(run({ responses }).code, 0)
+  // A floor still inside the range reds, and only that probe is named.
+  const floor = floorDoc()
+  floor.packages.next.minPatchByMajor[16] = '16.3.2'
+  const r = run({ responses: { ...responses, 'osv:next@16.3.2': EMPTY }, floor })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /affects next@16\.3\.2 \(floor, 16\.x line\) — not recorded/)
+  assert.doesNotMatch(r.out, /next@15\.5\.24 \(floor/)
+})
+
+test('a RECORDED upstream-only advisory whose range cannot be read prints a NOTE and passes', () => {
+  const responses = {
+    ...cleanResponses(),
+    'upstream:next': {
+      status: 200,
+      body: [upstreamAdvisory(RECORDED, null, '>= 16.0.0, < 16.3.3'), upstreamAdvisory(FRESH, FRESH_CVE, '16.x')],
+    },
+    ...notInOsv(FRESH),
+  }
+  const r = run({ responses, floor: floorDoc([RECORDED, FRESH_CVE]) })
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /NOTE — GHSA-new1-new1-new1 .*range "16\.x" could not be read/)
 })
 
 test('the range evaluator: each documented operator, a conjunction, a prerelease, and nothing else', () => {
@@ -263,8 +401,42 @@ test('the range evaluator: each documented operator, a conjunction, a prerelease
   assert.equal(rangeIncludes('>= 3.4.0-rc.0, <= 3.4.9', '3.4.0'), true)
   assert.equal(rangeIncludes('= 16.0.0-rc-1', '16.0.0-rc-1'), true)
   assert.equal(rangeIncludes('< 16.0.0', '16.0.0-rc-1'), true)
-  for (const unknown of ['^16.0.0', '~16.3.0', '16.x', '16.3.3', '< 16.3', '>= 16.0.0 < 16.3.3', '< 1 || > 2', '', null, 7]) {
+  // The vendor's own form: comparators joined by whitespace are one conjunction.
+  assert.equal(rangeIncludes('>= 16.2.0 < 16.3.6', '16.3.3'), true)
+  assert.equal(rangeIncludes('>= 16.2.0 < 16.3.6', '16.3.6'), false)
+  assert.equal(rangeIncludes('>=16.2.0 <16.3.6', '16.1.9'), false)
+  // `||`, and a comma between anything but one lower and one upper bound, join ALTERNATIVES:
+  // the vendor writes ">=13.0.0 <15.0.8, >=16.0.0 <16.1.5" and ">=15.0.0, >=16.0.0" that way.
+  assert.equal(rangeIncludes('>=13.0.0 <15.0.8, >=16.0.0 <16.1.5', '16.1.4'), true)
+  assert.equal(rangeIncludes('>=13.0.0 <15.0.8, >=16.0.0 <16.1.5', '15.5.24'), false)
+  assert.equal(rangeIncludes('>= 16.0.0 || < 15.0.0', '14.2.0'), true)
+  assert.equal(rangeIncludes('>= 16.0.0 || < 15.0.0', '15.5.24'), false)
+  assert.equal(rangeIncludes('>=15.0.0, >=16.0.0', '15.5.24'), true)
+  assert.equal(rangeIncludes('< 14.2.31, >= 15.0.0 <= 15.4.4', '15.4.4'), true)
+  assert.equal(rangeIncludes('< 14.2.31, >= 15.0.0 <= 15.4.4', '15.5.24'), false)
+  // An upper bound before a lower one, or a lower above the upper, is not the documented pair:
+  // read as alternatives it covers more, never less.
+  assert.equal(rangeIncludes('< 15.0.0, >= 16.0.0', '16.3.3'), true)
+  assert.equal(rangeIncludes('>= 16.3.3, < 16.0.0', '16.3.3'), true)
+  // A bare exact version is that version.
+  assert.equal(rangeIncludes('16.1.0', '16.1.0'), true)
+  assert.equal(rangeIncludes('16.1.0', '16.1.1'), false)
+  assert.equal(rangeIncludes('15.3.3-canary.0', '15.3.3-canary.0'), true)
+  for (const unknown of ['^16.0.0', '~16.3.0', '16.x', '< 16.3', '>= 13.3, >= 14', '=> 11.1.4 < 12.3.5', '15.0.0 - 15.4.4', '>15.0.4 and <15.2.0', '10.0.0 <= 12.0.10', '< 1 || > 2', '>= 16.0.0,', '||', '', null, 7]) {
     assert.equal(rangeIncludes(/** @type {any} */ (unknown), '16.3.3'), null, String(unknown))
+  }
+})
+
+test('patchedOnLine: a listed patched version clears a probe only on its own major.minor line', () => {
+  assert.equal(patchedOnLine('15.5.24, 16.3.3', '15.5.24'), true)
+  assert.equal(patchedOnLine('15.5.24, 16.3.3', '15.5.25'), true)
+  assert.equal(patchedOnLine('15.5.24, 16.3.3', '16.3.2'), false)
+  assert.equal(patchedOnLine('16.3.6', '16.3.5'), false)
+  assert.equal(patchedOnLine('16.1.7', '16.3.3'), false)
+  assert.equal(patchedOnLine('>= 16.3.6', '16.3.7'), true)
+  // Anything unreadable patches nothing, so it can only make the lane report MORE.
+  for (const unreadable of ['16.3.x', 'latest', '', null, undefined, 7]) {
+    assert.equal(patchedOnLine(/** @type {any} */ (unreadable), '16.3.3'), false, String(unreadable))
   }
 })
 
