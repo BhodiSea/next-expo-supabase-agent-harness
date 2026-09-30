@@ -21,6 +21,11 @@
 //
 // Pure: no imports beyond node:fs for the directory reader, no process exit, no I/O
 // side effects. Every consumer supplies its own failure vocabulary.
+//
+// Since 1.1.0 every view is a FOLD of the whole history that also reads DROP TABLE and
+// ALTER POLICY (the section of that name below), and parseLivePolicies is the one reading
+// of which policies the database runs. Seven gates import this parser: schema-rls, tenancy,
+// migrations, data-flow, db-limits, query-shapes and db-perf.
 // SOURCE: docs/harness/README.md (one parser, four consumers) [corpus: postgres/rls-force]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -304,6 +309,107 @@ export function qualify(ident) {
 }
 
 // ---------------------------------------------------------------------------
+// The history fold (1.1.0): DROP TABLE and ALTER POLICY
+// ---------------------------------------------------------------------------
+// Every view below is a FOLD over the history in migration order, and through 1.0.x two
+// statements matched none of them. `DROP TABLE` did not remove anything, so a dropped table
+// kept its columns, indexes, triggers, RLS toggles, policies and grants for good, and kept
+// vouching for a re-created table of the same name. `ALTER POLICY` did not rewrite anything,
+// so a policy was judged on its CREATE text after the database had stopped running it. Seven
+// gates read these views, and each misread the history the same way.
+//
+// The model is PostgreSQL 17's. `DROP TABLE [IF EXISTS] name [, ...] [CASCADE | RESTRICT]`
+// removes each table with everything that hangs off it — a partitioned table's partitions
+// included — and leaves no foreign key pointing at it: a RESTRICT drop of a referenced table
+// fails, and CASCADE removes the referencing constraint, so after a drop that APPLIED there is
+// none either way. A later CREATE TABLE of the same name starts fresh. `ALTER POLICY` replaces
+// the roles, USING and WITH CHECK clauses it names and keeps the ones it omits (it cannot
+// change the command or PERMISSIVE/RESTRICTIVE); its separate `RENAME TO` form renames.
+// Dynamic SQL is out of scope: `EXECUTE format('DROP TABLE …')` sits inside a dollar-quoted
+// body, so it is part of a CREATE FUNCTION statement and never a statement of its own.
+// SOURCE: https://www.postgresql.org/docs/17/sql-droptable.html
+// SOURCE: https://www.postgresql.org/docs/17/sql-alterpolicy.html
+
+const DROP_TABLE = /^DROP TABLE (IF EXISTS )?(.+?)(?: (?:CASCADE|RESTRICT))?$/i
+const ALTER_POLICY = /^ALTER POLICY ([a-z0-9_]+) ON ([a-z0-9_.]+)(?: (.*))?$/i
+const CREATE_TABLE = /^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i
+
+/** The tables one `DROP TABLE [IF EXISTS] a, b [CASCADE|RESTRICT]` names, or null. */
+function tableDropOf(stmt) {
+  const m = DROP_TABLE.exec(stmt)
+  if (m === null) return null
+  const names = m[2].split(',').map((n) => n.trim())
+  if (!names.every((n) => /^[a-z0-9_.]+$/i.test(n))) return null
+  return { ifExists: m[1] !== undefined, tables: names.map(stripSchema) }
+}
+
+/** Record a CREATE TABLE in `created` (table -> the parent it partitions, or null). */
+function noteCreatedTable(created, stmt) {
+  const m = CREATE_TABLE.exec(stmt)
+  if (m === null) return
+  const parent = stmt.match(/\bPARTITION\s+OF\s+([a-z0-9_.]+)/i)
+  created.set(stripSchema(m[1]), parent === null ? null : stripSchema(parent[1]))
+}
+
+/** The named tables plus every partition hanging off one of them, transitively. */
+function withPartitions(created, tables) {
+  const out = [...tables]
+  for (let i = 0; i < out.length; i++) {
+    for (const [table, parent] of created) {
+      if (parent === out[i] && !out.includes(table)) out.push(table)
+    }
+  }
+  return out
+}
+
+/**
+ * Each statement paired with the tables it removes, in migration order. `dropped` is null for
+ * every statement but a DROP TABLE. `unresolved` names a table a DROP TABLE without IF EXISTS
+ * targets although no earlier CREATE TABLE made it (or a later drop already removed it): the
+ * fold cannot place it, and schema-rls reports it rather than guess. With IF EXISTS such a drop
+ * is a no-op, as it is in the database.
+ */
+function withTableDrops(statements) {
+  const created = new Map()
+  return statements.map((stmt) => {
+    const drop = tableDropOf(stmt)
+    if (drop === null) {
+      noteCreatedTable(created, stmt)
+      return { stmt, dropped: null, unresolved: [] }
+    }
+    const unresolved = drop.ifExists ? [] : drop.tables.filter((t) => !created.has(t))
+    const dropped = withPartitions(created, drop.tables)
+    for (const t of dropped) created.delete(t)
+    return { stmt, dropped, unresolved }
+  })
+}
+
+/** Forget every dropped table in each Set or Map keyed by table name. */
+function forgetIn(collections, dropped) {
+  for (const c of collections) for (const t of dropped) c.delete(t)
+}
+
+/**
+ * Every `DROP TABLE` without IF EXISTS whose target no earlier CREATE TABLE made, as
+ * [{ table, stmt }] in migration order.
+ */
+export function unresolvedTableDrops(statements) {
+  return withTableDrops(statements).flatMap((s) =>
+    s.unresolved.map((table) => ({ table, stmt: s.stmt })),
+  )
+}
+
+/**
+ * The history as the 1.0.x parser read it: the same statements with every DROP TABLE and
+ * ALTER POLICY taken out, since those two matched none of its patterns. Folding this list
+ * reproduces the pre-fold views exactly, which is what lets a gate tell a finding the fold
+ * alone produces from one both readings produce (tools/lib/sql-fold-ramp.mjs, the 1.1.0 ramp).
+ */
+export function preFoldHistory(statements) {
+  return statements.filter((s) => tableDropOf(s) === null && !ALTER_POLICY.test(s))
+}
+
+// ---------------------------------------------------------------------------
 // Statement parsers
 // ---------------------------------------------------------------------------
 
@@ -321,7 +427,11 @@ export function parseRlsToggles(statements) {
   const unforced = new Map() // table -> statement (NO FORCE)
   const triggersDisabled = new Map() // table -> statement
 
-  for (const stmt of statements) {
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    if (dropped !== null) {
+      forgetIn([enabled, forced, disabled, unforced, triggersDisabled], dropped)
+      continue
+    }
     let m = stmt.match(/^ALTER TABLE (?:ONLY )?([a-z0-9_.]+) ENABLE ROW LEVEL SECURITY$/i)
     if (m) {
       enabled.add(stripSchema(m[1]))
@@ -350,10 +460,22 @@ export function parseRlsToggles(statements) {
 
 const OPS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
 
+/** The text of a policy's `TO` clause, or null when the statement names no roles. */
+const rolesClause = (text) =>
+  text.match(/\bTO ([a-z0-9_, ]+?)(?=\s+(?:USING|WITH CHECK)\b|$)/i)?.[1] ?? null
+const roleList = (clause) =>
+  clause
+    .split(',')
+    .map((r) => r.trim().toLowerCase())
+    .filter(Boolean)
+
 /**
  * CREATE POLICY, with balanced-paren USING / WITH CHECK bodies.
  * Returns Map<table, Map<op, [{ name, using, check, roles, permissive, stmt }]>>
  * plus the DROP POLICY statements, which no gate looked at before.
+ *
+ * The RAW reader: every CREATE as written, dropped and rewritten ones included. What the
+ * database ends up running is parseLivePolicies below, which folds this per statement.
  */
 export function parsePolicies(statements) {
   const policies = new Map()
@@ -374,10 +496,7 @@ export function parsePolicies(statements) {
       rest.match(/\bFOR (ALL|SELECT|INSERT|UPDATE|DELETE)\b/i)?.[1] ?? 'ALL'
     ).toUpperCase()
     const permissive = /\bAS RESTRICTIVE\b/i.test(rest) ? 'RESTRICTIVE' : 'PERMISSIVE'
-    const roles = (rest.match(/\bTO ([a-z0-9_, ]+?)(?=\s+(?:USING|WITH CHECK)\b|$)/i)?.[1] ?? '')
-      .split(',')
-      .map((r) => r.trim().toLowerCase())
-      .filter(Boolean)
+    const roles = roleList(rolesClause(rest) ?? '')
 
     const using = clauseBody(rest, /\bUSING\s*\(/i)
     const check = clauseBody(rest, /\bWITH\s+CHECK\s*\(/i)
@@ -388,6 +507,87 @@ export function parsePolicies(statements) {
     byOp.get(op).push({ name: name.toLowerCase(), using, check, roles, permissive, stmt })
   }
   return { policies, dropped, OPS }
+}
+
+/** Fold one CREATE POLICY or DROP POLICY statement into `live`. */
+function applyPolicyStatement(live, stmt) {
+  const { policies: created, dropped } = parsePolicies([stmt])
+  for (const [table, byOp] of created) {
+    if (!live.has(table)) live.set(table, new Map())
+    for (const [op, list] of byOp) {
+      for (const p of list) live.get(table).set(p.name, { ...p, op })
+    }
+  }
+  for (const d of dropped) live.get(d.table)?.delete(d.name)
+}
+
+/**
+ * Fold one ALTER POLICY into `live`: the clauses it names replace the policy's, the ones it
+ * omits stay, and RENAME TO moves the policy to its new name. A target with no live policy
+ * behind it is recorded as unresolved and changes nothing.
+ */
+function applyAlterPolicy(live, stmt, unresolved) {
+  const [, rawName, rawTable, rest = ''] = ALTER_POLICY.exec(stmt)
+  const name = rawName.toLowerCase()
+  const table = stripSchema(rawTable)
+  const byName = live.get(table)
+  const current = byName?.get(name)
+  if (current === undefined) {
+    unresolved.push({ name, table, stmt })
+    return
+  }
+  const rename = rest.match(/^RENAME TO ([a-z0-9_]+)$/i)
+  if (rename !== null) {
+    const to = rename[1].toLowerCase()
+    byName.delete(name)
+    byName.set(to, { ...current, name: to })
+    return
+  }
+  const roles = rolesClause(rest)
+  byName.set(name, {
+    ...current,
+    roles: roles === null ? current.roles : roleList(roles),
+    using: clauseBody(rest, /\bUSING\s*\(/i) ?? current.using,
+    check: clauseBody(rest, /\bWITH\s+CHECK\s*\(/i) ?? current.check,
+    alteredBy: [...(current.alteredBy ?? []), stmt],
+  })
+}
+
+/** The live policies regrouped the way parsePolicies reports them: table -> op -> list. */
+function byOperation(live) {
+  const out = new Map()
+  for (const [table, byName] of live) {
+    if (byName.size === 0) continue
+    const byOp = new Map()
+    for (const p of byName.values()) {
+      if (!byOp.has(p.op)) byOp.set(p.op, [])
+      byOp.get(p.op).push(p)
+    }
+    out.set(table, byOp)
+  }
+  return out
+}
+
+/**
+ * THE live-policy fold — the policies the database ends up running, in migration order:
+ * CREATE POLICY adds, DROP POLICY removes, ALTER POLICY rewrites or renames, and DROP TABLE
+ * takes every policy on the table with it (a later CREATE starts it with none).
+ *
+ * Returns `live` (table -> Map<policy name, { name, op, using, check, roles, permissive, stmt,
+ * alteredBy? }>, where `stmt` is the CREATE and `alteredBy` the ALTERs applied since), the same
+ * policies as `policies` (table -> op -> list, parsePolicies' shape), and `unresolved`: every
+ * ALTER POLICY naming no live policy ([{ name, table, stmt }]). schema-rls and tenancy both
+ * read this one fold (1.1.0), where each used to carry its own reading of the CREATEs.
+ */
+export function parseLivePolicies(statements) {
+  const live = new Map()
+  const unresolved = []
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    if (dropped !== null) forgetIn([live], dropped)
+    else if (ALTER_POLICY.test(stmt)) applyAlterPolicy(live, stmt, unresolved)
+    else applyPolicyStatement(live, stmt)
+  }
+  return { live, policies: byOperation(live), unresolved }
 }
 
 /**
@@ -532,7 +732,12 @@ function indexAddsIn(stmt) {
 export function parseIndexes(statements) {
   let all = [] // { table, name, columns: [{ name, desc }], unique }
 
-  for (const stmt of statements) {
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    // A DROP TABLE takes every index and constraint of the table with it (1.1.0).
+    if (dropped !== null) {
+      all = all.filter((idx) => !dropped.includes(idx.table))
+      continue
+    }
     // Drops first, so a single ALTER TABLE that swaps a constraint (DROP … , ADD …)
     // ends with only the replacement. Folding the drops is what stops a superseded
     // PRIMARY KEY from satisfying the leading-column rule forever, and what stops a
@@ -565,8 +770,13 @@ export function parseIndexes(statements) {
  */
 export function parseCreatedTables(statements) {
   const created = new Map() // stripped name -> { qualified, schema, partitionOf, stmt }
-  for (const stmt of statements) {
-    const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    // A dropped table is no longer created, and neither are its partitions (1.1.0).
+    if (dropped !== null) {
+      forgetIn([created], dropped)
+      continue
+    }
+    const m = CREATE_TABLE.exec(stmt)
     if (m === null) continue
     const parent = stmt.match(/\bPARTITION\s+OF\s+([a-z0-9_.]+)/i)
     created.set(stripSchema(m[1]), {
@@ -723,6 +933,25 @@ function applyCreateColumns(cols, stmt, table) {
 }
 
 /**
+ * A DROP TABLE, folded into the column facts (1.1.0): the table's columns go, and so does
+ * every foreign key that pointed at it. After a drop that APPLIED none can remain — a RESTRICT
+ * drop of a referenced table fails, and CASCADE removes the referencing constraint — while the
+ * referencing column itself stays, NOT NULL and all.
+ */
+function forgetColumns(tables, dropped) {
+  forgetIn([tables], dropped)
+  const gone = new Set(dropped.map((t) => qualify(t).qualified))
+  for (const cols of tables.values()) {
+    for (const entry of cols.values()) {
+      if (entry.references === null || !gone.has(entry.references)) continue
+      entry.references = null
+      entry.onDelete = null
+      entry.constraint = null
+    }
+  }
+}
+
+/**
  * Map<table, Map<column, { notNull, references, onDelete, constraint, stmts }>> over the
  * whole history.
  *
@@ -739,7 +968,11 @@ export function parseColumnFacts(statements) {
     if (!tables.has(t)) tables.set(t, new Map())
     return tables.get(t)
   }
-  for (const stmt of statements) {
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    if (dropped !== null) {
+      forgetColumns(tables, dropped)
+      continue
+    }
     const create = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)\s*\(/i)
     if (create) {
       applyCreateColumns(colsOf(stripSchema(create[1])), stmt, stripSchema(create[1]))
@@ -861,8 +1094,13 @@ function triggerArgs(tail) {
 
 /** CREATE TRIGGER, so a gate can require one and notice when it is later disabled. */
 export function parseTriggers(statements) {
-  const triggers = []
-  for (const stmt of statements) {
+  let triggers = []
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    // A dropped table's triggers go with it (1.1.0).
+    if (dropped !== null) {
+      triggers = triggers.filter((t) => !dropped.includes(t.table))
+      continue
+    }
     const m = stmt.match(
       /^CREATE (?:OR REPLACE )?(?:CONSTRAINT )?TRIGGER ([a-z0-9_]+) (BEFORE|AFTER|INSTEAD OF) ([A-Z ,]+?) ON ([a-z0-9_.]+)(.*)$/i,
     )
@@ -887,6 +1125,11 @@ export function parseTriggers(statements) {
   return triggers
 }
 
+/** Whether a GRANT/REVOKE entry is about one of `tables` as a TABLE (never a function). */
+const grantsOnTable = (entry, tables) =>
+  (entry.object === 'TABLE' || (entry.object === null && !entry.target.includes('('))) &&
+  tables.includes(entry.target)
+
 /**
  * GRANT / REVOKE, so "REVOKE ALL then narrow GRANT" is checkable as data.
  *
@@ -902,8 +1145,13 @@ export function parseTriggers(statements) {
  * SOURCE: https://www.postgresql.org/docs/17/sql-grant.html
  */
 export function parseGrants(statements) {
-  const entries = []
-  for (const stmt of statements) {
+  let entries = []
+  for (const { stmt, dropped } of withTableDrops(statements)) {
+    // A dropped table's privileges go with it, so a re-created table holds none (1.1.0).
+    if (dropped !== null) {
+      entries = entries.filter((e) => !grantsOnTable(e, dropped))
+      continue
+    }
     const m = stmt.match(
       /^(GRANT|REVOKE)\s+(.+?)\s+ON\s+(TABLE\s+|FUNCTION\s+|ALL TABLES IN SCHEMA\s+|SCHEMA\s+)?([a-z0-9_.(), ]+?)\s+(?:TO|FROM)\s+([a-z0-9_, ]+)$/i,
     )

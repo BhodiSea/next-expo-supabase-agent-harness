@@ -40,6 +40,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
 import { parseShapes, probeModules, resolveIndex } from './lib/query-shapes.mjs'
+import { foldOnlyFindings, foldTouches, historyFor, withhold } from './lib/sql-fold-ramp.mjs'
 import { parseIndexes, readSqlDir, splitStatements } from './lib/sql-parse.mjs'
 import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
@@ -127,7 +128,10 @@ const maxRows = existsSync(LIMITS)
   ? (JSON.parse(readFileSync(LIMITS, 'utf8')).apiMaxRows ?? null)
   : null
 
-const { all: indexes } = parseIndexes(splitStatements(readSqlDir(MIGRATIONS_DIR)))
+// Folded (1.1.0): a DROP TABLE takes the table's indexes with it, so a re-created table is
+// served only by the indexes created after it (tools/lib/sql-parse.mjs).
+const statements = historyFor(splitStatements(readSqlDir(MIGRATIONS_DIR)))
+const { all: indexes } = parseIndexes(statements)
 const errs = []
 const served = []
 
@@ -214,6 +218,27 @@ for (const shape of shapes) {
   served.push(
     `${shape.id} -> ${match.index.name}${match.direction === 'backward' ? ' (backward)' : ''}`,
   )
+}
+
+// THE 1.1.0 HISTORY FOLD RAMP (#75). An index a DROP TABLE took with it no longer serves a
+// shape. That finding is new judgement of applied history the old parser could not read, so on
+// an install whose baseVersion predates 1.1.0 it is a dated NOTE until 1.2.0; a finding both
+// readings produce stays hard. tools/lib/sql-fold-ramp.mjs replays this script over the
+// pre-fold history to tell them apart.
+const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(GATE, '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', {
+    until: '1.2.0',
+  })
+  if (foldRamped) {
+    withhold([errs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  }
 }
 
 if (ramped) {

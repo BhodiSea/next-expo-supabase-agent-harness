@@ -355,6 +355,39 @@
       ],
       "reason": "OPENED AT 1.1.0 (#73, R04). tools/check-workflow-hardening.mjs, a CI-only gate run by actions-lint.yml's workflow-hardening job, holds a project's OWN workflows to the house rules every shipped workflow meets (the pure rules in template/base/tools/lib/workflow-hardening.mjs): a workflow-level defaults.run.shell: bash above jobs:, a whole-number timeout-minutes on every job that can take one (1..360 on a GitHub-hosted runner, 1..7200 on a self-hosted one), and step-security/harden-runner as the FIRST step of every job that is neither a reusable-workflow call nor self-hosted, with egress-policy: audit when its runner or a matrix value it reads names windows. Input the check cannot read is a finding. Ramped because the rules are new for workflows a project wrote: an install whose baseVersion predates 1.1.0 gets every finding as a NOTE, through one rampNote call; every workflow the harness ships passes in every tier, so a NOTE names a workflow the project wrote or edited. The deadline is the one issue #73 fixes (decision 2), the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the version-sync arrival row and the three other 1.1.0 ramps above that target the same release. The gate is outside both chains, so the upgrade lane's narrow() drops its expiry: scripts/ci/stop-side-expiries.json names tests/gates/check-workflow-hardening.test.mjs as the proof that executes its RAMP EXPIRED branch, and `graduate` does not run it (the runbook's 1.1.0 section says to run it by hand before graduating). Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 whose own workflows break a rule), with its sweep in that release's runbook section (run node tools/check-workflow-hardening.mjs and fix each <file>#<job> it names, as the 1.1.0 section describes), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
       "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "sql-history-fold-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-rls-manifest.mjs",
+          "mustContain": "the SQL history fold"
+        },
+        {
+          "file": "template/base/tools/check-tenancy.mjs",
+          "mustContain": "the SQL history fold"
+        },
+        {
+          "file": "template/base/tools/check-data-flow.mjs",
+          "mustContain": "the SQL history fold"
+        },
+        {
+          "file": "template/base/tools/check-db-limits.mjs",
+          "mustContain": "the SQL history fold"
+        },
+        {
+          "file": "template/base/tools/check-query-shapes.mjs",
+          "mustContain": "the SQL history fold"
+        },
+        {
+          "file": "template/base/tools/check-migrations.mjs",
+          "mustContain": "ALTER POLICY as an authorization change"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#75, R06): six sites, one row, because they are one change read by six gates. tools/lib/sql-parse.mjs now folds DROP TABLE (the table leaves every view, foreign keys into it clear, a later CREATE starts it fresh) and ALTER POLICY (the clauses it names replace the policy's; RENAME TO renames), and parseLivePolicies is the one live-policy fold schema-rls and tenancy read. schema-rls, tenancy, data-flow, db-limits and query-shapes pass a finding only the folded history produces through rampNote(GATE, '1.1.0', 'the SQL history fold (…)', { until: '1.2.0' }); tools/lib/sql-fold-ramp.mjs tells it apart by replaying the gate over the pre-fold history in a worker thread and comparing finding text, so a finding both readings produce stays a hard red at every vintage and one only the 1.0.x reading produced clears. migrations' new ALTER POLICY rule (an authorization change that needs `-- adr:`; rename-only is exempt) rides its own ramp, rampNote('migrations', '1.1.0', 'ALTER POLICY as an authorization change', { until: '1.2.0' }), not the 0.2.0 bucket whose ramp ended at 0.4.0. db-perf takes the parser change with no ramp (it runs only against a live, scale-seeded database). The deadline is the one issue #75 fixes, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes these six expiries beside the five other 1.2.0-dated rows above. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming the population (every vintage below 1.1.0 whose migration history holds a top-level DROP TABLE or ALTER POLICY, or, for schema-rls, a DROP POLICY), with its sweep in that release's runbook section (fix what the fold exposes in a NEW migration, or add a tools/migrations-allow.json `authz-adr` entry for an already-applied ALTER POLICY), and this row is deleted in the same diff; OR the ramps are extended by reviewed rampExtensions entries and this row re-targeted. When the last of these ramps is removed, tools/lib/sql-fold-ramp.mjs and sql-parse.mjs's preFoldHistory go with it.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }

@@ -51,6 +51,14 @@
 // those defaults stop applying to projects created on or after 2026-10-30. See
 // tools/lib/table-grants.mjs.
 //
+// AND THE HISTORY FOLD IN 1.1.0. The parser read neither DROP TABLE nor ALTER POLICY, and this
+// gate discarded the DROP POLICY list it did parse, so a policy rewritten by ALTER POLICY was
+// judged on its CREATE text, a dropped policy kept covering its operation, and a dropped table
+// kept vouching — its old policies, grant and owner index counting for a re-created table of
+// the same name. It now reads the parser's one live-policy fold and the folded views, and
+// reports a DROP TABLE or ALTER POLICY whose target no earlier migration left in place.
+// Findings only the fold produces ride a 1.1.0 ramp until 1.2.0 (the block at the end).
+//
 // Static and <100ms: statement-level SQL parsing via tools/lib/sql-parse.mjs, not
 // substring vibes — an early regex version was defeated by the shipped migration's
 // own `AS PERMISSIVE` syntax and never looked at predicates at all. The runtime
@@ -61,15 +69,25 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail } from './lib/gate.mjs'
 import {
+  foldOnlyFindings,
+  foldTouches,
+  historyFor,
+  isTwin,
+  withhold,
+} from './lib/sql-fold-ramp.mjs'
+import {
+  parseCreatedTables,
   parseFunctions,
   parseGrants,
   parseIndexes,
+  parseLivePolicies,
   parsePolicies,
   parseRlsToggles,
   readSqlDir,
   readSqlDirByFile,
   splitStatements,
   stripSchema,
+  unresolvedTableDrops,
 } from './lib/sql-parse.mjs'
 import { policyGrantProblems } from './lib/table-grants.mjs'
 
@@ -139,20 +157,23 @@ const definerAllow = reviewedList(DEFINER_ALLOW, 'allow', 'function')
 //    actually replays. RLS is only real once it is in a migration; a policy that
 //    lives only in the declarative schema never ran. Parsed PER FILE so a negation
 //    can name the migration that introduced it.
+//
+//    THE HISTORY IS FOLDED (1.1.0). A DROP TABLE removes the table from every view below and
+//    a later CREATE starts it fresh; ALTER POLICY rewrites the policy it names; DROP POLICY
+//    removes one — this gate used to parse the DROP POLICY list and discard it, so a dropped
+//    policy kept covering its operation and kept being judged. parseLivePolicies is the one
+//    live-policy fold tenancy reads too. What the fold alone finds rides a ramp (below).
 const perFile = readSqlDirByFile(MIGRATIONS_DIR)
-const allStatements = perFile.flatMap((f) => f.statements)
+const allStatements = historyFor(perFile.flatMap((f) => f.statements))
 
 const { enabled, forced, disabled, unforced, triggersDisabled } = parseRlsToggles(allStatements)
-const { policies } = parsePolicies(allStatements)
+// The fold ramp's twin replays the 1.0.x reading, and that reading was the raw CREATE list.
+const livePolicies = parseLivePolicies(allStatements)
+const { policies } = isTwin() ? parsePolicies(allStatements) : livePolicies
 const { leading: indexedLeading } = parseIndexes(allStatements)
 const functions = parseFunctions(allStatements)
 const grants = parseGrants(allStatements)
-
-const createdTables = new Set()
-for (const stmt of allStatements) {
-  const m = stmt.match(/^CREATE TABLE (?:IF NOT EXISTS )?([a-z0-9_.]+)/i)
-  if (m) createdTables.add(stripSchema(m[1]))
-}
+const createdTables = new Set(parseCreatedTables(allStatements).keys())
 
 /** Which migration file a statement came from — for negation messages that name it. */
 function fileOf(stmt) {
@@ -371,6 +392,21 @@ for (const table of [...createdTables].sort()) {
   if (declaredTables.has(table) || exempt.has(table)) continue
   errs.push(
     `${table}: created by a migration but not declared in ${SCHEMAS_DIR} — undeclared tables escape the schema gate and the isolation matrix`,
+  )
+}
+
+// A drop or a rewrite the fold cannot place (1.1.0). Guessing either way would be wrong: read
+// as a no-op, a real policy change goes unjudged; read as applied, the gate judges a table or
+// a policy the history never showed it. DROP TABLE IF EXISTS on an unknown table is a no-op in
+// the database and here, so only the unconditional form is reported.
+for (const { table, stmt } of unresolvedTableDrops(allStatements)) {
+  errs.push(
+    `${table}: DROP TABLE in ${fileOf(stmt)} names a table no earlier migration creates — the history cannot drop what it never made. Create it in an earlier migration, or write DROP TABLE IF EXISTS if the drop is a deliberate no-op`,
+  )
+}
+for (const { table, name, stmt } of livePolicies.unresolved) {
+  errs.push(
+    `${table}: ALTER POLICY ${name} in ${fileOf(stmt)} names no policy an earlier migration left in place — it was never created, or a DROP POLICY or DROP TABLE removed it, so the rewrite has nothing to rewrite and the database refuses it`,
   )
 }
 
@@ -615,6 +651,36 @@ if (existsSync(CONFIG_TOML)) {
 }
 
 // ---------------------------------------------------------------------------
+// The 1.1.0 history fold ramp (#75)
+// ---------------------------------------------------------------------------
+// A finding only the folded history produces — a policy judged on its ALTER POLICY text, a
+// DROP POLICY or DROP TABLE that uncovers an operation or an index, an unresolved target — is a
+// dated NOTE on an install whose baseVersion predates 1.1.0, because its applied history was
+// judged by a parser that could not read those statements. A finding the 1.0.x reading also
+// produces is not lifted, and one only the 1.0.x reading produced is already gone above: it
+// described a policy or table that was dropped or rewritten. tools/lib/sql-fold-ramp.mjs
+// replays this script over the pre-fold history to tell the three apart. DROP POLICY counts as
+// a fold statement here and nowhere else, because this gate is the one that discarded it.
+const foldTouched =
+  foldTouches(allStatements) || allStatements.some((s) => /^DROP POLICY /i.test(s))
+const fold = await foldOnlyFindings(import.meta.url, [errs, rampedErrs, grantErrs], foldTouched)
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(
+    GATE,
+    '1.1.0',
+    'the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY)',
+    { until: '1.2.0' },
+  )
+  if (foldRamped) {
+    withhold([errs, rampedErrs, grantErrs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
+  }
+}
 
 if (rampedErrs.length > 0) {
   const ramped = rampNote(

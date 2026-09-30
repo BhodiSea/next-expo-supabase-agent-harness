@@ -591,7 +591,12 @@ test('RED (0.6.0): the SHIPPED tree with one GRANT line deleted — the green ab
   writeFileSync(mig, before.replace(GRANT, ''))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
-  assert.ok(r.out.includes('notes: policy notes_select_own'), r.out)
+  // The LIVE policy is named. Through 1.0.x this pinned notes_select_own, the owner-scoped
+  // policy 20260201000100_notes_org_scope.sql DROPs; since the 1.1.0 history fold a dropped
+  // policy is out of judgment, and the org-scoped policy that replaced it is the one the
+  // missing grant strands.
+  assert.ok(r.out.includes('notes: policy notes_select_org'), r.out)
+  assert.ok(!r.out.includes('notes: policy notes_select_own'), r.out)
 })
 
 test('GREEN (0.6.0): a deny-all policy needs no grant — the carve-out that keeps the tenancy spine legal', () => {

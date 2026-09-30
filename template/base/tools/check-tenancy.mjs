@@ -96,6 +96,7 @@ import {
   skipOrFail,
   stampGate,
 } from './lib/gate.mjs'
+import { foldOnlyFindings, foldTouches, historyFor, withhold } from './lib/sql-fold-ramp.mjs'
 import {
   matchParen,
   parseColumnFacts,
@@ -103,7 +104,7 @@ import {
   parseFunctions,
   parseGrants,
   parseIndexes,
-  parsePolicies,
+  parseLivePolicies,
   parseTriggers,
   qualify,
   readSqlDir,
@@ -394,10 +395,12 @@ const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
 
 // ---------------------------------------------------------------------------
 // Parse the applied history. Migrations only — like schema-rls, tenancy is only
-// real once it is in the history a database actually replays.
+// real once it is in the history a database actually replays. Folded (1.1.0): a
+// DROP TABLE removes the table from every view, a later CREATE starts it fresh, and
+// ALTER POLICY rewrites the policy it names (tools/lib/sql-parse.mjs).
 // ---------------------------------------------------------------------------
 
-const statements = splitStatements(readSqlDir(MIGRATIONS_DIR))
+const statements = historyFor(splitStatements(readSqlDir(MIGRATIONS_DIR)))
 const columnFacts = parseColumnFacts(statements)
 const tenantCol = cfg.tenantColumn.toLowerCase()
 
@@ -441,20 +444,11 @@ const auditTable = stripSchema(cfg.auditTable)
 const errs = []
 
 // Live policy state, folded in statement order so a DROP POLICY actually removes
-// the policy from judgment (and a policy created after a drop is judged fresh).
-const live = new Map() // table -> Map<policyName, { op, roles, permissive, using, check }>
-for (const stmt of statements) {
-  const { policies: created, dropped } = parsePolicies([stmt])
-  for (const [table, byOp] of created) {
-    for (const [op, list] of byOp) {
-      for (const p of list) {
-        if (!live.has(table)) live.set(table, new Map())
-        live.get(table).set(p.name, { ...p, op })
-      }
-    }
-  }
-  for (const d of dropped) live.get(d.table)?.delete(d.name)
-}
+// the policy from judgment (and a policy created after a drop is judged fresh). Since
+// 1.1.0 this is the parser's one live-policy fold, which schema-rls reads too: an
+// ALTER POLICY rewrites what is judged here, and a DROP TABLE takes the table's
+// policies with it. An ALTER naming no live policy is schema-rls's finding to report.
+const { live } = parseLivePolicies(statements) // table -> Map<policyName, { op, roles, permissive, using, check }>
 
 // The escape hatches close both ways: an entry naming a surface that no longer
 // exists is a latent hole waiting for the surface to come back under it.
@@ -1581,6 +1575,29 @@ if (existsSync(CONFIG_TOML)) {
         `schema '${s}' is listed in [api].schemas (${CONFIG_TOML}) — ${CONFIG} nonPublicSchemas declares it PostgREST-invisible; publishing it exposes every object inside to direct API calls`,
       )
     }
+  }
+}
+
+// THE 1.1.0 HISTORY FOLD RAMP (#75). The header's rule stands — a wrong predicate on an
+// adopted surface is a hard red whatever the manifest says — for every finding the 1.0.x
+// reading also produces. What only the fold produces (a predicate judged on its ALTER POLICY
+// text, the facts of a dropped or re-created table) is new judgement of APPLIED history that
+// the old parser could not read, so on an install whose baseVersion predates 1.1.0 it is a
+// dated NOTE until 1.2.0. tools/lib/sql-fold-ramp.mjs replays this script over the pre-fold
+// history to tell the two apart; a finding only the old reading produced is already gone.
+const fold = await foldOnlyFindings(import.meta.url, [errs], foldTouches(statements))
+if (!fold.replayed) {
+  console.log(
+    `${GATE}: the 1.0.x replay of the migration history did not report, so no finding is lifted by the 1.1.0 fold ramp`,
+  )
+}
+if (fold.foldOnly.length > 0) {
+  const foldRamped = rampNote(GATE, '1.1.0', 'the SQL history fold (DROP TABLE and ALTER POLICY)', {
+    until: '1.2.0',
+  })
+  if (foldRamped) {
+    withhold([errs], fold.foldOnly)
+    for (const e of fold.foldOnly) console.log(`${GATE}: NOTE — (ramp) ${e}`)
   }
 }
 
