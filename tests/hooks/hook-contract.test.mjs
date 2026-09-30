@@ -1792,6 +1792,40 @@ test('subagent-verdict CONTROL: a verdict-carrying reviewer passes with exit 0 (
   assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
 })
 
+test('subagent-verdict CONTROL: a reviewer’s SubagentStart exits 0, appends ONE dispatch record, and nothing else (1.1.0)', () => {
+  // The SubagentStart payload has no last_assistant_message (CONTROL-PLANE-FACTS Fact 3). A
+  // 1.0.x hook read it as a reviewer that ended without a verdict: exit 2, a bounce and a
+  // blocked turn outcome. The 1.1.0 hook branches on hook_event_name first, so a dispatch is
+  // a record and never a block: no ledger line, no bounce, no turn outcome.
+  const dir = verdictFixture()
+  const r = runHook(
+    'subagent-verdict.mjs',
+    {
+      hook_event_name: 'SubagentStart',
+      agent_type: 'security-reviewer',
+      agent_id: 'a1',
+      session_id: 's1',
+      prompt_id: 'p1',
+      cwd: dir,
+      transcript_path: join(dir, 'transcript.jsonl'),
+    },
+    { cwd: dir },
+  )
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  const rows = readFileSync(join(dir, '.harness', 'reviewer-dispatch.jsonl'), 'utf8').trim().split('\n')
+  assert.equal(rows.length, 1)
+  const row = JSON.parse(rows[0])
+  assert.equal(row.agent_id, 'a1')
+  assert.equal(row.session_id, 's1')
+  for (const absent of ['reviewer-ledger.jsonl', 'verdict-bounces.jsonl', 'turn-outcomes.jsonl']) {
+    assert.throws(
+      () => readFileSync(join(dir, '.harness', absent)),
+      { code: 'ENOENT' },
+      `a dispatch must not write ${absent}`,
+    )
+  }
+})
+
 test('subagent-verdict CONTROL: a non-reviewer agent is not this hook’s business — exit 0', () => {
   const dir = verdictFixture()
   const r = runHook(
