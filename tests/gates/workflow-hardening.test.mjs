@@ -16,9 +16,17 @@
 // already reads as a failure — so a ceiling fails closed.
 //
 // YAML-shaped, never YAML-parsed, like every other workflow check here (no parser
-// dependency; the same two-space job-heading regex the canary closure uses). Which is also
-// why PLACEMENT is asserted: four line-parsers slice from `\njobs:` and read a two-space key
-// after it as a job id, so a `defaults:` block below `jobs:` would hand them a job named `run`.
+// dependency). Which is also why PLACEMENT is asserted: four line-parsers slice from
+// `\njobs:` and read a two-space key after it as a job id, so a `defaults:` block below
+// `jobs:` would hand them a job named `run`.
+//
+// THE RULES MOVED INTO THE TEMPLATE (1.1.0, #73). They live in
+// template/base/tools/lib/workflow-hardening.mjs, which this file imports, and a project's
+// own workflows meet the same rules through the CI-only `workflow-hardening` gate. The move
+// added a third property, harden-runner as every job's FIRST step with `egress-policy:
+// audit` on Windows, which the `harden-runner-coverage` loop claimed and never checked: it
+// compares line counts per file. The controls at the end of this file run that loop over
+// every shape the position rule reds and show it passing each one.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
@@ -27,6 +35,8 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderEntry, walkTemplate } from '../../installer/lib/copy.mjs'
+import { jobsOf, workflowFindings } from '../../template/base/tools/lib/workflow-hardening.mjs'
+import { HARDEN, ISSUE_FIXTURE, LOOP_MISSES } from './helpers/workflow-hardening-cases.mjs'
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const TEMPLATE_BASE = join(REPO, 'template', 'base')
@@ -55,56 +65,26 @@ function factoryWorkflows() {
     .map((f) => ({ file: `.github/workflows/${f}`, text: readFileSync(join(dir, f), 'utf8') }))
 }
 
-/** @param {string} text @returns {Array<{ id: string, body: string }>} */
-function jobsOf(text) {
-  const at = text.indexOf('\njobs:')
-  if (at === -1) return []
-  const region = text.slice(at)
-  const heads = [...region.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)]
-  return heads.map((m, i) => ({ id: m[1], body: region.slice(m.index, heads[i + 1]?.index ?? region.length) }))
-}
-
 const DEFAULTS_RE = /^defaults:\n {2}run:\n {4}shell: bash\n/m
+// The factory's bar. A project's workflows are judged by the same rules in
+// tools/check-workflow-hardening.mjs (1.1.0, #73) under the platform's own bound
+// (PLATFORM_LIMITS: 360 minutes hosted, five days self-hosted); what ships stays under 240.
 const MAX_TIMEOUT = 240
 
-/** The shell rule. @param {{ file: string, text: string }} workflow @returns {string[]} */
-function shellProblems({ file, text }) {
-  // OpenSSF Scorecard refuses to PUBLISH results from a workflow that carries top-level
-  // `defaults` or `env` — the one workflow where the shell default must NOT be added.
-  if (/publish_results:\s*true/.test(text)) {
-    return /^(defaults|env):/m.test(text)
-      ? [`${file}: publishes Scorecard results and carries a top-level defaults/env block — Scorecard's verifier rejects that workflow`]
-      : []
-  }
-  if (!/^\s+(- )?run:/m.test(text)) return [] // no run: step — nothing for a shell default to govern
-  const at = text.search(DEFAULTS_RE)
-  if (at === -1) return [`${file}: no workflow-level \`defaults.run.shell: bash\` — an un-shelled step runs without pipefail`]
-  return at > text.indexOf('\njobs:')
-    ? [`${file}: \`defaults:\` sits BELOW \`jobs:\` — the line-parsers would read its \`run:\` key as a job id`]
-    : []
-}
-
-/** The clock rule, for one job. @param {string} file @param {{ id: string, body: string }} job @returns {string[]} */
-function clockProblems(file, job) {
-  const reusable = /^ {4}uses:\s*\S/m.test(job.body)
-  const timeout = /^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(job.body)
-  if (reusable) return timeout ? [`${file}#${job.id}: a reusable-workflow job cannot take timeout-minutes`] : []
-  if (timeout === null) return [`${file}#${job.id}: no job-level timeout-minutes — a hang costs GitHub's 360-minute default`]
-  const minutes = Number(timeout[1])
-  return minutes < 1 || minutes > MAX_TIMEOUT
-    ? [`${file}#${job.id}: timeout-minutes ${timeout[1]} is outside 1..${String(MAX_TIMEOUT)}`]
-    : []
-}
-
 /**
- * Everything wrong with one workflow, as sentences. Pure, so the synthetic negatives below
- * can show each rule going red.
+ * Everything wrong with one workflow, as sentences: the shell rule, the clock rule, and
+ * since 1.1.0 harden-runner as every job's first step (audit on Windows). The rules live in
+ * template/base/tools/lib/workflow-hardening.mjs, so one rule set judges what ships and what
+ * a project writes. Pure, so the synthetic negatives below can show each rule going red.
  *
  * @param {{ file: string, text: string }} workflow @returns {string[]}
  */
 function hardeningProblems(workflow) {
-  return [...shellProblems(workflow), ...jobsOf(workflow.text).flatMap((job) => clockProblems(workflow.file, job))]
+  return workflowFindings(workflow, { maxMinutes: MAX_TIMEOUT })
 }
+
+/** @param {string} text */
+const jobCount = (text) => jobsOf(text)?.jobs.length ?? 0
 
 test('the walk is not vacuous: base AND module workflows, no shared install path, plus the factory set', () => {
   const shipped = shippedWorkflows()
@@ -113,7 +93,7 @@ test('the walk is not vacuous: base AND module workflows, no shared install path
   // `${{ … }}` is GitHub's expression syntax; residue is an UPPER_SNAKE harness token.
   assert.ok(shipped.every((w) => !/\{\{[A-Z0-9_]+\}\}/.test(w.text)), 'a workflow rendered with residue')
   assert.ok(factoryWorkflows().length >= 6)
-  assert.ok(shipped.reduce((n, w) => n + jobsOf(w.text).length, 0) >= 48)
+  assert.ok(shipped.reduce((n, w) => n + jobCount(w.text), 0) >= 48)
 })
 
 test('every SHIPPED workflow selects bash at workflow level and bounds every job it can', () => {
@@ -127,7 +107,7 @@ test('every FACTORY workflow does too — and the Scorecard workflow carries no 
 })
 
 test('each rule can go red: the synthetic negatives', () => {
-  const job = (extra) => `\njobs:\n  lint:\n    runs-on: ubuntu-latest\n${extra}    steps:\n      - run: echo hi\n`
+  const job = (extra) => `\njobs:\n  lint:\n    runs-on: ubuntu-latest\n${extra}    steps:\n      - uses: ${HARDEN}\n      - run: echo hi\n`
   const good = `name: x\ndefaults:\n  run:\n    shell: bash\n${job('    timeout-minutes: 10\n')}`
   assert.deepEqual(hardeningProblems({ file: 'good.yml', text: good }), [])
 
@@ -143,7 +123,7 @@ test('each rule can go red: the synthetic negatives', () => {
   const untimed = `name: x\ndefaults:\n  run:\n    shell: bash\n${job('')}`
   assert.match(hardeningProblems({ file: 'd.yml', text: untimed })[0], /d\.yml#lint: no job-level timeout-minutes/)
 
-  const stepLevel = `name: x\ndefaults:\n  run:\n    shell: bash\n\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n        timeout-minutes: 5\n`
+  const stepLevel = `name: x\ndefaults:\n  run:\n    shell: bash\n\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: ${HARDEN}\n      - run: echo hi\n        timeout-minutes: 5\n`
   assert.match(hardeningProblems({ file: 'e.yml', text: stepLevel })[0], /no job-level timeout-minutes/)
 
   const sixHours = `name: x\ndefaults:\n  run:\n    shell: bash\n${job('    timeout-minutes: 360\n')}`
@@ -232,4 +212,46 @@ test('CANARY: the targetSdk floor step still SAYS why it failed when no targetSd
   // Under pipefail a no-match `grep` kills an assignment before the diagnostic prints; the
   // step stays red either way, but a red that does not say why is a worse red.
   assert.match(res.out, /::error::generated android project targets SDK 'none'/, res.out)
+})
+
+// ── the counting loop, as the control for the position rule (1.1.0, #73) ────────────────
+// actions-lint.yml's `harden-runner-coverage` job keeps its id, name and loop: changing its
+// verdict in place would move an existing verdict with no ramp, and its bash cannot carry
+// one. These controls run that loop, as GitHub would, over each fixture the new
+// `workflow-hardening` gate reds (tests/gates/check-workflow-hardening.test.mjs), and assert
+// it PASSES — which is the defect, kept visible.
+
+const actionsLint = () => shippedWorkflows().find((w) => w.file.endsWith('actions-lint.yml'))?.text ?? ''
+
+/** A scratch checkout holding `files`. @param {Record<string, string>} files */
+function checkoutOf(files) {
+  const cwd = mkdtempSync(join(tmpdir(), 'nsah-wfloop-'))
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(join(cwd, rel, '..'), { recursive: true })
+    writeFileSync(join(cwd, rel), text)
+  }
+  return cwd
+}
+
+test('CONTROL: the harden-runner-coverage loop passes the issue fixture, whose job b has no harden-runner', (t) => {
+  if (!HAS_BASH) return t.skip(SKIP)
+  const { script, argv } = stepOf(actionsLint(), 'Every job carries harden-runner')
+  const res = runAsGitHub(script, argv, { cwd: checkoutOf({ '.github/workflows/x.yml': ISSUE_FIXTURE }) })
+  // "Expected: an ::error for x.yml, because job b has no harden-runner. Actual: no output, exit 0."
+  assert.equal(res.code, 0, res.out)
+  assert.equal(res.out.trim(), '')
+})
+
+test('CONTROL: the loop COUNTS — it passes every shape the position rule reds, and still reds a file with none', (t) => {
+  if (!HAS_BASH) return t.skip(SKIP)
+  const { script, argv } = stepOf(actionsLint(), 'Every job carries harden-runner')
+  for (const c of LOOP_MISSES) {
+    const res = runAsGitHub(script, argv, { cwd: checkoutOf(c.files) })
+    assert.equal(res.code, 0, `${c.id}: the loop is expected to miss this shape\n${res.out}`)
+  }
+  // The loop is not dead: the shape it was written for, a job and no harden-runner at all.
+  const bare = 'on: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n'
+  const res = runAsGitHub(script, argv, { cwd: checkoutOf({ '.github/workflows/bare.yml': bare }) })
+  assert.equal(res.code, 1, res.out)
+  assert.match(res.out, /::error file=\.github\/workflows\/bare\.yml::/)
 })

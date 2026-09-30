@@ -113,6 +113,8 @@ test('the pinned scanners are still WIRED into the lanes named for them', () => 
     ['osv-scan.yml', 'scan-full', /osv-scanner/i],
     ['actions-lint.yml', 'actionlint', /actionlint/i],
     ['actions-lint.yml', 'zizmor', /zizmor/i],
+    // HARNESS-AUTHORED (1.1.0, #73): the job is named for the gate script it runs.
+    ['actions-lint.yml', 'workflow-hardening', /check-workflow-hardening\.mjs/],
     ['migration-safety.yml', 'squawk', /squawk/i],
     ['mutation.yml', 'stryker-full', /stryker|mutation/i],
   ]
