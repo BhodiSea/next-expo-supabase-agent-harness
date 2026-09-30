@@ -199,6 +199,9 @@
       },
       {
         "sha256": "afcf7995fca0b7231a74d94278454e78b67c145f536d35428a61426c107324b1"
+      },
+      {
+        "sha256": "e08e4e3a880dc6ab0c04c822c71a5f8c74bf097e8ee5a374330dcbbedbc09685"
       }
     ],
     ".claude/hooks/lib/hookio.mjs": [
@@ -232,6 +235,9 @@
       }
     ],
     ".claude/hooks/pretool-write-guard.mjs": [
+      {
+        "sha256": "903d7ca893c5d325230d16879ed155510eab0728d0802adaa58e47054fb3d117"
+      },
       {
         "sha256": "a5a820faf3cf5a97cb2768a8b33c24d92340c886e3e2d34555a98840295f7066"
       }
@@ -879,6 +885,15 @@
         ]
       },
       {
+        "sha256": "37bd8a851f5e3ef4311fdf70407a353e72254535e29d1f062a97d5e863095a59",
+        "sites": [
+          [
+            19406,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "3905e81f3fe066a02323ce507e7c82c2dca195b30e12cbdf59129d3021999cd3",
         "sites": [
           [
@@ -1169,6 +1184,15 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "0109af847516442a18b2214560c38ba1a4884e2f37d370648a2fd5b9111ac380",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "07784cc746c7cc281da19dcff78984e7c4cedabb706ca5310fddbeee72144252",
         "sites": [
           [
@@ -1327,6 +1351,9 @@
       },
       {
         "sha256": "4f149346ca506f7cafc5caf5d46d76f4d61a729cb9218926b29d01c297f41acf"
+      },
+      {
+        "sha256": "c51baf25e0e4015affbbc30b2c5faa7f6a7e8e758c25332133914e43faf59e19"
       },
       {
         "sha256": "cb84a5c214d4c61501b4c1b1d964aa13a6e9a620ca16e2e832b7999149b15540"

@@ -191,8 +191,12 @@ None of these tightens a gate for an existing install. Where one changes what
   whole diff, record included, so the README orders their last run after it.
   ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs),
   issue #64)
-- **A proposal flow for register edits.** An agent stages a protected edit for
-  a human to apply in one action. The corpus half of this item is in 1.0.4.
+- **A proposal flow for register edits.** An agent writes the whole proposed
+  register as `harness-proposals/<id>.json`, a committed directory no deny
+  layer names, and a human applies it with `apply-proposal <id>` in a
+  terminal after reading the reason and the diff. A stale `base` or a dirty
+  target is refused, the bash guard denies an agent the verb, and `doctor`
+  lists pending proposals as `info`. The corpus half of this item is in 1.0.4.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
   issue #65)
 - **Absence checklists and a reviewer eval.** Reviewers report what a change

@@ -1727,8 +1727,12 @@ entries), `docs/adr/0000-adr-template.md`, `docs/harness/README.md` and
 Review records plant the seeded `docs/reviews/README.md` when your install has none, and
 re-plant `docs/adr/0000-adr-template.md`, `docs/adr/README.md`, `.claude/commands/adr.md`
 and `.claude/commands/new-feature.md` (`update` re-records the two commands'
-`tools/agents.lock.json` entries); their `AGENTS.md` sentence is yours to copy (the last
-subsection before RECOVERY). What you may notice afterwards:
+`tools/agents.lock.json` entries); their `AGENTS.md` sentence is yours to copy (its
+subsection below). The proposal flow re-plants `.claude/hooks/lib/guard-rules.mjs` (the
+`apply-proposal-invocation` rule), `.claude/hooks/pretool-write-guard.mjs` (its tamper deny
+names the flow), `docs/harness/README.md` and `docs/security/threat-model.md` (generated; it
+lists the new rule). The verb itself is the installer's, so nothing else lands in your tree
+(its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1802,6 +1806,11 @@ subsection before RECOVERY). What you may notice afterwards:
   at it.** It says where review rounds go. No gate reads it, so it changes no verdict. If
   you already had a file at that path, `update` left it exactly as it was and parked
   nothing.
+- **An agent that wants to change a register under `tools/` stages a proposal instead of
+  asking you for `HARNESS_ALLOW_SELF_EDIT=1`.** The write guard's deny now tells it how, so a
+  `harness-proposals/<id>.json` can appear in your tree. `doctor` lists it as `info`, and it
+  changes nothing until you apply it. The bash guard denies an agent the `apply-proposal`
+  command. The subsection on proposals below says how to review and apply one.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2368,6 +2377,62 @@ Two things to know once you keep records:
 - **An `-- adr:` marker names the ADR, never the record.** The `migrations` gate checks only
   that the named file exists, so it would accept a record; the rule is written down, not
   enforced.
+### Proposing a register edit: `harness-proposals/` and `apply-proposal`
+
+The write guard denies an agent every reviewed register under `tools/`: the allowlists, the
+budgets and registers such as `tools/i18n-allow.json`, `tools/approved-tools.json` or
+`tools/mcp/corpus/project.json`. Until 1.1.0 an agent with a reason to change one could only
+describe the edit, and you either typed it or relaunched the session with
+`HARNESS_ALLOW_SELF_EDIT=1`, which lifts the guard for every protected path at once. From
+1.1.0 the agent writes the whole proposed file as one JSON document,
+`harness-proposals/<id>.json`:
+
+```json
+{
+  "version": 1,
+  "target": "tools/i18n-allow.json",
+  "reason": "Why the register should change.",
+  "base": "<output of git rev-parse HEAD:tools/i18n-allow.json, or null if the file is not in HEAD>",
+  "content": "<the whole proposed file>"
+}
+```
+
+`harness-proposals/` is a committed directory outside every path the deny list and the two
+guards name, so staging a proposal narrows none of them, and a proposal is inert: no gate
+reads it. `format` checks it like any other file, so the agent writes it the way
+`JSON.stringify(proposal, null, 2)` prints it, with one trailing newline.
+
+**What to do.**
+
+1. **List what is pending.** `doctor` lists each proposal as `info`, and so does
+   `npx next-expo-supabase-agent-harness apply-proposal` with no id. Run the installer of
+   the harness version you installed or a later one.
+2. **Review one.** Add the id and `--dry-run`: the command prints the reason and a
+   `git diff --no-index` of the current file against the proposed one, and writes nothing.
+   It needs a terminal on stdin and stdout.
+3. **Apply it, or delete it.** Run the same command without `--dry-run`. After the diff it
+   asks you to type the target path, and only that answer writes the file. It then deletes
+   the proposal and prints `commit <target>`. To reject a proposal, delete the file.
+4. **Commit the register.** It is left uncommitted on purpose: `gate-integrity` fails on an
+   escape list left uncommitted, and the commit carries the change into your pull request,
+   where CODEOWNERS applies. If the proposal was committed, commit its removal with it.
+
+**When it refuses.** Each refusal exits 1, names its reason and writes nothing:
+
+- **The target is not proposable.** A proposal may target the escape lists in
+  `tools/lib/enforcement-surface.mjs` and `tools/field-notes.json`. It may not target an
+  owned file, the agent surface, settings, a pinned, hashed or generated file, or
+  `tools/perf-baseline.json` and `tools/mutation-baseline.json`, which only their
+  generators write: re-run the generator yourself.
+- **`base` does not match `git rev-parse HEAD:<target>`**, or it is null for a file that is
+  in `HEAD`, or set for one that is not. The register changed after the proposal was staged,
+  and replacing the whole file would revert that change. Ask for the proposal again.
+- **The target has uncommitted changes.** Commit or discard them first, so the file the diff
+  shows is the file that is replaced. The check runs again after you answer.
+- **The id or the target resolves outside `--dir`**, the content is not JSON, the proposal
+  has a field the format does not have, or its text carries a control or
+  bidirectional-format character that could make the terminal show something other than
+  the bytes written.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

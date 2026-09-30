@@ -218,6 +218,43 @@ this heading if none does. -->
   `tests/gates/review-records.test.mjs` holds that no shipped gate, hook or workflow names
   `docs/reviews`, that a record owes no path-triggered reviewer, and that the README carries
   no corpus reference. No chain step, gate, guard rule or ramp (#64).
+- **An agent stages a register edit, and a human applies it in one action:
+  `apply-proposal`.** The write guard denies an agent every reviewed register under
+  `tools/`, and it had no way to hand a human a proposed edit to one except as prose. The
+  human typed the edit, or relaunched the session with `HARNESS_ALLOW_SELF_EDIT=1`, which
+  lifts the write guard for every protected path at once and every bash-guard rule that
+  honours it. The recorded staging path, `.harness/proposals/`, could not work: the shipped
+  settings, the write guard's `harness-dir` rule and the bash guard's protected directories
+  all deny it, and it is gitignored. An agent now writes the whole proposed file as one JSON
+  document, `harness-proposals/<id>.json`, with `version`, `target`, `reason`, `base` (the
+  output of `git rev-parse HEAD:<target>`, or null when the target is not in `HEAD`) and
+  `content`. The directory is committed and outside every path the deny list and the two
+  guards name, so staging narrows no deny layer, and no gate reads a proposal. The new
+  installer verb `apply-proposal [<id>] [--dir .] [--dry-run]` lists the pending proposals
+  with no id. With one it prints the reason and a `git diff --no-index` of the current file
+  against the proposed one, asks the human to type the target path, writes the file with
+  the installer's one write primitive, deletes the proposal and prints `commit <target>`;
+  `--dry-run` prints the same and writes nothing, and there is no `--yes`. It refuses, with
+  exit 1 and a message of its own, a target outside the proposable set, an id or target that
+  resolves outside `--dir`, content that is not JSON, a `base` that does not equal the
+  committed blob (a null one for a target in `HEAD` and a set one for a target that is not,
+  included), a target with uncommitted changes, a stdin or stdout that is not a terminal,
+  and a reason, target or content carrying a control or bidirectional-format character. The
+  base and dirty checks run again after the prompt, and the bytes written are the ones the
+  diff showed. The proposable set is `ESCAPE_LISTS`, plus the advisory
+  `tools/field-notes.json`, minus `tools/perf-baseline.json` and
+  `tools/mutation-baseline.json`, which only their generators write. The installer never
+  imports a template module, so it keeps its own copy, and `check-escape-registry`
+  reconciles it as a fourth list in both directions. `doctor` lists each pending proposal,
+  and each file there that is not a valid one, as `info`, so its exit code does not move. The
+  bash guard gains `apply-proposal-invocation`, which denies a `node`, `pnpm`, `npx` or
+  `tsx` command with `apply-proposal` as a whole argument unless `HARNESS_ALLOW_SELF_EDIT=1`
+  is set, and the write guard's tamper deny gains one sentence pointing a register edit at
+  the flow. `update` re-plants the owned `.claude/hooks/lib/guard-rules.mjs`,
+  `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md` (a paragraph under
+  Tamper evidence) and `docs/security/threat-model.md` (generated; it lists the new rule)
+  where they are sha-unmodified. No chain step, floor or seeded file changes, and no ramp
+  (#65).
 
 ### Fixed
 
@@ -472,8 +509,8 @@ this heading if none does. -->
   tools, and `rls-isolation`'s runner prints its own `[rls]` lines, so none of them prints a
   note. When a failed Stop step's output is long, the Stop hook keeps its head and tail, so a
   note from a gate in the middle of a `validate --report-all` run may appear only in
-  `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
-  propose a note for a human to apply; that is #65's to add (#61).
+  `.harness/stop-output/<step>.log`. An agent cannot write a note; it can stage one in
+  `harness-proposals/` for a human to apply with `apply-proposal` (see Added, #65) (#61).
 - **The model record was probed in print mode only.** `design/CONTROL-PLANE-FACTS.md` Fact 16
   observed, at Claude Code 2.1.285, that each assistant line of the subagent's transcript
   carries its model at `message.model`, and that a green Stop's `systemMessage` surfaces as
@@ -533,6 +570,20 @@ this heading if none does. -->
   an `-- adr:` line names exists, so a review record would satisfy it. Restricting it to
   `docs/adr/` would change a verdict, which also needs its own `gate-proposal` and a ramp
   (#64).
+- **Two tripwires keep `apply-proposal` human-only, not a control.** Its terminal check
+  passes under anything that allocates a pseudo-terminal, and the bash-guard rule matches the
+  command's text, so an obfuscated spelling evades it, as the guard's own header says of
+  every rule. What does not depend on either: a stale `base` or a dirty target is refused,
+  so the whole-file write cannot silently revert a committed row; the written register is
+  left uncommitted, so `gate-integrity` reds on an escape list until a human commits it; and
+  the commit lands under CODEOWNERS. `tools/field-notes.json` is not an escape list, so an
+  applied note left uncommitted reds nothing; a note is print-only (#65).
+- **The proposable set is the installer's copy.** `apply-proposal` judges a proposal against
+  the list of the installer version you run, not the install's. A register a later release
+  adds is proposable only with an installer that knows it, and the runbook says to run the
+  installer of the version you installed or a later one. The content is written as given
+  and never reformatted, so a register a proposal leaves unformatted reds `format` after it
+  is applied, and the session brief does not count pending proposals yet (#65).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -698,6 +749,22 @@ this heading if none does. -->
   `docs/reviews/README.md` kept it byte-identical through `update`, which exited 0 and parked
   nothing. In a zero-edit core scaffold, which carries the README, `validate --report-all`
   exited 0 with no step left unrun, `secrets` and `provenance` among its green steps (#64).
+  For the proposal flow, `tests/installer/apply-proposal.test.mjs` could not load before
+  `installer/commands/apply-proposal.mjs` existed; the bash guard let every
+  `apply-proposal-invocation` deny canary through, and the canary closure named a canary
+  with no rule; the write guard's tamper deny named no flow; `cli-docs-sync` with its
+  command class widened to `[a-z][a-z-]*` found no hyphenated command, then, with the verb
+  dispatched, reported that `docs/cli.md` never mentioned it; and
+  `check-escape-registry.test.mjs` could not import `reconcileProposable`. After the change
+  each is green: every refusal writes nothing, asks nothing and keeps the proposal, an edit
+  or a proposal rewrite made while the prompt waits is neither overwritten nor applied,
+  `doctor` names a staged and a broken proposal as `info` with its exit code unchanged, the
+  fourth list reds on drift in each direction and on a generator-written baseline, and an
+  agent's Write of `harness-proposals/<id>.json` passes the write guard and matches no
+  settings deny. Run through `script` for a pseudo-terminal, the verb applied a proposal in
+  a scratch repository and left `tools/i18n-allow.json` modified and uncommitted, and a
+  proposal written the way the docs say passed `biome ci` under the shipped `biome.jsonc`
+  (#65).
 
 ## [1.0.4] — 2026-09-29
 
