@@ -54,11 +54,12 @@
 // gate-proposal. The name is deliberately not check-*.mjs, which would put it in the
 // factory-gate canary closure (scripts/check-canary-coverage.mjs).
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { init } from '../installer/commands/init.mjs'
+import { walkFiles } from '../installer/lib/fs-walk.mjs'
 import { modelPolicy, REVIEWER_AGENTS } from '../template/base/tools/lib/agent-roster.mjs'
 import { classifyVerdict, modelMatches, owedByTurn } from '../template/base/tools/lib/reviewer-verdicts.mjs'
 import { companionTable } from './lib/companion-table.mjs'
@@ -81,28 +82,10 @@ export const USAGE = [
 
 // ── the corpus ───────────────────────────────────────────────────────────────────────────
 
-/** Every file under `dir`, as POSIX paths relative to it. */
-function walk(dir, prefix = '') {
-  /** @type {string[]} */
-  const out = []
-  let entries = []
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    const rel = prefix === '' ? e.name : `${prefix}/${e.name}`
-    if (e.isDirectory()) out.push(...walk(join(dir, e.name), rel))
-    else out.push(rel)
-  }
-  return out.sort()
-}
-
 /** A case directory's overlay: each stored file, the install path it writes, and its source. */
 function overlayOf(caseDir) {
   const base = join(caseDir, 'overlay')
-  return walk(base).map((stored) => ({
+  return walkFiles(base).map((stored) => ({
     stored,
     path: stored.endsWith(SUFFIX) ? stored.slice(0, -SUFFIX.length) : stored,
     source: join(base, ...stored.split('/')),
@@ -137,11 +120,12 @@ export function loadCorpus(dir = CORPUS) {
   const problems = []
   let entries = []
   try {
-    entries = readdirSync(dir, { withFileTypes: true })
+    // Code-unit order, not the locale's, so every machine reads the cases in one order.
+    entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   } catch {
     return { cases, problems: [`${dir}: no corpus directory`] }
   }
-  for (const e of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const e of entries) {
     if (!e.isDirectory()) {
       problems.push(`${e.name}: not a case directory`)
       continue
@@ -560,11 +544,13 @@ export async function main(argv) {
   }
   if (opts['--score']) {
     const dir = resolve(opts['--score'][0])
+    let isDir = false
     try {
-      readdirSync(dir)
+      isDir = statSync(dir).isDirectory()
     } catch {
-      return usage(`${dir}: not a readable directory of replies`)
+      // Missing or unreadable: the usage error below.
     }
+    if (!isDir) return usage(`${dir}: not a readable directory of replies`)
     printScore(corpus.cases, dir)
     return 0
   }
