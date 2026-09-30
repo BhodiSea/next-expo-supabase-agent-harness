@@ -363,7 +363,14 @@ const SWEEPS = {
   // every string it finds in v0.1.3 through v0.5.0 (all under apps/web) the 1.0.x regular
   // expressions already report, so a leg that adopts the web seam, as this sweep does, meets
   // the same findings with or without the walk, and a leg's tools/i18n-allow.json is the empty
-  // seed, with no site entry to convert.
+  // seed, with no site entry to convert. The Edge Function surface (#78) adds no step either,
+  // though it withholds four paths and parks a second seeded-source fix: the fix's paths are the
+  // whole delete-account split (index.ts, handler.ts, handler.test.ts, deno.json, deno.lock), and
+  // the DERIVED pass adopts them, which is the runbook's sweep. A swept leg therefore ends on the
+  // 1.1.0 shell, which clears the dated lint exemption's need, runs the handler suite under
+  // `unit` and holds the handler to the per-file floors. Its ramps add nothing to NOTE on a leg:
+  // diff-coverage is a Stop step, and mutation-scope, the ratchet and edge-functions are CI-only,
+  // so no leg runs them (stop-side-expiries.json names each unit proof).
   //
   // THE GRANT BOUND (#74) is the one 1.1.0 ramp a swept leg DOES meet, and it withholds two
   // more paths: supabase/migrations/20260930000000_three_role_revoke.sql and

@@ -380,12 +380,18 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
   // the whole remedy for the uuid re-date. The surface register (#56) is read
   // absent-as-empty, so a swept leg adopts none of it. The two seeded browser specs (#77)
   // are what clears route-manifest's per-route closure NOTE, so a swept leg adopts exactly
-  // those two, by name (adoptSeedOnInitOnly would plant the surface register too).
+  // those two, by name (adoptSeedOnInitOnly would plant the surface register too). The Edge
+  // Function split (#78) withholds four new files AND parks a lint fix whose paths are the
+  // whole split, so the derived pass adopts it: the leg ends on the 1.1.0 shell, its handler,
+  // suite, deno.json and deno.lock, which is the runbook's sweep for the dated complexity
+  // exemption.
   const fixes = MIGRATIONS['1.1.0'].seededSourceFixes ?? []
   assert.ok(
     fixes.some((f) => (f.paths ?? []).includes('tools/eol.json')),
     'the 1.1.0 record must park the uuid re-date on tools/eol.json',
   )
+  const FN = 'supabase/functions/delete-account'
+  const SPLIT = ['index.ts', 'handler.ts', 'handler.test.ts', 'deno.json', 'deno.lock'].map((f) => `${FN}/${f}`)
   assert.deepEqual(
     MIGRATIONS['1.1.0'].seedOnInitOnly,
     [
@@ -394,8 +400,9 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
       'supabase/tests/rls_grants.generated.test.sql',
       'apps/web/e2e/notes.spec.ts',
       'apps/web/e2e/security.spec.ts',
+      ...SPLIT.slice(1),
     ],
-    'the 1.1.0 record must withhold the surface register (#56), the doctrine migration and the generated grant assertions (#74), and the two seeded browser specs (#77)',
+    'the 1.1.0 record must withhold the surface register (#56), the doctrine migration and the generated grant assertions (#74), the two seeded browser specs (#77), and the four new function files (#78)',
   )
   assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.4', '1.1.0'))
   const { adopt, tomlSectionAppends, reconcileDataFlowExclusions, grantDoctrine } = computeSweepSet(
@@ -404,11 +411,13 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
     '1.1.0',
   )
   // The swept leg adopts NEITHER #74 file: it runs the runbook's two steps instead. It
-  // adopts the two browser specs (#77) by name, and never the surface register.
+  // adopts the two browser specs (#77) by name, never the surface register, and the whole
+  // Edge Function split (#78) through the derived pass.
   assert.deepEqual(adopt, [
     'apps/web/e2e/notes.spec.ts',
     'apps/web/e2e/security.spec.ts',
     'tools/eol.json',
+    ...SPLIT,
   ])
   assert.ok(!adopt.includes('tools/surfaces.json'), 'the surface register is never adopted')
   assert.deepEqual(tomlSectionAppends, [])

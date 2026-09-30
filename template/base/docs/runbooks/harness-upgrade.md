@@ -1803,6 +1803,14 @@ The web compile step adds `tools/check-web-build.mjs` and injects it into your
 `docs/harness/enforcement-tiers.md`, `docs/harness/README.md`, `tools/conformance-map.json`
 and `docs/compliance/controls-crosswalk.md`; the two new browser specs are withheld, and
 your `AGENTS.md` is yours to update (its subsection below).
+The Edge Function checks add `tools/check-edge-functions.mjs`, and re-plant
+`eslint.config.mjs`, `vitest.config.ts`, `biome.jsonc`, `tools/check-diff-coverage.mjs`,
+`tools/check-mutation-ratchet.mjs`, `tools/mutation-scope.mjs`, `tools/lib/gate.mjs`,
+`tools/lib/mutation-critical.mjs`, `tools/conformance-map.json`,
+`.github/workflows/quality-gate.yml` (a new `edge-functions` job),
+`docs/harness/gates-catalog.md`, `docs/harness/enforcement-tiers.md` and
+`docs/adr/20260720-account-deletion.md`; the split of the delete-account function they
+reach is seeded, and `update` withholds it (its subsection below).
 What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
@@ -1981,6 +1989,15 @@ What you may notice afterwards:
   and `docs-sync` a NOTE about your gate list. Your quality-gate workflow's `web-build` and
   `web-e2e` jobs gain one step that builds the workspace declarations first. The subsection
   on the web compile step below says what each NOTE asks of you.
+- **`lint` now reads `supabase/functions`, and a new `edge-functions` job may print NOTEs.**
+  A `getSession()` call or a raw `crypto.subtle` in one of your own Edge Functions now reds
+  `lint` at once, as it would anywhere on the server graph, and so does a function over
+  cognitive complexity 15 (the delete-account `index.ts` your install carries is exempt from
+  that one until 1.2.0). `doctor` warns that the seeded delete-account function still has its
+  1.0.x shape, and `update` notes four new files it did not plant. On an install whose
+  `baseVersion` is below 1.1.0, `edge-functions`, `diff-coverage` and the mutation lane print
+  `NOTE — (ramp)` lines about `supabase/functions` until 1.2.0. The subsection on Edge
+  Functions below gives the sweep.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -3171,6 +3188,74 @@ places (the "What re-OPENS" part above).
 the new one is parked under `.harness/pending/`, and `update` exits 2 while it stays there.
 Until you merge a parked `tools/lib/stamp-inputs.mjs`, your copy has no list for
 `web-compile`, so the step builds on every run and records no stamp.
+
+### Edge Functions: pull the handler split, `deno.json` and `deno.lock` (NOTEs until 1.2.0)
+
+Through 1.0.x no check compiled, linted, ran or mutated `supabase/functions`: a global lint
+ignore covered it, `tsc -b` never reached it, and vitest, coverage and Stryker cannot import
+a file that imports a `jsr:` specifier and starts a server as it loads. 1.1.0 reaches it four
+ways. `lint` gives it the TypeScript parser, so `no-unverified-session`,
+`crypto-primitives-one-door`, cognitive complexity 15 and `no-suppressed-complexity` apply.
+`unit` runs every vitest suite under it (a `*.test.ts` importing from `'vitest'`; a
+`deno test` file is left alone) and measures each function directory that holds one, and
+`diff-coverage` holds a changed file there to the per-file floors. The mutation floor gains
+`supabase/functions/*/`, each `index.ts` excepted. The new `edge-functions` job in
+`quality-gate.yml` installs deno and runs `node tools/check-edge-functions.mjs`, which runs
+`deno check --frozen` on each `supabase/functions/<fn>/index.ts` against that function's
+`deno.json` (exact `jsr:`/`npm:` versions) and `deno.lock`.
+
+The seeded delete-account function is split so those checks reach what it decides:
+`handler.ts` holds `readKey` and the four deletion steps and takes its clients and
+environment as parameters, `handler.test.ts` proves the personal-org sweep is verified before
+`deleteUser`, `index.ts` becomes a one-call `Deno.serve` shell, and `deno.json` and
+`deno.lock` pin supabase-js to one release. `index.ts` is seeded, so `update` never rewrites
+yours, and the four new files are withheld.
+
+**Who sees what, and when.** On an install whose `baseVersion` is below 1.1.0:
+
+- `lint` stays green on the 1.0.x `index.ts`: its `readKey` measures 16, and that one path is
+  exempt from the complexity rules until 1.2.0. The security rules are not exempt; the
+  seeded file passes both. A function of YOUR OWN that calls `getSession()`, reaches
+  `crypto.subtle`, or measures over 15 reds `lint` now.
+- `edge-functions` prints `edge-functions: NOTE — (ramp) supabase/functions/<fn>: no
+  deno.json` (and `no deno.lock`) for each function, and stays green.
+- `diff-coverage` prints `diff-coverage: NOTE — (ramp) supabase/functions/…: absent from every
+  coverage map` for a changed file in a function directory that holds no vitest suite.
+- The mutation lane's scoper withholds such a file from Stryker with a
+  `mutation-scope: NOTE — (ramp) …` line, and the ratchet NOTEs a new survivor under
+  `supabase/functions/` in a directory that has a suite.
+
+From harness 1.2.0 all of it prints under `RAMP EXPIRED` and reds, and the lint exemption is
+gone. On an install whose `baseVersion` is 1.1.0 or later it reds from the start.
+
+**The sweep.**
+
+1. Pull the split: `npx next-expo-supabase-agent-harness update --refresh-seeded
+   supabase/functions/delete-account/`. An `index.ts` you never changed is replaced; one you
+   changed stays, the new one is parked under `.harness/pending/`, and you carry your change
+   into `handler.ts` by hand. Then `pnpm exec vitest run supabase/functions` runs the suite,
+   and `doctor` stops warning.
+2. For each function of your own, move what it decides into a file that names no `Deno`
+   global and no `jsr:`/`npm:` specifier (a type-only import is fine) and give that
+   directory a vitest suite; keep `index.ts` a shell. Code in `_shared/` needs a suite in
+   `_shared/`.
+3. Give each function a `deno.json` whose imports name exact releases, and write its lock:
+   `deno check --frozen=false --config supabase/functions/<fn>/deno.json
+   supabase/functions/<fn>/index.ts`. Commit both. Supabase deploys each function with its
+   own `deno.json`.
+4. With deno installed (the version `quality-gate.yml`'s `edge-functions` job pins), run
+   `node tools/check-edge-functions.mjs` until it prints `edge-functions: OK`. It is not a
+   chain step, so `graduate` does not run it: run it by hand before you graduate. The job is
+   new, so no branch-protection rule requires it until you add `edge functions (deno check
+   against deno.json + frozen deno.lock)` to your required checks; `gate-summary` already
+   waits for it.
+
+The harness's upgrade lane adopts the whole split on every swept leg (the fix's paths ride
+the derived pass), and `SWEEPS['1.1.0']` adds no step.
+
+**If you forked `eslint.config.mjs`, `vitest.config.ts` or `quality-gate.yml`.** `update`
+keeps your copy, parks the new one under `.harness/pending/` and exits 2 while it stays
+there, and your fork does not reach `supabase/functions` until you merge it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

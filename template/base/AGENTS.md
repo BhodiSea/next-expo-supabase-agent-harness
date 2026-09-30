@@ -47,7 +47,8 @@ SOURCE: docs/harness/README.md.
 ## Package manager: pnpm 11 (pinned via `packageManager`), Node >= 22
 
 ALWAYS `pnpm`, never `npm`/`yarn`. Workspace deps = `workspace:*`; external
-versions = `catalog:` (the catalog is the only place version numbers appear).
+versions = `catalog:` (the catalog is the only place version numbers appear, save
+an Edge Function's own `deno.json` + `deno.lock`, which it deploys with).
 
 ## Commands
 
