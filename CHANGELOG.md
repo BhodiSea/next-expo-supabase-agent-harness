@@ -1493,6 +1493,26 @@ this heading if none does. -->
   partitioned parent took its partition, and a re-created table had no policies; the parser
   read the same history to the same state. A zero-edit core scaffold rendered from this tree
   passed `validate --report-all` with all six gates OK (#75).
+  For the grant bound, the tests-only commit was red on 42 cases: all 25 of the new
+  `tests/gates/table-grants.test.mjs`, and 17 in `tests/gates/check-rls-manifest.test.mjs`.
+  `schema-rls` printed OK over the shipped tree without
+  `20260920000000_authenticated_write_revoke.sql`, over `GRANT ALL`, a grant behind a deny-all
+  policy, a schema-wide `REVOKE` before a later `CREATE TABLE`, a table that never revoked
+  from `service_role` and a stale allow row, and over the `TO PUBLIC` grant it now reports
+  for `anon`; `WITH GRANT OPTION` redded only as four missing grants, the closure reading the
+  role list as one role. After the change every case is green: the shipped tree without the
+  new migration names `profiles` and `notes` and nothing else, and without the 1.0.2 one
+  names the seven read-only tables. Against a local stack of Supabase CLI 2.118.0
+  (PostgreSQL 17), after `pnpm db:reset`, the generated assertion passed over 312 rows
+  (13 tables, three roles, eight privileges); with an injected
+  `GRANT TRUNCATE ON public.notes TO authenticated` it failed naming exactly
+  `(public.notes,authenticated,TRUNCATE,f)`, and without the new migration it failed on the
+  four privileges of `profiles` and `notes`, which shows the local stack applies the default.
+  The upgrade lane's swept leg from v0.3.0 met the bound and the doctrine as 16 `NOTE —
+  (ramp)` findings on eight tables; its sweep wrote the printed statements into a migration
+  of the leg's own and ran the generator, and `graduate` advanced `baseVersion` 0.3.0 to
+  1.1.0. A zero-edit core scaffold rendered from this tree passed `validate --report-all` with
+  `schema-rls` OK (#74).
 
 ## [1.0.4] — 2026-09-29
 
