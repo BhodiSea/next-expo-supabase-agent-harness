@@ -14,6 +14,28 @@ the resolved Expo toolchain, the surface itself) is absent locally, and fail clo
 (`CI=true` / `HARNESS_REQUIRE_TOOLCHAINS=1`). See the doctrine's
 "skip-local / fail-closed-CI asymmetry".
 
+Every gate failure ends with a `FIX[<gate>]:` line naming the reproduce command and this
+catalog. Since 1.1.0 a project can add its own line under it: when the seeded
+`tools/field-notes.json` holds a note for that gate, the FIX line is followed by
+`FIELD-NOTE[<gate>]: <text>`. The file is `{"notes": {"<gate>": "one string"}}`, and its
+keys are gate tokens: the `<gate>` that `<gate>: FAIL` and `FIX[<gate>]` print, which is
+the script's own name and not always its step's (the `docs-sync` step's scripts report as
+`docs-sync`, `essential-eight` and `conformance-map`, and `check-framework-floor.mjs`
+reports as `floor-review`). Whitespace collapses to single spaces, control and format
+characters are removed, and the text is capped at `FIELD_NOTE_MAX_CHARS` code points
+(`tools/lib/gate.mjs`), ending in `…` when cut. A key outside `[a-z0-9-]` and a value that
+is not a string are ignored, and a file that is not valid JSON prints one line saying so
+and no note. A note is print-only: it is read after the FAIL and FIX lines of a failing
+run, so it cannot change an exit code or hide a finding, and it never prints on a pass, a
+stamp hit or a local skip. The file is write-guarded (`field-notes`), because its text
+reaches an agent while it decides how to make the red go away. Its scope stops where
+`tools/lib/gate.mjs`'s failure paths stop. `format`, `types`, `lint`, `dead-code`,
+`architecture`, `unit` and `mobile-unit` run third-party tools, and `rls-isolation`'s
+runner prints its own `[rls]` lines, so none of them prints a `<gate>: FAIL` line or a
+note. And when a failed Stop step's output is long, the Stop hook keeps its head and tail
+and writes the whole output to `.harness/stop-output/<step>.log`, so a note from a gate in
+the middle of a long `validate --report-all` run may appear only in that file.
+
 ## Honest losses (stated plainly, so nobody discovers them in an incident)
 
 - **The audit trail covers mutations only.** `audit.events` records every INSERT,
