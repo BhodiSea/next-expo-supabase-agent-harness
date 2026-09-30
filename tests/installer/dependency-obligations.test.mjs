@@ -94,6 +94,22 @@ test('the catalog probe is anchored — a bare mention in a comment does not sat
   assert.equal(unmet.length, 1, 'a comment naming the package must not read as a catalog entry')
 })
 
+test('a double-quoted catalog key is an entry, as a single-quoted one is (1.1.0)', () => {
+  // A YAML formatter writes "key": where the template wrote 'key': — both are the same entry,
+  // and a present entry read as missing would be a doctor ERROR on a tree that meets it.
+  for (const quote of ["'", '"']) {
+    const yaml = `catalog:\n  next: 16.2.11\n  ${quote}eslint-plugin-jsx-a11y${quote}: ^6.10.2\n`
+    assert.deepEqual(
+      unmetDependencyObligations(MIGRATIONS, '0.5.0', { workspaceYaml: yaml, packageJson: PKG_WITH }),
+      [],
+      `${quote}eslint-plugin-jsx-a11y${quote}: must read as catalogued`,
+    )
+  }
+  // Mismatched quotes are not a YAML key of that name, so they are not the entry.
+  const mismatched = `catalog:\n  "eslint-plugin-jsx-a11y': ^6.10.2\n`
+  assert.equal(unmetDependencyObligations(MIGRATIONS, '0.5.0', { workspaceYaml: mismatched, packageJson: PKG_WITH }).length, 1)
+})
+
 test('an unparseable package.json cannot report the obligation as MET', () => {
   const unmet = unmetDependencyObligations(MIGRATIONS, '0.5.0', {
     workspaceYaml: CATALOG_WITH,

@@ -15,10 +15,10 @@
 // missing, rather than the whole file failing to load.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import * as lib from '../../installer/lib/migrations.mjs'
 
@@ -66,8 +66,16 @@ const unmetNames = (yaml, version = '1.1.0') =>
   lib.unmetCatalogPinFloors(MIGRATIONS, version, { workspaceYaml: yaml }).map((f) => f.name)
 
 // A fresh, private directory per call: mkdtemp never reuses a path, so a leftover from an
-// earlier run can never stand in for a fixture.
-const scratch = () => mkdtempSync(join(tmpdir(), 'harness-pinfloor-'))
+// earlier run can never stand in for a fixture. Each one is removed once the file is done.
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+const scratch = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harness-pinfloor-'))
+  made.push(dir)
+  return dir
+}
 
 // ── the pure probe ──────────────────────────────────────────────────────────────────────
 
@@ -109,6 +117,16 @@ test("the quoted key '@vitest/coverage-v8' is found, with or without a quoted va
   assert.deepEqual(unmetNames(catalog('4.1.11', '4.1.10')), ['@vitest/coverage-v8'])
   assert.deepEqual(unmetNames(catalog('4.1.11', "'4.1.11'")), [])
   assert.deepEqual(unmetNames(catalog('"4.1.11"', '"4.1.10"')), ['@vitest/coverage-v8'])
+})
+
+test('a double-quoted key is found too: a present key read as absent would never be judged', () => {
+  // A YAML formatter rewrites the template's '@vitest/coverage-v8': as "@vitest/coverage-v8":.
+  // Absent is "not judged", so reading that line as no entry would hide a pin below its floor.
+  const doubled = catalog('4.1.11', '4.1.10').replace("'@vitest/coverage-v8'", '"@vitest/coverage-v8"')
+  assert.match(doubled, /^ {2}"@vitest\/coverage-v8": 4\.1\.10$/m, 'fixture precondition')
+  assert.deepEqual(unmetNames(doubled), ['@vitest/coverage-v8'])
+  assert.deepEqual(unmetNames(catalog('4.1.10').replace('  vitest:', '  "vitest":')), ['vitest', '@vitest/coverage-v8'])
+  assert.deepEqual(unmetNames(doubled.replace('4.1.10', '4.1.11')), [])
 })
 
 test('a comment decoy is neither an entry nor a value', () => {
@@ -264,7 +282,7 @@ test('the anchored catalog-entry pattern has exactly one home', () => {
   // catalog entry through catalogEntry(); a second copy of the anchor is how two of them
   // come to disagree about what counts as an entry.
   const src = readFileSync(join(ROOT, 'installer/lib/migrations.mjs'), 'utf8')
-  const anchor = String.raw`^\\s{2,}'?${'$'}{key}'?\\s*:`
+  const anchor = String.raw`^\\s{2,}(['"]?)${'$'}{key}\\1\\s*:`
   assert.equal(src.split(anchor).length - 1, 1, `expected the anchor ${anchor} exactly once in migrations.mjs`)
   for (const rel of ['installer/commands/doctor.mjs', 'installer/commands/update.mjs', 'installer/lib/toolchain.mjs', 'scripts/check-dependency-channel.mjs']) {
     assert.ok(!readFileSync(join(ROOT, rel), 'utf8').includes(anchor), `${rel} carries a copy of the anchor`)

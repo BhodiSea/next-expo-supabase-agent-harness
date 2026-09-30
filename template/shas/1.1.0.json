@@ -1393,15 +1393,6 @@
         ]
       },
       {
-        "sha256": "6851aa30104229562fd847c469370b36126f1e7ec847bf4aa0501491c2571ce3",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "6aa55def2b3968b5066f2f8a9002f5c2dd80496bd48752dc358e16b28b6e7526",
         "sites": [
           [
@@ -2412,9 +2403,6 @@
       }
     ],
     "tools/lib/harness-brief.mjs": [
-      {
-        "sha256": "aacdf82dbf91838476e9fa166df18713f8f125d8c7ccb32d8b76e041e1a61a7f"
-      },
       {
         "sha256": "b0c972e188ef3f75fa6a6d03205f03683eff6c5320f08ec47f96cc55b51d1154"
       }

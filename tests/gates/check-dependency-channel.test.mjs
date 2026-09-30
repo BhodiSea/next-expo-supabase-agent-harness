@@ -161,7 +161,7 @@ test('RED in CI / SKIP loudly outside it: no reachable tag is a verdict about cl
 // scaffold would warn in `doctor` on its first run.
 const FLOOR_WHY =
   'vitest below 1.2.0 is affected by a fixture advisory: the template pins it at the floor, and existing installs must raise it.'
-/** @param {object[]} floors */
+/** @param {unknown} floors a list of floors, or (for the shape case) anything else */
 const withFloors = (floors) => ({ ...MIGRATIONS, '0.2.0': { ...MIGRATIONS['0.2.0'], catalogPinFloors: floors } })
 const FLOOR = { name: 'vitest', minVersion: '1.2.0', advisory: 'GHSA-fixt-ure0-0001', why: FLOOR_WHY }
 
@@ -189,6 +189,14 @@ test("RED: a floor naming a package the template's catalog does not pin is stale
   const { code, out } = run(dir)
   assert.equal(code, 1, out)
   assert.match(out, /catalogPinFloors names `left-pad` but the template's own catalog does not pin it/)
+})
+
+test('RED: a catalogPinFloors value that is not a list is named, not a crash', () => {
+  const dir = makeRepo({ migrations: withFloors(FLOOR), pins: { vitest: '1.2.0' } })
+  const { code, out } = run(dir)
+  assert.equal(code, 1, out)
+  assert.match(out, /template\/migrations\.json 0\.2\.0: `catalogPinFloors` must be a list of floors/)
+  assert.ok(!out.includes('TypeError'), out)
 })
 
 test('RED: a malformed floor — each missing or malformed field is named', () => {
