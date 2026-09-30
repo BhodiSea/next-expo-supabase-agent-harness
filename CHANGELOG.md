@@ -1319,7 +1319,7 @@ this heading if none does. -->
   `catalogEntry` took either quote. A `catalogPinFloors` value that was not a list crashed
   `check-dependency-channel` with a `TypeError` until it was named as a problem (#83).
   For the project workflow rules, the tests-only commit could not load the missing library;
-  with a stub that exported its names and no rules, 26 of the 35 cases in the two workflow
+  with a stub that exported its names and no rules, 25 of the 35 cases in the two workflow
   test files failed while both bash controls passed: the shipped `harden-runner-coverage`
   loop exited 0 on the issue's fixture, with no output, and on each of the seven shapes it
   misses. After the change the 47 cases of the issue's three test files pass. `init` of each
@@ -1331,8 +1331,8 @@ this heading if none does. -->
   install updated by this installer exited 0 with both files planted and the new job in
   place; with the issue's fixture added the gate printed four `NOTE — (ramp)` lines that
   expire in 1.2.0 and exited 0, and at a simulated harness 1.2.0 it printed `RAMP EXPIRED`
-  and exited 1. One whose `actions-lint.yml` had been edited and committed kept it, parked
-  the new copy and exited 2 (#73).
+  and exited 1. One whose `actions-lint.yml` had been edited and its sha re-recorded kept it,
+  parked the new copy and exited 2 (#73).
 
 ## [1.0.4] — 2026-09-29
 
