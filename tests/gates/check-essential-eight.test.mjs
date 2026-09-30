@@ -577,3 +577,17 @@ test('STAMP: a green run over the shipped register records the stamp, and the ne
   assertJudged(runGate(dir))
   assert.equal(readFileSync(join(dir, '.harness', `${GATE}.ok`), 'utf8'), before)
 })
+
+test('STAMP: a stamp register with no list for this gate judges in full, and never throws', () => {
+  // `update` keeps a forked tools/lib/stamp-inputs.mjs and parks the new one, so the 1.1.0
+  // script can meet a register that predates its entry. It must judge as it did through
+  // 1.0.4, not crash on hashInputs(undefined).
+  const dir = stampFixture()
+  writeFileSync(join(dir, 'tools', 'lib', 'stamp-inputs.mjs'), 'export const STAMP_INPUTS = {}\n')
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness', 'essential-eight.ok'), 'stale')
+  const r = runGate(dir)
+  assertJudged(r)
+  assert.ok(r.out.includes('declares no requirements'), r.out)
+  assert.ok(!r.out.includes('TypeError'), r.out)
+})

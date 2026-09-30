@@ -33,56 +33,20 @@ import {
   supersessionProblems,
 } from './lib/essential-eight.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
-import { failures, ok } from './lib/gate.mjs'
+import { failures, ok, stampGate } from './lib/gate.mjs'
 import { liveControls } from './lib/live-controls.mjs'
+import { STAMP_INPUTS } from './lib/stamp-inputs.mjs'
 
 const GATE = 'essential-eight'
 const ROOT = process.cwd()
 const REGISTER = 'tools/essential-eight.json'
 
-// --- the register --------------------------------------------------------------------
-const path = join(ROOT, REGISTER)
-if (!existsSync(path)) {
-  failures(
-    GATE,
-    [
-      `${REGISTER} is missing — it is the reviewed conformance register this gate judges. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${REGISTER}\`.`,
-    ],
-    null,
-  )
-}
-
-let register
-try {
-  register = JSON.parse(readFileSync(path, 'utf8'))
-} catch (e) {
-  failures(
-    GATE,
-    [`${REGISTER} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`],
-    null,
-  )
-}
-
-// Anti-vacuity, in the shape check-secrets.mjs and check-obligations.mjs already use: a
-// register that scans nothing must FAIL, never pass quietly. An empty conformance map
-// reads as "everything is fine" to exactly the reader it would mislead.
-if (!Array.isArray(register.requirements) || register.requirements.length === 0) {
-  failures(
-    GATE,
-    [
-      `${REGISTER} declares no requirements. An empty conformance register is not a clean bill of health — it is a missing one.`,
-    ],
-    null,
-  )
-}
-
-// --- what actually runs here ----------------------------------------------------------
-const controls = liveControls({
-  steps: [...VALIDATE_STEPS, ...STOP_HOOK_STEPS].map(([name]) => name),
-  workflowDir: join(ROOT, '.github', 'workflows'),
-})
-
 // --- the negative-proof evidence the tree can decide ------------------------------------
+// It runs FIRST, on every run, before the stamp is consulted (1.1.0). Its reads, the
+// storage setting and the five product roots below, are deliberately not stamp inputs: a
+// stamp keyed on them would miss on nearly every turn that edits product code. Running the
+// proof ahead of the stamp keeps them judged instead: a storage flip or an upload surface
+// added this turn reds this turn, warm stamp or not. Its findings join every red below.
 const configPath = join(ROOT, 'supabase', 'config.toml')
 const configToml = existsSync(configPath) ? readFileSync(configPath, 'utf8') : ''
 
@@ -116,6 +80,68 @@ for (const dir of [
     if (UPLOAD_RE.test(readFileSync(join(abs, rel), 'utf8'))) uploadRoutes.push(`${dir}/${rel}`)
   }
 }
+const proofProblems = negativeProofProblems({ configToml, uploadRoutes })
+
+// --- the stamp (1.1.0) ------------------------------------------------------------------
+// Consulted only when the negative proof found nothing, so a warm stamp can never hide a
+// proof finding. It is keyed on what the rest of the verdict reads (tools/lib/stamp-inputs.mjs):
+// the register, the chain config and the workflows, never the evidence paths a row's
+// `proof` names, which this script judges as text and never opens. CI=true and
+// HARNESS_REQUIRE_TOOLCHAINS=1 ignore it, and `update` and `graduate` delete it. Where this
+// tree's stamp register has no list for this gate (a copy `update` kept beside a parked
+// newer one), the script judges in full, as it did through 1.0.4.
+const recordGreen =
+  proofProblems.length === 0 && Array.isArray(STAMP_INPUTS[GATE])
+    ? stampGate(GATE, STAMP_INPUTS[GATE])
+    : () => {}
+
+// --- the register --------------------------------------------------------------------
+// A register that cannot be judged reds at once, with the proof's findings beside it.
+const path = join(ROOT, REGISTER)
+if (!existsSync(path)) {
+  failures(
+    GATE,
+    [
+      `${REGISTER} is missing — it is the reviewed conformance register this gate judges. Pull the seeded exemplar with \`npx next-expo-supabase-agent-harness update --refresh-seeded ${REGISTER}\`.`,
+      ...proofProblems,
+    ],
+    null,
+  )
+}
+
+let register
+try {
+  register = JSON.parse(readFileSync(path, 'utf8'))
+} catch (e) {
+  failures(
+    GATE,
+    [
+      `${REGISTER} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+      ...proofProblems,
+    ],
+    null,
+  )
+}
+
+// Anti-vacuity, in the shape check-secrets.mjs and check-obligations.mjs already use: a
+// register that scans nothing must FAIL, never pass quietly. An empty conformance map
+// reads as "everything is fine" to exactly the reader it would mislead.
+if (!Array.isArray(register.requirements) || register.requirements.length === 0) {
+  failures(
+    GATE,
+    [
+      `${REGISTER} declares no requirements. An empty conformance register is not a clean bill of health — it is a missing one.`,
+      ...proofProblems,
+    ],
+    null,
+  )
+}
+
+// --- what actually runs here ----------------------------------------------------------
+const controls = liveControls({
+  steps: [...VALIDATE_STEPS, ...STOP_HOOK_STEPS].map(([name]) => name),
+  workflowDir: join(ROOT, '.github', 'workflows'),
+})
 
 // --- judge ------------------------------------------------------------------------------
 const problems = [
@@ -123,7 +149,7 @@ const problems = [
   ...supersessionProblems(register),
   ...rowProblems(register, controls),
   ...sharedClauseProblems(register),
-  ...negativeProofProblems({ configToml, uploadRoutes }),
+  ...proofProblems,
 ]
 
 failures(
@@ -133,6 +159,7 @@ failures(
 )
 
 const s = summarise(register)
+recordGreen()
 ok(
   GATE,
   `${String(s.total)} ML3 requirement(s): ${String(s.effective)} effective, ${String(s.alternateControl)} alternate-control, ${String(s.notImplemented)} not-implemented (${String(s.obligations.length)} obligation(s)), ${String(s.notApplicable)} not-applicable, ${String(s.organisation)} organisation-boundary; ${String(s.sharedClauses)} shared clause(s), each artefact claimed once. This register does NOT claim the application is Maturity Level Three — see ${REGISTER} header.`,
