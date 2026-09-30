@@ -36,7 +36,9 @@ install has none, and it changes no verdict (#61). The security-reviewer model c
 Changed) opens a second ramp in the step the reviewer ledger v2 ramp sits in, with the same
 window, and adds one release row and one condition row to the register too (#62). The
 reviewer severity contract and the round budget (see Changed) open two more ramps at 1.1.0,
-each with a deadline of 1.2.0, and add two release rows (#71).
+each with a deadline of 1.2.0, and add two release rows (#71). `docs-sync`'s verdict-demand
+position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and adds one
+release row (#72).
 
 ### Security
 
@@ -321,6 +323,27 @@ this heading if none does. -->
   change.
   The contract parser and the round count are pure helpers in `tools/lib/`, and the
   runbook's 1.1.0 section says how to add the contract to a forked body (#71).
+- **`docs-sync` holds each reviewer body to close on the verdict demand, behind a ramp
+  until 1.2.0.** The roster check asked only whether a reviewer body contained
+  "`VERDICT: PASS` or `VERDICT: BLOCK`", while its failure text said the body must end on
+  it. v1.0.1 shipped two bodies whose closing paragraph asked for the top 3 fixes after the
+  verdict line. The SubagentStop hook, which reads a PASS only as the reply's last line,
+  bounced every review that obeyed them, and the gate passed both. Since 1.0.2 `update`
+  keeps a re-recorded fork of an owned reviewer body, so a fork can still carry that shape.
+  The new pure `verdictDemandProblem()` in `tools/lib/agent-roster.mjs` returns `absent`
+  exactly when the old presence test fails, and `not-closing` when the body's last
+  paragraph is not exactly the demand, optionally followed by the rationale sentence every
+  shipped body carries. `absent` stays a hard red on every vintage, with failure text that
+  now says what is checked. `not-closing` goes through its own `rampNote` in
+  `check-docs-sync.mjs`, opened at 1.1.0 until 1.2.0: a dated NOTE naming the file below
+  `baseVersion` 1.1.0, a plain red on a fresh scaffold, and `RAMP EXPIRED` from harness
+  1.2.0. The gate reads each roster file once and reaches the helper through the namespace
+  import the severity contract already uses, so a parked fork of the lib without it still
+  loads: presence is judged the old way, and one finding names the stale lib, through the
+  same ramp. The factory test that pinned the shipped bodies now calls the helper and keeps
+  its `follow it with` scan. The obligations row `docs-sync-verdict-demand-ramp-expiry`
+  owes the expiry, and the catalog and the `gen-agents-lock.mjs` and `guard-rules.mjs`
+  comments that said the roster check never reads the body are corrected (#72).
 
 ### What stays open, honestly
 
@@ -434,6 +457,11 @@ this heading if none does. -->
   whose loops close by v2's rule (the same run's PASS), while v2 itself still prints NOTEs
   and the 1.0.x judgement decides. The 2.0.0 record decides whether to let it expire there
   or to re-open it to 2.1.0 as a reviewed `rampExtensions` entry (#71).
+- **`docs-sync` judges only the last paragraph of a reviewer body.** An earlier paragraph
+  that asks for text after the verdict line is not caught: the hook still bounces a PASS
+  reply that obeys it, and only the factory test scans the shipped bodies for the phrase.
+  The verdict-demand ramp takes the deadline issue #72 proposes, the next minor, so like
+  #71's two ramps it falls due at the 2.0.0 cut, whose record owes its expiry (#72).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -568,7 +596,15 @@ this heading if none does. -->
   reded a loop the 1.0.x judgement had closed (a BLOCK, then two fresh runs' PASSes on
   later prompts), and a spent budget left the reviewer's model finding beside its own; both
   are green once the budget judges only v2's change set and replaces that finding too
-  (#71).
+  (#71). For the verdict demand, the tests-only commit was red on 10 cases: the v1.0.1
+  shape and a paragraph after the demand each exited 0 with `docs-sync: OK`, a body with no
+  demand printed the old failure text, the ramp printed neither its NOTE nor its
+  `RAMP EXPIRED` banner and the same shape on a 1.1.0 base passed, a parked fork of the lib
+  named only the severity contract, and the helper did not exist, so its two table tests and
+  the factory test failed (`rosterLib.verdictDemandProblem is not a function`). After the
+  change every case passes, `check-ramp-ledger` and `check-obligations` are clean with the
+  new site and its row, and the `ramp-ledger` pins that read the current fleet at older
+  versions name the new site (#72).
 
 ## [1.0.4] — 2026-09-29
 

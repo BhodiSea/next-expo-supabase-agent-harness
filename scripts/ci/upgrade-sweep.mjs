@@ -348,7 +348,9 @@ const SWEEPS = {
   // contract's two ramps (#71) add no step either: docs-sync's judges a FORKED reviewer body,
   // a leg forks none, and `update` re-plants the shipped bodies, which all carry the contract;
   // the round budget is a Stop step's, which no leg runs (stop-side-expiries.json names its
-  // unit proof).
+  // unit proof). docs-sync's verdict-demand ramp (#72) adds no step for the same reason as
+  // the contract's: it judges a FORKED reviewer body, and the re-planted shipped bodies all
+  // close on the demand, so it has nothing to NOTE on any leg.
   '1.1.0': {},
 }
 

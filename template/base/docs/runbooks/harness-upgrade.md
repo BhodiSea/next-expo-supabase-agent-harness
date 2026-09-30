@@ -1715,7 +1715,10 @@ subsection below). The severity contract re-plants the eight reviewer bodies und
 `tools/check-reviewer-verdicts.mjs`, `tools/lib/agent-roster.mjs`,
 `tools/lib/reviewer-verdicts.mjs`, `docs/harness/gates-catalog.md` and
 `docs/harness/README.md`; a reviewer body you edited is kept and the new one parked (its
-subsection below). What you may notice afterwards:
+subsection below). The verdict-demand rule re-plants `tools/check-docs-sync.mjs`,
+`tools/lib/agent-roster.mjs`, `docs/harness/gates-catalog.md`, and the comments of
+`tools/gen-agents-lock.mjs` and `.claude/hooks/lib/guard-rules.mjs`; it changes no reviewer
+body (the last subsection before RECOVERY). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1771,6 +1774,10 @@ subsection below). What you may notice afterwards:
   it in a NOTE that expires in 1.2.0. On a `baseVersion` below 1.1.0, `reviewer-verdicts`
   may also print `NOTE — the per-reviewer round budget`. The subsection on the severity
   contract below says what to do.
+- **`docs-sync` may print a NOTE that a reviewer body you forked does not close on its
+  verdict demand.** Only a reviewer body whose last paragraph is not the verdict demand, or
+  a fork of `tools/lib/agent-roster.mjs`, produces one; every shipped body conforms. The
+  last subsection before RECOVERY gives the fix.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2235,6 +2242,69 @@ the two lines to it if you want the hook to hold its PASSes to its findings. If 
 finding names `tools/lib/agent-roster.mjs`, or the `reviewer-verdicts` one names
 `tools/lib/reviewer-verdicts.mjs`, your fork of that lib predates the contract: merge the
 parked copy under `.harness/pending/tools/lib/` into it and re-record its sha.
+
+### A reviewer body must close on its verdict demand (`docs-sync`, a NOTE until 1.2.0)
+
+The SubagentStop hook records a reviewer's PASS only when `VERDICT: PASS` is the last line
+of its reply. A reviewer body that asks for anything after that line, such as "Follow it
+with the top 3 fixes", which two shipped bodies said at v1.0.1, gets every obedient PASS
+bounced. `docs-sync` used to check only that a body asked for the verdict somewhere. From
+1.1.0 it also checks where: the last paragraph of each reviewer body in `.claude/agents/`
+must be exactly this, with the second and third sentences optional:
+
+```
+End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
+what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
+so a caller (or a future receipt gate) cannot tell a verdict from a sentence.
+```
+
+Line breaks and CRLF endings do not matter; words do. The severity contract's lines and the
+finding format (the subsection above) come before this paragraph, never after it. A body
+with no verdict demand at all still reds on every vintage, as it always has.
+
+**Who sees it.** Only an install that forked a reviewer body. `update` re-plants an
+unmodified body, and every shipped body conforms. A fork you re-recorded is kept; when the
+shipped body changed since your version, the incoming copy is parked at
+`.harness/pending/.claude/agents/<name>.md`. If your `baseVersion` is below 1.1.0 the
+finding is a NOTE:
+
+```
+docs-sync: NOTE — reviewer bodies closing on the verdict demand (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+docs-sync: NOTE — (ramp) .claude/agents/<name>.md: reviewer body does not close on the verdict demand — …
+```
+
+From harness 1.2.0 the same finding prints under `RAMP EXPIRED` and reds the step, and on
+an install whose `baseVersion` is 1.1.0 or later it reds from the start.
+
+**The fix, in this order.** `.claude/agents/` is write-guarded and the lock is a human act,
+so each step is yours, not an agent's.
+
+1. **Restore the closing paragraph.** Merge the parked copy from `.harness/pending/` if there
+   is one, or copy the paragraph above from the template. Move whatever your fork asked for
+   after the verdict to an earlier paragraph, and say it comes BEFORE the verdict, as the
+   shipped `torvalds-reviewer.md` does: "Give the top 3 fixes, most important first, BEFORE
+   the verdict".
+2. **Re-lock the agent surface.** `prompts` reds the edited body until the lock moves, and
+   the bash guard refuses the writer from an agent's shell, so a human runs:
+
+   ```
+   HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write
+   ```
+
+3. **Re-record the body's sha** in `.harness/manifest.json`, in a reviewed commit, as
+   "Forking an owned file" in the 1.0.2 section describes: the record keeps `update`
+   treating the file as yours. Delete the parked copy once merged.
+
+If the finding names `tools/lib/agent-roster.mjs` instead of a body, your fork of that lib
+predates the rule: the gate still checks that each body asks for the verdict, but cannot
+check where. Merge `.harness/pending/tools/lib/agent-roster.mjs` into your fork, so that it
+exports `verdictDemandProblem`, and re-record its sha. A fork older than 1.1.0 also lacks
+`severityContractProblems`, so the severity contract's NOTE names the same lib, and the
+same merge clears both.
+
+**One limit.** Only the last paragraph is checked. An earlier paragraph that asks for text
+after the verdict line still passes `docs-sync`, and the hook still bounces every PASS that
+obeys it, so read your fork for that too.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

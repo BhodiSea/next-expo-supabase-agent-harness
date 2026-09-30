@@ -655,8 +655,10 @@ deliberately updating the lock (write-guard-protected — a human act).
 prose in the repository: which reviewers exist, what they may touch, what a slash command
 does, what the skills prescribe. Before the lock, **nothing in the chain noticed it
 changing** — the `docs-sync` roster check reads reviewer FRONTMATTER (name, model, tools)
-and never the body, which is where the instructions actually are. An agent could soften
-`security-reviewer.md`, widen a skill or repoint a command and stay green.
+and, of a reviewer's body, only whether it demands the verdict line and (since 1.1.0)
+whether it closes on that demand and states its `Severities:` and `Blocking:` lines. It
+never judges the rest of the body, which is where the instructions actually are. An agent could soften `security-reviewer.md`, widen a skill or
+repoint a command and stay green.
 
 The model id is recorded beside the hash because they answer different questions: a hash
 proves the file did not change, and a roster silently repointed from a frontier model to a
@@ -1772,9 +1774,30 @@ are read from the body only, anchored to the start of a line, by
 `severityContractProblems` in `tools/lib/agent-roster.mjs`, which the gate reaches through
 a namespace import: a parked fork of that lib without the judge is one finding naming
 it. The SubagentStop hook reads the same `Blocking:` line (the `reviewer-verdicts`
-section below). Ramped, unlike the rest of the roster check, because since 1.0.2
+section below). Ramped, like the verdict demand's position below and unlike the rest of
+the roster check, because since 1.0.2
 `update` parks a locally modified owned body instead of overwriting it, so a body forked
 before 1.1.0 gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
+
+**Reviewer bodies close on the verdict demand (1.1.0, ramped until 1.2.0).** Each
+reviewer body must ask for `VERDICT: PASS` or `VERDICT: BLOCK`, a hard red on every
+vintage as it has been since 0.2.0, and that demand must now be its closing instruction.
+The body is trimmed, split into paragraphs on blank lines and whitespace-collapsed, and
+its last paragraph must be exactly "End with exactly one final line: `VERDICT: PASS` or
+`VERDICT: BLOCK`.", optionally followed by the rationale sentence every shipped body
+carries after it. The rule is `verdictDemandProblem()` in `tools/lib/agent-roster.mjs`,
+the one definition the harness's own tests also hold the shipped bodies to. It exists
+because the SubagentStop hook reads a PASS only as the reply's last line: v1.0.1 shipped
+two bodies whose closing paragraph asked for the top 3 fixes after the verdict, the hook
+bounced every review that obeyed them, and this gate, which then checked presence only,
+passed both. The position rule rides a ramp because `update` keeps a re-recorded fork of
+an owned body (1.0.2) that no earlier release judged for position: below `baseVersion`
+1.1.0 each finding prints as a dated NOTE, the NOTE expires in 1.2.0, and a fresh scaffold
+is live from the start. A fork of `tools/lib/agent-roster.mjs` that lacks the helper still
+loads the gate; presence is judged with the 1.0.x test and one finding, through the same
+ramp, names the stale lib. **Honest limit:** only the last paragraph is judged. An EARLIER
+paragraph that asks for text after the verdict line is not caught here, and the hook
+still bounces a PASS reply that obeys it.
 
 **Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
 sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
@@ -1840,6 +1863,10 @@ empty a `harnessFallbackModels` list, or make it repeat an entry or the pin → 
 naming the file and the key;
 drop `Blocking:` from `security-reviewer.md`, or narrow it to `Blocking: HIGH` → FAIL
 naming the file (a NOTE with its deadline on a pre-1.1.0 install);
+append ` Follow it with the top 3 fixes.` to the closing paragraph of
+`.claude/agents/torvalds-reviewer.md` → FAIL naming that file (a dated NOTE below
+`baseVersion` 1.1.0, `RAMP EXPIRED` from harness 1.2.0); delete a reviewer's verdict
+demand → FAIL naming the file on every vintage;
 write "Deferred to x.y.z" (a real release number) in any scanned surface with no
 ledger entry → FAIL naming file, line and target; delete the sentence an entry
 ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
@@ -2234,7 +2261,10 @@ FAIL), both forms in one message bounced — so a hedge can never read as a
 pass; the bounce record (`.harness/verdict-bounces.jsonl`: agent, shape, last
 line) and "every roster body ENDS with the verdict demand" are pinned there
 too, and tests/hooks/hook-contract.test.mjs holds the refusal at exactly exit 2
-even when that record cannot be written. The ledger v2 cases (1.1.0) run in a
+even when that record cannot be written. That last pin reads the shipped bodies
+only; since 1.1.0 `docs-sync` holds every install's reviewer bodies to the same
+position, through the same `verdictDemandProblem()` (its section above). The
+ledger v2 cases (1.1.0) run in a
 clone whose branch tracks origin/main: commit-then-Stop still owing
 `security-reviewer` (the headline), a deleted migration, a BLOCK from an
 earlier prompt that another `agent_id` cannot clear and the same one can, the
