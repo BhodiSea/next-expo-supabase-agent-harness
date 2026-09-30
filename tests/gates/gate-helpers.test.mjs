@@ -206,15 +206,15 @@ test('renderFieldNote: ESC and every other control or format character is remove
   const cases = [
     ['\u001b[31mred\u001b[0m', '[31mred[0m'], // ESC (a terminal colour sequence loses its introducer)
     ['nul\u0000 del\u007f c1\u009b', 'nul del c1'], // C0, DEL, C1
-    ['‮evil‬ ok', 'evil ok'], // a bidirectional override and its pop
-    ['zero​width‍ join⁦iso⁩ ﻿bom', 'zerowidth joiniso bom'], // Cf, BOM
-    ['a ​ b', 'a b'], // removing one never leaves a double space
+    ['\u202eevil\u202c ok', 'evil ok'], // a bidirectional override and its pop
+    ['zero\u200bwidth\u200d join\u2066iso\u2069 \ufeffbom', 'zerowidth joiniso bom'], // Cf, BOM
+    ['a \u200b b', 'a b'], // removing one never leaves a double space
   ]
   for (const [input, want] of cases) {
     assert.equal(render('fake', notesJson({ fake: input })), `FIELD-NOTE[fake]: ${want}`, JSON.stringify(input))
   }
   // A note that is nothing but removed characters prints nothing.
-  assert.equal(render('fake', notesJson({ fake: '\u001b​ \u0000\n' })), null)
+  assert.equal(render('fake', notesJson({ fake: '\u001b\u200b \u0000\n' })), null)
 })
 
 test('renderFieldNote: the text is capped at FIELD_NOTE_MAX_CHARS code points, ending in … when cut', () => {

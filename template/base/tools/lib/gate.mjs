@@ -66,6 +66,7 @@ function fixHint(gate) {
 // write-guarded: its text reaches an agent at the moment it decides how to make a red go
 // away, so it is a human's to write.
 // SOURCE: docs/harness/gates-catalog.md ("Shared behavior") [corpus: harness/doctrine]
+/** @public named by the gates catalog; exported for tests/gates/gate-helpers.test.mjs */
 export const FIELD_NOTE_MAX_CHARS = 300
 const FIELD_NOTES_PATH = 'tools/field-notes.json'
 const GATE_TOKEN = /^[a-z0-9-]+$/
