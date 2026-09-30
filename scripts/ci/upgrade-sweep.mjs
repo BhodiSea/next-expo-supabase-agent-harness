@@ -359,10 +359,11 @@ const SWEEPS = {
   // carries are the shipped DROP POLICYs, whose replacements the same migrations create, so no
   // leg has a fold-only finding to NOTE. The i18n gate's two ramps (#76) add no step either:
   // i18n is a Stop step that no leg runs (stop-side-expiries.json names its unit proof), the
-  // syntax-tree walk finds nothing in the apps/ source of any tag from v0.6.0 through v1.0.4
-  // (the copy it finds in v0.1.3 through v0.5.0 is all under apps/web, whose catalog those
-  // vintages never seeded, so the gate does not judge it), and a leg's tools/i18n-allow.json is
-  // the empty seed, with no site entry to convert.
+  // syntax-tree walk finds nothing in the apps/ source of any tag from v0.6.0 through v1.0.4,
+  // every string it finds in v0.1.3 through v0.5.0 (all under apps/web) the 1.0.x regular
+  // expressions already report, so a leg that adopts the web seam, as this sweep does, meets
+  // the same findings with or without the walk, and a leg's tools/i18n-allow.json is the empty
+  // seed, with no site entry to convert.
   //
   // THE GRANT BOUND (#74) is the one 1.1.0 ramp a swept leg DOES meet, and it withholds two
   // more paths: supabase/migrations/20260930000000_three_role_revoke.sql and

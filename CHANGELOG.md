@@ -1645,7 +1645,12 @@ this heading if none does. -->
   did not run, and exits 1 under `CI=true`. In a checkout with no install, as
   `installer-unit` runs, the walk's 25 tests skip by name and the `template/base/tools/lib/**`
   floor holds. The walk finds nothing in the template's `apps/` source, nor in that of any
-  tag from v0.6.0 through v1.0.4 (#76).
+  tag from v0.6.0 through v1.0.4; with both surfaces' catalogs adopted, every string it finds
+  in v0.1.3 through v0.5.0 is one the expressions already report. On a zero-edit core
+  scaffold the step passed with the walk run, and Canary 34's file made it exit 1 naming
+  `"Close dialog" (accessibilityLabel attribute)` where the 1.0.x step printed OK. On a
+  v1.0.4 install updated by this tree, the same file and a `site` entry on its line printed
+  the two ramp NOTEs and exited 0 (#76).
 
 ## [1.0.4] — 2026-09-29
 
