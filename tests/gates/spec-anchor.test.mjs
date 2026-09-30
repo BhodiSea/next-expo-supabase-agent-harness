@@ -157,6 +157,9 @@ test('headingId is GitHub\'s anchor form: lowercase, punctuation dropped, each s
   assert.equal(headingId('snake_case stays'), 'snake_case-stays')
   assert.equal(headingId('Café au lait'), 'café-au-lait')
   assert.equal(headingId('Step 2: ship it!'), 'step-2-ship-it')
+  // github-slugger keeps what Unicode marks Alphabetic even inside a symbol category (a
+  // circled letter is So), and drops other numbers (No) such as a superscript two.
+  assert.equal(headingId('\u24B6 plan x\u00B2'), '\u24D0-plan-x')
 })
 
 // ---------------------------------------------------------------------------------------

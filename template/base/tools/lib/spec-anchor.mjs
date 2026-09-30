@@ -4,8 +4,9 @@
 //
 // IDS ARE GITHUB'S HEADING ANCHORS, so `specs/x.md#security-invariants` is also a link
 // that works on GitHub: lowercase, every character that is not a letter, a mark, a
-// decimal or letter number, a connector (`_`), a space or a hyphen dropped, then each
-// space a `-`. That is why the template's headings say "and", never "&": `Files &
+// decimal or letter number, a connector (`_`), another alphabetic character (a circled
+// letter), a space or a hyphen dropped, then each space a `-`: the categories GitHub's
+// anchor generator (github-slugger) keeps. That is why the template's headings say "and", never "&": `Files &
 // interfaces` would become `files--interfaces`. Ids come from the heading as written, so
 // a heading holding a link or `_emphasis_` can differ from GitHub's anchor; keep headings
 // plain words. When two headings produce the same id the id is AMBIGUOUS and refused:
@@ -25,7 +26,7 @@ import { toPosix } from './fs-walk.mjs'
 const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
 const COMMENT_OPEN = /^ {0,3}<!--/
-const NOT_IN_ID = /[^\p{L}\p{M}\p{Nd}\p{Nl}\p{Pc} -]/gu
+const NOT_IN_ID = /[^\p{L}\p{M}\p{Nd}\p{Nl}\p{Pc}\p{Alphabetic} -]/gu
 
 /**
  * GitHub's anchor for a heading's text.
