@@ -362,8 +362,10 @@ test('e2e: a push whose merged pull request passed this lane on this tree HITS, 
   const gh = fakeGh(greenAnswers({ sha: r.sha, jobName: JOB, log }))
   const res = runTransport({ bin: gh.bin, cwd: r.dir, args: ['--job', JOB], env: { GITHUB_SHA: r.sha } })
   assert.equal(res.code, 0, res.out)
-  assert.match(res.out, /lane-reuse: HIT/)
-  assert.ok(res.out.includes(RUN_URL), res.out)
+  // The whole HIT line, compared line for line: it names the run the result came from. (A
+  // substring search for the run URL would also pass on a line that merely contained it.)
+  const hit = `lane-reuse: HIT — ${JSON.stringify(JOB)} passed on this exact tree (${r.tree}) in ${RUN_URL}, the run of pull request head ${HEAD} (pull request #${String(pull().number)}). This lane's steps do not run again on this push.`
+  assert.ok(res.stdout.split(/\r?\n/).includes(hit), res.out)
   assert.match(res.outputs, /^hit=true$/m)
   assert.ok(res.outputs.split('\n').includes(`from=${RUN_URL}`), res.outputs)
   assert.equal(gh.calls().length, 4, 'pulls, runs, jobs, log: one call each')
