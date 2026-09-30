@@ -2838,7 +2838,10 @@ migration:
 3. **A drop of a table made outside the migrations.** If an applied migration drops a table
    the dashboard or an extension created, `schema-rls` cannot place the drop. Record the
    table with a reason in `tools/rls-exempt.json`; nothing of a dropped table is left for
-   the exemption to hide.
+   the exemption to hide. The same holds for a drop of a table an `ALTER TABLE … RENAME TO`
+   renamed: the gates do not follow a table rename, so the new name reads as never created.
+   The entry exempts the NAME, so a table a later migration creates under it is exempt too:
+   give a new table a new name.
 
 The harness's upgrade lane has nothing to sweep here: `scripts/ci/upgrade-sweep.mjs`
 `SWEEPS['1.1.0']` adds no step, because its scaffolds hold neither statement. Then

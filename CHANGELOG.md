@@ -735,7 +735,9 @@ this heading if none does. -->
   with the parser, with no ramp, since it runs only against a live database. The shipped
   migrations hold no top-level `DROP TABLE` or `ALTER POLICY`, so a fresh scaffold's
   verdicts do not move, and the obligations row `sql-history-fold-ramp-expiry` owes the six
-  expiries (#75).
+  expiries. The sweep, before 1.2.0, is the runbook's 1.1.0 section: fix what the fold
+  exposes in a NEW migration, or add an `authz-adr` entry to `tools/migrations-allow.json`
+  for an already-applied `ALTER POLICY` (#75).
 
 ### What stays open, honestly
 
@@ -1018,6 +1020,12 @@ this heading if none does. -->
 - **Dynamic SQL stays out of reach.** `EXECUTE format('DROP TABLE …')` inside a function
   body is part of its CREATE FUNCTION statement and folds nothing. That is how the shipped
   audit and auth-trail partition pruners drop tables (#75).
+- **A renamed table is not followed.** The parser reads no `ALTER TABLE … RENAME TO`, as
+  through 1.0.x, so a later `DROP TABLE` of the new name reads as a drop of a table no
+  migration created and `schema-rls` reports it; a reviewed `tools/rls-exempt.json` entry
+  acknowledges it, as for a table made outside the migrations. That entry exempts the name,
+  so a table a later migration creates under the same name is exempt too, and nothing reds
+  on it; the runbook says to give a new table a new name (#75).
 - **An applied `ALTER POLICY` of a policy made outside the migrations has no escape.**
   `schema-rls` cannot place it, and no reviewed list acknowledges one before the ramp
   expires; an exemption keyed on the table would lift every rule for that table. The
@@ -1405,7 +1413,14 @@ this heading if none does. -->
   `notes_select_org`, because the shipped `notes_org_scope` migration drops
   `notes_select_own`. `check-ramp-ledger` and
   `check-obligations` are clean with the six sites and their row, and the `ramp-ledger` pins
-  that read the current fleet at older versions name them (#75).
+  that read the current fleet at older versions name them. On PostgreSQL 17.6 (the
+  `supabase/postgres` 17.6.1.171 image), each clause of `ALTER POLICY` alone kept the
+  others, `RENAME TO` changed only the name, an `ALTER POLICY` of a missing policy and a bare
+  `DROP TABLE` of a missing table failed, a `RESTRICT` drop of a referenced table failed, a
+  `CASCADE` drop removed the referencing foreign key and kept its `NOT NULL` column, a
+  partitioned parent took its partition, and a re-created table had no policies; the parser
+  read the same history to the same state. A zero-edit core scaffold rendered from this tree
+  passed `validate --report-all` with all six gates OK (#75).
 
 ## [1.0.4] — 2026-09-29
 
