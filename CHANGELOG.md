@@ -1387,8 +1387,9 @@ this heading if none does. -->
   suite (#78).
 - **The four new ramps and the lint exemption end at 2.0.0 too.** The deadline is the one
   issue #78 fixes; the 2.0.0 record owes the four expiries and the removal of the exemption
-  line, beside the other 1.1.0 ramps due at 1.2.0. The `edge-functions` job, Canary 37,
-  Canary 38 and the bootstrap check have run in rendered scaffolds, not yet on GitHub (#78).
+  line, beside the other 1.1.0 ramps due at 1.2.0. The `edge-functions` job itself runs only
+  in a project's own CI; the factory runs its gate through Canary 38 and the `bootstrap-linux`
+  check in `selftest.yml` (#78).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -1867,25 +1868,30 @@ this heading if none does. -->
   (naming `notes` and `security`) and the gate list as NOTEs that expire in 1.2.0, so
   `graduate` refused. Leg E, from v0.3.0, compiled the old web app, adopted the two specs in
   its sweep and graduated to 1.1.0 (#77).
-  For the Edge Functions, the handler suite ran red first against a handler with steps 3
-  and 4 swapped (6 of its 29 cases, among them "returns 500 and never calls deleteUser when
-  the swept count does not match the lookup"), then green; Stryker over `handler.ts` in a
-  rendered scaffold killed 170 of 174 mutants, the suite gained the three assertions and one
-  case that killed the other four, and a second run killed all 174. The tests-only commit
-  was red on 29: `check-edge-functions.test.mjs` on 13 of 14 (the gate absent; the real-deno
-  case skips without deno), `diff-coverage` on seven, the ratchet on its three ramp cases and
-  the Edge Function drift case, `workflow-lanes` on three, and
+  For the Edge Functions, the tests-only commit, on the tree #77 left, was red on 29 of 90
+  cases in six files: `check-edge-functions.test.mjs` on 13 of 14 (the gate absent; the
+  real-deno case skips without deno), `diff-coverage` on seven, the ratchet on its three ramp
+  cases and the Edge Function drift case, `workflow-lanes` on three, and
   `tests/gates/mutation-scope.test.mjs` and `tests/gates/edge-function-split.test.mjs` would
-  not load (`edgeSuiteDirs` did not exist). With deno 2.9.6 on PATH the real-deno case typechecks
-  the shipped function and reds on `const n: number = 'x'`; a cold check downloads 13 MB in
-  about 2.5 s and a warm one takes under 0.2 s. In a rendered core scaffold, `eslint .`,
-  `tsc -b`, `knip --strict`, `biome ci`, the unit suite with coverage (the handler measured)
-  and the gates that scan `supabase/functions` passed on the new tree; against the 1.0.3
-  config the Canary 37 edit left `eslint` green, and with the new config it redded on
-  `local/no-unverified-session`. The same scaffold, set to a 1.0.3 `baseVersion` with the
-  1.0.x `index.ts`, no `deno.json` and an untested helper, stayed green on `lint` and `unit`,
-  and `diff-coverage`, the mutation scoper and `edge-functions` each printed their NOTEs and
-  exited 0 (#78).
+  not load (`edgeSuiteDirs` did not exist). In a rendered core scaffold, with `deleteUser`
+  moved ahead of the verified sweep (steps 3 and 4 swapped), 7 of the handler suite's 30
+  cases went red, among them "returns 500 and never calls deleteUser when the swept count
+  does not match the lookup"; with `readKey` taking the first of several keys, 2 went red,
+  among them "refuses to pick when there are several and none is named 'default'"; the
+  shipped handler passes all 30, and Stryker over `handler.ts` killed all 174 mutants, with
+  the ratchet OK. With deno 2.9.6 the real-deno case typechecks the shipped function and
+  reds on `const n: number = 'x'`; the binary is a 42 MB download, a cold check fills a 13 MB
+  module cache in 2 to 2.5 s, and a warm one takes under 0.2 s. In the same scaffold the
+  gate printed OK over the seeded function, Canary 38's edit redded it with `TS2322`, and
+  Canary 37's `getSession()` redded `eslint` on `local/no-unverified-session`, where both
+  the 1.0.3 config and the config before this change exited 0 on the same edit. Set to a
+  1.0.3 `baseVersion` with the v1.0.3 `index.ts`, no handler, `deno.json` or `deno.lock`,
+  and an untested `supabase/functions/_shared/cors.ts`, the scaffold stayed green on
+  `eslint .` and on vitest with coverage, and `diff-coverage`, the mutation scoper and
+  `edge-functions` (with deno and without, under `CI=true`) each printed their NOTEs and
+  exited 0; at harness 1.2.0 `edge-functions` and `diff-coverage` printed RAMP EXPIRED and
+  failed. A zero-edit core scaffold rendered from this tree passed `validate --report-all`
+  on all 37 steps (#78).
 
 ## [1.0.4] — 2026-09-29
 

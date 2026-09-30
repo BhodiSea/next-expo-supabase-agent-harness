@@ -2960,9 +2960,10 @@ tests/gates/severity-contract.test.mjs.
   schedule and manual dispatch; gate-summary waits for it. A job and not a chain step,
   because deno is not a workspace dependency and the chain has a wall-clock budget, so
   `graduate` never runs it: run it by hand before graduating. **Measured** (2026-09-30,
-  deno 2.9.6, the seeded function): a cold check downloads 13 MB (supabase-js and its five
-  npm packages) in about 2.5 s; a warm one takes under 0.2 s. **Ramped:** on an install whose
-  `baseVersion` predates 1.1.0, every finding, and a missing deno, `deno.json` or `deno.lock`,
+  deno 2.9.6, the seeded function): the binary is a 42 MB download (96 MB unpacked), once per
+  run; a cold check fills a 13 MB module cache (supabase-js, its five `@supabase` npm packages
+  and what they import) in 2 to 2.5 s; a warm one takes under 0.2 s. **Ramped:** on an
+  install whose `baseVersion` predates 1.1.0, every finding, and a missing deno, `deno.json` or `deno.lock`,
   is `edge-functions: NOTE — (ramp) …` until 1.2.0, because `update` delivers the gate and the
   job but not the seeded split. **The injection** (`tests/gates/check-edge-functions.test.mjs`,
   and Canary 38 on a rendered scaffold): append `const n: number = 'x'` to

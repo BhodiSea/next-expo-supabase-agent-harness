@@ -985,8 +985,9 @@ jobs:
   # the same five-day age rule as every npm update; its deno manager bumps each function's
   # deno.json and deno.lock together. The module cache is keyed on the deno.lock files, so the
   # network only fills a cache the lockfiles pin. Measured (2026-09-30, deno 2.9.6, the seeded
-  # function): a cold check downloads 13 MB (supabase-js and its five npm packages) in about
-  # 2.5 s; a warm one takes under 0.2 s. The binary itself is one download per run.
+  # function): the binary is a 42 MB download (96 MB unpacked), once per run; a cold check
+  # fills a 13 MB module cache (supabase-js, its five @supabase npm packages and what they
+  # import) in 2 to 2.5 s; a warm one takes under 0.2 s.
   # ---------------------------------------------------------------------------
   edge-functions:
     name: edge functions (deno check against deno.json + frozen deno.lock)
