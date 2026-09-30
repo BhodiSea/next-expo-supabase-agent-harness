@@ -553,7 +553,10 @@ and `--agent probe-missing`.
    applied. Its reply quoted `file:line` ranges from the overlay and from
    `apps/mobile/src/routes.ts`, so its Read and Grep calls ran with no permission prompt
    (the three tools are read-only and the files are under the working directory), and
-   `modelUsage` named the Sonnet ID.
+   `modelUsage` named the Sonnet ID. A second session re-ran points 1 to 4 the same day, on
+   the same version, with the same results, then ran all ten cases in one `--live` run: each
+   case's `live.json` entry had `onPin: true` and no error, each reply quoted `file:line`
+   ranges from the install, and `--score` over the replies printed `score: 10/10`.
 6. **Not observed.** Whether the session prompt `--agent` builds is byte-identical to the
    one a subagent dispatched with the Agent tool receives (both add environment details to
    the body; the probe compared behaviour, not bytes). Whether `--agent` resolves a family

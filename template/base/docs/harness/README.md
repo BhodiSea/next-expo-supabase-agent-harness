@@ -598,8 +598,9 @@ proofs skip when no local stack is running. The web-page rows of `accessibility-
 and `design-reviewer` widen those two bodies past the mobile UI, because
 `tools/reviewer-triggers.json` summons both on `apps/web/app/**/page.tsx`. No gate reads the
 tables. The harness repository's own tests hold the shipped bodies to them, and its
-reviewer eval scores the reviewers against seeded changes, one absence case and one
-complete twin for each kind of change, before a body or a model change ships.
+maintainers score the reviewers with a factory eval when a body or a model pin changes:
+seeded changes, one absence case and one complete twin for each kind of change, so a
+reviewer that always answers the same verdict scores at most half.
 
 **Which model a verdict ran on (1.1.0).** Each agent file pins one `model:`, and a
 reviewer can still run on another: a per-invocation `model` parameter,

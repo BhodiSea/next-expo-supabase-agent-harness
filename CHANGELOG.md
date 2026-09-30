@@ -255,6 +255,44 @@ this heading if none does. -->
   Tamper evidence) and `docs/security/threat-model.md` (generated; it lists the new rule)
   where they are sha-unmodified. No chain step, floor or seeded file changes, and no ramp
   (#65).
+- **Reviewer bodies list what a change must bring, and a factory eval scores the
+  reviewers.** A reviewer body's rubric asks about the lines a diff contains, and a missing
+  companion is on no line of it: in 1.0.2 seven tables kept `authenticated`'s default write
+  privileges because a revoke was absent, and a CI lane found it, not review. Every reviewer
+  body except `citation-verifier`'s, which checks citations rather than what a diff adds,
+  now carries a `## WHAT MUST ACCOMPANY IT` table before its closing paragraphs, with the
+  columns `id | The diff introduces | It must also bring | Stated in | Enforced by` and one
+  row per companion that a rule the harness already states requires. `security-reviewer`
+  lists a table's three revokes, policies, isolation rows, privilege assertion and audit
+  trigger, a definer function's allowlist row and `EXECUTE` revokes, an Edge Function's
+  ADR, config block and grants, and a tRPC mutation's rate-limit bucket.
+  `web-security-reviewer` lists a Server Action's bucket, identity and contract.
+  `accessibility-reviewer`, `design-reviewer` and `torvalds-reviewer` list a screen's
+  `src/routes.ts` entry and a web page's `page.meta.ts`; in the two mobile-UI bodies the
+  web-page row says it widens the body's scope, because the trigger table summons both on
+  `apps/web/app/**/page.tsx`. `mobile-security-reviewer` lists a permission's and a config
+  plugin's register row, and `architecture-reviewer` a new interface's second consumer. The
+  reviewer reports each row that applies as `<id>: present (file:line)` or `<id>: absent`,
+  and an absence is a finding at the severity the body already gives that rule. `Enforced
+  by` is `review only` or the chain step that reds the absence, and a row a step enforces
+  stays, because the database-backed proofs skip when no local stack is running. The tables
+  only add lines: the one existing line rewritten is `security-reviewer`'s section count,
+  which now says three. `update` re-plants the seven bodies and `docs/harness/README.md` (a
+  paragraph in its agent-roster section) where they are sha-unmodified, re-records the
+  rewritten bodies' `tools/agents.lock.json` entries, and keeps a body the project edited,
+  parking the new one under `.harness/pending/`. No gate reads a table. In the harness
+  repository, `tests/gates/reviewer-companions.test.mjs` holds the shipped bodies to them,
+  and the new factory script `scripts/reviewer-eval.mjs` scores reviewers against the
+  corpus in `tests/fixtures/reviewer-eval/`: an absence case and a complete control twin for
+  each of a table, a SQL function, an Edge Function, a web page and a screen, so a reviewer
+  that always answers PASS, or always BLOCK, scores at most half. The table's absence case
+  is the two-revoke migration behind the 1.0.2 finding. `--check` validates the corpus and
+  applies every case to a fresh core-tier install, `--score <dir>` scores one recorded reply
+  per case with the SubagentStop hook's `classifyVerdict()`, and `--live <dir>` records the
+  replies with `claude -p --agent <reviewer>` on the reviewer's own pin, the way
+  `design/CONTROL-PLANE-FACTS.md` Fact 17 probed. The eval exits 0 whatever the score, and
+  it is not a chain step, a hook, a workflow or a CI check; a score threshold needs a
+  `gate-proposal` of its own. No chain step, gate, guard rule, seeded file or ramp (#66).
 
 ### Fixed
 
@@ -585,6 +623,25 @@ this heading if none does. -->
   installer of the version you installed or a later one. The content is written as given
   and never reformatted, so a register a proposal leaves unformatted reds `format` after it
   is applied, and the session brief does not count pending proposals yet (#65).
+- **The eval has one live run behind it, and no baseline.** `--live` ran once, on this
+  release's pins (the proof below). A model's reply is a sample, so one score is one
+  sample: nothing records it as a baseline, and nothing compares two runs. Re-running the
+  eval at each model change, as the model record (#62) invites, is a maintainer's habit,
+  not a check. A score threshold needs its own `gate-proposal` (#66).
+- **A score measures `claude -p --agent`, not a dispatched subagent.** Under `--agent` the
+  reviewer is the session, so the eval reads its final message directly. Whether that
+  session's prompt is byte-identical to the one the Agent tool gives a subagent was not
+  probed (`design/CONTROL-PLANE-FACTS.md` Fact 17, point 6) (#66).
+- **The corpus puts three of the seven reviewers on trial.** The five kinds of change are
+  judged by `security-reviewer` (a table, a function, an Edge Function),
+  `accessibility-reviewer` (a screen) and `torvalds-reviewer` (a web page). The rows of the
+  other four bodies, and `security-reviewer`'s `mutation-rate-limit`, are held to their
+  shape by the factory test, and no case scores them yet. A new case is a new directory
+  (#66).
+- **No gate reads a table in an install.** A reviewer body forked before 1.1.0 keeps its
+  own shape, gets no companion questions and reds nothing for it; `docs-sync` checks no
+  heading. Enforcing the table would change a verdict, which needs its own `gate-proposal`
+  (#66).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -770,6 +827,25 @@ this heading if none does. -->
   `HARNESS_ALLOW_SELF_EDIT` unset, `validate --report-all` then failed on `gate-integrity`
   alone, naming the uncommitted register. After the commit, with a second proposal staged
   for `tools/field-notes.json`, it exited 0 with no step left unrun (#65).
+  For the companion tables and the eval, the tests-only commit was red on 29 of the 31
+  cases of `tests/gates/reviewer-companions.test.mjs`: no in-scope body had the heading, and
+  `security-reviewer` had no `table-authenticated-revoke` row and still said "Two sections."
+  `tests/gates/reviewer-eval.test.mjs` could not load, because `scripts/reviewer-eval.mjs`
+  did not exist. After the change the 43 cases of the two files pass, beside
+  `check-reviewer-verdicts.test.mjs` and `check-docs-sync.test.mjs`, and `node
+  scripts/reviewer-eval.mjs --check` applies all ten cases to a fresh core-tier install and
+  prints OK. The Fact 17 probe ran first, in five print-mode runs against Claude Code
+  2.1.285. A pinned agent ran as the session, with its body, its tool list and its pin; a
+  `--model` flag overrode the pin; an install's hooks fired until `disableAllHooks` stopped
+  them; and an agent that does not exist ended the run with exit 1. A v1.0.4 install updated
+  by this installer re-planted the seven bodies and `docs/harness/README.md`, re-recorded
+  the lock entries of every agent-surface file it rewrote, and stayed green on `prompts`.
+  One whose `security-reviewer.md` had been edited kept that copy, got the new one under
+  `.harness/pending/`, and `update` exited 2. Copying the section into the fork as the
+  runbook says, then re-locking, turned `prompts` green with the fork's own line kept.
+  One `--live` run on this release's pins, against Claude Code 2.1.285, scored 10/10:
+  each reply ran on its reviewer's pin, every absence case ended `VERDICT: BLOCK` and named
+  its row id, and every control twin ended `VERDICT: PASS` (#66).
 
 ## [1.0.4] — 2026-09-29
 

@@ -430,7 +430,8 @@ function runReviewer(c, installDir, prompt, claude) {
       '--no-session-persistence',
       prompt,
     ],
-    { cwd: installDir, encoding: 'utf8', timeout: LIVE_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 },
+    // stdin is closed: with a pipe left open, `claude -p` waits for input before it starts.
+    { cwd: installDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: LIVE_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 },
   )
   if (r.error) return { error: String(r.error.message) }
   let out
