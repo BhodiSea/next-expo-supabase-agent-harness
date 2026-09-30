@@ -2414,8 +2414,9 @@ reads it. `format` checks it like any other file, so the agent writes it the way
    asks you to type the target path, and only that answer writes the file. It then deletes
    the proposal and prints `commit <target>`. To reject a proposal, delete the file.
 4. **Commit the register.** It is left uncommitted on purpose: `gate-integrity` fails on an
-   escape list left uncommitted, and the commit carries the change into your pull request,
-   where CODEOWNERS applies. If the proposal was committed, commit its removal with it.
+   escape list left uncommitted (a shell with `HARNESS_ALLOW_SELF_EDIT=1` set skips that
+   check), and the commit carries the change into your pull request, where CODEOWNERS
+   applies. If the proposal was committed, commit its removal with it.
 
 **When it refuses.** Each refusal exits 1, names its reason and writes nothing:
 

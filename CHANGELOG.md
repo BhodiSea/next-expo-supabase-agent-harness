@@ -575,8 +575,9 @@ this heading if none does. -->
   command's text, so an obfuscated spelling evades it, as the guard's own header says of
   every rule. What does not depend on either: a stale `base` or a dirty target is refused,
   so the whole-file write cannot silently revert a committed row; the written register is
-  left uncommitted, so `gate-integrity` reds on an escape list until a human commits it; and
-  the commit lands under CODEOWNERS. `tools/field-notes.json` is not an escape list, so an
+  left uncommitted, so `gate-integrity` reds on an escape list until a human commits it
+  (unless the shell has `HARNESS_ALLOW_SELF_EDIT=1`, which skips that check); and the commit
+  lands under CODEOWNERS. `tools/field-notes.json` is not an escape list, so an
   applied note left uncommitted reds nothing; a note is print-only (#65).
 - **The proposable set is the installer's copy.** `apply-proposal` judges a proposal against
   the list of the installer version you run, not the install's. A register a later release
@@ -761,10 +762,14 @@ this heading if none does. -->
   `doctor` names a staged and a broken proposal as `info` with its exit code unchanged, the
   fourth list reds on drift in each direction and on a generator-written baseline, and an
   agent's Write of `harness-proposals/<id>.json` passes the write guard and matches no
-  settings deny. Run through `script` for a pseudo-terminal, the verb applied a proposal in
-  a scratch repository and left `tools/i18n-allow.json` modified and uncommitted, and a
-  proposal written the way the docs say passed `biome ci` under the shipped `biome.jsonc`
-  (#65).
+  settings deny. In a zero-edit core scaffold, a proposal for `tools/i18n-allow.json`
+  written the way the docs say, left untracked, kept `validate --report-all` at exit 0 and
+  `doctor` at exit 0, which listed it as `info`. With no terminal the verb refused it; run
+  through `script` for a pseudo-terminal it printed the reason and the diff, wrote the
+  register once its path was typed, and deleted the proposal. With
+  `HARNESS_ALLOW_SELF_EDIT` unset, `validate --report-all` then failed on `gate-integrity`
+  alone, naming the uncommitted register. After the commit, with a second proposal staged
+  for `tools/field-notes.json`, it exited 0 with no step left unrun (#65).
 
 ## [1.0.4] — 2026-09-29
 
