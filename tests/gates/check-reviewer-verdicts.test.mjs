@@ -1110,6 +1110,22 @@ test('reviewChanges: with no upstream the base is null and the set is the workin
   assert.ok(r.files.includes('seed.txt'), `the deletion is owed: ${JSON.stringify(r.files)}`)
 })
 
+test('reviewChanges: the local stack’s own runtime state is not a change — the seeded .gitignore keeps it out', () => {
+  // `supabase start` (pnpm db:up) writes supabase/.temp/ (credentialed, ignored since 0.7.0)
+  // and supabase/.branches/_current_branch. An untracked file is part of the owed set, so
+  // unless the scaffold ignores both, bringing the stack up on a clean tree makes the diff
+  // non-empty and owes both whole-turn reviewers for a turn that changed nothing.
+  const dir = branchFixture({
+    base: { '.gitignore': readFileSync(join(TOOLS, '..', 'gitignore'), 'utf8') },
+  })
+  put(dir, 'supabase/.temp/docker.env', 'written by supabase start\n')
+  put(dir, 'supabase/.branches/_current_branch', 'main')
+  const r = gitDiff.reviewChanges({ cwd: dir, env: {} })
+  assert.equal(r.base, 'origin/main')
+  assert.deepEqual(r.files, [], `a clean scaffold with the stack up owes nothing: ${JSON.stringify(r.files)}`)
+  assert.deepEqual(ledgerLib.owedByTurn(r.files, TRIGGERS), [])
+})
+
 test('reviewChanges: CI with a PR base keys on origin/<base>, and fails CLOSED when it cannot resolve', () => {
   const dir = committedChange()
   const r = gitDiff.reviewChanges({ cwd: dir, env: { CI: 'true', GITHUB_BASE_REF: 'main' } })
