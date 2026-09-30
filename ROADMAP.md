@@ -175,9 +175,14 @@ None of these tightens a gate for an existing install. Where one changes what
   gate FAIL line get no note.
   ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
   issue #61)
-- **A resolver for spec anchors.** Specs gain addressable sections, so a
-  prompt cites a section and not a file.
-  ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors))
+- **A resolver for spec anchors.** The spec template's fields are `##`
+  headings whose ids are their GitHub anchors, and
+  `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints one section.
+  `/new-feature` puts the sections a slice implements in the reviewer's brief,
+  and ADRs cite them. A project's own specs are not rewritten, and nothing
+  checks that a citation resolves: that needs a `gate-proposal` of its own.
+  ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors),
+  issue #63)
 - **Review records outside ADRs.** A defined home for round-by-round review
   records, so ADRs keep decisions.
   ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs))
