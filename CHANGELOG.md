@@ -34,7 +34,9 @@ row and one condition row to the register (#70). One new seeded file is planted
 rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
 install has none, and it changes no verdict (#61). The security-reviewer model check (see
 Changed) opens a second ramp in the step the reviewer ledger v2 ramp sits in, with the same
-window, and adds one release row and one condition row to the register too (#62).
+window, and adds one release row and one condition row to the register too (#62). The
+reviewer severity contract and the round budget (see Changed) open two more ramps at 1.1.0,
+each with a deadline of 1.2.0, and add two release rows (#71).
 
 ### Security
 
@@ -290,6 +292,33 @@ this heading if none does. -->
   both judgements, now says it may be dispatched with the Agent tool's `model` set to a
   listed model. The lock's `models` map keeps the pin alone, no session fallback chain
   ships, so `tools/cc-floor.json` does not move, and no chain step is added (#62).
+- **Reviewer bodies state which severities block, and review rounds get a budget, behind
+  two ramps until 1.2.0.** No reviewer body said which severity justifies
+  `VERDICT: BLOCK`, so a nit and a vulnerability both could, a reviewer could PASS over a
+  HIGH finding it listed itself, and a fix-and-re-review loop was bounded only by the
+  turn-wide block cap, which ends the turn with the findings standing. Each of the eight
+  reviewer bodies now states `Severities: CRITICAL, HIGH, MEDIUM, LOW` and
+  `Blocking: CRITICAL, HIGH` on lines of their own before its closing verdict paragraph,
+  and writes each finding as `- [SEVERITY] file:line — …`. `accessibility-reviewer` and
+  `design-reviewer` keep their finding shapes with a severity in front, and
+  `citation-verifier` grades an unresolvable source CRITICAL, an unsupported one and an
+  unsourced decision site HIGH and a HUMAN-VERIFY URL LOW, so `CITATIONS: REJECTED` is still
+  always `VERDICT: BLOCK`. `docs-sync` holds the two lines (each once, `Blocking:` a subset
+  of `Severities:` and holding `CRITICAL` and `HIGH`), behind a ramp: `update` parks a body
+  a project edited, which would otherwise red on this upgrade. The SubagentStop hook reads
+  the `Blocking:` line and bounces a PASS whose reply lists a finding at a blocking
+  severity, with exit 2 and the shape `pass-with-blocking-finding`; a BLOCK, and a body
+  with no `Blocking:` line, keep the 1.0.x behaviour. Each ledger entry now records
+  `blocking`, the finding lines at a blocking severity, and `round`, the verdict's round in
+  its reviewer's review loop, with `overBudget` past the budget, where the hook still exits
+  0. `reviewer-verdicts` judges the budget behind a second ramp: a BLOCK opens a loop,
+  every later verdict of that reviewer in the session is its next round, and the loop
+  closes when the same run passes over a tree that did not move under it. A loop still
+  open after three rounds reds with the recorded findings and says to hand them to the
+  human, and a PASS recorded after that never clears it. The budget is a constant of the
+  owned `tools/lib/reviewer-verdicts.mjs`, so the seeded trigger table does not change.
+  The contract parser and the round count are pure helpers in `tools/lib/`, and the
+  runbook's 1.1.0 section says how to add the contract to a forked body (#71).
 
 ### What stays open, honestly
 
@@ -385,6 +414,20 @@ this heading if none does. -->
   that wrote the verdict: an earlier line of the same run on another model is not judged. A
   full model ID in a pin or a list matches only itself, so a provider-prefixed ID or a
   Bedrock inference profile ARN has to be listed as itself (#62).
+- **The budget is per session and not tunable.** A spent budget stays spent for the rest of
+  the session; a new session, a human's act, starts every budget afresh. Three rounds is a
+  constant of the owned lib: a project that needs another number has no field to set, and
+  moving it into the seeded trigger table later is additive. The count is per review loop,
+  not per change set: rounds of clean PASSes spend nothing, so a long session is held to the
+  budget only where a BLOCK stands (#71).
+- **Only line-anchored findings are read.** The hook finds a finding by a `[SEVERITY]` tag at
+  the start of a line. A reviewer that reports a blocking finding only inside a table cell
+  or a sentence is not bounced for its PASS, and its BLOCK records no finding lines; the
+  bodies ask for the line format, and the transcript keeps the reply either way (#71).
+- **1.2.0 arrives at 2.0.0 in this lineage.** Both new ramps take the deadline issue #71
+  sets, the next minor. This lineage cuts 2.0.0 directly after 1.1.0, and every comparison
+  is `>=`, so the 2.0.0 record owes both expiries, beside the `version-sync` arrival row that
+  targets the same release (#71).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -504,6 +547,18 @@ this heading if none does. -->
   the pin clears an off-list PASS, a transcript in the observed shape records the model that
   ran even when its model attachment names the pin, and a green Stop's `systemMessage`
   carries each line (#62).
+  For the severity contract and the round budget, the tests-only commit was red on 28
+  cases. The thirteen helper cases of `tests/gates/severity-contract.test.mjs` could not
+  reach the helpers (`roster.severityContract is not a function`); `docs-sync` printed OK
+  over a `security-reviewer.md` with no `Blocking:` line; the hook exited 0 on a PASS that
+  listed `- [HIGH] supabase/migrations/x.sql:3 — …`, and its ledger entry had no `round` or
+  `blocking`; and with three BLOCKs from one run and then its PASS, the Stop step printed
+  "OK — 3 owed reviewer(s) each have a counted PASS at the current tree". After the change
+  each case is green: the hook exits exactly 2 on that PASS and 0 on the same reply once
+  the body's `Blocking:` line is gone, each budget red runs as a plain red where it is live,
+  a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0, and the three
+  `ramp-ledger` cases that read the current fleet at older versions name the two new sites
+  (#71).
 
 ## [1.0.4] — 2026-09-29
 

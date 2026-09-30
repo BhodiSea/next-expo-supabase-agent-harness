@@ -1761,6 +1761,21 @@ an entry, or `docs-sync` reds naming the file (`fallbackListProblems`; the
 harness repository's `check-plugin-manifest` applies the same rule to the
 shipped roster). A file without a list is fine: only its pin counts.
 
+**The reviewer severity contract (1.1.0, ramped until 1.2.0).** Each reviewer body
+states, on lines of their own before its closing verdict paragraph, the severities it
+ranks findings at and the ones that make its verdict BLOCK:
+`Severities: CRITICAL, HIGH, MEDIUM, LOW` and `Blocking: CRITICAL, HIGH`. The gate
+reds a body with either line missing or stated twice, a `Blocking:` line that names a
+severity `Severities:` does not list, and a `Blocking:` line without the floor,
+`CRITICAL` and `HIGH`: a narrower line would let a HIGH finding ride a PASS. The lines
+are read from the body only, anchored to the start of a line, by
+`severityContractProblems` in `tools/lib/agent-roster.mjs`, which the gate reaches through
+a namespace import: a parked fork of that lib without the judge is one finding naming
+it. The SubagentStop hook reads the same `Blocking:` line (the `reviewer-verdicts`
+section below). Ramped, unlike the rest of the roster check, because since 1.0.2
+`update` parks a locally modified owned body instead of overwriting it, so a body forked
+before 1.1.0 gets dated NOTEs until 1.2.0; a fresh scaffold is live from day one.
+
 **Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
 sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
 cap: no sentence, no check (a fork may unbudget its memory file); present-and-false
@@ -1823,6 +1838,8 @@ delete a numbered section here → FAIL naming the undocumented gate; grant
 `security-reviewer` Bash → FAIL naming the agent, the grant, and the doctrine;
 empty a `harnessFallbackModels` list, or make it repeat an entry or the pin → FAIL
 naming the file and the key;
+drop `Blocking:` from `security-reviewer.md`, or narrow it to `Blocking: HIGH` → FAIL
+naming the file (a NOTE with its deadline on a pre-1.1.0 install);
 write "Deferred to x.y.z" (a real release number) in any scanned surface with no
 ledger entry → FAIL naming file, line and target; delete the sentence an entry
 ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
@@ -2245,6 +2262,37 @@ ran is told, under both judgements, that it may run on a listed model. The alias
 rule and the other helpers run in-process there, and tests/hooks/hook-contract.test.mjs holds
 a green Stop to exit 0 with each `FALLBACK MODEL` line in a JSON
 `systemMessage` on stdout, and nothing on stdout when there is none.
+**The severity contract and the round budget (1.1.0).** Every reviewer body states
+`Blocking: CRITICAL, HIGH` (`docs-sync` holds the line's shape), and the SubagentStop
+hook reads it from the body of the reviewer that stopped. A PASS whose reply lists a
+finding at a blocking severity, a line starting `- [HIGH] …` or `- [CRITICAL] …`, is
+bounced with exit 2 and the shape `pass-with-blocking-finding`: the reply contradicts
+itself, so the reviewer re-states. A sentence that only mentions a severity is not a
+finding, a BLOCK is never bounced on this ground, and neither is a body with no
+`Blocking:` line (a fork, a project's own reviewer), so those keep the 1.0.x behaviour.
+Each ledger entry also records `blocking`, the finding lines at a blocking severity
+(each capped at 200 characters, null with no contract), and `round`, the verdict's
+round in its reviewer's review loop in this session, with `overBudget` past the budget,
+where the hook still exits 0. The step judges the budget, behind its own ramp until
+1.2.0 (a hook has no NOTE channel to carry one). A BLOCK opens a review loop; every
+later verdict of that reviewer in the session is its next round, whichever run returns
+it; the loop closes when each BLOCK in it is cleared by a PASS from the same run over a
+tree that did not move under it. A loop still open after `ROUND_BUDGET` rounds (3, in
+`tools/lib/reviewer-verdicts.mjs`, the BLOCK's own round included) is spent: a verdict
+past the budget never clears it, and the step reds with every recorded blocking
+finding and says to stop and hand them to the human. That finding replaces the
+reviewer's own v1 or v2 finding, which would say to run it again. A new session starts
+every budget afresh, and that is a human's act. An entry an earlier or parked hook wrote
+counts as one round, with no recorded findings. The budget is judged over v2's owed set,
+and with no merge base over the 1.0.x one.
+**Anti-vacuity (1.1.0):** drop `Blocking:` from `security-reviewer.md` → `docs-sync`
+FAIL naming the file; send a PASS containing `- [HIGH] supabase/migrations/x.sql:3 — …`
+→ the hook exits 2 with the shape `pass-with-blocking-finding`
+(tests/hooks/hook-contract.test.mjs, beside its exit-0 controls); record three BLOCKs
+from one run and then its PASS → `reviewer-verdicts` FAIL naming the budget and the
+findings, as a NOTE on a 1.0.3 manifest and `RAMP EXPIRED` at harness 1.2.0
+(tests/gates/check-reviewer-verdicts.test.mjs). The pure helpers are table-tested in
+tests/gates/severity-contract.test.mjs.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 
