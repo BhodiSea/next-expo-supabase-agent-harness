@@ -12,9 +12,9 @@ documentation-sourced and has **not** been probed: it records what is documented
 Fact 15 (read 2026-09-30, for the 1.1.0 SessionStart brief) is documentation-sourced on the
 same terms: what the `SessionStart` payload and output contract are documented to be, what
 the brief relies on, and the probe that still owes an observed payload.
-Fact 16 (read 2026-09-30) is documentation-sourced too and has **not** been probed: it
-records where the model a subagent ran on can be read, which output of a green Stop hook
-reaches the user, and the probe that still owes observed answers.
+Fact 16 (2026-09-30) was probed against **Claude Code 2.1.285** in print mode: where the
+model a subagent ran on can be read, which output of a green Stop hook reaches the user, and
+the three answers the print-mode probe could not observe.
 **Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
 sourced, re-verify-on-bump.
 
@@ -386,106 +386,126 @@ payload keys for each `source`, and whether the marker line reached the context 
 to quote it). Write the result here, and delete the obligations row
 `control-plane-facts-sessionstart-probe` in the same diff.
 
-## Fact 16 — the model a subagent ran on, and the channel a green Stop can speak on: documented, NOT yet observed
+## Fact 16 — the model a subagent ran on, and the channel a green Stop can speak on: observed in print mode
 
-**Status, 2026-09-30:
-reviewer-model questions documentation-sourced, not probed, no Claude Code version observed.**
-Recorded before `reviewer-verdicts` started judging the model a reviewer's verdict ran on
-(1.1.0, #62). The session that wrote it could not register a probe
-hook or spawn a subagent of its own, so each answer below is what the three pages say, read
-on 2026-09-30 from `code.claude.com/docs/en/hooks`, `/sub-agents` and `/model-config` (the
-full Markdown of each page, not a summary), and each names what the probe must confirm. The
-code that rests on these answers is built to fail toward re-review where an answer is wrong.
+**Status, 2026-09-30: observed against Claude Code 2.1.285 in print mode (`claude -p`),
+except where a point says "not observed".** Recorded before `reviewer-verdicts` started
+judging the model a reviewer's verdict ran on (1.1.0, #62). Method, the same as Facts 2, 3
+and 14: a scratch project whose `.claude/settings.local.json` wired one probe hook to
+`SubagentStart`, `SubagentStop` and `Stop`. The hook appended raw stdin to a scratch file
+and copied the file at `agent_transcript_path` as it stood when `SubagentStop` ran. A probe
+agent, `probe-reviewer`, pinned `model: haiku`, carried a `harnessFallbackModels: sonnet,
+claude-probe-nonexistent-1` line and ended with `VERDICT: PASS`; a second agent,
+`probe-broken`, pinned `model: claude-probe-nonexistent-1`. Six runs, each one `claude -p`
+prompt that dispatched one agent with the Agent tool: `probe-reviewer` on its pin; the same
+with the Agent tool's `model` parameter set to `sonnet`; the same under
+`CLAUDE_CODE_SUBAGENT_MODEL=sonnet` and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`; `probe-broken`
+with no chain; `probe-broken` under `--fallback-model haiku`; and a turn with no subagent
+whose Stop hook printed `{"systemMessage": …}`, once more with stderr only, both under
+`--output-format stream-json --verbose`. The documentation cited below was read on
+2026-09-30 from `code.claude.com/docs/en/hooks`, `/sub-agents` and `/model-config`.
 
-1. **Does any Subagent* payload name a model? No, by the documentation.** The SubagentStop
-   input is the common fields plus *"`stop_hook_active`, `agent_id`, `agent_type`,
-   `agent_transcript_path`, and `last_assistant_message`"*, and SubagentStart's is the common
-   fields plus `agent_id` and `agent_type`. The common fields name no model, and the page
-   says *"Only `SessionStart` hooks can receive a `model` field"*. The payloads observed at
-   2.1.232 (Facts 2 and 3) agree: neither key list has one.
-2. **Where does the subagent's transcript record the model?** Not documented. The hooks page
-   says only that *"`agent_transcript_path` is the subagent's own transcript stored in a
-   nested `subagents/` folder"*. The reader
-   (`transcriptModel` in `tools/lib/reviewer-verdicts.mjs`) assumes each assistant line of
-   that JSONL carries the model of the API response that produced it, at `message.model`,
-   and that a line Claude Code writes itself (an API error, an interruption) carries
-   `<synthetic>` there instead, which is never a model. It takes the LAST such model, the one
-   that wrote the verdict. Whether the value is an alias or a full ID, and what the lines show
-   after a mid-run fallback, are exactly what the probe must record. If the reader finds no
-   model, the hook records `model: null`, and a security reviewer's PASS then fails toward
-   re-review.
-3. **Where does that transcript live, and can the main agent write to it?** The subagents
-   page: *"find IDs in the transcript files at `~/.claude/projects/{project}/{sessionId}/subagents/`.
-   Each transcript is stored as `agent-{agentId}.jsonl`"*, deleted after `cleanupPeriodDays`
-   (30 by default). That is outside the project tree, where the write guard does not reach,
-   and under `~/.claude` the shipped permissions deny edits only to `settings.json` and
-   `settings.local.json`. So the model record is the hook's reading of a file the session
-   could have edited: it catches a configuration that moves a reviewer off its pin (an
-   override, a substitution, a chain), not an agent that forges its own transcript. A deny on
-   `~/.claude/projects/**` would also deny Claude Code's own writes there, so none ships.
-4. **Which output of a Stop hook that exits 0 reaches anyone?** The hooks page: *"Stderr from
-   a hook that exits 0 goes to the debug log only, never the transcript, and Claude never
-   sees it"*; stdout on exit 0 goes to the debug log for every event but `UserPromptSubmit`,
-   `UserPromptExpansion`, `SessionStart` and `PostModelSwitch`; and the JSON field
-   `systemMessage` is a *"Warning message shown to the user"*. The Stop section discards
-   neither `systemMessage` nor `continue`, so a green Stop that prints
-   `{"systemMessage": "…"}` on stdout and exits 0 shows the user the warning and ends the
-   turn. `hookSpecificOutput.additionalContext` would reach Claude, but it keeps the
-   conversation going, so it is a continuation, not a notice. Each string is capped at
-   10,000 characters. This is why `stop-validate-gate.mjs` sends the lines naming a
-   non-pinned verdict through `systemMessage` on a green run (1.1.0), and why its other
-   green-run stderr (skipped and stamped layers) reaches only the debug log.
-5. **Does SubagentStop fire when a subagent ends on a model error, and what does
-   `stop_reason` say?** Not documented. SubagentStop *"Runs when a Claude Code subagent has
-   finished responding"*; no SubagentStop field named `stop_reason` is documented (the only
-   `stop_reason` on the page is the `-p` process exit of a deferred tool call). The
-   subagents page says that *"As of v2.1.199, a subagent whose run ends on an API error …
-   reports that failure back to Claude instead of returning the error text as if it were
-   the subagent's findings"*. The hook's behaviour does not depend on the answer: a run that
-   ends with no verdict line is bounced, and one that never reaches SubagentStop writes no
-   entry, so the reviewer is still owed.
-6. **Do the loaders accept an unknown frontmatter key?** Yes, by the documentation. The
-   subagents page: *"Claude Code ignores a field it doesn't recognize without reporting an
-   error"*. The plugins page lists the fields a plugin agent supports and those it ignores,
-   and does not list an unknown key as a load failure. The harness's key,
-   `harnessFallbackModels`, is prefixed so that no future Claude Code field can take its
-   name: Claude Code does not act on it, and only the harness reads it.
-7. **How does each mechanism move a subagent off its pin, and from which version?**
-   - The resolution order is the per-invocation `model` parameter, then the frontmatter
-     `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model.
-     *"Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this order and overrode
-     both the per-invocation parameter and the frontmatter"*. A per-invocation `model`
-     survives a resume since v2.1.211.
-   - A family alias in the frontmatter *"resolves to the main conversation's model instead
-     of the version the alias points to"* when the main conversation is in that family,
-     *"including any `[1m]` suffix"*. So `opus` names a family, not a version, and the
-     version it resolves to differs by provider (the model-config alias table).
-   - `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` applies one model to every subagent, *"Requires
-     Claude Code v2.1.257 or later"*.
-   - An `availableModels` allowlist substitutes for a blocked value: the newest permitted
-     version of a blocked family alias (since v2.1.222), otherwise the inherited model.
-   - A `fallbackModel` chain of up to three models: *"Claude Code also applies the chain to
-     subagents … the subagent continues on the model that accepts the request … Before
-     v2.1.247, a failure the chain covers ended the subagent instead."*
-   - Content-based fallback: a request a safety classifier flags re-runs on a named
-     fallback model of the same family or an older one, since v2.1.219.
-   - `/tasks` names the model on a subagent's row (v2.1.242), for a human, not a hook.
+1. **Does any Subagent* payload name a model? No, observed.** `SubagentStart` carried
+   `session_id`, `transcript_path`, `cwd`, `scratchpad_dir`, `prompt_id`, `agent_id`,
+   `agent_type` and `hook_event_name`. `SubagentStop` carried those plus `permission_mode`,
+   `effort` (on some runs), `stop_hook_active`, `agent_transcript_path`,
+   `last_assistant_message`, `background_tasks` and `session_crons`. `Stop` carried no model
+   either. The hooks page agrees: *"Only `SessionStart` hooks can receive a `model` field"*.
+2. **Where does the subagent's transcript record the model? On each assistant line, at
+   `message.model`, as a full model ID, observed.** The transcript is JSONL. Its lines have
+   `type` `user`, `attachment` or `assistant`. Every `assistant` line (one per API response
+   block: a `thinking` line with `stop_reason: null`, then the `text` line with
+   `stop_reason: "end_turn"`) carries a `message` object whose `model` is the model that
+   produced it. The alias pin `haiku` was recorded as a dated full ID of its family
+   (`claude-haiku-<version>-<yyyymmdd>`); `sonnet` passed as the per-invocation `model`,
+   and `sonnet` forced by the environment, were each recorded as an undated full ID
+   (`claude-sonnet-<major>-<minor>`). So a plain string comparison with an alias pin would
+   never match, which is why `modelMatches` matches an alias against its family. The last
+   line of the file was an `attachment`, which carries no `message`, so the reader takes the
+   model of the last `assistant` line, not of the last line. **After a failover** (run 5:
+   the pin answered HTTP 404, `--fallback-model haiku` took over) no assistant line for the
+   failed request was written: every assistant line carried the fallback's ID, while an
+   `attachment` of type `model` still told the agent it ran on the pinned model. The model
+   that ran is `message.model`, never that attachment. A line with `model: "<synthetic>"`
+   (a line Claude Code writes itself) was not observed; the reader skips one defensively.
+3. **Where does that transcript live, and can the main agent write to it?** Observed at
+   `~/.claude/projects/<project path with each "/" as "-">/<session_id>/subagents/agent-<agent_id>.jsonl`,
+   and complete, final assistant line included, when `SubagentStop` ran. That is outside
+   the project tree, where the write guard does not reach, and under `~/.claude` the shipped
+   permissions deny edits only to `settings.json` and `settings.local.json`. Whether the main
+   agent's Edit tool may write there was **not observed**. So the model record is the hook's
+   reading of a file the session could have edited: it catches a configuration that moves a
+   reviewer off its pin (an override, a substitution, a chain), not an agent that forges its
+   own transcript. A deny on `~/.claude/projects/**` would also deny Claude Code's own
+   writes there, so none ships.
+4. **Which output of a Stop hook that exits 0 reaches anyone? A JSON `systemMessage` on
+   stdout, observed.** Under `--output-format stream-json --verbose`, a Stop hook that printed
+   `{"systemMessage": "<text>"}` and exited 0 produced a `system` event of subtype
+   `informational`, level `notice`, content `Stop says: <text>`, and the turn ended
+   (`result`, subtype `success`). The same hook writing the text to stderr instead produced
+   only the raw `hook_response` event that `--verbose` streams for every hook, and no notice.
+   Plain `-p` text output showed neither. The hooks page says the same: *"Stderr from a hook
+   that exits 0 goes to the debug log only, never the transcript, and Claude never sees
+   it"*, and `systemMessage` is a *"Warning message shown to the user"*.
+   `hookSpecificOutput.additionalContext` would reach Claude, but it keeps the conversation
+   going, so it is a continuation, not a notice. How the interactive terminal, the VS Code
+   extension and the desktop app render the notice was **not observed**. This is why
+   `stop-validate-gate.mjs` sends the lines naming a non-pinned verdict through
+   `systemMessage` on a green run (1.1.0), and why its other green-run stderr (skipped and
+   stamped layers) reaches only the debug log.
+5. **Does SubagentStop fire when a subagent ends on a model error? No, observed (run 4).**
+   `probe-broken` got `SubagentStart` and no `SubagentStop`; the Agent tool returned
+   `Agent terminated early due to an API error: There's an issue with the selected model
+   (claude-probe-nonexistent-1)` with `model_not_found, HTTP 404`. So no ledger entry is
+   written and the reviewer stays owed. No `SubagentStop` field named `stop_reason` exists.
+   Under `--fallback-model haiku` (run 5) the same 404 was covered by the chain: the
+   subagent finished on the fallback, `SubagentStop` fired with an ordinary
+   `VERDICT: PASS`, and the Agent tool reported no error. That run is the failure this
+   record exists for: a PASS from a model nobody listed, visible only in the transcript.
+6. **Do the loaders accept an unknown frontmatter key? The project agent loader does,
+   observed.** `probe-reviewer`, carrying `harnessFallbackModels`, loaded and ran with no
+   error or warning. The plugin loader was **not observed**; the subagents page says
+   *"Claude Code ignores a field it doesn't recognize without reporting an error"*, and the
+   plugins page does not list an unknown key as a load failure. The key is prefixed so that
+   no future Claude Code field can take its name: Claude Code does not act on it, and only
+   the harness reads it.
+7. **How does each mechanism move a subagent off its pin?** Observed at 2.1.285:
+   - the Agent tool's per-invocation `model` (`sonnet`) overrode the frontmatter pin
+     (`haiku`);
+   - `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` ran the
+     `haiku`-pinned agent on the Sonnet ID;
+   - a `--fallback-model` chain moved a subagent whose pin failed onto the fallback,
+     silently (point 5).
 
-   The alias rule in `modelMatches` follows from the second point: an alias entry matches
-   any model ID of its family, and a full ID matches only itself. The harness ships no
-   session `fallbackModel` chain, so `tools/cc-floor.json` does not move.
+   Documented, not observed: the resolution order is the per-invocation `model`, then the
+   frontmatter `model`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's
+   model (*"Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this order"*);
+   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` *"Requires Claude Code v2.1.257 or later"*; a family
+   alias *"resolves to the main conversation's model instead of the version the alias points
+   to"* when the main conversation is in that family, *"including any `[1m]` suffix"*; an
+   `availableModels` allowlist substitutes for a blocked value (the newest permitted version
+   of a blocked family alias since v2.1.222, otherwise the inherited model); the
+   `fallbackModel` chain applies to subagents since v2.1.247 (*"Before v2.1.247, a failure
+   the chain covers ended the subagent instead"*); a request a safety classifier flags
+   re-runs on a named fallback model since v2.1.219; and `/tasks` names the model on a
+   subagent's row (v2.1.242), for a human, not a hook.
 
-**The probe**, the same method as Facts 2, 3 and 14: probe hooks for `SubagentStart`,
-`SubagentStop` and `Stop` in `.claude/settings.local.json` that append raw stdin to a
-scratch file, and a copy of each `agent_transcript_path` file. Run a reviewer on its pin;
-run one with a per-invocation `model` of another family; run one under
-`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`; and, if a chain can be made to fail over, one under a
-`fallbackModel` chain. Record the Claude Code version, where each transcript line carries
-the model and in what form, the lines around a fallback, whether a model error reaches
-SubagentStop and with which fields, and whether a Stop hook's `systemMessage` on a green
-turn is shown in the terminal, the VS Code extension and the desktop app. If the model is
-not at `message.model` on assistant lines, fix `transcriptModel` and its fixture in the
-same diff, because until then every security reviewer's PASS records `model: null`.
+   The alias rule in `modelMatches` follows from points 2 and 7: an alias entry matches any
+   model ID of its family, and a full ID matches only itself. The harness ships no session
+   `fallbackModel` chain, so `tools/cc-floor.json` does not move.
+
+**Still owed.** Three things the print-mode probe could not show: how the interactive
+terminal, the VS Code extension and the desktop app render a green Stop's `systemMessage`;
+whether the plugin loader accepts `harnessFallbackModels`; and whether the main agent's
+Edit tool may write a subagent transcript. To observe the first, wire the same probe Stop
+hook, printing `{"systemMessage": …}`, in each surface and end one turn there; for the
+second, load the harness as a plugin (`--plugin-dir`) and dispatch a reviewer; for the
+third, ask the main agent, under the shipped permissions, to edit a subagent transcript
+under `~/.claude/projects/`. Record each here and
+delete the obligations row `control-plane-facts-reviewer-model-probe` in the same diff. If
+a later Claude Code moves the model off `message.model`, every entry records
+`model: null`, and the null finding names this Fact: fix `transcriptModel` and its fixture
+in the same diff.
 
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
