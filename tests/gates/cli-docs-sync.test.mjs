@@ -21,13 +21,20 @@ const page = read('docs/cli.md')
 
 const optionTable = cli.slice(cli.indexOf('options: {'), cli.indexOf('const command'))
 const flags = [...optionTable.matchAll(/^ {4}'?([a-z][a-z-]*)'?: \{ type:/gm)].map((m) => m[1])
-const commands = [...new Set([...cli.matchAll(/command === '([a-z]+)'/g)].map((m) => m[1]))]
+// `[a-z][a-z-]*`, not `[a-z]+` (1.1.0, #65): the narrower class cannot match a hyphenated
+// command, so `apply-proposal` would have been left out of every closure below while each
+// of them still passed.
+const commands = [...new Set([...cli.matchAll(/command === '([a-z][a-z-]*)'/g)].map((m) => m[1]))]
 
 test('the parse of cli.mjs is not vacuous', () => {
   // Every assertion below is a filter over these lists, so an empty parse would pass them all.
   assert.ok(flags.length >= 10, `only ${String(flags.length)} flag(s) parsed from the option table`)
   assert.ok(commands.includes('init') && commands.includes('graduate'), commands.join(', '))
   assert.ok(MODULES.length >= 10 && Object.keys(PLACEHOLDERS).length >= 10)
+})
+
+test('a hyphenated command is parsed, so the closures below reach it (1.1.0, #65)', () => {
+  assert.ok(commands.includes('apply-proposal'), commands.join(', '))
 })
 
 test('docs/cli.md names every flag the CLI parses', () => {
