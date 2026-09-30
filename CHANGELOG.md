@@ -154,9 +154,12 @@ this heading if none does. -->
   with and without it. The file is write-guarded (`field-notes`), because its text reaches
   an agent while it decides how to make a red go away. The factory's escape registry declares
   it `advisory` rather than listing it in `ESCAPE_LISTS`, since it exempts nothing and raises
-  no budget. `update` plants the empty skeleton into an existing install; absent, it prints
-  nothing. The catalog's shared-behavior paragraph names the prefix, the key, the cap's
-  constant and the steps no note can reach. No chain step and no ramp (#61).
+  no budget. The catalog's shared-behavior paragraph names the prefix, the key, the cap's
+  constant and the steps no note can reach. `update` re-plants the owned
+  `tools/lib/gate.mjs`, `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md`,
+  `docs/security/threat-model.md` (generated; it lists the new rule) and the upgrade runbook
+  where they are sha-unmodified, and plants the empty `tools/field-notes.json` where an
+  install has none; absent, the file prints nothing. No chain step and no ramp (#61).
 
 ### Fixed
 

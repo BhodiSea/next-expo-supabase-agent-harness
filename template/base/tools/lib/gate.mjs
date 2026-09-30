@@ -3,7 +3,9 @@
 // (CI=true or HARNESS_REQUIRE_TOOLCHAINS=1) — a skip must never look like a pass.
 // Every failure path ends with a deterministic `FIX[gate]:` line (exact reproduce
 // command + docs pointer) so an agent reading a red Stop block knows the next
-// action without spelunking — the feedback loop is part of the product.
+// action without spelunking — the feedback loop is part of the product. Since
+// 1.1.0 the only line that may follow it is the project's own field note for
+// that gate (see "field notes" below).
 // SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
