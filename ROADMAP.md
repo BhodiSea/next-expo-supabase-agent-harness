@@ -168,9 +168,13 @@ None of these tightens a gate for an existing install. Where one changes what
   payload is documented, not yet probed (CONTROL-PLANE-FACTS Fact 15).
   ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command),
   issue #60)
-- **Per-gate field notes.** A seeded, write-guarded file of short notes
-  printed under a gate's FAIL line.
-  ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines))
+- **Per-gate field notes.** A seeded, write-guarded `tools/field-notes.json`,
+  keyed on the gate token, adds one capped `FIELD-NOTE[<gate>]:` line after a
+  failing gate's FIX line. It never prints on a pass and cannot change a
+  verdict, and `update` plants the empty file. Steps whose scripts print no
+  gate FAIL line get no note.
+  ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
+  issue #61)
 - **A fallback order for reviewer models.** An owed reviewer can still run
   when its pinned model is unavailable, and the ledger records which model
   ran.
