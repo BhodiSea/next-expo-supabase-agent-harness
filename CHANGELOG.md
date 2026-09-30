@@ -271,9 +271,9 @@ this heading if none does. -->
   `pinned` in every ledger entry; what it cannot read is `null`, and neither the verdict nor
   the exit code depends on it. Where the transcript holds the model was probed against
   Claude Code 2.1.285, not read off a page (`design/CONTROL-PLANE-FACTS.md` Fact 16). An
-  agent file may carry a `harnessFallbackModels: a, b` list,
-  which Claude Code ignores and the harness reads. The eight shipped reviewers carry one,
-  none naming a weaker family than its pin, and `docs-sync` (and, over the source,
+  agent file may carry a `harnessFallbackModels: a, b` list, which Claude Code ignores and
+  the harness reads. The eight shipped reviewers carry one, and no security reviewer's list
+  names a weaker family than its pin. `docs-sync` (and, over the source,
   `check-plugin-manifest`) reds a list that names nothing or repeats an entry. The step
   judges the model of the entry an owed reviewer's verdict rests on (the latest entry under
   the 1.0.x judgement, the latest counted PASS under v2): the pin counts, an alias counting

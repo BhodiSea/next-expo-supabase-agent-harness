@@ -555,8 +555,9 @@ reviewer can still run on another: a per-invocation `model` parameter,
 chain. So the SubagentStop hook records, in each ledger entry, the `model` that wrote the
 verdict (read from the subagent's own transcript; `null` when it cannot be read) and
 `pinned`, whether that model matches the pin. Each reviewer file also carries a
-`harnessFallbackModels: a, b` list, the models the harness accepts in place of the pin,
-never a weaker family than the pin. Claude Code ignores the key, so it chooses nothing:
+`harnessFallbackModels: a, b` list, the models the harness accepts in place of the pin;
+a security reviewer's list never names a weaker family than its pin. Claude Code ignores
+the key, so it chooses nothing:
 to run a reviewer on a listed model, pass it as the per-invocation `model`. A reviewer
 whose pin cannot run ends before SubagentStop and writes no entry, so the step's "did not
 run" red names the list. The file hash
