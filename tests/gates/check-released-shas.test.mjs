@@ -12,15 +12,27 @@
 // The tag half of the gate (--verify-tags) is proved where tags exist — lint.yml.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderEntry, walkTemplate } from '../../installer/lib/copy.mjs'
 import { fileMode } from '../../installer/lib/manifest.mjs'
 import { VINTAGES } from '../../scripts/lib/ramp-sites.mjs'
-import { lintTable, missingFrom, missingVersions, ownedMap, templateTrees, unionInto } from '../../scripts/lib/released-shas.mjs'
+import {
+  PLANTED_INSTALL_PATH,
+  lintTable,
+  missingFrom,
+  missingVersions,
+  ownedMap,
+  plantedFileText,
+  plantedMap,
+  plantedUnion,
+  templateTrees,
+  unionInto,
+} from '../../scripts/lib/released-shas.mjs'
+import { ESCAPE_LISTS } from '../../template/base/tools/lib/enforcement-surface.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/check-released-shas.mjs', import.meta.url))
 const TABLES = fileURLToPath(new URL('../../template/shas/', import.meta.url))
@@ -33,10 +45,18 @@ function run(args = []) {
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
 
+// Every scratch directory this file makes, removed once the file is done.
+/** @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
 /** A writable copy of the shipped tables, doctored by `mutate(dir)`. */
 /** @param {(dir: string) => void} mutate */
 function doctored(mutate) {
   const dir = mkdtempSync(join(tmpdir(), 'nsah-shas-'))
+  made.push(dir)
   cpSync(TABLES, dir, { recursive: true })
   mutate(dir)
   return dir
@@ -49,6 +69,25 @@ function editTable(dir, version, edit) {
 }
 
 const live = () => ownedMap({ trees: templateTrees(TEMPLATE), walkTemplate, renderEntry, fileMode })
+const livePlanted = () => plantedMap({ trees: templateTrees(TEMPLATE), walkTemplate, renderEntry, paths: ESCAPE_LISTS })
+const PLANTED = fileURLToPath(new URL(`../../template/base/${PLANTED_INSTALL_PATH}`, import.meta.url))
+
+/** Every shipped table, parsed. */
+const shippedTables = () =>
+  readdirSync(TABLES)
+    .filter((n) => n.endsWith('.json'))
+    .sort()
+    .map((n) => JSON.parse(readFileSync(join(TABLES, n), 'utf8')))
+
+/** A writable copy of the shipped tools/lib/planted-shas.json, doctored by `edit`. */
+/** @param {(evidence: any) => any} edit */
+function doctoredPlanted(edit) {
+  const dir = mkdtempSync(join(tmpdir(), 'nsah-planted-'))
+  made.push(dir)
+  const path = join(dir, 'planted-shas.json')
+  writeFileSync(path, `${JSON.stringify(edit(JSON.parse(readFileSync(PLANTED, 'utf8'))), null, 2)}\n`)
+  return path
+}
 
 test('GREEN: the shipped tables close over the live template and every released vintage', () => {
   const res = run()
@@ -128,4 +167,105 @@ test('missingFrom / missingVersions / lintTable name exactly what is wrong', () 
   assert.match(lintTable('9.9.8.json', table, '')[0], /"version" field says 9\.9\.9/)
   assert.match(lintTable('x.json', { version: 'x', files: { 'a.mjs': [] } }, '')[0], /has no variants/)
   assert.match(lintTable('x.json', null, '')[0], /not a \{ version, files \} table/)
+})
+
+// ── the planted map (1.1.0, #84) ─────────────────────────────────────────────────
+// gate-integrity's escape-list plant rule asks tools/lib/planted-shas.json whether a harness
+// release planted the bytes of an untracked escape list. That file is the union of every
+// table's `planted` map, and each map is what a commit's own template ships for every path in
+// today's ESCAPE_LISTS. The closure must be able to go red in both directions: the shipped
+// evidence file drifts from the tables, or the live tree ships an escape-list variant the
+// current table's `planted` map does not list.
+
+test('the planted walk is not vacuous: every shipped escape list, the placeholder-bearing ones with sites', () => {
+  const map = livePlanted()
+  const paths = Object.keys(map)
+  assert.ok(paths.length >= 30, `only ${String(paths.length)} planted path(s) — the walker is broken`)
+  for (const p of paths) assert.ok(ESCAPE_LISTS.includes(p), `${p} is not an escape list`)
+  assert.ok(map['tools/rls-exempt.json']?.[0]?.sites, 'rls-exempt.json carries SECURITY_OWNERS, so its variant has sites')
+  assert.ok(map['tools/backup-posture.json']?.[0]?.sites, 'backup-posture.json carries SECURITY_OWNERS, so its variant has sites')
+  assert.equal(map['tools/secret-scan-allow.json'], undefined, 'a tolerated-absent list the template never ships is never planted')
+})
+
+test('every shipped table carries a planted map, and the current one lists every live escape-list variant', () => {
+  const current = JSON.parse(readFileSync(join(TABLES, `${VERSION}.json`), 'utf8'))
+  assert.deepEqual(missingFrom(livePlanted(), current, 'live tree', 'planted'), [])
+  for (const table of shippedTables()) {
+    assert.equal(typeof table.planted, 'object', `${table.version}.json has no planted map`)
+  }
+})
+
+test('the shipped tools/lib/planted-shas.json is exactly the generated union of the tables', () => {
+  assert.equal(readFileSync(PLANTED, 'utf8'), plantedFileText(plantedUnion(shippedTables())))
+  assert.ok(!readFileSync(PLANTED, 'utf8').includes('{{'), 'the evidence file carries bare token names only')
+})
+
+test('RED: a doctored copy of tools/lib/planted-shas.json — a widened variant, or a dropped path', () => {
+  const widened = doctoredPlanted((evidence) => {
+    evidence.files['tools/approved-tools.json'].push({ sha256: 'e'.repeat(64) })
+    return evidence
+  })
+  const a = run(['--planted-file', widened])
+  assert.equal(a.code, 1, a.out)
+  assert.match(a.out, /planted-shas\.json is not the union of the tables' planted maps/)
+  assert.match(a.out, /generate-released-shas\.mjs --current/, 'the failure must name the remedy')
+
+  const dropped = doctoredPlanted((evidence) => {
+    delete evidence.files['tools/rls-exempt.json']
+    return evidence
+  })
+  const b = run(['--planted-file', dropped])
+  assert.equal(b.code, 1, b.out)
+  assert.match(b.out, /planted-shas\.json is not the union/)
+})
+
+test('RED: a live escape-list variant the current table does not list under planted', () => {
+  const dir = doctored((d) =>
+    editTable(d, VERSION, (table) => {
+      table.planted['tools/rls-exempt.json'] = [{ sha256: 'f'.repeat(64) }]
+      return table
+    }),
+  )
+  const res = run(['--tables-dir', dir])
+  assert.equal(res.code, 1, res.out)
+  assert.match(res.out, /live tree: tools\/rls-exempt\.json plants sha256 [0-9a-f]{12}… and template\/shas\/[\d.]+\.json does not list it under planted/)
+})
+
+test('RED: a table with no planted map, or an unsorted one', () => {
+  const missing = doctored((d) =>
+    editTable(d, VERSION, (table) => {
+      delete table.planted
+      return table
+    }),
+  )
+  const a = run(['--tables-dir', missing])
+  assert.equal(a.code, 1, a.out)
+  assert.match(a.out, /has no planted map/)
+
+  const unsorted = doctored((d) =>
+    editTable(d, VERSION, (table) => ({ ...table, planted: Object.fromEntries(Object.entries(table.planted).reverse()) })),
+  )
+  const b = run(['--tables-dir', unsorted])
+  assert.equal(b.code, 1, b.out)
+  assert.match(b.out, /planted paths are not sorted/)
+})
+
+test('unionInto folds a planted map beside files, additively, and plantedUnion merges every table', () => {
+  const first = unionInto(null, '9.9.9', { 'a.mjs': [{ sha256: 'a'.repeat(64) }] }, { 'tools/x.json': [{ sha256: 'c'.repeat(64) }] })
+  assert.deepEqual(Object.keys(first), ['//', 'version', 'files', 'planted'])
+  const second = unionInto(first, '9.9.9', {}, { 'tools/x.json': [{ sha256: 'b'.repeat(64) }] })
+  assert.deepEqual(second.files, first.files, 'folding only a planted map leaves files alone')
+  assert.deepEqual(
+    second.planted['tools/x.json'].map((v) => v.sha256[0]),
+    ['b', 'c'],
+  )
+  assert.deepEqual(unionInto(second, '9.9.9', {}), second, 'folding nothing in changes nothing')
+  assert.deepEqual(lintTable('9.9.9.json', second, JSON.stringify(second)), [])
+  const older = unionInto(null, '9.9.8', {}, { 'tools/y.json': [{ sha256: 'd'.repeat(64), sites: [[3, 'SECURITY_OWNERS']] }] })
+  const union = plantedUnion([second, older])
+  assert.deepEqual(Object.keys(union.files), ['tools/x.json', 'tools/y.json'])
+  assert.deepEqual(union.files['tools/y.json'], [{ sha256: 'd'.repeat(64), sites: [[3, 'SECURITY_OWNERS']] }])
+  assert.match(plantedFileText(union), /"sites": \[\[3, "SECURITY_OWNERS"\]\]/, 'sites stay on one line, the way the formatter writes them')
+  assert.deepEqual(JSON.parse(plantedFileText(union)), union)
+  assert.match(missingFrom({ 'tools/x.json': [{ sha256: 'e'.repeat(64) }] }, second, 'live tree', 'planted')[0], /does not list it under planted/)
 })
