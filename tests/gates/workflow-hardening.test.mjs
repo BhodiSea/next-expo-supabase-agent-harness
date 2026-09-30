@@ -29,10 +29,10 @@
 // every shape the position rule reds and show it passing each one.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderEntry, walkTemplate } from '../../installer/lib/copy.mjs'
 import { jobsOf, workflowFindings } from '../../template/base/tools/lib/workflow-hardening.mjs'
@@ -223,9 +223,16 @@ test('CANARY: the targetSdk floor step still SAYS why it failed when no targetSd
 
 const actionsLint = () => shippedWorkflows().find((w) => w.file.endsWith('actions-lint.yml'))?.text ?? ''
 
+/** The scratch checkouts and step scripts the controls make, removed when the file ends. @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
 /** A scratch checkout holding `files`. @param {Record<string, string>} files */
 function checkoutOf(files) {
   const cwd = mkdtempSync(join(tmpdir(), 'nsah-wfloop-'))
+  made.push(cwd)
   for (const [rel, text] of Object.entries(files)) {
     mkdirSync(join(cwd, rel, '..'), { recursive: true })
     writeFileSync(join(cwd, rel), text)
@@ -237,6 +244,7 @@ test('CONTROL: the harden-runner-coverage loop passes the issue fixture, whose j
   if (!HAS_BASH) return t.skip(SKIP)
   const { script, argv } = stepOf(actionsLint(), 'Every job carries harden-runner')
   const res = runAsGitHub(script, argv, { cwd: checkoutOf({ '.github/workflows/x.yml': ISSUE_FIXTURE }) })
+  made.push(res.dir)
   // "Expected: an ::error for x.yml, because job b has no harden-runner. Actual: no output, exit 0."
   assert.equal(res.code, 0, res.out)
   assert.equal(res.out.trim(), '')
@@ -247,11 +255,13 @@ test('CONTROL: the loop COUNTS — it passes every shape the position rule reds,
   const { script, argv } = stepOf(actionsLint(), 'Every job carries harden-runner')
   for (const c of LOOP_MISSES) {
     const res = runAsGitHub(script, argv, { cwd: checkoutOf(c.files) })
+    made.push(res.dir)
     assert.equal(res.code, 0, `${c.id}: the loop is expected to miss this shape\n${res.out}`)
   }
   // The loop is not dead: the shape it was written for, a job and no harden-runner at all.
   const bare = 'on: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n'
   const res = runAsGitHub(script, argv, { cwd: checkoutOf({ '.github/workflows/bare.yml': bare }) })
+  made.push(res.dir)
   assert.equal(res.code, 1, res.out)
   assert.match(res.out, /::error file=\.github\/workflows\/bare\.yml::/)
 })

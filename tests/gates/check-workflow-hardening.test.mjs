@@ -22,10 +22,10 @@
 //   - the job in actions-lint.yml that runs it, and the comments that name it.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderEntry, walkTemplate } from '../../installer/lib/copy.mjs'
 import { TIERS } from '../../installer/lib/layout.mjs'
@@ -40,9 +40,16 @@ const REPO = fileURLToPath(new URL('../../', import.meta.url))
 const GATE = join(REPO, 'template', 'base', 'tools', 'check-workflow-hardening.mjs')
 const DETAIL = 'the workflow hardening rules'
 
+/** Every fixture install this file makes, removed when it ends. @type {string[]} */
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
 /** @param {Record<string, string>} files @param {{ baseVersion: string, harnessVersion: string }} [manifest] */
 function install(files, manifest) {
   const dir = mkdtempSync(join(tmpdir(), 'nsah-wfh-'))
+  made.push(dir)
   for (const [rel, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
     writeFileSync(join(dir, rel), text)
@@ -106,8 +113,14 @@ test('GREEN: the clean shape — bash default above jobs:, a ceiling, harden-run
 test('the shell rule: no bash default, a job-level one only, one below jobs:, a Scorecard workflow', () => {
   const noDefault = CLEAN.replace('defaults:\n  run:\n    shell: bash\n', '')
   assert.match(gateFindings('a.yml', noDefault)[0], /^a\.yml: no workflow-level `defaults\.run\.shell: bash`/)
+  // A default that names another shell, or bash as a custom command, is named as written:
+  // only the plain `bash` is run as `bash --noprofile --norc -eo pipefail {0}`.
   const pwsh = CLEAN.replace('shell: bash', 'shell: pwsh')
-  assert.match(gateFindings('b.yml', pwsh)[0], /^b\.yml: no workflow-level `defaults\.run\.shell: bash`/)
+  assert.match(gateFindings('b.yml', pwsh)[0], /^b\.yml: the workflow-level `defaults\.run\.shell` is `pwsh`, not `bash`/)
+  const login = CLEAN.replace('shell: bash', "shell: 'bash -el {0}' # conda")
+  assert.match(gateFindings('b2.yml', login)[0], /^b2\.yml: the workflow-level `defaults\.run\.shell` is `bash -el \{0\}`, not `bash`/)
+  const noShell = CLEAN.replace('    shell: bash\n', '    working-directory: app\n')
+  assert.match(gateFindings('b3.yml', noShell)[0], /^b3\.yml: no workflow-level `defaults\.run\.shell: bash`/)
   const below = `${noDefault}defaults:\n  run:\n    shell: bash\n`
   assert.match(gateFindings('c.yml', below)[0], /^c\.yml: `defaults:` sits BELOW `jobs:`/)
   // No run: step at all: nothing for a shell default to govern.
