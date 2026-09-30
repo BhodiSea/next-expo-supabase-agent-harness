@@ -11,6 +11,12 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
+## [Unreleased]
+
+### Fixed
+
+- The pin and verify examples in `README.md` and `SECURITY.md` name no release, and this factory-docs change reaches no install.
+
 ## [1.0.3] — 2026-09-23
 
 **A patch: the fixes merged since 1.0.2 (#27–#34), cut so an install takes them through
