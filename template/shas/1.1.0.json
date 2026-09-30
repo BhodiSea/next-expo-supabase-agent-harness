@@ -381,6 +381,9 @@
         "sha256": "00f290eeca2fff6c16a5764bda9a06de89865eab7c281cd92047f2c4311809ca"
       },
       {
+        "sha256": "56d048b9d14ac8dac4c9a3d134b8560b32e0fe6e1accc151b31c43550a2d065e"
+      },
+      {
         "sha256": "d54d1ace018ae477556df8d878f323fb023fb86b7da41198323b17547fa29b0b"
       }
     ],
@@ -405,6 +408,9 @@
     ".claude/skills/authoring-vertical-slice/scripts/scaffold-slice.mjs": [
       {
         "sha256": "da3ea66ebcc1e428d0c41935813776da39cde4060910f2af6cc81f358dd81795"
+      },
+      {
+        "sha256": "f85a37632ad31df60f456d09f0a60fc5176d8980a019a403928da6c87accb530"
       }
     ],
     ".claude/skills/designing-mobile-ui/SKILL.md": [
@@ -1132,6 +1138,15 @@
             "SECURITY_TXT_EXPIRES"
           ]
         ]
+      },
+      {
+        "sha256": "ff73a37d10ac21eba2ae47de794e828d672e41983cd445e5647c6af77401fe94",
+        "sites": [
+          [
+            125469,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
       }
     ],
     "docs/modules/ci-mobile-release/README.md": [
@@ -1325,6 +1340,15 @@
       },
       {
         "sha256": "098f792c0a23687fac0815f918dc06a793d0a2eae120c3dffedb758a128479e9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "0be9a3b751549a019ce51975221e8f9c3ae617512cb26ad02da87b758fbfa5b9",
         "sites": [
           [
             14115,
@@ -2232,6 +2256,9 @@
     "tools/gen-event-catalog.mjs": [
       {
         "sha256": "a7a512e38a6c7fc3133b42be9b48180edcb27814947cb0a9db7c85b59ea22986"
+      },
+      {
+        "sha256": "dd1916764f38f4918be52d316ee7e3904e41503d263fe46347311ebbd6dd8af6"
       }
     ],
     "tools/gen-maestro-flows.mjs": [
@@ -2339,6 +2366,11 @@
     "tools/lib/essential-eight.mjs": [
       {
         "sha256": "c76ac83d45373e1ec8434f1421fd4ca3e361912e392941ffe65199a3ab70a76a"
+      }
+    ],
+    "tools/lib/event-catalogs.mjs": [
+      {
+        "sha256": "f54d413c01e1bfd71444b6ebe8f6c2a62d192bbe2e010c63ac0267a2360c4e3b"
       }
     ],
     "tools/lib/framework-floor.mjs": [
@@ -2496,6 +2528,9 @@
     "tools/lib/stamp-inputs.mjs": [
       {
         "sha256": "2b2c4dd5d65b0aae81f9d87be11f206a132672d2c6e82f5b2821588e674caaca"
+      },
+      {
+        "sha256": "8d95c24ff0824bbd5a1a2294255ab7c31f241b2e19987bdddac5f13f13e9c97f"
       },
       {
         "sha256": "a1ba024008cec30e9b8ee1abfd32e90ea731fc877278446b3d10e381db79af00"
