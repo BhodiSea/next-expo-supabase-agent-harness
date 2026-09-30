@@ -14,7 +14,15 @@
 // it at request time.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -29,14 +37,16 @@ const SHIPPED_ALLOWLIST = readFileSync(join(TOOLS, 'web-route-allowlist.json'), 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
 /**
- * A scaffold-shaped tree: the shipped app/ and lib/ verbatim, plus the gate's own lib/ so the
- * script's relative imports resolve. `mutate(dir)` edits the tree before the gate runs.
+ * A scaffold-shaped tree: the shipped app/, lib/ and e2e/ verbatim, plus the gate's own lib/
+ * so the script's relative imports resolve. `mutate(dir)` edits the tree before the gate runs.
+ * e2e/ joined the copy in 1.1.0 (#77): the per-route browser closure reads the specs.
  * @param {{ allowlist?: any, mutate?: (dir: string) => void }} [opts]
  */
 function fixture({ allowlist = SHIPPED_ALLOWLIST, mutate } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-webroutes-'))
   cpSync(join(WEB, 'app'), join(dir, 'apps/web/app'), { recursive: true })
   cpSync(join(WEB, 'lib'), join(dir, 'apps/web/lib'), { recursive: true })
+  cpSync(join(WEB, 'e2e'), join(dir, 'apps/web/e2e'), { recursive: true })
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
   if (allowlist !== null) {
@@ -363,4 +373,141 @@ test('the generator refuses to write a registry it cannot describe', () => {
   const r = regen(dir)
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /are not registrable/)
+})
+
+// ── the per-route browser closure (1.1.0, #77) ───────────────────────────────────────
+// For every registry entry, some spec under apps/web/e2e must contain at least one of that
+// entry's non-null declared state test ids as a QUOTED LITERAL, read after comments are
+// blanked. State test ids are globally unique (the check above), so a literal names exactly
+// one route. On mobile every route closes through a Maestro flow to a startup budget; until
+// this check the web lane was judged on aggregates only, and the seeded suite rendered one
+// of its three registered routes (`orgs`) — `notes` was visited only as an anonymous
+// redirect and `security` never.
+
+/** Rewrite every spec under the fixture's apps/web/e2e with `edit(text, name)`. */
+function editSpecs(dir, edit) {
+  const e2e = join(dir, 'apps/web/e2e')
+  for (const name of readdirSync(e2e)) {
+    const p = join(e2e, name)
+    writeFileSync(p, edit(readFileSync(p, 'utf8'), name))
+  }
+}
+
+/** Every literal of an `orgs` state test id, removed from every spec. */
+const ORGS_LITERAL = /(['"`])orgs-(?:loading|empty)\1/g
+const dropOrgsIds = (text) => text.replace(ORGS_LITERAL, '$1orgs-renamed$1')
+
+/** A manifest recording the install's vintage. */
+function withManifest(dir, baseVersion, harnessVersion) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ baseVersion, harnessVersion }))
+}
+
+test('the shipped suite names a state test id of every registered route', () => {
+  // The GREEN above now carries this: the seeded specs cover orgs, notes and security.
+  const r = runGate(fixture())
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /3 route\(s\) each named by a spec under apps\/web\/e2e/)
+})
+
+test('RED: a route no spec names fails, naming the id, the path and its state test ids', () => {
+  const r = runGate(fixture({ mutate: (dir) => editSpecs(dir, dropOrgsIds) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /route-manifest: FAIL/)
+  const finding = r.out.split('\n').find((l) => l.includes('orgs (/o)'))
+  assert.ok(finding, `no finding names orgs and /o:\n${r.out}`)
+  assert.ok(finding.includes("'orgs-loading'") && finding.includes("'orgs-empty'"), finding)
+  assert.ok(finding.includes('apps/web/e2e'), finding)
+  // One route, one finding: notes and security stay covered by their own specs.
+  assert.doesNotMatch(r.out, /notes \(\/o\/:orgSlug\/notes\): no spec/)
+})
+
+test('RED: an id that appears only in a comment does not count', () => {
+  const r = runGate(
+    fixture({
+      mutate: (dir) =>
+        editSpecs(dir, (text, name) =>
+          name === 'authenticated.spec.ts'
+            ? `${dropOrgsIds(text)}\n// the empty picker renders 'orgs-empty'\n/* and 'orgs-loading' while it resolves */\n`
+            : dropOrgsIds(text),
+        ),
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.split('\n').some((l) => l.includes('orgs (/o)')), r.out)
+})
+
+test('a null state is not required: one named non-null id closes the route', () => {
+  // orgs declares error: null (a reviewed unreachableStates row). The finding lists only the
+  // two real ids, and a spec naming just one of them — here the loading id — is enough.
+  const red = runGate(fixture({ mutate: (dir) => editSpecs(dir, dropOrgsIds) }))
+  const finding = red.out.split('\n').find((l) => l.includes('orgs (/o)')) ?? ''
+  assert.doesNotMatch(finding, /null|error/, finding)
+  const green = runGate(
+    fixture({
+      mutate: (dir) =>
+        editSpecs(dir, (text) => text.replace(/(['"`])orgs-empty\1/g, '$1orgs-loading$1')),
+    }),
+  )
+  assert.equal(green.code, 0, green.out)
+})
+
+test('a spec file outside the *.spec.* shape does not close a route', () => {
+  // Playwright runs *.spec.* only, so an id in a helper module proves nothing ran.
+  const r = runGate(
+    fixture({
+      mutate: (dir) => {
+        editSpecs(dir, dropOrgsIds)
+        writeFileSync(join(dir, 'apps/web/e2e/helpers.ts'), "export const ORGS = 'orgs-empty'\n")
+      },
+    }),
+  )
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.split('\n').some((l) => l.includes('orgs (/o)')), r.out)
+})
+
+test('THE CLOSURE RAMP: a pre-1.1.0 manifest turns the finding into a NOTE', () => {
+  const dir = fixture({ mutate: (d) => editSpecs(d, dropOrgsIds) })
+  withManifest(dir, '1.0.3', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /route-manifest: NOTE — .*expires in 1\.2\.0/)
+  assert.ok(r.out.split('\n').some((l) => l.includes('orgs (/o)')), 'the NOTE still lists the finding')
+})
+
+test('THE CLOSURE RAMP stays silent when every route is covered, even on a pre-1.1.0 manifest', () => {
+  const dir = fixture()
+  withManifest(dir, '1.0.3', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.doesNotMatch(r.out, /NOTE/)
+})
+
+test('THE CLOSURE RAMP expires at harness 1.2.0, and a 1.1.0 manifest is never ramped', () => {
+  const late = fixture({ mutate: (d) => editSpecs(d, dropOrgsIds) })
+  withManifest(late, '1.0.3', '1.2.0')
+  const expired = runGate(late)
+  assert.equal(expired.code, 1, expired.out)
+  assert.match(expired.out, /route-manifest: RAMP EXPIRED/)
+  const fresh = fixture({ mutate: (d) => editSpecs(d, dropOrgsIds) })
+  withManifest(fresh, '1.1.0', '1.1.0')
+  const live = runGate(fresh)
+  assert.equal(live.code, 1, live.out)
+  assert.doesNotMatch(live.out, /NOTE/)
+})
+
+test('the closure findings ride their own ramp: a pre-1.1.0 install still reds on a registry finding', () => {
+  // The two lists are separate so the closure's ramp withholds only the closure. A page with
+  // no meta is the 0.6.0 check, long expired, and stays a hard red beside the NOTE.
+  const dir = fixture({
+    mutate: (d) => {
+      editSpecs(d, dropOrgsIds)
+      addPage(d, '(protected)/o/[orgSlug]/settings')
+    },
+  })
+  withManifest(dir, '1.0.3', '1.1.0')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /no id, no title key/)
+  assert.match(r.out, /route-manifest: NOTE — /)
 })

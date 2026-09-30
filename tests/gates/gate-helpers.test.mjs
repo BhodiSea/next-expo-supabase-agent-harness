@@ -711,6 +711,19 @@ test('expo-policy stamp: the tunables, both mobile source roots and every Edge F
   }
 })
 
+// 1.1.0 (#77). web-compile runs `next build` over the web app and everything it bundles: the
+// app itself, every workspace package it imports, the base tsconfig both extend, the
+// workspace layout and the lockfile that fixes every resolution. Its build output (.next)
+// and the packages' tsc -b output (dist) are STAMP_EXCLUDES, so neither churns the stamp.
+test('web-compile stamp: the app, the packages, the base tsconfig, the workspace and the lockfile are declared inputs', () => {
+  const inputs = STAMP_INPUTS['web-compile']
+  assert.ok(Array.isArray(inputs), 'web-compile: no STAMP_INPUTS entry')
+  for (const p of ['apps/web', 'packages', 'tsconfig.base.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']) {
+    assert.ok(inputs.includes(p), `web-compile: ${p} must be a declared stamp input — the build reads it`)
+  }
+  assert.ok(inputs.includes('tools/check-web-build.mjs'), 'web-compile: its own script is an input')
+})
+
 test('contracts stamp: declared inputs and the manifest invalidate; excluded churn dirs do not', () => {
   const inputs = STAMP_INPUTS.contracts
   // 1.1.0 (#82). The event-catalog generator the gate spawns reads the root package.json
