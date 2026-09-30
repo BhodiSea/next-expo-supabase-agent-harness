@@ -471,6 +471,37 @@ this heading if none does. -->
   its `follow it with` scan. The obligations row `docs-sync-verdict-demand-ramp-expiry`
   owes the expiry, and the catalog and the `gen-agents-lock.mjs` and `guard-rules.mjs`
   comments that said the roster check never reads the body are corrected (#72).
+- **`encryption.md` is an always-loaded stub, the full encryption rule is path-scoped, and
+  `AGENTS.md` drops what a hook already teaches.** Every session loads `AGENTS.md` and each
+  rule file without `paths:`, and `encryption.md` was one of them while the `e2ee` module its
+  envelope, wrapped-key, export and audit bullets govern is opt-in. The stub keeps what
+  applies with the module off, each item with the check that holds it in a base install: RLS
+  keyed on `auth.uid()` stays the boundary, enable the module rather than hand-roll, the
+  server holds no plaintext and no key (`crypto-primitives-one-door`,
+  `no-insecure-random-in-crypto-scope`), key material comes only from the platform CSPRNG
+  and never from a passphrase without a memory-hard KDF (`math-random-key-material`,
+  `hardcoded-key-material`), no broken constructions (`weak-crypto-algorithm`), and the
+  `iosEncryption` twin (`expo-policy`). Its seven bullets move word for word into the new
+  owned `.claude/rules/e2ee.md`, whose `paths:` YAML list covers
+  `packages/platform/crypto/**`, `apps/*/src/host/**` and `docs/modules/e2ee/**` and whose
+  opening says the load is best effort and the checks are the invariant. Those globs do not
+  reach migrations, `tools/data-flow.json` or `tools/pii-columns.json`, so Step 0 of the
+  `authoring-e2ee-feature` skill now opens by telling its reader to read `e2ee.md`. Every
+  citation of `.claude/rules/encryption.md` in the guard rules, the lint rules and the seeded
+  `tools/store-tunables.json` still points at text that states its rule. The seeded
+  `AGENTS.md` drops three rules `security-invariants.md` also states, each denied by a hook
+  whose message teaches the fix: `WITH RECURSIVE` without a cycle guard (the write guard's
+  inline check), secret-shaped `EXPO_PUBLIC_`/`NEXT_PUBLIC_` names
+  (`expo-public-secret-name`, `next-public-secret-name`) and the shell commands the bash
+  guard denies outright. The public-config sentence, the destructive-SQL clause and the
+  credentials clause stay, because their checks are partial or they call for judgement. The
+  doctrine's rule list names both encryption files, the conformance-map notes that cited
+  `encryption.md` name the file that now holds their text, and
+  `design/CONTROL-PLANE-FACTS.md` Fact 9 gains a dated note. `update` re-plants an
+  unmodified stub and skill, re-recording the skill's `tools/agents.lock.json` entry, and
+  plants `e2ee.md`; `AGENTS.md` is yours, and the runbook's 1.1.0 section says trimming it is
+  optional. No gate, hook rule, lint rule, CI lane, floor or canary changes, and no ramp
+  (#67).
 
 ### What stays open, honestly
 
@@ -642,6 +673,17 @@ this heading if none does. -->
   own shape, gets no companion questions and reds nothing for it; `docs-sync` checks no
   heading. Enforcing the table would change a verdict, which needs its own `gate-proposal`
   (#66).
+- **The removal test ran on three rules, and `e2ee.md` loads only on a matching read.**
+  `AGENTS.md` lost only the rules it repeated from `security-invariants.md` whose hook deny
+  teaches the fix; every other sentence stays until a later pass names the check and its
+  proof for it. The reading counts a hook deny as a check, as the issue proposed; under the
+  narrower "a gate reds it", all three would stay. `security-invariants.md` and
+  `provenance.md` are unchanged. `e2ee.md` is dropped by compaction until a matching file is
+  read again, which its opening says; each of its bullets names a check that runs whether it
+  is loaded or not. The bullets moved word for word, so one twin they name is still
+  inaccurate: the second credits the `secrets` gate with the `EXPO_PUBLIC_`/`NEXT_PUBLIC_`
+  name shapes, which the two write-guard rules and `expo-policy` hold, and the gate reads no
+  name. Moving the full rule into the module is #86's, at 2.0.0 (#67).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -845,7 +887,14 @@ this heading if none does. -->
   runbook says, then re-locking, turned `prompts` green with the fork's own line kept.
   One `--live` run on this release's pins, against Claude Code 2.1.285, scored 10/10:
   each reply ran on its reviewer's pin, every absence case ended `VERDICT: BLOCK` and named
-  its row id, and every control twin ended `VERDICT: PASS` (#66).
+  its row id, and every control twin ended `VERDICT: PASS` (#66). For the always-loaded context, `tests/installer/rule-files.test.mjs` was red on
+  three of its six cases before the change: `encryption.md` named no scoped rule,
+  `.claude/rules/e2ee.md` did not exist, and the skill's Step 0 named neither file. With the
+  stub, the scoped rule, the skill pointer and the doctrine line in, all six pass, and with
+  `encryption.md` moved aside the citation case reds naming `guard-rules.mjs`. The seven
+  bullets in `e2ee.md` diff clean against the ones they replaced, and `gen-conformance-docs
+  --check` reported the crosswalk and the threat model in sync after the notes changed
+  (#67).
 
 ## [1.0.4] — 2026-09-29
 
