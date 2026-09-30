@@ -36,6 +36,16 @@ process.on('uncaughtException', () => process.exit(0))
 process.on('unhandledRejection', () => process.exit(0))
 process.stdout.on('error', () => process.exit(0))
 
+// The brief's paths are project-relative. A resume or a compaction can fire after the
+// session's shell moved into a subdirectory, so read from the root every hook command names,
+// which Claude Code sets for every hook subprocess.
+try {
+  if (process.env.CLAUDE_PROJECT_DIR) process.chdir(process.env.CLAUDE_PROJECT_DIR)
+} catch {
+  // A root that cannot be entered leaves the brief reading where it runs; a field it cannot
+  // read there prints as unavailable.
+}
+
 let text = UNLOADABLE
 try {
   const { collectBrief, renderBrief } = await import('../../tools/lib/harness-brief.mjs')

@@ -157,7 +157,7 @@
     ],
     ".claude/hooks/session-brief.mjs": [
       {
-        "sha256": "25e902e5570db35f0e271b01e2f6799047c9b6e69dcf9e329248fddcabb9f79e"
+        "sha256": "2806b8add8ad76976f4b667b1ea8fa52f0ac97dab42c8cfa9fe60cf9aeb0a702"
       }
     ],
     ".claude/hooks/stop-validate-gate.mjs": [
@@ -780,7 +780,7 @@
         ]
       },
       {
-        "sha256": "4c0bc68b4ab36b11b5d98f21eb328e12d17356f26626c5453341306455892170",
+        "sha256": "ec27a01f9e1a043c6e90518222535a860f77aa917e03983744565b82f02ad17d",
         "sites": [
           [
             18784,
@@ -1888,7 +1888,7 @@
     ],
     "tools/lib/harness-brief.mjs": [
       {
-        "sha256": "ee3e2083779ed2199142a838e02b683e05322dc13dfc4924fd6e188e83ebc0b9"
+        "sha256": "b0c972e188ef3f75fa6a6d03205f03683eff6c5320f08ec47f96cc55b51d1154"
       }
     ],
     "tools/lib/inventory.mjs": [

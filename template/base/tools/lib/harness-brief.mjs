@@ -281,7 +281,9 @@ function v2Ramped(manifest, cmp) {
  * The owed set the Stop step decides on: the reviewer ledger v2's (the merge-base diff with
  * deletions, plus the whole-turn class) where it is live and the branch has a merge base,
  * the 1.0.x one (uncommitted changes) otherwise. Namespace imports, as in the step, so a
- * forked lib that predates 1.1.0 reads as v1 rather than failing to link.
+ * forked lib that predates 1.1.0 does not fail to link: where the ramp holds v2 its 1.0.x
+ * set decides, and where v2 is live the field is unavailable, because the step's finding
+ * there is the fork itself.
  * @param {Record<string, any>|null} manifest @param {Record<string, string|undefined>} env
  */
 async function reviewersField(manifest, env) {
@@ -291,9 +293,15 @@ async function reviewersField(manifest, env) {
     const verdicts = await import('./reviewer-verdicts.mjs')
     const { cmpDotted } = await import('./gate.mjs')
     let owed = null
-    const v2 =
-      typeof gitDiff.reviewChanges === 'function' && typeof verdicts.owedByTurn === 'function'
-    if (v2 && !v2Ramped(manifest, cmpDotted)) {
+    if (!v2Ramped(manifest, cmpDotted)) {
+      // v2 is live. A forked lib that predates it is the step's finding, not a set it
+      // computes, and the 1.0.x set does not decide here: say so rather than print it.
+      if (
+        typeof gitDiff.reviewChanges !== 'function' ||
+        typeof verdicts.owedByTurn !== 'function'
+      ) {
+        return null
+      }
       const review = gitDiff.reviewChanges({ env })
       if (review.base !== null) owed = verdicts.owedByTurn(review.files, triggers)
     }

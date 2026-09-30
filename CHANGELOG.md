@@ -121,10 +121,12 @@ this heading if none does. -->
   every session's records, because a new session's id matches none of the earlier ones, and
   the cap is the one `.claude/settings.json` hands every hook. The owed set comes from the
   libs the Stop step uses: the reviewer ledger v2's where it is live and the branch has an
-  upstream, the 1.0.x one otherwise. Every value passes a closed validator or prints as
-  `(unprintable)`, no file content is printed, the output is capped at 1,200 characters and
-  cut at a line with a marker, and a source that cannot be read prints `<field>:
-  unavailable`. The rules live in the new owned `tools/lib/harness-brief.mjs`, under the
+  upstream, the 1.0.x one otherwise, and `unavailable` where v2 is live but a forked
+  `tools/lib/git-diff.mjs` predates it. The hook reads from `$CLAUDE_PROJECT_DIR`, so a
+  resume after the shell moved into a subdirectory still reads the root. Every value
+  passes a closed validator or prints as `(unprintable)`, no file content is printed, the
+  output is capped at 1,200 characters and cut at a line with a marker, and a source that
+  cannot be read prints `<field>: unavailable`. The rules live in the new owned `tools/lib/harness-brief.mjs`, under the
   write guard; the hook and the CLI are thin. The hook is invoked directly, not through
   `launch.mjs`, whose load-failure message says an action was blocked, and it imports no
   `hookio.mjs`, reads no stdin, writes nothing and exits 0 on every path. `update` gains one
@@ -387,8 +389,10 @@ this heading if none does. -->
   another session's cap mark prints `ended red at the cap`, the owed set follows the Stop
   step's v1, v2 and ramp paths, the hook exits 0 on every damaged tree, prints no parked
   file's content, writes nothing and prints the CLI's bytes, and a kept fork gets the hook
-  parked with `wiring` green on 8 hooks, while a pristine install gets both files and 9
-  (#60).
+  parked with `wiring` green on 8 hooks, while a pristine install gets both files and 9.
+  Two hook cases added in review were red first as well: run from a subdirectory the hook
+  printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
+  install it printed the 1.0.x set the Stop step does not decide on (#60).
 
 ## [1.0.4] — 2026-09-29
 

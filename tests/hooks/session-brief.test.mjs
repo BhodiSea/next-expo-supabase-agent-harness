@@ -249,3 +249,47 @@ test('the hook\'s stdout equals `node tools/harness-status.mjs` on the same tree
   assert.match(h.stdout, /^last turn in this directory: ended red at the cap \(types\)$/m)
   assert.match(h.stdout, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
 })
+
+// ── the owed set follows the Stop step, a forked lib included ───────────────────
+
+// A 1.0.x git-diff.mjs, as `update` leaves a fork it kept: changedFiles() and nothing newer.
+const FORKED_GIT_DIFF = "export function changedFiles() { return ['supabase/migrations/20260930000000_x.sql'] }\n"
+
+test('a forked pre-1.1.0 git-diff.mjs: `unavailable` where v2 is live, the 1.0.x set where the ramp holds v2', () => {
+  // Where v2 is live the Stop step cannot compute v2's set from a lib that lacks
+  // reviewChanges(), and its finding is the fork itself; the 1.0.x set does not decide there,
+  // so printing it would disagree with the step. Where the ramp holds v2, the 1.0.x set decides.
+  const dir = tree()
+  gitInit(dir)
+  put(dir, 'supabase/migrations/20260930000000_x.sql', 'select 1;\n')
+  writeFileSync(join(dir, 'tools/lib/git-diff.mjs'), FORKED_GIT_DIFF)
+  const live = hook(dir)
+  assert.equal(live.code, 0, live.stderr)
+  assert.match(live.stdout, /^reviewers owed by the current diff: unavailable$/m)
+  assert.equal(live.stdout, cli(dir).stdout)
+
+  put(dir, '.harness/manifest.json', `${JSON.stringify({ harnessVersion: '1.1.0', baseVersion: '1.0.4', mode: 'bootstrap', tier: 'core', modules: [], files: {} })}\n`)
+  const ramped = hook(dir)
+  assert.equal(ramped.code, 0, ramped.stderr)
+  assert.match(ramped.stdout, /^reviewers owed by the current diff: 1$/m)
+  assert.match(ramped.stdout, /^ {2}- security-reviewer \(supabase\/migrations\/20260930000000_x\.sql\)$/m)
+})
+
+// ── it reads the project root, wherever the session's directory is ──────────────
+
+test('run from a subdirectory, the hook reads the project root CLAUDE_PROJECT_DIR names', () => {
+  // A resume or a compaction can fire after the session's shell moved into apps/web/; the
+  // brief's paths are project-relative, so the hook reads from the root every hook is named by.
+  const dir = tree()
+  gitInit(dir)
+  mkdirSync(join(dir, 'apps/web'), { recursive: true })
+  const res = spawnSync('node', [join(dir, '.claude/hooks/session-brief.mjs')], {
+    cwd: join(dir, 'apps/web'),
+    input: PAYLOAD,
+    encoding: 'utf8',
+    env: { ...env(), CLAUDE_PROJECT_DIR: dir },
+  })
+  assert.equal(res.status, 0, res.stderr)
+  assert.equal(res.stdout, cli(dir).stdout)
+  assert.match(res.stdout, /^harness 1\.1\.0 \(base 1\.1\.0\) · tier core · mode bootstrap$/m)
+})
