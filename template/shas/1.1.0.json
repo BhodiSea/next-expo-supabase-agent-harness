@@ -1603,10 +1603,10 @@
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
       },
       {
-        "sha256": "765ad01166164b44b5069e9ee9b2522ab01bfdd0b8776d9e622f06fb1c69a1f5"
+        "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
       },
       {
-        "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
+        "sha256": "c1f532742c44eee08e7b40bdcc664469f453372ae06ab861eaafd47eb8f65d29"
       }
     ],
     "tools/check-rls-manifest.mjs": [
