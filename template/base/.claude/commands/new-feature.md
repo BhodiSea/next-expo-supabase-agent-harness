@@ -98,7 +98,9 @@ Before you finish (provenance is REQUIRED — the turn is not done without it):
 - run the `accessibility-reviewer` AND the `design-reviewer` if mobile UI changed (require
   `PASS`);
 - emit and verify the ADR — run `/adr $1` FIRST (so the ADR Sources list is itself verified),
-  THEN `/verify-citations` and require `CITATIONS: CLEAN`.
+  THEN `/verify-citations` and require `CITATIONS: CLEAN`;
+- record every round above, `/verify-citations` included, in `docs/reviews/<YYYYMMDD>-$1.md`
+  under the ADR's date (shape and order: `docs/reviews/README.md`).
 
 Every non-trivial decision carries `// SOURCE:` (`-- SOURCE:` in SQL), ideally with a
 `[corpus: <id>]` reference. The turn ends ONLY when `pnpm validate` is green and

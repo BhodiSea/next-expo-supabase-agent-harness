@@ -40,3 +40,6 @@ cites the spec section it comes from.
 | Requirement | Migration / DAL / route / UI files | Test ids |
 | ----------- | ---------------------------------- | -------- |
 | R1: ... (`specs/<feature>.md#goals`) | `supabase/migrations/<ts>_<feature>.sql`, `packages/api/src/routers/<feature>.ts`, `apps/{web,mobile}/...` | `supabase/tests/... > isolates ...`, `<feature>.test.ts > ...` |
+
+Review record: `docs/reviews/<YYYYMMDD>-<slice>.md` — round-by-round findings live there;
+this ADR states what was decided.

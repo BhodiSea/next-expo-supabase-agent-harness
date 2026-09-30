@@ -308,7 +308,8 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
   human-reviewed `tools/provenance-overrides.json`); a bare URL counts only on a
   `tools/lib/citation-domains.mjs` allowlisted host.
 - Emit one ADR per slice via `/adr <slice>` (records in `docs/adr/`); then run
-  `/verify-citations` until it returns `CITATIONS: CLEAN`.
+  `/verify-citations` until it returns `CITATIONS: CLEAN`. Review rounds go in
+  `docs/reviews/<YYYYMMDD>-<slice>.md`, never in the ADR.
 
 ## Spec-first & governance
 
