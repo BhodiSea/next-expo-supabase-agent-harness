@@ -1666,13 +1666,13 @@
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
       },
       {
+        "sha256": "b03ecf6005e446390cb7c4764492c25e9e0f4f9eda40cebf92635677064b5698"
+      },
+      {
         "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
       },
       {
         "sha256": "c1f532742c44eee08e7b40bdcc664469f453372ae06ab861eaafd47eb8f65d29"
-      },
-      {
-        "sha256": "f0ec7a8c6a6ef863cbcc381c5d9e87ee11cffb3948905543e36404e6b49fd581"
       }
     ],
     "tools/check-rls-manifest.mjs": [

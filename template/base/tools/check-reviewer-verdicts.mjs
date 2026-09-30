@@ -522,9 +522,7 @@ const budgetLive = budgetSpent.map((b) => b.finding)
  * @param {string[]} list
  */
 const withoutSpent = (list) =>
-  list.filter(
-    (f) => !budgetSpent.some((b) => b.agent !== null && f.startsWith(`${b.agent} `)),
-  )
+  list.filter((f) => !budgetSpent.some((b) => b.agent !== null && f.startsWith(`${b.agent} `)))
 
 // DECISION 1 (1.1.0): NO MERGE BASE, NO v2. A fresh `git init` with no remote, or a branch
 // with no upstream configured, has nothing to key the owed set on, and the uncommitted-only
