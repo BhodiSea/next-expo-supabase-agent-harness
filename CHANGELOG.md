@@ -32,7 +32,9 @@ re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the firs
 behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
 row and one condition row to the register (#70). One new seeded file is planted
 rather than withheld: `update` writes the empty `tools/field-notes.json` (see Added) where an
-install has none, and it changes no verdict (#61).
+install has none, and it changes no verdict (#61). The security-reviewer model check (see
+Changed) opens a second ramp in the step the reviewer ledger v2 ramp sits in, with the same
+window, and adds one release row and one condition row to the register too (#62).
 
 ### Security
 
@@ -258,6 +260,32 @@ this heading if none does. -->
   writes beside `supabase/.temp/`: an untracked file is part of the owed set, so without the
   line a clean tree with the stack up owed both whole-turn reviewers. That line reaches fresh
   scaffolds only, and the runbook gives it too (#70).
+- **`reviewer-verdicts` records the model each reviewer verdict ran on, and a security
+  reviewer's PASS counts only on a model its agent file names, behind a ramp until 2.1.0.**
+  Each agent file pins one `model:`, and nothing recorded which model a verdict actually ran
+  on, although a per-invocation `model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an
+  `availableModels` substitution and a `fallbackModel` chain can each move a subagent off
+  its pin. The step and the catalog called the model "locked" while the lock held only the
+  frontmatter pin and no gate read it. `subagent-verdict.mjs` now records `model`, read from
+  the last assistant line of the subagent's own transcript at `agent_transcript_path`, and
+  `pinned` in every ledger entry; what it cannot read is `null`, and neither the verdict nor
+  the exit code depends on it. An agent file may carry a `harnessFallbackModels: a, b` list,
+  which Claude Code ignores and the harness reads. The eight shipped reviewers carry one,
+  none naming a weaker family than its pin, and `docs-sync` (and, over the source,
+  `check-plugin-manifest`) reds a list that names nothing or repeats an entry. The step
+  judges the model of the entry an owed reviewer's verdict rests on (the latest entry under
+  the 1.0.x judgement, the latest counted PASS under v2): the pin counts, an alias counting
+  for every model ID of its family, and so does a listed model. Every other verdict is named
+  on a `FALLBACK MODEL` line, which the Stop hook shows the user on a green turn too, as a
+  JSON `systemMessage`, because stderr from a hook that exits 0 reaches only the debug log.
+  For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer`
+  (`SECURITY_REVIEWERS` in `tools/lib/agent-roster.mjs`) a model off the list, or `null`,
+  also reds: that PASS does not count. An entry with no `model` field, as every entry before
+  1.1.0 is, is judged as before. On an install whose `baseVersion` is below 1.1.0 the
+  finding prints as a NOTE until 2.1.0, because a configuration that already forces a model
+  off the list would otherwise red on the first Stop, and a re-run lands on the same model.
+  The lock's `models` map keeps the pin alone, no session fallback chain ships, so
+  `tools/cc-floor.json` does not move, and no chain step is added (#62).
 
 ### What stays open, honestly
 
@@ -336,6 +364,21 @@ this heading if none does. -->
   note from a gate in the middle of a `validate --report-all` run may appear only in
   `.harness/stop-output/<step>.log`. An agent cannot write a note, and nothing yet lets one
   propose a note for a human to apply; that is #65's to add (#61).
+- **The model record rests on a transcript shape nobody has probed.** No Subagent* payload
+  names a model, and the documentation does not say where the subagent's transcript records
+  one. The hook reads `message.model` on the transcript's assistant lines, and
+  `design/CONTROL-PLANE-FACTS.md` Fact 15 says that is an assumption. The session that wrote
+  1.1.0 could not start Claude Code, so the probe is the owner's, and the obligations row
+  `control-plane-facts-reviewer-model-probe` holds it. If the model is not there, every
+  entry records `model: null`, and where the check is live every security reviewer's PASS
+  reds with a finding that names Fact 15 (#62).
+- **The model record catches configuration, not forgery.** The transcript lives under
+  `~/.claude/projects/`, outside the project, where the write guard does not reach, so a
+  session could edit it before the hook reads it. What the record catches is a reviewer
+  moved off its pin by an override, a substitution or a chain. The model judged is the one
+  that wrote the verdict: an earlier line of the same run on another model is not judged. A
+  full model ID in a pin or a list matches only itself, so a provider-prefixed ID or a
+  Bedrock inference profile ARN has to be listed as itself (#62).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -438,6 +481,16 @@ this heading if none does. -->
   for `gate-integrity` printed one line after its FIX line, its newline collapsed and its
   ESC bytes removed, and an invalid file printed the one invalid-JSON line there instead;
   each run's output was otherwise byte-identical to the run without a file (#61).
+  For the model record, 25 new cases were red before the change: the hook's entry carried
+  no `model` or `pinned`, the step passed a security reviewer's PASS on a model off its list
+  and named nothing, the lib helpers and the roster exports did not exist, `docs-sync` and
+  the plugin-manifest mirror had no list to judge, and a green Stop printed nothing on
+  stdout. After the change each security-reviewer red runs, under both judgements, as a
+  plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and `RAMP EXPIRED` at harness
+  2.1.0, and the three `ramp-ledger` pins that read the current fleet name the new site. A
+  listed fallback and another reviewer's PASS off its list are green and named, a re-run on
+  the pin clears an off-list PASS, and a green Stop's `systemMessage` carries each line. The
+  transcript fixture is shaped from the documentation, not from a probe (#62).
 
 ## [1.0.4] — 2026-09-29
 

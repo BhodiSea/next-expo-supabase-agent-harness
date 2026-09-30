@@ -73,9 +73,9 @@ Exit-code semantics (the crux of the design):
 | PreToolUse | `mcp__.*` | `.claude/hooks/pretool-mcp-guard.mjs` | default-deny over `tools/approved-tools.json`: unregistered servers, tools outside a server's list, and write-shaped tool names on a `readOnly` server |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-fast-check.mjs` | fast per-file feedback (Biome), non-blocking |
 | PostToolUse | `Edit\|Write\|MultiEdit` | `.claude/hooks/posttool-source-check.mjs` | flags decision sites lacking `// SOURCE:` (exit 2) |
-| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green |
+| Stop | — | `.claude/hooks/stop-validate-gate.mjs` | runs the UNION of `STOP_HOOK_STEPS` and the frozen `tools/stop.floor.json`; exits 2 with failures on stderr until green; on a green turn shows the user any `FALLBACK MODEL` lines as a JSON `systemMessage` (1.1.0), because stderr from a hook that exits 0 reaches only the debug log |
 | SubagentStart | `*` | `.claude/hooks/subagent-verdict.mjs` | (1.1.0) records the tree each reviewer is dispatched on in `.harness/reviewer-dispatch.jsonl`, never in the ledger; exits 0, because SubagentStart cannot block, and a missing record surfaces at Stop |
-| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict (1.1.0) |
+| SubagentStop | `*` | `.claude/hooks/subagent-verdict.mjs` | reads each reviewer's terminal `VERDICT:` line from the payload's `last_assistant_message`, blocks a reviewer that gave none, and records the rest for Stop step `reviewer-verdicts`, with the tree digests at dispatch and at the verdict, and the `model` it ran on, read from the subagent's own transcript, beside `pinned` (1.1.0) |
 | SessionStart | `""` (all five sources) | `.claude/hooks/session-brief.mjs` | (1.1.0) prints the harness brief into context: version, base, tier and mode; parked upgrades; how the last turn in this directory ended; the reviewers the current diff owes. Enumerated fields, closed validators, capped at 1,200 characters; exits 0 on every path and writes nothing |
 
 Seven guard hooks, each invoked through the fail-closed launcher (1.0.0:
@@ -520,7 +520,8 @@ reviewers the read-only `rls_verify` probe — never a write or shell tool. The 
 machine-asserted: the `docs-sync` gate parses every `.claude/agents/*.md` frontmatter
 (pinned grammar in `tools/lib/agent-roster.mjs`; unparseable frontmatter fails closed)
 and reds a reviewer holding anything outside the read-only allowlist or missing
-`disallowedTools: Write, Edit`.
+`disallowedTools: Write, Edit`, or an agent whose `harnessFallbackModels` list names
+nothing or repeats an entry.
 
 - `security-reviewer` — MUST run on any change to RLS SQL, migrations, the
   server-only data layer (tRPC procedures / Server Actions / a vertical's
@@ -546,6 +547,25 @@ and reds a reviewer holding anything outside the read-only allowlist or missing
 
 Author agents (`dal-author`, `migration-rls-author`, `test-author`) keep their write
 tools; only the universal frontmatter fields apply to them.
+
+**Which model a verdict ran on (1.1.0).** Each agent file pins one `model:`, and a
+reviewer can still run on another: a per-invocation `model` parameter,
+`CLAUDE_CODE_SUBAGENT_MODEL` (with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`), an
+`availableModels` allowlist that substitutes for a blocked model, or a `fallbackModel`
+chain. So the SubagentStop hook records, in each ledger entry, the `model` that wrote the
+verdict (read from the subagent's own transcript; `null` when it cannot be read) and
+`pinned`, whether that model matches the pin. Each reviewer file also carries a
+`harnessFallbackModels: a, b` list, the models the harness accepts in place of the pin,
+never a weaker family than the pin. Claude Code ignores the key, so it chooses nothing:
+to run a reviewer on a listed model, pass it as the per-invocation `model`. The file hash
+in `tools/agents.lock.json` covers the list, and the lock's `models` map keeps the pin.
+`reviewer-verdicts` judges the recorded model: the pin counts, and so does any model ID of
+the pin's family when the pin is an alias; a listed model counts and is named; any other
+model is named on a `FALLBACK MODEL` line, which the Stop hook shows you on a green turn
+too. For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer` a
+model off the list, or `null`, does not count, and the step reds (a NOTE until 2.1.0 on
+an install whose `baseVersion` predates 1.1.0). `docs-sync` reds a list that names
+nothing or repeats an entry.
 
 ## Stop-hook cost (and how to trim it)
 

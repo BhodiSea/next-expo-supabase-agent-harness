@@ -1703,7 +1703,13 @@ yours to copy (its subsection below). The session-start brief adds
 has one entry to merge (its subsection below). Field notes re-plant `tools/lib/gate.mjs`,
 `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md` and
 `docs/security/threat-model.md`, and plant the seeded `tools/field-notes.json` when your
-install has none (its subsection below). What you may notice afterwards:
+install has none (its subsection below). The reviewer model record re-plants
+`.claude/hooks/subagent-verdict.mjs`, `.claude/hooks/stop-validate-gate.mjs`,
+`tools/check-reviewer-verdicts.mjs`, `tools/lib/reviewer-verdicts.mjs`,
+`tools/lib/agent-roster.mjs`, `tools/check-docs-sync.mjs`, the eight reviewer files under
+`.claude/agents/` (and re-records their `tools/agents.lock.json` entries),
+`docs/harness/gates-catalog.md` and `docs/harness/README.md`; nothing of it is seeded (its
+subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1745,6 +1751,12 @@ install has none (its subsection below). What you may notice afterwards:
 - **A new `tools/field-notes.json` appears, untracked, with an empty `notes` object.** It
   changes nothing until you write a note in it: a failing gate then prints your note on the
   line after its `FIX[<gate>]:` line. Commit it as it is, or with your first note.
+- **`reviewer-verdicts` names a reviewer verdict that ran on a model other than its pin.**
+  One `reviewer-verdicts: FALLBACK MODEL — …` line per such verdict, and on a green turn
+  Claude Code shows them to you as a hook warning. On an install whose `baseVersion` is
+  below 1.1.0, a security reviewer's PASS on a model its agent file does not name prints as
+  `NOTE — the security-reviewer model check … expires in 2.1.0`. The subsection on the model
+  record below says what counts.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2076,6 +2088,53 @@ stamped run or a local skip.
   `unit`, `mobile-unit` and `rls-isolation` print no `<gate>: FAIL` line, and a long failed
   Stop step may keep a note only in `.harness/stop-output/<step>.log`. The catalog's
   "Shared behavior" paragraph has the details.
+
+### A reviewer verdict records the model it ran on (security reviewers: a NOTE until 2.1.0)
+
+A reviewer's agent file pins one model, and Claude Code can still run it on another: a
+per-invocation `model` parameter, `CLAUDE_CODE_SUBAGENT_MODEL` (with
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`), an `availableModels` allowlist that substitutes for a
+blocked model, or a `fallbackModel` chain that fails over. From 1.1.0 the SubagentStop hook
+records in each ledger entry the `model` that wrote the verdict, read from the subagent's
+own transcript, and `pinned`, whether it is the pin. `reviewer-verdicts` judges it:
+
+- **The pin counts, and an alias pin counts for its whole family.** `model: opus` counts for
+  any Opus model ID, whichever version the alias resolved to. A full model ID counts only as
+  itself.
+- **A listed model counts, and is named.** Each shipped reviewer file now carries a
+  `harnessFallbackModels` line, next to `model`. Claude Code ignores the key and picks no
+  model from it; `reviewer-verdicts` reads it. To run a reviewer on a listed model, pass
+  that model as the per-invocation `model`.
+- **Any other model is named, never silently counted.** One `FALLBACK MODEL` line per
+  verdict, shown to you as a warning when the turn ends green.
+- **For `security-reviewer`, `web-security-reviewer` and `mobile-security-reviewer` it does
+  not count.** A PASS on a model that is neither the pin nor listed, or one whose model the
+  hook could not read (`model: null`), reds.
+
+Entries written before the update carry no `model` field and are judged exactly as before.
+
+**The ramp.** If your `baseVersion` is below 1.1.0, the security finding prints as a NOTE
+that expires in 2.1.0. A fresh 1.1.0 scaffold is judged from the start.
+
+**What to do.**
+
+1. **If your configuration forces a model on subagents, check it against the security
+   reviewers' lists.** The settings that do are `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, an
+   `availableModels` allowlist that blocks a reviewer's pin, and a `fallbackModel` chain. A
+   re-run lands on the same model, so re-running does not clear the finding. Either lift
+   the setting for your security reviews, or, if you accept that model for security review,
+   add it to that reviewer's `harnessFallbackModels` in a reviewed diff. The agent files are
+   write-guarded and hashed, so that is a human act: edit under
+   `HARNESS_ALLOW_SELF_EDIT=1`, re-record the lock with
+   `HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write`, and re-record the
+   file's sha in `.harness/manifest.json` (the 1.0.2 section, "Forking an owned file").
+2. **If `update` parked one of your reviewer files,** your copy has no list, so only its pin
+   counts. Merge the parked copy to take the list.
+3. **If every PASS records `model: null`,** the hook cannot find the model in your Claude
+   Code's transcript. That is a harness defect, not yours: report it with your Claude Code
+   version.
+4. **Before you graduate,** read the NOTEs, fix what they name, and graduate when they are
+   gone.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

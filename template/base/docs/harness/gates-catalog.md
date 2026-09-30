@@ -660,7 +660,10 @@ and never the body, which is where the instructions actually are. An agent could
 
 The model id is recorded beside the hash because they answer different questions: a hash
 proves the file did not change, and a roster silently repointed from a frontier model to a
-cheap one leaves every byte identical.
+cheap one leaves every byte identical. An agent's `harnessFallbackModels` list (1.1.0) is
+covered by the file hash, and `models` keeps the pin alone. Neither says which model a
+verdict actually RAN on: that is recorded in the reviewer ledger and judged by
+`reviewer-verdicts`.
 
 **The asymmetry is the design.** "Not in the lock" is RAMPED — an install predating the
 lock has files nobody has covered, and ambushing it on upgrade would break the harness's
@@ -1750,7 +1753,13 @@ a skip) and the reviewers (`security-reviewer`, `web-security-reviewer`,
 `architecture-reviewer`, `torvalds-reviewer`, `citation-verifier` — the roster is
 `REVIEWER_AGENTS` in `tools/lib/agent-roster.mjs`) may hold ONLY
 the read-only allowlist and must disallow `Write` + `Edit` — the README's
-"read-only by construction" claim, machine-asserted.
+"read-only by construction" claim, machine-asserted. Since 1.1.0 an agent file
+may carry a `harnessFallbackModels: a, b` list, which Claude Code ignores and
+`reviewer-verdicts` judges a security reviewer's recorded model against: where
+present it must name at least one model and each one once, the pin counting as
+an entry, or `docs-sync` reds naming the file (`fallbackListProblems`; the
+harness repository's `check-plugin-manifest` applies the same rule to the
+shipped roster). A file without a list is fine: only its pin counts.
 
 **Agent-surface truth (0.9.5, one ramp until 0.10.0).** AGENTS.md's own line-budget
 sentence ("Keep under ~N lines") is checked for TRUTH — a claims-check, not a size
@@ -1812,6 +1821,8 @@ release of dated NOTEs to ledger or re-word it.
 printing documented-vs-actual chains; advertise `pnpm ghost` → FAIL naming it;
 delete a numbered section here → FAIL naming the undocumented gate; grant
 `security-reviewer` Bash → FAIL naming the agent, the grant, and the doctrine;
+empty a `harnessFallbackModels` list, or make it repeat an entry or the pin → FAIL
+naming the file and the key;
 write "Deferred to x.y.z" (a real release number) in any scanned surface with no
 ledger entry → FAIL naming file, line and target; delete the sentence an entry
 ledgers → FAIL naming the stale entry; plant a manifest at or past an entry's
@@ -2095,7 +2106,7 @@ have returned `VERDICT: PASS`, recorded by the SubagentStop hook
 (`.claude/hooks/subagent-verdict.mjs`) into the session-scoped ledger at
 `.harness/reviewer-ledger.jsonl`. The Stop hook passes the turn's identity down
 (`HARNESS_SESSION_ID`/`HARNESS_PROMPT_ID`) and the step narrows the ledger to
-THIS turn, so last turn's PASS satisfies nothing. Four failure modes: an owed
+THIS turn, so last turn's PASS satisfies nothing. Five failure modes: an owed
 reviewer that never ran BLOCKS, naming the trigger path that summoned it; a
 reviewer that ran and returned `VERDICT: BLOCK` blocks loudly — that is the
 finding it exists to produce, and a turn does not end on a BLOCK (it stands for
@@ -2110,7 +2121,11 @@ hash as `DELETED`), the step recomputes it, and a mismatched binding — or a
 null/missing one, as every pre-0.7.0 hook entry is — fails toward re-review,
 because "a reviewer ran" and "a reviewer reviewed THIS" are different claims
 (this class alone rides a fresh 0.7.0 ramp, until 0.8.0: a mid-session upgrade
-delivers the new gate into a turn whose earlier PASSes lack the binding); and
+delivers the new gate into a turn whose earlier PASSes lack the binding); a
+security reviewer's PASS on a model that is neither the pin in its agent file
+nor on that file's `harnessFallbackModels` list, or whose model the hook could
+not read, reds, while every other verdict off its pin is named (1.1.0, the
+model record below); and
 on an install whose baseVersion predates 0.6.0 running harness >= 0.7.0, the
 formerly NOTE-withheld findings land as hard reds under a `RAMP EXPIRED`
 banner (the 0.6.0 ramp's deadline arrived — sweep the findings, then
@@ -2121,7 +2136,9 @@ is inert, not expired. Fail closed in every direction that matters: a missing
 identity skips loudly outside the Stop hook and FAILS in CI, where the hook
 that supplies it must have changed. What it deliberately does NOT judge is the
 CONTENT of a review: a PASS is an attestation by a read-only agent whose
-tools, model, and body are locked in `tools/agents.lock.json` — whether it was
+tools, pinned model, fallback list and body are hashed in
+`tools/agents.lock.json` (its `models` map records the pin alone; the model a
+verdict RAN on is recorded in the ledger and judged, below) — whether it was
 a GOOD review is not a property any file can hold.
 **The reviewer ledger v2 (1.1.0, behind a ramp until 2.1.0).** Everything
 above is the 1.0.x judgement. On an install whose `baseVersion` predates 1.1.0
@@ -2150,6 +2167,35 @@ merge base (a fresh `git init`, or a branch with no upstream) v2 does not
 judge: the step prints a NOTE saying so and the 1.0.x judgement decides. Every
 clean-scaffold run in the harness's own CI takes that path. `path_state` keeps
 its 1.0.x meaning, and `prompt_id` stays in each entry and in the turn key.
+**The model a verdict ran on (1.1.0; the security finding behind a ramp until
+2.1.0).** A reviewer can run off the model its agent file pins: a per-invocation
+`model`, `CLAUDE_CODE_SUBAGENT_MODEL` (and `_FORCE`), an `availableModels`
+substitution, a `fallbackModel` chain (`design/CONTROL-PLANE-FACTS.md` Fact 15
+in the harness repository). The SubagentStop hook records `model`, read from the
+last assistant line of the subagent's own transcript at `agent_transcript_path`,
+and `pinned` in each ledger entry; what it cannot read is `null`, and neither the
+verdict nor the exit code depends on it. The step judges the model of the entry
+each owed reviewer's verdict rests on: the latest entry of the turn under the
+1.0.x judgement (the one the stale class judges), the latest counted PASS under
+v2. A model counts when it matches the agent file's `model` pin or an entry of
+its `harnessFallbackModels` list; an alias matches every model ID of its family
+(`opus` any Opus ID, `[1m]` suffix and provider prefix included), and a full ID
+matches only itself (`modelMatches` in `tools/lib/reviewer-verdicts.mjs`, data,
+never looked up live). Every verdict on another model is NAMED on a
+`reviewer-verdicts: FALLBACK MODEL — …` line, which the Stop hook shows the user
+on a green turn too, as a JSON `systemMessage` (stderr from a hook that exits 0
+reaches only the debug log). For `security-reviewer`, `web-security-reviewer`
+and `mobile-security-reviewer` (`SECURITY_REVIEWERS` in
+`tools/lib/agent-roster.mjs`) a model off the list, or `null`, is also a finding:
+that PASS does not count, and the finding names both remedies, running on the pin
+or a listed model, or adding the model to the list in a reviewed diff, because a
+configuration that forces a model lands a re-run on the same one. An entry with
+no `model` field, as every pre-1.1.0 entry is, is judged exactly as before. On an
+install whose `baseVersion` predates 1.1.0 the finding prints as a NOTE until
+2.1.0. Honest limits: the transcript's model field is documented only thinly and
+not yet probed, and the transcript lives outside the project, so the record
+catches a configuration that moves a reviewer, not a session that forges its own
+transcript.
 **Anti-vacuity:** tests/gates/check-reviewer-verdicts.test.mjs — the owed
 reviewer that never ran, last turn's PASS refused, the cross-session PASS
 refused, the BLOCK that blocks, the unparseable ledger failing closed, the
@@ -2180,6 +2226,18 @@ no-upstream path and `reviewChanges()` are pinned too, with the seeded
 `path_state_start` are proved in tests/hooks/subagent-verdict-pathstate.test.mjs,
 and tests/hooks/hook-contract.test.mjs holds a reviewer's `SubagentStart` to
 exit 0 with one dispatch record, no ledger line and no blocked turn outcome.
+The model record (1.1.0): a transcript fixture on the pin records `pinned: true`,
+one off it, a mid-run fallback (the verdict's model wins) and a synthetic or torn
+last line are pinned, and no readable transcript records `model: null` at exit 0;
+a security reviewer's PASS off its list, and one with `model: null`, red under
+both judgements as a plain red on a fresh or 1.1.0 manifest, a NOTE on 1.0.3 and
+`RAMP EXPIRED` at harness 2.1.0; a PASS on the full ID the pinned alias resolves
+to is green and silent, a listed fallback is green and named, another reviewer
+off its list is green and named, a re-run on the pin clears an off-list PASS,
+and an entry with no `model` field is judged as before. The alias rule and the
+other helpers run in-process there, and tests/hooks/hook-contract.test.mjs holds
+a green Stop to exit 0 with each `FALLBACK MODEL` line in a JSON
+`systemMessage` on stdout, and nothing on stdout when there is none.
 
 ## CI-only lanes (outside the chain and the Stop hook)
 
