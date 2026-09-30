@@ -140,6 +140,9 @@
         "sha256": "4cccd51122404e52016f3073f72e598d426d3ea834d57d69ef73fff67a0dd97d"
       },
       {
+        "sha256": "7150502aad7d4e2829dca791890452efa19501fc6cc89ed94d75346f5795fc63"
+      },
+      {
         "sha256": "ba84be2b7383f7397a6147508b21a7dc54cd5f1332a77b5535d62eaeca94b2ba"
       }
     ],
@@ -154,6 +157,9 @@
       },
       {
         "sha256": "c69455e9c225ff1b90084aabf8783c66a7be6ff9735ce02a530afc3260109c68"
+      },
+      {
+        "sha256": "de10592dfc8b5cf4106ec6edd5edb68bb8b83b14ad3129bd5efb21f299105ab3"
       }
     ],
     ".claude/commands/new-migration.md": [
@@ -771,6 +777,9 @@
       },
       {
         "sha256": "300379eccca48253517a71ca305877f30df657d58134691450d3b845a74e91ce"
+      },
+      {
+        "sha256": "36ac26049a22445ed9e9649f9e48decb168f72b3d70951d8ecffbc057addf9be"
       }
     ],
     "docs/adr/20260201-org-scoped-tenancy.md": [
@@ -824,6 +833,9 @@
       }
     ],
     "docs/adr/README.md": [
+      {
+        "sha256": "8d2f71efa98983e763eb6a44210b8c6cbc3eae12747ce54fc3caa0c6b7567320"
+      },
       {
         "sha256": "ad26e121cd5b86ab29a57e4d4ef453412d2eff7fba1c113d7a9e22d613b3706a"
       }
@@ -1194,6 +1206,15 @@
       },
       {
         "sha256": "56545256c7dc040cae45a00003e45111061cfcaf47e207c6fcc4f524e6bb6640",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "6af63daf4ff0eb3238135b7758a6a7b93bd8b8630a42b075a2083a20739abfef",
         "sites": [
           [
             14115,
