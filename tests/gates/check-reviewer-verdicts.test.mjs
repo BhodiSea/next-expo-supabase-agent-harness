@@ -1220,6 +1220,10 @@ test('judgeReviewerV2: every branch of the per-reviewer verdict', () => {
     path_state_stop: cur,
     ...over,
   })
+  /**
+   * @param {object[]} entries @param {string|null} [current]
+   * @param {{agent: string, because: string, why?: string, wholeTurn?: boolean}} [o]
+   */
   const judge = (entries, current = cur, o = owed) => ledgerLib.judgeReviewerV2(o, entries, current)
   const cases = /** @type {Array<[string, object[], RegExp | null]>} */ ([
     ['no entry', [], /has not returned a verdict in this session.*29990101_x\.sql/],

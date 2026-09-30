@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // SubagentStop hook — record every reviewer's terminal verdict, and refuse a reviewer that
-// did not give one.
+// did not give one. Since 1.1.0 it is the SubagentStart hook too: it records the tree each
+// reviewer was dispatched on.
 //
 // THE GAP THIS CLOSES, stated plainly. Ten subagents, seven slash commands and two skills are
 // the layer that is supposed to make Claude Code's behaviour deterministic. Eight of them
@@ -38,6 +39,18 @@
 //      AT RECORD TIME — which is what lets the Stop step refuse a PASS that predates the
 //      last edit to the paths that summoned it.
 //
+// AND, SINCE 1.1.0, THE DISPATCH RECORD (the reviewer ledger v2). On SubagentStart, whose
+// payload carries the same session_id and agent_id and no message (CONTROL-PLANE-FACTS,
+// Fact 3), it appends the reviewer's v2 digest to .harness/reviewer-dispatch.jsonl and exits
+// 0. Never into the ledger: an older lib fails closed on a line from this turn that has no
+// `verdict`. On SubagentStop it copies the latest matching record's digest into the entry as
+// `path_state_start`, beside `path_state_stop`, the same digest taken now. The Stop step
+// counts a PASS only when the two agree with the tree at Stop, so a review of a tree that
+// moved underneath it does not count, and neither does a verdict with no start record.
+// Both digests are reviewStateDigest over reviewChanges(), the list the Stop step digests.
+// The branch on hook_event_name is what makes the wiring safe: a 1.0.x copy of this hook
+// read a SubagentStart payload as a reviewer that ended without a verdict and exited 2.
+//
 // IT IS SILENT FOR NON-REVIEWERS. The roster is read from .claude/agents/, not duplicated into
 // a settings.json matcher — a matcher string would be a second copy of the roster, and the one
 // thing this release has learned repeatedly is that two copies of a list drift.
@@ -47,6 +60,9 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { changedFiles } from '../../tools/lib/git-diff.mjs'
+// And git-diff as a NAMESPACE (1.1.0): `reviewChanges` is new, and a parked fork of the lib
+// without it must still load. The v2 digests are then null, which the judge never counts.
+import * as gitDiff from '../../tools/lib/git-diff.mjs'
 // A NAMESPACE import, deliberately (1.0.2). `classifyVerdict` is new in this release, and an
 // install may carry a FORKED tools/lib/reviewer-verdicts.mjs that `update` parked rather than
 // refreshed. A static named import of an export that lib lacks fails at LINK time, before a
@@ -69,6 +85,9 @@ const LEDGER = '.harness/reviewer-ledger.jsonl'
 // and nothing else: no gate reads it, and .harness/* is already git-ignored.
 const BOUNCES = '.harness/verdict-bounces.jsonl'
 const TRIGGERS = 'tools/reviewer-triggers.json'
+// The v2 dispatch records (1.1.0): one line per reviewer SubagentStart, keyed by session_id
+// and agent_id. Append-only, like the ledger, and like it under the write-guarded .harness/.
+const DISPATCH = '.harness/reviewer-dispatch.jsonl'
 
 /**
  * The tree state this verdict attests to (0.7.0): pathStateDigest over the changed files
@@ -89,6 +108,41 @@ function pathState(agentType) {
     return verdicts.pathStateDigest(agentType, cfg, changedFiles(), (p) =>
       existsSync(p) ? readFileSync(p) : null,
     )
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The v2 tree state (1.1.0): reviewStateDigest over reviewChanges(), the same two calls the
+ * Stop step makes, so the hook and the step digest the same file list. Null on ANY failure,
+ * for pathState's reason: bookkeeping never decides whether a verdict is recorded, and the
+ * judge never counts a null.
+ * @param {string} agentType
+ */
+function reviewState(agentType) {
+  try {
+    if (typeof gitDiff.reviewChanges !== 'function' || typeof verdicts.reviewStateDigest !== 'function') {
+      return null
+    }
+    const cfg = JSON.parse(readFileSync(TRIGGERS, 'utf8'))
+    return verdicts.reviewStateDigest(agentType, cfg, gitDiff.reviewChanges().files, (p) =>
+      existsSync(p) ? readFileSync(p) : null,
+    )
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The digest this reviewer's LATEST dispatch record holds, or null (no record, no digest, an
+ * unreadable file, or a lib without the reader).
+ * @param {unknown} sessionId @param {unknown} agentId
+ */
+function dispatchDigest(sessionId, agentId) {
+  try {
+    if (!existsSync(DISPATCH) || typeof verdicts.latestDispatchDigest !== 'function') return null
+    return verdicts.latestDispatchDigest(readFileSync(DISPATCH, 'utf8'), sessionId, agentId)
   } catch {
     return null
   }
@@ -147,6 +201,28 @@ if (input === null || typeof input !== 'object') {
 
 const agentType = typeof input.agent_type === 'string' ? input.agent_type : null
 if (agentType === null || !reviewerTypes().has(agentType)) process.exit(0)
+
+// SubagentStart (1.1.0): record the tree this reviewer was dispatched on, and nothing else.
+// Exit 0 whatever happens: SubagentStart cannot block (exit 2 only shows stderr), and a
+// dispatch that could not be recorded surfaces at Stop as a verdict with no start record.
+if (input.hook_event_name === 'SubagentStart') {
+  try {
+    mkdirSync(dirname(DISPATCH), { recursive: true })
+    appendFileSync(
+      DISPATCH,
+      `${JSON.stringify({
+        session_id: input.session_id ?? null,
+        prompt_id: input.prompt_id ?? null,
+        agent_type: agentType,
+        agent_id: input.agent_id ?? null,
+        path_state_start: reviewState(agentType),
+      })}\n`,
+    )
+  } catch {
+    // the missing record is named at Stop; a dispatch is never blocked on bookkeeping
+  }
+  process.exit(0)
+}
 
 const { verdict, shape } =
   typeof verdicts.classifyVerdict === 'function'
@@ -208,6 +284,9 @@ appendFileSync(
     agent_id: input.agent_id ?? null,
     verdict,
     path_state: pathState(agentType),
+    // The reviewer ledger v2 pair (1.1.0): the tree at dispatch and the tree now.
+    path_state_start: dispatchDigest(input.session_id, input.agent_id),
+    path_state_stop: reviewState(agentType),
   })}\n`,
 )
 process.exit(0)

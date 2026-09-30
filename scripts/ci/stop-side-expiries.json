@@ -17,6 +17,11 @@
       "detail": "verdict-to-diff binding",
       "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
       "note": "The 0.7.0 path_state BINDING ramp — a PASS must post-date the last edit to the paths that summoned it — expires in the same structurally-unexecuted position as the roster ramp; the proof file executes its RAMP EXPIRED branch at a harness-0.8.0 fixture."
+    },
+    {
+      "detail": "reviewer ledger v2",
+      "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
+      "note": "The 1.1.0 reviewer ledger v2 ramp (#70), until 2.1.0, in the same structurally-unexecuted position: the Stop chain runs in no upgrade-lane leg, and v2 needs a merge base, a session's ledger and the SubagentStart dispatch records besides. The proof file executes every v2 red on a 1.0.3 manifest at harness 2.1.0 and asserts the RAMP EXPIRED banner names this ramp, beside the NOTE on 1.0.3 at 1.1.0 and the plain red on a 1.1.0 manifest."
     }
   ],
   "web-e2e": [
