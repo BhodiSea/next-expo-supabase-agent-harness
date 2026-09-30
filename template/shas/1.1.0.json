@@ -162,6 +162,9 @@
     ],
     ".claude/hooks/subagent-verdict.mjs": [
       {
+        "sha256": "d5e4f06af9bccda1df16e32760b43b3562dc3c19db1108d6f7da971f385bae2c"
+      },
+      {
         "sha256": "f18858f91c69e267f75a795fd268198e5f1fe4fc202cd4cda8b69c28f4bc731e"
       }
     ],
@@ -199,6 +202,9 @@
     ".claude/settings.json": [
       {
         "sha256": "392c72294514fa2d9ff305216551364a448714c3f8d34e5a0c7afa739be329aa"
+      },
+      {
+        "sha256": "750767a407531f76e0b11095b8a51738f3fe95737209fb12497e40fc099bc2df"
       }
     ],
     ".claude/settings.local.json.example": [
@@ -755,6 +761,15 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "3905e81f3fe066a02323ce507e7c82c2dca195b30e12cbdf59129d3021999cd3",
+        "sites": [
+          [
+            18160,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "docs/harness/enforcement-tiers.md": [
@@ -786,6 +801,15 @@
       },
       {
         "sha256": "9c956ff1b65c5ec3aaa363f69c68fef79ee48ed93ff35ccaa1c14d316b74f236",
+        "sites": [
+          [
+            121286,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "d9ef6582e5e43e773a356c9ca802527651b043ad308454f46a2b5dca55e92689",
         "sites": [
           [
             121286,
@@ -967,6 +991,15 @@
     "docs/runbooks/harness-upgrade.md": [
       {
         "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "4f0b7a5400d1a26c3bfd74797828c8970de2e63939183077ef1ee71b24127636",
         "sites": [
           [
             14115,
@@ -1452,6 +1485,9 @@
     "tools/check-reviewer-verdicts.mjs": [
       {
         "sha256": "3d209b51a589012f8e0a311809f3ace2bd6021e70283a64b76563295f38d5653"
+      },
+      {
+        "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
       }
     ],
     "tools/check-rls-manifest.mjs": [
@@ -1814,6 +1850,9 @@
     "tools/lib/git-diff.mjs": [
       {
         "sha256": "5b35299c9ed94405b9117e0f6827e5a3c8a0322be9bb545451e019905cdd566e"
+      },
+      {
+        "sha256": "e3d1aef752afc00e2ecb4e63c08c9fef364d2fab4b0b929bba334942f69c6bc6"
       }
     ],
     "tools/lib/inventory.mjs": [
@@ -1882,6 +1921,9 @@
       }
     ],
     "tools/lib/reviewer-verdicts.mjs": [
+      {
+        "sha256": "aab147e205c1456c2888f5929cd69b6e08394d8735835b10330c64ec7ac263e1"
+      },
       {
         "sha256": "ff9774f95092c867b6304eb8f803c3d6dc5e74109fc143646a182893e7ec53f3"
       }
