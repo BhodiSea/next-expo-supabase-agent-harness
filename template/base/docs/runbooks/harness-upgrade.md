@@ -1763,7 +1763,12 @@ The project workflow rules add `tools/check-workflow-hardening.mjs` and
 `tools/lib/workflow-hardening.mjs`, and re-plant `.github/workflows/actions-lint.yml` (a
 new `workflow-hardening` job; `harden-runner-coverage` changes only its comment),
 `.github/zizmor.yml` (its comment) and `docs/harness/gates-catalog.md`; nothing of it is
-seeded (its subsection below). What you may notice afterwards:
+seeded (its subsection below). The SQL history fold re-plants `tools/lib/sql-parse.mjs`,
+`tools/lib/stamp-inputs.mjs`, `tools/check-rls-manifest.mjs`, `tools/check-tenancy.mjs`,
+`tools/check-migrations.mjs`, `tools/check-data-flow.mjs`, `tools/check-db-limits.mjs`,
+`tools/check-query-shapes.mjs` and `docs/harness/gates-catalog.md`, and adds
+`tools/lib/sql-fold-ramp.mjs`; nothing of it is seeded (its subsection below). What you may
+notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1902,6 +1907,12 @@ seeded (its subsection below). What you may notice afterwards:
   1.1.0 a finding prints as `workflow-hardening: NOTE — (ramp) …` and the job stays green
   until 1.2.0. The job also runs when `.harness/manifest.json` changes. The subsection on
   your own workflows below gives the sweep.
+- **Six SQL gates may print a NOTE about your migration history.** Only when it holds a
+  top-level `DROP TABLE` or `ALTER POLICY` (or, for `schema-rls`, a `DROP POLICY`), and only
+  for a finding the gates now see because they read those statements. On an install whose
+  `baseVersion` is below 1.1.0 each such finding reads `NOTE — (ramp)` under a NOTE that
+  expires in 1.2.0. A table created and later dropped no longer reds `schema-rls` as
+  undeclared. The subsection on the SQL history fold below says what to sweep.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2759,6 +2770,84 @@ ceilings, harden-runner first)` to your required checks.
 `.harness/pending/.github/workflows/actions-lint.yml` and exits 2 while it stays there.
 Your fork has no `workflow-hardening` job until you merge it, so nothing runs the check in
 CI; `node tools/check-workflow-hardening.mjs` still works locally.
+
+### What OPENS: the SQL gates fold `DROP TABLE` and `ALTER POLICY` (NOTEs until 1.2.0)
+
+Through 1.0.x the parser the SQL gates share read neither statement. A table your history
+dropped kept its columns, indexes, triggers, RLS toggles, policies and grants in every view,
+and lent them to a later table of the same name. A policy you rewrote with `ALTER POLICY`
+was judged on its CREATE text, which the database no longer runs. `schema-rls` also read
+`DROP POLICY` and ignored it, so a dropped policy still covered its operation. From 1.1.0
+each gate reads the history as the database applies it:
+
+- `DROP TABLE [IF EXISTS] a, b [CASCADE | RESTRICT]` removes each table, its partitions and
+  everything on them, and clears the foreign keys that pointed at them. A later
+  `CREATE TABLE` of the same name starts with nothing.
+- `ALTER POLICY` replaces the `TO`, `USING` and `WITH CHECK` clauses it names and keeps the
+  rest; `ALTER POLICY … RENAME TO` renames.
+- `schema-rls` reports a `DROP TABLE` without `IF EXISTS`, or an `ALTER POLICY`, whose
+  target no earlier migration left in place. `DROP TABLE IF EXISTS` on an unknown table is
+  a no-op, as it is in the database.
+- `migrations` treats `ALTER POLICY` as an authorization change: it needs an
+  `-- adr: docs/adr/<file>` line naming an existing ADR, as `DROP POLICY` already did. A
+  migration whose only `ALTER POLICY` statements are `RENAME TO` needs none.
+
+A `DROP TABLE` inside a function body (`EXECUTE format('DROP TABLE …')`) is not a statement
+of the history, so it folds nothing. The harness's own migrations hold neither statement at
+the top level, so a scaffold that never wrote one sees no change.
+
+**Who sees a NOTE.** An install whose `baseVersion` is below 1.1.0 and whose history holds
+one of those statements, for each finding that only the new reading produces. The gates
+are `schema-rls`, `tenancy`, `data-flow`, `db-limits` and `query-shapes`, each with one
+ramp, and `migrations` for its `ALTER POLICY` rule:
+
+```
+schema-rls: NOTE — the SQL history fold (DROP TABLE, ALTER POLICY and DROP POLICY) (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+schema-rls: NOTE — (ramp) notes: policy notes_select_own has a vacuous USING (true) — it permits every row
+migrations: NOTE — ALTER POLICY as an authorization change (ramp: live from baseVersion 1.1.0; …; expires in 1.2.0). …
+migrations: NOTE — (ramp) supabase/migrations/<file>.sql: ALTER POLICY removes an authorization control — …
+```
+
+A finding the old reading also produced stays a hard failure, whatever your
+`baseVersion`: the ramp covers only what the gates could not see before. A finding only
+the old reading produced is gone, because it described a table or policy your history
+dropped or rewrote. From harness 1.2.0 every NOTE above prints under `RAMP EXPIRED` and
+reds its step, and on an install whose `baseVersion` is 1.1.0 or later they red from the
+start. To tell the two kinds apart the gate replays itself over your history as 1.0.x read
+it; that replay runs only when the history holds one of the statements and the gate found
+something.
+
+**The sweep, before 1.2.0.** Your migrations are append-only, so every fix goes in a NEW
+migration:
+
+1. **Fix what the fold exposes.** A re-created table needs its own `ENABLE` and `FORCE ROW
+   LEVEL SECURITY`, its per-operation policies, its `GRANT`s and its owner-column index; a
+   predicate an `ALTER POLICY` rewrote must match the reviewed forms `tenancy` names; a
+   reviewed entry that named a dropped table (`untenantedTables` in `tools/tenancy.json`, a
+   `tools/data-flow.json` row) is stale, so remove it. A new migration that rewrites a policy
+   carries its `-- adr:` line.
+2. **Acknowledge an `ALTER POLICY` that is already applied.** It cannot take an `-- adr:`
+   line without editing a committed migration, which `migrations` refuses. Add the existing
+   escape for it to `tools/migrations-allow.json`, one entry per file:
+
+   ```
+   { "file": "<migration basename>", "rule": "authz-adr", "reason": "<why applied history cannot be swept>" }
+   ```
+
+   The migration must exist at your diff base, and the entry reds once the finding is gone.
+3. **A drop of a table made outside the migrations.** If an applied migration drops a table
+   the dashboard or an extension created, `schema-rls` cannot place the drop. Record the
+   table with a reason in `tools/rls-exempt.json`; nothing of a dropped table is left for
+   the exemption to hide.
+
+The harness's upgrade lane has nothing to sweep here: `scripts/ci/upgrade-sweep.mjs`
+`SWEEPS['1.1.0']` adds no step, because its scaffolds hold neither statement. Then
+graduate as the section on graduating says.
+
+**One case has no escape yet.** An applied `ALTER POLICY` of a policy the migrations never
+created (one made in the dashboard) stays unresolved for `schema-rls`, and nothing
+acknowledges it before the ramp expires. Report it; the release that owes this ramp's
+expiry has to answer it.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

@@ -353,7 +353,11 @@ const SWEEPS = {
   // close on the demand, so it has nothing to NOTE on any leg. workflow-hardening's ramp
   // (#73) adds no step either: the gate is CI-only, so no leg runs it
   // (stop-side-expiries.json names its unit proof), and a leg's workflows are the shipped
-  // ones `update` re-plants, which all meet its rules.
+  // ones `update` re-plants, which all meet its rules. The SQL history fold's six ramps (#75)
+  // add no step either: they judge only a history holding a top-level DROP TABLE or ALTER
+  // POLICY (or, for schema-rls, a DROP POLICY), and the only such statements a lane scaffold
+  // carries are the shipped DROP POLICYs, whose replacements the same migrations create, so no
+  // leg has a fold-only finding to NOTE.
   '1.1.0': {},
 }
 

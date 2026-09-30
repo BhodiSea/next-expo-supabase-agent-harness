@@ -1053,6 +1053,15 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "18ac482643ccce1bdc5ced6d5e0895aa3367591970d575415a31b76a3ff2e7fc",
+        "sites": [
+          [
+            130992,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "2abf5bcd35eb06d5899f8037d3addf667b1098a4fa90844706a5c8be61675f85",
         "sites": [
           [
@@ -1370,6 +1379,15 @@
       },
       {
         "sha256": "0be9a3b751549a019ce51975221e8f9c3ae617512cb26ad02da87b758fbfa5b9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "14741c006a1a9857a051993ec97b4c1d01528cb0c6c6dd15ea2583ff03378313",
         "sites": [
           [
             14115,
@@ -1821,10 +1839,16 @@
     ],
     "tools/check-data-flow.mjs": [
       {
+        "sha256": "195eb1ca4a6147798e7504ffb2996799efce38ebdbda91cf75a19f54ee2fa3a8"
+      },
+      {
         "sha256": "924689fc273d34ee7d35139fca6fdb00a660bbdae1d919602190996da2462c3b"
       }
     ],
     "tools/check-db-limits.mjs": [
+      {
+        "sha256": "101cbf8d9aec06d3002a3e640172467f76b23b8d52e055da2b2bff681bca42f6"
+      },
       {
         "sha256": "7daa41caadc9061da3739ec715c8c1d547df3942e7b400821b44280bf633c0e3"
       }
@@ -1933,6 +1957,9 @@
     "tools/check-migrations.mjs": [
       {
         "sha256": "3930dec6b994849569ea2c2b351be747fac253c9cb3f490b996c02e58e43e1eb"
+      },
+      {
+        "sha256": "a2b7935700645c1a7fae91e5dfd999c05870d0071bbb9c076da048dfe20bd934"
       }
     ],
     "tools/check-mobile-parity.mjs": [
@@ -1988,6 +2015,9 @@
     "tools/check-query-shapes.mjs": [
       {
         "sha256": "54ad24cb4db3acf219e59571c9b546bb0336ea7a41032a1195a4696594b29db7"
+      },
+      {
+        "sha256": "5a70f945d492fbc117482d42ec5c507e77d2d232b736285ea108cf4fce450626"
       }
     ],
     "tools/check-rate-limits.mjs": [
@@ -2020,6 +2050,9 @@
       }
     ],
     "tools/check-rls-manifest.mjs": [
+      {
+        "sha256": "99925d94c92468b9a7f9265dec62d0fded3ea03a98ce6a8f5ce3c2cf69a460ad"
+      },
       {
         "sha256": "9c5d4379e38c591f2141f79337ae6ccdcc2d1a13d1592ef26aa6c7c2cef77cf0"
       }
@@ -2068,6 +2101,9 @@
       }
     ],
     "tools/check-tenancy.mjs": [
+      {
+        "sha256": "5c5f37177d054d0021d93671bd9e3c22c863c9e7d5e1db39ae92b0e65888a286"
+      },
       {
         "sha256": "eefc7b2c437522c5eb4ab98681a417d5f0c8507f91661c3b31a6d22e5639a9ad"
       }
@@ -2567,12 +2603,23 @@
         "sha256": "2895877f4aebdb78022d274f8beff72cc9b840dc38f3fd6154a72193d65fb487"
       }
     ],
+    "tools/lib/sql-fold-ramp.mjs": [
+      {
+        "sha256": "7597c191c92e9ecf4e3eb6471cff051126d1ed7829fe43007e5b3a7ed2aa1af9"
+      }
+    ],
     "tools/lib/sql-parse.mjs": [
+      {
+        "sha256": "9835078abc5162cf1f9e0525539e7e281bcb77d0d36e876920fe526fe7e6ebc2"
+      },
       {
         "sha256": "fca283956393db8c89d5d72119b13db9154d649087169604190619d9dd1c766e"
       }
     ],
     "tools/lib/stamp-inputs.mjs": [
+      {
+        "sha256": "1f850633a044cc10f906445b7bfc2455167f4d876a56296c48049259e00cadbd"
+      },
       {
         "sha256": "2b2c4dd5d65b0aae81f9d87be11f206a132672d2c6e82f5b2821588e674caaca"
       },
