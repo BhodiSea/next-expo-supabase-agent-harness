@@ -2592,6 +2592,11 @@ until it is fixed. Nothing in the file can make a mandatory class advisory.
 `citation-verifier` sentence in `tools/reviewer-triggers.json` is prose no check reads.
 Copy either from the template if you want the text.
 
+**If you edited `tools/lib/provenance-rules.mjs`.** `update` keeps your copy, parks the new
+one under `.harness/pending/` and exits 2 while it stays there. The re-planted gate and
+hook find the split only in the new copy, so until you merge it every class stays
+mandatory, exactly as before 1.1.0, and nothing turns red that was green.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

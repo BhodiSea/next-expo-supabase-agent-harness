@@ -1003,7 +1003,19 @@ this heading if none does. -->
   now speaks on was probed first (`design/CONTROL-PLANE-FACTS.md` Fact 18): in print mode
   against Claude Code 2.1.285, a PostToolUse hook's `additionalContext` at exit 0 reached
   the model, which quoted it, and the 2.0.0 bundle validates and applies the field, below
-  the 2.1.163 floor, so `tools/cc-floor.json` does not move (#69).
+  the 2.1.163 floor, so `tools/cc-floor.json` does not move. In a zero-edit core scaffold
+  `validate --report-all` was green and printed no `ADVISORY` line, and the issue's probes
+  ran there: an uncited `timeoutMs` in `apps/web/lib/n20a.ts` printed
+  `provenance: ADVISORY (1) — apps/web/lib/n20a.ts:1 [tuning-constants]` and exited 0, the
+  hook answered the same file with the `additionalContext` object at exit 0, an uncited
+  `jwtVerify` beside it exited 1, and `"mandatory": ["tuning-constants"]` made the
+  `timeoutMs` alone exit 1. Canary 4, stripping the citations from the notes migration, still
+  reds. A v1.0.4 core install updated by this installer exited 0 and behaved the same with
+  its seeded `tools/decision-groups.json` still carrying the old comment; adding
+  `"mandatory": ["x"]` to that file failed the gate and the hook closed. One whose
+  `tools/lib/provenance-rules.mjs` had been edited kept it, parked the new copy and exited 2,
+  and there the same `timeoutMs` still failed the gate and made the hook exit 2: under a
+  parked fork every class stays mandatory (#69).
 
 ## [1.0.4] — 2026-09-29
 

@@ -32,11 +32,11 @@
 // enforces only the presence floor (see provenance-rules.mjs: no corpus load
 // per edit).
 //
-// MANDATORY AND ADVISORY CLASSES (1.1.0, #69). The presence check (1) and the
-// group-match (4) judge a site by its decision classes. A site in any MANDATORY
-// class reds exactly as before. A site whose every class is ADVISORY
-// (provenance-rules.mjs ADVISORY_DECISION_GROUPS, less any class the seeded
-// tools/decision-groups.json promotes) prints one
+// MANDATORY AND ADVISORY CLASSES (1.1.0, #69). The presence check (the
+// hook-parity sweep below) and the group-match (4) judge a site by its decision
+// classes. A site in any MANDATORY class reds exactly as before. A site whose
+// every class is ADVISORY (provenance-rules.mjs ADVISORY_DECISION_GROUPS, less
+// any class the seeded tools/decision-groups.json promotes) prints one
 // `provenance: ADVISORY (n) — file:line [class]` line on every run, green or
 // red, and is never a red on its own. Resolvability, the host allowlist, corpus
 // integrity and the coverage lockstep stay hard for every class: a citation

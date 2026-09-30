@@ -1324,15 +1324,6 @@
         ]
       },
       {
-        "sha256": "485b7320e2b263602ab386a08d3820006b7288addc033452acfe990cf0aa973e",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
         "sha256": "4a3b23444ab8bd4fc0ac815d901be9778644b0826aab7b0550c97042f0493141",
         "sites": [
           [
@@ -1406,6 +1397,15 @@
       },
       {
         "sha256": "ab104b7c61a61fbea071d1f7f3d836f24ae251a66bfd7c6fd04752c3981000c6",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "b2e331a5edf0f92c71273443f5e83c5dc1c2889e49c213dc3524bf9bfb0f2d4a",
         "sites": [
           [
             14115,
@@ -1953,10 +1953,10 @@
     ],
     "tools/check-sources.mjs": [
       {
-        "sha256": "c11c02f558e11ae282bfd76dc55e55d10e18118c5d789165359242dcc543bff8"
+        "sha256": "0b24d0f41b83a0e972e558bf68c493a00c120e68fc206a8ec2b98c552b07b119"
       },
       {
-        "sha256": "dba0103bd8474e406a854b05b3e9a9f31c3649fa0fe4ee5f387de9b468dd0156"
+        "sha256": "c11c02f558e11ae282bfd76dc55e55d10e18118c5d789165359242dcc543bff8"
       }
     ],
     "tools/check-store-config.mjs": [
