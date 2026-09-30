@@ -203,9 +203,16 @@ None of these tightens a gate for an existing install. Where one changes what
   should have brought with it and did not, and a factory-side eval measures
   them on seeded defects.
   ([N17](design/FIELD-UPGRADES-2026-09.md#n17-absence-checklists-for-reviewers-and-a-reviewer-eval))
-- **A smaller always-loaded context.** A sentence leaves `AGENTS.md` only when
-  a gate already reds its violation, and `encryption.md` becomes a stub.
-  ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context))
+- **A smaller always-loaded context.** `encryption.md` is a stub that keeps the
+  invariants whose checks run with the `e2ee` module off, and the full rule is
+  the path-scoped `e2ee.md`, which the `authoring-e2ee-feature` skill reads
+  first. A sentence left `AGENTS.md` only where a hook denies its violation with
+  a message that teaches the fix, and `security-invariants.md` still states it:
+  `WITH RECURSIVE`, the public-prefix secret names, and the shell-hygiene
+  commands the bash guard denies outright. `AGENTS.md` is seeded, so installs
+  keep theirs.
+  ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context),
+  issue #67)
 - **Compliance register checks on a release cadence.** Locally the two
   register checks run behind an input stamp. CI and releases always run them.
   ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence))
