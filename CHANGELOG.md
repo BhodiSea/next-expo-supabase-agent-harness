@@ -28,7 +28,9 @@ The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vi
 set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
 Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
-re-targets the eighth to 1.2.0.
+re-targets the eighth to 1.2.0. The reviewer ledger v2 (see Changed) is the first item
+behind a ramp of its own: it opens at 1.1.0 with a deadline of 2.1.0, and adds one release
+row and one condition row to the register (#70).
 
 ### Security
 
@@ -167,6 +169,37 @@ this heading if none does. -->
   files. The suites are seeded, so the change reaches new scaffolds only: `update` does not
   rewrite them, and the runbook's 1.1.0 section says how to pull them. No gate, chain step,
   hook rule or CI job changes (#58).
+- **`reviewer-verdicts` judges the branch: the reviewer ledger v2, behind a ramp until
+  2.1.0.** Through 1.0.4 the Stop step owed reviewers on the diff against `HEAD` and read
+  one prompt's ledger entries. A migration committed before the turn ended owed nobody (the
+  step printed "no reviewer is owed"), a deleted migration or policy owed nobody, a BLOCK
+  was forgotten when the user next spoke, a reviewer that blocked and then passed could not
+  clear its own BLOCK, a review of a tree that moved underneath it counted, and
+  `torvalds-reviewer` and `citation-verifier`, which the instructions summon before every
+  turn ends, were recorded and never judged. v2 fixes each of these. The owed set is the
+  new `reviewChanges()` in `tools/lib/git-diff.mjs`: the diff from the merge base with the
+  branch's upstream (the PR base in CI) to the working tree, plus untracked files, with
+  deletions and both sides of a rename and without `.harness/`. `changedFiles()` is
+  unchanged, so `diff-coverage` and `mutation-scope` do not move. The ledger is read for the
+  session. A BLOCK stands until the same `agent_id` returns PASS at the current digest, and
+  a PASS from another run is a second opinion that retracts nothing. A counted PASS whose
+  digest still matches stands for later prompts, and another session's PASS still counts
+  for nothing. `subagent-verdict.mjs` is now wired to `SubagentStart` as well, and branches
+  on `hook_event_name`. At dispatch it appends the reviewer's digest to
+  `.harness/reviewer-dispatch.jsonl`, never the ledger, and exits 0. At the verdict it
+  writes `path_state_start` and `path_state_stop` beside `path_state`, which keeps its 1.0.x
+  meaning. A PASS counts only when both equal the digest at Stop, and a verdict with no
+  start record reds with a finding that names the `SubagentStart` block. The new `wholeTurn`
+  class of `tools/reviewer-triggers.json` owes `torvalds-reviewer` and `citation-verifier`
+  on every non-empty diff, with a digest over the whole of it. One `rampNote` in the step
+  holds v2 as NOTEs on an install whose `baseVersion` is below 1.1.0, while the 1.0.x
+  judgement keeps enforcing there, and neither relaxation applies until v2 does. The
+  deadline is 2.1.0 rather than the next minor, because 2.0.0 is the release after this
+  one. With no merge base (no upstream, and not a CI pull-request run) v2 does not judge
+  and the step says so; every clean-scaffold run in this repository's CI takes that path.
+  `tools/reviewer-triggers.json` and `AGENTS.md` are seeded, so the runbook's 1.1.0 section
+  gives their new text, and the `SubagentStart` block for a forked `.claude/settings.json`
+  (#70).
 
 ### What stays open, honestly
 
@@ -209,6 +242,20 @@ this heading if none does. -->
   transaction to build a fixture in, and what stays on the example there is #85's. The
   fixture regions are copies held to the skeleton by the factory test, not generated from
   it, because #59's generator copies spans verbatim and has no renaming step (#58).
+- **The `agent_id` resume probe has not been run.** v2 lets a reviewer clear its own BLOCK
+  when it is resumed and passes. The documentation says a resumed subagent keeps its ID,
+  and says nothing about whether `SubagentStart` fires for the resumed run. The session
+  that wrote 1.1.0 could not start Claude Code, so `design/CONTROL-PLANE-FACTS.md` Fact 14
+  records both points as documented only, and names the probe. The rule fails closed on
+  either answer: the BLOCK stands until a new session. The obligations row
+  `control-plane-facts-agent-id-resume-probe` holds the probe until it runs (#70).
+- **The owed set follows the upstream you set.** On a branch whose upstream is its own
+  remote branch, which is what `git push -u` sets, a push moves the merge base, and the
+  owed set shrinks to what is not pushed yet. With no upstream at all, v2 does not judge,
+  and the 1.0.x judgement, uncommitted changes only, decides. An upstream set to the branch
+  the work will merge into keeps the whole branch owed. No CI lane runs v2 against a real
+  ledger: the Stop-chain runs in this repository take the no-upstream path, so the unit
+  fixtures are its proof (#70).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -265,6 +312,16 @@ this heading if none does. -->
   enrolled: ZERO ROWS", "the write produced an audit row"), and the suites were green again
   after `db:reset`. A 1.0.4 install kept its suites on `update`; `--refresh-seeded` pulled
   an unedited one and parked an edited one, exiting 2 (#58).
+  For the reviewer ledger v2, `tests/gates/check-reviewer-verdicts.test.mjs` was red on 24
+  new cases before the change. The headline, in a clone whose branch tracks origin/main,
+  printed "reviewer-verdicts: OK — no reviewer is owed a verdict by this diff (0 changed
+  file(s))" for a committed migration; the rest could not reach `reviewChanges()` or the
+  v2 helpers, and the hook's entry had no v2 fields. `tests/hooks/hook-contract.test.mjs`
+  was red on a reviewer's `SubagentStart`, which exited 2 as a reviewer without a verdict,
+  and `tests/hooks/subagent-verdict-pathstate.test.mjs` on six cases. After the change each
+  v2 red runs as a NOTE on a 1.0.3 manifest, a plain red on a 1.1.0 one and `RAMP EXPIRED`
+  at harness 2.1.0, the two relaxations are green on 1.1.0 and red on 1.0.3, and the six
+  `ramp-ledger` pins that read the current fleet at older versions name the new site (#70).
 
 ## [1.0.4] — 2026-09-29
 

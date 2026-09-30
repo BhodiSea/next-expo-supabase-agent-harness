@@ -1684,15 +1684,19 @@ and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.
 `docs/security/threat-model.md`; the register itself is withheld (the subsection below).
 Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
 re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
-`docs/harness/README.md` (the last subsection before RECOVERY). The generated skill
+`docs/harness/README.md` (its subsection below). The generated skill
 references re-plant the vertical-slice skill's
 `.claude/skills/authoring-vertical-slice/references/dal-dto.md` and
 `references/migration-rls.md`, and the `.claude/agents/migration-rls-author.md` agent, and
 `update` re-records their `tools/agents.lock.json` entries. The fixture-table pgTAP suites
 re-plant `tools/conformance-map.json`, `tools/essential-eight.json` and
 `docs/harness/gates-catalog.md`, whose sentences now say where the MFA and audit proofs
-run; the suites themselves are seeded and stay as they are (the last subsection before
-RECOVERY). What you may notice afterwards:
+run; the suites themselves are seeded and stay as they are (their subsection below).
+The reviewer ledger v2 re-plants `tools/check-reviewer-verdicts.mjs`,
+`tools/lib/git-diff.mjs`, `tools/lib/reviewer-verdicts.mjs`,
+`.claude/hooks/subagent-verdict.mjs`, `.claude/settings.json`,
+`docs/harness/gates-catalog.md` and `docs/harness/README.md`; its two seeded texts are yours
+to copy (the last subsection before RECOVERY). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1719,6 +1723,11 @@ RECOVERY). What you may notice afterwards:
   repository, not in your chain. If you edited one of the three owned files above, your copy
   stays, the new one is parked under `.harness/pending/`, and `update` exits 2 while it
   stays there.
+- **`reviewer-verdicts` prints NOTEs from the reviewer ledger v2.** On an install whose
+  `baseVersion` is below 1.1.0 they read `NOTE — the reviewer ledger v2 judgement … expires
+  in 2.1.0`, followed by each withheld finding; the 1.0.x judgement still decides. On a
+  branch with no upstream the step prints `NOTE — no merge base` instead. The last
+  subsection before RECOVERY says what v2 judges and what to copy.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -1827,6 +1836,111 @@ project that removes the example still edits those lines, as it did before. What
 suite does any more is write to `public.notes`: the example's own rank floors, MFA policy
 and audit trigger are judged statically, by `schema-rls` and `tenancy`, and the supabase-js
 suite under `tests/rls/` still reads it across tenants.
+
+### `reviewer-verdicts` judges the branch: the reviewer ledger v2 (a NOTE until 2.1.0)
+
+Through 1.0.4 the Stop step owed reviewers on the diff against `HEAD` and judged one
+prompt. A migration committed before the turn ended owed nobody, a deleted policy owed
+nobody, a BLOCK was forgotten when you next spoke, and a reviewer that blocked, read the fix
+and passed could not clear its own BLOCK. From 1.1.0 the step also runs the reviewer ledger
+v2, which judges the branch:
+
+- **The owed set is the diff from the merge base** with the branch's upstream (the PR base
+  in CI) to the working tree, plus untracked files, with deletions and both sides of a
+  rename included and `.harness/` left out. Committing does not clear it. Pushing clears
+  whatever the upstream then holds: on a branch whose upstream is its own remote branch,
+  which is what `git push -u` sets, the owed set after a push is only what is not pushed
+  yet. An upstream set to the branch you will merge into (`git branch
+  --set-upstream-to=origin/main`) keeps the whole branch owed.
+- **The ledger is read for the whole session.** A BLOCK stands until the SAME reviewer run
+  (its `agent_id`) returns PASS at the current tree. To clear one, fix what it named and
+  resume that reviewer with `SendMessage` to its `agent_id`. A fresh run of the same
+  reviewer is a second opinion and retracts nothing. A PASS whose tree has not moved stands
+  for later prompts of the same session; a PASS from another session counts for nothing.
+- **A PASS counts only for the tree it was dispatched on.** The hook now also runs on
+  `SubagentStart` and records the reviewer's digest in `.harness/reviewer-dispatch.jsonl`.
+  At the verdict it records the start and stop digests beside `path_state`, and the step
+  counts the PASS only when both equal the tree at Stop. Let a reviewer finish before you
+  edit the paths it is reading.
+- **`torvalds-reviewer` and `citation-verifier` are owed on every non-empty diff,** through
+  the new `wholeTurn` class of `tools/reviewer-triggers.json`.
+- **With no upstream, v2 does not judge.** A fresh `git init`, or a branch with no
+  upstream configured, prints `NOTE — no merge base` and keeps the 1.0.x judgement. Set
+  one with `git branch --set-upstream-to=<remote>/<branch you will merge into>`.
+
+**The ramp.** If your `baseVersion` is below 1.1.0, the 1.0.x judgement still decides and
+v2's findings print as NOTEs that expire in 2.1.0. Neither relaxation applies to you yet:
+a BLOCK still stands for the rest of its prompt, and a PASS from an earlier prompt still
+does not count. They arrive with the tightening, when you graduate or when the ramp
+expires. A fresh 1.1.0 scaffold is judged by v2 from the start.
+
+**What to do, in this order.**
+
+1. **If `update` parked `.claude/hooks/subagent-verdict.mjs`, merge it first.** A 1.0.x copy
+   of the hook reads a `SubagentStart` payload as a reviewer that ended without a verdict:
+   every reviewer dispatch then exits 2 (which `SubagentStart` does not block), appends a
+   bounce to `.harness/verdict-bounces.jsonl` and records a blocked turn outcome. If
+   `update` re-planted `.claude/settings.json` while it parked your hook, take the hook's
+   `SubagentStart` branch now, or remove the `SubagentStart` block until you do.
+2. **If `update` parked `.claude/settings.json`,** add the `SubagentStart` block beside
+   `SubagentStop`, after step 1. Without it every PASS reds, once v2 is live, with a finding
+   that names this block: `wiring` cannot see it, because the hook is already wired under
+   `SubagentStop`.
+
+   ```json
+   "SubagentStart": [
+     {
+       "hooks": [
+         {
+           "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/launch.mjs\" subagent-verdict.mjs",
+           "timeout": 10,
+           "type": "command"
+         }
+       ],
+       "matcher": "*"
+     }
+   ],
+   ```
+
+3. **Add the `wholeTurn` class to `tools/reviewer-triggers.json`.** The file is seeded, so
+   `update` never rewrites it. Put these two keys before `notTriggered`, and delete the
+   `torvalds-reviewer` and `citation-verifier` rows from `notTriggered`. Until you do, v2
+   owes no whole-turn reviewer on your install.
+
+   ```json
+   "wholeTurnMatching": "A reviewer in `wholeTurn` is OWED whenever the owed diff is non-empty, whatever its paths, and its verdict binds to a digest over the WHOLE diff: any later change anywhere in it sends the PASS stale. The owed diff is the one tools/lib/git-diff.mjs reviewChanges() returns (the merge-base diff with deletions, 1.1.0), and the class is judged by the reviewer ledger v2 in tools/check-reviewer-verdicts.mjs.",
+
+   "wholeTurn": [
+     {
+       "agent": "torvalds-reviewer",
+       "why": "AGENTS.md says it runs 'before finishing', which is EVERY turn. No path pattern expresses that: a path trigger would fire it on everything (noise) or on an arbitrary subset (a rule that reads as coverage and is not). Through 1.0.4 it sat in notTriggered for that reason, and its verdicts were recorded and never judged. The whole-turn class is the different mechanism a whole-turn obligation needed."
+     },
+     {
+       "agent": "citation-verifier",
+       "why": "Its definition says it MUST BE USED before finishing a feature, so it is summoned before a turn ends, like torvalds-reviewer, and until 1.1.0 its verdict was recorded and never judged. The `provenance` chain gate still reds tree-wide on an uncited decision site; this class judges the other half, that the reviewer which checks each citation resolves actually ran on this diff."
+     }
+   ],
+   ```
+
+4. **Update the `reviewer-verdicts` sentence in `AGENTS.md`.** Also seeded. In the Stop-chain
+   bullet, replace the text from "The last one is the only check" to "Triggers are reviewed
+   data in" with this, and keep a period at the end of the line that ends the bullet: a
+   backticked lowercase name before the first `(` would read to `docs-sync` as a Stop step.
+
+   ```
+   The last one is the only check in the
+   harness whose subject is the TURN rather than the tree: every reviewer whose
+   `MUST BE USED` paths this branch's diff touched must have returned
+   `VERDICT: PASS` on the tree it was dispatched on, recorded by the
+   SubagentStart and SubagentStop hooks (the diff runs from the merge base with
+   the branch's upstream and keeps deletions; `torvalds-reviewer` and
+   `citation-verifier` are owed on every non-empty diff; a BLOCK stands until the
+   same reviewer passes). Triggers are reviewed data in
+   ```
+
+5. **Before you graduate, run the owed reviewers once more.** Entries a 1.0.x hook wrote
+   carry no v2 digests, so v2 counts none of them. Read what v2 would say off the NOTEs,
+   with an upstream set, and graduate when they are gone.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

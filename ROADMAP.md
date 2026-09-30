@@ -198,11 +198,17 @@ Each of these changes a verdict for an existing install, so each ships as a
 dated note first and becomes enforcing when its ramp expires. Each needs a
 `gate-proposal` issue first.
 
-- **Reviewer ledger v2.** The owed set is keyed on the merge base and includes
-  deletions, a BLOCK persists until the reviewer that raised it passes, a
-  review of a moving tree does not count, and the every-turn reviewers are
-  judged. The tightening and the relaxing ship behind one ramp.
-  ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2))
+- **Reviewer ledger v2.** `reviewer-verdicts` owes reviewers on the merge-base
+  diff with the branch's upstream, deletions included; a BLOCK stands across
+  the session's prompts until the same `agent_id` passes at the current digest;
+  a PASS counts only when the tree at its `SubagentStart`, at its verdict and
+  at Stop are the same; and `torvalds-reviewer` and `citation-verifier` are
+  owed on every non-empty diff. One ramp opened at 1.1.0 holds it as NOTEs below
+  that `baseVersion` until 2.1.0, with the 1.0.x judgement still enforcing
+  there. With no upstream it does not judge. Whether a resumed reviewer keeps
+  its `agent_id` is documented and not yet probed.
+  ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2),
+  issue #70)
 - **A severity contract and a round budget.** Reviewer bodies say which
   severities block, and the hook bounds rounds without ever turning a spent
   budget into a pass.
