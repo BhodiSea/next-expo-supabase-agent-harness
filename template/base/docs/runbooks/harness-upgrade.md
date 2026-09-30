@@ -1759,7 +1759,11 @@ skill's `scripts/scaffold-slice.mjs` and `references/dal-dto.md` (`update` re-re
 `client.ts` and your root `package.json` are seeded and stay as they are (its subsection
 below). The catalog pin floors re-plant `tools/lib/harness-brief.mjs`; the floors are the
 installer's own, and your `pnpm-workspace.yaml` is never written (its subsection below).
-What you may notice afterwards:
+The project workflow rules add `tools/check-workflow-hardening.mjs` and
+`tools/lib/workflow-hardening.mjs`, and re-plant `.github/workflows/actions-lint.yml` (a
+new `workflow-hardening` job; `harden-runner-coverage` changes only its comment),
+`.github/zizmor.yml` (its comment) and `docs/harness/gates-catalog.md`; nothing of it is
+seeded (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1891,6 +1895,13 @@ What you may notice afterwards:
   and exits 2 where it exited 0, and `update` prints a `CATALOG PIN FLOOR` note per package
   and parks `.harness/pending/pin-floors.json`. No gate reds on it, and `update`'s exit code
   does not move. The subsection on catalog pin floors below says what to do.
+- **`actions-lint` runs a new job, `workflow-hardening`, and it may print NOTEs about
+  workflows you wrote.** It checks every workflow under `.github/workflows/` for a
+  workflow-level bash default, a ceiling on every job and harden-runner as each job's first
+  step. Every workflow the harness ships passes. On an install whose `baseVersion` is below
+  1.1.0 a finding prints as `workflow-hardening: NOTE — (ramp) …` and the job stays green
+  until 1.2.0. The job also runs when `.harness/manifest.json` changes. The subsection on
+  your own workflows below gives the sweep.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2691,6 +2702,61 @@ meet the floor, `^4.1.10` does not, even where your lockfile resolved something 
 value that is not a version (a dist-tag, an `npm:` alias, a URL) cannot be proven to meet
 it, so it warns too. The key is found whether it is bare, single-quoted or double-quoted,
 and a package you removed from the catalog is not judged.
+### Your own workflows: `workflow-hardening` (a NOTE until 1.2.0)
+
+Since 1.0.2 every workflow the harness ships selects bash at workflow level and gives every
+job a ceiling, and every shipped job starts with harden-runner. Nothing checked a workflow
+you wrote, and `harden-runner-coverage` only counts harden-runner lines per `.yml`
+file: two in one job cover a neighbour with none, one placed after `checkout` passes, a
+comment counts, and a `.yaml` file or a workflow indented by four spaces is never read.
+From 1.1.0 the `workflow-hardening` job in `actions-lint.yml` runs
+`node tools/check-workflow-hardening.mjs`, which holds every workflow in
+`.github/workflows/` to three rules and names each finding `<file>` or `<file>#<job>`:
+
+1. **A workflow-level bash default, above `jobs:`.** GitHub runs a step that names no shell
+   as `bash -e`, without `pipefail`, so `producer | tee file` reports tee's status. Add this
+   at the top level, before `jobs:`:
+
+   ```
+   defaults:
+     run:
+       shell: bash
+   ```
+
+   A workflow with no `run:` step needs none, and the one workflow that publishes OpenSSF
+   Scorecard results must carry no top-level `defaults` or `env` instead.
+2. **A ceiling on every job.** A whole number of `timeout-minutes` at job level, from 1 to
+   360 on a GitHub-hosted runner and to 7200 on a self-hosted one: those are the platform's
+   limits, and a job with no ceiling inherits 360. An expression is not read, so write the
+   number. A job that calls a reusable workflow (`uses:` at job level) takes none.
+3. **harden-runner first.** The first step of every job that is neither a reusable-workflow
+   call nor on a `self-hosted` runner is `step-security/harden-runner`, pinned by SHA, as in
+   every shipped workflow. When the job's `runs-on`, or a matrix value it reads, names
+   windows, that step sets `egress-policy: audit`.
+
+**Who sees it, and when.** If your `baseVersion` is below 1.1.0, each finding is a NOTE and
+the job stays green:
+
+```
+workflow-hardening: NOTE — the workflow hardening rules over the project workflows (…) (ramp: live from baseVersion 1.1.0; this install's baseVersion is <yours>; expires in 1.2.0). …
+workflow-hardening: NOTE — (ramp) .github/workflows/<file>#<job>: the first step uses actions/checkout@…, not step-security/harden-runner — …
+```
+
+From harness 1.2.0 the same findings print under `RAMP EXPIRED` and red the job, and on an
+install whose `baseVersion` is 1.1.0 or later they red it from the start.
+
+**The sweep.** Run `node tools/check-workflow-hardening.mjs` in your tree; it needs Node
+only. Fix each finding it names as the rules above say, and run it again until it prints
+`workflow-hardening: OK`. The check is not a chain step, so `graduate` does not run it:
+run it by hand before you graduate. Because the job also runs when `.harness/manifest.json`
+changes, a graduation that left a finding shows it on that pull request. The job is new, so
+no branch-protection rule requires it until you add `workflow hardening (bash default, job
+ceilings, harden-runner first)` to your required checks.
+
+**If you forked `actions-lint.yml`.** `update` keeps your copy, parks the new one under
+`.harness/pending/.github/workflows/actions-lint.yml` and exits 2 while it stays there.
+Your fork has no `workflow-hardening` job until you merge it, so nothing runs the check in
+CI; `node tools/check-workflow-hardening.mjs` still works locally.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

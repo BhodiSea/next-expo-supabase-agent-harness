@@ -2666,8 +2666,9 @@ tests/gates/severity-contract.test.mjs.
   per `*.yml` file, so two steps in one job cover a bare neighbour, a step after `checkout`
   or a comment passes, and a `.yaml` file or a four-space indent is never read; this gate
   checks each of those. **The injection** (`tests/gates/check-workflow-hardening.test.mjs`,
-  and by hand in a scaffold): move harden-runner below `checkout` in any job, or delete a
-  workflow's `defaults:` block or a job's `timeout-minutes`, and the gate exits 1 with
+  and by hand in a scaffold): move harden-runner below `checkout` in any job, delete the
+  `defaults:` block of a workflow that has a `run:` step, or delete a job's
+  `timeout-minutes`, and the gate exits 1 with
   `workflow-hardening: FAIL` and a line naming `.github/workflows/<file>#<job>`; the test
   also runs the counting loop over the same shapes and shows it passing each one.
 
