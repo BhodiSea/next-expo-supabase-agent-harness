@@ -154,7 +154,12 @@ if (!existsSync(`${WEB_APP}/package.json`)) {
 }
 if (!existsSync('node_modules')) skipOrFail(GATE, 'node_modules missing — run pnpm install')
 
-const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
+// Where this tree's stamp register has no list for this step (an edited
+// tools/lib/stamp-inputs.mjs that `update` kept beside a parked newer one), the step builds in
+// full on every run and records nothing, as the essential-eight and conformance-map stamps do.
+const recordGreen = Array.isArray(STAMP_INPUTS[GATE])
+  ? stampGate(GATE, STAMP_INPUTS[GATE])
+  : () => {}
 
 const { env, filled } = buildEnvironment(process.env)
 if (filled.length > 0) {

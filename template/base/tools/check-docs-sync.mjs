@@ -150,10 +150,10 @@ if (!listMatch) {
   // ambush this mechanism exists to prevent. The NOTE below tells them exactly what to
   // paste. It was due at 1.1.0; the move is excused by the byte-matched `rampExtensions`
   // entry in template/migrations.json "1.0.0" — the deadline ratchet reds without it — and
-  // 1.1.0 extends it again rather than letting it expire (below). It opened at minVersion 1.0.0, NOT at the 0.8.0
-  // the previous re-open used: an escape opened at or below the population it protects is
-  // inert for exactly that population (the 0.11.1 lesson), and every install below 1.0.0
-  // receives the two steps.
+  // 1.1.0 extends it again rather than letting it expire (below). It opened at minVersion
+  // 1.0.0, NOT at the 0.8.0 the previous re-open used: an escape opened at or below the
+  // population it protects is inert for exactly that population (the 0.11.1 lesson), and
+  // every install below 1.0.0 receives the two steps.
   //
   // RE-OPENED AT 1.1.0 (#77), for the FOURTH time and for the same reason. 1.1.0 injects
   // `web-compile` after `build` through the "1.1.0" record's configSteps, so every existing

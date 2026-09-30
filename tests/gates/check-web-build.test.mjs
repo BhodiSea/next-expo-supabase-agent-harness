@@ -14,6 +14,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -150,9 +151,9 @@ function buildEnv(dir) {
  * Run the step in `dir` with the fake pnpm first on PATH. Every placeholder key is removed
  * from the inherited environment, so each case starts from "nothing set" unless `env` sets it.
  * @param {string} dir
- * @param {{ ci?: boolean, requireToolchains?: boolean, env?: Record<string, string> }} [opts]
+ * @param {{ ci?: boolean, requireToolchains?: boolean, env?: Record<string, string>, script?: string }} [opts]
  */
-function runGate(dir, { ci = false, requireToolchains = false, env = {} } = {}) {
+function runGate(dir, { ci = false, requireToolchains = false, env = {}, script = GATE } = {}) {
   /** @type {Record<string, string | undefined>} */
   const childEnv = { ...process.env }
   for (const k of ['CI', 'HARNESS_REQUIRE_TOOLCHAINS', 'GITHUB_BASE_REF', 'HARNESS_PARITY_REPORT_DIR']) {
@@ -164,7 +165,7 @@ function runGate(dir, { ci = false, requireToolchains = false, env = {} } = {}) 
   if (ci) childEnv.CI = 'true'
   if (requireToolchains) childEnv.HARNESS_REQUIRE_TOOLCHAINS = '1'
   childEnv[PATH_KEY] = `${join(dir, 'fake')}${delimiter}${process.env[PATH_KEY] ?? ''}`
-  const res = spawnSync(process.execPath, [GATE], {
+  const res = spawnSync(process.execPath, [script], {
     cwd: dir,
     encoding: 'utf8',
     env: { ...childEnv, ...env },
@@ -263,6 +264,33 @@ test('CI=true ignores the stamp and builds for real', () => {
   assert.equal(ci.code, 0, ci.out)
   assert.doesNotMatch(ci.out, /STAMPED/, ci.out)
   assert.equal(buildCalls(dir), 2, 'CI must never trust a stamp')
+})
+
+test('a kept stamp register with no web-compile list builds in full, and records no stamp', () => {
+  // An install that edited tools/lib/stamp-inputs.mjs keeps its copy: `update` parks the
+  // 1.1.0 one and plants this new owned step beside it, so the step meets a register with no
+  // entry for itself. It must judge in full, as the essential-eight and conformance-map
+  // stamps do, never crash on the missing list or stamp over an empty one.
+  const dir = fixture()
+  armPnpm(dir)
+  const tools = join(dir, 'tools')
+  cpSync(fileURLToPath(new URL('../../template/base/tools/lib', import.meta.url)), join(tools, 'lib'), {
+    recursive: true,
+  })
+  cpSync(GATE, join(tools, 'check-web-build.mjs'))
+  writeFileSync(
+    join(tools, 'lib', 'stamp-inputs.mjs'),
+    "export const STAMP_INPUTS = { build: ['apps/mobile'] }\n",
+  )
+  const script = join(tools, 'check-web-build.mjs')
+  const first = runGate(dir, { script })
+  assert.equal(first.code, 0, first.out)
+  assert.match(first.out, /^web-compile: OK/m, first.out)
+  assert.equal(existsSync(join(dir, STAMP)), false, 'no list, no stamp')
+  const second = runGate(dir, { script })
+  assert.equal(second.code, 0, second.out)
+  assert.doesNotMatch(second.out, /STAMPED/, second.out)
+  assert.equal(buildCalls(dir), 2, 'with no list to hash, every run builds')
 })
 
 test('no apps/web, or no node_modules: a loud SKIP locally, a FAIL under HARNESS_REQUIRE_TOOLCHAINS=1', () => {

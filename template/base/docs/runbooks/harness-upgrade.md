@@ -1638,8 +1638,8 @@ are the items of the 1.0.0 section's "What OPENS" list, which says what to do fo
 
 `scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.0.0']` is what the upgrade lane's swept leg runs
 before it requires `graduate` to succeed. For these sites `SWEEPS['1.1.0']` adds no step
-(it says why); the one thing it adopts is the two seeded browser specs of the last
-subsection of this section.
+(it says why); what it does carry belongs to later subsections of this section: the grant
+bound's `grantDoctrine` step, and the two seeded browser specs it adopts.
 
 ### What re-OPENS (a dated NOTE, until 1.2.0) — for every install below 1.1.0
 
@@ -3169,6 +3169,8 @@ places (the "What re-OPENS" part above).
 **If you edited an owned file.** Your copy of `tools/check-web-routes.mjs`,
 `tools/check-docs-sync.mjs`, `tools/lib/stamp-inputs.mjs` or `quality-gate.yml` is kept,
 the new one is parked under `.harness/pending/`, and `update` exits 2 while it stays there.
+Until you merge a parked `tools/lib/stamp-inputs.mjs`, your copy has no list for
+`web-compile`, so the step builds on every run and records no stamp.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
