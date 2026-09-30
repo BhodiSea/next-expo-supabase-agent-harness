@@ -639,11 +639,12 @@ this heading if none does. -->
   `tests/gates/spec-anchor.test.mjs` could not load before `tools/lib/spec-anchor.mjs`
   existed. With the resolver in and the old template, the template's id list held only
   `spec-feature`, and the cases for the prompts, the SOP and the conformance-map notes were
-  red. After the change every case passes, a symlink out of `specs/` included on POSIX, and
-  the lib's line, branch and function coverage is complete. In a tree rendered by `init`,
-  `node tools/spec-anchor.mjs specs/_template.md` printed the index, `#security-invariants`
-  printed that section, `#no-such-id` exited 1 and `../package.json` exited 2, and
-  `docs-sync`, `prompts`, `conformance-map` and `gate-integrity` passed (#63).
+  red. A case added in review was red first as well: a heading inside an HTML comment got an
+  id. After the change every case passes, a symlink out of `specs/` included on POSIX, and
+  the lib's line, branch and function coverage is complete. In a zero-edit core scaffold
+  whose `validate --report-all` passed, `node tools/spec-anchor.mjs specs/_template.md`
+  printed the index, `#security-invariants` printed that section, `#no-such-id` exited 1,
+  `../package.json` exited 2, and the tree stayed clean (#63).
 
 ## [1.0.4] — 2026-09-29
 
