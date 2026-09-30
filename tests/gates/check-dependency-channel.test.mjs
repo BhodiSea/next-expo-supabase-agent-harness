@@ -56,8 +56,9 @@ const BASE_PACKAGES = [
   'eslint-plugin-import', 'typescript', 'typescript-eslint', 'vitest', 'globals', 'zod',
   'jiti', 'prettier', 'knip', 'lefthook', 'tsx', 'vite', 'rollup', 'husky', 'nanoid', 'pino',
 ]
-const catalogYaml = (extra = []) =>
-  ['packages:', '  - apps/*', 'catalog:', ...[...BASE_PACKAGES, ...extra].map((n) => `  ${n}: ^1.0.0`), ''].join('\n')
+// `pins` overrides a key's value (default ^1.0.0); the catalogPinFloors cases below use it.
+const catalogYaml = (extra = [], pins = {}) =>
+  ['packages:', '  - apps/*', 'catalog:', ...[...BASE_PACKAGES, ...extra].map((n) => `  ${n}: ${pins[n] ?? '^1.0.0'}`), ''].join('\n')
 
 // Three references (one dynamic — the 0.4.0 jsx-a11y shape the gate's scanner exists for),
 // above the `referenced.size < 3` vacuity floor. jsx-a11y must stay referenced AND
@@ -88,7 +89,7 @@ const MIGRATIONS = {
  * strictly-below rule exists for. `tagged: false` builds one untagged commit instead.
  * @returns {string} the fixture root
  */
-function makeRepo({ catalogGain = [], referenceGain = '', tagged = true } = {}) {
+function makeRepo({ catalogGain = [], referenceGain = '', tagged = true, migrations = MIGRATIONS, pins = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nsah-depchan-'))
   const write = (rel, content) => {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
@@ -103,7 +104,9 @@ function makeRepo({ catalogGain = [], referenceGain = '', tagged = true } = {}) 
   git(dir, ['commit', '-q', '-m', 'release v0.1.0'])
   if (!tagged) return dir
   git(dir, ['tag', 'v0.1.0'])
-  write('template/base/pnpm-workspace.yaml', catalogYaml(catalogGain))
+  // The release under test records its floors, so a floor case always changes the tree.
+  write('template/migrations.json', JSON.stringify(migrations))
+  write('template/base/pnpm-workspace.yaml', catalogYaml(catalogGain, pins))
   write('template/base/eslint.config.mjs', ownedConfig(referenceGain))
   git(dir, ['add', '-A'])
   git(dir, ['commit', '-q', '-m', 'release v0.2.0'])
@@ -135,7 +138,7 @@ test('GREEN + the strictly-below pin: a repo whose highest tag equals its own ve
   const dir = makeRepo({ catalogGain: ['nanoid-dictionary'] })
   const { code, out } = run(dir)
   assert.equal(code, 0, out)
-  assert.match(out, /DEPENDENCY CHANNEL: CLEAN \(vs v0\.1\.0: 1 catalog addition\(s\), 3 reference\(s\) across 1 owned config\(s\), 1 obligation\(s\)\)/)
+  assert.match(out, /DEPENDENCY CHANNEL: CLEAN \(vs v0\.1\.0: 1 catalog addition\(s\), 3 reference\(s\) across 1 owned config\(s\), 1 obligation\(s\), 0 pin floor\(s\)\)/)
   assert.ok(!out.includes('vs v0.2.0'), `the baseline must never be the tag being cut:\n${out}`)
 })
 
@@ -149,4 +152,59 @@ test('RED in CI / SKIP loudly outside it: no reachable tag is a verdict about cl
   assert.equal(local.code, 0, `outside CI the same condition skips loudly:\n${local.out}`)
   assert.match(local.out, /DEPENDENCY CHANNEL: SKIPPED/)
   assert.match(local.out, /FAILS CLOSED in CI/)
+})
+
+// ── catalogPinFloors (1.1.0, #83) ───────────────────────────────────────────────────────
+// A floor is the one record kind `doctor` judges by VERSION, so the factory owns both of its
+// preconditions: the record is well formed (`update` builds its note and `doctor` its
+// warning from these fields), and the template's own catalog meets it, or every fresh
+// scaffold would warn in `doctor` on its first run.
+const FLOOR_WHY =
+  'vitest below 1.2.0 is affected by a fixture advisory: the template pins it at the floor, and existing installs must raise it.'
+/** @param {object[]} floors */
+const withFloors = (floors) => ({ ...MIGRATIONS, '0.2.0': { ...MIGRATIONS['0.2.0'], catalogPinFloors: floors } })
+const FLOOR = { name: 'vitest', minVersion: '1.2.0', advisory: 'GHSA-fixt-ure0-0001', why: FLOOR_WHY }
+
+test("GREEN: a well-formed floor the template's own catalog meets", () => {
+  const dir = makeRepo({ migrations: withFloors([FLOOR]), pins: { vitest: '1.2.0' } })
+  const { code, out } = run(dir)
+  assert.equal(code, 0, out)
+  assert.match(out, /, 1 obligation\(s\), 1 pin floor\(s\)\)/)
+})
+
+test("RED: the template's own catalog pins a floored package below its floor — a fresh scaffold would warn", () => {
+  for (const value of ['^1.0.0', '1.1.9', 'latest']) {
+    const dir = makeRepo({ migrations: withFloors([FLOOR]), pins: { vitest: value } })
+    const { code, out } = run(dir)
+    assert.equal(code, 1, `\`vitest: ${value}\` under a 1.2.0 floor must red:\n${out}`)
+    assert.ok(
+      out.includes(`template/migrations.json 0.2.0 floors \`vitest\` at 1.2.0, but template/base/pnpm-workspace.yaml pins \`vitest: ${value}\``),
+      out,
+    )
+  }
+})
+
+test("RED: a floor naming a package the template's catalog does not pin is stale", () => {
+  const dir = makeRepo({ migrations: withFloors([{ ...FLOOR, name: 'left-pad' }]) })
+  const { code, out } = run(dir)
+  assert.equal(code, 1, out)
+  assert.match(out, /catalogPinFloors names `left-pad` but the template's own catalog does not pin it/)
+})
+
+test('RED: a malformed floor — each missing or malformed field is named', () => {
+  const dir = makeRepo({
+    migrations: withFloors([
+      { minVersion: '1.2.0', advisory: 'GHSA-fixt-ure0-0001', why: FLOOR_WHY },
+      { ...FLOOR, minVersion: '^1.2.0' },
+      { ...FLOOR, advisory: '' },
+      { ...FLOOR, why: 'too short' },
+    ]),
+    pins: { vitest: '1.2.0' },
+  })
+  const { code, out } = run(dir)
+  assert.equal(code, 1, out)
+  assert.match(out, /template\/migrations\.json 0\.2\.0: a catalogPinFloors entry is missing a non-empty `name`/)
+  assert.match(out, /template\/migrations\.json 0\.2\.0 catalogPinFloors `vitest`: `minVersion` \^1\.2\.0 is not a plain x\.y\.z version/)
+  assert.match(out, /template\/migrations\.json 0\.2\.0: a catalogPinFloors entry is missing a non-empty `advisory`/)
+  assert.match(out, /template\/migrations\.json 0\.2\.0 catalogPinFloors `vitest`: `why` is 9 chars/)
 })

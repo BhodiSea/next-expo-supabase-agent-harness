@@ -147,6 +147,36 @@ test('snapshot blob: N=1, round-trips, and records absent candidates as absent',
   assert.equal(readRollbackSnapshot(dir).snapshot.to, '0.9.1')
 })
 
+// The park channels `update` writes outside the rendered plan must round-trip too, or an
+// update that fails partway leaves a phantom instruction behind (1.1.0, #83: pin-floors.json
+// joins dependencies.json and source-fixes.json).
+test('snapshot records every parked obligation file, present with its bytes and absent as absent', () => {
+  const OBLIGATION_FILES = [
+    '.harness/pending/dependencies.json',
+    '.harness/pending/source-fixes.json',
+    '.harness/pending/pin-floors.json',
+  ]
+  const manifest = { files: {} }
+
+  const present = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  writeInstallFile(join(present, '.harness', 'manifest.json'), '{"files":{}}\n')
+  for (const rel of OBLIGATION_FILES) writeInstallFile(join(present, rel), `{"parked":"${rel}"}\n`)
+  writeRollbackSnapshot({ targetDir: present, manifest, plan: [], from: '1.0.4', to: '1.1.0' })
+  const kept = readRollbackSnapshot(present).snapshot.files
+  for (const rel of OBLIGATION_FILES) {
+    assert.ok(kept[rel]?.existed, `${rel} must be a snapshot candidate`)
+    assert.equal(Buffer.from(kept[rel].b64, 'base64').toString(), `{"parked":"${rel}"}\n`)
+  }
+
+  const absent = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
+  writeInstallFile(join(absent, '.harness', 'manifest.json'), '{"files":{}}\n')
+  writeRollbackSnapshot({ targetDir: absent, manifest, plan: [], from: '1.0.4', to: '1.1.0' })
+  const vacant = readRollbackSnapshot(absent).snapshot.files
+  for (const rel of OBLIGATION_FILES) {
+    assert.ok(vacant[rel] && !vacant[rel].existed, `${rel} must be recorded absent, so rollback deletes one the update parked`)
+  }
+})
+
 test('rollback with no snapshot refuses loudly', () => {
   const dir = mkdtempSync(join(tmpdir(), 'tpah-rb-'))
   writeInstallFile(join(dir, '.harness', 'manifest.json'), '{"files":{}}\n')

@@ -269,16 +269,20 @@ test('the lists show five entries and a count of the rest, so a short brief is n
   assert.match(text, /^ {2}- … and 45 more$/m)
 })
 
-test('1,000 parked files on disk: counted whole, five named, two obligation files skipped as doctor skips them', async () => {
+// 1.1.0 (#83): pin-floors.json is the third obligation file doctor classifies apart.
+test('1,000 parked files on disk: counted whole, five named, three obligation files skipped as doctor skips them', async () => {
   const dir = fixture('parked')
   for (let i = 0; i < 1000; i += 1) put(dir, `.harness/pending/tools/f${String(i).padStart(4, '0')}.mjs`, 'x\n')
   put(dir, '.harness/pending/dependencies.json', '{}\n')
   put(dir, '.harness/pending/source-fixes.json', '{}\n')
+  put(dir, '.harness/pending/pin-floors.json', '{}\n')
   const text = await briefOf(dir)
   assert.match(text, /^parked: 1000$/m)
   assert.match(text, /^ {2}- tools\/f0000\.mjs$/m)
   assert.match(text, /^ {2}- … and 995 more$/m)
-  assert.ok(!text.includes('dependencies.json') && !text.includes('source-fixes.json'), text)
+  for (const obligation of ['dependencies.json', 'source-fixes.json', 'pin-floors.json']) {
+    assert.ok(!text.includes(obligation), text)
+  }
   assert.ok(text.length <= CAP)
 })
 
