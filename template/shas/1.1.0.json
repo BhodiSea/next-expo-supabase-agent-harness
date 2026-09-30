@@ -633,15 +633,6 @@
             "DEFAULT_BRANCH"
           ]
         ]
-      },
-      {
-        "sha256": "c3a95f925af31230faa20369473219842467b76081f36dd781e791239bc06ca1",
-        "sites": [
-          [
-            937,
-            "DEFAULT_BRANCH"
-          ]
-        ]
       }
     ],
     ".github/workflows/adr-guard.yml": [
@@ -793,9 +784,6 @@
       }
     ],
     ".github/zizmor.yml": [
-      {
-        "sha256": "eee0d5b7effdf66c03679579d22bf46ce04e89334cf76595965150cd8eef4e37"
-      },
       {
         "sha256": "f6ff5e5409be3c965e35863519c8c0b70dcc3c2bbe6768e67f4971597f7d59c0"
       }
@@ -1111,15 +1099,6 @@
         "sites": [
           [
             123344,
-            "SECURITY_TXT_EXPIRES"
-          ]
-        ]
-      },
-      {
-        "sha256": "c0c3871cb1d3b070a107dfdcc265c16598c78b15f74b4f1c672a720ec31bf023",
-        "sites": [
-          [
-            125469,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1487,15 +1466,6 @@
       },
       {
         "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
-        "sites": [
-          [
-            14115,
-            "SECURITY_OWNERS"
-          ]
-        ]
-      },
-      {
-        "sha256": "d4d0e57cd9b27d5449ad4b22d68b470cc949b78e2041068ae1fe0397e00b1557",
         "sites": [
           [
             14115,
@@ -2102,11 +2072,6 @@
         "sha256": "6df5cfa0d751ff204245fcbce337f6c149fd93c35e376bd1173d4f2bd33ade37"
       }
     ],
-    "tools/check-workflow-hardening.mjs": [
-      {
-        "sha256": "3d0c5fb04a3bd02e1357887906379c0560aa1eeb47cb10d1e472291dd33f3db1"
-      }
-    ],
     "tools/check-workspace-deps.mjs": [
       {
         "sha256": "9e27d8c00525c601316230bb43f283516fe3e2c6d0588a3c269ed63d1a11bafe"
@@ -2626,11 +2591,6 @@
     "tools/lib/web-routes.mjs": [
       {
         "sha256": "cc2dd43a967f79fd99807db736fd045f1599d627546d42e94bcc20779769b68c"
-      }
-    ],
-    "tools/lib/workflow-hardening.mjs": [
-      {
-        "sha256": "8864c1677800a344b2957f0f472b566c326e56d33b2dd7a088f3903d063a903a"
       }
     ],
     "tools/mcp/README.md": [

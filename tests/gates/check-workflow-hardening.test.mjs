@@ -206,6 +206,16 @@ test('input the check cannot read is a finding: no jobs:, a jobs: with no job, a
   const quotedKey = CLEAN.replace('  build:', '  "build it":')
   assert.match(gateFindings('d.yml', quotedKey)[0], /^d\.yml: line 6 under `jobs:` is not a job id this check can read \("build it":\)/)
   assert.equal(jobsOf('on: push\n'), null)
+  // A first step the reading cannot resolve (a YAML alias, a flow mapping) is named as
+  // unreadable, as written, not mistaken for a `run:` step.
+  const bare = CLEAN_JOB.replace(/ {6}- name: Harden runner[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n/, '')
+  const alias = `${HEAD}${bare.replace(`      - uses: ${CHECKOUT}`, `      - *harden\n      - uses: ${CHECKOUT}`)}`
+  assert.notEqual(alias, `${HEAD}${bare}`)
+  assert.deepEqual(gateFindings('e.yml', alias), [
+    'e.yml#build: the first step is not a step this check can read (- *harden) — a step it cannot read is never a pass; write harden-runner as a `- uses:` step, first',
+  ])
+  const flow = `${HEAD}${bare.replace(`      - uses: ${CHECKOUT}`, `      - { uses: '${HARDEN}' }\n      - uses: ${CHECKOUT}`)}`
+  assert.match(gateFindings('f.yml', flow)[0], /^f\.yml#build: the first step is not a step this check can read \(- \{ uses: /)
 })
 
 test('CRLF is normalised before any rule runs, and job ids take the platform alphabet', () => {
