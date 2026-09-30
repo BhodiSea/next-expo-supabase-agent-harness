@@ -197,6 +197,7 @@ test('unbalanced markers red, on either side', () => {
   const crossed = mirror()
   replaceOnce(crossed, SCHEMA, SCHEMA_END, SCHEMA_END.replace('org-policies', 'create-procedure'))
   assertRed(crossed, ['unbalanced', "'org-policies'", SCHEMA])
+  assertWriteRefuses(crossed)
 })
 
 test('a malformed marker reds rather than being read as prose', () => {

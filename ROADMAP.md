@@ -151,7 +151,7 @@ None of these tightens a gate for an existing install. Where one changes what
   skill's references are regions cut verbatim from spans the example marks,
   and a factory check fails on drift in either direction. The table, trigger,
   index, FORCE and grant half of the RLS skeleton stays hand-written until the
-  grant decision is made.
+  example grants what it teaches (the three-role revoke, #74).
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
   issue #59)
 - **A session-start brief and `harness:status`.** Enumerated, length-capped

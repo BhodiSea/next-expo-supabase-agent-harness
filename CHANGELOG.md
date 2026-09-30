@@ -170,12 +170,13 @@ this heading if none does. -->
   `setup-node`, on the runner image's own Node, whose version is not pinned here; the script
   uses Node built-ins only (#57).
 - **Half of the RLS skeleton is still hand-written.** The table, trigger, index, FORCE and
-  grant statements of `references/migration-rls.md` stay hand-written `<t>` text until the
-  maintainer makes the grant decision #59 leaves open. The skeleton teaches `REVOKE ALL … FROM
-  authenticated` and an exact re-grant, which 1.0.2 added as documentation only, and the
-  example still revokes from `anon` and `service_role` alone, so generating that half now
-  would either drop the revoke or change what the example grants. Until then the skeleton
-  reads `<t>` above its generated half and `notes` in it (#59).
+  grant statements of `references/migration-rls.md` stay hand-written `<t>` text. The
+  skeleton teaches `REVOKE ALL … FROM authenticated` and an exact re-grant, which 1.0.2
+  added as documentation only, and the example still revokes from `anon` and `service_role`
+  alone, so generating that half now would either drop the revoke or change what the example
+  grants. This release changes neither; the three-role revoke on the example is #74's to
+  apply, and that half can become a region once the example grants what it teaches. Until
+  then the skeleton reads `<t>` above its generated half and `notes` in it (#59).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -216,8 +217,11 @@ this heading if none does. -->
   the references`. With the markers in, `create-procedure` matched its span byte for byte,
   and `org-policies` differed only in the policy names and the one comment line the example
   kept, which `--write` regenerated. Each planted defect now fails `--check` naming its file
-  and region id, `--write` turns only the two drift cases green, and the live case passes
-  (#59).
+  and region id, `--write` turns only the two drift cases green, and the live case passes.
+  A 1.0.4 install updated by this installer took the three owned files, re-recorded their
+  `tools/agents.lock.json` entries and stayed green on `prompts`, and kept its seeded
+  `20_notes.sql` without markers; one whose `dal-dto.md` was edited kept that copy, got the
+  new one under `.harness/pending/`, and `update` exited 2 (#59).
 
 ## [1.0.4] — 2026-09-29
 
