@@ -1179,20 +1179,25 @@ this heading if none does. -->
   `EVENT_CATALOG` is `42` fails closed naming its file, one that names it only in a comment
   is listed as not catalogued, a tree without the example writes the two platform rows, and
   a vertical that opts in is catalogued with no edit to the generator. On a fresh core-tier
-  scaffold rendered from this tree, `--check` printed `tools/generated/event-catalog.json:
-  in sync (5 events)` and nothing else, and `contracts`, `dead-code` and `format` were
-  green. Proof A: with `client.ts` back on `export { noteEvents }` and `@app/notes` in the
-  root devDependencies, `--check` and `contracts` stayed in sync, and with the
-  `EVENT_CATALOG` line restored beside that dependency `--check` stayed in sync with no
-  duplicate. Proof B, a probe vertical whose `EVENT_CATALOG` is `42`, exited 1 naming
-  `packages/verticals/probe/src/client.ts`; proof C, the name only in a comment, printed
-  `@app/probe is not catalogued` and stayed in sync; proof D, the example moved aside, wrote
-  the catalog with exactly the three `notes.*` rows removed. The v1.0.3 generator in the
-  same scaffold threw `Cannot find package '@app/notes'` with the example in place or moved
-  aside. Proof D runs the generator directly: through `pnpm exec`, pnpm's pre-run dependency
-  check re-installs the changed workspace, and that install fails while `packages/api` and
-  `apps/web` depend on the missing vertical. The two new `day0-empty-states` steps, replayed
-  on that scaffold, passed, and with the v1.0.3 generator both failed (#82).
+  scaffold rendered from this tree, `--check` printed
+  `tools/generated/event-catalog.json: in sync (5 events)` and nothing else, and
+  `contracts`, `dead-code` and `format` were green. Proof A: with `client.ts` back on
+  `export { noteEvents }` and `@app/notes` in the root devDependencies, `--check` and
+  `contracts` stayed in sync, and with the `EVENT_CATALOG` line restored beside that
+  dependency `--check` stayed in sync with no duplicate. Proof B, a probe vertical whose
+  `EVENT_CATALOG` is `42`, exited 1 naming `packages/verticals/probe/src/client.ts`; proof
+  C, the name only in a comment, printed `@app/probe is not catalogued` and stayed in sync;
+  proof D, the example moved aside, wrote the catalog with exactly the three `notes.*` rows
+  removed. The v1.0.3 generator in the same scaffold threw
+  `Cannot find package '@app/notes'` with the example in place or moved aside. Proof D runs
+  the generator directly: through `pnpm exec`, pnpm's pre-run dependency check re-installs
+  the changed workspace, and that install fails while `packages/api` and `apps/web` depend
+  on the missing vertical. The two new `day0-empty-states` steps, replayed on that scaffold,
+  passed, and with the v1.0.3 generator both failed. `update` from a v1.0.3 core-tier render
+  wrote the generator, the library, `tools/lib/stamp-inputs.mjs`, the scaffolder and
+  `dal-dto.md` and parked none of them; on the updated tree, whose `client.ts` and root
+  `package.json` kept their 1.0.3 bytes, the helper found the example not opted in and the
+  compatibility entry applying (#82).
 
 ## [1.0.4] — 2026-09-29
 
