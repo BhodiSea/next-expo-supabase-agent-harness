@@ -90,6 +90,15 @@ evidence (the deep sweep is the opt-in `gate-a11y-deep` module: a jest-expo
 manifest-keyed sweep plus the manual TalkBack/VoiceOver runbook — there is
 deliberately no device-side ATF lane). Flag only genuine conformance gaps.
 
+Severities: CRITICAL, HIGH, MEDIUM, LOW
+Blocking: CRITICAL, HIGH
+
+Write each violation on a line of its own as `- [SEVERITY] file:line — <WCAG success
+criterion>: …`: the criterion you report by, with a severity from the `Severities:` line
+in front. Return `VERDICT: BLOCK` when a finding at a `Blocking:` severity stands, and
+`VERDICT: PASS` otherwise: a PASS that lists a blocking finding is sent back to you to
+re-state.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

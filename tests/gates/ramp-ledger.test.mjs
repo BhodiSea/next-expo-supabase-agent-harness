@@ -739,10 +739,13 @@ test('the SHIPPED 0.7.0 rampExpiry record equals what the shipped call sites com
   // due 2.1.0), which does NOT widen the set: reviewer-verdicts already carries its 0.7.0
   // binding ramp at this vintage. TWENTY-SIX since 1.1.0 added a second on the same gate,
   // the security-reviewer model check (#62, minVersion 1.1.0, due 2.1.0), which does not
-  // widen it either.
+  // widen it either. TWENTY-EIGHT since 1.1.0 added TWO more for the severity contract (#71),
+  // both minVersion 1.1.0 due 1.2.0: docs-sync's reviewer severity contract and
+  // reviewer-verdicts' per-reviewer round budget. Neither widens the set: both gates already
+  // carry ramps at this vintage.
   const fresh = classifyForInstall('0.6.0', '0.7.0', sites)
   assert.equal(fresh.expired.length, 0)
-  assert.equal(fresh.noting.length, 26)
+  assert.equal(fresh.noting.length, 28)
   assert.deepEqual(
     [...new Set(fresh.noting.map((s) => s.gate))].sort(),
     [
@@ -993,6 +996,20 @@ const LEDGER_V2 =
 // window, and earlier in check-reviewer-verdicts.mjs than the ledger v2 site, so it sorts first.
 const MODEL_CHECK =
   'the security-reviewer model check (a PASS from a security reviewer counts only on its pinned model or on a model its harnessFallbackModels list names)'
+// The severity contract (1.1.0, #71): two sites, both opened at minVersion 1.1.0 and due 1.2.0,
+// so both read as advisory for every vintage below 1.1.0 at every version below 1.2.0. In the
+// scanner's order: docs-sync's, then reviewer-verdicts' (after the model check and before the
+// ledger v2 in that file).
+const SEVERITY_CONTRACT = 'the reviewer severity contract'
+const ROUND_BUDGET = 'the per-reviewer round budget'
+/** The 1.1.0-opened sites, in the order the scanner lists them. */
+const OPENED_110 = [
+  `'${SEVERITY_CONTRACT}'`,
+  `'${MODEL_CHECK}'`,
+  `'${ROUND_BUDGET}'`,
+  `'${LEDGER_V2}'`,
+  `"${ARRIVAL}"`,
+]
 
 test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
@@ -1139,11 +1156,12 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   // since 1.1.0 re-opened version-sync's eol arrival at minVersion 1.1.0, that one site reads
   // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and so do the
   // reviewer ledger v2 and the security-reviewer model check 1.1.0 opened, below their 2.1.0
-  // deadline; nothing else.
+  // deadline, and the severity contract's two sites (#71), below their 1.2.0 deadline; nothing
+  // else.
   assert.deepEqual(
     at100.noting.map((s) => s.detail),
-    [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
-    '1.0.0 meets only the three 1.1.0-opened sites under the current fleet',
+    OPENED_110,
+    '1.0.0 meets only the five 1.1.0-opened sites under the current fleet',
   )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
@@ -1209,22 +1227,23 @@ test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites com
     assert.ok(at.expired.every((s) => s.minVersion === '1.0.0'))
     assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
     // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due. So do
-    // the reviewer ledger v2 and the security-reviewer model check this release opens.
+    // the reviewer ledger v2, the security-reviewer model check and the severity contract's two
+    // sites this release opens.
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
+      OPENED_110,
     )
   }
-  // Every 1.0.x vintage meets NOTHING expired and exactly the three 1.1.0-opened NOTEs, the
-  // re-opened arrival, the reviewer ledger v2 and the security-reviewer model check — the
-  // inverse proof that the wave is dated, not blanket.
+  // Every 1.0.x vintage meets NOTHING expired and exactly the five 1.1.0-opened NOTEs, the
+  // re-opened arrival, the reviewer ledger v2, the security-reviewer model check and the
+  // severity contract's two sites — the inverse proof that the wave is dated, not blanket.
   for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
     const at = classifyForInstall(base, '1.1.0', sites)
     assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
     assert.deepEqual(
       at.noting.map((s) => s.detail),
-      [`'${MODEL_CHECK}'`, `'${LEDGER_V2}'`, `"${ARRIVAL}"`],
-      `${base} meets only the three 1.1.0-opened sites`,
+      OPENED_110,
+      `${base} meets only the five 1.1.0-opened sites`,
     )
   }
   assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)

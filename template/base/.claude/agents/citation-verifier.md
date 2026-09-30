@@ -73,6 +73,17 @@ summary of one judgement, never two independent ones. The `CITATIONS:` line come
 and the `VERDICT:` line LAST — the hook that records the verdict reads a reply with
 anything after a PASS as no verdict at all.
 
+Severities: CRITICAL, HIGH, MEDIUM, LOW
+Blocking: CRITICAL, HIGH
+
+Under the table, write each problem entry on a line of its own as `- [SEVERITY] site —
+source: …`. An UNRESOLVABLE (hallucinated) source is CRITICAL; an UNSUPPORTED one, and a
+decision site with no `SOURCE:`, are HIGH; a HUMAN-VERIFY URL is LOW, so it does not
+fail the verdict on its own. Every entry `CITATIONS: REJECTED` lists is therefore at a
+`Blocking:` severity, and REJECTED stays `VERDICT: BLOCK`. Return `VERDICT: BLOCK` when
+a finding at a `Blocking:` severity stands, and `VERDICT: PASS` otherwise: a PASS that
+lists a blocking finding is sent back to you to re-state.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

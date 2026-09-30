@@ -85,6 +85,14 @@ floor mechanically; your job is judgment on top of it. Report by severity with
 Flag ONLY genuine weakenings or gaps in these invariants — adding a permission or a
 plugin is routine slice work when justified and allowlisted.
 
+Severities: CRITICAL, HIGH, MEDIUM, LOW
+Blocking: CRITICAL, HIGH
+
+Write each finding on a line of its own as `- [SEVERITY] file:line — …`, with a severity
+from the `Severities:` line. Return `VERDICT: BLOCK` when a finding at a `Blocking:`
+severity stands, and `VERDICT: PASS` otherwise: a PASS that lists a blocking finding is
+sent back to you to re-state.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

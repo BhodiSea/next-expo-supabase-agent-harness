@@ -153,6 +153,14 @@ Flag ONLY gaps that affect correctness or these invariants; a new table with FOR
 four keyed policies, the three REVOKEs and the exact GRANT, and an owner-leading index is
 routine slice work. Do not over-engineer.
 
+Severities: CRITICAL, HIGH, MEDIUM, LOW
+Blocking: CRITICAL, HIGH
+
+Write each finding on a line of its own as `- [SEVERITY] file:line — …`, with a severity
+from the `Severities:` line. Return `VERDICT: BLOCK` when a finding at a `Blocking:`
+severity stands, and `VERDICT: PASS` otherwise: a PASS that lists a blocking finding is
+sent back to you to re-state.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

@@ -175,3 +175,107 @@ export function splitList(value) {
     .map((s) => unquote(s.trim()))
     .filter((s) => s !== '')
 }
+
+// ── THE SEVERITY CONTRACT (1.1.0, #71) ──────────────────────────────────────────────────
+// Every reviewer body states which severities it ranks findings at and which of them make
+// the verdict BLOCK, each on a line of its own, before its closing verdict paragraph:
+//
+//   Severities: CRITICAL, HIGH, MEDIUM, LOW
+//   Blocking: CRITICAL, HIGH
+//
+// Two readers. The SubagentStop hook takes the Blocking line and sends back a PASS that
+// lists a finding at one of those severities. docs-sync holds both lines to their shape,
+// behind its 1.1.0 ramp. The lines are anchored to the start of a line, like the verdict
+// grammar, and read from the BODY only, so a frontmatter key of the same name states
+// nothing. They are parsed here, not in parseFrontmatter, which the complexity ratchet
+// already holds at its ceiling.
+
+// The severities every reviewer's Blocking line must include: the shipped policy. A narrower
+// line would let a HIGH finding ride a PASS, which is the downgrade the floor refuses. A
+// wider one blocks on more, which is the body's own business.
+export const BLOCKING_FLOOR = ['CRITICAL', 'HIGH']
+
+const CONTRACT_LINE = /^(Severities|Blocking):(.*)$/
+
+/**
+ * An agent file's body lines: everything after its frontmatter block, the whole text when
+ * it has none, and nothing when the block never closes (parseFrontmatter reds that).
+ * @param {unknown} text
+ */
+function bodyLines(text) {
+  const lines = String(text)
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+  if ((lines[0] ?? '').trimEnd() !== '---') return lines
+  const close = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---')
+  return close === -1 ? [] : lines.slice(close + 1)
+}
+
+/** `critical , High` → ['CRITICAL', 'HIGH']: trimmed, upper-cased, blanks dropped. */
+const severityList = (value) =>
+  value
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => s !== '')
+
+/**
+ * An agent body's severity contract. Each list is the union of every line of its key, in
+ * first-seen order, or null when the body has no such line; `repeated` names each key stated
+ * more than once. The union is the strict reading for the hook, because a second
+ * `Blocking:` line can only add severities that block, and docs-sync reds the repetition.
+ * @param {unknown} text the whole agent file
+ * @returns {{ severities: string[]|null, blocking: string[]|null, repeated: string[] }}
+ */
+export function severityContract(text) {
+  /** @type {Record<string, string[]|null>} */
+  const found = { Severities: null, Blocking: null }
+  const repeated = []
+  for (const line of bodyLines(text)) {
+    const m = CONTRACT_LINE.exec(line.trimEnd())
+    if (m === null) continue
+    const [, key, value] = m
+    if (found[key] !== null && !repeated.includes(key)) repeated.push(key)
+    found[key] = [...new Set([...(found[key] ?? []), ...severityList(value)])]
+  }
+  return { severities: found.Severities, blocking: found.Blocking, repeated }
+}
+
+/**
+ * What is wrong with a reviewer body's severity contract, one sentence each, [] when it is
+ * whole: both lines present, each stated once, Blocking a subset of Severities, and Blocking
+ * holding every BLOCKING_FLOOR severity.
+ * @param {unknown} text the whole agent file
+ * @returns {string[]}
+ */
+export function severityContractProblems(text) {
+  const { severities, blocking, repeated } = severityContract(text)
+  const problems = []
+  if (severities === null) {
+    problems.push(
+      'no `Severities:` line — the body must list, on a line of its own, the severities it ranks findings at (`Severities: CRITICAL, HIGH, MEDIUM, LOW`)',
+    )
+  }
+  if (blocking === null) {
+    problems.push(
+      'no `Blocking:` line — the body must say, on a line of its own, which severities make its verdict BLOCK (`Blocking: CRITICAL, HIGH`); without it the SubagentStop hook cannot hold a PASS to the findings it lists',
+    )
+    return [...problems, ...repeated.map(repeatedLine)]
+  }
+  problems.push(...repeated.map(repeatedLine))
+  const outside = blocking.filter((s) => severities !== null && !severities.includes(s))
+  if (outside.length > 0) {
+    problems.push(
+      `\`Blocking:\` names ${outside.join(', ')}, which \`Severities:\` does not list — Blocking must be a subset of Severities`,
+    )
+  }
+  const missing = BLOCKING_FLOOR.filter((s) => !blocking.includes(s))
+  if (missing.length > 0) {
+    problems.push(
+      `\`Blocking:\` omits ${missing.join(', ')} — every reviewer blocks on at least ${BLOCKING_FLOOR.join(', ')}; a narrower line lets a finding at that severity ride a PASS`,
+    )
+  }
+  return problems
+}
+
+/** @param {string} key */
+const repeatedLine = (key) => `\`${key}:\` is stated more than once — state it on one line`

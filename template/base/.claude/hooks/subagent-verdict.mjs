@@ -62,6 +62,20 @@
 // The branch on hook_event_name is what makes the wiring safe: a 1.0.x copy of this hook
 // read a SubagentStart payload as a reviewer that ended without a verdict and exited 2.
 //
+// AND, SINCE 1.1.0 (#71), THE SEVERITY CONTRACT AND THE ROUND. Every shipped reviewer body
+// states `Blocking: CRITICAL, HIGH` on a line of its own. The hook reads that line from the
+// body of the reviewer that stopped, and a PASS whose reply lists a finding at one of those
+// severities (`- [HIGH] file:line — …`, anchored to the start of a line) is bounced with the
+// shape `pass-with-blocking-finding`: the reply contradicts itself, so it re-states. The
+// bounce moves only in the strict direction: it never touches a BLOCK. A body with no
+// `Blocking:` line (a fork, a project's own reviewer) is never bounced on this ground, and
+// neither is one read through a lib without the reader. Each ledger entry also records
+// `blocking`, the finding lines at a blocking severity (null with no contract), and `round`,
+// the verdict's round in its reviewer's review loop this session, with `overBudget` past
+// tools/lib/reviewer-verdicts.mjs ROUND_BUDGET. Past the budget the hook still exits 0:
+// exit 2 would keep the subagent running and spend a block of the turn-wide cap, and a hook
+// has no NOTE channel to carry a ramp. The Stop step judges the budget.
+//
 // IT IS SILENT FOR NON-REVIEWERS. The roster is read from .claude/agents/, not duplicated into
 // a settings.json matcher — a matcher string would be a second copy of the roster, and the one
 // thing this release has learned repeatedly is that two copies of a list drift.
@@ -84,8 +98,9 @@ import * as verdicts from '../../tools/lib/reviewer-verdicts.mjs'
 // hookio as a NAMESPACE too (1.0.4), for the same reason: `recordHookEvent` is new, and a
 // forked lib/hookio.mjs that `update` parked must still load. The guarded call is a no-op there.
 import * as hookio from './lib/hookio.mjs'
-// And the roster grammar as a NAMESPACE (1.1.0, #62): `modelPolicy` is new, and a parked fork
-// of tools/lib/agent-roster.mjs without it must still load. `pinned` is then null.
+// And the roster grammar as a NAMESPACE (1.1.0, #62 and #71): `modelPolicy` and
+// `severityContract` are new, and a parked fork of tools/lib/agent-roster.mjs without them must
+// still load. `pinned` is then null, and the body has no contract.
 import * as roster from '../../tools/lib/agent-roster.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
@@ -212,24 +227,26 @@ const recordBlock = (gate, payload) =>
   recordTurnOutcome({ blocked: true, gates: [gate], input: payload, ledgerPath: TURN_LOG })
 
 /**
- * The reviewer roster, read from the shipped agent files.
+ * The reviewer roster, read from the shipped agent files: each reviewer's name, mapped to its
+ * file's text (1.1.0: the severity contract is read from it).
  *
  * A REVIEWER is an agent that declares `disallowedTools` including Write and Edit — the
  * property check-docs-sync.mjs already enforces and the one that actually distinguishes a
  * reviewer from an author. Deriving it beats listing it: `dal-author` and `test-author`
  * produce diffs and attest to nothing, and a hand-kept list of which is which is one rename
  * away from summoning the wrong set.
+ * @returns {Map<string, string>}
  */
 function reviewerTypes() {
-  if (!existsSync(AGENTS_DIR)) return new Set()
-  const out = new Set()
+  const out = new Map()
+  if (!existsSync(AGENTS_DIR)) return out
   for (const f of readdirSync(AGENTS_DIR).sort()) {
     if (!f.endsWith('.md')) continue
     const src = readFileSync(join(AGENTS_DIR, f), 'utf8')
     const name = src.match(/^name:\s*([a-z0-9-]+)\s*$/m)?.[1]
     const disallowed = src.match(/^disallowedTools:\s*(.+)$/m)?.[1] ?? ''
     if (name !== undefined && /\bWrite\b/.test(disallowed) && /\bEdit\b/.test(disallowed)) {
-      out.add(name)
+      out.set(name, src)
     }
   }
   return out
@@ -250,7 +267,8 @@ if (input === null || typeof input !== 'object') {
 }
 
 const agentType = typeof input.agent_type === 'string' ? input.agent_type : null
-if (agentType === null || !reviewerTypes().has(agentType)) process.exit(0)
+const reviewers = reviewerTypes()
+if (agentType === null || !reviewers.has(agentType)) process.exit(0)
 
 // SubagentStart (1.1.0): record the tree this reviewer was dispatched on, and nothing else.
 // Exit 0 whatever happens: SubagentStart cannot block (exit 2 only shows stderr), and a
@@ -280,10 +298,37 @@ const { verdict, shape } =
     : { verdict: verdicts.readVerdict(input.last_assistant_message), shape: 'unclassified' }
 
 /**
+ * The `Blocking:` severities of this reviewer's body (1.1.0, #71), or null: the body states
+ * no `Blocking:` line, or a lib lacks the reader (a parked fork). Null is "no contract", the
+ * 1.0.x behaviour: the reply's findings are neither judged nor recorded.
+ * @returns {string[]|null}
+ */
+function blockingSeverities() {
+  try {
+    if (
+      typeof roster.severityContract !== 'function' ||
+      typeof verdicts.blockingFindings !== 'function'
+    ) {
+      return null
+    }
+    return roster.severityContract(reviewers.get(agentType)).blocking
+  } catch {
+    return null
+  }
+}
+
+const blocking = blockingSeverities()
+// The reply's finding lines at a blocking severity, or null with no contract.
+const blockingLines =
+  blocking === null ? null : verdicts.blockingFindings(input.last_assistant_message, blocking)
+
+/**
  * What the reviewer's last line was and why it did not parse. BOOKKEEPING NEVER DECIDES THE
  * OUTCOME: the exit 2 below happens whether or not this write does.
+ * @param {string} [why] the bounce shape, the verdict grammar's unless a later rule decided
+ * @param {Record<string, unknown>} [extra] fields that rule adds to the record
  */
-function recordBounce() {
+function recordBounce(why = shape, extra = {}) {
   try {
     const message = typeof input.last_assistant_message === 'string' ? input.last_assistant_message : ''
     const lastLine = message.trimEnd().split('\n').at(-1)?.trim() ?? ''
@@ -294,8 +339,9 @@ function recordBounce() {
         at: new Date().toISOString(),
         session_id: input.session_id ?? null,
         agent_type: agentType,
-        shape,
+        shape: why,
         last_line: lastLine.slice(0, 200),
+        ...extra,
       })}\n`,
     )
   } catch {
@@ -324,21 +370,54 @@ if (verdict === null) {
   process.exit(2)
 }
 
+// THE SEVERITY CONTRACT (1.1.0, #71). A PASS that lists a finding at a severity its own body
+// says blocks is not an attestation: the reply contradicts itself, so the reviewer re-states,
+// exactly as a reply with no verdict does. Never a BLOCK: a BLOCK is recorded as it stands.
+if (verdict === 'PASS' && blockingLines !== null && blockingLines.length > 0) {
+  recordBlock(`subagent-verdict/${agentType}`, input)
+  recordBounce('pass-with-blocking-finding', { blocking: blockingLines })
+  hookio.recordHookEvent?.(
+    { hook: 'subagent-verdict', rule: 'pass-with-blocking-finding', input },
+    'bounce',
+  )
+  process.stderr.write(
+    `subagent-verdict: ${agentType} returned VERDICT: PASS but lists a finding at a blocking severity: "${blockingLines[0]}". Its own definition says \`Blocking: ${(blocking ?? []).join(', ')}\`, so a finding at one of those severities that stands makes the verdict BLOCK. Re-state your conclusion: if the finding stands, end with "VERDICT: BLOCK"; if it does not, say why and take it out of the findings.\n`,
+  )
+  process.exit(2)
+}
+
+/**
+ * This verdict's round in its reviewer's review loop, and whether it is past the budget
+ * (1.1.0, #71), from the ledger as it stands before this entry. Bookkeeping, like pathState:
+ * `{ round: null, overBudget: null }` on ANY failure (an unreadable ledger, a lib without the
+ * counter), and never the reason a verdict is not recorded or the exit code changes.
+ * @param {Record<string, unknown>} record
+ */
+function roundsOf(record) {
+  try {
+    if (typeof verdicts.roundOf !== 'function') return { round: null, overBudget: null }
+    return verdicts.roundOf(existsSync(LEDGER) ? readFileSync(LEDGER, 'utf8') : '', record)
+  } catch {
+    return { round: null, overBudget: null }
+  }
+}
+
+const record = {
+  session_id: input.session_id ?? null,
+  prompt_id: input.prompt_id ?? null,
+  agent_type: agentType,
+  agent_id: input.agent_id ?? null,
+  verdict,
+  path_state: pathState(agentType),
+  // The reviewer ledger v2 pair (1.1.0): the tree at dispatch and the tree now.
+  path_state_start: dispatchDigest(input.session_id, input.agent_id),
+  path_state_stop: reviewState(agentType),
+  // The model the verdict ran on (1.1.0, #62), and whether it is the agent's pin.
+  ...ranOn(agentType),
+  // The severity contract (1.1.0, #71): the reply's findings at a blocking severity.
+  blocking: blockingLines,
+}
 mkdirSync(dirname(LEDGER), { recursive: true })
-appendFileSync(
-  LEDGER,
-  `${JSON.stringify({
-    session_id: input.session_id ?? null,
-    prompt_id: input.prompt_id ?? null,
-    agent_type: agentType,
-    agent_id: input.agent_id ?? null,
-    verdict,
-    path_state: pathState(agentType),
-    // The reviewer ledger v2 pair (1.1.0): the tree at dispatch and the tree now.
-    path_state_start: dispatchDigest(input.session_id, input.agent_id),
-    path_state_stop: reviewState(agentType),
-    // The model the verdict ran on (1.1.0, #62), and whether it is the agent's pin.
-    ...ranOn(agentType),
-  })}\n`,
-)
+// The round (1.1.0, #71). Past the budget this still exits 0: the Stop step judges it.
+appendFileSync(LEDGER, `${JSON.stringify({ ...record, ...roundsOf(record) })}\n`)
 process.exit(0)

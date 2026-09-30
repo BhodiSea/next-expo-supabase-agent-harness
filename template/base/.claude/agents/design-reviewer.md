@@ -58,6 +58,15 @@ Report findings as `file:line — what, why it hurts, the smaller fix`, most
 important first, at most a handful (a design review that lists twenty nits has
 abdicated judgement). If the diff is genuinely at the bar, say so.
 
+Severities: CRITICAL, HIGH, MEDIUM, LOW
+Blocking: CRITICAL, HIGH
+
+Write each finding on a line of its own as `- [SEVERITY] file:line — what, why it hurts,
+the smaller fix`: the shape above, with a severity from the `Severities:` line in front.
+Return `VERDICT: BLOCK` when a finding at a `Blocking:` severity stands, and
+`VERDICT: PASS` otherwise: a PASS that lists a blocking finding is sent back to you to
+re-state.
+
 End with exactly one final line: `VERDICT: PASS` or `VERDICT: BLOCK`. The prefix is
 what makes the outcome machine-readable — a bare `PASS` can occur anywhere in prose,
 so a caller (or a future receipt gate) cannot tell a verdict from a sentence.

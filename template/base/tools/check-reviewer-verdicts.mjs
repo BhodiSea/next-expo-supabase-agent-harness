@@ -67,6 +67,21 @@
 // Agent tool's `model` set to a listed model.
 // Nothing ramps that sentence; it changes no verdict.
 //
+// THE ROUND BUDGET (1.1.0, #71), behind a second ramp opened at 1.1.0, until 1.2.0. Nothing
+// else bounds a fix-and-re-review loop: the turn-wide block cap counts every kind of block,
+// and when it is spent the turn ends with the findings standing. The hook records each
+// verdict's `round` and its `blocking` finding lines. This step counts each owed reviewer's
+// rounds over the session's entries, the change set v2 judges, with tools/lib/
+// reviewer-verdicts.mjs judgeRoundBudget: a BLOCK opens a review loop, each later verdict of
+// that reviewer is its next round, and the loop closes when the same run passes over a tree
+// that did not move under it. A loop still open after ROUND_BUDGET rounds is SPENT: a verdict
+// past the budget never clears it, and the step reds with the recorded findings and says to
+// stop and hand them to the human. That finding replaces the reviewer's own v1 or v2 finding,
+// which would say to run it again. An entry an earlier or parked hook wrote counts as one
+// round, with no recorded findings. With no merge base the budget is judged all the same, over
+// the reviewers the 1.0.x judgement owes. The hook cannot carry this ramp, because a hook has
+// no NOTE channel, so the ramp lives here.
+//
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
 // a read-only agent whose tools, pinned model, fallback list and body are hashed in
 // tools/agents.lock.json (its `models` map records the pin alone), and since 1.1.0 the model it
@@ -345,7 +360,7 @@ const V1_HINT = `Each finding names a reviewer whose own definition says it MUST
 
 /** The 1.0.x verdict, when it is the one that decides. @returns {never} */
 function v1Verdict() {
-  failures(GATE, [...v1Findings, ...modelVerdict(v1Model)], V1_HINT)
+  failures(GATE, [...budgetLive, ...withoutSpent([...v1Findings, ...modelVerdict(v1Model)])], V1_HINT)
   if (rosterNoted || bindingNoted) {
     ok(GATE, 'NOTE-only on this pre-ramp install (each ramp names its deadline above)')
   }
@@ -453,6 +468,64 @@ const v2 = judgeV2()
 const v2Owed = v2.owed ?? []
 const v2Found = v2.findings ?? []
 
+// ── THE ROUND BUDGET (1.1.0, #71): judged over the session, behind its own ramp ─────────
+
+/**
+ * One finding per owed reviewer whose round budget is spent with a BLOCK standing, over this
+ * session's entries, each with the reviewer it names. A lib without the judge (a parked fork)
+ * is ONE finding naming the lib, never a pass: the budget cannot be judged, and saying so is
+ * the ramp's business.
+ * @param {string[]} agents the owed reviewers, from the judgement that decides the owed set
+ * @returns {Array<{ agent: string|null, finding: string }>}
+ */
+function budgetFindings(agents) {
+  if (agents.length === 0) return []
+  if (
+    typeof verdicts.judgeRoundBudget !== 'function' ||
+    typeof verdicts.readSessionLedger !== 'function'
+  ) {
+    return [
+      {
+        agent: null,
+        finding:
+          'tools/lib/reviewer-verdicts.mjs has no judgeRoundBudget export, so the per-reviewer round budget cannot be judged. It is an owned file you forked: `update` kept your copy and parked the 1.1.0 one under .harness/pending/. Merge the parked copy into yours, then re-record the sha (docs/runbooks/harness-upgrade.md, 1.0.2 section, "Forking an owned file").',
+      },
+    ]
+  }
+  if (rawLedger === null) return []
+  const read = verdicts.readSessionLedger(rawLedger, sessionId, promptId, LEDGER)
+  // A torn line of this turn is already a finding of both judgements, and fails closed there.
+  if (read.error !== null) return []
+  return agents
+    .map((agent) => ({ agent, finding: verdicts.judgeRoundBudget({ agent }, read.entries) }))
+    .filter((b) => b.finding !== null)
+}
+
+// v2's owed set is the change set where v2 judges; with no merge base it is the 1.0.x one.
+const budgetFound = budgetFindings((v2.ran ? v2Owed : owed).map((o) => o.agent))
+const budgetNoted =
+  budgetFound.length > 0 &&
+  rampNote(GATE, '1.1.0', 'the per-reviewer round budget', { until: '1.2.0' })
+if (budgetNoted) {
+  console.log(
+    `${GATE}: NOTE — ${String(budgetFound.length)} round-budget finding(s) withheld by the 1.1.0 ramp:`,
+  )
+  for (const b of budgetFound) console.log(`  - ${b.finding}`)
+}
+const budgetSpent = budgetNoted ? [] : budgetFound
+const budgetLive = budgetSpent.map((b) => b.finding)
+
+/**
+ * A finding list without the other findings of a reviewer whose budget is spent: they say to
+ * run it again, and a round past the budget clears nothing. Every per-reviewer finding opens
+ * with the reviewer's name and a space, which is what this matches.
+ * @param {string[]} list
+ */
+const withoutSpent = (list) =>
+  list.filter(
+    (f) => !budgetSpent.some((b) => b.agent !== null && f.startsWith(`${b.agent} `)),
+  )
+
 // DECISION 1 (1.1.0): NO MERGE BASE, NO v2. A fresh `git init` with no remote, or a branch
 // with no upstream configured, has nothing to key the owed set on, and the uncommitted-only
 // set is the one v2 exists to replace. So v2 does not judge it, and says so on every run;
@@ -495,7 +568,7 @@ if (v1Findings.length > 0) {
 }
 failures(
   GATE,
-  [...v2Found, ...modelVerdict(v2.model ?? { findings: [], lines: [] })],
+  [...budgetLive, ...withoutSpent([...v2Found, ...modelVerdict(v2.model ?? { findings: [], lines: [] })])],
   `Each finding names a reviewer this branch's diff owes a verdict: the merge-base diff against ${String(v2.base)}, deletions included, and every non-empty diff for a whole-turn reviewer. A BLOCK stands until the same reviewer passes, and a PASS counts when the tree at its dispatch, at its verdict and now are the same. The triggers are reviewed data in ${TRIGGERS}; the ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStart and SubagentStop.`,
 )
 ok(

@@ -411,6 +411,152 @@ export function judgeReviewerV2(owed, entries, current) {
   return uncountedFinding(owed, mine.filter((e) => e.verdict === 'PASS').at(-1), current)
 }
 
+// ── THE SEVERITY CONTRACT AND THE ROUND BUDGET (1.1.0, #71) ─────────────────────────────
+// Every reviewer body states `Blocking: CRITICAL, HIGH` (tools/lib/agent-roster.mjs reads
+// it). The hook uses blockingFindings() to send back a PASS that lists a finding at a
+// blocking severity, and records those lines and the verdict's round beside each verdict.
+// The Stop step uses judgeRoundBudget() to red a review loop that is still open after its
+// budget. Both reach these through a namespace import, so an older copy of this lib is
+// "no contract" and "budget not judged", never a load error.
+
+/**
+ * How many rounds one reviewer gets to clear a BLOCK, the BLOCK's own round included: the
+ * review, then two re-reviews after a fix. A constant of this owned lib, not a field of the
+ * seeded trigger table, so every install judges the same budget and `update` moves it.
+ */
+export const ROUND_BUDGET = 3
+
+// A FINDING LINE: a severity in square brackets at the start of a line, after the markdown
+// habits the verdict grammar tolerates (a blockquote, a list marker, a heading, emphasis or
+// backticks). Line-anchored like the verdict grammar, so a sentence that only mentions a
+// severity ("nothing rose to [HIGH]") is not a finding. A fenced line still counts: the
+// strict direction, as for the verdict scans.
+const FINDING_RE = new RegExp(`^${LEAD}${MARK}\\[([A-Za-z]+)\\]`)
+
+// Each recorded finding line is capped the way the bounce record caps `last_line`.
+const LINE_CAP = 200
+
+/**
+ * The lines of a reviewer's reply that state a finding at a blocking severity, in order,
+ * trimmed and capped. The severity is compared case-insensitively.
+ * @param {unknown} message the subagent's last_assistant_message
+ * @param {readonly string[]} blocking the body's `Blocking:` severities
+ * @returns {string[]}
+ */
+export function blockingFindings(message, blocking) {
+  if (typeof message !== 'string') return []
+  const blocks = new Set(blocking.map((s) => s.toUpperCase()))
+  return message
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => blocks.has(FINDING_RE.exec(l)?.[1]?.toUpperCase() ?? ''))
+    .map((l) => l.slice(0, LINE_CAP))
+}
+
+/**
+ * Whether `later` clears `block` for the budget's count: a PASS from the SAME run (agent_id,
+ * as v2 requires) over a tree that did not move under it (its start and stop digests are
+ * one string). The current tree is v2's question, not the budget's: a PASS the tree has since
+ * moved past closed its loop, and the next review of the new tree starts a new one.
+ * @param {Record<string, unknown>} later @param {Record<string, unknown>} block
+ */
+const clears = (later, block) =>
+  later.verdict === 'PASS' &&
+  typeof block.agent_id === 'string' &&
+  later.agent_id === block.agent_id &&
+  typeof later.path_state_stop === 'string' &&
+  later.path_state_start === later.path_state_stop
+
+/**
+ * ONE reviewer's review loops, over its entries in ledger order. Each entry is one round,
+ * whatever its fields say, so an entry an earlier or parked hook wrote (no `round`, no
+ * `blocking`) counts once, with no recorded findings. A verdict with no loop open is round 1;
+ * a BLOCK there opens a loop, and every later entry is the next round of it until each BLOCK
+ * in it is cleared by its own run. Past the budget nothing an entry says clears anything, so
+ * a loop still open when its budget runs out stays open for the rest of the session.
+ * @param {Array<Record<string, unknown>>} mine one reviewer's session entries, in order
+ * @param {number} [budget]
+ * @returns {{ rounds: number[], spent: Array<Record<string, unknown>>|null }} each entry's
+ *   round, and the loop's standing BLOCKs when its budget is spent (else null)
+ */
+export function reviewRounds(mine, budget = ROUND_BUDGET) {
+  const rounds = []
+  let start = -1
+  /** @type {Array<Record<string, unknown>>} */
+  let open = []
+  for (const [i, e] of mine.entries()) {
+    const round = start === -1 ? 1 : i - start + 1
+    rounds.push(round)
+    if (round > budget) continue
+    if (e.verdict === 'BLOCK') {
+      if (start === -1) start = i
+      open.push(e)
+      continue
+    }
+    open = open.filter((b) => !clears(e, b))
+    if (open.length === 0) start = -1
+  }
+  return { rounds, spent: start !== -1 && mine.length - start >= budget ? open : null }
+}
+
+/**
+ * The round the hook records for a verdict about to be appended, and whether it is past the
+ * budget: reviewRounds over the same session's entries for the same reviewer, read the way
+ * readSessionLedger reads them (a line that does not parse is skipped), plus this one.
+ * @param {string} raw the ledger as it stands before this entry
+ * @param {Record<string, unknown>} entry the entry being recorded
+ * @param {number} [budget]
+ * @returns {{ round: number, overBudget: boolean }}
+ */
+export function roundOf(raw, entry, budget = ROUND_BUDGET) {
+  const mine = raw
+    .split('\n')
+    .map(parseObject)
+    .filter(
+      (e) =>
+        e !== null &&
+        e.session_id === entry.session_id &&
+        e.agent_type === entry.agent_type &&
+        typeof e.verdict === 'string',
+    )
+  const round = reviewRounds([...mine, entry], budget).rounds.at(-1) ?? 1
+  return { round, overBudget: round > budget }
+}
+
+/**
+ * The round-budget finding for ONE owed reviewer over this session's entries, or null when
+ * its budget is not spent. Spent, it names the budget and the runs whose BLOCKs stand, lists
+ * every recorded blocking finding once, and says to stop and hand them to the human: a
+ * further round is past the budget, and a PASS there never clears the BLOCK.
+ * @param {{agent: string}} owed
+ * @param {Array<Record<string, unknown>>} entries readSessionLedger's entries
+ * @param {number} [budget]
+ * @returns {string|null}
+ */
+export function judgeRoundBudget(owed, entries, budget = ROUND_BUDGET) {
+  const a = owed.agent
+  const { spent } = reviewRounds(
+    entries.filter((e) => e.agent_type === a),
+    budget,
+  )
+  if (spent === null) return null
+  const ids = [
+    ...new Set(spent.map((e) => (typeof e.agent_id === 'string' ? e.agent_id : 'none recorded'))),
+  ]
+  const lines = [
+    ...new Set(
+      spent.flatMap((e) =>
+        Array.isArray(e.blocking) ? e.blocking.filter((l) => typeof l === 'string') : [],
+      ),
+    ),
+  ]
+  const listed =
+    lines.length === 0
+      ? " No finding was recorded with those verdicts (an earlier hook wrote them, or the body has no `Blocking:` line): the findings are in the reviewer's replies in the transcript."
+      : ` The standing blocking findings:\n${lines.map((l) => `      ${l}`).join('\n')}`
+  return `${a} used its round budget of ${String(budget)} with a BLOCK still standing (agent_id ${ids.join(', ')}): its review loop in this session reached the budget without the same run passing, and a verdict recorded past the budget never clears it. Stop here and hand these findings to the human in plain words; do not fix and re-run ${a} again. The human decides: fix them and review again in a new session, or change the diff so it no longer owes ${a}.${listed}`
+}
+
 /**
  * The latest PASS the v2 judgement COUNTS for this agent (its three digests agree with the
  * tree now), or undefined. It is the entry a satisfied reviewer's verdict rests on, so it is
