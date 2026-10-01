@@ -29,6 +29,7 @@
 // [corpus: expo/app-config] [corpus: expo/runtime-versions]
 import { existsSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, runCmd, skipOrFail, stampGate } from './lib/gate.mjs'
+import { withMachinery } from './lib/stamp-inputs.mjs'
 
 const GATE = 'eas-update'
 const APP = 'apps/mobile'
@@ -57,13 +58,20 @@ if (!existsSync(`${APP}/node_modules/.bin/expo`) && !existsSync('node_modules/.b
 // that resolve it, plus eas.json, the identity lock, and the lockfile — the
 // expo-policy input set minus the token/styleguide surfaces this gate never
 // touches. CI always re-runs (stampGate is a local convenience, never proof).
-const recordGreen = stampGate(GATE, [
-  `${APP}/app.config.ts`,
-  `${APP}/package.json`,
-  `${APP}/eas.json`,
-  'tools/identity.lock.json',
-  'pnpm-lock.yaml',
-])
+// withMachinery (1.0.4) adds what every base list carries and this one lacked through
+// 1.0.3: this script, .harness/manifest.json and the stamp machinery, so a rewritten
+// check or an `update` re-proves the tree. The closure test in the harness repo reads
+// this call as text and reds a lib module this script imports that the list omits.
+const recordGreen = stampGate(
+  GATE,
+  withMachinery('tools/check-eas-update.mjs', [
+    `${APP}/app.config.ts`,
+    `${APP}/package.json`,
+    `${APP}/eas.json`,
+    'tools/identity.lock.json',
+    'pnpm-lock.yaml',
+  ]),
+)
 
 // --type public is the credential-free resolution: what an OTA update or a
 // build actually embeds, with EAS-private fields stripped. Package-manager

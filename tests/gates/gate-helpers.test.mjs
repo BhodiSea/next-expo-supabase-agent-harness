@@ -6,16 +6,24 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // Static for the in-process uses (0.8.0 — knip opacity + the Windows workaround,
 // check-query-shapes precedent). GATE_LIB stays: it is interpolated into a GENERATED
 // fixture script below, where a static specifier is impossible and the file:// href is
 // the correct cross-platform form (the ramp-expiry.test.mjs pattern).
-import { hashInputs, rampNote } from '../../template/base/tools/lib/gate.mjs'
-import { STAMP_INPUTS } from '../../template/base/tools/lib/stamp-inputs.mjs'
+import * as gateLib from '../../template/base/tools/lib/gate.mjs'
+// A namespace import (1.0.4): `withMachinery` is exported for the module gates, and a named
+// import of an export the register lacks would fail this whole file at link time instead of
+// failing the one test that needs it.
+import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
+
+const { hashInputs, rampNote } = gateLib
+const { STAMP_INPUTS } = stampRegister
+// Every regex metacharacter, backslash included: a path is matched literally.
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const GATE_LIB = pathToFileURL(
   fileURLToPath(new URL('../../template/base/tools/lib/gate.mjs', import.meta.url)),
@@ -77,7 +85,7 @@ recordGreen()
 ok('fake', 'ran the real check')
 `
 
-test('stampGate: green run stamps; unchanged inputs skip; mutation re-runs; CI ignores stamps', () => {
+test('stampGate: green run stamps; unchanged inputs print STAMPED; mutation re-runs; CI ignores stamps', () => {
   const dir = mkdtempSync(join(tmpdir(), 'epah-stamp-'))
   writeFileSync(join(dir, 'input.txt'), 'v1\n')
 
@@ -85,9 +93,12 @@ test('stampGate: green run stamps; unchanged inputs skip; mutation re-runs; CI i
   assert.equal(first.code, 0)
   assert.ok(first.out.includes('ran the real check'), first.out)
 
+  // A stamp hit is its OWN status (1.0.4): an OK line read exactly like a re-proof, so a
+  // turn that ended on warm stamps looked like one that re-checked everything.
   const second = runInFixture(STAMP_SCRIPT, { cwd: dir })
   assert.equal(second.code, 0)
-  assert.ok(second.out.includes('inputs unchanged since last green run'), second.out)
+  assert.ok(second.out.includes('fake: STAMPED — inputs unchanged since last green run'), second.out)
+  assert.ok(!second.out.includes('fake: OK'), second.out)
 
   writeFileSync(join(dir, 'input.txt'), 'v2\n')
   const third = runInFixture(STAMP_SCRIPT, { cwd: dir })
@@ -95,6 +106,69 @@ test('stampGate: green run stamps; unchanged inputs skip; mutation re-runs; CI i
 
   const inCi = runInFixture(STAMP_SCRIPT, { cwd: dir, env: { CI: 'true' } })
   assert.ok(inCi.out.includes('ran the real check'), `CI must never trust a stamp: ${inCi.out}`)
+})
+
+// The salt (1.0.4) is state no declared file carries: for `rls-isolation`, the Supabase CLI
+// version and the running database's identity. A different salt is a different digest.
+const SALTED_SCRIPT = `
+const recordGreen = stampGate('fake', ['input.txt'], process.env.X_SALT)
+recordGreen()
+ok('fake', 'ran the real check')
+`
+
+test('stampGate: a changed salt forces a real run; the same salt rides the stamp', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-stampsalt-'))
+  writeFileSync(join(dir, 'input.txt'), 'v1\n')
+  const salted = (salt) => runInFixture(SALTED_SCRIPT, { cwd: dir, env: { X_SALT: salt } })
+
+  assert.ok(salted('cli 1|db a').out.includes('ran the real check'))
+  const warm = salted('cli 1|db a')
+  assert.ok(warm.out.includes('fake: STAMPED — inputs unchanged since last green run'), warm.out)
+  const moved = salted('cli 1|db b')
+  assert.equal(moved.code, 0, moved.out)
+  assert.ok(moved.out.includes('ran the real check'), `a changed salt must force a real run: ${moved.out}`)
+  assert.ok(!moved.out.includes('STAMPED'), moved.out)
+})
+
+test('stampGate (in-process): the salt enters the recorded digest; no salt records hashInputs alone', () => {
+  // In-process so the floor on tools/lib counts it: a miss returns recordGreen without exiting.
+  const dir = mkdtempSync(join(tmpdir(), 'epah-stampdigest-'))
+  writeFileSync(join(dir, 'input.txt'), 'v1\n')
+  const prev = process.cwd()
+  const saved = { CI: process.env.CI, HARNESS_REQUIRE_TOOLCHAINS: process.env.HARNESS_REQUIRE_TOOLCHAINS }
+  // A stamp HIT calls process.exit(0), which in-process would end this whole file green. So
+  // each call starts from no stamp (always a miss), and exit throws for the duration.
+  const realExit = process.exit
+  process.exit = (code) => {
+    throw new Error(`stampGate exited (${String(code)}) in-process: the stamp hit where a miss was set up`)
+  }
+  process.chdir(dir)
+  process.env.CI = ''
+  process.env.HARNESS_REQUIRE_TOOLCHAINS = ''
+  const stamp = join('.harness', 'fake.ok')
+  /** @param {string} [salt] */
+  const record = (salt) => {
+    rmSync(stamp, { force: true })
+    gateLib.stampGate('fake', ['input.txt'], salt)()
+    return readFileSync(stamp, 'utf8')
+  }
+  try {
+    const plain = record()
+    assert.equal(plain, hashInputs(['input.txt']), 'no salt: the digest is the inputs alone')
+    const a = record('cli 1|db a')
+    const b = record('cli 1|db b')
+    assert.notEqual(a, plain, 'a salt must change the digest')
+    assert.notEqual(a, b, 'two salts must record two digests')
+    assert.equal(record('cli 1|db a'), a, 'the same salt records the same digest')
+    assert.match(a, /^[0-9a-f]{64}$/)
+  } finally {
+    process.exit = realExit
+    process.chdir(prev)
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  }
 })
 
 // ── rampNote: the shared version ramp — NOTE-only on installs whose baseVersion
@@ -185,7 +259,17 @@ test('rampNote: corrupt or version-less manifest FAILS CLOSED with the FIX line 
 // whose edits must re-arm a stamp are IN the register, and the churn the Stop chain
 // itself writes (coverage maps, build output) is NOT hashed.
 
-const STAMP_MACHINERY = ['.harness/manifest.json', 'tools/lib/gate.mjs', 'tools/lib/stamp-inputs.mjs']
+// The test's own copy of lib/stamp-inputs.mjs's MACHINERY. tools/lib/fs-walk.mjs joins it in
+// 1.0.4: gate.mjs imports it (hashInputs walks directories with it), so it decides every digest.
+const STAMP_MACHINERY = [
+  '.harness/manifest.json',
+  'tools/lib/gate.mjs',
+  'tools/lib/stamp-inputs.mjs',
+  'tools/lib/fs-walk.mjs',
+]
+// A stamped script: a base gate under tools/, or the rls runner (1.0.4), which is a Stop step
+// rather than a validate gate and lives under tests/rls/.
+const STAMPED_SCRIPT_RE = /^(tools\/(check-[\w-]+|build-check)\.mjs|tests\/rls\/run-rls\.mjs)$/
 
 test('every stamped gate declares the manifest, its own script, and the stamp machinery', () => {
   for (const [gate, inputs] of Object.entries(STAMP_INPUTS)) {
@@ -193,11 +277,145 @@ test('every stamped gate declares the manifest, its own script, and the stamp ma
       assert.ok(inputs.includes(p), `${gate}: ${p} must be a declared input — an update or graduation (manifest), or a rewritten check (script/machinery), must re-arm the stamp`)
     }
     assert.ok(
-      inputs.some((p) => /^tools\/(check-[\w-]+|build-check)\.mjs$/.test(p)),
+      inputs.some((p) => STAMPED_SCRIPT_RE.test(p)),
       `${gate}: the gate's own script must be a declared input`,
     )
   }
 })
+
+// ── the IMPORT CLOSURE (1.0.4, #42) ─────────────────────────────────────────────
+// A stamp that hashes a gate's script but not the libraries the script imports serves a warm
+// green after an edit to exactly the code that decides the verdict: through 1.0.3 `tenancy`
+// declared its script and five data paths and not lib/sql-parse.mjs, the parser that reads
+// every policy predicate. Every relative module a stamped script reaches through STATIC
+// imports, followed transitively, must be a declared input.
+//
+// The module gates are read as TEXT: their `./lib/` specifiers resolve only inside a
+// scaffold, where the module's tools/ sits beside base's tools/lib (the factory's knip
+// ignores template/modules/** for the same reason).
+const TEMPLATE_DIR = fileURLToPath(new URL('../../template/', import.meta.url))
+const BASE_DIR = join(TEMPLATE_DIR, 'base')
+// Top-level static import/export-from statements only: no dynamic import(), and the clause
+// may span lines but never a string literal, so it cannot run on into the next statement.
+const STATIC_IMPORT_RE = /^(?:import|export)\s+(?:[^'"`;]*?\sfrom\s*)?['"]([^'"]+)['"]/gm
+
+/**
+ * The scaffold-relative files `script` reaches through relative static imports, transitively.
+ * @param {string} script scaffold-relative, e.g. tools/check-tenancy.mjs
+ * @param {string[]} roots template trees to read from, searched in order (a module, then base)
+ * @returns {string[]}
+ */
+function importClosure(script, roots) {
+  const seen = new Set()
+  const queue = [script]
+  while (queue.length > 0) {
+    const file = queue.shift()
+    const root = roots.find((r) => existsSync(join(r, file)))
+    assert.ok(root, `${file} (reached from ${script}) is not in ${roots.join(' or ')}`)
+    const src = readFileSync(join(root, file), 'utf8')
+    for (const [, spec] of src.matchAll(STATIC_IMPORT_RE)) {
+      if (!spec.startsWith('.')) continue
+      const target = posix.normalize(posix.join(posix.dirname(file), spec))
+      if (seen.has(target)) continue
+      seen.add(target)
+      queue.push(target)
+    }
+  }
+  seen.delete(script)
+  return [...seen].sort()
+}
+
+test('the closure reader finds a multi-line import and follows a lib into its own imports', () => {
+  // Self-check: tenancy's sql-parse import spans lines, and gate.mjs imports fs-walk.mjs.
+  const closure = importClosure('tools/check-tenancy.mjs', [BASE_DIR])
+  assert.ok(closure.includes('tools/lib/sql-parse.mjs'), closure.join(', '))
+  assert.ok(closure.includes('tools/lib/fs-walk.mjs'), closure.join(', '))
+})
+
+test('every STAMP_INPUTS entry declares its script, the machinery, and the script\'s whole import closure', () => {
+  const missing = []
+  for (const [gate, inputs] of Object.entries(STAMP_INPUTS)) {
+    const script = inputs.find((p) => STAMPED_SCRIPT_RE.test(p))
+    assert.ok(script, `${gate}: no stamped script among its inputs`)
+    for (const need of new Set([...STAMP_MACHINERY, ...importClosure(script, [BASE_DIR])])) {
+      if (!inputs.includes(need)) missing.push(`${gate}: ${need}`)
+    }
+  }
+  assert.deepEqual(missing, [], `stamp inputs that a stamped script imports but its list omits:\n${missing.join('\n')}`)
+})
+
+test('every base stampGate( call site passes its STAMP_INPUTS entry, never an inline list', () => {
+  const sites = [
+    ...readdirSync(join(BASE_DIR, 'tools'))
+      .filter((f) => f.endsWith('.mjs'))
+      .map((f) => `tools/${f}`),
+    'tests/rls/run-rls.mjs',
+  ]
+  const calls = []
+  for (const site of sites) {
+    const src = readFileSync(join(BASE_DIR, site), 'utf8')
+    for (const m of src.matchAll(/\bstampGate\(([^,]+),\s*([^,)\n]+)/g)) {
+      calls.push(site)
+      assert.match(m[2], /^STAMP_INPUTS\[/, `${site}: stampGate must read its list from STAMP_INPUTS, where the closure test sees it`)
+    }
+  }
+  assert.ok(calls.includes('tests/rls/run-rls.mjs'), 'the rls runner stamps through stampGate (1.0.4)')
+  assert.ok(calls.length >= 13, `expected every stamped base gate plus the rls runner, got ${calls.join(', ')}`)
+})
+
+test('withMachinery is exported and adds the script and the machinery to a list', () => {
+  const { withMachinery } = stampRegister
+  assert.equal(typeof withMachinery, 'function', 'the module gates need withMachinery exported from lib/stamp-inputs.mjs')
+  const list = withMachinery('tools/check-x.mjs', ['data.json'])
+  for (const p of ['data.json', 'tools/check-x.mjs', ...STAMP_MACHINERY]) {
+    assert.ok(list.includes(p), `withMachinery must add ${p}: ${list.join(', ')}`)
+  }
+})
+
+test('every module gate that stamps passes withMachinery(<its script>, […]) naming its whole import closure', () => {
+  const modulesDir = join(TEMPLATE_DIR, 'modules')
+  const found = []
+  for (const mod of readdirSync(modulesDir).sort()) {
+    const toolsDir = join(modulesDir, mod, 'tools')
+    if (!existsSync(toolsDir)) continue
+    for (const f of readdirSync(toolsDir).filter((x) => x.endsWith('.mjs')).sort()) {
+      const src = readFileSync(join(toolsDir, f), 'utf8')
+      // The call, never a comment that names it: `stampGate(` at the start of an expression.
+      const m = /^[^/\n]*?\bstampGate\(/m.exec(src)
+      if (m === null) continue
+      const call = callText(src, m.index + m[0].length - 1)
+      assert.ok(call, `${mod}/tools/${f}: unbalanced stampGate( call`)
+      const script = `tools/${f}`
+      found.push(`${mod}/${script}`)
+      assert.match(
+        call,
+        new RegExp(`^\\(\\s*\\w+\\s*,\\s*withMachinery\\(\\s*'${escapeRe(script)}'`),
+        `${mod}/${script}: pass withMachinery('${script}', […]) so the list carries the script, the manifest and the machinery`,
+      )
+      for (const need of importClosure(script, [join(modulesDir, mod), BASE_DIR])) {
+        if (STAMP_MACHINERY.includes(need)) continue // withMachinery adds these
+        assert.ok(call.includes(`'${need}'`), `${mod}/${script}: its stamp list omits ${need}, which it imports`)
+      }
+    }
+  }
+  assert.ok(found.includes('eas-update/tools/check-eas-update.mjs'), `the eas-update gate stamps: ${found.join(', ')}`)
+})
+
+/**
+ * The balanced-paren text of a call whose `(` is at `open`, or null when it never closes.
+ * @param {string} src @param {number} open
+ */
+function callText(src, open) {
+  let depth = 0
+  for (let i = open; i < src.length; i += 1) {
+    if (src[i] === '(') depth += 1
+    else if (src[i] === ')') {
+      depth -= 1
+      if (depth === 0) return src.slice(open, i + 1)
+    }
+  }
+  return null
+}
 
 test('contracts stamp: declared inputs and the manifest invalidate; excluded churn dirs do not', () => {
   const inputs = STAMP_INPUTS.contracts

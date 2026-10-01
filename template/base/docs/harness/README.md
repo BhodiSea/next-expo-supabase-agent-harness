@@ -141,8 +141,9 @@ deliberate opposite of the reviewer ledger, which fails closed because it does a
 **The telemetry log (1.0.4).** The ledger above records THAT a turn blocked and keeps only its
 most recent rows; it says nothing about what each step cost or which rule fired, so a red fixed
 inside the same turn left no trace. Every Stop run now also appends to
-`.harness/telemetry.jsonl`: a `stop-step` record per step (`ok` or `fail`, its duration in
-whole milliseconds, and how many `SKIPPED` lines its output carried, a red step's included),
+`.harness/telemetry.jsonl`: a `stop-step` record per step (`ok`, `fail`, or `stamped` when
+the step's own line was a stamp hit; its duration in whole milliseconds; and how many
+`SKIPPED` and `STAMPED` lines its output carried, a red step's included),
 and a `validate-gate` record per gate named in the LAST `VALIDATE_TIMINGS` line a step
 printed, green or red. The guards, the PostToolUse hooks and `subagent-verdict.mjs` append a
 `hook-event` record for each deny, provenance block, Biome warning and reviewer bounce, naming
@@ -234,6 +235,44 @@ surface not yet created — **SKIPS LOUDLY** locally
 pass, and CI must never be green because a prerequisite was absent. Shape-awareness
 lives INSIDE each gate script, never in which steps run.
 
+## Stamped gates
+
+A stamp is a local shortcut, never proof. A stamped gate hashes its declared inputs; when
+every one is byte-identical to its last GREEN run (the digest in `.harness/<gate>.ok`) and
+this is not CI, it prints
+`<gate>: STAMPED — inputs unchanged since last green run (.harness/<gate>.ok; CI always re-runs)`
+and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` always
+runs the real check, and `update` and `graduate` delete every stamp, so the first run after
+either re-proves everything.
+
+- **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
+  `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
+  `query-shapes`, `rate-limits`, `security-headers`, `tenancy` and `version-sync` in the
+  validate chain, the `eas-update` module gate, and (1.0.4) the `rls-isolation` Stop step.
+  Nothing else is: steps are never chosen by classifying the diff.
+- **Inputs are reviewed data.** Each list lives in `tools/lib/stamp-inputs.mjs` (a module
+  gate declares its own through `withMachinery`), and a missing input class is a stale-pass
+  bug. Every list carries `.harness/manifest.json` (an `update` or a graduation changes what
+  a ramped gate concludes), the gate's own script, the machinery (`lib/gate.mjs`,
+  `lib/fs-walk.mjs`, `lib/stamp-inputs.mjs`), and since 1.0.4 every `tools/lib` module the
+  script reaches through static imports: an edit to `lib/sql-parse.mjs` re-runs `tenancy`.
+  The harness repo's test suite reds a list that misses one.
+- **A hit is its own status (1.0.4).** Through 1.0.3 it printed an `OK` line, so a turn that
+  ended on warm stamps read like one that re-proved everything. The Stop hook now lists the
+  `<gate>: STAMPED — ` lines its green steps printed beside its skipped layers, on a green
+  turn and a red one, and its telemetry records count them.
+- **The `rls-isolation` stamp carries two things no file does.** The runner checks it after
+  `supabase status` succeeds and mixes into the digest the `supabase --version` output and
+  the running database's identity: the server's start time, which moves on
+  `pnpm db:reset` and on `pnpm db:down` then `pnpm db:up`, and the applied migration
+  versions, which move when a migration is applied without a restart. So a CLI change, a
+  reset, a restart or an applied migration runs both suites again. It is honoured only when
+  `CI` is empty or unset (this runner treats `CI=false` as CI) and
+  `HARNESS_REQUIRE_TOOLCHAINS` is not `1`, and it is recorded only after `[rls] OK`, never on
+  a skip or a failure. If the identity cannot be read, both suites run and nothing is
+  recorded. It cannot see SQL someone runs by hand against the running database; CI never
+  rides it.
+
 ## The security invariants
 
 Enforced as hooks + lint + depcruise + gates (defense-in-depth); the grounding rules
@@ -293,13 +332,17 @@ Doctrine notes for the citations:
 
 ## RLS testing doctrine
 
-The `schema-rls` gate proves policies **exist**; the runtime suite proves they
+The `schema-rls` gate proves policies **exist**; the runtime suites prove they
 **isolate**. `node tests/rls/run-rls.mjs` (the `rls-isolation` Stop-hook step /
-`pnpm test:rls`) orchestrates: resolve `SUPABASE_DB_URL` (env wins; the local
-`supabase start` default otherwise), probe Postgres (unreachable → loud SKIP locally; in
-CI with migrations present, unreachable = FAIL), fresh-apply all migrations, then run the
-suite. Per
-`ISOLATION_TARGETS` entry:
+`pnpm test:rls`) probes `supabase --version` and `supabase status`. No CLI, or no running
+stack, is a loud SKIP on a local run and a FAIL under CI or the Stop hook once
+`supabase/migrations` exists. With the stack up it runs both suites against the stack as it
+stands: the pgTAP suite through `supabase test db`, then the supabase-js suite through
+vitest, handed the stack's URL and keys from `supabase status -o env`. It applies no
+migration and restarts nothing: migrations reach the database on the first `pnpm db:up` or
+on `pnpm db:reset`, and a stopped stack keeps its data. When nothing either suite reads has
+changed since its last green run, it prints `rls-isolation: STAMPED` instead (see Stamped
+gates). Per `ISOLATION_TARGETS` entry:
 
 - **Seeded positive control** — user A sees its OWN row first. Without this, a deny-all
   database would pass every negative assertion vacuously. The same doctrine applies to

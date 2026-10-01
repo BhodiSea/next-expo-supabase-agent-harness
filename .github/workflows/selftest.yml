@@ -805,8 +805,9 @@ jobs:
         # The cold --min-floor run above recorded the e2e stamp; the warm run must
         # short-circuit the whole jest-expo suite through it. A green warm log
         # WITHOUT this line means the biggest warm-path win silently regressed.
+        # A stamp hit prints its own status, STAMPED, since 1.0.4 (it was an OK line).
         run: |
-          if grep -E '^e2e: OK.*inputs unchanged' warm-validate.log; then
+          if grep -E '^e2e: STAMPED.*inputs unchanged' warm-validate.log; then
             echo 'e2e stamp engaged on the warm run: OK'
           else
             echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'

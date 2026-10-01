@@ -63,6 +63,18 @@ this heading if none does. -->
   re-reads and their sources are in `design/CONFORMANCE-FACTS.md` §2 and §4, which also
   records a new open question about open-source software stewards. Nothing here reaches an
   install (#54).
+- **A gate's stamp covers the libraries the gate imports.** A stamp hashed the gate's data
+  paths, its script, `.harness/manifest.json`, `lib/gate.mjs` and `lib/stamp-inputs.mjs`,
+  and none of the `tools/lib` modules the script imports. So an edit to `lib/sql-parse.mjs`
+  left the `tenancy`, `query-shapes` and `db-limits` stamps warm, and `version-sync` ignored
+  the four judges it delegates to. Every list in `tools/lib/stamp-inputs.mjs` now names each
+  `tools/lib` module its script reaches through static imports, and `lib/fs-walk.mjs`, which
+  `gate.mjs` walks directories with, joins the machinery every list carries. The `eas-update`
+  module gate passed an inline list with no script, manifest or machinery; it now passes
+  `withMachinery('tools/check-eas-update.mjs', […])`, which the register exports for it. A
+  test reds any list, base or module, that misses a module its script imports. A closure only
+  adds inputs, so a stamp can expire more often and never less, and CI still never rides one.
+  `update` delivers both libs, and the eas-update gate where that module is enabled (#42).
 
 ### Changed
 
@@ -83,6 +95,24 @@ this heading if none does. -->
   `lib/hookio.mjs` and `docs/harness/README.md`. The hooks reach hookio's new exports through a
   namespace import, so an install whose forked `lib/hookio.mjs` was parked still loads every
   hook and records nothing (#41).
+- **A stamp hit prints `STAMPED`, and the `rls-isolation` Stop step is stamped.** A hit used
+  to print through `ok()`, as `<gate>: OK — inputs unchanged since last green run (…)`, and
+  the Stop hook listed only `SKIPPED` lines, so a turn that ended on warm stamps read like one
+  that re-proved everything. A hit now prints `<gate>: STAMPED — inputs unchanged since last
+  green run (…; CI always re-runs)` and still exits 0. The Stop hook lists the `STAMPED`
+  lines of its green steps beside the skipped layers, on a green turn and a red one, and each
+  `stop-step` telemetry record counts them in `stamps` and says `stamped` for a step that
+  rode its own stamp. `tests/rls/run-rls.mjs`, with its command unchanged, now checks a stamp
+  once `supabase status` succeeds: when nothing either suite reads has changed it prints
+  `rls-isolation: STAMPED` and runs neither. `stampGate` takes an optional salt, and the
+  runner's is the `supabase --version` output plus the running database's identity, its
+  server start time and applied migration versions, so a CLI change, `pnpm db:reset`, a
+  restart or an applied migration runs both suites again. It rides the stamp only when `CI`
+  is empty or unset and `HARNESS_REQUIRE_TOOLCHAINS` is not `1`, and records
+  `.harness/rls-isolation.ok` only after `[rls] OK`; `update` and `graduate` clear it with the
+  other stamps. No step, floor entry or command changes. `update` delivers the Stop hook, the
+  runner, `lib/gate.mjs`, `docs/harness/README.md`, whose new "Stamped gates" section and
+  corrected RLS doctrine say what the runner does, and `docs/harness/gates-catalog.md` (#42).
 
 ### What stays open, honestly
 
@@ -100,6 +130,12 @@ this heading if none does. -->
   and SubagentStop payloads (`design/CONTROL-PLANE-FACTS.md`), but no PreToolUse or
   PostToolUse payload has been recorded here, so a guard's record says `null` for each id the
   payload does not carry as a string (#41).
+- **Stamps still cover the validate gates and `rls-isolation` only.** `unit` and
+  `mobile-unit` call vitest and jest directly; a stamp for them needs a wrapper, which changes
+  floored commands and needs a `configCommandUpdates` record, so it waits for 1.1.0 (#39).
+  The rls stamp cannot see SQL someone runs by hand against the running database; after
+  that, `pnpm db:reset` or a human deleting `.harness/rls-isolation.ok` re-arms it, and CI
+  never rides it (#42).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -120,7 +156,17 @@ this heading if none does. -->
   `git status --porcelain .harness` then printed nothing and `validate --report-all` stayed
   green. `update` from a v1.0.3 install also wrote `lib/hookio.mjs` and
   `docs/harness/README.md` beside the files above, and a bash deny through the launcher then
-  appended its `hook-event` record (#41).
+  appended its `hook-event` record (#41). `tests/gates/gate-helpers.test.mjs` was red before
+  the stamp lists grew, on every list's missing `lib/fs-walk.mjs`, on `tenancy`'s missing
+  `lib/sql-parse.mjs` among others, on the eas-update gate's inline list and on a stamp hit
+  printed as OK, and green after; `tests/gates/run-rls.test.mjs` was red on the runner before
+  it stamped. With Supabase CLI 2.118.0 against a live local stack, a second
+  `node tests/rls/run-rls.mjs` printed `rls-isolation: STAMPED`, and `pnpm db:reset`,
+  `pnpm db:down` then `pnpm db:up`, a migration version recorded without a restart, and an
+  edited migration each ran both suites again before the next run rode the new stamp. In a
+  zero-edit core scaffold a warm `validate --report-all` printed a `STAMPED` line for every
+  stamped validate gate, and one Stop run with the stack up exited 0 listing those lines and
+  `rls-isolation` as stamped layers (#42).
 
 ## [1.0.3] — 2026-09-23
 

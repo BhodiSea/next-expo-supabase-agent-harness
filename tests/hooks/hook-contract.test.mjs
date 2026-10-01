@@ -1505,6 +1505,41 @@ test('stop gate: green output surfaces SKIPPED layers instead of staying silent'
   assert.ok(r.stderr.includes('SKIPPED'), r.stderr)
 })
 
+// A stamp hit is its own status (1.0.4, #42). Through 1.0.3 it printed an OK line, and the hook
+// collected SKIPPED lines only, so a turn that ended on warm stamps read exactly like one that
+// re-proved everything. STAMPED lines are listed beside the skipped layers, green or red.
+test('stop gate: STAMPED lines are listed on a green run and on a red one', () => {
+  const stampedStep = `node -e "console.log(process.env.X_STAMP); console.log('x: OK - ran')"`
+  const stamp = 'rls-isolation: STAMPED — inputs unchanged since last green run (.harness/rls-isolation.ok; CI always re-runs)'
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
+  )
+  const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
+  assert.equal(green.code, 0, green.stderr)
+  assert.match(green.stderr, /stamped/i, green.stderr)
+  assert.ok(green.stderr.includes(`[rls-isolation] ${stamp}`), green.stderr)
+  assert.ok(!green.stderr.includes('x: OK'), 'only STAMPED lines are listed, never a plain OK')
+
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}], ['boom', '${FAIL}']]\n`,
+  )
+  const red = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: stamp } })
+  assert.equal(red.code, 2, red.stderr)
+  assert.ok(red.stderr.includes('boom FAILED'), red.stderr)
+  assert.ok(red.stderr.includes(`[rls-isolation] ${stamp}`), `a red run lists the stamped steps too:\n${red.stderr}`)
+
+  // A line that only CONTAINS the word is not a stamp line: the status follows `<gate>: `.
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['rls-isolation', ${JSON.stringify(stampedStep)}]]\n`,
+  )
+  const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_STAMP: 'note: nothing was STAMPED — here' } })
+  assert.equal(prose.code, 0, prose.stderr)
+  assert.ok(!/stamped/i.test(prose.stderr), prose.stderr)
+})
+
 // ── symlink shadowing: the write-guard judges the DESTINATION, not the name ───
 // A link whose name is innocuous but whose target is protected used to walk straight
 // through: the RAW tool path was matched against WRITE_PROTECTED, so `ln -s

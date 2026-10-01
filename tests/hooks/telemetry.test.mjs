@@ -178,7 +178,7 @@ test('Stop: a GREEN run appends one stop-step record per chain step, and validat
     assert.equal(s.session_id, 'sess-1')
     assert.equal(s.prompt_id, 'prompt-1')
     assert.ok(!Number.isNaN(Date.parse(s.at)), s.at)
-    assert.deepEqual(Object.keys(s), ['v', 'kind', 'at', 'session_id', 'prompt_id', 'step', 'status', 'ms', 'skips'])
+    assert.deepEqual(Object.keys(s), ['v', 'kind', 'at', 'session_id', 'prompt_id', 'step', 'status', 'ms', 'skips', 'stamps'])
   }
   const gates = log.filter((x) => x.kind === 'validate-gate')
   assert.deepEqual(
@@ -244,6 +244,42 @@ test('Stop: validate-gate records are read from the FULL output, before spill() 
       ['format', 2],
       ['types', 9],
     ],
+  )
+})
+
+// Stamps (1.0.4, #42): `stamps` counts a step's `<gate>: STAMPED — ` lines, red or green, the
+// way `skips` counts SKIPPED ones; a GREEN step whose own line is STAMPED (the rls runner riding
+// its stamp) records `stamped`, because nothing in it re-ran. A step whose output merely carries
+// member gates' stamps (validate) is still `ok`: it ran the rest.
+const STAMP_LINE = (gate) => `console.log(${JSON.stringify(`${gate}: STAMPED — inputs unchanged since last green run (.harness/${gate}.ok; CI always re-runs)`)})\n`
+
+test('Stop: a step riding its own stamp records `stamped`; member stamps are counted in `stamps`, red or green', () => {
+  const dir = install()
+  stopChain(dir, [
+    ['validate', `${STAMP_LINE('e2e')}${STAMP_LINE('build')}console.log('lint: OK')\n`],
+    ['rls-isolation', STAMP_LINE('rls-isolation')],
+    ['unit', GREEN_PLAIN],
+  ])
+  assert.equal(runHook(dir, 'stop-validate-gate.mjs', { ...IDS }).code, 0)
+  assert.deepEqual(
+    readLog(dir)
+      .filter((x) => x.kind === 'stop-step')
+      .map((s) => [s.step, s.status, s.skips, s.stamps]),
+    [
+      ['validate', 'ok', 0, 2],
+      ['rls-isolation', 'stamped', 0, 1],
+      ['unit', 'ok', 0, 0],
+    ],
+  )
+
+  const red = install()
+  stopChain(red, [['validate', `${STAMP_LINE('e2e')}process.exit(1)\n`]])
+  assert.equal(runHook(red, 'stop-validate-gate.mjs', { ...IDS }).code, 2)
+  assert.deepEqual(
+    readLog(red)
+      .filter((x) => x.kind === 'stop-step')
+      .map((s) => [s.step, s.status, s.stamps]),
+    [['validate', 'fail', 1]],
   )
 })
 
