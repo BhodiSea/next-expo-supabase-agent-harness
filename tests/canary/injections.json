@@ -595,6 +595,11 @@
         "kind": "selftest",
         "ref": "Canary C01: strip the Authorization header from the api-client one door → the live suite must FAIL",
         "note": "the selftest `integration` job runs the SAME LIVE_PROOF suite this lane runs, against a real scaffold + server + Postgres: green baseline, then the one bearer-attaching line is stripped and the suite must red with an auth-shaped failure, then green again after the revert — the exact no-Authorization defect class the desktop-era source harness shipped while every mocked lane stayed green"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/device-lane.test.mjs",
+        "note": "1.0.4 (#10): the half of this lane the selftest's `integration` job cannot see, because it runs its own copy of the steps. The shipped job booted the web host before the env its first request parses was set (the server-only SUPABASE_SERVICE_ROLE_KEY and SUPABASE_DB_URL, then the NEXT_PUBLIC_ trio), so it answered 500, and waited on /api/trpc/health, a 404 even with that env, so it never reached the suite. The test reads both env schemas and reds a job that boots the host before any of those names is published, that probes a procedure the router does not have, or that runs the live proof without a name from each of its requireEnv groups (LIVE_PROOF included), with a red case for each"
       }
     ],
     "changes": [
@@ -624,6 +629,11 @@
         "kind": "selftest",
         "ref": "Canary 19: a broken route-surface testID → the device sweep must FAIL while the agent-time jest lane stays GREEN",
         "note": "the honest-loss proof on a REAL emulator (maestro-smoke, schedule/dispatch — emulator cost keeps it off the per-PR path): breaking the home container testID leaves tools/check-e2e.mjs green (asserted — the fast lane's blindness is real) while the device sweep reds naming the surface. Both halves checked, so the lane provably adds coverage the chain does not have"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/device-lane.test.mjs",
+        "note": "1.0.4 (#10): what the lane's wiring promises, checked per pull request instead of per emulator run. Every selector a shipped journey or flow waits on must be a testID the shipped app has (a renamed one is issue #10's selector timeout), the mutation journey must sign in as the minted identity and each lane must mint it and pass every flow variable, the host must boot after every name its env schemas parse is published and answer a real procedure, a failure step must print a log the job writes, and the Maestro evidence upload must keep hidden files. Each check has a red case in the file"
       }
     ],
     "perf-lane": [
@@ -1164,6 +1174,11 @@
       {
         "kind": "steps",
         "note": "the emulator canaries (19, 20) on a real Android emulator, schedule/dispatch-only for cost — registered as the #lanes mobile-e2e and perf-lane selftest proofs, which grep-match their leg titles into this workflow"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/device-lane.test.mjs",
+        "note": "1.0.4 (#10): this job's own wiring, on every pull request: the web host boots after the job publishes every name its env schemas parse and answers system.health, the failure step prints /tmp/web.log (it printed /tmp/server.log, which nothing writes), the evidence upload keeps Maestro's hidden .maestro/ debug output, and scripts/ci/device-smoke.sh mints the identity and passes both flow variables to the mutation journey. Each check has a red case in the file"
       }
     ]
   },
@@ -1255,6 +1270,11 @@
         "kind": "fixture",
         "ref": "tests/gates/workflow-lanes.test.mjs",
         "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The emulator matrix needs KVM and an Android emulator: not reproduced here. tools/ci/device-e2e-matrix.sh, which the job runs, has no factory test: unproven here. The base tools it calls carry their own proofs (tests/gates/check-e2e-device.test.mjs, tests/gates/measure-startup.test.mjs), which prove those tools, not this job."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/device-lane.test.mjs",
+        "note": "1.0.4 (#10): the evidence half of this job. Its upload of artifacts/device-e2e/ must set include-hidden-files: true, because Maestro writes its debug output under a hidden <flow>/.maestro/ directory and upload-artifact drops hidden files by default; the test reds an upload of any Maestro --out-dir root that lacks it, with a red case in the file. It does not run the matrix, and it is not a test of tools/ci/device-e2e-matrix.sh"
       }
     ],
     "eas-update/eas-update.yml#publish": [

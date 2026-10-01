@@ -142,14 +142,73 @@ export function buildPerfHarnessYaml({ appId }, budgets) {
     '    visible:',
     '        id: "perf-harness-screen"',
     '    timeout: 30000',
-    '# The marker IS the verdict: the screen self-measures against the budgets above and',
-    '# renders perf-pass only when every cap held (perf-fail + per-metric lines otherwise).',
+    '# The marker IS the verdict: the screen shows perf-running while it measures, then',
+    '# perf-pass when every cap held, or perf-fail and one line per breached cap. Wait for',
+    '# the measurement to END, then assert the pass marker, so a breached budget fails at',
+    '# once (the runner prints the over-budget lines) and a measurement that never ends',
+    '# fails on the wait. A 120 s wait for perf-pass could not tell the two apart.',
     '- extendedWaitUntil:',
-    '    visible:',
-    '        id: "perf-pass"',
+    '    notVisible:',
+    '        id: "perf-running"',
     '    timeout: 120000',
+    '- assertVisible:',
+    '    id: "perf-pass"',
     '',
   ].join('\n')
+}
+
+// ---------------------------------------------------------------------------
+// What a failed flow left on screen (1.0.4, #10).
+// ---------------------------------------------------------------------------
+
+/** How many ids, and how many texts, a summary keeps; and how long one text may be. */
+const SCREEN_ITEMS = 40
+const SCREEN_TEXT = 120
+
+/** The JSON tree `maestro hierarchy` prints, or null when the capture holds none. */
+function parseHierarchy(printed) {
+  const text = String(printed ?? '')
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end < start) return null
+  try {
+    return JSON.parse(text.slice(start, end + 1))
+  } catch {
+    return null
+  }
+}
+
+/** Adds a non-empty string attribute to a bounded, insertion-ordered set. */
+function keep(set, value) {
+  if (typeof value !== 'string' || value.trim() === '' || set.size >= SCREEN_ITEMS) return
+  set.add(value.length > SCREEN_TEXT ? `${value.slice(0, SCREEN_TEXT)}…` : value)
+}
+
+/**
+ * The testIDs and text on screen, in document order, from what `maestro hierarchy`
+ * printed (a TreeNode of `attributes` and `children`, as pretty JSON). The device runner
+ * prints this when a flow fails, so a red names the state it failed in from the log alone:
+ * the perf-harness red of 2026-09-24 said "perf-pass is visible... FAILED" and nothing
+ * about whether the screen showed perf-fail or was still measuring. Output that holds no
+ * JSON yields empty lists, never a throw; both lists are bounded.
+ * @param {string} printed
+ * @returns {{ ids: string[], texts: string[] }}
+ */
+export function summarizeHierarchy(printed) {
+  const ids = new Set()
+  const texts = new Set()
+  const pending = [parseHierarchy(printed)]
+  while (pending.length > 0) {
+    const node = pending.pop()
+    if (node === null || typeof node !== 'object') continue
+    const attributes = node.attributes ?? {}
+    keep(ids, attributes['resource-id'])
+    keep(texts, attributes.text)
+    keep(texts, attributes.accessibilityText)
+    const children = Array.isArray(node.children) ? node.children : []
+    for (let i = children.length - 1; i >= 0; i -= 1) pending.push(children[i])
+  }
+  return { ids: [...ids], texts: [...texts] }
 }
 
 /**

@@ -381,6 +381,31 @@ jobs:
       - name: Start the Supabase local stack
         run: supabase start
 
+      # BEFORE the web app boots (1.0.4): the host's first request parses @app/env, the
+      # server-only pair (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then
+      # NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE / NEXT_PUBLIC_WEB_ORIGIN, and one missing
+      # name is a 500 on every route, health included. The live-proof suite below requires
+      # a URL, a publishable key and SUPABASE_SERVICE_ROLE_KEY. Through 1.0.3 this job
+      # booted the host with none of them. Extracted from the running stack at runtime,
+      # never committed: the local stack's keys rotate per `supabase start`. API_URL loses
+      # its trailing slash because the env Origin validator rejects one.
+      - name: Publish the local Supabase env to the job
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+            echo "SUPABASE_URL=${API_URL%/}"
+            echo "SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+          } >> "$GITHUB_ENV"
+
       - name: Boot the web app (which hosts /api/trpc)
         shell: bash
         run: |
@@ -388,13 +413,14 @@ jobs:
           pnpm --filter web run dev > /tmp/web.log 2>&1 &
           for _ in $(seq 1 60); do
             # The health PROCEDURE, not the page: a 200 from / proves Next is
-            # serving, not that the router mounted and reached the database.
-            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+            # serving, not that the router mounted. `system.health`, because the
+            # routers are namespaced: /api/trpc/health is a 404 (1.0.4).
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/system.health" > /dev/null; then
               echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
+          echo "::error::the web app never served a healthy /api/trpc/system.health"; cat /tmp/web.log; exit 1
 
       # The suite authenticates through the real Supabase local stack, so the lane
       # exercises the exact JWT path production does — no token is minted
@@ -838,37 +864,49 @@ jobs:
       - name: Start the Supabase local stack
         run: supabase start
 
+      # The device reaches the host through adb reverse, so the app's public config
+      # must point at loopback. `supabase status -o env` is the source for the local
+      # stack's URL and keys — never a committed literal (the hygiene gate rejects
+      # JWT-shaped strings in the template, and these rotate per `supabase start`).
+      # SUPABASE_SERVICE_ROLE_KEY is the local stack's key, never a deployed project's:
+      # tools/ci/mint-device-user.mjs mints the identity the mutation journey signs in as
+      # with it (admin createUser + its personal org), and it reaches no bundle
+      # (EXPO_PUBLIC_ is the only prefix Metro inlines).
+      # BEFORE the web app boots (1.0.4): the web app is the mutation journey's backend,
+      # and its first request parses @app/env, the server-only pair
+      # (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL) and then the NEXT_PUBLIC_ trio; one
+      # missing name is a 500 on every route, health included. Through 1.0.3 this step
+      # ran after the boot and published neither the DB URL nor the trio, so the host never
+      # answered and the journey never ran.
+      - name: Publish the local Supabase env for the web host, the bundle and the minter
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "NEXT_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
+            echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SUPABASE_DB_URL=${DB_URL}"
+          } >> "$GITHUB_ENV"
+
       - name: Boot the web app (the mutation flow's backend)
         shell: bash
         run: |
           set -euo pipefail
           pnpm --filter web run dev > /tmp/web.log 2>&1 &
           for _ in $(seq 1 60); do
-            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/health" > /dev/null; then
+            # `system.health`: the routers are namespaced, and /api/trpc/health is a 404.
+            if curl -fsS -m 2 "http://127.0.0.1:3000/api/trpc/system.health" > /dev/null; then
               echo "web up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::the web app never served a healthy /api/trpc"; cat /tmp/web.log; exit 1
-
-      # The device reaches the host through adb reverse, so the app's public config
-      # must point at loopback. `supabase status -o env` is the source for the local
-      # stack's URL and publishable key — never a committed literal (the hygiene gate
-      # rejects JWT-shaped strings in the template, and these rotate per `supabase start`).
-      # SUPABASE_SERVICE_ROLE_KEY rides along for ONE step: tools/ci/mint-device-user.mjs
-      # mints the identity the mutation journey signs in as (admin createUser + its
-      # personal org) — the local stack's key, rotated per `supabase start`, never a
-      # deployed project's, and it reaches no bundle (EXPO_PUBLIC_ is the only prefix
-      # Metro inlines).
-      - name: Publish the local Supabase env for the bundle (and the minter)
-        run: |
-          eval "$(supabase status -o env)"
-          {
-            echo "EXPO_PUBLIC_SUPABASE_URL=${API_URL%/}"
-            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE=${ANON_KEY}"
-            echo "EXPO_PUBLIC_WEB_ORIGIN=http://127.0.0.1:3000"
-            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
-          } >> "$GITHUB_ENV"
+          echo "::error::the web app never served a healthy /api/trpc/system.health"; cat /tmp/web.log; exit 1
 
       # Both binaries up front (the emulator step below only installs + drives).
       # Release: EXPO_PUBLIC_ vars are inlined at BUNDLE time, so they must be set on
@@ -911,12 +949,17 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash tools/ci/device-lane.sh
+      # The web app's log is /tmp/web.log, written by the boot step above; through 1.0.3
+      # this step printed /tmp/server.log, which nothing writes.
       - name: Server + Metro logs on failure
         if: failure()
         run: |
-          echo '::group::server.log'; cat /tmp/server.log || true; echo '::endgroup::'
+          echo '::group::web.log'; cat /tmp/web.log || true; echo '::endgroup::'
           echo '::group::metro.log'; cat /tmp/metro.log || true; echo '::endgroup::'
 
+      # include-hidden-files: Maestro writes its debug output (commands, screenshots,
+      # maestro.log) under <out-dir>/<flow>/.maestro/, and upload-artifact drops hidden
+      # files by default, so through 1.0.3 none of it was uploaded.
       - name: Upload Maestro evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -925,6 +968,7 @@ jobs:
           path: artifacts/maestro/
           retention-days: 7
           if-no-files-found: ignore
+          include-hidden-files: true
 
   # ---------------------------------------------------------------------------
   # perf-lane — the startup MEASUREMENT half of the mobile-perf floor (the

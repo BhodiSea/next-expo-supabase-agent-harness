@@ -24,6 +24,23 @@ import { toPosix, walkFiles } from './fs-walk.mjs'
 export const inCI = () =>
   process.env.CI === 'true' || process.env.HARNESS_REQUIRE_TOOLCHAINS === '1'
 
+// The arguments a FIX line repeats. One that needs no shell quoting (a flag, a word, a
+// relative path) is printed as given. A KEY=VALUE pair prints as `KEY=…`, so a value handed
+// through (a credential passed with `--env`, say) never reaches a log. Anything else is
+// dropped, together with the flag it was the value of, so the printed command still parses.
+// Until 1.0.4 only [a-z0-9-] tokens survived, and a failed device journey printed
+// `--phase journey --file --out-dir`, which the runner rejects (#10).
+function reproduceArgs(argv) {
+  const out = []
+  for (const arg of argv) {
+    const pair = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(arg)
+    if (pair !== null) out.push(`${pair[1]}=…`)
+    else if (/^[A-Za-z0-9._/-]+$/.test(arg)) out.push(arg)
+    else if (!arg.startsWith('-') && out.at(-1)?.startsWith('--')) out.pop()
+  }
+  return out
+}
+
 // The reproduce command is derived from the running script so it can never drift
 // from reality; gates invoked through a wrapper fall back to the whole chain.
 function fixHint(gate) {
@@ -31,7 +48,7 @@ function fixHint(gate) {
     ?.split('\\')
     .join('/')
     .replace(/^.*?\/(tools\/)/, '$1')
-  const argv = process.argv.slice(2).filter((a) => /^[a-z0-9-]+$/i.test(a))
+  const argv = reproduceArgs(process.argv.slice(2))
   const cmd = script?.startsWith('tools/')
     ? ['node', script, ...argv].join(' ')
     : 'node tools/validate.mjs'

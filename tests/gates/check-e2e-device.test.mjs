@@ -29,6 +29,7 @@ const tool = process.argv[2]
 const args = process.argv.slice(3)
 if (tool === 'maestro') {
   if (args.includes('--version')) { console.log('stub 0.0.0'); process.exit(0) }
+  if (args[0] === 'hierarchy') { console.log(spec.hierarchy ?? ''); process.exit(0) }
   const flow = args[args.length - 1]
   appendFileSync(join(here, 'invocations.log'), 'maestro ' + args.join(' ') + '\\n')
   const name = flow.split(/[\\\\/]/).pop()
@@ -164,6 +165,74 @@ test('RED: a failing flow propagates AND leaves evidence (logcat tail artifact)'
   const logcat = join(dir, 'artifacts/maestro/matrix-logcat.txt')
   assert.ok(existsSync(logcat), r.out)
   assert.ok(readFileSync(logcat, 'utf8').includes('FATAL EXCEPTION'), r.out)
+})
+
+test('RED: a failed flow prints what was on screen, so the log alone names the state it failed in', () => {
+  // 1.0.4 (#10). The evidence of a device red lived only in the uploaded artifact, and the
+  // Maestro half of it never uploaded (hidden .maestro/). The perf-harness red of 2026-09-24
+  // printed "perf-pass is visible... FAILED" and nothing that said whether the screen showed
+  // perf-fail with its over-budget lines or was still measuring. The runner now prints the
+  // ids and text of the hierarchy it captures, before the FAIL line.
+  const hierarchy = JSON.stringify({
+    attributes: {},
+    children: [
+      {
+        attributes: { 'resource-id': 'perf-harness-screen' },
+        children: [
+          { attributes: { 'resource-id': 'perf-fail', text: 'Over budget' }, children: [] },
+          { attributes: { text: 'droppedFrames: 23 (cap 12)' }, children: [] },
+        ],
+      },
+    ],
+  })
+  const dir = fixture({ behavior: { failFlows: ['perf-harness.yaml'], hierarchy } })
+  const r = run(dir, ['--phase', 'perf-harness', '--out-dir', 'artifacts/maestro/perf'])
+  assert.equal(r.code, 1, r.out)
+  const line = r.out.split('\n').find((l) => l.startsWith('e2e-device: on screen when')) ?? ''
+  assert.ok(line.includes('perf-harness.yaml failed'), r.out)
+  assert.ok(line.includes('ids: perf-harness-screen, perf-fail'), r.out)
+  assert.ok(line.includes('"droppedFrames: 23 (cap 12)"'), r.out)
+  assert.ok(r.out.indexOf('e2e-device: on screen when') < r.out.indexOf('e2e-device: FAIL'), r.out)
+  // The hierarchy itself still lands in the artifact directory.
+  const saved = join(dir, 'artifacts/maestro/perf/perf-harness-hierarchy.txt')
+  assert.ok(readFileSync(saved, 'utf8').includes('droppedFrames'), r.out)
+  // No readable hierarchy: the line says so rather than printing nothing.
+  const blind = fixture({ behavior: { failFlows: ['matrix.yaml'] } })
+  const b = run(blind, ['--phase', 'flows'])
+  assert.equal(b.code, 1, b.out)
+  assert.ok(b.out.includes('e2e-device: on screen when matrix.yaml failed — nothing readable'), b.out)
+})
+
+test('RED: the FIX line reproduces a journey run with its file, its out-dir and each --env key', () => {
+  // 1.0.4 (#10). The FIX line kept only [a-z0-9-] tokens, so a failed mutation journey
+  // printed `node tools/check-e2e-device.mjs --phase journey --file --out-dir`, a command
+  // that fails on its own usage check; issue #10 had to rebuild the real one by hand. Paths
+  // now survive, and a KEY=VALUE pair keeps its key with the value elided, so a credential
+  // handed through --env never reaches the log.
+  const dir = fixture({
+    behavior: { failFlows: ['mutation.yaml'] },
+    files: { 'maestro/journeys/mutation.yaml': 'appId: com.example.stub\n---\n- launchApp\n' },
+  })
+  const r = run(dir, [
+    '--phase',
+    'journey',
+    '--file',
+    'maestro/journeys/mutation.yaml',
+    '--out-dir',
+    'artifacts/maestro/mutation',
+    '--env',
+    'DEVICE_EMAIL=device-mutation@example.com',
+    '--env',
+    'DEVICE_PASSWORD=device-mutation-pw-1',
+  ])
+  assert.equal(r.code, 1, r.out)
+  assert.ok(
+    r.out.includes(
+      'FIX[e2e-device]: reproduce with `node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation --env DEVICE_EMAIL=… --env DEVICE_PASSWORD=…`',
+    ),
+    r.out,
+  )
+  assert.ok(!r.out.includes('device-mutation-pw-1'), r.out)
 })
 
 test('--phase sweep: generates the route sweep from the manifest and runs it once', () => {

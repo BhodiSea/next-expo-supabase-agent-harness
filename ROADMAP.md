@@ -24,8 +24,13 @@ when they fall due.
   reporting). The second half is a check that compares the framework
   floor against the vendor's advisory feed, so that a security release is
   noticed when it ships and not when a review window happens to end.
-- **Issue #10**: the Maestro mutation journey fails on the Android emulator in
-  the scheduled device lane.
+- **Find why the scheduled device lane's perf-harness phase goes red.** The
+  mutation journey of issue #10 has passed since 1.0.0 fixed it, but
+  `maestro-smoke` still failed on seven of the fourteen scheduled runs from
+  2026-08-17 to 2026-09-29 read for #10, each time on the perf-harness
+  marker. 1.0.4 makes the next red print the on-screen verdict, with each
+  breached cap and its measured value (the 1.0.4 CHANGELOG, "What stays
+  open"); the fix follows from that line.
 
 ## Next: 1.1.0
 
