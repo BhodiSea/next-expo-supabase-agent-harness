@@ -101,14 +101,15 @@ with their positions. The other positions are these:
 | 47 | 1.1.0 | #78 | F06 | #138 | Edge Functions under lint, unit tests, mutation and a typecheck |
 | 48 | 1.1.0 | #84 | F16 | #139 | `gate-integrity` proves an uncommitted escape list's bytes were planted |
 | 49 | 2.0.0 | #86 | B02 | #140 | The version moves to 2.0.0 first, with B02 |
-| 52 | 2.0.0 | #37 | — | — | This record, and a merge of `main` that brings #51 into the stack |
+| 52 | 2.0.0 | #37 | — | — | This record |
 
 Two parts of the work plan are outside the stack. C01, the cloud-session
 tooling in #36, merged to `main` on 2026-09-29, before the stack's first
 position, which merges it. #51 (F03), the version-free pin and verify examples
 in `README.md` and `SECURITY.md`, merged to `main` as #90 on 2026-09-30, after
-the stack began; position 52 merges `main`, so 2.0.0 is the first release
-whose tag carries it.
+the stack began. Position 1 merges `main` again, so #51 ships in 1.0.4, the
+first release whose tag carries it, and the 1.0.4 CHANGELOG lists it under
+Fixed.
 
 ## Field-report upgrades
 

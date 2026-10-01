@@ -107,10 +107,6 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   clear it, the next prompt does, and the agent should end the turn and tell the user. With
   the session as the whole key the error would otherwise have lasted the rest of the session,
   with nothing the agent could do about it (decision 3) (#87).
-- **The pin and verify examples in `README.md` and `SECURITY.md` name no release.** This
-  factory-docs change reaches no install. It merged to `main` as #90 after this release's
-  stack began, so no earlier position carries it; the stack's last position merges `main`,
-  and 2.0.0 is the first release whose tag does (#51).
 
 ### Changed
 
@@ -366,10 +362,9 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   request in every field-report bullet were red, and the uniqueness and coverage cases passed
   on an empty table. The two stack-position cases came with the records, and each was red on a
   copy of the documents with a position's row dropped or a tag position moved. A local replay
-  of the merge procedure, from `main` through positions 1 to 52 with merge commits, conflicted
-  only at position 1, in `CHANGELOG.md`; with the stack's side taken there every later merge
-  was clean, the final tree equalled this position's, and both local release tags were in its
-  history (#37).
+  of the merge procedure, from `main` through positions 1 to 52 with merge commits, met no
+  conflict, the final tree equalled this position's, and the local tags v1.0.4, v1.1.0 and
+  v2.0.0 were all in its history (#37).
   At the cut, CI on the release commit found six reds that the Local development list
   cannot see, all from the default scaffold #85 introduced and the lanes around it. Each was
   reproduced here before its fix. `actionlint` reported two shellcheck findings in
