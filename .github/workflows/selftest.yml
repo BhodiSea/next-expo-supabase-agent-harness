@@ -473,8 +473,9 @@ jobs:
             printf '  return mean + spread + total + positives - negatives\n'
             printf '}\n'
           }
-          test -d apps/mobile/src/features/notes && test -d apps/mobile/src/features/matrix \
-            || { echo '::error::CANARY: the example mobile features are missing — the paste would land in directories nothing else uses'; exit 1; }
+          if ! { test -d apps/mobile/src/features/notes && test -d apps/mobile/src/features/matrix; }; then
+            echo '::error::CANARY: the example mobile features are missing — the paste would land in directories nothing else uses'; exit 1
+          fi
           clone > apps/mobile/src/features/notes/canaryClone.ts
           clone > apps/mobile/src/features/matrix/canaryClone.ts
           if env -u GITHUB_BASE_REF node tools/check-duplication.mjs; then
@@ -1752,7 +1753,7 @@ jobs:
         run: |
           set -o pipefail
           env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
-          notes="$(grep -c '^migrations: NOTE — supabase/migrations/.*: deleted by `eject`' "$RUNNER_TEMP/eject-validate.log" || true)"
+          notes="$(grep -c "^migrations: NOTE — supabase/migrations/.*: deleted by \`eject\`" "$RUNNER_TEMP/eject-validate.log" || true)"
           if [ "$notes" = 0 ]; then
             echo '::error::validate passed after eject, but migrations named no ejected migration: the deletions were not judged against the manifest record'
             exit 1
