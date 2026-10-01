@@ -11,8 +11,9 @@ block an agent turn or a merge until validation passes.
 npx --yes github:BhodiSea/next-expo-supabase-agent-harness init
 ```
 
-Pin a release by appending a tag, for example
-`github:BhodiSea/next-expo-supabase-agent-harness#v1.0.1`. Then, in the new
+To pin a release, append its tag from the
+[Releases](https://github.com/BhodiSea/next-expo-supabase-agent-harness/releases)
+page: `github:BhodiSea/next-expo-supabase-agent-harness#<tag>`. Then, in the new
 directory:
 
 ```sh
