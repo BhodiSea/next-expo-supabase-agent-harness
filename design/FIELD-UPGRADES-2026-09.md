@@ -17,9 +17,11 @@ but a clone. Where the code shows no defect, the section says "no defect claimed
 stands as a proposal only.
 
 `ROADMAP.md` requires every item to link to the record that tracks it. This file is that
-record for the roadmap's "Field-report upgrades" section. Nothing here is a commitment:
-no item has a row in `scripts/obligations.json`, and the maintainer decides which become
-binding.
+record for the roadmap's "Field-report upgrades" section. The sections were written as
+proposals, not commitments, and the maintainer decided which became binding: each one became
+an issue of the work plan in issue #37, and the status table below says where each was
+built. The items have no row in `scripts/obligations.json`; the ramps some of them opened
+do, as each ramp's expiry row.
 
 ## How to read a section
 
@@ -35,11 +37,72 @@ binding.
 - Sections are labelled N (no ramp), R (ramped) and B (breaking) so they can cite each
   other. The labels carry no priority.
 
+## Status on 2026-10-01
+
+Each section below became an issue of the work plan in issue #37, and each issue is built in
+a pull request of one stack: fifty-two pull requests, each based on the one before it, which
+the maintainer merges in order with merge commits. On this date they are open, so none of
+this is in a tagged release yet. Each release is tagged on its last position once that
+position is merged: 1.0.4 on position 18, 1.1.0 on 48 and 2.0.0 on 52. Each section also
+opens with a status line that says the same as its row here. Where a pull request built less
+than its section proposed, the section's `ROADMAP.md` bullet and the release's CHANGELOG
+entry ("What stays open, honestly") say what was left.
+
+The class headings below are the ones this record proposed. The **Built for** column is the
+release each part was built for, and it differs from them in three ways:
+
+- N01 to N04, N16, N21 and the first halves of N07 and N15 moved into 1.0.4, the local
+  loop release (#38).
+- N07 and N15 were split, each half its own issue and pull request.
+- N12 was proposed without a ramp and was built behind one: an install whose configuration
+  already forces a reviewer model off the reviewed list would otherwise red on its first
+  Stop after `update`.
+
+| Section | Issue | Pull request | Stack position | Built for |
+|---|---|---|---|---|
+| N01 | #42 | #95 | 5 | 1.0.4 |
+| N02 | #41 | #94 | 4 | 1.0.4 |
+| N03 | #43 | #96 | 6 | 1.0.4 |
+| N04 | #44 | #97 | 7 | 1.0.4 |
+| N05 | #56 | #110 | 20 | 1.1.0 |
+| N06 | #57 | #111 | 21 | 1.1.0 |
+| N07 | #46 | #99 | 9 | 1.0.4 |
+| N07 | #82 | #129 | 39 | 1.1.0 |
+| N08 | #58 | #113 | 23 | 1.1.0 |
+| N09 | #59 | #112 | 22 | 1.1.0 |
+| N10 | #60 | #115 | 25 | 1.1.0 |
+| N11 | #61 | #116 | 26 | 1.1.0 |
+| N12 | #62 | #117 | 27 | 1.1.0 |
+| N13 | #63 | #120 | 30 | 1.1.0 |
+| N14 | #64 | #121 | 31 | 1.1.0 |
+| N15 | #47 | #100 | 10 | 1.0.4 |
+| N15 | #65 | #122 | 32 | 1.1.0 |
+| N16 | #45 | #98 | 8 | 1.0.4 |
+| N17 | #66 | #123 | 33 | 1.1.0 |
+| N18 | #67 | #124 | 34 | 1.1.0 |
+| N19 | #68 | #125 | 35 | 1.1.0 |
+| N20 | #69 | #126 | 36 | 1.1.0 |
+| N21 | #48 | #101 | 11 | 1.0.4 |
+| R01 | #70 | #114 | 24 | 1.1.0 |
+| R02 | #71 | #118 | 28 | 1.1.0 |
+| R03 | #72 | #119 | 29 | 1.1.0 |
+| R04 | #73 | #131 | 41 | 1.1.0 |
+| R05 | #74 | #133 | 43 | 1.1.0 |
+| R06 | #75 | #132 | 42 | 1.1.0 |
+| R07 | #76 | #136 | 45 | 1.1.0 |
+| R08 | #77 | #137 | 46 | 1.1.0 |
+| B01 | #85 | #141 | 50 | 2.0.0 |
+| B02 | #86 | #140 | 49 | 2.0.0 |
+| B03 | #87 | #142 | 51 | 2.0.0 |
+
 ---
 
 # 1.1.0, no ramp
 
 ## N01: Input-stamped Stop steps
+
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #95 (issue #42, stack position
+5).
 
 **Defect.** The Stop hook runs every entry of `STOP_HOOK_STEPS` at every turn end; the
 loop has no skip path (`template/base/.claude/hooks/stop-validate-gate.mjs:136-142`;
@@ -73,6 +136,9 @@ Steps are never chosen by classifying the diff (see "Dropped after design review
 
 ## N02: Stop-step and gate-event telemetry
 
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #94 (issue #41, stack position
+4).
+
 **Defect.** The per-turn ledger records which gates blocked, by name, and nothing else:
 no step durations and no in-turn events
 (`template/base/.claude/hooks/lib/turn-outcomes.mjs:194-216`). It is trimmed to the last
@@ -99,6 +165,9 @@ no exit code. No gate reads the log. Records hold enumerated fields and ids, nev
 content or command text.
 
 ## N03: Preflight residue hygiene and a pinned runner environment
+
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #96 (issue #43, stack position
+6).
 
 **Defect.** The local database lane resolves its tools from `PATH` with no version
 check: `supabase` at `template/base/tests/rls/run-rls.mjs:35-37`, `:62` and `:73`, and
@@ -132,6 +201,9 @@ nothing; the gates that need a tool keep their own skip-or-fail rule.
 
 ## N04: A CI-parity flag for validate
 
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #97 (issue #44, stack position
+7).
+
 **Defect.** Two behaviours differ between a local run and CI, both keyed on one
 predicate (`template/base/tools/lib/gate.mjs:15-16`): a missing prerequisite skips
 locally and fails in CI (`:55-64`), and a stamp short-circuits locally and never in CI
@@ -148,6 +220,9 @@ skips, no stamps, and a closing line naming each prerequisite that was missing.
 step, so the chain and its frozen floor are unchanged.
 
 ## N05: A dated deferral for a surface that is not built yet
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #110 (issue #56, stack
+position 20).
 
 **Defect.** The `mobile` path filter in
 `template/base/github/workflows/quality-gate.yml:454-494` includes
@@ -174,6 +249,9 @@ check: **needs a `gate-proposal` issue first**.
 
 ## N06: Skip a lane that already passed on the same tree
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #111 (issue #57, stack
+position 21).
+
 **Defect.** `template/base/github/workflows/quality-gate.yml` triggers on
 `pull_request` and on `push` to the default branch, with no `paths:` filter on either
 (`:12-19`). The concurrency group is keyed on `github.ref` (`:24-26`), which differs
@@ -192,6 +270,10 @@ required `gate-summary` check keeps its meaning, because an early exit is a pass
 cites a pass.
 
 ## N07: Legal empty states on day 0, and a factory lane that proves them
+
+**Status on 2026-10-01.** Built in two halves: the empty states and the day-0 lane for
+1.0.4 in pull request #99 (issue #46, stack position 9), and the event-catalog discovery
+for 1.1.0 in pull request #129 (issue #82, stack position 39).
 
 **Defect.** Three closures cannot be satisfied by a project that has removed the worked
 example.
@@ -227,6 +309,9 @@ unchanged. The factory lane is the can-fail proof. Prerequisite for B01.
 
 ## N08: Behavioural database proofs on a fixture table
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #113 (issue #58, stack
+position 23).
+
 **Defect.** The pgTAP suites prove the security rails by exercising the example table.
 `public.notes` is named 29 times in
 `template/stack/supabase/tests/rls_isolation.test.sql` (for instance `:225-229`), 17
@@ -251,6 +336,9 @@ change reaches new scaffolds only; an existing install keeps the suites it has.
 
 ## N09: Skill references generated from the example
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #112 (issue #59, stack
+position 22).
+
 **Defect.** The four reference files under
 `template/base/.claude/skills/authoring-vertical-slice/references/` are hand-written
 descriptions of the example (`dal-dto.md:6-7`, `migration-rls.md:7-8`). None of the seven
@@ -269,6 +357,9 @@ lets B01 take the example out of a scaffold without taking out what it teaches.
 
 ## N10: A session-start brief and a status command
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #115 (issue #60, stack
+position 25).
+
 **No defect claimed.** `template/base/.claude/settings.json` wires four hook events
 (`PostToolUse` `:11`, `PreToolUse` `:28`, `Stop` `:60`, `SubagentStop` `:72`) and no
 `SessionStart`, and `template/base/package.json.tmpl:12-40` has no status script. An
@@ -285,6 +376,9 @@ hash-pinned, so the hook reaches an install through `update` or not at all.
 
 ## N11: Per-gate field notes in FAIL lines
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #116 (issue #61, stack
+position 26).
+
 **No defect claimed.** A FAIL line ends with one generic hint
 (`template/base/tools/lib/gate.mjs:29`, used by `fail` at `:47` and `skipOrFail` at
 `:55`). What a project learns about a gate in its own tree (the fixture it trips on, the
@@ -299,6 +393,9 @@ Length-capped. On the write-guard list, because the text reaches an agent at the
 it is deciding how to make a red go away.
 
 ## N12: A fallback order for reviewer models
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #117 (issue #62, stack
+position 27), behind a ramp rather than without one (see the status table).
 
 **Defect.** Every agent pins one model in its frontmatter
 (`template/base/.claude/agents/security-reviewer.md:12`, `architecture-reviewer.md:11`,
@@ -318,6 +415,9 @@ within a listed set. The `prompts` lock covers the fallback list.
 
 ## N13: A resolver for spec anchors
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #120 (issue #63, stack
+position 30).
+
 **No defect claimed.** `template/base/AGENTS.md:311` and
 `template/base/.claude/commands/new-feature.md:80` require a spec for risky changes.
 `template/base/specs/_template.md` is a list of bold labels with no headings, so nothing
@@ -334,6 +434,9 @@ resolve would be a new check: **needs a `gate-proposal` issue first**.
 
 ## N14: Review records outside ADRs
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #121 (issue #64, stack
+position 31).
+
 **No defect claimed.** The ADR template has no review section
 (`template/base/docs/adr/0000-adr-template.md`, headings at `:7` to `:35`) and no
 shipped instruction says where the findings of a review go. The ADR is the only
@@ -348,6 +451,10 @@ reviewer, verdict, findings and resolution. The ADR's Traceability section links
 migration markers rely on. Review records are not a gate input.
 
 ## N15: A proposal flow for register edits, and a project-side corpus
+
+**Status on 2026-10-01.** Built in two halves: the project-side corpus for 1.0.4 in pull
+request #100 (issue #47, stack position 10), and the proposal flow for 1.1.0 in pull
+request #122 (issue #65, stack position 32).
 
 **Defect.** The write guard protects the harness's registers and machinery with 98
 entries, each register listed by name
@@ -384,6 +491,9 @@ action.
 
 ## N16: Two guard carve-outs
 
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #98 (issue #45, stack position
+8).
+
 **Defect.** Two guards block the honest path and leave a workaround open.
 
 - Migrations are append-only by file presence.
@@ -413,6 +523,9 @@ followed, and `rm -rf` stays denied.
 
 ## N17: Absence checklists for reviewers, and a reviewer eval
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #123 (issue #66, stack
+position 33).
+
 **Defect.** Reviewer bodies are lists of properties to look for in what a diff contains
 (`template/base/.claude/agents/security-reviewer.md:32-114`, `## INVARIANTS`;
 `:116-133`, `## MIGRATION AUDIT`). None asks the converse: given what this diff
@@ -435,6 +548,9 @@ is re-run at each model change (N12).
 
 ## N18: A smaller always-loaded context
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #124 (issue #67, stack
+position 34).
+
 **Defect.** Every session loads `template/base/AGENTS.md` (336 lines, 23,098 bytes) and
 the three rule files that carry no `paths:` frontmatter:
 `template/base/.claude/rules/security-invariants.md` (166 lines, 12,200 bytes),
@@ -455,6 +571,9 @@ hold, stay. `AGENTS.md` is seeded, so an existing install changes only if its ow
 copies the change. The rule files are owned and arrive through `update`.
 
 ## N19: Compliance register checks on a release cadence
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #125 (issue #68, stack
+position 35).
 
 **Defect.** The `docs-sync` step runs three scripts, and two of them grade the
 compliance registers (`template/base/tools/harness.config.mjs:160`; why they share a
@@ -477,6 +596,9 @@ does not make.
 
 ## N20: Provenance mandatory where it guards a security decision, advisory elsewhere
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #126 (issue #69, stack
+position 36).
+
 **Defect.** The `provenance` gate has seven built-in decision classes
 (`template/base/tools/lib/provenance-rules.mjs:17-84`) and one seeded class
 (`template/base/tools/decision-groups.json:5-16`), and treats them alike: one bucket of
@@ -494,6 +616,9 @@ to mandatory in its seeded file and cannot demote a mandatory one. It is a relax
 only, so it needs no ramp, and the advisory findings still print.
 
 ## N21: An owned path with no manifest record
+
+**Status on 2026-10-01.** Built for 1.0.4 in pull request #101 (issue #48, stack
+position 11).
 
 **Defect.** `classifyDrift` treats an owned file that exists on disk with no manifest
 record as unmodified, so `update` overwrites it (`installer/lib/reconcile.mjs:6-10`,
@@ -514,6 +639,9 @@ runbook note that #21 carries, and `--force` still overwrites.
 # 1.1.0, behind a ramp
 
 ## R01: Reviewer ledger v2
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #114 (issue #70, stack
+position 24).
 
 **Defect.** Six properties of the reviewer gate, each from the code.
 
@@ -563,6 +691,9 @@ in the key until B03. It changes what an existing gate judges: **needs a
 
 ## R02: A severity contract and a round budget
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #118 (issue #71, stack
+position 28).
+
 **Defect.** No reviewer body maps severity to verdict. A nit and a vulnerability both
 justify `VERDICT: BLOCK`, and the body decides by tone. Nothing bounds rounds per
 reviewer. The only bound is Claude Code's turn-wide block cap
@@ -581,6 +712,9 @@ Ramped because a project's edited reviewer bodies would otherwise red on upgrade
 
 ## R03: docs-sync holds the verdict demand to the end of the body
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #119 (issue #72, stack
+position 29).
+
 **Defect.** `docs-sync` checks that each reviewer body contains the verdict demand with
 an unanchored substring test (`template/base/tools/check-docs-sync.mjs:618-623`). At the
 verified commit two shipped bodies asked for text after the verdict line while the
@@ -594,6 +728,9 @@ reviewer bodies are still held to presence only.
 ships behind a ramp. **Needs a `gate-proposal` issue first.**
 
 ## R04: A CI self-lint job for shells and ceilings
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #131 (issue #73, stack
+position 41).
 
 **Defect.** The shipped `actions-lint.yml` holds one structural property of a project's
 workflows, harden-runner coverage, by counting
@@ -614,6 +751,9 @@ in the canary registry. Ramped because a project's own workflows would otherwise
 on upgrade.
 
 ## R05: Grants bounded by policies, generated exactness, and a revoke doctrine
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #133 (issue #74, stack
+position 43).
 
 **Defect.** The static grant check is one-way by design. A policy implies a grant, and
 nothing asks whether a grant is wider than any policy needs
@@ -640,6 +780,9 @@ the doctrine, and #24 only teaches it.
 
 ## R06: The SQL parser learns DROP TABLE and ALTER POLICY
 
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #132 (issue #75, stack
+position 42).
+
 **Defect.** `template/base/tools/lib/sql-parse.mjs` models `CREATE TABLE`,
 `CREATE POLICY`, `DROP POLICY` (`:363`), index and constraint drops, and
 `DROP NOT NULL` (`:588-589`). It has no occurrence of `DROP TABLE` or `ALTER POLICY`,
@@ -658,6 +801,9 @@ in seven gates at once for any install whose history contains either statement.
 **Needs a `gate-proposal` issue first.**
 
 ## R07: i18n detection on the syntax tree
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #136 (issue #76, stack
+position 45).
 
 **Defect.** `template/base/tools/check-i18n.mjs` finds user-facing strings with regular
 expressions over comment-blanked source text (`:257` for JSX text, `:221-228` for
@@ -678,6 +824,9 @@ the expressions are removed, and both run side by side for one release. Ramped b
 the finding set changes in both directions. **Needs a `gate-proposal` issue first.**
 
 ## R08: The web build in the chain, and a browser test per route
+
+**Status on 2026-10-01.** Built for 1.1.0 in pull request #137 (issue #77, stack
+position 46).
 
 **Defect.** The chain's `build` step is the mobile export
 (`template/base/tools/harness.config.mjs:122`;
@@ -709,6 +858,9 @@ The chain count, the frozen floor and every count-matched claim move together. R
 
 ## B01: The example leaves the scaffold
 
+**Status on 2026-10-01.** Built for 2.0.0 in pull request #141 (issue #85, stack
+position 50).
+
 **Defect.** The worked example ships as product. Under `template/stack`, 44 of 348
 files carry its name in their path, and the action registry it feeds adds 5. The stack
 tree is seeded almost entirely (`installer/lib/layout.mjs:89-99`), so an install owns
@@ -734,6 +886,9 @@ default scaffold changes shape.
 
 ## B02: The encryption rule ships with its module
 
+**Status on 2026-10-01.** Built for 2.0.0 in pull request #140 (issue #86, stack
+position 49), the pull request that also moves the version to 2.0.0.
+
 After N18 the always-loaded rule is a stub. 2.0.0 moves the full rule into
 `template/modules/e2ee`, so an install without the module carries none of it. Breaking
 because a file leaves the base install: it needs a `removed` record in
@@ -741,6 +896,9 @@ because a file leaves the base install: it needs a `removed` record in
 fork handling in #21).
 
 ## B03: `prompt_id` leaves the ledger key
+
+**Status on 2026-10-01.** Built for 2.0.0 in pull request #142 (issue #87, stack
+position 51).
 
 After R01, what makes a verdict current is the digest of the paths it reviewed, and
 `prompt_id` (R01, point 3) only causes re-runs. 2.0.0 drops it from the key and the

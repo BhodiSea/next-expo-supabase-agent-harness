@@ -118,6 +118,10 @@ this heading if none does. -->
   clear it, the next prompt does, and the agent should end the turn and tell the user. With
   the session as the whole key the error would otherwise have lasted the rest of the session,
   with nothing the agent could do about it (decision 3) (#87).
+- **The pin and verify examples in `README.md` and `SECURITY.md` name no release.** This
+  factory-docs change reaches no install. It merged to `main` as #90 after this release's
+  stack began, so no earlier position carries it; the stack's last position merges `main`,
+  and 2.0.0 is the first release whose tag does (#51).
 
 ### Changed
 
@@ -214,6 +218,14 @@ this heading if none does. -->
   names, signatures and meaning, for that judgement and for a step forked at 1.1.x. The round
   budget counts entries of every format. Not ramped: this is the major's key, and the format
   finding is a v2 finding, under v2's ramp (#87).
+- **`ROADMAP.md` and the field-report design record say where each item was built.**
+  `design/FIELD-UPGRADES-2026-09.md` gains a dated status table and, under each section's
+  heading, a status line naming the issue, pull request, stack position and release that
+  built it. `ROADMAP.md` gains a work-plan section listing the stack's other positions, and
+  each field-report bullet names its pull request. `tests/gates/work-plan-status.test.mjs`
+  holds the three to each other, every position of the stack to one issue and pull request
+  in release order, and the stated tag positions to each release's last one. Factory docs:
+  nothing reaches an install (#37).
 
 ### Removed
 
@@ -308,6 +320,10 @@ this heading if none does. -->
 - **The dispatch records carry no format stamp.** `.harness/reviewer-dispatch.jsonl` is keyed
   by session and `agent_id`, and its one field means what it meant at 1.1.0; a change to it
   would need a stamp of its own (#87).
+- **The work plan's status record is dated.** It names pull requests that are open on
+  2026-10-01 and says no release is tagged. Once the maintainer merges the stack and pushes
+  the tags it describes the past, and it is re-dated or retired then. Its test holds the
+  records to each other, not to GitHub (#37).
 - **What was proven where.** With `package.json` at 2.0.0 and nothing discharged,
   `check-obligations` was red on the fourteen rows targeting 1.2.0, `check-ramp-ledger` on the
   missing `1.1.0` vintage and the missing `"2.0.0"` `rampExpiry`, `check-eol-target` on the
