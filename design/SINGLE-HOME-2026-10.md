@@ -553,6 +553,18 @@ Each finding below was re-verified against the stack head by one agent and attac
 | #156 | 6, 7, 12 | |
 | #157 | 17, 18, 19 | |
 | #158 | none (gate-proposal) | `contracts` checks project references one directory deep, so all six `packages/platform/*` and every vertical escape it; on a default scaffold a nested-aware check finds 3 missing `apps/web` references |
+| #159 | 10 (gate-proposal) | Part D of #147: `dal-client-value-import` accepts exactly `@app/supabase/errors`, and only while that file is kernel-only |
+| #160 | 25 (gate-proposal) | Decision 2: the additive project census `tools/exports-walls.project.json` |
+
+**Decisions recorded on the issues (2026-10-01).** The maintainer approved every recommendation, and `needs-decision` was removed:
+- **#146:** schedule the `auth_trail` maintenance first, on its own; merge `deny_mutation` subject to a security-reviewer PASS, kept in `audit`; parents closed to the two trails; old signatures kept as wrappers; no pending source fix.
+- **#147:** decision 8(a) stands; the 53400 arm may land before #159.
+- **#149:** option A, a private `lifecycleEvent(name)` constructor.
+- **#151:** fix F3.
+- **#154:** parts A to D, with E as #160.
+- **#158:** references mirror the manifest.
+
+All implementation waits for the 2.0.0 stack.
 
 **Corrections to the table above.**
 - **Row 21.** Without a vertical `package.json`, `boundaries` does not red the slice: it reports `no packages/verticals/* yet` and does not apply the anatomy laws to it (measured; #155).
