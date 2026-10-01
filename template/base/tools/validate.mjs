@@ -21,10 +21,26 @@
 //   a runner asked to PROVE the chain must never quietly prove a weakened one. This is a
 //   resolution MODE — membership of both chains is untouched and neither floor moves.
 // --list: print the resolved steps without running them.
+// --ci-parity (1.0.4): CI's posture for a local run. Local and CI verdicts split on one
+//   predicate, inCI() in tools/lib/gate.mjs: a missing prerequisite skips locally and
+//   fails in CI, and a warm stamp is honoured only locally. The flag sets
+//   HARNESS_REQUIRE_TOOLCHAINS=1 for every step (it never sets or unsets CI), prints the
+//   posture as its FIRST line (a runner that predates the flag ignores it silently, so a
+//   missing line means the flag was not applied), and closes after the summary's total
+//   with one line per missing prerequisite a gate recorded
+//   (lib/gate.mjs#noteMissingPrerequisite), in step order. The records live in a temp
+//   directory outside the project, one subdirectory per step, removed on exit; if it
+//   cannot be created the posture still applies and the report says it is unavailable.
+//   Record-keeping never decides the exit code. With --list it changes nothing. It
+//   REFUSES --stop-chain before resolving anything: the Stop chain has no single CI
+//   equivalent, and its reviewer-verdicts step needs a live turn's identity, which only
+//   the Stop hook sets. `--min-floor --ci-parity` is the local counterpart of CI's static
+//   job. Without the flag, nothing here runs: no extra line, no per-step env, no temp dir.
 // SOURCE: docs/harness/README.md (the Stop gate defines done; CI floor) [corpus: harness/doctrine]
 import { spawn, spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { availableParallelism } from 'node:os'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { availableParallelism, tmpdir } from 'node:os'
+import { join } from 'node:path'
 import process from 'node:process'
 import { STOP_HOOK_STEPS, VALIDATE_STEPS } from './harness.config.mjs'
 
@@ -130,11 +146,95 @@ async function resolveSteps() {
   return [...floor, ...extras]
 }
 
+// ---- --ci-parity ------------------------------------------------------------------
+const PARITY = 'validate --ci-parity'
+
+// Refused before anything resolves, with or without --list: under CI's posture the Stop
+// chain's reviewer-verdicts step fails whenever no live turn set its identity.
+function refuseStopChainParity() {
+  console.error(
+    `${PARITY}: refused with --stop-chain. The Stop chain has no single CI equivalent: CI runs its other steps in their own jobs, and its reviewer-verdicts step needs a live turn's identity, which only the Stop hook sets, so under CI's posture it can only fail. For CI's static job, run \`node tools/validate.mjs --min-floor --ci-parity\`.`,
+  )
+  process.exit(1)
+}
+
+// Print the posture, set the predicate, and open the report root in the OS temp dir.
+// A root that cannot be created leaves the posture in force: { root: null, error }.
+function openParity() {
+  console.log(
+    `${PARITY}: CI posture for this run (HARNESS_REQUIRE_TOOLCHAINS=1): a missing prerequisite fails, no stamp is honoured`,
+  )
+  process.env.HARNESS_REQUIRE_TOOLCHAINS = '1'
+  let root
+  try {
+    root = mkdtempSync(join(tmpdir(), 'harness-parity-'))
+  } catch (err) {
+    return { root: null, error: err.message }
+  }
+  process.on('exit', () => {
+    try {
+      rmSync(root, { recursive: true, force: true })
+    } catch {
+      // It is in the OS temp dir, never the project tree; the verdict is already decided.
+    }
+  })
+  return { root, error: null }
+}
+
+if (flags.has('--ci-parity') && flags.has('--stop-chain')) refuseStopChainParity()
+
 const steps = await resolveSteps()
 
 if (flags.has('--list')) {
   for (const [name, cmd] of steps) console.log(`${name}  ${cmd}`)
   process.exit(0)
+}
+
+const parity = flags.has('--ci-parity') ? openParity() : null
+
+// The spawn options a step adds under --ci-parity: its own report directory, named by its
+// index in the resolved list, so the closing block stays in step order under the pool.
+// Without a report root this is empty, and the step inherits process.env as before.
+function stepEnv(index) {
+  if (!parity?.root) return {}
+  return { env: { ...process.env, HARNESS_PARITY_REPORT_DIR: join(parity.root, String(index)) } }
+}
+
+// Every well-formed record one step left; a torn or foreign line is skipped. A step that
+// recorded nothing has no directory (ENOENT, no error); any other failure is returned so
+// the report never claims "none" over records it could not read.
+function readStepRecords(index) {
+  const dir = join(parity.root, String(index))
+  try {
+    const records = readdirSync(dir)
+      .filter((f) => f.endsWith('.jsonl'))
+      .sort()
+      .flatMap((f) => readFileSync(join(dir, f), 'utf8').split('\n').flatMap(parseRecord))
+    return { records, error: null }
+  } catch (err) {
+    return { records: [], error: err.code === 'ENOENT' ? null : err.message }
+  }
+}
+
+function parseRecord(line) {
+  try {
+    const r = JSON.parse(line)
+    return typeof r?.gate === 'string' && typeof r?.reason === 'string' ? [r] : []
+  } catch {
+    return []
+  }
+}
+
+// The closing block, printed after the summary's total and before VALIDATE_TIMINGS.
+function parityReportLines() {
+  if (!parity.root) return [`${PARITY}: report unavailable (${parity.error})`]
+  const lines = new Set()
+  for (const [index, [name]] of steps.entries()) {
+    const { records, error } = readStepRecords(index)
+    if (error !== null) lines.add(`${PARITY}: ${name}: report unreadable (${error})`)
+    for (const { gate, reason } of records) lines.add(`${PARITY}: ${name}: ${gate} — ${reason}`)
+  }
+  return lines.size > 0 ? [...lines] : [`${PARITY}: no gate reported a missing prerequisite`]
 }
 
 const reportAll = flags.has('--report-all')
@@ -144,19 +244,19 @@ const t0All = performance.now()
 // Serial + streamed (stdio inherit), exactly like the default chain: header, run,
 // record [name, ok, ms]. Used for the default mode, every exclusive step, and any
 // lone PARALLEL_SAFE step (a batch of one has nothing to overlap).
-function runSerial([name, cmd]) {
+function runSerial([name, cmd], index) {
   console.log(`\n=== ${name}: ${cmd}`)
   const t0 = performance.now()
-  const ok = spawnSync(cmd, { shell: true, stdio: 'inherit' }).status === 0
+  const ok = spawnSync(cmd, { shell: true, stdio: 'inherit', ...stepEnv(index) }).status === 0
   results.push([name, ok, Math.round(performance.now() - t0)])
 }
 
 // One child under the report-all pool: stdout+stderr captured (so the canonical-order
 // flush owns the terminal) and elapsed ms measured around it.
-function runChild(cmd) {
+function runChild(cmd, index) {
   const t0 = performance.now()
   return new Promise((resolve) => {
-    const child = spawn(cmd, { shell: true })
+    const child = spawn(cmd, { shell: true, ...stepEnv(index) })
     let text = ''
     child.stdout.on('data', (d) => {
       text += d
@@ -193,7 +293,7 @@ function runBatch(batch, poolSize) {
         const res = STEP_RESOURCES.get(step.name)
         if (res !== undefined) busy.add(res)
         active += 1
-        runChild(step.cmd).then(({ ok, ms, text }) => {
+        runChild(step.cmd, step.i).then(({ ok, ms, text }) => {
           out.set(step.i, { name: step.name, ok, ms, text })
           if (res !== undefined) busy.delete(res)
           active -= 1
@@ -226,7 +326,7 @@ async function runReportAll() {
   let i = 0
   while (i < steps.length) {
     if (!PARALLEL_SAFE.has(steps[i][0])) {
-      runSerial(steps[i])
+      runSerial(steps[i], i)
       i += 1
       continue
     }
@@ -236,7 +336,7 @@ async function runReportAll() {
       i += 1
     }
     if (batch.length === 1) {
-      runSerial([batch[0].name, batch[0].cmd])
+      runSerial([batch[0].name, batch[0].cmd], batch[0].i)
       continue
     }
     const captured = await runBatch(batch, poolSize)
@@ -247,12 +347,9 @@ async function runReportAll() {
 if (reportAll) {
   await runReportAll()
 } else {
-  for (const [name, cmd] of steps) {
-    console.log(`\n=== ${name}: ${cmd}`)
-    const t0 = performance.now()
-    const ok = spawnSync(cmd, { shell: true, stdio: 'inherit' }).status === 0
-    results.push([name, ok, Math.round(performance.now() - t0)])
-    if (!ok) break
+  for (const [i, step] of steps.entries()) {
+    runSerial(step, i)
+    if (!results.at(-1)[1]) break
   }
 }
 
@@ -262,6 +359,7 @@ const notRun = steps.length - results.length
 if (notRun > 0) console.log(`  (${String(notRun)} later step(s) not run)`)
 const totalMs = Math.round(performance.now() - t0All)
 console.log(`  total ${String(totalMs)}ms`)
+if (parity !== null) for (const line of parityReportLines()) console.log(line)
 
 // ONE machine-readable line, emitted last so a consumer parsing it never has to reason
 // about interleaved step output. The human summary above is unchanged and stays the

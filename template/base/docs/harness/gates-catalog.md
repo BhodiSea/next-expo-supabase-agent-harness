@@ -1862,6 +1862,24 @@ contention would flake red), and any consumer-added custom step — an unknown s
 is never assumed pool-safe. `provenance` and `migrations` share a `git` resource
 key so they never race `.git/index.lock`.
 
+`--ci-parity` (1.0.4) gives a local run CI's posture. It sets
+`HARNESS_REQUIRE_TOOLCHAINS=1` for every step, so a gate whose prerequisite is
+missing fails instead of skipping and no stamp is honoured, and it prints that
+posture as its first line. A runner that predates the flag ignores it silently,
+so a run without that line did not get the posture. Each gate that fails for a
+missing prerequisite records it (`noteMissingPrerequisite` in
+`tools/lib/gate.mjs`: `skipOrFail`, and the CI branches of the partial legs in
+`migrations`, `version-sync` and `styleguide`), and after the summary's total
+the runner prints one `validate --ci-parity: <step>: <gate> — <reason>` line per
+record, in step order, or says that none was reported. `VALIDATE_TIMINGS` stays
+the last line. The records live in a temp directory outside the project and
+never decide the exit code. The flag composes with `--min-floor` and
+`--report-all`: `node tools/validate.mjs --min-floor --ci-parity` is the local
+counterpart of CI's `static` job. With `--list` it changes nothing, and it
+refuses `--stop-chain`, because the Stop chain has no single CI equivalent and
+its `reviewer-verdicts` step needs a live turn. What it does not cover is in
+`docs/harness/README.md` (skip-local / fail-closed-CI asymmetry).
+
 ## Stop-hook runtime suites (`STOP_HOOK_STEPS`)
 
 ### rls-isolation — `node tests/rls/run-rls.mjs`

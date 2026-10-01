@@ -8,6 +8,7 @@
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
+  appendFileSync,
   closeSync,
   existsSync,
   fstatSync,
@@ -58,10 +59,32 @@ export function fail(gate, msg) {
   process.exit(1)
 }
 
+// `validate --ci-parity` (1.0.4) hands each step HARNESS_PARITY_REPORT_DIR, one directory
+// per step, and closes the run with one line per missing prerequisite a gate recorded
+// there. noteMissingPrerequisite appends that record: one JSON line, {"gate","reason"}, to
+// <dir>/<pid>.jsonl. It is called on the CI branch of skipOrFail and of every partial leg
+// that fails closed in CI, right before the verdict. With the variable unset (every run
+// but --ci-parity) it does nothing, and it swallows every error and prints nothing:
+// record-keeping never decides a verdict, never adds output, and never writes into the
+// project tree (the runner puts the directory in the OS temp dir).
+// SOURCE: docs/harness/README.md (skip-local / fail-closed-CI asymmetry) [corpus: harness/doctrine]
+/** @param {string} gate @param {string} reason */
+export function noteMissingPrerequisite(gate, reason) {
+  const dir = process.env.HARNESS_PARITY_REPORT_DIR
+  if (!dir) return
+  try {
+    mkdirSync(dir, { recursive: true })
+    appendFileSync(join(dir, `${process.pid}.jsonl`), `${JSON.stringify({ gate, reason })}\n`)
+  } catch {
+    // Deliberately silent: the record is a report, and the verdict is the gate's alone.
+  }
+}
+
 // Prerequisite missing: loud local skip, hard CI failure.
 /** @param {string} gate @param {string} reason @returns {never} */
 export function skipOrFail(gate, reason) {
   if (inCI()) {
+    noteMissingPrerequisite(gate, reason)
     console.error(
       `${gate}: FAIL — ${reason} (skips are not allowed in CI: set up the prerequisite or remove the surface)`,
     )

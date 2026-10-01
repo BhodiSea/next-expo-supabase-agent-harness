@@ -235,15 +235,41 @@ surface not yet created — **SKIPS LOUDLY** locally
 pass, and CI must never be green because a prerequisite was absent. Shape-awareness
 lives INSIDE each gate script, never in which steps run.
 
+The same predicate turns off every stamp: a gate whose inputs are unchanged since its
+last green run reports that locally and never in CI. To see CI's verdict before you
+push, run `node tools/validate.mjs --ci-parity` (1.0.4). It sets
+`HARNESS_REQUIRE_TOOLCHAINS=1` for the run, so a missing prerequisite fails and no
+stamp is honoured, prints that posture as its first line, and closes with one line per
+missing prerequisite a gate recorded, naming the step, the gate and the reason.
+`node tools/validate.mjs --min-floor --ci-parity` is the local counterpart of CI's
+`static` job. With `--list` the flag changes nothing, and it refuses `--stop-chain`:
+the Stop chain has no single CI equivalent, and its `reviewer-verdicts` step needs a
+live turn's identity, which only the Stop hook sets.
+
+What the flag does not cover:
+
+- **`CI` itself is not set**, so a tool that reads `CI` directly keeps its local
+  behaviour.
+- **Tool caches stay**: ESLint's `--cache` and TypeScript's `*.tsbuildinfo`.
+- **The append-only migrations check diffs against `origin/$GITHUB_BASE_REF`** when that
+  variable is set, as on a pull request in CI, and against `HEAD` otherwise. The flag does
+  not set it, so an edit to a migration already committed on your branch is caught only
+  in CI, or locally with `GITHUB_BASE_REF=<base branch>` exported and that branch fetched.
+- **`types-drift` skips on its own** when no local stack is running, without consulting
+  the predicate. It skips the same way in CI's `static` job, and it records nothing.
+- **`tests/rls/run-rls.mjs` takes its fail-closed posture from `CI` alone** (its stamp is
+  off under either variable). It is a Stop step, and the flag refuses the Stop chain, so
+  the flag never runs it.
+
 ## Stamped gates
 
 A stamp is a local shortcut, never proof. A stamped gate hashes its declared inputs; when
 every one is byte-identical to its last GREEN run (the digest in `.harness/<gate>.ok`) and
 this is not CI, it prints
 `<gate>: STAMPED — inputs unchanged since last green run (.harness/<gate>.ok; CI always re-runs)`
-and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` always
-runs the real check, and `update` and `graduate` delete every stamp, so the first run after
-either re-proves everything.
+and exits 0 without running its check. `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` (which
+`validate --ci-parity` sets) always runs the real check, and `update` and `graduate` delete
+every stamp, so the first run after either re-proves everything.
 
 - **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
   `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,

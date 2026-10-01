@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -61,19 +61,35 @@ function appendMigration(dir, name, text) {
   writeFileSync(join(dir, MIGRATIONS, name), text)
 }
 
+// Every JSON line the gate appended under a `validate --ci-parity` step directory.
+/** @param {string} dir @returns {{ gate: string, reason: string }[]} */
+function readParityRecords(dir) {
+  return readdirSync(dir).flatMap((f) =>
+    readFileSync(join(dir, f), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l)),
+  )
+}
+
 function addAdr(dir, name) {
   mkdirSync(join(dir, 'docs/adr'), { recursive: true })
   writeFileSync(join(dir, 'docs/adr', name), '# ADR: drop widgets\n\nAccepted.\n')
 }
 
-/** @param {string} dir @param {{ ci?: boolean, baseRef?: string }} [opts] */
-function runGate(dir, { ci = true, baseRef } = {}) {
+/**
+ * @param {string} dir
+ * @param {{ ci?: boolean, baseRef?: string, extraEnv?: Record<string, string> }} [opts]
+ */
+function runGate(dir, { ci = true, baseRef, extraEnv = {} } = {}) {
   const env = { ...process.env }
   delete env.GITHUB_BASE_REF
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.HARNESS_PARITY_REPORT_DIR
   if (ci) env.CI = 'true'
   else delete env.CI
   if (baseRef !== undefined) env.GITHUB_BASE_REF = baseRef
+  Object.assign(env, extraEnv)
   const res = spawnSync(process.execPath, [GATE], { cwd: dir, encoding: 'utf8', env })
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
@@ -314,6 +330,20 @@ test('CI: an unresolvable diff base (no commits) fails CLOSED, never vacates the
   const r = runGate(fixture({ commit: false }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('append-only check cannot run'), r.out)
+})
+
+test('CI posture via HARNESS_REQUIRE_TOOLCHAINS=1 (validate --ci-parity): the failed diff fails closed AND leaves one record naming the gate', () => {
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'epah-miggate-parity-')), '0')
+  const r = runGate(fixture({ commit: false }), {
+    ci: false,
+    extraEnv: { HARNESS_REQUIRE_TOOLCHAINS: '1', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('append-only check cannot run'), r.out)
+  const records = readParityRecords(reportDir)
+  assert.equal(records.length, 1, JSON.stringify(records))
+  assert.equal(records[0].gate, 'migrations')
+  assert.match(records[0].reason, /append-only/)
 })
 
 test('CI: GITHUB_BASE_REF selects origin/<ref> as the diff base and reds when unfetchable', () => {

@@ -11,7 +11,7 @@
 // the exact red/green.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -28,6 +28,7 @@ function run(dir, extraEnv = {}) {
   const env = { ...process.env }
   delete env.CI
   delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.HARNESS_PARITY_REPORT_DIR
   return spawnSync(process.execPath, [GATE], { cwd: dir, encoding: 'utf8', env: { ...env, ...extraEnv } })
 }
 
@@ -107,6 +108,62 @@ test('GREEN — vocabulary + policy + clean sources pass; regen-diff skips LOUDL
   assert.match(r.stdout, /styleguide: OK/)
   // The install-less regen-diff leg must announce itself — a skip is never a silent pass.
   assert.match(r.stdout, /regen-diff SKIPPED locally/)
+})
+
+test('RED — in CI the install-less regen-diff fails CLOSED, and under the CI posture it leaves one record naming the gate', () => {
+  const ci = run(scaffold(), { CI: 'true' })
+  assert.equal(ci.status, 1, ci.stdout + ci.stderr)
+  assert.match(ci.stderr, /regen-diff could not run — node_modules is missing in CI/)
+  assert.doesNotMatch(ci.stdout, /SKIPPED locally/)
+
+  // `validate --ci-parity` sets HARNESS_REQUIRE_TOOLCHAINS=1 (not CI) and a per-step
+  // report directory; the leg must fail the same way and record why.
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'styleguide-parity-')), '0')
+  const parity = run(scaffold(), {
+    HARNESS_REQUIRE_TOOLCHAINS: '1',
+    HARNESS_PARITY_REPORT_DIR: reportDir,
+  })
+  assert.equal(parity.status, 1, parity.stdout + parity.stderr)
+  assert.match(parity.stderr, /node_modules is missing in CI/)
+  const records = readdirSync(reportDir).flatMap((f) =>
+    readFileSync(join(reportDir, f), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l)),
+  )
+  assert.equal(records.length, 1, JSON.stringify(records))
+  assert.equal(records[0].gate, 'styleguide')
+  assert.match(records[0].reason, /node_modules/)
+})
+
+test('a forked tools/lib/gate.mjs without noteMissingPrerequisite still loads the gate (the record is lost, the verdict is not)', () => {
+  // `update` re-plants an unmodified gate script but parks the incoming copy of a forked
+  // lib/gate.mjs. The gate reaches the new export through a namespace import, so over a lib
+  // that lacks it the guarded call is a no-op instead of a link-time SyntaxError.
+  const dir = scaffold()
+  const src = dirname(GATE)
+  mkdirSync(join(dir, 'tools/lib'), { recursive: true })
+  const gate = join(dir, 'tools/check-styleguide-manifest.mjs')
+  writeFileSync(gate, readFileSync(GATE, 'utf8'))
+  for (const lib of ['fs-walk.mjs', 'source-text.mjs']) {
+    writeFileSync(join(dir, 'tools/lib', lib), readFileSync(join(src, 'lib', lib), 'utf8'))
+  }
+  const forked = readFileSync(join(src, 'lib/gate.mjs'), 'utf8').replace(
+    'export function noteMissingPrerequisite(',
+    'function noteMissingPrerequisite(',
+  )
+  assert.ok(!forked.includes('export function noteMissingPrerequisite'), 'precondition: export removed')
+  writeFileSync(join(dir, 'tools/lib/gate.mjs'), forked)
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'styleguide-fork-')), '0')
+  const r = spawnSync(process.execPath, [gate], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  assert.doesNotMatch(r.stderr, /SyntaxError|does not provide an export/)
+  assert.match(r.stderr, /node_modules is missing in CI/)
+  assert.throws(() => readdirSync(reportDir), /ENOENT/, 'no record without the export')
 })
 
 test('RED — a raw hex literal in a scanned screen reds naming the file and value', () => {

@@ -20,7 +20,7 @@ import * as gateLib from '../../template/base/tools/lib/gate.mjs'
 // failing the one test that needs it.
 import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
 
-const { hashInputs, rampNote } = gateLib
+const { hashInputs, noteMissingPrerequisite, rampNote } = gateLib
 const { STAMP_INPUTS } = stampRegister
 // Every regex metacharacter, backslash included: a path is matched literally.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -461,5 +461,129 @@ test('contracts stamp: declared inputs and the manifest invalidate; excluded chu
     assert.notEqual(hashInputs(inputs), base, 'non-excluded churn under apps/ must still invalidate')
   } finally {
     process.chdir(prev)
+  }
+})
+
+// ── noteMissingPrerequisite: the record `validate --ci-parity` closes with (1.0.4) ──
+// In-process, so the tools/lib coverage floor measures it. Each case sets or clears
+// HARNESS_PARITY_REPORT_DIR and restores the previous value afterwards.
+
+/** @param {string | undefined} value @param {() => void} fn */
+function withReportDir(value, fn) {
+  const prev = process.env.HARNESS_PARITY_REPORT_DIR
+  if (value === undefined) delete process.env.HARNESS_PARITY_REPORT_DIR
+  else process.env.HARNESS_PARITY_REPORT_DIR = value
+  const printed = []
+  const origLog = console.log
+  const origError = console.error
+  console.log = (...a) => printed.push(a.map(String).join(' '))
+  console.error = (...a) => printed.push(a.map(String).join(' '))
+  try {
+    fn()
+  } finally {
+    console.log = origLog
+    console.error = origError
+    if (prev === undefined) delete process.env.HARNESS_PARITY_REPORT_DIR
+    else process.env.HARNESS_PARITY_REPORT_DIR = prev
+  }
+  return printed
+}
+
+test('noteMissingPrerequisite: records one JSON line in <dir>/<pid>.jsonl, creating the directory', () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'epah-parity-note-')), '3')
+  const printed = withReportDir(dir, () => noteMissingPrerequisite('fake', 'no database reachable'))
+  assert.deepEqual(printed, [], 'it prints nothing')
+  assert.deepEqual(readdirSync(dir), [`${process.pid}.jsonl`])
+  const text = readFileSync(join(dir, `${process.pid}.jsonl`), 'utf8')
+  assert.equal(text, `${JSON.stringify({ gate: 'fake', reason: 'no database reachable' })}\n`)
+})
+
+test('noteMissingPrerequisite: does nothing when the variable is unset', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-parity-unset-'))
+  const prev = process.cwd()
+  process.chdir(dir)
+  try {
+    const printed = withReportDir(undefined, () => noteMissingPrerequisite('fake', 'reason'))
+    assert.deepEqual(printed, [])
+    assert.deepEqual(readdirSync(dir), [], 'nothing is written anywhere near the cwd')
+  } finally {
+    process.chdir(prev)
+  }
+})
+
+test('noteMissingPrerequisite: a directory beneath a regular file does not throw and prints nothing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'epah-parity-enotdir-'))
+  writeFileSync(join(root, 'a-file'), 'regular\n')
+  const printed = withReportDir(join(root, 'a-file', 'report'), () =>
+    assert.doesNotThrow(() => noteMissingPrerequisite('fake', 'reason')),
+  )
+  assert.deepEqual(printed, [])
+  assert.deepEqual(readdirSync(root), ['a-file'])
+})
+
+test('skipOrFail records its gate and reason under the CI predicate, and never on a local skip', () => {
+  const reportDir = join(mkdtempSync(join(tmpdir(), 'epah-parity-skip-')), '0')
+  const script = `skipOrFail('fake', 'toolchain missing')`
+  const local = runInFixture(script, { env: { HARNESS_PARITY_REPORT_DIR: reportDir } })
+  assert.equal(local.code, 0, local.out)
+  assert.throws(() => readdirSync(reportDir), /ENOENT/, 'a local skip records nothing')
+
+  const ci = runInFixture(script, {
+    env: { HARNESS_REQUIRE_TOOLCHAINS: '1', HARNESS_PARITY_REPORT_DIR: reportDir },
+  })
+  assert.equal(ci.code, 1, ci.out)
+  const files = readdirSync(reportDir)
+  assert.equal(files.length, 1, files.join(','))
+  const lines = readFileSync(join(reportDir, files[0]), 'utf8').split('\n').filter(Boolean)
+  assert.deepEqual(
+    lines.map((l) => JSON.parse(l)),
+    [{ gate: 'fake', reason: 'toolchain missing' }],
+  )
+})
+
+// ── a parked fork of lib/gate.mjs must not break a re-planted gate (1.0.4) ────────────
+// `update` re-plants an unmodified gate script but parks the incoming copy of a forked
+// tools/lib/gate.mjs, so a 1.0.4 gate can run over a lib that has no
+// noteMissingPrerequisite. A named import of it would then fail the gate at link time,
+// before any check runs. Every caller outside lib/gate.mjs therefore reaches it through a
+// namespace import and a guarded call, and this loads each one over such a fork.
+const NOTE_CALL_RE = /\bnoteMissingPrerequisite\b/
+// A line of code that names it; a comment that does (validate.mjs's header) is not a call.
+/** @param {string} src */
+const namesNote = (src) => src.split('\n').some((l) => !l.trim().startsWith('//') && NOTE_CALL_RE.test(l))
+
+test('every gate that records a missing prerequisite still loads over a lib/gate.mjs without the export', () => {
+  const callers = readdirSync(join(BASE_DIR, 'tools'))
+    .filter((f) => f.endsWith('.mjs'))
+    .map((f) => `tools/${f}`)
+    .filter((f) => namesNote(readFileSync(join(BASE_DIR, f), 'utf8')))
+    .sort()
+  assert.deepEqual(
+    callers,
+    ['tools/check-migrations.mjs', 'tools/check-styleguide-manifest.mjs', 'tools/check-version-sync.mjs'],
+    'the partial legs that record a missing prerequisite (update this list with the docs)',
+  )
+  const forked = readFileSync(join(BASE_DIR, 'tools/lib/gate.mjs'), 'utf8').replace(
+    'export function noteMissingPrerequisite(',
+    'function noteMissingPrerequisite(',
+  )
+  assert.ok(!/export function noteMissingPrerequisite\(/.test(forked), 'precondition: export removed')
+  for (const script of callers) {
+    const src = readFileSync(join(BASE_DIR, script), 'utf8')
+    for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'\.\/lib\/gate\.mjs'/gm)) {
+      assert.ok(!NOTE_CALL_RE.test(m[1]), `${script}: a named import of noteMissingPrerequisite fails over a parked fork`)
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'epah-gatelib-fork-'))
+    for (const file of [script, ...importClosure(script, [BASE_DIR])]) {
+      mkdirSync(join(dir, posix.dirname(file)), { recursive: true })
+      writeFileSync(join(dir, file), file === 'tools/lib/gate.mjs' ? forked : readFileSync(join(BASE_DIR, file), 'utf8'))
+    }
+    /** @type {Record<string, string | undefined>} */
+    const env = { ...process.env, CI: 'true', HARNESS_REQUIRE_TOOLCHAINS: '', GITHUB_BASE_REF: '' }
+    delete env.HARNESS_PARITY_REPORT_DIR
+    const res = spawnSync(process.execPath, [script], { cwd: dir, encoding: 'utf8', env })
+    const out = `${res.stdout ?? ''}${res.stderr ?? ''}`
+    assert.doesNotMatch(out, /SyntaxError|does not provide an export named/, `${script} failed to load:\n${out}`)
+    rmSync(dir, { recursive: true, force: true })
   }
 })
