@@ -117,6 +117,9 @@
     ".claude/hooks/lib/hookio.mjs": [
       {
         "sha256": "230612a3305c2b230685da44642930d51e7b8b9daa9d255414d823ccad84ff80"
+      },
+      {
+        "sha256": "9a4b2af6434716fd79fcdb7decdd25c61c0d9e5262cc15740d549d8a7d490996"
       }
     ],
     ".claude/hooks/lib/turn-outcomes.mjs": [
@@ -127,24 +130,39 @@
     ".claude/hooks/posttool-fast-check.mjs": [
       {
         "sha256": "72ba0cdb180af572280e88f3225adafe47e737a427dca36c38eefe0ae2688f1a"
+      },
+      {
+        "sha256": "79076c594e2c323ed9d3c362035f538ac45490a432e7ed3e1d842711dc8e32fb"
       }
     ],
     ".claude/hooks/posttool-source-check.mjs": [
       {
         "sha256": "8a71b8a4ca4b42acc918ed672ed27e484d1667ddeec81e2499154531d83f885f"
+      },
+      {
+        "sha256": "bdd82967a2553f9ae62090a7c84fd41d3b7a8530408f8dbec9d7dea29d008240"
       }
     ],
     ".claude/hooks/pretool-bash-guard.mjs": [
+      {
+        "sha256": "9e6fa8b9114d40141c8fb6a2769dd2d1a38578ece46cafa99009daf99548c38d"
+      },
       {
         "sha256": "fa8c357a8a8f1f6ca2fc97e3e76e7de99c3e1792ac14e2fb92dc2388e32f9974"
       }
     ],
     ".claude/hooks/pretool-mcp-guard.mjs": [
       {
+        "sha256": "4dd293e7bdb3a5a066594d7c1b4d8070e4d4cb5834f41769d9f396a775e14d7b"
+      },
+      {
         "sha256": "77ab53ecee3addd271b6f58e41c9793f24d24dd55215437fde7b8724e815461a"
       }
     ],
     ".claude/hooks/pretool-write-guard.mjs": [
+      {
+        "sha256": "73ff39c1a37604c01ba96c583de3fd6a9851d11a62b2422dd1630638a0129fb4"
+      },
       {
         "sha256": "ae01545278b8189ae36998dcce674eccf96a940c2d59924c99e6f01d5bfb4cfa"
       }
@@ -152,11 +170,17 @@
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "642a004e6caad6519cc29ae2e3f378104e1747eb76541f9281099ca13bfdd4c6"
+      },
+      {
+        "sha256": "93ebfb4942a7d6bff13a3645c80fea33796d1a1a62cc6523459a751d3f45dd84"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
       {
         "sha256": "34236fe78f00ae59263bbf82172df59545457296480df3d455e289416060feb3"
+      },
+      {
+        "sha256": "cfa91ad6043a59e1fe7b55a54e7b8859ed78dacd4ed4f946101d5d8c457674e4"
       }
     ],
     ".claude/rules/boundaries.md": [
@@ -700,6 +724,15 @@
     ],
     "docs/harness/README.md": [
       {
+        "sha256": "5f0acc58cb76ebe127f378eb7b206de2ddf1178b28f629b6b5655c18845d5363",
+        "sites": [
+          [
+            16297,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "914934992ac90176506e2382d796c2fb300a757ea3dee984901631583447869e",
         "sites": [
           [
@@ -896,6 +929,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "3d3b8c8ea771a10e326768ece0d0c1ba1ab24c2e6c235de1339ae62be48d71e0",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "7a18e5f7fc20c03f790c2b0f4bc263605d301523273a1917b4e558fdb03b074e",
         "sites": [

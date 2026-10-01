@@ -138,6 +138,22 @@ half of them would go quiet on the turns that needed the warning. The file is a 
 not a control: it authorizes nothing, so a corrupt line is tolerated rather than fatal — the
 deliberate opposite of the reviewer ledger, which fails closed because it does authorize.
 
+**The telemetry log (1.0.4).** The ledger above records THAT a turn blocked and keeps only its
+most recent rows; it says nothing about what each step cost or which rule fired, so a red fixed
+inside the same turn left no trace. Every Stop run now also appends to
+`.harness/telemetry.jsonl`: a `stop-step` record per step (`ok` or `fail`, its duration in
+whole milliseconds, and how many `SKIPPED` lines its output carried, a red step's included),
+and a `validate-gate` record per gate named in the LAST `VALIDATE_TIMINGS` line a step
+printed, green or red. The guards, the PostToolUse hooks and `subagent-verdict.mjs` append a
+`hook-event` record for each deny, provenance block, Biome warning and reviewer bounce, naming
+the rule id (or, at an inline deny site, a telemetry label that is not a rule id); an allowed
+call writes nothing. A record holds enumerated values, ids, timestamps and counts, never file
+content, command text, paths or messages. The file is written **only inside an install**,
+when `.harness/manifest.json` exists in the working directory, and it is **never trimmed**.
+To reset it a human deletes it: the write guard and the bash guard deny an agent's edits and
+deletions under `.harness/`. **No gate reads it**, and a test holds that. It is bookkeeping,
+so if it cannot be written, every exit code and every byte on stdout stay what they were.
+
 ### pretool-bash-guard
 
 Deterministic regex denial of the commands permission pattern-matching handles

@@ -69,6 +69,21 @@ this heading if none does. -->
 <!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
 this heading if none does. -->
 
+- **The hooks keep a telemetry log, `.harness/telemetry.jsonl`.** It records what the turn
+  ledger never did: each Stop step's status, duration and count of `SKIPPED` lines, the gate
+  times from the last `VALIDATE_TIMINGS` line a step printed, and every guard deny,
+  provenance block, Biome warning and reviewer bounce with the rule that fired, so a red fixed
+  inside the same turn still leaves a trace. A deny from the write guard's protected-path
+  table now names the matching row's `id`; inline deny sites carry telemetry labels, which are
+  not rule ids. Records hold enumerated values, ids, timestamps and counts, never content,
+  commands, paths or messages. `.harness/telemetry.jsonl` is a new diagnostic the hooks append
+  to, append-only and never trimmed; `.harness/*` is already ignored. The hooks write it only
+  where `.harness/manifest.json` exists, no gate reads it, and a record that cannot be written
+  changes no exit code and no stdout byte. `update` delivers the changed hooks,
+  `lib/hookio.mjs` and `docs/harness/README.md`. The hooks reach hookio's new exports through a
+  namespace import, so an install whose forked `lib/hookio.mjs` was parked still loads every
+  hook and records nothing (#41).
+
 ### What stays open, honestly
 
 - **An existing install keeps its database types until it regenerates them.** The file is
@@ -79,6 +94,12 @@ this heading if none does. -->
   2027-05-31 and 2027-06-11. Whether this project has an open-source software steward, whose
   reporting duties start on 2027-12-11, is recorded as an open question for the maintainer in
   `design/CONFORMANCE-FACTS.md` §4 (#54).
+- **The telemetry log grows until a human deletes it, and its guard records may carry no
+  ids.** Nothing trims, rotates or reads `.harness/telemetry.jsonl` yet; a summary is #60's
+  and #42 measures its stamps from it. `session_id` and `prompt_id` are observed in the Stop
+  and SubagentStop payloads (`design/CONTROL-PLANE-FACTS.md`), but no PreToolUse or
+  PostToolUse payload has been recorded here, so a guard's record says `null` for each id the
+  payload does not carry as a string (#41).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -91,7 +112,15 @@ this heading if none does. -->
   CLI 2.118.0 against a live local stack, where `types-drift` passed on them and printed its
   bounded diff before its FAIL on v1.0.3's file; both `bootstrap-linux` legs then passed in
   CI with the stack up (#40). `check-obligations --clockful` was red on the two overdue rows
-  before the re-read and clean after it, on 2026-09-29 (#54).
+  before the re-read and clean after it, on 2026-09-29 (#54). `tests/hooks/telemetry.test.mjs`
+  was red on every telemetry case before the hooks wrote the log and green after, with
+  `check-canary-coverage` green on unchanged `denyToolCallSites` pins. In a zero-edit core
+  scaffold one Stop run with no stack up exited 2 on `rls-isolation` alone and appended a
+  `stop-step` record per chain step and a `validate-gate` record per validate gate;
+  `git status --porcelain .harness` then printed nothing and `validate --report-all` stayed
+  green. `update` from a v1.0.3 install also wrote `lib/hookio.mjs` and
+  `docs/harness/README.md` beside the files above, and a bash deny through the launcher then
+  appended its `hook-event` record (#41).
 
 ## [1.0.3] — 2026-09-23
 

@@ -61,6 +61,13 @@ const input = await readHookInput()
 const ti = input?.tool_input ?? {}
 const path = String(ti.file_path ?? ti.path ?? '')
 
+// The telemetry record each deny carries (1.0.4): the rule table's `id` where a table row
+// fired, else a telemetry LABEL naming the inline site. Labels are not rule ids and are not in
+// guard-rules.mjs, where every id owes a behavioural canary. hookio takes only the payload's
+// session_id, prompt_id and tool_name from `input` — never the path or the content.
+/** @param {string} rule */
+const telemetry = (rule) => ({ hook: 'pretool-write-guard', rule, input })
+
 // Resolve to a path RELATIVE to the project root so the protected patterns can be
 // root-anchored (^…) — otherwise a nested node_modules/x/tools/validate.mjs would
 // false-match. CLAUDE_PROJECT_DIR is guaranteed for hook subprocesses. Normalize
@@ -117,6 +124,7 @@ if (
   denyTool(
     'PreToolUse',
     `symlink escape: ${rel} resolves to ${realPath}, outside the project root — writing through a link out of the tree bypasses every path-scoped guard. SOURCE: docs/harness/README.md (tamper evidence)`,
+    telemetry('symlink-escape'),
   )
 }
 
@@ -130,13 +138,17 @@ if (
 // weakening surface (secret-shaped build-profile env names) is asserted by the
 // expo-policy gate instead.
 // SOURCE: docs/harness/README.md (tamper evidence)
-if (
-  process.env.HARNESS_ALLOW_SELF_EDIT !== '1' &&
-  WRITE_PROTECTED.some(({ re }) => rels.some((r) => re.test(r)))
-) {
+// `.find`, not `.some` (1.0.4): the verdict is the same, and the matching row's `id` is what
+// the telemetry record names.
+const protectedRow =
+  process.env.HARNESS_ALLOW_SELF_EDIT === '1'
+    ? undefined
+    : WRITE_PROTECTED.find(({ re }) => rels.some((r) => re.test(r)))
+if (protectedRow !== undefined) {
   denyTool(
     'PreToolUse',
     'harness-protected file: set HARNESS_ALLOW_SELF_EDIT=1 (human-in-the-loop) to modify the gate itself. SOURCE: docs/harness/README.md (tamper evidence)',
+    telemetry(protectedRow.id),
   )
 }
 
@@ -147,6 +159,7 @@ if (rels.some((r) => /^supabase\/migrations\/[^/]+\.sql$/.test(r)) && existsSync
   denyTool(
     'PreToolUse',
     'migrations are append-only: never edit an existing migration — add a new one (supabase migration new) that transforms the schema forward.',
+    telemetry('migrations-append-only'),
   )
 }
 
@@ -202,13 +215,15 @@ const isWholeFile = typeof ti.content === 'string'
 // The expo-policy gate enforces the full floor tree-wide; these are the weakenings
 // worth stopping at the moment of the edit.
 if (anyRel(/(^|\/)app\.config\.(ts|js|mjs)$/) || anyRel(/(^|\/)app\.json$/)) {
-  /** @type {[RegExp, string][]} */
+  /** @type {[RegExp, string, string][]} */
   const weakenings = [
-    [/usesCleartextTraffic['"]?\s*:\s*true/, 'Android cleartext traffic stays off — the transport is TLS-or-loopback, asserted by the expo-policy gate.'],
-    [/NSAllowsArbitraryLoads['"]?\s*:\s*true/, 'disabling App Transport Security wholesale is banned — pin a per-domain exception with a reviewed reason instead.'],
-    [/newArchEnabled['"]?\s*:\s*false/, 'the New Architecture stays on — it is the runtime the whole template is tested against.'],
+    [/usesCleartextTraffic['"]?\s*:\s*true/, 'Android cleartext traffic stays off — the transport is TLS-or-loopback, asserted by the expo-policy gate.', 'app-config-cleartext'],
+    [/NSAllowsArbitraryLoads['"]?\s*:\s*true/, 'disabling App Transport Security wholesale is banned — pin a per-domain exception with a reviewed reason instead.', 'app-config-arbitrary-loads'],
+    [/newArchEnabled['"]?\s*:\s*false/, 'the New Architecture stays on — it is the runtime the whole template is tested against.', 'app-config-new-arch-off'],
   ]
-  for (const [re, msg] of weakenings) if (re.test(text)) denyTool('PreToolUse', `app config: ${msg}`)
+  for (const [re, msg, label] of weakenings) {
+    if (re.test(text)) denyTool('PreToolUse', `app config: ${msg}`, telemetry(label))
+  }
 }
 
 // ---- SQL (any location): recursion + GUC discipline ----
@@ -216,6 +231,7 @@ if (anyRel(/\.(sql|ts|tsx|mjs)$/) && /WITH\s+RECURSIVE/i.test(text) && !/CYCLE|v
   denyTool(
     'PreToolUse',
     'WITH RECURSIVE without a CYCLE clause / visited guard can loop forever on graph data — add one. SOURCE: docs/harness/README.md (graph queries)',
+    telemetry('with-recursive-no-cycle'),
   )
 }
 
@@ -227,16 +243,16 @@ if (anyRel(/\.(sql|ts|tsx|mjs)$/) && /WITH\s+RECURSIVE/i.test(text) && !/CYCLE|v
 // supabase/tests/** stay writable: a fixture proving `USING (true)` is rejected must
 // be allowed to contain `USING (true)`.
 // SOURCE: docs/harness/README.md (layer 3 prevention beside layer 6 enforcement)
-for (const { pathRe, re, message } of WRITE_SQL_CHECKS) {
-  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+for (const { id, pathRe, re, message } of WRITE_SQL_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // ---- Non-source CONFIG surface: the weakenings that live in JSON/YAML ----
 // Same placement reasoning as the SQL table above it: the source-extension gate on the
 // next line ends the hook for every .json file, so package.json's npm lifecycle hooks —
 // code that runs on every install, before any gate — reached no content rule at all.
-for (const { pathRe, re, message } of WRITE_CONFIG_CHECKS) {
-  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message)
+for (const { id, pathRe, re, message } of WRITE_CONFIG_CHECKS) {
+  if (anyRel(pathRe) && re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // Police source code only from here down. Docs/markdown/config legitimately
@@ -248,9 +264,9 @@ if (!anyRel(/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/)) pass()
 // carrying one is scoped to the surface it is about. Absent, the rule applies to every
 // source file — which is the default precisely because most of these bans are about the
 // shape of the code, not where it lives.
-for (const { pathRe, re, message } of WRITE_GLOBAL_CHECKS) {
+for (const { id, pathRe, re, message } of WRITE_GLOBAL_CHECKS) {
   if (pathRe !== undefined && !anyRel(pathRe)) continue
-  if (re.test(text)) denyTool('PreToolUse', message)
+  if (re.test(text)) denyTool('PreToolUse', message, telemetry(id))
 }
 
 // Mobile-bundle purity: the client never touches server/database modules, and
@@ -260,6 +276,7 @@ if (anyRel(/^apps\/mobile\//)) {
     denyTool(
       'PreToolUse',
       'the mobile client must never import server/database modules — reach data through the tRPC client (@app/api, import type) or the vertical ./client.',
+      telemetry('mobile-server-import'),
     )
   }
   // The seam exemption requires EVERY spelling to sit inside it — a link named
@@ -269,6 +286,7 @@ if (anyRel(/^apps\/mobile\//)) {
     denyTool(
       'PreToolUse',
       'the platform keychain is wrapped: import expo-secure-store only inside src/host/** (the one-door credential seam) — feature code stays storage-agnostic.',
+      telemetry('mobile-secure-store-seam'),
     )
   }
 }
@@ -304,6 +322,7 @@ if (
   denyTool(
     'PreToolUse',
     'the service-role key BYPASSES row-level security — no policy in the repo constrains it and the RLS suite cannot cover it. Its only sanctioned home is an ADR-governed Edge Function (supabase/functions/<name>/index.ts), reached through createServiceRoleClient_BYPASSES_RLS(warrant); never a Server Action, a tRPC procedure, a script or a screen. SOURCE: packages/platform/supabase/src/service-role.ts',
+    telemetry('service-role-outside-home'),
   )
 }
 
@@ -324,6 +343,7 @@ if (anyRel(SERVER_GRAPH) && /\.\s*getSession\s*\(/.test(text)) {
     denyTool(
       'PreToolUse',
       "server-side code must resolve the user with getUser()/getClaims(), NEVER getSession() — getSession decodes an UNVERIFIED token from an attacker-controlled cookie and does not check its signature, so a forged `sub` is accepted. If this is a browser component, mark it 'use client'; if it is the mobile client reading its own stored session, it does not belong in the server graph. SOURCE: apps/web/lib/supabase/server.ts (getUser, never getSession)",
+      telemetry('server-get-session'),
     )
   }
 }
