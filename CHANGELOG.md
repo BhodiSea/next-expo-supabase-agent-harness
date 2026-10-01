@@ -367,6 +367,15 @@ this heading if none does. -->
   cases, the reader and judge units, the parked-lib finding, the fail-closed canary's remedy,
   and the hook's stamp in both hook files. After the change the step's suite, the hook's,
   `hook-contract` and `run-stop-chain` are green (#87).
+  For the work plan's record, the first five cases of `tests/gates/work-plan-status.test.mjs`
+  ran on the records before the change: the dated table, a row for every section and a pull
+  request in every field-report bullet were red, and the uniqueness and coverage cases passed
+  on an empty table. The two stack-position cases came with the records, and each was red on a
+  copy of the documents with a position's row dropped or a tag position moved. A local replay
+  of the merge procedure, from `main` through positions 1 to 52 with merge commits, conflicted
+  only at position 1, in `CHANGELOG.md`; with the stack's side taken there every later merge
+  was clean, the final tree equalled this position's, and both local release tags were in its
+  history (#37).
 
 ## [1.1.0] — 2026-09-30
 
