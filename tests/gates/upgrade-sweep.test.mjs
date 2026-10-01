@@ -43,8 +43,10 @@ import {
   createdTablesIn,
   doctrineMigration,
   nextMigrationStamp,
+  NOTES_EVENT_CATALOG_LINE,
   readTextOrNull,
   reconcileDataFlowExclusions,
+  withNotesEventCatalog,
 } from '../../scripts/ci/upgrade-sweep.mjs'
 
 const MIGRATIONS = JSON.parse(
@@ -128,6 +130,7 @@ test('the 0.6.0 -> 0.7.0 hop sweeps NOTHING — the expiry release withholds no 
     tomlSectionAppends: [],
     reconcileDataFlowExclusions: false,
     grantDoctrine: false,
+    notesEventCatalog: false,
   })
 })
 
@@ -711,4 +714,53 @@ test('CLI (1.1.0): the sweep writes the doctrine SQL in a NEW migration, then ge
   const again = runSweep(install, repo, '1.0.4', '1.1.0')
   assert.equal(again.code, 1, `${again.stdout}${again.stderr}`)
   assert.match(again.stderr, /upgrade-sweep: nothing to adopt/)
+})
+
+test('CLI (2.0.0): a seam directory the demo overlays in part is adopted whole — demo-first per file', () => {
+  // template/demo ships ONE file of apps/web/lib/i18n/ (the catalog with the example's keys),
+  // template/stack ships the whole seam. A directory pattern resolved to the first root that
+  // has the directory walked only the demo's copy, so the swept install got catalog.ts
+  // without index.ts and errors.ts, and every page importing lib/i18n failed `types`.
+  const repo = sweepRepo({ '0.5.0': {}, '0.6.0': { seedOnInitOnly: ['apps/web/lib/i18n/'] } })
+  const seam = (root, name, body) => {
+    mkdirSync(join(repo, root, 'apps/web/lib/i18n'), { recursive: true })
+    writeFileSync(join(repo, root, 'apps/web/lib/i18n', name), body)
+  }
+  seam('template/demo', 'catalog.ts', 'demo catalog\n')
+  seam('template/stack', 'catalog.ts', 'default catalog\n')
+  seam('template/stack', 'index.ts', 'index\n')
+  seam('template/stack', 'errors.ts', 'errors\n')
+  const install = sweepInstall({ full: false })
+  const r = runSweep(install, repo, '0.5.0', '0.6.0')
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`)
+  const lib = join(install, 'apps/web/lib/i18n')
+  assert.deepEqual(readdirSync(lib).sort(), ['catalog.ts', 'errors.ts', 'index.ts'])
+  // The install predates 2.0.0 and carries the example, so the demo's catalog is its match.
+  assert.equal(readFileSync(join(lib, 'catalog.ts'), 'utf8'), 'demo catalog\n')
+  assert.equal(readFileSync(join(lib, 'index.ts'), 'utf8'), 'index\n')
+})
+
+test('2.0.0 — an install that predates a register update plants takes the remedy; a 1.1.0 install takes none', () => {
+  // Found at the 2.0.0 cut, when leg E (v0.3.0) went red after the sweep on contracts,
+  // suppressions and route-manifest. Each is a file `update` plants when absent, or a line the
+  // runbook asks of an install made before 1.1.0, and each concerns the example such an install
+  // still carries.
+  const old = computeSweepSet(MIGRATIONS, '0.3.0', '2.0.0')
+  assert.equal(old.notesEventCatalog, true)
+  assert.ok(old.adopt.includes('tools/suppressions-allow.json'), 'below 1.0.0: the demo rows')
+  assert.ok(old.adopt.includes('apps/web/app/(protected)/o/[orgSlug]/page.tsx'), 'below 0.6.0: the org landing')
+  const mid = computeSweepSet(MIGRATIONS, '0.6.0', '2.0.0')
+  assert.ok(mid.adopt.includes('tools/suppressions-allow.json'))
+  assert.ok(!mid.adopt.includes('apps/web/app/(protected)/o/[orgSlug]/page.tsx'), 'an 0.6.0 install has its own route allowlist')
+  const own = computeSweepSet(MIGRATIONS, '1.1.0', '2.0.0')
+  assert.deepEqual(own.adopt, ['tools/eol.json'], 'a 1.1.0 install keeps its own registers')
+})
+
+test('withNotesEventCatalog appends the runbook line once, and only where it can name noteEvents', () => {
+  const client = "export { noteEvents } from './events.js'\n"
+  assert.equal(withNotesEventCatalog(client), `${client}${NOTES_EVENT_CATALOG_LINE}\n`)
+  assert.equal(withNotesEventCatalog("export { noteEvents } from './events.js'"), `${client}${NOTES_EVENT_CATALOG_LINE}\n`)
+  assert.equal(withNotesEventCatalog(`${client}${NOTES_EVENT_CATALOG_LINE}\n`), null, 'already declared')
+  assert.equal(withNotesEventCatalog("export { getNote } from './data/notes.js'\n"), null, 'no noteEvents to name')
+  assert.equal(withNotesEventCatalog(null), null, 'no client')
 })
