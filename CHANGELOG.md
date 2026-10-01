@@ -270,6 +270,8 @@ this heading if none does. -->
 
 ### Fixed
 
+- The pin and verify examples in `README.md` and `SECURITY.md` name no release, and this
+  factory-docs change reaches no install (#51).
 - **The committed database types match Supabase CLI 2.118.0.** The catalog gave the CLI as
   `supabase: ^2.34.3` and the scaffold ships no lockfile, so every install and every CI run
   took the newest 2.x. On 2026-09-25 that became 2.118.0, which generates types natively
