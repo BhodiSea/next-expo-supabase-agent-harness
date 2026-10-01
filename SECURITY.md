@@ -51,14 +51,17 @@ store where their release builds had filed it. The attestation inside is the
 original one signed at release time — an old artifact re-signed today would prove
 nothing about how it was built.
 
-To verify a downloaded asset with the GitHub CLI:
+To verify a release's tarball with the GitHub CLI, set `tag` to the release you
+want to check. As written, the first line picks the latest release:
 
 ```sh
-gh release download v1.0.1 -R BhodiSea/next-expo-supabase-agent-harness
-gh attestation verify next-expo-supabase-agent-harness-1.0.1.tgz \
+tag=$(gh release view -R BhodiSea/next-expo-supabase-agent-harness --json tagName --jq .tagName)
+gh release download "$tag" -R BhodiSea/next-expo-supabase-agent-harness
+gh attestation verify "next-expo-supabase-agent-harness-${tag#v}.tgz" \
   --repo BhodiSea/next-expo-supabase-agent-harness \
   --signer-workflow BhodiSea/next-expo-supabase-agent-harness/.github/workflows/release.yml
 ```
+
 
 Exit status 0 means the tarball's digest matches an attestation signed by
 `.github/workflows/release.yml` in this repository, running on the release tag.
@@ -76,7 +79,7 @@ gh attestation verify <tarball> --bundle <tarball>.intoto.jsonl \
 ```
 
 The attestation covers release assets. `npx github:...` fetches the repository
-at a ref rather than a release asset, so pin a tag (`#v1.0.1`) when you use it.
+at a ref rather than a release asset, so pin a tag (`#<tag>`) when you use it.
 
 ## Known Scorecard findings
 
