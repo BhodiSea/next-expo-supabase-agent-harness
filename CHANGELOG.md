@@ -303,7 +303,7 @@ this heading if none does. -->
   leaves 50 survivors on a default scaffold and 80 on a `--with-demo` one, each within its
   committed baseline. Upgrade-lane leg A (a v1.1.0 install with its example, updated to this
   tree) validates on 37 steps and graduates (#85).
-  CI on this item's pull request then found five reds that the Local development list cannot
+  CI on this item's pull request then found six reds that the Local development list cannot
   see, all from the default scaffold this item introduced and the lanes around it. Each was
   reproduced here before its fix. `actionlint` reported two shellcheck findings in
   `selftest.yml` (Canary 14's target check and demo-eject's grep). They were rewritten without
@@ -311,7 +311,13 @@ this heading if none does. -->
   `demo-eject`'s byte comparison differed on every file that carries the project owner,
   because `init` reads the owner from the enclosing repository's origin and the comparison
   scaffold sat outside the checkout. It now sits inside, and a replay with the factory
-  worktree as `GITHUB_WORKSPACE` ends on "the ejected tree equals a default init".
+  worktree as `GITHUB_WORKSPACE` ends on "the ejected tree equals a default init". Behind
+  it, the lane's validate after `eject` reddened `gate-integrity` on every register `eject` had
+  trimmed: the documented order was validate, then commit, and an uncommitted escape list is
+  red. The builder's replay had `HARNESS_ALLOW_SELF_EDIT=1` in its environment, which skips
+  that rule. `eject`'s next steps, the runbook and `docs/cli.md` now say commit, then validate.
+  The lane commits and judges the deletions against the scaffold baseline, as a pull request
+  would, and a replay without the flag ends on "migrations accepted 4 deletion(s)".
   `bootstrap-linux`'s Stop chain reddened on `duplication`: the default catalogs match over a
   new span. The shipped allow list gains its fingerprint, and a new case in
   `tests/gates/check-duplication.test.mjs` renders a default and a `--with-demo` init and runs
