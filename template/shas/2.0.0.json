@@ -960,6 +960,24 @@
         ]
       },
       {
+        "sha256": "533f48c5d91d8eaba99cfad8a619cbcf263b9d8e16a17298a1038a3ae8e4ac9a",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "5cf3877f639c30981f12d99573cafddb4068e3605e43af6d1fb6adf02bf72081",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "78c4f8ea71ee278687ec1a5e0163aab3b6c56335e34b670c35a0e82b396fdc92",
         "sites": [
           [
@@ -970,6 +988,15 @@
       },
       {
         "sha256": "a65292418cd4d9fcb3740365fcb42e768299785d027fd6fee9d7644af4ce62f8",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "df73cc9f969db3e97a9d3b6d5dd9f9ddeb17010182f89979365905684460dcca",
         "sites": [
           [
             14115,
@@ -1984,6 +2011,9 @@
       },
       {
         "sha256": "0e69fabbc65b40471b46094207f4559ec6f48b503f19a712d4973a17c11a7e39"
+      },
+      {
+        "sha256": "932a7a180765e4be28b4f62be734e7c9564fdf78e2db8722430cfde39482243b"
       }
     ],
     "tools/lib/png.mjs": [
@@ -2275,6 +2305,9 @@
     "tools/duplication-allow.json": [
       {
         "sha256": "3430d3d44e6148cf21adced4acc39c614904b7abc1a5b26b2f662faa0fda5cf9"
+      },
+      {
+        "sha256": "58bc5017309a5aa31856b4cc1623bda2515a3a87940bdfdb6a1f9ed3f6bb3ff9"
       }
     ],
     "tools/eol.json": [

@@ -3489,10 +3489,13 @@ three rows. `tools/generated/event-catalog.json` is seeded from 2.0.0 (and write
 node <harness checkout>/installer/cli.mjs eject --dir . --dry-run   # what it would remove
 node <harness checkout>/installer/cli.mjs eject --dir .
 pnpm install
+git add -A && git commit -m "chore: eject the worked example"
 pnpm validate
 ```
 
-then commit. It deletes each of the example's files that still holds the bytes it was
+Commit before you validate: `eject` rewrites registers that `gate-integrity` holds to a
+commit, so a `pnpm validate` before the commit fails on each of them. In the pull request,
+`migrations` judges the deletions against its base. It deletes each of the example's files that still holds the bytes it was
 installed with, gives each shared file it replaced the default install's bytes back, and
 deletes the register rows `template/demo-index.json` lists where they still equal the rows
 the example shipped. A file you changed is kept and reported; a shared file you changed keeps
@@ -3547,6 +3550,24 @@ authoring skill's `scaffold-slice.mjs`.
 The registers that gained an empty state (`tools/rls-exempt.json`'s `mfaRailUnused` row,
 `tools/rate-limit-budget.json`'s `unmapped` bucket) are seeded and change for fresh
 scaffolds only.
+Two more seeded files changed in 2.0.0, for fresh scaffolds only.
+`tools/duplication-allow.json` gains `4f2c41321264`, the mobile and web i18n catalogs'
+match on a tree without the example (the same kind of match as `e83e21400fb2`; the span
+moved with the example's keys). `apps/mobile/__tests__/live-api-proof.test.ts` writes the
+caller's own `profiles` row before it reads it back, because nothing creates one at signup.
+If you remove the example by hand, take both: add the entry when `duplication` (a Stop
+step) names that fingerprint, and run
+`update --refresh-seeded apps/mobile/__tests__/live-api-proof.test.ts` to replace the
+example's live proof, which writes to `public.notes`.
+
+Two registers reach a very old install as 2.0.0's default copies, because `update` plants a
+seeded register only where it is absent. An install made before 1.0.0 that keeps the example
+never had `tools/suppressions-allow.json`, and the default copy has no rows for the example's
+files: when `suppressions` names them, take their rows from
+`template/demo/tools/suppressions-allow.json` in a harness checkout of 2.0.0. An install made
+before 0.6.0 receives `tools/web-route-allowlist.json` the same way, and it allowlists the org
+landing page, which `update` withholds as a new exemplar: run
+`update --refresh-seeded 'apps/web/app/(protected)/o/[orgSlug]/page.tsx'`, or delete that row.
 
 ### `reviewer-verdicts`: the ledger key is the session and a format stamp, not the prompt
 

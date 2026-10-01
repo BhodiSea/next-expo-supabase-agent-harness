@@ -262,7 +262,7 @@ export async function eject(opts, { releasedShas = readReleasedShas(), index = r
     })
   }
   report.notes.push(
-    `${report.removed.length} demo file(s) ${ctx.dryRun ? 'would be removed' : 'removed'}. Next: \`pnpm install\` (the lockfile still names the demo's workspace packages), then \`pnpm validate\`, then commit. If a database you keep has already applied the demo's migrations, read docs/runbooks/harness-upgrade.md (2.0.0) before you commit their deletion.`,
+    `${report.removed.length} demo file(s) ${ctx.dryRun ? 'would be removed' : 'removed'}. If a database you keep has already applied the demo's migrations, read docs/runbooks/harness-upgrade.md (2.0.0) before you commit their deletion. Next: \`pnpm install\` (the lockfile still names the demo's workspace packages), then commit, then \`pnpm validate\`: eject rewrote registers gate-integrity holds to a commit, so a validate before the commit fails on each of them.`,
   )
   if (opts.report !== 'json') {
     for (const ip of report.removed) console.log(`  ${ctx.dryRun ? 'would remove' : 'removed'} ${ip}`)

@@ -1701,9 +1701,14 @@ jobs:
         run: |
           node "$GITHUB_WORKSPACE/installer/cli.mjs" eject --dir . | tee "$RUNNER_TEMP/eject.log"
           # The comparison scaffold sits in a directory with the SAME basename: init derives
-          # the project name from it, and that name is in the rendered files.
-          node "$GITHUB_WORKSPACE/installer/cli.mjs" init --dir "$RUNNER_TEMP/compare/demo" --tier core --yes > "$RUNNER_TEMP/compare-init.log"
-          DEFAULT_DIR="$RUNNER_TEMP/compare/demo" node -e '
+          # the project name from it, and that name is in the rendered files. It also sits
+          # inside the SAME checkout: init reads the owner from the enclosing repository's
+          # origin remote (installer/lib/detect.mjs), and .selftest/demo got this
+          # repository's owner in CODEOWNERS, SECURITY.md, CITATION.cff and the rest. A
+          # scaffold outside the checkout gets the default owner, and every file that
+          # carries the owner then differs for a reason that is not eject's.
+          node "$GITHUB_WORKSPACE/installer/cli.mjs" init --dir "$GITHUB_WORKSPACE/.selftest/compare/demo" --tier core --yes > "$RUNNER_TEMP/compare-init.log"
+          DEFAULT_DIR="$GITHUB_WORKSPACE/.selftest/compare/demo" node -e '
             const { execFileSync } = require("node:child_process")
             const { createHash } = require("node:crypto")
             const fs = require("node:fs")
@@ -1752,7 +1757,15 @@ jobs:
           HARNESS_REQUIRE_TOOLCHAINS: '1'
         run: |
           set -o pipefail
-          env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
+          # Commit first, as eject's own next steps say: eject rewrites registers that
+          # gate-integrity holds to a commit, so a validate before the commit reds on each of
+          # them. The deletions are then judged the way a pull request judges them, against a
+          # base: the scaffold baseline, under a remote-tracking name because the
+          # diff-based gates read origin/$GITHUB_BASE_REF.
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'chore: eject the worked example'
+          git update-ref refs/remotes/origin/demo-baseline "$(git rev-parse HEAD~1)"
+          GITHUB_BASE_REF=demo-baseline node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
           notes="$(grep -c "^migrations: NOTE — supabase/migrations/.*: deleted by \`eject\`" "$RUNNER_TEMP/eject-validate.log" || true)"
           if [ "$notes" = 0 ]; then
             echo '::error::validate passed after eject, but migrations named no ejected migration: the deletions were not judged against the manifest record'
