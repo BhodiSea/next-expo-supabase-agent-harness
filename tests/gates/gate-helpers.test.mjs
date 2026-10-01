@@ -417,6 +417,28 @@ function callText(src, open) {
   return null
 }
 
+// 1.0.4 (#46). expo-policy reads the store tunables (the account-deletion surface and,
+// from 1.0.4, the registry path it names), the whole mobile source tree (the EXPO_PUBLIC_
+// name scan, the routes the `route` surface reads, the auth-surface probe, any legal
+// registry path) and whichever Edge Function the tunables name. Through 1.0.3 its list held
+// only the default registry and delete-account, so an edit to any other of these rode a
+// warm stamp locally.
+test('expo-policy stamp: the tunables, both mobile source roots and every Edge Function are declared inputs', () => {
+  const inputs = STAMP_INPUTS['expo-policy']
+  for (const p of ['tools/store-tunables.json', 'apps/mobile/src', 'apps/mobile/app', 'supabase/functions']) {
+    assert.ok(inputs.includes(p), `expo-policy: ${p} must be a declared stamp input — the gate reads it after it stamps`)
+  }
+  // The pre-1.0.4 entries stay: narrower paths under the new roots are kept, not replaced.
+  for (const p of [
+    'tools/store-policy.json',
+    'apps/mobile/src/features/actions/registry.ts',
+    'supabase/functions/delete-account/index.ts',
+    'supabase/config.toml',
+  ]) {
+    assert.ok(inputs.includes(p), `expo-policy: ${p} must stay a declared stamp input`)
+  }
+})
+
 test('contracts stamp: declared inputs and the manifest invalidate; excluded churn dirs do not', () => {
   const inputs = STAMP_INPUTS.contracts
   const dir = mkdtempSync(join(tmpdir(), 'epah-stampreg-'))

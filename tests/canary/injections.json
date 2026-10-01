@@ -114,9 +114,13 @@
         "ref": "Canary 1: NSAllowsArbitraryLoads + undeclared permission + secret-shaped extra → expo-policy must FAIL"
       },
       {
+        "kind": "selftest",
+        "ref": "Canary 32: point accountDeletion.registry at routes.ts → expo-policy must FAIL naming that file"
+      },
+      {
         "kind": "fixture",
         "ref": "tests/gates/check-expo-policy.test.mjs",
-        "note": "runs the REAL gate against fixture trees with a stub expo CLI: identity drift vs identity.lock.json, runtimeVersion != { policy: 'appVersion' }, ATS/cleartext holes, non-loopback ATS exceptions, unreviewed permission AND stale allowlist entry (bidirectional), unreviewed plugin, secret-shaped extra key, secret-shaped EXPO_PUBLIC_ name in source, splash/adaptive-icon color off the generated dark canvas token, eas.json appVersionSource/autoIncrement/secret-env sanity — each red; missing node_modules skips loudly locally and FAILS CLOSED in CI; 0.1.2 store-readiness (tools/store-policy.json, fail-closed on malformed policy): unreviewed/placeholder iOS usage strings red (ios[] lockstep in expo-permissions.json, both directions), undeclared ITSAppUsesNonExemptEncryption reds, malformed/unreviewed privacyManifests entries red (absence NOTEs), ATT claims without a tracking SDK red and an SDK without agreeing declarations reds, a targetSdk below the Play floor or an unknown Expo SDK major reds fail-closed, non-1024/alpha marketing icons red via the pure-node PNG parse (solid placeholders NOTE, escalatable to red), and an auth surface without the registered deletion action + openapi DELETE reds citing Apple 5.1.1(v)"
+        "note": "runs the REAL gate against fixture trees with a stub expo CLI: identity drift vs identity.lock.json, runtimeVersion != { policy: 'appVersion' }, ATS/cleartext holes, non-loopback ATS exceptions, unreviewed permission AND stale allowlist entry (bidirectional), unreviewed plugin, secret-shaped extra key, secret-shaped EXPO_PUBLIC_ name in source, splash/adaptive-icon color off the generated dark canvas token, eas.json appVersionSource/autoIncrement/secret-env sanity — each red; missing node_modules skips loudly locally and FAILS CLOSED in CI; 0.1.2 store-readiness (tools/store-policy.json, fail-closed on malformed policy): unreviewed/placeholder iOS usage strings red (ios[] lockstep in expo-permissions.json, both directions), undeclared ITSAppUsesNonExemptEncryption reds, malformed/unreviewed privacyManifests entries red (absence NOTEs), ATT claims without a tracking SDK red and an SDK without agreeing declarations reds, a targetSdk below the Play floor or an unknown Expo SDK major reds fail-closed, non-1024/alpha marketing icons red via the pure-node PNG parse (solid placeholders NOTE, escalatable to red), and an auth surface without the registered deletion action + the backing Edge Function reds citing Apple 5.1.1(v); 1.0.4 (#46): an accountDeletion.registry key moves the registry the action surface reads (its file lacking the id reds naming it; a malformed key, or the key on another surface, fails the shape check closed), and two stamp proofs run the gate outside CI to show a store-tunables edit and a secret-shaped EXPO_PUBLIC_ name under apps/mobile/src each re-run the check on a warm stamp"
       }
     ],
     "native-deps": [
@@ -279,7 +283,15 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-perf-budget.test.mjs",
-        "note": "budget arithmetic, subjects[] closure inverses (missing file, undeclared perfSubject, subject+subjects ambiguity), density-signal closure, marker-count scaling, and the G15 effect-cleanup leak scan (a registered listener/interval/rAF/Observer with no teardown in the RETURNED cleanup reds; comments are blanked first; effectCleanupAllow fails closed on malformed/stale entries)"
+        "note": "budget arithmetic, subjects[] closure inverses (missing file, undeclared perfSubject, subject+subjects ambiguity), density-signal closure, marker-count scaling, and the G15 effect-cleanup leak scan (a registered listener/interval/rAF/Observer with no teardown in the RETURNED cleanup reds; comments are blanked first; effectCleanupAllow fails closed on malformed/stale entries); 1.0.4 (#46): the reviewed empty state greens only with an emptySubjects row meeting the vertical-anatomy bar (a blank, short or missing reason, a malformed reviewedOn, and the row beside a non-empty subjects[] each red), and under it both closure directions and the leak scan still red"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 30: blank the emptySubjects reason → perf-budget must FAIL"
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 31: drop the matrix exempt row → perf-budget must FAIL (the closure still runs under the empty state)"
       }
     ],
     "route-manifest": [
@@ -1097,6 +1109,13 @@
         "kind": "fixture",
         "ref": "tests/gates/run-stop-chain.test.mjs",
         "note": "0.7.0: the job's baseline is DERIVED by scripts/ci/run-stop-chain.mjs, and these are its death-tests — a provenBy string absent from selftest.yml reds, exclusions are reviewed data with reasons. The job then executes the 'Canary <n>:' injections that #steps selftest-kind proofs grep-match into this workflow."
+      }
+    ],
+    "selftest.yml#day0-empty-states": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/run-stop-chain.test.mjs",
+        "note": "1.0.4 (#46): the job's baseline is the same DERIVED Stop-chain union as selftest.yml#canary (scripts/ci/run-stop-chain.mjs, whose death-tests these are), run on a scaffold whose perf-budget.json declares subjects: [] beside an emptySubjects row plus a reviewed matrix exempt row, and whose store-tunables.json names accountDeletion.registry. The job then executes Canary 30, 31 and 32, which the #steps selftest-kind proofs for perf-budget and expo-policy grep-match into this workflow; the fixture reds for both keys live in tests/gates/check-perf-budget.test.mjs and tests/gates/check-expo-policy.test.mjs."
       }
     ],
     "selftest.yml#canary-mutation": [

@@ -393,18 +393,34 @@ integrity via a zero-dependency PNG parse (`tools/lib/png.mjs`: marketing icon
 solid-color placeholder art NOTEs by default and reds when
 `icons.solidColorPlaceholder` escalates to `"error"` — the pre-submission
 step); and the ACCOUNT-DELETION closure (Apple 5.1.1(v)): an app shipping an
-auth surface must register the deletion action (or route) AND back it with the
-contract-visible `DELETE` operation — the shipped `session.deleteAccount` +
-`DELETE /api/me` slice is the worked pattern, and the deletion's completeness
-is the RLS suite's live sweep case, not this static check. The device lane
-closes the targetSdk half against the GENERATED gradle project after prebuild.
+auth surface must register the deletion action (or route) AND back it with a
+deployed Edge Function (`supabase/functions/<edgeFunction>/index.ts` on disk
+and a `[functions.<edgeFunction>]` block in `supabase/config.toml`) — the
+shipped `session.deleteAccount` action + the `delete-account` Edge Function is
+the worked pattern, and the deletion's completeness is the RLS suite's live
+sweep case, not this static check. The `action` surface reads the command
+registry at `apps/mobile/src/features/actions/registry.ts` unless the optional
+`accountDeletion.registry` (1.0.4) names another: a forward-slash `.ts` or
+`.tsx` path under `apps/mobile/src/` with no `..` segment. The key is legal
+only on the `action` surface, any other value fails the shape check, and a red
+names the file the gate read. It moves where the gate looks, never whether it
+checks. From 1.0.4 the stamp also hashes `tools/store-tunables.json`, both
+mobile source roots and every Edge Function, so none of those reads can ride a
+warm local stamp. The device lane closes the targetSdk half against the
+GENERATED gradle project after prebuild.
 **Anti-vacuity:** add a permission to app.config.ts without a reviewed
 `tools/expo-permissions.json` entry (editor — the write guard also watches this
 surface) → FAIL naming it; change the splash hex one nibble → FAIL the
 lockstep; delete `ITSAppUsesNonExemptEncryption` → FAIL naming the declaration;
 declare a usage string as "TODO" → FAIL; empty the deletion registry entry
-while sign-in ships → FAIL citing 5.1.1(v); swap the marketing icon for a
-512×512 or alpha-carrying PNG → FAIL with the measured dimensions.
+while sign-in ships → FAIL citing 5.1.1(v); point `accountDeletion.registry`
+at `apps/mobile/src/routes.ts` while sign-in ships → FAIL naming that file
+(the factory's `day0-empty-states` lane runs this leg); give the key a `..`
+segment, or set it on a `route` surface → FAIL the shape check; after a green
+local run, set `actionId` to an id the registry lacks, or add a secret-shaped
+`EXPO_PUBLIC_` name under `apps/mobile/src` → the next local run re-checks and
+FAILS instead of honouring the stamp; swap the marketing icon for a 512×512 or
+alpha-carrying PNG → FAIL with the measured dimensions.
 
 ### 13. native-deps — `node tools/check-native-deps.mjs`
 
@@ -1487,13 +1503,25 @@ shared `runs` — and it arms the
 DENSE-FEATURE CLOSURE: every `features/*` dir importing `useKeysetQuery` must ship
 a `perfSubject.tsx` declared in `subjects[]`; declared-but-missing and
 present-but-undeclared both red (`features/matrix/perfSubject.tsx` is the worked
-pattern — an island reachable only from tests and this gate). This is the
-RELATIVE, deterministic canary; absolute startup/UX numbers live in the CI device
-lane (mobile-perf), never in the chain.
+pattern — an island reachable only from tests and this gate). THE REVIEWED EMPTY
+STATE (1.0.4): a project with nothing dense to measure declares `subjects: []`
+beside `"emptySubjects": { "reason": …, "reviewedOn": "YYYY-MM-DD" }`, held to
+the vertical-anatomy escape's bar (a reason of at least 40 characters after
+trimming; the date is checked for format only, never against the clock). The
+gate prints a NOTE, measures nothing, and its OK line names the empty state and
+the reason. The row beside a non-empty `subjects[]` is a stale escape and reds;
+`subjects` absent, or `[]` without the row, still reds. The leak scan and both
+closure directions run unchanged, so the row cannot hide a dense screen or an
+undeclared `perfSubject.tsx` (a kept one needs a reviewed `exempt` row). This is
+the RELATIVE, deterministic canary; absolute startup/UX numbers live in the CI
+device lane (mobile-perf), never in the chain.
 **Anti-vacuity:** slow the row render 10× → FAIL twice-measured; slow only the
 UPDATE path → FAIL naming the re-render cost; add a features dir importing
 `useKeysetQuery` with no perfSubject → FAIL with the create-FIX line; declare a
-subject that does not exist → FAIL naming it.
+subject that does not exist → FAIL naming it; with `subjects: []`, blank the
+`emptySubjects` reason → FAIL naming `emptySubjects`, or drop the `exempt` row of
+a dir that still ships `perfSubject.tsx` → FAIL `… exists but is not declared`
+(the factory's `day0-empty-states` lane runs both legs).
 
 ### 33. route-manifest — `node tools/check-route-manifest.mjs && node tools/check-web-routes.mjs`
 

@@ -1268,9 +1268,11 @@ under `.claude/hooks/` (their version stamps, and the telemetry below),
 `.claude/hooks/lib/hookio.mjs`, `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/README.md`,
 `tools/lib/gate.mjs`, `tools/lib/stamp-inputs.mjs`, `tests/rls/run-rls.mjs`,
 `tests/rls/auth-trail.test.ts`, `tools/validate.mjs`, `tools/check-migrations.mjs`,
-`tools/check-version-sync.mjs` and `tools/check-styleguide-manifest.mjs`, and, where the
-`eas-update` module is enabled, `tools/check-eas-update.mjs`. `tools/lib/supabase-cli.mjs` is
-new, and `update` plants it. What you may notice afterwards:
+`tools/check-version-sync.mjs`, `tools/check-styleguide-manifest.mjs`,
+`tools/check-perf-budget.mjs` and `tools/check-expo-policy.mjs`; where the `eas-update`
+module is enabled, `tools/check-eas-update.mjs`; and where the `store-metadata` module is
+enabled, `docs/store/app-review-notes.md`. `tools/lib/supabase-cli.mjs` is new, and `update`
+plants it. What you may notice afterwards:
 
 - **A `types-drift` FAIL shows the diff.** Before the unchanged FAIL sentence the gate
   prints each side's line count, the first line that differs, and a bounded window of each
@@ -1358,6 +1360,37 @@ new, and `update` plants it. What you may notice afterwards:
   `.claude/hooks/pretool-write-guard.mjs`, `update` parks the new one under
   `.harness/pending/` and your fork keeps denying every existing migration until you take
   it.
+- **Two optional register keys; neither is needed, and neither changes a verdict unless
+  you add it.** Both registers are escape-listed and write-guarded, so each key lands as a
+  committed human edit.
+  - `tools/perf-budget.json` may declare `"subjects": []` beside
+    `"emptySubjects": { "reason": …, "reviewedOn": "YYYY-MM-DD" }` when nothing in your
+    app is dense enough to measure. The reason needs at least 40 characters after
+    trimming; the date is checked for format only. `perf-budget` then prints a NOTE and
+    names the reason in its OK line. The leak scan and the dense-feature closure still
+    run, so a `features/*/perfSubject.tsx` you keep needs a reviewed `exempt` row for its
+    directory (declaring it as a subject ends the empty state), and the row beside a
+    non-empty `subjects[]` reds as a stale escape.
+  - `tools/store-tunables.json` `accountDeletion` may carry `"registry"` when your command
+    registry is not `apps/mobile/src/features/actions/registry.ts`: a forward-slash `.ts`
+    or `.tsx` path under `apps/mobile/src/` with no `..` segment, legal only with
+    `"surface": "action"`. Without the key `expo-policy` reads the default path, as
+    before. **If you move the registry, move the mobile entry in `tools/data-flow.json`
+    `erase.clients` with it**, in the same commit: that entry names the file the mobile
+    app starts erasure from, and `data-flow` reds once the file it names is gone.
+- **`expo-policy` re-checks more often locally.** Its stamp now also hashes
+  `tools/store-tunables.json`, `apps/mobile/src`, `apps/mobile/app` and
+  `supabase/functions`, which it read without hashing, so an edit to any of them could
+  pass on a warm stamp. Any mobile source or Edge Function edit now re-runs
+  `expo-policy`, as a mobile source edit already re-runs `build` and `e2e`. CI never
+  honoured a stamp, so no CI verdict moves.
+- **A new vertical's events reach the catalog only through a forked generator, until
+  1.1.0.** `tools/gen-event-catalog.mjs` walks only the catalogs it imports by name, and
+  it is owned and hash-pinned, so adding your vertical's import line reds
+  `gate-integrity` unless you keep it as a deliberate fork: re-record its sha as the
+  1.0.2 section's "Forking an owned file" describes. Without the line, that vertical's
+  events are missing from the committed catalog while `contracts` stays green. Discovery
+  is planned for 1.1.0, and that release's section will say what changes.
 
 **What only a fresh scaffold gets.** These files are seeded, so `update` never plants them.
 Each note says what an existing install does instead.
@@ -1378,6 +1411,8 @@ Each note says what an existing install does instead.
 
   Do not copy the template's file over yours. It describes the example's schema, not
   your database.
+- **`tools/store-tunables.json`'s `//` comment documents `accountDeletion.registry`.**
+  The key itself works on an existing install without it; the section above says how.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

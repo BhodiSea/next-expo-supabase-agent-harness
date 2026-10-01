@@ -46,7 +46,12 @@
 //      1024×1024 opaque, adaptive-icon layers 1024×1024, splash parses;
 //      solid-color placeholder art WARNs by default, reds when the policy
 //      escalates); and the account-deletion closure (an app shipping an auth
-//      surface must ship the deletion surface — Apple 5.1.1(v)).
+//      surface must ship the deletion surface — Apple 5.1.1(v)). The command
+//      registry the `action` surface reads is movable since 1.0.4: an optional
+//      accountDeletion.registry names it (a forward-slash .ts/.tsx path under
+//      apps/mobile/src/, no `..` segment, legal only on that surface), and
+//      today's path is read when the key is absent. The key changes WHERE the
+//      gate looks, never WHETHER it checks.
 // SOURCE: docs/harness/README.md (expo-policy gate) [corpus: harness/doctrine]
 import { existsSync, readFileSync } from 'node:fs'
 import { cngPurityErrors } from './lib/cng-purity.mjs'
@@ -478,6 +483,26 @@ function accountDeletionShapeOk(ad) {
   )
 }
 
+// The command registry the `action` surface reads when accountDeletion.registry is
+// absent — the scaffold's command palette (the example only adds entries to it).
+const DEFAULT_ACTION_REGISTRY = `${APP}/src/features/actions/registry.ts`
+// A legal accountDeletion.registry (1.0.4): forward slashes only, under apps/mobile/src/,
+// ending .ts or .tsx, with no empty, `.` or `..` segment. Every legal value therefore sits
+// inside a declared stamp input (apps/mobile/src), so the gate reads nothing new before it
+// stamps.
+const REGISTRY_PATH = /^apps\/mobile\/src\/(?:[^/\\]+\/)*[^/\\]+\.tsx?$/
+
+/** The optional registry key: absent is fine; present, it is legal only as above. */
+function accountDeletionRegistryOk(ad) {
+  if (ad?.registry === undefined) return true
+  return (
+    ad.surface === 'action' &&
+    typeof ad.registry === 'string' &&
+    REGISTRY_PATH.test(ad.registry) &&
+    !ad.registry.split('/').some((seg) => seg === '.' || seg === '..')
+  )
+}
+
 // Load + shape-check the policy. Malformed fails CLOSED — the store checks can
 // never silently disarm; a missing file is a red via readJson.
 function loadStorePolicy() {
@@ -559,7 +584,11 @@ function loadStoreTunables() {
   }
   if (!accountDeletionShapeOk(p.accountDeletion))
     badly(
-      'accountDeletion must be one of { surface: "action", actionId, edgeFunction } | { surface: "route", routeId, edgeFunction } | { surface: "external", url: https, reason } | { surface: "none", reason }',
+      'accountDeletion must be one of { surface: "action", actionId, edgeFunction, registry? } | { surface: "route", routeId, edgeFunction } | { surface: "external", url: https, reason } | { surface: "none", reason }',
+    )
+  if (!accountDeletionRegistryOk(p.accountDeletion))
+    badly(
+      `accountDeletion.registry is legal only with surface "action", and must be a forward-slash .ts or .tsx path under ${APP}/src/ with no empty, "." or ".." segment — got ${JSON.stringify(p.accountDeletion.registry)} on surface ${JSON.stringify(p.accountDeletion.surface)}`,
     )
   if (p.icons?.solidColorPlaceholder !== 'warn' && p.icons?.solidColorPlaceholder !== 'error') {
     badly('icons.solidColorPlaceholder must be "warn" or "error"')
@@ -857,7 +886,7 @@ function checkAccountDeletion(policy) {
   const ad = policy.accountDeletion
   if (ad.surface === 'external' || ad.surface === 'none') return // reviewed escapes, shape-checked above
   if (ad.surface === 'action') {
-    const registry = `${APP}/src/features/actions/registry.ts`
+    const registry = ad.registry ?? DEFAULT_ACTION_REGISTRY
     const text = existsSync(registry) ? readFileSync(registry, 'utf8') : ''
     if (!text.includes(`id: '${ad.actionId}'`)) {
       errs.push(
