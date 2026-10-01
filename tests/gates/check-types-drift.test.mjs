@@ -124,3 +124,104 @@ test('RED: `gen types` fails while the stack is up (a migration broke generation
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('failed while the stack is up'), r.out)
 })
+
+// ── The FAIL prints a bounded diff (#40) ─────────────────────────────────────────────────
+// Through 1.0.3 the gate said only "stale". Supabase CLI 2.118.0 changed its generator's
+// output on an unchanged schema, bootstrap-linux went red on an unchanged tree, and nothing
+// in the CI log said which lines differed: the Stop hook keeps a failing step's head and
+// tail, and the workflow printed the last 150 lines of that. The gate now writes, before its
+// unchanged FAIL sentence, each side's line count, the first differing line, and at most
+// DIFF_LINES lines of each side from there.
+
+/** Lines of `out` that the gate prints as diff body, by prefix. */
+const diffLines = (out, prefix) => out.split(/\r?\n/).filter((l) => l.startsWith(prefix))
+
+/** `n` numbered lines, zero-padded so that no line is a prefix of another. */
+const numbered = (tag, n) =>
+  Array.from({ length: n }, (_, i) => `${tag}-${String(i + 1).padStart(3, '0')}`)
+
+test('RED (a): a difference at a known line prints its number and both sides, and still says stale', () => {
+  const lines = ['// header', 'export type Json = string', 'export type Database = {', '  public: {', '}']
+  const generated = [...lines]
+  generated[2] = 'export type Database = { graphql_public: {}'
+  const r = run({ committed: `${lines.join('\n')}\n`, genOutput: `${generated.join('\n')}\n` })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('stale'), r.out)
+  assert.match(r.out, /committed 5 lines, generated 5 lines/, r.out)
+  assert.match(r.out, /first difference at line 3\b/, r.out)
+  assert.ok(r.out.includes('- export type Database = {\n'), r.out)
+  assert.ok(r.out.includes('+ export type Database = { graphql_public: {}\n'), r.out)
+  // The diff starts AT the first differing line: the two identical lines above it are not
+  // body lines, and the lines after it are (the view is "from that line", not one line).
+  assert.deepEqual(diffLines(r.out, '- '), ['- export type Database = {', '-   public: {', '- }'])
+  assert.deepEqual(diffLines(r.out, '+ '), [
+    '+ export type Database = { graphql_public: {}',
+    '+   public: {',
+    '+ }',
+  ])
+  // The FAIL sentence is unchanged, word for word, and the diff comes BEFORE it.
+  const failAt = r.out.indexOf(
+    `types-drift: FAIL — ${COMMITTED} is stale vs the live schema. Run \`pnpm db:types\` and commit the diff.`,
+  )
+  assert.ok(failAt > r.out.indexOf('first difference at line 3'), r.out)
+})
+
+test('RED (b): more than 20 differing lines on each side prints at most 20 of each', () => {
+  const committed = numbered('committed', 45)
+  const generated = numbered('generated', 60)
+  const r = run({ committed: `${committed.join('\n')}\n`, genOutput: `${generated.join('\n')}\n` })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('stale'), r.out)
+  assert.match(r.out, /committed 45 lines, generated 60 lines/, r.out)
+  assert.match(r.out, /first difference at line 1\b/, r.out)
+  const minus = diffLines(r.out, '- ')
+  const plus = diffLines(r.out, '+ ')
+  assert.equal(minus.length, 20, r.out)
+  assert.equal(plus.length, 20, r.out)
+  assert.deepEqual(minus, committed.slice(0, 20).map((l) => `- ${l}`))
+  assert.deepEqual(plus, generated.slice(0, 20).map((l) => `+ ${l}`))
+  assert.ok(!r.out.includes('committed-021'), r.out)
+  assert.ok(!r.out.includes('generated-021'), r.out)
+})
+
+test('RED: a side that ends before the first difference says so instead of printing nothing', () => {
+  const r = run({ committed: 'a\nb\n', genOutput: 'a\nb\nc\nd\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /committed 2 lines, generated 4 lines/, r.out)
+  assert.match(r.out, /first difference at line 3\b/, r.out)
+  assert.deepEqual(diffLines(r.out, '- '), [])
+  assert.deepEqual(diffLines(r.out, '+ '), ['+ c', '+ d'])
+  assert.match(r.out, /committed: no line 3 \(it has 2 lines\)/, r.out)
+})
+
+test('RED: an empty committed file (a `pnpm db:types` whose generation failed) says it has no lines', () => {
+  // `pnpm db:types` redirects into the file, so a failed generation leaves it empty.
+  const r = run({ committed: '', genOutput: 'a\nb\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('stale'), r.out)
+  assert.match(r.out, /committed 0 lines, generated 2 lines; first difference at line 1\b/, r.out)
+  assert.match(r.out, /committed: no line 1 \(it has 0 lines\)/, r.out)
+  assert.deepEqual(diffLines(r.out, '+ '), ['+ a', '+ b'])
+})
+
+test('RED: a line that differs only in trailing spaces is named, since the log cannot show it', () => {
+  // Only the WHOLE text's trailing whitespace is normalised; a whitespace-only line inside
+  // the file is part of what the generator writes, so it is compared, and `- ` / `+ ` alone
+  // would print two lines that look identical.
+  const r = run({ committed: '\na\n  \nb\n', genOutput: '\na\n\nb\n' })
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('stale'), r.out)
+  assert.match(r.out, /first difference at line 3\b/, r.out)
+  assert.match(r.out, /line 3 differs only in trailing whitespace/, r.out)
+})
+
+test('GREEN (c): a line-ending-only difference (CRLF against LF) passes and prints no diff', () => {
+  const lf = numbered('line', 30).join('\n')
+  const r = run({ committed: `${lf.replaceAll('\n', '\r\n')}\r\n`, genOutput: `${lf}\n` })
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('OK'), r.out)
+  assert.ok(!r.out.includes('SKIPPED'), r.out)
+  assert.ok(!r.out.includes('first difference'), r.out)
+  assert.deepEqual(diffLines(r.out, '- '), [])
+  assert.deepEqual(diffLines(r.out, '+ '), [])
+})

@@ -880,6 +880,21 @@ jobs:
           test -f apps/mobile/coverage/coverage-final.json \
             || { echo '::error::jest-expo wrote no coverage map — the mobile-unit step did not actually run'; exit 1; }
           echo 'stop chain OK: the union ran end-to-end via the real hook (rls live, both coverage maps written, reviewer-verdicts executed, ledger green)'
+      # A red Stop chain shows only the head and tail of each failing step. This prints
+      # what types-drift compares, from the stack that is still up, so a generator change
+      # can be read without a local stack.
+      # (1.0.4, #40: Supabase CLI 2.118.0 changed its generator's output on an unchanged
+      # schema, both legs went red here on an unchanged tree, and the log said only "stale".
+      # The catalog floats the CLI until it is pinned, so the next release can do it again;
+      # this step makes one CI run enough to read why. Every command is guarded: the step
+      # only reports, and the job is already red when it runs.)
+      - name: 'On failure: Supabase CLI version and types-drift diff'
+        if: failure()
+        working-directory: .selftest/boot
+        run: |
+          supabase --version || exit 0
+          supabase gen types typescript --local --schema public > "$RUNNER_TEMP/generated.types.ts" || exit 0
+          diff -u packages/platform/supabase/src/database.types.ts "$RUNNER_TEMP/generated.types.ts" || true
       # W7: the Stop chain's COST, captured where the chain can actually run — the stack
       # is live (rls-isolation), stamps are warm (the cold --min-floor run recorded them;
       # CI=false keeps them engaged), so this measures the turn-end latency an agent

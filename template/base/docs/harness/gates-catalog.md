@@ -1115,18 +1115,23 @@ Reviewed data: `tools/data-flow.json` (write-guard-protected, git-clean-enforced
 ### 21. types-drift — `node tools/check-types-drift.mjs`
 
 Regenerates the Supabase type mirror (`supabase gen types typescript --local`) from the
-running local stack and byte-diffs it against the committed
-`packages/platform/supabase/src/database.types.ts`; a mismatch means a migration landed
-without a `pnpm db:types` regen, so the checked-in types describe a schema no database
-runs. A LIVE-STACK gate: it SKIPS LOUDLY (exit 0) with no supabase CLI/stack — its
-fail-closed enforcement is the CI supabase lane that brings the stack up — and the mirror
-is opt-in (`pnpm db:types` writes it), so until it exists there is nothing to diff. The
-generic is deliberately NOT in the compile graph (`packages/platform/supabase/src/types.ts`):
-rows are re-parsed against zod at the DAL exit, so this is a CI drift assertion, never a
-compile-time licence to skip validation.
+running local stack and compares it with the committed
+`packages/platform/supabase/src/database.types.ts`, normalising only line endings and the
+text's trailing whitespace; a mismatch means a migration landed without a `pnpm db:types`
+regen, so the checked-in types describe a schema no database runs. A new Supabase CLI can
+also change the generator's output on an unchanged schema (2.117.0 and 2.118.0 both did);
+`pnpm db:types` with the install's own CLI clears that red the same way. Before its FAIL
+sentence the gate prints each side's line count, the first differing line, and at most
+`DIFF_LINES` lines of each side from there (committed `- `, generated `+ `), so a CI log
+alone tells a layout change from a schema change. A LIVE-STACK gate: it SKIPS LOUDLY
+(exit 0) with no supabase CLI/stack — its fail-closed enforcement is the CI supabase lane
+that brings the stack up — and the mirror is opt-in (`pnpm db:types` writes it), so until
+it exists there is nothing to diff. The generic is deliberately NOT in the compile graph
+(`packages/platform/supabase/src/types.ts`): rows are re-parsed against zod at the DAL
+exit, so this is a CI drift assertion, never a compile-time licence to skip validation.
 **Anti-vacuity:** edit a committed migration's column and re-run without `pnpm db:types` →
-FAIL "stale"; break a migration so `gen types` errors while the stack is up → FAIL "failed
-while the stack is up".
+FAIL "stale", after a diff from the first line that differs; break a migration so
+`gen types` errors while the stack is up → FAIL "failed while the stack is up".
 
 ### 22. migrations — `node tools/check-migrations.mjs`
 
