@@ -19,9 +19,9 @@ import { test } from 'node:test'
 import { ciPreconditionProblems } from '../../scripts/lib/ci-preconditions.mjs'
 
 const INIT_NOTE_OK =
-  "report.notes.push(\n  'next: pnpm install, then git init (if new) and COMMIT — the first commit must include pnpm-lock.yaml — then validate',\n)"
+  "report.notes.push(\n  'next: git init (if new), then pnpm install, then COMMIT — the first commit must include pnpm-lock.yaml — then validate',\n)"
 const INIT_NOTE_REGRESSED =
-  "report.notes.push(\n  'next: pnpm install, then git init and commit, then validate',\n)"
+  "report.notes.push(\n  'next: git init, then pnpm install, then commit, then validate',\n)"
 
 const wf = (file, text) => ({ file, text })
 const PINNED = 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0'

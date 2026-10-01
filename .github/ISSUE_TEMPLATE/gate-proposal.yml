@@ -56,8 +56,8 @@ body:
             **Fast** — or explicitly placed late in the chain, with its cost
             stated. The chain runs cheap-to-expensive.
         - label: >-
-            **Green on a fresh scaffold** — `init` → `pnpm install` →
-            `pnpm validate` still passes with zero edits.
+            **Green on a fresh scaffold** — `init` → `git init` → `pnpm install` →
+            commit → `pnpm validate` still passes with zero edits.
   - type: textarea
     id: toolchain
     attributes:
