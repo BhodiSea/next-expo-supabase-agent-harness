@@ -249,6 +249,12 @@ this heading if none does. -->
   do, and that release owes the judgement (#85).
 - **`eject` leaves the database alone.** A database that applied the example's migrations
   keeps its tables; the runbook gives the migration that drops them (#85).
+- **The i18n catalog pair's accepted clone is keyed on its extent.** `duplication`
+  normalizes every string, so the mobile and web catalogs match over the type preamble plus
+  their opening rows, and the accepted fingerprint changes whenever either catalog's first rows
+  change shape. A project that edits them meets the clone again under a new fingerprint and
+  re-accepts it. The gate is unchanged here: moving the example is no reason to redesign a
+  detector (#85).
 
 - **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major. The
   2.1.0 record owes either the arrival ramp's expiry or the next re-open (#86).
@@ -297,6 +303,28 @@ this heading if none does. -->
   leaves 50 survivors on a default scaffold and 80 on a `--with-demo` one, each within its
   committed baseline. Upgrade-lane leg A (a v1.1.0 install with its example, updated to this
   tree) validates on 37 steps and graduates (#85).
+  CI on this item's pull request then found five reds that the Local development list cannot
+  see, all from the default scaffold this item introduced and the lanes around it. Each was
+  reproduced here before its fix. `actionlint` reported two shellcheck findings in
+  `selftest.yml` (Canary 14's target check and demo-eject's grep). They were rewritten without
+  a directive, and `actionlint` with `shellcheck` on PATH is clean over every workflow.
+  `demo-eject`'s byte comparison differed on every file that carries the project owner,
+  because `init` reads the owner from the enclosing repository's origin and the comparison
+  scaffold sat outside the checkout. It now sits inside, and a replay with the factory
+  worktree as `GITHUB_WORKSPACE` ends on "the ejected tree equals a default init".
+  `bootstrap-linux`'s Stop chain reddened on `duplication`: the default catalogs match over a
+  new span. The shipped allow list gains its fingerprint, and a new case in
+  `tests/gates/check-duplication.test.mjs` renders a default and a `--with-demo` init and runs
+  the gate over each; it was red on the default before the entry. `integration`'s live proof
+  read no `profiles` row, because nothing creates one at signup. It now writes the caller's
+  own row first, and a replay of the lane on a default scaffold against a local stack went
+  from one failing case to all three passing, with Canary C01 still red on "authentication
+  required". Upgrade leg E (v0.3.0, swept) failed `types` because the sweep adopted only the
+  demo's part of `apps/web/lib/i18n/`. It also failed on three things a pre-2.0.0 install
+  carrying the example needs: the runbook's `EVENT_CATALOG` line, and the remedies for the
+  two registers `update` plants as 2.0.0's default copies. The sweep now adopts a directory as
+  the union of the template's roots and runs those three steps, each pinned in
+  `tests/gates/upgrade-sweep.test.mjs` (#85).
 
 ## [1.1.0] — 2026-09-30
 

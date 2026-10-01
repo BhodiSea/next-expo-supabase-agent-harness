@@ -280,16 +280,23 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
   // Two things at once: that the bearer becomes `auth.uid()` under RLS, and that the
   // authed tRPC read reaches the data channel over the live transport.
   //
-  // (i) DB-level RLS binding. profiles is self-only for `authenticated`, so the caller's
-  // own row is visible to the RLS-scoped client ONLY because the bearer became
-  // auth.uid(): an anonymous client sees nothing, and another user's client sees nothing.
+  // (i) DB-level RLS binding. profiles is self-only for `authenticated`. Nothing in the
+  // scaffold creates a profiles row at signup (the export reports a missing one as
+  // notFound), so the caller writes its own first: `profiles_insert_own` is
+  // `WITH CHECK (id = (SELECT auth.uid()))`, and service_role is REVOKED on the table, so
+  // this INSERT lands ONLY because the bearer became auth.uid(). The read-back is the same
+  // binding on the USING side: an anonymous client sees nothing, another user's sees nothing.
   //
   // (ii) tRPC read-path seam. WITH the bearer, system.exportMyData authenticates and
   // RESOLVES to an ok ActionOutcome ON THE DATA CHANNEL carrying that same row and the
   // seat provisioned in beforeAll; strip the bearer (C01) and the same call THROWS
   // UNAUTHORIZED before any handler runs. An ok envelope is precisely NOT a transport
   // reject: that gap is what the bearer buys.
-  it('the bearer binds RLS (the caller reads its own profile) and an authed export returns it on the data channel', async () => {
+  it('the bearer binds RLS (the caller writes and reads its own profile) and an authed export returns it on the data channel', async () => {
+    const inserted = await authedSb.from('profiles').insert({ id: userId }).select('id').single()
+    expect(inserted.error).toBeNull()
+    expect(inserted.data?.id).toBe(userId)
+
     const visible = await authedSb.from('profiles').select('id').eq('id', userId)
     expect(visible.error).toBeNull()
     expect((visible.data ?? []).length).toBe(1)
