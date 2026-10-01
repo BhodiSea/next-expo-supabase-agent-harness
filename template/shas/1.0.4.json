@@ -836,6 +836,15 @@
         ]
       },
       {
+        "sha256": "27955d051ed951afbf3871647550485dd8edbbcca9ba7474500abdda41744885",
+        "sites": [
+          [
+            120323,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "34318f4a74fd8cc10b587a40bcdde7d20854719c3e30676c785db216648dd81e",
         "sites": [
           [
@@ -1072,6 +1081,15 @@
       },
       {
         "sha256": "7a18e5f7fc20c03f790c2b0f4bc263605d301523273a1917b4e558fdb03b074e",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "cb93265d1a764e4d0991ec8bf14e9c3c9100fdf611145151ee220b0fb4751033",
         "sites": [
           [
             14115,

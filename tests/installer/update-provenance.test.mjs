@@ -9,6 +9,7 @@
 // by an older release" and "forked" is exactly whether a release shipped the bytes, and a
 // test has to be able to say which one it means.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -321,6 +322,39 @@ test('an agent-surface fork keeps its tools/agents.lock.json entry: update neith
     lockedBefore,
     'the lock entry still describes the pristine file — the mismatch IS the edit it exists to show',
   )
+})
+
+// The case the 1.0.1 runbook got wrong: it said the re-pin of an UNTOUCHED agent file left
+// `prompts` red until a human regenerated the lock. `update` rewrites a file a release
+// shipped and re-records that file's lock entry, hash and model pin together, so nothing
+// is owed. Only an edited copy (the case above) needs a human regeneration.
+test('an UNTOUCHED agent file moves its tools/agents.lock.json entry with it: hash and model pin, nothing owed', async () => {
+  const dir = await freshInstall('epah-prov-lock-clean-')
+  const lockPath = join(dir, 'tools', 'agents.lock.json')
+  const owned = liveOwned()
+  const agent = Object.keys(owned)
+    .filter((p) => p.startsWith('.claude/agents/') && !owned[p][0].sites)
+    .sort()[0]
+  const name = agent.slice('.claude/agents/'.length, -'.md'.length)
+  const live = read(dir, agent)
+  const aged = live.replace(/^model:.*$/m, 'model: haiku')
+  assert.notEqual(aged, live, 'fixture precondition: the agent pins a model')
+  recordBytes(dir, agent, aged)
+  // recordBytes leaves the lock alone: put it in the state a 1.0.0 lock was in.
+  const lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+  lock.files[agent] = sha256(aged)
+  lock.models[name] = 'haiku'
+  writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
+
+  const tables = tablesWith({ [agent]: [{ sha256: sha256(aged) }] })
+  const res = await captureUpdate({ dir, report: 'json' }, { releasedShas: tables })
+  assert.equal(res.code, 0, res.out)
+  assert.ok(parseReport(res.out).written.includes(agent), 'bytes a release shipped are rewritten')
+  const after = JSON.parse(readFileSync(lockPath, 'utf8'))
+  assert.equal(after.files[agent], sha256(read(dir, agent)), 'the hash moves with the file update wrote')
+  assert.equal(after.models[name], /^model:\s*(.+)$/m.exec(live)?.[1]?.trim(), 'the model pin moves with it')
+  const check = spawnSync(process.execPath, ['tools/gen-agents-lock.mjs', '--check'], { cwd: dir, encoding: 'utf8' })
+  assert.equal(check.status, 0, `${check.stdout}${check.stderr}`)
 })
 
 // ── AN OWNED PATH WITH NO MANIFEST RECORD (1.0.4, N21) ──────────────────────────────────
