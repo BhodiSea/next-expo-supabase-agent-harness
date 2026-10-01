@@ -1444,6 +1444,20 @@ Each note says what an existing install does instead.
 
   Do not copy the template's file over yours. It describes the example's schema, not
   your database.
+- **The template pins the Supabase CLI exactly.** New scaffolds get `supabase: 2.118.0`
+  where the catalog said `^2.34.3`. `pnpm-workspace.yaml` is seeded, so `update` leaves
+  yours alone. Your committed lockfile already fixes the CLI your CI installs. To take the
+  pin, set it in your catalog, run the commands below, and commit the lockfile and any
+  change to `packages/platform/supabase/src/database.types.ts`:
+
+  ```
+  # in the pnpm-workspace.yaml catalog: supabase: 2.118.0
+  pnpm install && pnpm db:down && pnpm db:up && pnpm db:types && pnpm validate
+  git add pnpm-lock.yaml pnpm-workspace.yaml packages/platform/supabase/src/database.types.ts
+  ```
+
+  If `rls_structure.test.sql` then goes red on write grants, the 1.0.2 section is the fix.
+  Do not use `update --refresh-seeded pnpm-workspace.yaml`: it replaces your whole catalog.
 - **`tools/store-tunables.json`'s `//` comment documents `accountDeletion.registry`.**
   The key itself works on an existing install without it; the section above says how.
 - **`tools/mcp/corpus/project.json`, the empty project corpus.** `update` prints
