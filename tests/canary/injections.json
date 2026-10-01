@@ -551,6 +551,11 @@
         "kind": "fixture",
         "ref": "tests/gates/workflow-hardening.test.mjs",
         "note": "1.0.2 — the STEP, not the script. Through 1.0.1 the step was `node tools/ci/summarize-gate.mjs | tee -a \"$GITHUB_STEP_SUMMARY\"` with no shell named, which GitHub runs as `bash -e` WITHOUT pipefail: the pipeline's status was tee's, so the script above could exit 1 on a failed lane and the one check marked required still went green. This proof extracts the step's real `run:` text from the RENDERED workflow, runs it the way GitHub would (the shell the workflow selects: `bash --noprofile --norc -eo pipefail`) against the real summarizer with a failed lane in NEEDS_JSON, and requires exit 1 plus the FAIL list in the step summary — and keeps the defect as its control: the identical script under `bash -e` exits 0. The same file holds the class closed structurally for every shipped workflow (base AND modules) and every factory one: a workflow-level `defaults.run.shell: bash` placed ABOVE `jobs:`, a bounded `timeout-minutes` on every job that can take one, and no top-level defaults/env on the workflow that publishes Scorecard results — each rule shown red on a synthetic negative. Two sibling canaries cover the two steps the audit rewrote: the mutation scoper's fail-closed exit (a command substitution inside `echo` discarded it) and the targetSdk diagnostic (which pipefail would otherwise kill before it prints). Skips loudly where no POSIX bash exists."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): a lane that reused its merged pull request's result concluded success and is listed as REUSED with the run it relied on, beside the SKIPPED list; the verdict does not change. This proof drives the whole path: the lookup's hit writes from=<run url> to $GITHUB_OUTPUT, that value is fed to tools/ci/summarize-gate.mjs as the lane's outputs.reused-from in NEEDS_JSON, and the summary names the lane with its run and exits 0, while a failed lane beside it still exits 1. tests/gates/summarize-gate.test.mjs pins the same two directions on the script alone, including that a failed lane is never listed as reused."
       }
     ],
     "static": [
@@ -558,12 +563,22 @@
         "kind": "selftest",
         "ref": "the failing order — commit without install must die at the frozen-lockfile entry step",
         "note": "0.9.0: the job's chain steps were always proven in #steps, but its ENTRY PATH (`pnpm install --frozen-lockfile` after setup-node `cache: pnpm`) had never been executed — the steps-kind declaration covered everything except the first thing a consumer's push runs. scripts/ci/consumer-ci-static.sh (the selftest consumer-ci-static job) executes both directions on a real scaffold: a tree committed before install must refuse with the exact ERR_PNPM_NO_LOCKFILE frozen-lockfile failure (the red half — the lane can SEE the defect class), and a tree that followed init's next-steps note literally must complete the whole job, install through `validate --min-floor` green. First local execution 2026-08-10: both halves held."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative."
       }
     ],
     "unit": [
       {
         "kind": "steps",
         "note": "runs vitest --coverage, the jest-expo coverage run, check-diff-coverage, check-duplication and check-test-quality — all proven in #steps above."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative."
       }
     ],
     "mutation": [
@@ -576,18 +591,33 @@
         "kind": "selftest",
         "ref": "an untested branch must red the mutation lane",
         "note": "end-to-end on a real scaffold (selftest job canary-mutation): ONE untested env-gated patch-grace branch added to the well-mutation-covered packages/api/src/skew.ts (the version-skew floor) leaves vitest, diff-coverage and test-quality GREEN and only the mutation ratchet red — checked, not asserted."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative. On a hit the push run cites the pull request run's mutation verdict, which was scoped to the pull request's diff; the push run it replaces scoped against HEAD and mutated nothing."
       }
     ],
     "runtime-rls": [
       {
         "kind": "steps",
         "note": "runs `node tests/rls/run-rls.mjs` — proven under the 'rls-isolation' step above (fail-closed selftest proof; the W6 bootstrap lane arms the keyset plan-probe canary)."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative."
       }
     ],
     "e2e-fast": [
       {
         "kind": "steps",
         "note": "runs the jest-expo RNTL suite behind the `e2e` step (states sweep over every ROUTES entry, flows, boot, primitives a11y) — proven under the 'e2e' step above, whose gate asserts the run is neither failing nor vacuous."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative."
       }
     ],
     "integration-lane": [
@@ -600,6 +630,11 @@
         "kind": "fixture",
         "ref": "tests/gates/device-lane.test.mjs",
         "note": "1.0.4 (#10): the half of this lane the selftest's `integration` job cannot see, because it runs its own copy of the steps. The shipped job booted the web host before the env its first request parses was set (the server-only SUPABASE_SERVICE_ROLE_KEY and SUPABASE_DB_URL, then the NEXT_PUBLIC_ trio), so it answered 500, and waited on /api/trpc/health, a 404 even with that env, so it never reached the suite. The test reads both env schemas and reds a job that boots the host before any of those names is published, that probes a procedure the router does not have, or that runs the live proof without a name from each of its requireEnv groups (LIVE_PROOF included), with a red case for each"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/lane-reuse.test.mjs",
+        "note": "1.1.0 (#57): post-merge reuse. On a push this lane's first step after checkout asks tools/ci/lane-reuse.mjs whether the merged pull request's newest run at its final head passed THIS job on THIS tree, and on a hit every later step is skipped. So the proof that the lane can still go red on a push is that a hit is rare and exact: the pure judge misses on every event but push, on no associated pull request, two of them or one not merged, on a pull request from a fork, on a run of another pull request (a run is tied to its pull request by head commit, branch and repository, because GitHub empties a run's pull_requests once it is merged), on every conclusion but success (failure, neutral, cancelled, skipped, timed_out, action_required, null), on a tree or head mismatch, and on a missing job, a malformed marker or more than one marker; only the exact match hits, naming the run. The transport runs end to end through a stand-in gh (an API failure is a miss that exits 0, the job name never reaches the command line, and a record round-trips into a hit). The wiring half is tests/gates/workflow-lanes.test.mjs: the lookup is the first step after checkout with --job equal to the job's name:, every later step carries the reuse condition (joined with &&), the record step is last and pull_request-only, there is no job-level if:, and the permissions are contents, actions and pull-requests read, each rule shown red on a synthetic negative. The `Web log on failure` step keeps failure() and gains the reuse clause with &&."
       }
     ],
     "changes": [

@@ -135,9 +135,14 @@ None of these tightens a gate for an existing install. Where one changes what
   takes `mobile` rows only.
   ([N05](design/FIELD-UPGRADES-2026-09.md#n05-a-dated-deferral-for-a-surface-that-is-not-built-yet),
   issue #56)
-- **Skip a lane that already passed on the same tree.** The post-merge run
-  reuses a `success` from the pull request when the tree hash is identical.
-  ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree))
+- **Skip a lane that already passed on the same tree.** On a push, `static`,
+  `unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` reuse the
+  merged pull request's `success` for the same job when the tree is identical,
+  and name the run they relied on; anything else runs in full, and scheduled
+  and dispatched runs never reuse. Those jobs now request `actions: read` and
+  `pull-requests: read`, and `update` parks the new workflow beside a fork.
+  ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree),
+  issue #57)
 - **Database proofs on a fixture table.** Behavioural pgTAP proofs build their
   own table inside the transaction, so deleting the example does not delete
   them.

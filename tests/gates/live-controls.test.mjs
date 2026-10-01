@@ -126,6 +126,40 @@ jobs:
   assert.equal(conditional.has('check-e2e.mjs'), false)
 })
 
+test('a STEP-level event condition leaves the job unconditional; only a job-level if: counts (#57)', () => {
+  // The post-merge reuse lookup and record steps carry `if: github.event_name == ...` at
+  // step level, eight spaces in. The six lanes that carry them must still read as running on
+  // every commit, or docs-sync's tier verdict would change for every install. The same
+  // condition one level up, on the job, is what makes a lane conditional.
+  const step = (jobIf) =>
+    [
+      'name: q',
+      '',
+      'jobs:',
+      '  static:',
+      '    runs-on: ubuntu-latest',
+      ...(jobIf ? [`    if: ${jobIf}`] : []),
+      '    steps:',
+      '      - name: Reuse?',
+      '        id: reuse',
+      "        if: github.event_name == 'push'",
+      '        run: node tools/ci/lane-reuse.mjs --job "static"',
+      '      - name: Work',
+      "        if: steps.reuse.outputs.hit != 'true'",
+      '        run: node tools/check-x.mjs',
+      '',
+    ].join('\n')
+  const stepOnly = liveControls({ steps: [], workflowDir: workflowDir({ 'q.yml': step('') }) })
+  assert.ok(stepOnly.live.has('static'), 'fixture precondition: the job is read at all')
+  assert.equal(stepOnly.conditional.has('static'), false)
+  assert.equal(stepOnly.conditional.has('check-x.mjs'), false)
+  const jobLevel = liveControls({
+    steps: [],
+    workflowDir: workflowDir({ 'q.yml': step("github.event_name == 'pull_request'") }),
+  })
+  assert.equal(jobLevel.conditional.has('static'), true)
+})
+
 test('a missing workflow directory yields no jobs rather than throwing', () => {
   // A scaffold with CI removed is a legitimate state. The CALLER decides what an empty job
   // set means; inventing one here would hide the removal.

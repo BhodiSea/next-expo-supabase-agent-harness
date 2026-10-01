@@ -315,6 +315,56 @@ every stamp, so the first run after either re-proves everything.
   recorded. It cannot see SQL someone runs by hand against the running database; CI never
   rides it.
 
+## Post-merge lane reuse
+
+A stamp lets a gate skip locally, and CI never honours one. The merge gate has one CI-side
+shortcut of its own (1.1.0), and it is narrower than a stamp: a lane may reuse a pass only
+from another CI run, and only for an identical tree.
+
+`quality-gate.yml` runs on a pull request and again on the push its merge produces, and the
+two runs never cancel each other. So an up-to-date squash merge used to re-run `static`,
+`unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` on the tree the pull
+request run had just proved. The push run was also the weaker judge: without
+`GITHUB_BASE_REF`, diff coverage, the mutation scoper and the append-only migration check
+all compare against `HEAD` and see an empty diff.
+
+- **What is recorded.** On a pull request, each of those lanes ends with a step that prints
+  one marker: the job's name, `git rev-parse HEAD^{tree}` of the checked-out merge commit,
+  and the pull request's head. It is the last step, so it runs only when every step before
+  it passed. `tools/ci/lane-reuse.mjs` builds the marker, so the step's own text never
+  contains it.
+- **What is looked up.** On a push, the first step after checkout asks the same script. It
+  finds the one merged pull request whose merge commit is this commit, that pull request's
+  newest `quality-gate.yml` run at its final head, this job (by name) in that run's latest
+  attempt, and the marker in the job's log. A run belongs to the pull request when its head
+  commit, head branch and head repository are the pull request's. GitHub's own list of a
+  run's pull requests names only open ones, so it is empty once the pull request is merged
+  and is never read. The lookup reports a hit only when the job concluded exactly
+  `success`, the log holds exactly one marker, the marker's tree equals this checkout's
+  tree, and its head equals the run's head.
+- **What a hit does.** Every later step carries `steps.reuse.outputs.hit != 'true'`, so it
+  is skipped. One step names the run the lane relied on, in the log and in the step summary,
+  and `gate-summary` lists the lane as `REUSED` with that run beside its `SKIPPED` list. The
+  job still concludes `success`, because it cites one. `gate-summary`'s verdict does not
+  change.
+- **What misses.** Everything else, and a miss runs every step: any event but `push`
+  (`pull_request`, `schedule` and `workflow_dispatch` always run in full), a direct push, an
+  associated pull request that is not exactly one or was not merged, a pull request from a
+  fork (its run executed workflow text from a repository you do not control), a run of
+  another pull request, any conclusion but `success`, a missing or malformed marker, and a
+  merge that changed anything, such as a branch behind its base or a conflict resolution.
+  An API or parse error is a miss too: the step prints why and exits 0.
+- **What a tree does not pin.** History (`gate-integrity` walks `git log`, and a squash
+  commit's history differs from the merge commit's), the runner image, the network and the
+  clock. The nightly run never reuses, so it stays the net for all four.
+- **Permissions.** The lookup reads this workflow's runs, their jobs and job logs, which
+  GitHub files under Actions, and the pull requests associated with a commit, filed under
+  Pull requests. So each of those lanes requests `actions: read` and `pull-requests: read`
+  beside `contents: read`.
+- **No job-level `if:`.** Every condition is on a step, so `live-controls` still reads these
+  lanes as running on every commit, and the enforcement-tier verdicts `docs-sync` gives do
+  not change. Read a reused lane as "ran on this tree", not "ran on this commit".
+
 ## The security invariants
 
 Enforced as hooks + lint + depcruise + gates (defense-in-depth); the grounding rules

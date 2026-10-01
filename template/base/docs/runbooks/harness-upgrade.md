@@ -1682,7 +1682,10 @@ and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.
 `tools/ci/summarize-gate.mjs`, `tools/lib/gate.mjs`, `tools/lib/enforcement-surface.mjs`,
 `.claude/hooks/lib/guard-rules.mjs`, `docs/harness/enforcement-tiers.md` and
 `docs/security/threat-model.md`; the register itself is withheld (the subsection below).
-What you may notice afterwards:
+Post-merge lane reuse adds `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`, and
+re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
+`docs/harness/README.md` (the last subsection before RECOVERY). What you may notice
+afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1692,6 +1695,11 @@ What you may notice afterwards:
 - **The `changes` job checks out the tree and runs one more step**, the surface deferral
   below. With no register it prints `mobile-deferred=false` and reads nothing else, so
   every lane runs exactly as before.
+- **On a push to your default branch, some merge-gate lanes finish in seconds.** `static`,
+  `unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` reuse the pull
+  request run that already passed on the identical tree, name it, and appear under
+  `REUSED` in `gate-summary`. They now request `actions: read` and `pull-requests: read`.
+  The subsection on `quality-gate.yml` below says when a lane reuses and when it runs.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -1740,6 +1748,35 @@ whether the row is live and how many files it compared.
 app there, its files have no records, so a `mobile` row is void from the start. If nothing
 is tracked or recorded under `apps/mobile/`, the row is live and the CLI says that zero
 files were compared.
+
+### `quality-gate.yml`: a push reuses its pull request's green lanes on an identical tree
+
+`update` re-plants `.github/workflows/quality-gate.yml`, `tools/ci/summarize-gate.mjs` and
+`docs/harness/README.md` when your copies still match a released sha, and plants two new
+owned files, `tools/ci/lane-reuse.mjs` and `tools/lib/lane-reuse.mjs`. What changes for
+you:
+
+- **On a push to your default branch, `static`, `unit`, `mutation`, `runtime-rls`,
+  `e2e-fast` and `integration-lane` may finish in seconds.** Each first asks whether the
+  pull request you just merged passed that same job on the identical tree, at its final
+  head. On a hit its steps are skipped, a notice names the pull request run it relied on,
+  and `gate-summary` lists the lane as `REUSED` with that run. The job still reports
+  success, because it cites one. A merge of a branch that was behind its base, a conflict
+  resolution, a direct push, a red or unfinished pull request run, or a GitHub API error
+  runs everything, as before. Nightly and manually dispatched runs never reuse.
+- **Those jobs now request `actions: read` and `pull-requests: read`** beside
+  `contents: read`, to list the pull request's runs, their jobs and job logs, and the pull
+  request a push merged. Nothing is written. If the token cannot read them, the lookup
+  misses and the lane runs in full.
+- **A pull request from a fork never reuses.** Its run executed workflow text from a
+  repository you do not control, so its merge runs every lane, which is what it did before.
+- **If you forked `quality-gate.yml`,** `update` keeps your fork and parks the incoming copy
+  at `.harness/pending/.github/workflows/quality-gate.yml`, and it exits 2 while that copy
+  is there ("Forking an owned file" in the 1.0.2 section). Your fork keeps running every
+  lane on every push until you merge the new steps in. When you merge them, copy each
+  lane's lookup, hit-report and record steps, its `permissions:` and `outputs:` blocks and
+  the `steps.reuse.outputs.hit != 'true'` condition on every step in between, then
+  re-record the sha. A step you add to one of those lanes later needs the same condition.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

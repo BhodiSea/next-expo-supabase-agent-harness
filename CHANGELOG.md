@@ -63,6 +63,24 @@ this heading if none does. -->
   manifest read for the CLI, which reaches it through a namespace import, so a parked fork
   of the lib without it voids a row rather than failing `changes`. No chain step and no
   ramp (#56).
+- **Post-merge lanes reuse the merged pull request's green result on an identical tree.**
+  `quality-gate.yml` runs on the pull request and again on the push its merge produces, so
+  an up-to-date squash merge re-ran `static`, `unit`, `mutation`, `runtime-rls`, `e2e-fast`
+  and `integration-lane` on the tree the pull request run had just proved, and judged it
+  less strictly: without `GITHUB_BASE_REF` the diff-scoped steps see an empty diff. On a
+  pull request each of those lanes now ends with a step that records one marker (the job
+  name, the checked-out merge commit's tree and the pull request's head). On a push the
+  first step after checkout, `tools/ci/lane-reuse.mjs`, finds the merged pull request's
+  newest run at its final head, the same job in that run's latest attempt, and the marker
+  in its log. Only a conclusion of exactly `success`, a single marker, the same tree and the
+  run's own head make a hit; then every later step is skipped, the lane names the run in its
+  log and step summary, and `gate-summary` lists it as `REUSED` beside its `SKIPPED` list
+  without changing its verdict. Anything else, a pull request from a fork and an API error
+  included, runs every step, and `schedule` and `workflow_dispatch` never reuse. Those jobs now request `actions: read` and
+  `pull-requests: read` beside `contents: read`, and carry no job-level `if:`, so
+  `docs-sync`'s tier verdicts do not change. An install with a forked `quality-gate.yml`
+  keeps its fork, the new copy is parked under `.harness/pending/`, and `update` exits 2
+  while it stays there (#57).
 
 ### Fixed
 
@@ -121,6 +139,14 @@ this heading if none does. -->
   one. There is no cap on how far ahead `deferredUntil` may sit; the content tripwire and
   the scheduled review are what end a row. The skip itself is proven on the workflow's text
   and on the step's own `run:` line, not on a GitHub runner (#56).
+- **Post-merge reuse is proven on fixtures here, not yet on GitHub.** The judge, the
+  transport through a stand-in `gh`, the wiring and the summary are tested in this
+  repository. The live runs the issue asks for need a scratch repository made from the
+  scaffold, and are the owner's to record: an up-to-date squash merge that reuses every one
+  of those lanes and names the pull request run, a merge of a branch behind its base that
+  runs them in full, and a manual dispatch that runs them in full. The lookup runs before
+  `setup-node`, on the runner image's own Node, whose version is not pinned here; the script
+  uses Node built-ins only (#57).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -146,7 +172,16 @@ this heading if none does. -->
   future-dated row is live over every planted mobile file; and through the `changes`
   step's own `run:` line under `bash -eo pipefail`, where one appended byte turns the
   output from `true` to `false`. A 1.0.4 install updated by this installer got the CLI and
-  the new workflow but no register, and printed `mobile-deferred=false` (#56).
+  the new workflow but no register, and printed `mobile-deferred=false` (#56). For
+  post-merge reuse, `tests/gates/lane-reuse.test.mjs` could not load before
+  `tools/lib/lane-reuse.mjs` existed, the wiring rules added to
+  `tests/gates/workflow-lanes.test.mjs` listed every missing piece in each of the lanes, and
+  the reuse cases of `tests/gates/summarize-gate.test.mjs` were red on a summary that named
+  no reused lane. The judge went red a second time when its fixtures served the pull request
+  run the way GitHub serves it after a merge, with an empty `pull_requests` list: a judge
+  that looked for the pull request there missed on every merge. After the change each is
+  green, `actionlint` and `zizmor` report nothing on the rendered workflow, and the judge's
+  line and function coverage is complete (#57).
 
 ## [1.0.4] — 2026-10-01
 
