@@ -1,6 +1,6 @@
 # Context-paradigm research, 2026-10-01
 
-The research and design round behind [`design/SINGLE-HOME-2026-10.md`](../../SINGLE-HOME-2026-10.md).
+The research and design rounds behind [`design/SINGLE-HOME-2026-10.md`](../../SINGLE-HOME-2026-10.md) (now v3).
 It was run by Claude Code research agents, and every internal fact refers to the 2.0.0 stack head
 (`stack/52-i37-work-plan`, commit `b158f5a`), not to `main`. External figures marked † or
 "not verified" in a report were read from search-engine extracts, not from the primary source.
@@ -45,3 +45,19 @@ a final pass fact-checked against the stack head.
 | [design-obligation-ledger.md](design-obligation-ledger.md) | Enforcement-first obligation ledger |
 | [design-prevention-loop.md](design-prevention-loop.md) | Prevention at authoring time, plus a refactoring loop |
 | [plan-v1.md](plan-v1.md) | The synthesis the critics attacked |
+| [plan-v2.md](plan-v2.md) | v2, "Single Home": the revision after four critics, fact-checked |
+
+## v3 round
+
+The maintainer approved v2's eight decisions and four adjustments: a live, pulled reviewer packet;
+the Concept Wire as a second pillar; complexity facts in the packet from the start; and a staged
+eval ladder sized for one maintainer. Three pillar designers worked in parallel, an integrator
+wrote the draft, three critics attacked it, and a revision became v3, fact-checked with the
+concept-wire recipes run by hand against the demo tree.
+
+| File | Subject |
+|---|---|
+| [v3-pillar-reviewer-packet.md](v3-pillar-reviewer-packet.md) | The neighbourhood packet and the complexity facts |
+| [v3-pillar-concept-wire.md](v3-pillar-concept-wire.md) | The Concept Wire checks |
+| [v3-pillar-evals-and-fixes.md](v3-pillar-evals-and-fixes.md) | The staged eval ladder and the open fact-check items N1–N4 |
+| [plan-v3-draft.md](plan-v3-draft.md) | The integrated draft the critics attacked |
