@@ -17,6 +17,11 @@
 // as `path_state_start`, beside `path_state_stop`, the same digest taken at the verdict. The
 // judge counts a verdict only when the two are equal, so a review of a moving tree does not
 // count, and a verdict with no start record does not either.
+//
+// 2.0.0 (#87) adds the FORMAT STAMP. Every entry carries `v`, the lib's LEDGER_FORMAT, which
+// the step keys on beside session_id now that prompt_id has left the key. The stamp comes
+// from the lib both ends import, so a hook running against a parked pre-2.0.0 fork of the lib
+// writes no stamp, and the step names that entry's format instead of counting it.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -97,6 +102,48 @@ test('the recorded entry carries path_state, and it is the digest the judge will
   )
   assert.equal(typeof line.path_state, 'string')
   assert.equal(line.path_state, expected)
+})
+
+test('the recorded entry carries the ledger format stamp the step keys on (2.0.0), and still its prompt_id', () => {
+  const dir = fixture()
+  const r = runHook(dir, payload('security-reviewer'))
+  assert.equal(r.code, 0, r.out)
+  const [line] = ledgerLines(dir)
+  assert.equal(line.v, '2.0.0')
+  assert.equal(line.v, verdicts.LEDGER_FORMAT)
+  // prompt_id stays as a diagnostic outside the v2 key (decision 6): the 1.0.x judgement
+  // still keys on it, and it dates a mis-shaped line.
+  assert.equal(line.prompt_id, 'p1')
+  // The dispatch record is keyed by session_id and agent_id, and carries no stamp.
+  runHook(dir, startPayload('security-reviewer'))
+  assert.equal(Object.hasOwn(dispatchLines(dir)[0], 'v'), false)
+})
+
+test('a hook beside a parked lib without LEDGER_FORMAT writes NO stamp, never a format that lib cannot read (2.0.0)', () => {
+  // The install shape: the hook and the lib copied into a project, the lib a fork `update`
+  // kept. The hook reaches the constant through its namespace import, so the fork loads and
+  // the entry is written without `v`, which the 2.0.0 step reads as another format.
+  const root = fixture()
+  cpSync(join(TEMPLATE, '.claude/hooks'), join(root, '.claude/hooks'), { recursive: true })
+  cpSync(join(TEMPLATE, 'tools/lib'), join(root, 'tools/lib'), { recursive: true })
+  const lib = join(root, 'tools/lib/reviewer-verdicts.mjs')
+  const text = readFileSync(lib, 'utf8')
+  const fork = text.replace(/^export const LEDGER_FORMAT = .*$/m, '')
+  assert.notEqual(fork, text, 'the fixture must actually drop the export')
+  writeFileSync(lib, fork)
+  const env = { ...process.env }
+  delete env.GITHUB_BASE_REF
+  delete env.HARNESS_ALLOW_SELF_EDIT
+  const res = spawnSync(process.execPath, [join(root, '.claude/hooks/subagent-verdict.mjs')], {
+    cwd: root,
+    encoding: 'utf8',
+    env,
+    input: JSON.stringify(payload('security-reviewer')),
+  })
+  assert.equal(res.status, 0, `${res.stdout}${res.stderr}`)
+  const [line] = ledgerLines(root)
+  assert.equal(line.verdict, 'PASS')
+  assert.equal(Object.hasOwn(line, 'v'), false, JSON.stringify(line))
 })
 
 test('the binding MOVES when the owed file moves — it is a tree state, not a timestamp', () => {
