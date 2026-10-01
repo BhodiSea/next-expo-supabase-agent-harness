@@ -517,7 +517,7 @@ v2's risks 2–6 and 8–15 stand. Changed and new risks:
 | 19 | One affordance, two i18n keys | `D/apps/mobile/src/i18n/catalog.ts:50-54` vs `D/apps/web/lib/i18n/catalog.ts:150-151` | yes | Wire `i18n-key-parity` → advisory, plus 4 stack instances; 7a aligns | No |
 | 20 | `PARITY.md` says web has no notes screen | `D/PARITY.md:27,29` vs `…/notes/page.tsx`, `note-composer.tsx` | stale register | Wire `parity-truth` → advisory ×2 (owed-half candidates); 7a | No (`parity` checks only that a path exists) |
 | 21 | Scaffold is stale and writes no vertical manifest | `scaffold-slice.mjs:108`; `vertical-anatomy.mjs:144-170` reds | teaches drift | F1 | No |
-| 22 | `packages/shared` is named everywhere and exists nowhere | `T/dependency-cruiser.cjs:24-41`; `T/pnpm-workspace.yaml:7` | missing home | Lift, plus a knip glob | n/a |
+| 22 | `packages/shared` is named everywhere and exists nowhere | `T/dependency-cruiser.cjs:24-41`; `T/pnpm-workspace.yaml:7` | missing home | Lift (the knip glob is cosmetic; see the corrections below) | n/a |
 | 23 | `noteCreated` / `noteDeleted` (N2) | `D/packages/verticals/notes/src/events.ts:109,134` | yes | Exact, 44 (48) → **owed**, MODULE with 1 literal parameter; 7a `noteBaseEvent` | No |
 | 24 | The brief prints `(unprintable)` for App Router paths (N4) | `T/tools/lib/harness-brief.mjs:52,129,310` | — | F2 | No |
 | 25 | A consumer vertical needs a human census entry, and nothing says so | `T/tools/check-exports-walls.mjs:153-158,210-214` | — | F1 next steps; N1 message; decision 2 | No |
@@ -531,6 +531,32 @@ v2's risks 2–6 and 8–15 stand. Changed and new risks:
 The wire also flags the stale register #20. Eval B's coverage target moves from 8 of 15 to 13 of 16 with a hit.
 
 ---
+
+### Filed as issues (2026-10-01)
+
+Each finding below was re-verified against the stack head by one agent and attacked by a second before filing. Bodies cite `path:line` at `b158f5a`.
+
+| Issue | Dogfood rows | Notes from verification |
+|---|---|---|
+| #144 | 13 | Today both transports drop every event, so no behaviour differs yet; the copies diverge the moment a sink is wired |
+| #145 | 15 | A whitespace-only title on mobile reaches the server and comes back as a generic error toast |
+| #146 | 3, 4, 5 | Also found: `auth_trail`'s partition maintenance is never scheduled |
+| #147 | 10, 11 | Also found: a notes create past its quota is reported as `unavailable`, the one retryable kind |
+| #148 | 20 | |
+| #149 | 1, 2, 23 | |
+| #150 | 16 | |
+| #151 | F3 | Seven Bash-less reviewers are told to run `git diff` |
+| #152 | none (§2.1 NOTE survival) | |
+| #153 | 24 (F2) | Reproduced with `harness-status.mjs` |
+| #154 | 25 | |
+| #155 | 21, 14 (F1) | |
+| #156 | 6, 7, 12 | |
+| #157 | 17, 18, 19 | |
+| #158 | none (gate-proposal) | `contracts` checks project references one directory deep, so all six `packages/platform/*` and every vertical escape it; on a default scaffold a nested-aware check finds 3 missing `apps/web` references |
+
+**Corrections to the table above.**
+- **Row 21.** Without a vertical `package.json`, `boundaries` does not red the slice: it reports `no packages/verticals/* yet` and does not apply the anatomy laws to it (measured; #155).
+- **Row 22.** The knip half is wrong. `knip --strict` judges a workspace with no config key using its defaults, so a new `packages/shared/x` is judged for dead files and exports exactly like a configured vertical (knip 6.26 source, and a fixture run). A `packages/shared/*` knip key would be cosmetic. Row 22 was therefore not filed. The real gap next to it is #158.
 
 ## Decisions still needed from the maintainer
 
