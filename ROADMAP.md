@@ -352,9 +352,13 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
 
 ### 2.0.0, breaking
 
-- **The example leaves the scaffold.** Reference-only by default, with an
-  optional materialised demo and an `eject` verb.
-  ([B01](design/FIELD-UPGRADES-2026-09.md#b01-the-example-leaves-the-scaffold))
+- **The example leaves the scaffold.** Built in 2.0.0: a default `init` writes
+  no worked example, `init --with-demo` overlays it from `template/demo/`, and
+  `eject` removes it again using a generated index of its register rows, which a
+  factory check holds complete in both directions. An existing install keeps its
+  example, and the runbook says how to remove it by hand.
+  ([B01](design/FIELD-UPGRADES-2026-09.md#b01-the-example-leaves-the-scaffold),
+  issue #85)
 - **The encryption rule ships with its module.** Built in 2.0.0: the full rule,
   `.claude/rules/e2ee.md`, is stored in the `e2ee` module, so an install without
   `e2ee` does not carry it, and the 2.0.0 record removes the base copy from

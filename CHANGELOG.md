@@ -35,6 +35,10 @@ two to 2.1.0 (#86).
 The full encryption rule, `.claude/rules/e2ee.md`, leaves every install without the `e2ee`
 module (see Removed): the record's `removed` entry deletes it where a release's bytes still
 stand, and an `e2ee` install gets it back as the module's own file (#86).
+**Breaking: a fresh `init` writes no worked example.** The notes vertical, its screens, routes,
+Server Action and migrations, and the matrix screen move to their own template tree, which
+`init --with-demo` overlays and the new `eject` takes back out. An existing install keeps its
+example: it is seeded, and `update` neither rewrites nor deletes it (#85).
 
 ### Security
 
@@ -46,12 +50,97 @@ this heading if none does. -->
 <!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
 this heading if none does. -->
 
+- **`init --with-demo` and `eject`.** The worked example is stored in `template/demo/`, an
+  overlay on the base and stack plan the way the design-token presets overlay the stack:
+  same-path replacement plus additions. It may replace only seeded files, so `update` never
+  meets two owners for one path. `init --with-demo` plans it and records `"demo": true` in
+  the manifest; a default `init` records `"demo": false`, and `init --force` carries the
+  recorded choice. `update` overlays it only where the manifest records it, so a default
+  install is never handed a demo file. `eject` (with `--dry-run`) removes it in three parts:
+  it deletes each demo file that still holds the bytes its record names, gives each shared
+  file the demo replaced the default bytes back, and trims the register rows the generated
+  sidecar `template/demo-index.json` lists, as `{file, jsonPointer}` pairs or, for
+  `PARITY.md`, `{file, rowKey}`, each with a `restore` twin for a default row the demo
+  changed. A drifted file or a re-recorded fork is kept, and its record dropped, as `disable`
+  does; a changed shared file keeps the project's bytes and parks the default copy under
+  `.harness/pending/`; a register row is deleted only while it equals the shipped demo row,
+  array rows in descending order. It re-derives `tsconfig.json`'s references, clears the
+  build output of a package it removed whole, and exits non-zero on an install without the
+  demo, changing nothing (#85).
+- **`eject` deletes the example's migrations on the record.** Each one is recorded with the
+  sha256 of the bytes it deleted under `ejectedMigrations` in `.harness/manifest.json`, and
+  `migrations` accepts the deletion of exactly those bytes with a NOTE naming the runbook. A
+  deletion of other bytes, an edit, and a malformed record all still red (#85).
+- **A factory check keeps the sidecar index honest: `scripts/check-demo-index.mjs`.** It
+  derives the index from the trees (every row where the demo's copy of a seeded register
+  differs from the default's, both ways) and reds a demo row the index misses, an index row
+  that resolves to nothing or to a row both copies share, an index that is not in its
+  generated form, a demo file that replaces a non-seeded file, and an owned file in its scope
+  that names a demo path: a path only the demo ships, or `@app/notes`. Its scope is the owned
+  files of base, stack, the presets and the modules, outside `*.md` and `docs/`; a JSON object
+  marked `"demo": true` is skipped, and the slots the default tree keeps for the first
+  vertical (`packages/verticals`, `apps/web/lib/app-data`, `supabase/seeds`) are not demo
+  paths. `--write` regenerates the index. It runs in `lint.yml`'s machinery block, in
+  CONTRIBUTING's Local development list and in the factory Stop hook, and each case has a red
+  fixture in `tests/gates/check-demo-index.test.mjs`, registered in `#factoryGates` (#85).
+- **A selftest lane for the round trip: `demo-eject`.** It runs `init --with-demo`, validates,
+  runs the RLS suite and Canaries 17 and 24 on the live stack, stops the stack, runs `eject`,
+  requires the tree to equal a fresh default `init` byte for byte outside `.harness/`,
+  reinstalls and validates again, requiring a `migrations` NOTE for each deleted migration.
+  It is registered in `#factoryLanes` (#85).
+- **Reviewed empty states for the gates whose only subject was the example.** `schema-rls`
+  accepts MFA helpers no policy uses only under a `tools/rls-exempt.json` `mfaRailUnused` row
+  with a reason and a review date, and reds that row once a policy uses the rail.
+  `query-shapes` accepts a tree with no `packages/verticals/*` when the manifest records
+  nothing, and reds a manifest that still records shapes. `db-perf` and the shipped
+  `db-scale` adoption step stand down on a manifest with no read shape. `rate-limits` takes an
+  optional `unmapped` bucket that must be declared and must be what both seams return for a
+  surface no row maps. The default registers carry the rows (#85).
+- **`maestro/journeys/session.yaml`, the default device journey.** It signs in through the
+  app's own screen, reads the security screen's second-factor list, relaunches and reads it
+  again, so the persisted session and an authenticated server read are proven on every
+  scaffold. The example's mutation journey ships with the demo, and `tools/ci/device-lane.sh`
+  runs every journey in the directory (#85).
+
 ### Fixed
 
 <!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
 this heading if none does. -->
 
 ### Changed
+
+- **Owned configuration derives from the tree instead of naming the example.**
+  `eslint.config.mjs` applies the chart ban to every feature directory holding a
+  `perfSubject.tsx`; `vitest.config.ts` finds the mobile suites and their measured siblings
+  under `apps/mobile/src`, and excludes the web read seams by convention
+  (`apps/web/lib/app-data/!(*-model).ts`), which `diff-coverage` now reads (it supports one
+  `!(…)` group per segment); `knip.json` names a workspace glob and the perf-subject entry
+  instead of the example's files. `tsconfig.json`'s references stay derived at install, so an
+  install with the example keeps its reference. The conformance map's notes say "a vertical"
+  where they said "notes", and the 15.3.1 proof cites `.claude/agents/security-reviewer.md`.
+  The authoring skill's `scaffold-slice.mjs` stubs cite the skill's generated references,
+  which are now generated from `template/demo/` (#85).
+- **`boundaries` reads the `@app/notes` wall as the example's.** Its `tools/exports-walls.json`
+  row is marked `"demo": true`, and a demo row is dormant on an install whose manifest records
+  `"demo": false`. Where the manifest records the demo or no choice (every install from before
+  2.0.0), the row is live and reds as stale once the package is gone, naming `eject` and the
+  runbook (#85).
+- **`tools/generated/event-catalog.json` is seeded and write-guarded.** The default and demo
+  trees commit different catalogs, and `update` re-planting the owned file would hand a default
+  install's catalog to an install with the example. It joins its two generated siblings, which
+  1.1.0 made seeded for the same reason, and the new guard rule `event-catalog-manifest` (147
+  rule ids) protects it like them. This closes the 1.1.0 item that called it still owned (#85).
+- **The factory canaries that inject into the example run on an `init --with-demo` scaffold.**
+  The `canary` and `day0-empty-states` jobs initialise with `--with-demo`, and Canaries 3, 4, 5,
+  14, 22 and 28 first check their target exists, so on a tree without the example they red at
+  the injection rather than creating the file they meant to edit. Canaries 17 and 24 moved
+  from `bootstrap-linux` to `demo-eject`, and `maestro-smoke` initialises with `--with-demo`
+  for the mutation journey. No job was renamed, and no canary was deleted (#85).
+- **Default scaffold leftovers of the example are gone or put to use.** The perf harness
+  shows the design system's `Spinner` while a run is in progress, so the default scaffold
+  consumes it; the i18n seam's two formatters are marked `@public` seam API; and the default
+  suppression census counts one `org-id-from-session-only` directive where the example added
+  a second (#85).
 
 - **The NOTE fleet 1.1.0 opened is now enforcing for installs below 1.1.0.** The eighteen
   sites above expire at 2.0.0, as their obligations rows said they would. The 2.0.0 record's
@@ -94,6 +183,26 @@ this heading if none does. -->
 
 ### Removed
 
+- **Breaking: the worked example, from the default scaffold.** A fresh `init` writes no
+  `packages/verticals/notes`, no notes or matrix screens, no notes route, Server Action or
+  read seam, no notes router, none of the four notes migrations, and none of the example's
+  register rows (its query shapes, mutation survivors, perf subject, rate-limit rows, PARITY
+  rows and the rest `template/demo-index.json` lists). The rails the spine attached to
+  `public.notes` (audit, quota, the AAL2 policy and the three-role grant) move out of the
+  spine migrations into the demo's own `20260930000100_notes_rails.sql`, timestamped after
+  every migration that defines one, so the spine is the same file in every install and the
+  demo's history leaves as a unit. These are seeded files, so the change reaches fresh
+  scaffolds only. An existing install keeps its example and its spine; `update` gives it the
+  default owned files, which are green with the example present, and two owned files that
+  moved into the demo (`maestro/flows/matrix.yaml`, `maestro/journeys/mutation.yaml`) stay
+  in place, no longer updated. The runbook's 2.0.0 section says how to remove the example
+  by hand from such an install, which `eject` refuses (#85).
+- **Breaking: the event-catalog generator's compatibility entry for `@app/notes`.** 1.1.0
+  kept it until the example left. An install whose `packages/verticals/notes/src/client.ts`
+  does not export `EVENT_CATALOG` (one created before 1.1.0 that never adopted the line) now
+  meets `contracts` red on the example's three rows until it adds the line the 1.1.0 runbook
+  section shows (#85).
+
 - **Breaking: the `i18n` gate's 1.0.x regular expressions, and the `{"site": "file:line"}`
   allowlist entry.** 1.1.0 ran them beside the syntax-tree walk for one release, behind two
   ramps due 1.2.0, and the obligations row `i18n-syntax-tree-ramp-expiry` said the release that
@@ -131,6 +240,16 @@ this heading if none does. -->
 
 ### What stays open, honestly
 
+- **An install created before 2.0.0 cannot `eject`.** Its spine migrations name
+  `public.notes`, so removing the example there takes a new migration and hand edits, which
+  the runbook lists. `eject` refuses it rather than leave a schema that cannot replay (#85).
+- **A later demo addition is not judged for the auto-plant hazard.** `check-seeded-migrations`
+  skips `template/demo/` additions: no install recorded the demo before this release, so
+  nothing could receive one. The first release that adds a demo file meets demo installs that
+  do, and that release owes the judgement (#85).
+- **`eject` leaves the database alone.** A database that applied the example's migrations
+  keeps its tables; the runbook gives the migration that drops them (#85).
+
 - **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major. The
   2.1.0 record owes either the arrival ramp's expiry or the next re-open (#86).
 - **The CLI config census is re-dated, not built.** It waits on supabase/cli#5894 (#86).
@@ -162,6 +281,22 @@ this heading if none does. -->
   records it with `module: "e2ee"`, and upgrade-lane legs A (v1.1.0), N (v1.0.4) and E (v0.3.0,
   swept) pass locally; leg A's plant-vs-withhold check needed a fix first, because a v1.1.0
   baseline seeds `tools/surfaces.json` at init and `update` never planted it (#86).
+  For the example's move, the installer cases of `tests/installer/demo-eject.test.mjs`
+  (default `init` plans no demo path, `--with-demo` plans every one, `eject` leaves a default
+  `init`'s bytes outside `.harness/`, keeps a drifted file and a fork, trims only the rows a
+  project left as shipped, and refuses an install without the demo) were red on the tree
+  before it. So were sixteen of the seventeen cases in `tests/gates/check-demo-index.test.mjs`,
+  and the new cases for `mfaRailUnused`, the `query-shapes` empty state, the `unmapped`
+  bucket, the `@app/notes` wall, the `ejectedMigrations` record and the event-catalog
+  generator. Zero-edit
+  scaffolds validate with and without `--with-demo`. Replayed locally from `selftest.yml`, the
+  `demo-eject` steps pass (Canaries 17 and 24 red for their own reasons on the live stack, and
+  validate is green after `eject` with four `migrations` NOTEs), and so do every step of the
+  `canary` and `day0-empty-states` jobs on their `--with-demo` scaffolds. On a default
+  scaffold, Canaries 3, 4, 5, 14, 22 and 28 now red at their target check. A full Stryker run
+  leaves 50 survivors on a default scaffold and 80 on a `--with-demo` one, each within its
+  committed baseline. Upgrade-lane leg A (a v1.1.0 install with its example, updated to this
+  tree) validates on 37 steps and graduates (#85).
 
 ## [1.1.0] — 2026-09-30
 

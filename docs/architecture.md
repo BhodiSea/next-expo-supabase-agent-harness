@@ -109,6 +109,7 @@ every install at once.
 | `tests/canary/injections.json` and `scripts/check-canary-coverage.mjs` | Every gate, every guard rule and every CI job has a registered proof that it can fail. A gate that cannot go red is treated as decoration. |
 | `selftest.yml` `bootstrap-linux` | A scaffold rendered with no edits passes the whole chain, against a live Supabase stack |
 | `selftest.yml` `canary` | Each registered violation, injected into a real scaffold, turns the matching gate red |
+| `selftest.yml` `demo-eject` | An `init --with-demo` scaffold passes the chain and the live database proofs, and after `eject` it equals a default scaffold byte for byte and passes the chain again |
 | `selftest.yml` `upgrade-linux` | Thirteen legs, from v0.1.3 to the previous release, each install an old version, update it to HEAD and judge the result. This is the test of `template/migrations.json`. |
 | `scripts/check-claims.mjs` | Every number in the README, CHANGELOG and shipped docs is recomputed from its source of truth |
 | `scripts/hygiene.mjs` | Nothing specific to this project leaks into `template/`, and the placeholder registry is closed in both directions |
