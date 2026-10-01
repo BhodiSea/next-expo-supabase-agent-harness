@@ -151,11 +151,19 @@ function keptBecause({ ip, recorded, current, isFork, isReleased }) {
 // INJECTED rather than imported — provenance imports cmpVersions from this file — and
 // optional: a caller without the released-sha tables keeps the sha guard alone, and an
 // unrecorded file is deleted as it was before 1.0.4.
+//
+// Returns the install paths it deleted, or would delete on a dry run (2.0.0, #86). A dry run
+// leaves such a file on disk, so update's plan loop would read it as unchanged and report
+// `skipped`, where the real run, which deleted it, plants the template copy again and reports
+// `written`: the 2.0.0 record's removal of `.claude/rules/e2ee.md` from an `e2ee` install is
+// that case. The loop reads a returned path as absent (installedBytes below), so the dry-run
+// report equals the real one.
 /**
  * @param {{ targetDir: string, files: Record<string, any>, modules: Set<string>, report: { notes: string[] },
  *           entries: any[], dryRun?: boolean,
  *           isFork?: (ip: string, recordedSha: string, current: Buffer) => boolean,
  *           isReleased?: (ip: string, current: Buffer) => boolean }} args
+ * @returns {Set<string>}
  */
 export function applyFileMigrations({
   targetDir,
@@ -167,6 +175,8 @@ export function applyFileMigrations({
   isFork = () => false,
   isReleased = () => true,
 }) {
+  /** @type {Set<string>} */
+  const removed = new Set()
   const removeOne = (ip, label) => {
     const recorded = files[ip]
     const dest = join(targetDir, ip)
@@ -181,6 +191,7 @@ export function applyFileMigrations({
     }
     if (!dryRun) rmSync(dest)
     delete files[ip]
+    removed.add(ip)
     report.notes.push(`${label}: ${ip}`)
   }
 
@@ -191,6 +202,21 @@ export function applyFileMigrations({
     }
     for (const mod of entry.promotedModules ?? []) promoteModule(mod, { files, modules, report })
   }
+  return removed
+}
+
+/**
+ * The bytes update's plan loop compares a template entry against: the installed file, or null
+ * when it is absent or when this run's migrations removed it (on a dry run, would have: see
+ * applyFileMigrations' return value). Raw bytes, never a utf8 decode, so a binary asset
+ * hashes as the manifest recorded it.
+ * @param {string} dest absolute path of the installed file
+ * @param {boolean} removedThisRun
+ * @returns {Buffer | null}
+ */
+export function installedBytes(dest, removedThisRun) {
+  if (removedThisRun || !existsSync(dest)) return null
+  return readFileSync(dest)
 }
 
 // Inject one step into the consumer's tools/harness.config.mjs — into VALIDATE_STEPS (the
