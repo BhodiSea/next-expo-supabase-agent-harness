@@ -60,7 +60,7 @@ session_crons  session_id  stop_hook_active  transcript_path
 |---|---|---|
 | `last_assistant_message` | the subagent's **full** final text (487 chars in the probe, untruncated) | The mandated `VERDICT: PASS\|BLOCK` line lands here as a **first-class field**. No transcript scraping. |
 | `agent_type` | `"general-purpose"` | Matches the roster name, so a hook can bind to exactly the reviewer set. |
-| `session_id` + `prompt_id` | both present, UUIDs | The ledger key. `prompt_id` changes per user turn, which is what makes "did this reviewer run **this turn**" answerable. |
+| `session_id` + `prompt_id` | both present, UUIDs | The ledger key through 1.1.x. `prompt_id` changes per user turn, which is what made "did this reviewer run **this turn**" answerable. Since 2.0.0 (#87) the reviewer ledger v2 keys on `session_id` and the entry's format stamp `v`: its digest pair, not the prompt, decides whether a PASS is current. `prompt_id` is still recorded in every entry and still passed to the Stop step: the 1.0.x judgement keys on it, and it dates a mis-shaped line. |
 | `agent_transcript_path` | a real per-agent `.jsonl` | A fail-closed reader has a file to fall back to. |
 | `stop_hook_active` | `false` | **Present on SubagentStop.** See Fact 4. |
 

@@ -3548,6 +3548,52 @@ The registers that gained an empty state (`tools/rls-exempt.json`'s `mfaRailUnus
 `tools/rate-limit-budget.json`'s `unmapped` bucket) are seeded and change for fresh
 scaffolds only.
 
+### `reviewer-verdicts`: the ledger key is the session and a format stamp, not the prompt
+
+Through 1.1.x every entry in `.harness/reviewer-ledger.jsonl` was keyed by its session and
+its prompt. The reviewer ledger v2 already counts a PASS by the tree it reviewed (the
+digests at its dispatch and at its verdict must equal the tree now), so from 2.0.0 the
+prompt leaves v2's key:
+
+- **Every entry carries a format stamp,** `"v": "2.0.0"`, written by
+  `.claude/hooks/subagent-verdict.mjs` from `tools/lib/reviewer-verdicts.mjs`. The step
+  reads this session's entries by session and format. An entry in another format, which
+  includes every entry a 1.1.x hook wrote, never counts as a PASS and never clears a BLOCK.
+  A BLOCK in any format still stands until the same reviewer run passes.
+- **A reviewer whose entries are all in another format** reds with a finding that starts
+  `<reviewer> has verdicts in this session only in another ledger format` and names the
+  format. It is not "did not run": the reviewer ran, on the other side of the update.
+- **The step needs only `HARNESS_SESSION_ID`.** The Stop hook still passes
+  `HARNESS_PROMPT_ID` and the hook still records `prompt_id`, because the 1.0.x judgement
+  keeps the prompt in its key. That judgement decides on a branch with no upstream, and, if
+  your `baseVersion` is below 1.1.0, until 2.1.0. Run by hand with no prompt id, it now reds
+  where it used to skip.
+- **A ledger line that lacks `agent_type` or `verdict`** fails closed until the prompt it
+  was written in ends, as before. The finding now says so: re-running the reviewer does not
+  clear it, and the next prompt does. End the turn and tell the user what it says.
+
+**What to do after the update, in this order.**
+
+1. **If `update` parked `.claude/hooks/subagent-verdict.mjs` or
+   `tools/lib/reviewer-verdicts.mjs`, merge the parked copy first** (the 1.0.2 section,
+   "Forking an owned file"). A kept fork of either writes entries without the stamp on every
+   run, so the format finding comes back after each re-run. A kept 1.1.x
+   `tools/lib/reviewer-verdicts.mjs` also lacks `readSessionEntries`, and the step says so
+   in one finding. If you kept a fork of `tools/check-reviewer-verdicts.mjs` instead, it goes
+   on judging by the 1.1.x rule through the new lib, which keeps the functions it calls.
+2. **Run the owed reviewers once.** In a session that spans the update, every verdict
+   recorded before it is in the old format. One run of each reviewer the next Stop names
+   records an entry in the new format. If a reviewer's BLOCK from before the update still
+   stands, resume that run (`SendMessage` to its `agent_id`): a fresh run is a second
+   opinion and does not clear it. A session that starts after the update has nothing to
+   re-run.
+
+Owned files re-planted when your copy still matches a released sha:
+`tools/lib/reviewer-verdicts.mjs`, `tools/check-reviewer-verdicts.mjs`,
+`.claude/hooks/subagent-verdict.mjs`, `.claude/hooks/stop-validate-gate.mjs` (a comment),
+`docs/harness/gates-catalog.md` and this runbook. Nothing here is ramped, withheld or
+seeded.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it
