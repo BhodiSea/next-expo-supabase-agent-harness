@@ -4,8 +4,10 @@
 // file that carries one loads only when a matching file is read (design/CONTROL-PLANE-FACTS.md
 // Fact 9). Until 1.1.0 `encryption.md` was always loaded while the `e2ee` module that
 // implements most of it is opt-in. It is now a stub holding what applies with the module off,
-// and the full rule is the path-scoped `e2ee.md`. These cases hold that split, and they hold
-// the shipped files that cite a rule file by path to a file that exists.
+// and the full rule is the path-scoped `e2ee.md`, which since 2.0.0 (#86) the `e2ee` module
+// ships: template/modules/e2ee stores it at the same install path, and `enable e2ee` installs
+// it. These cases hold that split, and they hold the shipped files that cite a rule file by
+// path to a file that exists. tests/installer/e2ee-rule-module.test.mjs holds the move itself.
 //
 // Read-only over the template tree, so the Windows leg runs every case. `parseFrontmatter` in
 // tools/lib/agent-roster.mjs is not reused: it rejects `- ` sequences by design, and a YAML
@@ -17,6 +19,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BASE = fileURLToPath(new URL('../../template/base', import.meta.url))
+const MODULE = fileURLToPath(new URL('../../template/modules/e2ee', import.meta.url))
 const RULES = '.claude/rules'
 const STUB = `${RULES}/encryption.md`
 const SCOPED = `${RULES}/e2ee.md`
@@ -36,6 +39,8 @@ const CITING_FILES = ['.claude/hooks/lib/guard-rules.mjs', 'tools/eslint-rules/i
 
 const readBase = (rel) => readFileSync(join(BASE, rel), 'utf8')
 const existsBase = (rel) => existsSync(join(BASE, rel))
+const readModule = (rel) => readFileSync(join(MODULE, rel), 'utf8')
+const existsModule = (rel) => existsSync(join(MODULE, rel))
 
 /** The frontmatter block between the opening and closing `---` lines, or null. */
 function frontmatter(text) {
@@ -69,17 +74,20 @@ function shippedRules() {
   return readdirSync(join(BASE, RULES)).filter((f) => f.endsWith('.md'))
 }
 
-test('(a) encryption.md stays always loaded and names the scoped rule, which exists', () => {
+test('(a) encryption.md stays always loaded and names the scoped rule, which the e2ee module ships', () => {
   const stub = readBase(STUB)
   assert.equal(pathsList(frontmatter(stub)), null, `${STUB} must carry no paths: key`)
   assert.match(stub, /always loaded/i, `${STUB} must say it is always loaded`)
   assert.ok(stub.includes(SCOPED), `${STUB} must name ${SCOPED}`)
-  assert.ok(existsBase(SCOPED), `${SCOPED} must exist`)
+  // The pointer says where the file comes from, because a base install does not have it.
+  assert.match(stub.replace(/\s+/g, ' '), /`enable e2ee` installs/, `${STUB} must say enable e2ee installs it`)
+  assert.ok(existsModule(SCOPED), `${SCOPED} must exist in template/modules/e2ee`)
+  assert.ok(!existsBase(SCOPED), `${SCOPED} must not be stored in template/base since 2.0.0`)
 })
 
 test('(b) the scoped rule is a YAML paths: list and does not call itself always loaded', () => {
-  assert.ok(existsBase(SCOPED), `${SCOPED} must exist`)
-  const text = readBase(SCOPED)
+  assert.ok(existsModule(SCOPED), `${SCOPED} must exist`)
+  const text = readModule(SCOPED)
   const globs = pathsList(frontmatter(text))
   assert.notEqual(globs, null, `${SCOPED} must carry a paths: key`)
   assert.deepEqual(globs, SCOPED_GLOBS, `${SCOPED} paths: must be the YAML list of its globs`)
@@ -139,4 +147,5 @@ test('the e2ee skill reads the scoped rule first, and the doctrine lists both fi
   const flat = section[1].replace(/\s+/g, ' ')
   assert.match(flat, /`encryption\.md` \(always loaded/)
   assert.match(flat, /`e2ee\.md` \(path-scoped, best effort/)
+  assert.match(flat, /comes with the `e2ee` module/, 'the doctrine must say the full rule comes with e2ee')
 })
