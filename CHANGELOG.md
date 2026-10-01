@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [2.0.0] — 2026-09-30
+## [2.0.0] — 2026-10-01
 
 **A major, the opt-in release: what an install carries is what it opted into, and the notes
 1.1.0 opened become verdicts.** 1.2.0 is never cut: this lineage goes from 1.1.0 to 2.0.0
