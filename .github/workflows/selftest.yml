@@ -1992,10 +1992,14 @@ jobs:
           # (fifteen gates) and NOTHING older — every 1.0.0-opened site is inert for it. The
           # validate-chain ones must red on predicted RAMP EXPIRED lines; diff-coverage, the
           # three CI-only Edge Function gates and workflow-hardening drop to their §7e proofs.
-          # Four NOTEs stand beside them: reviewer-verdicts' three 2.1.0-dated sites (a Stop
-          # step, so not asserted here) and version-sync's re-opened eol arrival, whose seeded
-          # "1.1.0" date has arrived. `graduate` refuses on the red chain. Its inverse is leg A:
-          # the same release, the same fleet, eighteen expiries here and none on v1.1.0.
+          # Two gates stay advisory: reviewer-verdicts' three 2.1.0-dated sites (a Stop step,
+          # so not asserted here), and version-sync's re-opened eol arrival, which reads clean
+          # because §5a-bis re-plays the end-of-life register before the chain is judged. The
+          # chain is also red on `lint`, which is no ramp: 2.0.0 removed the dated exemption for
+          # the seeded delete-account index.ts, and an unswept v1.0.4 install still carries the
+          # 1.0.x shell (`doctor` names the parked 1.1.0 source fix). `graduate` refuses on the
+          # red chain. Its inverse is leg A: the same release, the same fleet, eighteen
+          # expiries here and none on v1.1.0.
           # Verified against `ramp-expectations.mjs 1.0.4 2.0.0`. Until the maintainer pushes
           # the v1.0.4 tag this leg cannot resolve its baseline on GitHub, and fails closed.
           - leg: N

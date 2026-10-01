@@ -48,6 +48,7 @@ with an intact cipher.
 | `packages/platform/crypto/src/recovery.test.ts` | Code format and confusable tolerance, a committed encoding answer, escrow/recover roundtrip, moved-escrow and malformed-code refusals |
 | `packages/platform/crypto/src/device-sync.test.ts` | Export/import roundtrip, wrong-channel-key and moved-account refusals, and the same-key role-byte cross-refusal against recovery |
 | `docs/modules/e2ee/mobile-provider.patch.md` | The documented patch for a MOBILE `CryptoProvider` + `X25519Provider` + `KeystoreAdapter` — a primitive dependency is a decision made deliberately, not defaulted |
+| `.claude/rules/e2ee.md` | The full encryption rule, path-scoped to `packages/platform/crypto/**`, `apps/*/src/host/**` and `docs/modules/e2ee/**`: the envelope and AAD construction, the wrapped-key erase lever, the export stance and the audit-capture refusal, each bullet naming the check that holds it. It ships with this module since 2.0.0, so `disable e2ee` removes it; the always-loaded stub `.claude/rules/encryption.md` stays in every install and holds what applies with the module off |
 
 `@app/crypto` is a dual-barrel package and its census entry is already in
 `tools/exports-walls.json` with the reason: `.` carries providers that reach

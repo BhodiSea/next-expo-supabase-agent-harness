@@ -435,10 +435,12 @@ all compare against `HEAD` and see an empty diff.
 Enforced as hooks + lint + depcruise + gates (defense-in-depth); the grounding rules
 restate them so the model rarely trips a gate: `security-invariants.md` (always
 loaded), `encryption.md` (always loaded; the encryption invariants whose checks run
-with the opt-in `e2ee` module off), `provenance.md` (always loaded), `e2ee.md`
-(path-scoped, best effort; the full encryption rule for the module, and the checks
-each bullet names are the invariant), `mobile-server-split.md` (path-scoped;
-never rely on conditional loading for invariants).
+with the opt-in `e2ee` module off, and the stub every base file cites), `provenance.md`
+(always loaded), `e2ee.md` (path-scoped, best effort; the full encryption rule for the
+module, and the checks each bullet names are the invariant; since 2.0.0 it comes with the
+`e2ee` module, so `enable e2ee` installs `.claude/rules/e2ee.md` and an install without the
+module does not carry it), `mobile-server-split.md` (path-scoped; never rely on conditional
+loading for invariants).
 
 Doctrine notes for the citations:
 

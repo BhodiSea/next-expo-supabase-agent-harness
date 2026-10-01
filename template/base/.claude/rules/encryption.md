@@ -4,7 +4,8 @@ This rule is always loaded, and it holds only what applies while the opt-in `e2e
 module is OFF: until `npx next-expo-supabase-agent-harness enable e2ee` puts
 `@app/crypto` in `packages/platform/crypto/`, there is no encryption code for the
 full rule to govern. Every bullet names the check that holds it, and each of those
-checks runs in a base install. The full rule is `.claude/rules/e2ee.md`.
+checks runs in a base install. The full rule, `.claude/rules/e2ee.md`, ships with the
+module: `enable e2ee` installs it, and an install without the module does not have it.
 SOURCE: docs/harness/README.md (the always-loaded rules surface)
 
 - **RLS keyed on `auth.uid()` stays THE authorization boundary. Encryption sits ON
@@ -55,7 +56,7 @@ SOURCE: docs/harness/README.md (the always-loaded rules surface)
   reviewed commit, never an agent's config edit.*
 
 The full rule, with the envelope and AAD construction, the wrapped-key erase lever,
-the export stance and the audit-capture refusal, is `.claude/rules/e2ee.md`
-(path-scoped; the `authoring-e2ee-feature` skill reads it first). What the module
+the export stance and the audit-capture refusal, is `.claude/rules/e2ee.md`, which
+`enable e2ee` installs (path-scoped; the `authoring-e2ee-feature` skill reads it first). What the module
 deliberately does NOT solve, each loss with its cost, is
 `docs/modules/e2ee/README.md`.

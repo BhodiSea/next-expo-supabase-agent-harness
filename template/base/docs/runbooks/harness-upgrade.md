@@ -3428,6 +3428,33 @@ sentences that called the 1.1.0 ramps open). The seeded `tools/eol.json` and
 `tools/i18n-allow.json` change for fresh scaffolds only: the first reaches you through the
 parked fix above, and the second changes only its comment.
 
+### The full encryption rule ships with the `e2ee` module
+
+`.claude/rules/e2ee.md`, the full encryption rule, moved from the base template into the
+`e2ee` module: the same text, the same install path and the same `paths:` scoping, so it loads
+exactly as before wherever it is installed. What changes is which installs carry it. The
+always-loaded `.claude/rules/encryption.md` stays in every install, and it now says that
+`enable e2ee` installs the full rule.
+
+- **An install without `e2ee`:** `update` deletes `.claude/rules/e2ee.md` when it holds the
+  bytes a release shipped, and prunes its record. `enable e2ee` brings it back.
+- **An install with `e2ee`:** `update` deletes the old copy and plants the module's straight
+  back, recorded as the module's (`module: "e2ee"`), so `disable e2ee` removes it from now on.
+- **A kept fork.** If you edited the file, or re-recorded its sha to keep an edit, `update`
+  leaves it in place with a note ending "remove it manually".
+  - Without `e2ee`: delete it, or keep it as your own rule. Nothing re-plants or removes it.
+  - With `e2ee`: ignore the note's "remove it manually", because the module ships this rule.
+    If `update` parked a copy under `.harness/pending/.claude/rules/e2ee.md` (it does when the
+    rule changed after your version), merge it into your file. Your record keeps no module
+    attribution, so `disable e2ee` leaves the file in place: delete it yourself if you disable
+    the module.
+
+Owned files re-planted when your copy still matches a released sha: the stub,
+`docs/harness/README.md` and `tools/conformance-map.json` (five notes that named the full rule
+as if every install had it; its two generated documents do not quote notes and are
+unchanged), and, on an `e2ee` install, `docs/modules/e2ee/README.md`, which lists the rule
+among the files the module adds.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

@@ -182,7 +182,7 @@
     ],
     ".claude/rules/encryption.md": [
       {
-        "sha256": "277ed6c401fc2ac1474be40ac52a9ca562833bd31421b6d0c0dfcd1bf61c5e82"
+        "sha256": "d95d07336845398fa39d5bce7ce57b26fd2f5a771cebdcaaf0d99329281cfe4b"
       }
     ],
     ".claude/rules/mobile-server-split.md": [
@@ -715,7 +715,7 @@
     ],
     "docs/harness/README.md": [
       {
-        "sha256": "373bb8fe1873c6b7cbe4c865b34f5cd0735a5b9c29103a9aceb3d8e551d3242b",
+        "sha256": "a48d8ba957bc3732e9d873f1678c4d3b54309174b0c6d64105477872bce0ef32",
         "sites": [
           [
             20134,
@@ -802,7 +802,7 @@
     ],
     "docs/modules/e2ee/README.md": [
       {
-        "sha256": "ee8dd9c2151d5080d2a6111c6a5b7399d854208ba5f14c795040cfda8259f1cf"
+        "sha256": "0218a7549fef181d54f09bed758af852a87ef0f664348fc070b0e98976f137a7"
       }
     ],
     "docs/modules/e2ee/mobile-provider.patch.md": [
@@ -912,7 +912,7 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
-        "sha256": "3144cee65c991c2e8d4cc08d38949eb6c5cba8ead70d3cff4e908722ffe4461e",
+        "sha256": "78c4f8ea71ee278687ec1a5e0163aab3b6c56335e34b670c35a0e82b396fdc92",
         "sites": [
           [
             14115,
@@ -1526,14 +1526,14 @@
     ],
     "tools/conformance-map.json": [
       {
-        "sha256": "617eb56f9b618995cd740d1af3e2b6108bc0f4f3e43e1ddbbbf41fa728159179",
+        "sha256": "611b4f7ffed3b14c47dd51cab70fbe4914f4cc92390dad923101a2652bddb49c",
         "sites": [
           [
-            642060,
+            642473,
             "APP_SCHEME"
           ],
           [
-            701904,
+            702334,
             "SECURITY_OWNERS"
           ]
         ]

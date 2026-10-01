@@ -32,6 +32,9 @@ through 1.0.4: 1.1.0's fifteen plus the five 1.0.x vintages), one `seededSourceF
 two `rampExtensions` entries, and injects no chain step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.1.0`. The obligations register loses twelve release rows and re-targets
 two to 2.1.0 (#86).
+The full encryption rule, `.claude/rules/e2ee.md`, leaves every install without the `e2ee`
+module (see Removed): the record's `removed` entry deletes it where a release's bytes still
+stand, and an `e2ee` install gets it back as the module's own file (#86).
 
 ### Security
 
@@ -109,6 +112,22 @@ this heading if none does. -->
   the handler split. The row `edge-functions-complexity-seeded-exemption` named the discharge:
   remove the line once the fix has had a release to land. An install that has not pulled the
   split meets `lint` red on that file, and the runbook's 2.0.0 section names the pull (#86).
+- **Breaking: `.claude/rules/e2ee.md` from installs without the `e2ee` module.** The full
+  encryption rule (the envelope and AAD construction, the wrapped-key erase lever, the export
+  stance, the audit-capture refusal) is stored in `template/modules/e2ee/` now, with the same
+  bytes and install path, so `enable e2ee` installs it and an install without the module does
+  not carry it; the always-loaded stub `.claude/rules/encryption.md` stays everywhere and says
+  so. The `"2.0.0"` record's `removed` entry deletes the base copy on `update` before the plan
+  loop, sha- and provenance-guarded, and on an `e2ee` install the loop plants the module copy
+  back recorded with `module: "e2ee"`, so `disable e2ee` now removes it. A fork stays with a
+  note; the runbook's 2.0.0 section says what to do with it on each kind of install. Base files
+  cite the stub, and a factory test fails any base, stack or preset file that names a rule
+  only a module ships, outside four reviewed exemptions. Five conformance-map notes that named
+  the full rule as if every install had it are reworded, `docs/harness/README.md` and the
+  module README say where it lives, and `update --dry-run` now reports the re-planted file
+  under `written` exactly as the real run does: `applyFileMigrations` returns the paths it
+  removes, and the plan loop reads them as absent. `update()`'s cognitive complexity drops
+  from 61 to 59 with it, and the ratchet records the drop (#86).
 
 ### What stays open, honestly
 
@@ -117,6 +136,12 @@ this heading if none does. -->
 - **The CLI config census is re-dated, not built.** It waits on supabase/cli#5894 (#86).
 - **The 2.1.0 record owes three `reviewer-verdicts` expiries at once**: the reviewer ledger v2,
   the security-reviewer model check and the round budget (#86).
+- **Nothing in an install notices a base file that cites a module-only rule.** The provenance
+  gate reads `SOURCE:` payloads only in `.ts`/`.tsx` and `.sql` files, so the closure is the
+  factory's (`tests/installer/e2ee-rule-module.test.mjs`); a consumer who writes such a
+  citation into their own files is not told (#86).
+- **`upgrade-linux` installs core only**, so the `e2ee` half of the move is proven by the
+  in-process installer tests, not by a lane leg (#86).
 - **What was proven where.** With `package.json` at 2.0.0 and nothing discharged,
   `check-obligations` was red on the fourteen rows targeting 1.2.0, `check-ramp-ledger` on the
   missing `1.1.0` vintage and the missing `"2.0.0"` `rampExpiry`, `check-eol-target` on the
@@ -126,7 +151,15 @@ this heading if none does. -->
   is clean. The v1.1.0 tag is local until the maintainer pushes it, so the tag-reading checks
   on this pull request's CI compare against v1.0.3, and `check-ramp-ledger`'s vintage closure
   there reports `1.0.4` and `1.1.0` as not yet released; the local run with the tags present
-  is the one that proves this commit (#86).
+  is the one that proves this commit (#86). For the encryption rule's move, the nine cases of
+  `tests/installer/e2ee-rule-module.test.mjs` were red on the tree before it (the template
+  half, the empty closure, and every upgrade case), the dry-run case stayed red after the move
+  until `applyFileMigrations` returned its removals, and the `e2ee` round-trip and npm-pack
+  additions to `lifecycle.test.mjs` were red on the tree before the move. A zero-edit core
+  scaffold carries no `.claude/rules/e2ee.md` and validates, a `--modules e2ee` scaffold
+  records it with `module: "e2ee"`, and upgrade-lane legs A (v1.1.0), N (v1.0.4) and E (v0.3.0,
+  swept) pass locally; leg A's plant-vs-withhold check needed a fix first, because a v1.1.0
+  baseline seeds `tools/surfaces.json` at init and `update` never planted it (#86).
 
 ## [1.1.0] — 2026-09-30
 
