@@ -138,7 +138,7 @@ export const BASH_RULES = [
       'i',
     ),
     message:
-      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove.",
+      "Blocked: a recursive force-delete (any flag spelling, any shell — `rm`, `Remove-Item`, `del`, `rd`) is forbidden by the harness. Use the non-force recursive form and let the shell tell you what it cannot remove. For ignored build output and tool caches (`apps/web/.next`, `apps/mobile/.expo`, `apps/mobile/dist`, `coverage`, `.stryker-tmp`, `.eslintcache`), run `npx next-expo-supabase-agent-harness doctor --clean`, which deletes each one only after git confirms it is ignored.",
   },
   {
     id: 'shell-write-protected',

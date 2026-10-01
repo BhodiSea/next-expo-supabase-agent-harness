@@ -71,7 +71,7 @@ reason. The report never changes the exit code.
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to check. Default `.` |
-| `--clean` | Delete ignored residue that nothing else deletes: `.harness/stop-output/` (the Stop hook's full step logs) and `apps/mobile/dist/` (the build gate's export). Each removed path is printed. An entry is skipped, with a note, unless it is inside the install, not reached through a symlink, ignored by git and holds no tracked file; in a directory that is not a git repository every entry is skipped. The list is fixed. The install manifest, `.harness/pending/`, `.harness/rollback/`, `.harness/turn.lock`, the `.jsonl` ledgers and the `.ok` stamps are never on it. |
+| `--clean` | Delete ignored residue that nothing else deletes: `.harness/stop-output/` (the Stop hook's full step logs), `apps/mobile/dist/` (the build gate's export), and the ignored build output and tool caches `apps/web/.next/`, `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/` and `.eslintcache`, which the bash guard's `rm-rf` deny points here for. Each removed path is printed. An entry is skipped, with a note, unless it is inside the install, not reached through a symlink, ignored by git and holds no tracked file; in a directory that is not a git repository every entry is skipped. The list is fixed. The install manifest, `.harness/pending/`, `.harness/rollback/`, `.harness/turn.lock`, the `.jsonl` ledgers and the `.ok` stamps are never on it. |
 | `--dry-run` | With `--clean`, list what would be deleted and delete nothing. |
 
 `--clean` does not change the exit code either.

@@ -53,7 +53,9 @@ Usage:
            [--rollback]  (restore the tree recorded before the last update —
            the recovery path for an interrupted or failed sweep)
   doctor   [--dir .] [--clean [--dry-run]]  (--clean deletes ignored residue:
-           .harness/stop-output/ and apps/mobile/dist/; --dry-run only lists it)
+           .harness/stop-output/, apps/mobile/dist/, apps/web/.next/,
+           apps/mobile/.expo/, coverage/, .stryker-tmp/ and .eslintcache;
+           --dry-run only lists it)
   graduate [--dir .]  (advance baseVersion once ramped checks are clean —
            runs validate, refuses while any ramp NOTE remains)
   enable   <module>   (ci-mobile-release, ci-web-deploy, device-e2e, eas-update,

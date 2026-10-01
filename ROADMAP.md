@@ -98,8 +98,10 @@ existing install. Where one changes what `update` does, its section says so.
   of this item stays in 1.1.0.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
   issue #47)
-- **Two guard carve-outs.** Editing a migration that git has never tracked,
-  and a sanctioned delete for ignored build output.
+- **Two guard carve-outs.** The write guard lets an Edit or Write reach a
+  migration git reports as untracked and the install manifest does not record,
+  and `doctor --clean` deletes ignored build output, which the bash guard's
+  force-delete deny now names.
   ([N16](design/FIELD-UPGRADES-2026-09.md#n16-two-guard-carve-outs),
   issue #45)
 - **An owned path with no manifest record.** `update` parks the incoming copy

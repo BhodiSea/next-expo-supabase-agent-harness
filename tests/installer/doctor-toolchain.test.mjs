@@ -1,12 +1,15 @@
 // `doctor` reports the toolchain it resolved, and `doctor --clean` deletes a fixed list of
-// ignored residue (1.0.4, #43).
+// ignored residue (1.0.4, #43; the build output and tool caches joined it in #45).
 //
 // Through 1.0.3 doctor checked only Node's major version, so nothing said which `supabase`,
 // `pnpm` or `psql` a local run would reach, or which pin each is held to. And nothing deleted
 // `.harness/stop-output/<step>.log` (the Stop hook's spill files) or `apps/mobile/dist/` (the
-// build gate's export). The report is `info` only and never moves the exit code; `--clean`
-// deletes an entry only when it is inside the target, not reached through a symlink, ignored
-// by git at run time and holds no tracked file.
+// build gate's export). #45 adds the ignored build output and tool caches the bash guard's
+// `rm-rf` deny now points at: `apps/web/.next/` (a partial one reds `build --web`),
+// `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/` and the `.eslintcache` file. The report
+// is `info` only and never moves the exit code; `--clean` deletes an entry only when it is
+// inside the target, not reached through a symlink, ignored by git at run time and holds no
+// tracked file.
 //
 // The probe is injected through doctor's second parameter, so a failing, a timing-out and a
 // throwing probe are all driven here without the machine's own tools deciding the result.
@@ -77,20 +80,46 @@ function plant(dir, rel, body = 'residue\n') {
   return abs
 }
 
-/** A git repository whose .gitignore is the template's, with both residue entries planted. */
+/** The file planted under each list entry by residueRepo (the one file entry is itself). */
+const RESIDUE = {
+  '.harness/stop-output/': '.harness/stop-output/validate.log',
+  'apps/mobile/dist/': 'apps/mobile/dist/bundle.js',
+  'apps/web/.next/': 'apps/web/.next/server/app/page.js',
+  'apps/mobile/.expo/': 'apps/mobile/.expo/settings.json',
+  'coverage/': 'coverage/lcov.info',
+  '.stryker-tmp/': '.stryker-tmp/sandbox-1/src/x.ts',
+  '.eslintcache': '.eslintcache',
+}
+
+/** A git repository whose .gitignore is the template's, with every residue entry planted. */
 function residueRepo() {
   const dir = tempDir('nesah-clean-')
   git(dir, ['init', '-q'])
   copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
-  plant(dir, '.harness/stop-output/validate.log')
-  plant(dir, 'apps/mobile/dist/bundle.js')
+  for (const rel of Object.values(RESIDUE)) plant(dir, rel)
   return dir
 }
 
 // ── the clean list ─────────────────────────────────────────────────────────────────────────
 
-test('the clean list is the two entries #43 names, and each is ignored by template/base/gitignore', () => {
-  assert.deepEqual([...CLEAN_LIST], ['.harness/stop-output/', 'apps/mobile/dist/'])
+test('the clean list is the two entries #43 names and the five #45 adds, and each is ignored by template/base/gitignore', () => {
+  assert.deepEqual(
+    [...CLEAN_LIST],
+    [
+      '.harness/stop-output/',
+      'apps/mobile/dist/',
+      'apps/web/.next/',
+      'apps/mobile/.expo/',
+      'coverage/',
+      '.stryker-tmp/',
+      '.eslintcache',
+    ],
+  )
+  // reports/, artifacts/ and the stamps are ignored too, and stay off the list: they hold
+  // evidence a human reads, and `graduate` clears the stamps.
+  for (const entry of CLEAN_LIST) {
+    assert.ok(!/^(?:reports|artifacts)\//.test(entry) && !entry.endsWith('.ok'), entry)
+  }
   const dir = tempDir('nesah-clean-ignore-')
   git(dir, ['init', '-q'])
   copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
@@ -132,33 +161,64 @@ test('without --clean nothing is removed and nothing is printed', () => {
   assert.ok(existsSync(join(dir, 'apps/mobile/dist/bundle.js')))
 })
 
-test('--clean removes both entries and names each one', () => {
+test('--clean removes every entry and names each one', () => {
   const dir = residueRepo()
   const lines = cleanResidue(dir, { clean: true })
-  assert.deepEqual(lines, ['clean: removed .harness/stop-output/', 'clean: removed apps/mobile/dist/'])
-  assert.ok(!existsSync(join(dir, '.harness/stop-output')))
-  assert.ok(!existsSync(join(dir, 'apps/mobile/dist')))
+  assert.deepEqual(
+    lines,
+    CLEAN_LIST.map((entry) => `clean: removed ${entry}`),
+  )
+  for (const entry of CLEAN_LIST) assert.ok(!existsSync(join(dir, entry)), entry)
   assert.ok(existsSync(join(dir, 'apps/mobile')), 'only the listed directory goes')
+  assert.ok(existsSync(join(dir, 'apps/web')), 'only the listed directory goes')
 })
 
-test('--clean --dry-run lists both entries and removes nothing', () => {
+test('--clean --dry-run lists every entry and removes nothing', () => {
   const dir = residueRepo()
   const lines = cleanResidue(dir, { clean: true, dryRun: true })
-  assert.deepEqual(lines, [
-    'clean --dry-run: would remove .harness/stop-output/',
-    'clean --dry-run: would remove apps/mobile/dist/',
-  ])
-  assert.ok(existsSync(join(dir, '.harness/stop-output/validate.log')))
-  assert.ok(existsSync(join(dir, 'apps/mobile/dist/bundle.js')))
+  assert.deepEqual(
+    lines,
+    CLEAN_LIST.map((entry) => `clean --dry-run: would remove ${entry}`),
+  )
+  for (const rel of Object.values(RESIDUE)) assert.ok(existsSync(join(dir, rel)), rel)
 })
 
 test('an absent entry is reported as nothing to remove', () => {
   const dir = residueRepo()
   cleanResidue(dir, { clean: true })
-  assert.deepEqual(cleanResidue(dir, { clean: true }), [
-    'clean: nothing at .harness/stop-output/',
-    'clean: nothing at apps/mobile/dist/',
-  ])
+  assert.deepEqual(
+    cleanResidue(dir, { clean: true }),
+    CLEAN_LIST.map((entry) => `clean: nothing at ${entry}`),
+  )
+})
+
+test('an ignored apps/web/.next is removed, and so is the ignored .eslintcache file', () => {
+  const dir = tempDir('nesah-clean-next-')
+  git(dir, ['init', '-q'])
+  copyFileSync(TEMPLATE_GITIGNORE, join(dir, '.gitignore'))
+  // A partial build: what a failed `next build` leaves, and what `build --web` reds on.
+  plant(dir, 'apps/web/.next/trace', 'partial\n')
+  plant(dir, 'apps/web/app/page.tsx', 'export default function Page() { return null }\n')
+  plant(dir, '.eslintcache', '[]\n')
+  // Through the list, the way `doctor --clean` runs: the entries are CLEAN_LIST's, not the test's.
+  const lines = cleanResidue(dir, { clean: true })
+  assert.ok(lines.includes('clean: removed apps/web/.next/'), lines.join('\n'))
+  assert.ok(lines.includes('clean: removed .eslintcache'), lines.join('\n'))
+  assert.ok(!existsSync(join(dir, 'apps/web/.next')))
+  assert.ok(!existsSync(join(dir, '.eslintcache')))
+  assert.ok(existsSync(join(dir, 'apps/web/app/page.tsx')), 'the app source beside it stays')
+})
+
+test('a tracked apps/web/.next is refused: a force-added build file is never deleted', () => {
+  const dir = residueRepo()
+  git(dir, ['add', '-f', RESIDUE['apps/web/.next/']])
+  git(dir, ['commit', '-qm', 'force-add a next build file'])
+  const lines = cleanResidue(dir, { clean: true })
+  const line = lines[CLEAN_LIST.indexOf('apps/web/.next/')]
+  assert.match(line, /^clean: skipped apps\/web\/\.next\/ — .*tracked/)
+  assert.ok(existsSync(join(dir, RESIDUE['apps/web/.next/'])))
+  // The refusal is per entry: every other ignored entry still goes.
+  assert.ok(!existsSync(join(dir, 'coverage')))
 })
 
 test('skip: the target is not a git repository, so nothing proves an entry is ignored', () => {

@@ -132,6 +132,24 @@ this heading if none does. -->
   owned files these two fixes touch: `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
   `tools/check-types-drift.mjs`, `tools/lib/stamp-inputs.mjs`, `docs/harness/README.md`,
   `docs/harness/gates-catalog.md` and the upgrade runbook (#43).
+- **An untracked migration draft can be edited.** The write guard denied an Edit or Write
+  to every `supabase/migrations/*.sql` on disk, with no git call. So the draft that
+  `supabase migration new` or `supabase db diff -f` leaves, which the authoring skill and the
+  `migration-rls-author` agent then tell the agent to write, was denied as if a database had
+  already run it. `existsSync` stays the trigger, so a new file costs no git call. An
+  existing migration is now writable only when every spelling of it (its name, and where a
+  symlink lands) passes three proofs: git reports exactly `?? <path>` for it and the file
+  has one hard link; `.harness/manifest.json` parses and records no such file, because a
+  file `init` planted is the harness's history; and `CLAUDE_PROJECT_DIR` is set while no
+  `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` or `GIT_COMMON_DIR` is. A tracked, staged,
+  ignored, hard-linked or `git rm --cached` migration is still denied, and so is every case
+  where git fails or times out. The deny keeps its opening and its `supabase migration new` advice, and now names the
+  path and the proof that failed. `HARNESS_ALLOW_SELF_EDIT=1` still does not open the rule,
+  the content rules still judge what the draft receives, the bash guard's rules on
+  `supabase/migrations/` do not change, and the `migrations` gate and CI's `append-only` job
+  judge committed history as before. `update` re-plants
+  `.claude/hooks/pretool-write-guard.mjs`, `docs/harness/README.md`, whose write-guard
+  section now states the three proofs and the residual, and the upgrade runbook (#45).
 
 ### Changed
 
@@ -182,6 +200,17 @@ this heading if none does. -->
   ignored by git at run time. The manifest, `pending/`, `rollback/`, `turn.lock`, the
   `.jsonl` ledgers and the `.ok` stamps are never on the list. Neither the report nor
   `--clean` changes doctor's exit code (#43).
+- **`doctor --clean` also deletes ignored build output, and the `rm-rf` deny names it.** The
+  list gains `apps/web/.next/`, `apps/mobile/.expo/`, `coverage/`, `.stryker-tmp/` and the
+  `.eslintcache` file, each deleted under the same checks as the first two entries: inside
+  the install, not reached through a symlink, ignored by git at run time and holding no
+  tracked file. A partial `.next` left by a failed build reds `build --web`, and the bash
+  guard denied a recursive force-delete of `apps/web/.next` on its flags alone, prescribing
+  the non-force form. That rule's regex, its canaries and the settings deny list do not move.
+  Its deny gains one sentence naming `doctor --clean`, and its first sentence, which
+  `docs/security/threat-model.md` is generated from, is unchanged, so that document does not
+  change. `reports/`, `artifacts/` and the stamps stay off the list. `update` re-plants
+  `.claude/hooks/lib/guard-rules.mjs`; the longer list comes with this release's CLI (#45).
 
 ### What stays open, honestly
 
@@ -217,6 +246,12 @@ this heading if none does. -->
   branch fetched. `types-drift` still skips on its own with no stack up, as it does in
   CI's `static` job, and records nothing. The Stop chain has no parity run at all
   (`docs/harness/README.md`, skip-local / fail-closed-CI asymmetry) (#44).
+- **A migration applied by hand and never committed still reads as a draft.** Untracked
+  means absent from the index and `HEAD`, not from all history, so the write guard lets such
+  a file be edited; the `migrations` gate and CI's `append-only` job judge committed history
+  only. An install whose root sits below its repository's root still gets the deny for every
+  existing migration, as through 1.0.3: git reports the path with that prefix, which is not
+  exactly `?? <path>` (#45).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -270,6 +305,22 @@ this heading if none does. -->
   flag were green on both sides; each of the partial legs was red on its missing record
   before its call was added, and a gate run over a `tools/lib/gate.mjs` without the new
   export failed to load until the gates reached it through a namespace import (#44).
+  `tests/hooks/write-guard-migrations.test.mjs` runs the write guard in a real git
+  repository whose committed baseline holds a manifest that parses. Every
+  case in it was red at v1.0.3 and on this release's base and is green after: the untracked
+  draft takes an Edit and a Write, `USING (true)` written to it is still denied by
+  `policy-using-true`, and every other case, with and without `HARNESS_ALLOW_SELF_EDIT=1`, is
+  denied on exactly the one proof it fails. The hard-link case was allowed by the first
+  version of the change and is denied since the link count joined the untracked proof. The existing append-only test passed unchanged,
+  and `check-canary-coverage` stayed green on the unchanged `denyToolCallSites` pin. The
+  clean-list pin, the tracked-`.next` refusal and the `rm-rf` message test were red before
+  the list and the message moved, and `gen-conformance-docs.mjs --check` still reported
+  `threat-model.md` in sync. In a core scaffold `init` rendered from this tree and committed,
+  the issue's probe printed no decision for an untracked draft and, once it was staged, the
+  append-only deny naming the untracked proof; a migration `init` planted was denied on the
+  manifest proof, under `HARNESS_ALLOW_SELF_EDIT=1` too; and `doctor --clean` removed a
+  planted `apps/web/.next/`, `coverage/` and `.eslintcache` after `--dry-run` listed them
+  (#45).
 
 ## [1.0.3] — 2026-09-23
 

@@ -10,7 +10,8 @@
 // this hook keeps the I/O, path-normalization, and path-scoped decision plumbing. Every
 // rule id there has a behavioral canary in tests/hooks/hook-contract.test.mjs.
 // SOURCE: docs/harness/README.md (pretool-write-guard)
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { denyTool, pass, readHookInput } from './lib/hookio.mjs'
 
@@ -154,11 +155,106 @@ if (protectedRow !== undefined) {
 
 // Migrations are APPEND-ONLY: editing an already-committed migration file rewrites
 // history that may already be applied to a database. New migration files are fine.
-// SOURCE: docs/harness/README.md (append-only migrations)
-if (rels.some((r) => /^supabase\/migrations\/[^/]+\.sql$/.test(r)) && existsSync(path)) {
+//
+// A DRAFT is not history (1.0.4). `supabase migration new` and `supabase db diff -f` leave the
+// file on disk and the shipped authoring path then writes to it, so a migration that exists
+// may be edited when every spelling of it that names a migration is PROVEN to be an untracked
+// draft — never assumed (see readFileSafe above). Three proofs, each of which denies on
+// anything unexpected: `environment` (CLAUDE_PROJECT_DIR is set, and no variable can point
+// git at another repository or index), `manifest` (.harness/manifest.json parses and records
+// no such file: a file `init` planted is the harness's history) and `untracked` (git reports
+// exactly one entry for it, `?? <path>`, and the file has one hard link: git judges a name,
+// so a second name for a committed migration's bytes reads `??` too). A new file costs no
+// git call: existsSync stays the trigger. HARNESS_ALLOW_SELF_EDIT does not open this rule.
+// Residual: "untracked" means absent from the index and HEAD, not from all history, so a
+// migration applied to a shared database by hand and never committed still reads as a draft.
+// SOURCE: docs/harness/README.md (pretool-write-guard; append-only migrations)
+const MIGRATION = /^supabase\/migrations\/[^/]+\.sql$/
+const GIT_REDIRECTS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']
+
+/** @returns {string | null} why the environment proof fails, or null when it holds */
+function environmentFailure() {
+  if (!process.env.CLAUDE_PROJECT_DIR) return 'CLAUDE_PROJECT_DIR is unset, so nothing says which repository to ask'
+  const set = GIT_REDIRECTS.find((k) => process.env[k] !== undefined)
+  return set ? `${set} is set in the hook's environment, so git could answer for another repository or index` : null
+}
+
+/** @returns {{ files: Record<string, unknown> } | string} the manifest, or why it is unusable */
+function readManifest() {
+  const file = `${process.env.CLAUDE_PROJECT_DIR}/.harness/manifest.json`
+  if (!existsSync(file)) return '.harness/manifest.json is missing, so nothing says which files init planted'
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    return '.harness/manifest.json does not parse'
+  }
+  const files = manifest?.files
+  if (files === null || typeof files !== 'object' || Array.isArray(files)) return '.harness/manifest.json has no files object'
+  return { files }
+}
+
+/** @param {string} spelling @returns {string | null} why the untracked proof fails, or null */
+function untrackedFailure(spelling) {
+  let out
+  try {
+    // An argument array and no shell, like tools/lib/git-diff.mjs, plus a cwd and a timeout:
+    // at most two calls (one per spelling) inside the hook's 10 s budget.
+    out = execFileSync(
+      'git',
+      ['--no-optional-locks', '--literal-pathspecs', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', spelling],
+      { cwd: process.env.CLAUDE_PROJECT_DIR, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 3000, windowsHide: true },
+    )
+  } catch (err) {
+    const said = `${err?.stderr ?? ''}`.trim().split('\n')[0] || err?.code || err?.message || 'unknown error'
+    return `git status failed (${said})`
+  }
+  const entries = out.split('\0').filter((e) => e !== '')
+  if (entries.length === 0) return 'git status reports nothing for it, so git tracks it unchanged or ignores it'
+  if (entries.length === 1 && entries[0] === `?? ${spelling}`) return null
+  return `git status reports ${entries.map((e) => JSON.stringify(e)).join(', ')}, not exactly "?? ${spelling}"`
+}
+
+/** @returns {string | null} why the file's link count fails the untracked proof, or null */
+function hardLinkFailure() {
+  let links
+  try {
+    links = statSync(path).nlink
+  } catch (err) {
+    return `its link count could not be read (${err?.code ?? 'unknown error'})`
+  }
+  return links === 1 ? null : `it has ${links} hard links, so its bytes may be a tracked file's, which git status cannot see`
+}
+
+/**
+ * The first proof that fails for these spellings, or null when every spelling is a draft.
+ * @param {string[]} spellings the entries of `rels` that name a migration
+ * @returns {{ spelling: string, proof: string, why: string } | null}
+ */
+function draftProofFailure(spellings) {
+  const env = environmentFailure()
+  if (env) return { spelling: spellings[0], proof: 'environment', why: env }
+  const manifest = readManifest()
+  for (const spelling of spellings) {
+    if (typeof manifest === 'string') return { spelling, proof: 'manifest', why: manifest }
+    if (Object.hasOwn(manifest.files, spelling)) {
+      return { spelling, proof: 'manifest', why: '.harness/manifest.json records it, so init planted it and it is history' }
+    }
+  }
+  for (const spelling of spellings) {
+    const why = untrackedFailure(spelling)
+    if (why) return { spelling, proof: 'untracked', why }
+  }
+  const links = hardLinkFailure()
+  return links ? { spelling: spellings[0], proof: 'untracked', why: links } : null
+}
+
+const migrationRels = rels.filter((r) => MIGRATION.test(r))
+const draftFailure = migrationRels.length > 0 && existsSync(path) ? draftProofFailure(migrationRels) : null
+if (draftFailure !== null) {
   denyTool(
     'PreToolUse',
-    'migrations are append-only: never edit an existing migration — add a new one (supabase migration new) that transforms the schema forward.',
+    `migrations are append-only: ${draftFailure.spelling} is not a proven untracked draft — the ${draftFailure.proof} proof failed: ${draftFailure.why}. Never edit a migration git tracks: add a new one (supabase migration new) that transforms the schema forward. Only a migration git reports as untracked (??) and .harness/manifest.json does not record may be edited. SOURCE: docs/harness/README.md (pretool-write-guard)`,
     telemetry('migrations-append-only'),
   )
 }

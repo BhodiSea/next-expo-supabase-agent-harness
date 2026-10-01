@@ -184,8 +184,24 @@ naming all three; a project may add a tool, never drop one.
 
 The only reliable place to stop forbidden code being **written**. Three duties:
 (1) tamper protection — denies edits to the PROTECTED list without
-`HARNESS_ALLOW_SELF_EDIT=1`; (2) append-only migrations — editing an existing
-`supabase/migrations/*.sql` is denied outright; (3) content checks on the written
+`HARNESS_ALLOW_SELF_EDIT=1`; (2) append-only migrations — an Edit or Write to a
+`supabase/migrations/*.sql` that already exists is denied unless it is proven to be an
+untracked draft (1.0.4). Three proofs must hold, for the name the tool used and for where
+the bytes land: git reports exactly one entry for it, `?? <path>` (`git status
+--porcelain`, run with no shell from `CLAUDE_PROJECT_DIR`, with a timeout), and the file
+has one hard link, since git judges a name and a second name for a committed migration's
+bytes reads `??` too; `.harness/manifest.json` parses and records no file at that path,
+because a file `init` planted is the harness's history; and nothing is unusual, meaning
+`CLAUDE_PROJECT_DIR` is set and none of `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` or
+`GIT_COMMON_DIR` is. A tracked, staged, ignored, hard-linked or `git rm --cached`
+migration fails the first proof, any git error or timeout denies, the deny names the proof
+that failed, and `HARNESS_ALLOW_SELF_EDIT=1` does not open this rule. So the draft `supabase migration new`
+or `supabase db diff -f` leaves can be written, and the content checks in (3) still judge
+what it receives. The residual: untracked means absent from the index and `HEAD`, not from
+all history, so a migration someone applied to a shared database by hand without
+committing it still reads as a draft. Committed history stays guarded by the `migrations`
+gate and the CI `append-only` job, which judge it exactly as before, and the bash guard's
+rules on `supabase/migrations/` do not change; (3) content checks on the written
 text: security-surface weakenings in `app.config.ts`/`eas.json` (cleartext/ATS
 exceptions, identity or runtimeVersion drift, secret-shaped `extra` keys),
 EXPO_PUBLIC_-prefixed secret-shaped names, session-scoped GUCs, `WITH RECURSIVE`
