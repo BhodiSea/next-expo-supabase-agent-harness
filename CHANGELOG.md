@@ -39,9 +39,9 @@ stand, and an `e2ee` install gets it back as the module's own file (#86).
 Server Action and migrations, and the matrix screen move to their own template tree, which
 `init --with-demo` overlays and the new `eject` takes back out. An existing install keeps its
 example: it is seeded, and `update` neither rewrites nor deletes it (#85).
-`reviewer-verdicts` keys the reviewer ledger on the session and a format stamp, not the
-prompt: the step needs only the session id, and a reviewer whose verdicts in the current
-session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
+**Breaking: `reviewer-verdicts` keys the reviewer ledger on the session and a format stamp,
+not the prompt.** The step needs only the session id, and a reviewer whose verdicts in the
+current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
 
 ### Security
 
