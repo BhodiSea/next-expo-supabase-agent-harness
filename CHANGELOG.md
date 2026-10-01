@@ -309,6 +309,11 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
 - **The dispatch records carry no format stamp.** `.harness/reviewer-dispatch.jsonl` is keyed
   by session and `agent_id`, and its one field means what it meant at 1.1.0; a change to it
   would need a stamp of its own (#87).
+- **The i18n catalog pair's accepted clone is keyed on its extent.** `duplication`
+  normalizes every string, so the mobile and web catalogs match over the type preamble plus
+  their opening rows, and the accepted fingerprint changes whenever either catalog's first rows
+  change shape. A project that edits them meets the clone again under a new fingerprint and
+  re-accepts it. The gate is unchanged here: a cut is no place to redesign a detector (#37).
 - **The work plan's status record is dated.** It names pull requests that are open on
   2026-10-01 and says no release is tagged. Once the maintainer merges the stack and pushes
   the tags it describes the past, and it is re-dated or retired then. Its test holds the
@@ -365,6 +370,29 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   only at position 1, in `CHANGELOG.md`; with the stack's side taken there every later merge
   was clean, the final tree equalled this position's, and both local release tags were in its
   history (#37).
+  At the cut, CI on the release commit found five reds that the Local development list
+  cannot see, all from the default scaffold #85 introduced and the lanes around it. Each was
+  reproduced here before its fix. `actionlint` reported two shellcheck findings in
+  `selftest.yml` (Canary 14's target check and demo-eject's grep). They were reproduced with
+  shellcheck 0.10 and rewritten without a directive. `demo-eject`'s byte comparison differed on
+  every file that carries the project owner, because `init` reads the owner from the enclosing
+  repository's origin and the comparison scaffold sat outside the checkout. It now sits
+  inside, and a replay with the factory worktree as `GITHUB_WORKSPACE` ends on "the ejected
+  tree equals a default init". `bootstrap-linux`'s Stop chain reddened on `duplication`: the
+  default catalogs match over a new span. The shipped allow list gains its fingerprint, and a
+  new case in `tests/gates/check-duplication.test.mjs` renders a default and a `--with-demo`
+  init and runs the gate over each; it was red on the default before the entry.
+  `integration`'s live proof read no `profiles` row, because nothing creates one at signup. It
+  now writes the caller's own row first, and a replay of the lane on a default scaffold against
+  a local stack went from one failing case to all three passing, with Canary C01 still red on
+  "authentication required". Upgrade leg E (v0.3.0, swept) failed `types` because the sweep
+  adopted only the demo's part of `apps/web/lib/i18n/`. It also failed on three things a
+  pre-2.0.0 install carrying the example needs: the runbook's `EVENT_CATALOG` line, and the
+  remedies for the two registers `update` plants as 2.0.0's default copies. The sweep now
+  adopts a directory as the union of the template's roots and runs those three steps, each
+  pinned in `tests/gates/upgrade-sweep.test.mjs`. Leg E replayed with the local tags ends on
+  "graduate advancing baseVersion 0.3.0 -> 2.0.0", and leg N (v1.0.4) on its expected
+  expiries (#37).
 
 ## [1.1.0] — 2026-09-30
 

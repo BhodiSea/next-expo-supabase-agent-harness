@@ -960,6 +960,15 @@
         ]
       },
       {
+        "sha256": "50a56c844ad78cb3f77d24386e83fe30e95614e469f83a2ce4de7ad4ffea3e01",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "78c4f8ea71ee278687ec1a5e0163aab3b6c56335e34b670c35a0e82b396fdc92",
         "sites": [
           [
@@ -1984,6 +1993,9 @@
       },
       {
         "sha256": "0e69fabbc65b40471b46094207f4559ec6f48b503f19a712d4973a17c11a7e39"
+      },
+      {
+        "sha256": "932a7a180765e4be28b4f62be734e7c9564fdf78e2db8722430cfde39482243b"
       }
     ],
     "tools/lib/png.mjs": [
@@ -2275,6 +2287,9 @@
     "tools/duplication-allow.json": [
       {
         "sha256": "3430d3d44e6148cf21adced4acc39c614904b7abc1a5b26b2f662faa0fda5cf9"
+      },
+      {
+        "sha256": "58bc5017309a5aa31856b4cc1623bda2515a3a87940bdfdb6a1f9ed3f6bb3ff9"
       }
     ],
     "tools/eol.json": [
