@@ -150,7 +150,9 @@ read the upgrade runbook's 2.0.0 section before you commit their deletion.
 After `eject` on an untouched demo install, the tree outside `.harness/` is
 byte for byte the tree a default `init` with the same answers writes. Run
 `pnpm install` next, because the lockfile still names the demo's workspace
-packages.
+packages. Then commit, and only then run `pnpm validate`: `eject` rewrites
+registers that `gate-integrity` holds to a commit, so a validate before the
+commit fails on each of them.
 
 `eject` exits 1 on an install without the demo: one made without
 `--with-demo`, or one made before 2.0.0, whose example is written into the spine

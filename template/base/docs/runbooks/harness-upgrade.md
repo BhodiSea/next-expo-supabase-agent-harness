@@ -3489,10 +3489,13 @@ three rows. `tools/generated/event-catalog.json` is seeded from 2.0.0 (and write
 node <harness checkout>/installer/cli.mjs eject --dir . --dry-run   # what it would remove
 node <harness checkout>/installer/cli.mjs eject --dir .
 pnpm install
+git add -A && git commit -m "chore: eject the worked example"
 pnpm validate
 ```
 
-then commit. It deletes each of the example's files that still holds the bytes it was
+Commit before you validate: `eject` rewrites registers that `gate-integrity` holds to a
+commit, so a `pnpm validate` before the commit fails on each of them. In the pull request,
+`migrations` judges the deletions against its base. It deletes each of the example's files that still holds the bytes it was
 installed with, gives each shared file it replaced the default install's bytes back, and
 deletes the register rows `template/demo-index.json` lists where they still equal the rows
 the example shipped. A file you changed is kept and reported; a shared file you changed keeps

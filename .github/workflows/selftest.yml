@@ -1757,7 +1757,15 @@ jobs:
           HARNESS_REQUIRE_TOOLCHAINS: '1'
         run: |
           set -o pipefail
-          env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
+          # Commit first, as eject's own next steps say: eject rewrites registers that
+          # gate-integrity holds to a commit, so a validate before the commit reds on each of
+          # them. The deletions are then judged the way a pull request judges them, against a
+          # base: the scaffold baseline, under a remote-tracking name because the
+          # diff-based gates read origin/$GITHUB_BASE_REF.
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'chore: eject the worked example'
+          git update-ref refs/remotes/origin/demo-baseline "$(git rev-parse HEAD~1)"
+          GITHUB_BASE_REF=demo-baseline node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
           notes="$(grep -c "^migrations: NOTE — supabase/migrations/.*: deleted by \`eject\`" "$RUNNER_TEMP/eject-validate.log" || true)"
           if [ "$notes" = 0 ]; then
             echo '::error::validate passed after eject, but migrations named no ejected migration: the deletions were not judged against the manifest record'
