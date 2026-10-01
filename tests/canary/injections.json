@@ -604,8 +604,9 @@
     ],
     "changes": [
       {
-        "kind": "steps",
-        "note": "a paths-filter job: it computes which downstream lanes run and asserts nothing itself. Its failure mode (mis-filtering) is covered by the gated lanes' own vars/paths conditions, not by an injection."
+        "kind": "fixture",
+        "ref": "tests/gates/surface-deferral.test.mjs",
+        "note": "1.1.0 (#56). Through 1.0.4 this was a paths-filter job that asserted nothing itself. It now also runs tools/ci/surface-deferral.mjs --mode=pr, whose two outputs decide whether mobile-e2e and perf-lane skip a pull request, so it has a failure mode of its own: a deferral that stays live over a surface somebody has started to build. The fixture runs the step's real run: line, read from the shipped workflow, under bash -eo pipefail with $GITHUB_OUTPUT set: a live row over the installer's bytes writes mobile-deferred=true, one byte appended to apps/mobile/app.config.ts writes false, and a malformed register fails the step after writing false. Around it the CLI is spawned over throwaway repositories for every void cause (an edited byte, an added file, a deleted recorded file, an absent manifest, a failed listing, each named on stderr), the retrofit case (zero files compared, live), a lapsed date (not deferred, exit 0), each malformed shape and a corrupt manifest (exit 1, stdout still the two false lines), a zero-edit init scaffold (live over every planted mobile file), and a forked lib/gate.mjs without the readManifest export (it loads, and a row is void). The paths-filter half is still vendor code; tests/gates/workflow-lanes.test.mjs holds the mobile filter's package set, and that only the pull_request arm of mobile-e2e and perf-lane reads the deferral."
       }
     ],
     "native": [
@@ -761,6 +762,11 @@
         "kind": "fixture",
         "ref": "tests/gates/framework-floor.test.mjs",
         "note": "0.5.0. Unlike its two neighbours in this workflow, this lane is NOT a vendor call — the harness owns every line of it, so the proof is executable rather than structural: the fixture backdates every reviewedUntil in a copy of the shipped floor, spawns tools/check-framework-floor.mjs, and asserts exit 1 naming the lapsed date; then it runs the SAME script against the SHIPPED floor and asserts exit 0, so the red is the backdating and not a broken script. The clock is a `--today=` parameter for exactly this reason — a red-proof that has to wait for a calendar is a red-proof nobody runs. 1.0.0 adds a fourth rider: the security.txt Expires bound — the fixture spawns the script with --security-txt= at an expired bound (red naming EXPIRED), a bound past the 366-day recommendation (red), a live bound (green, named in the OK line), and an absent file (NOTE, never red — seedOnInitOnly means an old install has no bound to have let lapse). And a fifth (1.0.0): tools/support-register.json reviewedUntil lapse — the fixture spawns with --support-register= at a lapsed row and asserts the red names the subject and the one-commit re-review rule."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/surface-deferral.test.mjs",
+        "note": "1.1.0 (#56): the lane's second step, `node tools/ci/surface-deferral.mjs --mode=review`, which runs under !cancelled() so a red floor step cannot hide it. The fixture spawns it with --today after a row's deferredUntil and asserts exit 1 naming the row and its date, then with --today on that date and asserts exit 0 and an OK line, so the red is the calendar and not a broken script. A void row (a file under apps/mobile/ edited since the installer recorded it) exits 1 naming the file, each malformed shape exits 1, and an absent register is a NOTE, never a red."
       }
     ],
     "backup-evidence": [

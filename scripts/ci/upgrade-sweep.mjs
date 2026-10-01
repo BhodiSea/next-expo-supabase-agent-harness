@@ -326,14 +326,18 @@ const SWEEPS = {
   // contract, which is why the record withholds it. Empty, and written down, because
   // computeSweepSet asks every withholding version for a reviewed posture.
   '1.0.4': {},
-  // 1.1.0 withholds no path. Its one seededSourceFixes set is the uuid re-date on
-  // tools/eol.json (the harness moved its own removalTarget from 1.1.0 to 1.2.0), and the
-  // DERIVED pass already adopts that path from HEAD, which is the whole remedy: the copied
-  // register carries the re-affirmed row, so the re-opened version-sync arrival ramp has
-  // nothing to NOTE. The seven 1.0.0-opened sites that expire here need no step of their
-  // own: '1.0.0' above is their sweep, and every leg that meets them crosses 1.0.0 too.
-  // Empty, and written down, because computeSweepSet asks every version that parks a
-  // seeded-source fix for a reviewed posture.
+  // 1.1.0 withholds ONE path, tools/surfaces.json (the surface deferral register, #56),
+  // and a swept leg adopts none of it: tools/ci/surface-deferral.mjs reads an absent
+  // register as an empty one, which defers nothing, so there is nothing for the leg to be
+  // green WITH that it is not already green without, and adopting the skeleton would plant
+  // a reviewed-deferral file nobody reviewed. Its one seededSourceFixes set is the uuid
+  // re-date on tools/eol.json (the harness moved its own removalTarget from 1.1.0 to
+  // 1.2.0), and the DERIVED pass already adopts that path from HEAD, which is the whole
+  // remedy: the copied register carries the re-affirmed row, so the re-opened version-sync
+  // arrival ramp has nothing to NOTE. The seven 1.0.0-opened sites that expire here need no
+  // step of their own: '1.0.0' above is their sweep, and every leg that meets them crosses
+  // 1.0.0 too. Empty, and written down, because computeSweepSet asks every version that
+  // withholds a path or parks a seeded-source fix for a reviewed posture.
   '1.1.0': {},
 }
 

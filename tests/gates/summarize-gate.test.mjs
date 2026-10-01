@@ -89,6 +89,81 @@ test('RED: a result string the runner may add later is treated as NOT a pass', (
   assert.match(res.out, /"neutral"/)
 })
 
+// ── 1.1.0 (#56): a deferred device lane is named WITH its reason ──────────────────────
+// The `changes` job publishes `mobile-deferred` and `mobile-deferral` (`<until>: <reason>`)
+// from tools/ci/surface-deferral.mjs. The summary prints that reason beside the two lanes a
+// deferral can skip, and only when `changes` reported BOTH a mobile change and a live
+// deferral — any other skip of those lanes is a path-filter skip and must not borrow a
+// reason it does not have. The verdict never reads the deferral.
+const DEFERRAL = '2999-12-31: the web surface ships first'
+const changes = (/** @type {Record<string, string>} */ outputs) => ({ result: 'success', outputs })
+const deferredNeeds = (/** @type {Record<string, string>} */ outputs, extra = {}) => ({
+  static: r('success'),
+  unit: r('success'),
+  changes: changes(outputs),
+  native: r('skipped'),
+  'mobile-e2e': r('skipped'),
+  'perf-lane': r('skipped'),
+  ...extra,
+})
+const DEFERRED = { mobile: 'true', 'mobile-deferred': 'true', 'mobile-deferral': DEFERRAL }
+
+test('DEFERRED: the reason prints beside mobile-e2e and perf-lane when changes reported mobile=true AND mobile-deferred=true', () => {
+  const res = run(deferredNeeds(DEFERRED))
+  assert.equal(res.code, 0, res.out)
+  for (const lane of ['mobile-e2e', 'perf-lane']) {
+    assert.ok(
+      res.out.includes(`- ${lane} — deferred in tools/surfaces.json until ${DEFERRAL}`),
+      `${lane} must carry the deferral's reason:\n${res.out}`,
+    )
+  }
+  // native reads no deferral, so it is named as a plain skip.
+  assert.match(res.out, /^ {2}- native$/m)
+})
+
+test('NOT DEFERRED: no reason prints unless changes reported both mobile=true and mobile-deferred=true', () => {
+  for (const outputs of [
+    { mobile: 'true', 'mobile-deferred': 'false', 'mobile-deferral': '' },
+    // A deferral with no mobile change: the lanes skipped on the path filter, not the row.
+    { mobile: 'false', 'mobile-deferred': 'true', 'mobile-deferral': DEFERRAL },
+    // Outputs that never arrived (the step failed, or an older workflow) mean nothing.
+    { mobile: 'true' },
+    {},
+  ]) {
+    const res = run(deferredNeeds(outputs))
+    assert.equal(res.code, 0, res.out)
+    assert.doesNotMatch(res.out, /deferred in tools\/surfaces\.json/, JSON.stringify(outputs))
+    assert.match(res.out, /^ {2}- mobile-e2e$/m)
+    assert.match(res.out, /^ {2}- perf-lane$/m)
+  }
+  // No changes need at all (a push or schedule run's needs context).
+  const res = run({ static: r('success'), 'mobile-e2e': r('skipped') })
+  assert.equal(res.code, 0, res.out)
+  assert.match(res.out, /^ {2}- mobile-e2e$/m)
+})
+
+test('DEFERRED: a lane that RAN is never annotated, and the exit rules do not change', () => {
+  // The deferral is display only: a failed lane still reds the summary with a live row,
+  // and a lane that ran and passed is not listed as skipped at all.
+  const red = run(deferredNeeds(DEFERRED, { unit: r('failure') }))
+  assert.equal(red.code, 1, red.out)
+  assert.match(red.out, /unit: FAILED/)
+  assert.ok(red.out.includes(`- mobile-e2e — deferred in tools/surfaces.json until ${DEFERRAL}`), red.out)
+
+  const ran = run(deferredNeeds(DEFERRED, { 'mobile-e2e': r('success'), 'perf-lane': r('failure') }))
+  assert.equal(ran.code, 1, ran.out)
+  assert.match(ran.out, /perf-lane: FAILED/)
+  assert.doesNotMatch(ran.out, /deferred in tools\/surfaces\.json/)
+
+  const cancelled = run(deferredNeeds(DEFERRED, { 'mobile-e2e': r('cancelled') }))
+  assert.equal(cancelled.code, 1, cancelled.out)
+
+  // A live deferral with no reason line still names the lane, and says the reason is missing.
+  const bare = run(deferredNeeds({ mobile: 'true', 'mobile-deferred': 'true' }))
+  assert.equal(bare.code, 0, bare.out)
+  assert.match(bare.out, /- mobile-e2e — deferred in tools\/surfaces\.json \(no reason reached this job\)/)
+})
+
 test('the shipped workflow wires gate-summary over EVERY other job, both ways', async () => {
   const { readFileSync } = await import('node:fs')
   const wf = readFileSync(

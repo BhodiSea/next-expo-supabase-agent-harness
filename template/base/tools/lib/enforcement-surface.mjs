@@ -68,6 +68,10 @@ export const ESCAPE_LISTS = [
   // and moving reviewedUntil is the one edit the lapse control cannot distinguish from
   // a review — so every widening must land as a committed, human-reviewed diff.
   'tools/support-register.json',
+  // 1.1.0. A surface deferral: a live row skips mobile-e2e and perf-lane on a pull request.
+  // It is the rls-exempt shape exactly, an exemption from a lane rather than from a gate,
+  // so the row is the widening a reviewer must see, committed and never left dirty.
+  'tools/surfaces.json',
   // 1.0.0. The additive mutation surface. Union semantics mean a row can never weaken
   // the FLOOR — but deleting a row un-mutates code a human chose to protect, which is
   // exactly the quiet widening the commit-not-dirty rule exists to surface: either

@@ -166,12 +166,19 @@ export function cmpDotted(a, b) {
   return 0
 }
 
-function readManifest(gate) {
+// The fail-closed read of the install record: null when there is none, the parsed object
+// when it parses, and a FAIL naming the tampering when it does not. Exported (1.1.0) for the
+// surface deferral's CLI, which compares apps/mobile/ against its records. `onCorrupt`, when
+// given, runs before the FAIL: a caller with an output contract (tools/ci/surface-deferral.mjs
+// --mode=pr owes $GITHUB_OUTPUT exactly two lines) writes its fail-safe values first.
+/** @param {string} gate @param {() => void} [onCorrupt] */
+export function readManifest(gate, onCorrupt) {
   const manifestPath = join('.harness', 'manifest.json')
   if (!existsSync(manifestPath)) return null
   try {
     return JSON.parse(readFileSync(manifestPath, 'utf8'))
   } catch (e) {
+    onCorrupt?.()
     fail(
       gate,
       `${manifestPath} is not valid JSON (${e.message}) — it is write-guard-protected, so a corrupt manifest is tampering; restore it from git history`,

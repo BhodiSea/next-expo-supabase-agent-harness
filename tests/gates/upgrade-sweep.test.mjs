@@ -374,11 +374,17 @@ test('1.1.0 — the hop from 1.0.4 has a reviewed sweep posture, and the correct
   // The 1.1.0 record moves the template's uuid removalTarget to 1.2.0 and carries a
   // seededSourceFixes probe on tools/eol.json, so computeSweepSet throws until SWEEPS
   // carries a '1.1.0' entry. The entry is empty: the derived pass already adopts the fix's
-  // own path, which is the whole remedy, and nothing else is withheld.
+  // own path, which is the whole remedy. The one withheld path, the surface register
+  // (#56), is read absent-as-empty, so a swept leg adopts none of it.
   const fixes = MIGRATIONS['1.1.0'].seededSourceFixes ?? []
   assert.ok(
     fixes.some((f) => (f.paths ?? []).includes('tools/eol.json')),
     'the 1.1.0 record must park the uuid re-date on tools/eol.json',
+  )
+  assert.deepEqual(
+    MIGRATIONS['1.1.0'].seedOnInitOnly,
+    ['tools/surfaces.json'],
+    'the 1.1.0 record must withhold the surface register (#56)',
   )
   assert.doesNotThrow(() => computeSweepSet(MIGRATIONS, '1.0.4', '1.1.0'))
   const { adopt, tomlSectionAppends, reconcileDataFlowExclusions } = computeSweepSet(

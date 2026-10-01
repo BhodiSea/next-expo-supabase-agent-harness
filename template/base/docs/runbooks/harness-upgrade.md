@@ -1676,14 +1676,70 @@ Owned files, re-planted when your copy still matches a released sha: the hooks u
 re-opened arrival ramp), `tools/deferrals.json`, `tools/auth-posture.json`,
 `tools/check-auth-posture.mjs` and `docs/harness/gates-catalog.md` (the census date below),
 `tools/conformance-map.json` and the comments of `tools/check-docs-sync.mjs` and
-`tools/check-workspace-deps.mjs` (the sentences that called the 1.0.0 ramps open). What
-you may notice afterwards:
+`tools/check-workspace-deps.mjs` (the sentences that called the 1.0.0 ramps open). The
+surface deferral adds `tools/ci/surface-deferral.mjs` and `tools/lib/surface-deferral.mjs`,
+and re-plants `.github/workflows/quality-gate.yml`, `.github/workflows/osv-scan.yml`,
+`tools/ci/summarize-gate.mjs`, `tools/lib/gate.mjs`, `tools/lib/enforcement-surface.mjs`,
+`.claude/hooks/lib/guard-rules.mjs`, `docs/harness/enforcement-tiers.md` and
+`docs/security/threat-model.md`; the register itself is withheld (the subsection below).
+What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
   subcommand the census waits for, is still open, and the CLI documents `config push` as
   its only `config` subcommand. The date moved in the owned ledger and its three sentences
   together, so `docs-sync` does not red on it. Nothing is yours to do.
+- **The `changes` job checks out the tree and runs one more step**, the surface deferral
+  below. With no register it prints `mobile-deferred=false` and reads nothing else, so
+  every lane runs exactly as before.
+
+### A surface you have not built yet: `tools/surfaces.json`
+
+A project that builds its web surface first can now say so, instead of forking the owned
+`quality-gate.yml`. A live row skips `mobile-e2e` and `perf-lane` on a pull request, and
+nothing else: scheduled and dispatched runs keep both lanes, every other job ignores the
+file, and `gate-summary` prints the row's reason beside each lane it skipped.
+
+**`update` withholds the register from an existing install.** It is `seedOnInitOnly` in the
+1.1.0 record: its reader treats an absent register as an empty one, which defers nothing,
+so an install that never writes a row sees no change. Fresh scaffolds get the empty
+register. **Creating one is a committed, reviewed act.** The file is write-guarded, so a
+human writes it, and it is on the escape lists, so `gate-integrity` reds while an edit to
+it is uncommitted and `wiring` asks CODEOWNERS about it:
+
+```json
+{
+  "//": "Surfaces this project has not built yet.",
+  "deferrals": [
+    { "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "one line: why the app is not built yet" }
+  ]
+}
+```
+
+`mobile` is the only surface a row may name, one row per surface; `deferredUntil` is the
+last deferred day; the reason is non-empty and on one line. Any other shape makes the
+`changes` job red, after it reports `mobile-deferred=false`. Check a row before you push:
+`node tools/ci/surface-deferral.mjs --mode=pr` prints the two output lines and, on stderr,
+whether the row is live and how many files it compared.
+
+**What ends a deferral, without anyone touching the row.**
+
+- **The content tripwire.** The row is void, and both lanes run, as soon as any tracked
+  file under `apps/mobile/` differs from the sha256 the installer recorded in
+  `.harness/manifest.json`, a file is added there or a recorded one is gone, or the
+  manifest is absent. Your first real screen re-arms the lanes. Changes to the shared
+  packages do not void the row on their own; one that forces an edit under `apps/mobile/`
+  voids it through that edit. `update --refresh-seeded <path>` rewrites a file and its
+  record together, so it keeps the row live; hand-editing the manifest to do the same is
+  an edit to the write-guarded, CODEOWNERS-covered `.harness/`, and the date still ends it.
+- **The date.** After `deferredUntil` a pull request runs the lanes again, and the
+  scheduled `floor-review` job (`osv-scan.yml`) reds on the lapsed row, naming it. It also
+  reds on a void or malformed row. It never reds a pull request.
+
+**A retrofit install** planted no `apps/mobile/` files. If your project has its own mobile
+app there, its files have no records, so a `mobile` row is void from the start. If nothing
+is tracked or recorded under `apps/mobile/`, the row is live and the CLI says that zero
+files were compared.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

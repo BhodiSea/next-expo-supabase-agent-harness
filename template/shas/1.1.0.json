@@ -111,6 +111,9 @@
     ],
     ".claude/hooks/lib/guard-rules.mjs": [
       {
+        "sha256": "24e1f77783202bdd98f304ba8797b4cdf635776addfcdb03cdb50bfadae44ff1"
+      },
+      {
         "sha256": "afcf7995fca0b7231a74d94278454e78b67c145f536d35428a61426c107324b1"
       }
     ],
@@ -523,6 +526,15 @@
             "DEFAULT_BRANCH"
           ]
         ]
+      },
+      {
+        "sha256": "ec5eeb7500c48678f46cb69fb59cc07fa0483fa14a58b4c09cff0400268e076a",
+        "sites": [
+          [
+            1379,
+            "DEFAULT_BRANCH"
+          ]
+        ]
       }
     ],
     ".github/workflows/preview-mobile.yml": [
@@ -542,6 +554,15 @@
       }
     ],
     ".github/workflows/quality-gate.yml": [
+      {
+        "sha256": "180853387368ff6816c0e0316e305844e40e58648cd64741079d66e9de87460f",
+        "sites": [
+          [
+            859,
+            "DEFAULT_BRANCH"
+          ]
+        ]
+      },
       {
         "sha256": "fc3bdda658e5b5b0a6f8b572a513b4de6b0931929faa2d5bc16289c83e924ea9",
         "sites": [
@@ -712,6 +733,9 @@
     "docs/harness/enforcement-tiers.md": [
       {
         "sha256": "1f3cd7e83a49682abbfa6255ea1588dfe27471a1d5258afc3ac6d5c7fe16baa3"
+      },
+      {
+        "sha256": "9a3751b35ff3780635bd5ad5c534da658fbf0b82570e7fa554010600a1392b71"
       }
     ],
     "docs/harness/gates-catalog.md": [
@@ -720,6 +744,15 @@
         "sites": [
           [
             120772,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "730d4566d783005331ffebcc72cc3a9d5be0b07ab398264ee29b1976974fd770",
+        "sites": [
+          [
+            121025,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -897,6 +930,15 @@
     ],
     "docs/runbooks/harness-upgrade.md": [
       {
+        "sha256": "8caea1bb8500ef01f74cc3ab177804b7dae1d1296d6f428e200719158de92389",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "f3eaa6d27057344d8936c51414d334bb039cc82da912e562fa85151f0933c080",
         "sites": [
           [
@@ -944,6 +986,9 @@
     "docs/security/threat-model.md": [
       {
         "sha256": "4f149346ca506f7cafc5caf5d46d76f4d61a729cb9218926b29d01c297f41acf"
+      },
+      {
+        "sha256": "cb84a5c214d4c61501b4c1b1d964aa13a6e9a620ca16e2e832b7999149b15540"
       }
     ],
     "docs/store/app-review-notes.md": [
@@ -1482,6 +1527,14 @@
     "tools/ci/summarize-gate.mjs": [
       {
         "sha256": "24f79ab240f59bc925400d432d9d49189fd130b28b04d01baa05dd8ed5b1983e"
+      },
+      {
+        "sha256": "59111d42d6d7c8ac94bd1bf4c2e59a9fa452db9a899731d4e2a75005ad121972"
+      }
+    ],
+    "tools/ci/surface-deferral.mjs": [
+      {
+        "sha256": "af43a63be1f9e311bea3134794daa40f9c7ec0fc09676dedcb595c9c9ddc7fbb"
       }
     ],
     "tools/conformance-map.json": [
@@ -1638,6 +1691,9 @@
     "tools/lib/enforcement-surface.mjs": [
       {
         "sha256": "27b7191246cc3094a4961cf669743a96482522b7032f3a8e1276937d44054011"
+      },
+      {
+        "sha256": "4b4a73a422cf8b13b07be8635793aaf54fb72f802685951e4b8ac80624cee007"
       }
     ],
     "tools/lib/eol.mjs": [
@@ -1663,6 +1719,9 @@
     "tools/lib/gate.mjs": [
       {
         "sha256": "0d37a1bc1987de8098bee68718c1c756853d2a3a0c3a77d8a8fa86fef6157278"
+      },
+      {
+        "sha256": "e0cd1fb59e4126b6bd2941a4ce30347fe01f09872a1d5ce6a97a320e257575c0"
       }
     ],
     "tools/lib/git-diff.mjs": [
@@ -1789,6 +1848,11 @@
     "tools/lib/support-register.mjs": [
       {
         "sha256": "708a9a79b9d5d71aeffe85979793cc7ab41b3ade495050d99a5f49145faa2963"
+      }
+    ],
+    "tools/lib/surface-deferral.mjs": [
+      {
+        "sha256": "f10879e889bd7eac649e6caf2815832797789ae0edacb222fbafbfebf077a6e3"
       }
     ],
     "tools/lib/table-grants.mjs": [

@@ -147,6 +147,12 @@ export const SEEDED_FILES = new Set([
   // for eol.json's reason: the platform rows describe THIS install's pins (a consumer
   // on Postgres 15 reviews their own row) and `update` must never clobber a review.
   'tools/support-register.json',
+  // 1.1.0. The surface register: a dated, reviewed deferral of a surface this project has
+  // not built yet (tools/lib/surface-deferral.mjs). Seeded for eol.json's reason: the rows
+  // are THIS project's decisions, and `update` must never clobber them. seedOnInitOnly in
+  // the 1.1.0 record: its reader treats an absent register as empty, so `update` withholds
+  // it, and creating one on an existing install is the consumer's committed act.
+  'tools/surfaces.json',
   // 1.0.0. The consumer's ADDITIVE mutation surface — {root, why} rows union'd onto
   // the owned floor (tools/lib/mutation-critical.mjs). Seeded because widening the
   // mutated surface onto THEIR code is the consumer's reviewed act; union semantics

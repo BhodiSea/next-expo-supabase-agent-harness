@@ -351,7 +351,7 @@ for f in tools/approved-tools.json tools/secret-patterns.json tools/doctrine-sym
   [ -f "$SCAFFOLD/$f" ] || die "$f must be PLANTED by update — its gate fails closed without it"
   echo "  planted:   $f"
 done
-for f in tools/retrofit-accept.json tools/secret-scan-allow.json; do
+for f in tools/retrofit-accept.json tools/secret-scan-allow.json tools/surfaces.json; do
   [ ! -f "$SCAFFOLD/$f" ] ||
     die "$f must be TOLERATED-ABSENT, not planted — its gate reads absent-as-empty, and planting it ships a reviewed-acceptance file nobody reviewed"
   echo "  withheld:  $f"

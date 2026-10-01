@@ -164,6 +164,77 @@ test('the device-lane paths filter covers the packages the installed app is MADE
   )
 })
 
+test('a surface deferral skips ONLY mobile-e2e and perf-lane, and only on a pull request (1.1.0, #56)', () => {
+  // tools/surfaces.json lets a web-first project defer its mobile surface. Its reach is the
+  // guard: the clause sits in the pull_request arm of the two device lanes and nowhere
+  // else, so scheduled and dispatched runs keep both lanes, and `native`, the static and
+  // unit lanes and every other job ignore the register. The clause tests `!= 'true'`, so a
+  // missing output (a failed step, an older workflow) runs the lanes.
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  const jobs = jobsOf(text)
+  const ifOf = (/** @type {string} */ body) => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(body)?.[1] ?? ''
+  const ARM =
+    "       (github.event_name == 'pull_request' && needs.changes.outputs.mobile == 'true' &&\n" +
+    "        needs.changes.outputs.mobile-deferred != 'true'))\n"
+  for (const id of ['mobile-e2e', 'perf-lane']) {
+    const job = jobs.find((j) => j.id === id)
+    assert.ok(job, `quality-gate.yml no longer defines '${id}'`)
+    const cond = ifOf(job.body)
+    assert.ok(
+      cond.endsWith(ARM),
+      `${id}'s if: must end with the pull_request arm that reads the deferral:\n${cond}`,
+    )
+    // The schedule/dispatch arm is untouched, and the deferral is read exactly once.
+    assert.match(cond, /\(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch' \|\|\n/)
+    assert.equal(cond.split('mobile-deferred').length - 1, 1, `${id}: ${cond}`)
+    assert.ok(
+      cond.indexOf('mobile-deferred') > cond.indexOf("github.event_name == 'pull_request'"),
+      `${id}: the deferral must sit inside the pull_request arm:\n${cond}`,
+    )
+    // Nothing else in the job reads it: a step-level skip would be the same hole, smaller.
+    assert.equal(job.body.split('mobile-deferred').length - 1, 1, `${id} reads mobile-deferred outside its if:`)
+  }
+
+  // No other job in any shipped workflow gates on it. The `changes` job PUBLISHES it, and
+  // gate-summary receives it only through toJSON(needs), for display.
+  for (const { label, text: wf } of SHIPPED) {
+    for (const job of jobsOf(wf)) {
+      if (label.endsWith('/quality-gate.yml') && ['mobile-e2e', 'perf-lane', 'changes'].includes(job.id)) continue
+      assert.doesNotMatch(
+        job.body,
+        /mobile-deferr/,
+        `${label} job '${job.id}' reads the surface deferral — only mobile-e2e and perf-lane may, and only on a pull request`,
+      )
+    }
+  }
+})
+
+test('the `changes` job publishes the deferral from the CLI, and never interpolates the reason into a script (#56)', () => {
+  const text = readFileSync(join(DIR, 'quality-gate.yml'), 'utf8')
+  const job = jobsOf(text).find((j) => j.id === 'changes')
+  assert.ok(job, "quality-gate.yml no longer defines 'changes'")
+  assert.match(job.body, /^ {6}mobile-deferred: \$\{\{ steps\.surfaces\.outputs\.mobile-deferred \}\}$/m)
+  assert.match(job.body, /^ {6}mobile-deferral: \$\{\{ steps\.surfaces\.outputs\.mobile-deferral \}\}$/m)
+  assert.match(job.body, /^ {8}id: surfaces\n {8}run: node tools\/ci\/surface-deferral\.mjs --mode=pr >> "\$GITHUB_OUTPUT"$/m)
+  // The CLI reads the tree, so the job checks it out, after the paths filter it already ran.
+  const filterAt = job.body.indexOf('dorny/paths-filter@')
+  const checkoutAt = job.body.indexOf('actions/checkout@')
+  assert.ok(filterAt !== -1 && checkoutAt > filterAt, 'checkout must follow the paths-filter step')
+  assert.match(job.body.slice(checkoutAt), /persist-credentials: false/)
+  // The reason is the pull request's own text. It reaches a script only through an env
+  // var, never through ${{ }} inside a run: line, in this or any shipped workflow.
+  for (const { label, text: wf } of SHIPPED) {
+    for (const line of wf.split('\n')) {
+      if (!/\$\{\{[^}]*mobile-deferral/.test(line)) continue
+      assert.match(
+        line,
+        /^ {6}mobile-deferral: \$\{\{ steps\.surfaces\.outputs\.mobile-deferral \}\}$/,
+        `${label}: the deferral's reason is interpolated outside the job's outputs: ${line.trim()}`,
+      )
+    }
+  }
+})
+
 test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.6.0)', () => {
   // A LANE THAT CANNOT PASS IS NOT A LANE, and this one could not. The web-e2e job carried
   // `NODE_ENV: development` from the era when Playwright's webServer booted `next dev`. The

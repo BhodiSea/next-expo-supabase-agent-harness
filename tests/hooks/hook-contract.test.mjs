@@ -521,6 +521,10 @@ const RULE_CANARIES = {
   // The vendor-support register — a 'ceiling' acceptance or a reviewedUntil move is
   // a human decision, exactly like its eol sibling.
   'support-register': [pathDeny('tools/support-register.json')],
+  // 1.1.0 (#56). The surface register: a live row skips both device lanes on a pull
+  // request, so writing one is the cheapest way past a red Maestro run. Adding a row is
+  // a reviewed human act.
+  'surfaces-register': [pathDeny('tools/surfaces.json')],
   'reviewer-triggers': [pathDeny('tools/reviewer-triggers.json')],
   'rate-limit-budget': [pathDeny('tools/rate-limit-budget.json')],
   // 0.5.0. The reviewed side of the `security-headers` by-value diff: the gate evaluates

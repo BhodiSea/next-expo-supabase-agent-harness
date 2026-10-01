@@ -48,7 +48,13 @@ the easiest place to reintroduce it.
   lanes ran; what it can do is read the workflow, tell a conditional job from an
   unconditional one, and **require a row whose only compensating controls are conditional to
   say `(path-filtered)`**. Nine rows now do. That is a smaller claim than the table used to
-  make, and it is the true one.
+  make, and it is the true one. Since 1.1.0 a second condition can skip two of those lanes:
+  while a live row in `tools/surfaces.json` defers the mobile surface, `mobile-e2e` and
+  `perf-lane` skip on a pull request. It is the same "did not run on this commit" claim with
+  a reason attached, so `(path-filtered)` already covers it. It never skips a scheduled or
+  dispatched run, it goes void the moment a file under `apps/mobile/` stops matching what
+  the installer recorded, and `gate-summary` prints the row's reason beside each lane it
+  skipped.
 - *gate script.* Two rows name a script (`check-e2e-device.mjs`) rather than a step or a
   job. The cell parser matched kebab names only, so those two cells resolved to the empty
   set and were exempt from the whole check — an exemption nobody chose, in the one table

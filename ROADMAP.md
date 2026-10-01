@@ -127,10 +127,14 @@ does, its section says so.
 None of these tightens a gate for an existing install. Where one changes what
 `update` does, its section says so.
 
-- **A dated deferral for an unbuilt surface.** A project building one surface
-  first can defer the device and perf lanes for the other, with an expiry and
-  a content tripwire. Needs a `gate-proposal` issue first.
-  ([N05](design/FIELD-UPGRADES-2026-09.md#n05-a-dated-deferral-for-a-surface-that-is-not-built-yet))
+- **A dated deferral for an unbuilt surface.** A project building its web
+  surface first records the mobile surface in the seeded `tools/surfaces.json`,
+  and a live row skips `mobile-e2e` and `perf-lane` on a pull request. The row
+  goes void when a file under `apps/mobile/` stops matching the install record,
+  and after its date the scheduled `floor-review` job reds it. The register
+  takes `mobile` rows only.
+  ([N05](design/FIELD-UPGRADES-2026-09.md#n05-a-dated-deferral-for-a-surface-that-is-not-built-yet),
+  issue #56)
 - **Skip a lane that already passed on the same tree.** The post-merge run
   reuses a `success` from the pull request when the tree hash is identical.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree))

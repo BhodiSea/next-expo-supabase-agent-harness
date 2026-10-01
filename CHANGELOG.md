@@ -25,7 +25,8 @@ that lands after this bump either ships behind a ramp of its own, opened at 1.1.
 tightens nothing for an existing install, and adds its entry below.
 The `template/migrations.json` record for 1.1.0 carries `rampExpiry` (fifteen vintages,
 0.1.3 through 0.11.1: 1.0.4's thirteen plus 0.11.0 and 0.11.1), one `seededSourceFixes`
-set and one `rampExtensions` entry, and injects no chain step. `scripts/lib/ramp-sites.mjs`
+set, one `rampExtensions` entry and one `seedOnInitOnly` path (`tools/surfaces.json`, see
+Added), and injects no chain step. `scripts/lib/ramp-sites.mjs`
 `VINTAGES` grows by `1.0.4`. The obligations register loses seven release rows and
 re-targets the eighth to 1.2.0.
 
@@ -38,6 +39,30 @@ this heading if none does. -->
 
 <!-- Entries from the 1.1.0 items that land after the version bump go here. The cut removes
 this heading if none does. -->
+
+- **A dated, content-tripwired deferral for the device lanes: `tools/surfaces.json`.** A
+  project building its web surface first had no way to say so: the `mobile` paths filter
+  includes the shared packages the app is made of, so every backend pull request armed
+  `mobile-e2e` and `perf-lane`, the two emulator lanes, against the app the scaffold
+  shipped, and the only lever was forking the owned workflow. A seeded register now takes a
+  row `{ "surface": "mobile", "deferredUntil": "YYYY-MM-DD", "reason": "…" }`. The
+  `changes` job runs the new `tools/ci/surface-deferral.mjs --mode=pr` into
+  `$GITHUB_OUTPUT`, and only the `pull_request` arm of those two jobs skips while the row is
+  live; scheduled and dispatched runs keep both, no other job reads it, and `gate-summary`
+  prints the reason beside each skipped lane without counting the skip as a pass. The row
+  is VOID, and the lanes run, as soon as a tracked file under `apps/mobile/` differs from
+  the sha the installer recorded in `.harness/manifest.json`, a file there is added or a
+  recorded one is gone, or the manifest is absent (the judgement is the pure
+  `tools/lib/surface-deferral.mjs`). After `deferredUntil` a pull request runs the lanes
+  again, and the scheduled `floor-review` job's new `--mode=review` step reds on an
+  expired, void or malformed row, in a step of its own under `!cancelled()`. `--mode=pr`
+  exits 1 only on a malformed register or a corrupt manifest, after printing `false`; with
+  no register it reads nothing else. The register is write-guarded (`surfaces-register`), on
+  the escape lists and seeded, and `update` withholds it from existing installs, so
+  creating one is a committed, reviewed act. `tools/lib/gate.mjs` exports its fail-closed
+  manifest read for the CLI, which reaches it through a namespace import, so a parked fork
+  of the lib without it voids a row rather than failing `changes`. No chain step and no
+  ramp (#56).
 
 ### Fixed
 
@@ -91,6 +116,11 @@ this heading if none does. -->
 - **Stamps for `unit` and `mobile-unit` are still not built.** The 1.0.4 entry left them
   for 1.1.0, because a stamp there needs a wrapper that changes floored commands and a
   `configCommandUpdates` record. No 1.1.0 issue schedules that work yet (#39).
+- **A surface deferral covers the mobile surface only.** A `web` row is malformed: the web
+  lane's runner fails closed on an absent surface by design and no shipped job would read
+  one. There is no cap on how far ahead `deferredUntil` may sit; the content tripwire and
+  the scheduled review are what end a row. The skip itself is proven on the workflow's text
+  and on the step's own `run:` line, not on a GitHub runner (#56).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -108,7 +138,15 @@ this heading if none does. -->
   local until the maintainer pushes it, so the tag-reading checks on this pull request's
   CI compare against v1.0.3, and `check-ramp-ledger`'s vintage closure there reports
   `1.0.4` as not yet released. The local run with the tag present is the one that proves
-  this commit (#39).
+  this commit (#39). The surface deferral's tests were red before it existed: the lib
+  would not load, `gate-summary` printed no reason, `workflow-lanes` found no deferral
+  clause and no `changes` step, and the write guard let `tools/surfaces.json` through.
+  They run the CLI over throwaway repositories for each void cause, the retrofit case, a
+  lapsed date and each malformed shape; over a zero-edit init scaffold, where a
+  future-dated row is live over every planted mobile file; and through the `changes`
+  step's own `run:` line under `bash -eo pipefail`, where one appended byte turns the
+  output from `true` to `false`. A 1.0.4 install updated by this installer got the CLI and
+  the new workflow but no register, and printed `mobile-deferred=false` (#56).
 
 ## [1.0.4] — 2026-10-01
 

@@ -24,10 +24,37 @@
 //
 // Input: the needs context as JSON, from $NEEDS_JSON or argv[2].
 //   { "<job-id>": { "result": "success" | "failure" | "cancelled" | "skipped", ... }, … }
+//
+// A DEFERRED SURFACE IS NAMED WITH ITS REASON (1.1.0). A live row in tools/surfaces.json
+// makes the `changes` job publish `mobile-deferred=true` and `mobile-deferral=<until>:
+// <reason>`, and mobile-e2e and perf-lane then skip on the pull request. When `changes`
+// reported BOTH a mobile change and a live deferral, the SKIPPED list prints the reason
+// beside those two lanes, so the reviewer sees which skip was a decision and whose. Any
+// other skip of them is a path-filter skip and borrows no reason. Display only: the three
+// rules above, and so the exit status, never read it.
 // SOURCE: docs/harness/README.md (a skip is never a pass) [corpus: harness/doctrine]
 import process from 'node:process'
 
 const RAW = process.env.NEEDS_JSON ?? process.argv[2] ?? ''
+
+// The lanes a surface deferral can skip (tools/lib/surface-deferral.mjs SURFACES.mobile.lanes;
+// not imported, so this fan-in keeps no dependency on the lib it only displays).
+const DEFERRABLE = new Set(['mobile-e2e', 'perf-lane'])
+
+/**
+ * The text printed after a skipped lane: its deferral, or nothing.
+ * @param {string} id @param {Record<string, unknown> | undefined} changes the `changes` need
+ */
+const deferralNote = (id, changes) => {
+  const outputs = /** @type {Record<string, unknown>} */ (changes?.outputs ?? {})
+  if (!DEFERRABLE.has(id) || outputs.mobile !== 'true' || outputs['mobile-deferred'] !== 'true') {
+    return ''
+  }
+  const deferral = typeof outputs['mobile-deferral'] === 'string' ? outputs['mobile-deferral'] : ''
+  return deferral === ''
+    ? ' — deferred in tools/surfaces.json (no reason reached this job)'
+    : ` — deferred in tools/surfaces.json until ${deferral}`
+}
 
 /** @param {string} line */
 const say = (line) => {
@@ -78,7 +105,7 @@ say(
 if (skipped.length > 0) {
   say('')
   say('SKIPPED (did NOT run — path filter or an upstream condition):')
-  for (const id of skipped.sort()) say(`  - ${id}`)
+  for (const id of skipped.sort()) say(`  - ${id}${deferralNote(id, needs.changes)}`)
 }
 
 const problems = []
