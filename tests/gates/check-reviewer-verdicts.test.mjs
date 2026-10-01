@@ -2226,6 +2226,9 @@ test('readSessionEntries (2.0.0): narrows to the session and the format; entries
     JSON.stringify(entry('security-reviewer', 'PASS', { session_id: 'other' })),
     JSON.stringify({ session_id: SESSION, prompt_id: 'an-earlier-prompt', agent_type: 'x' }),
     JSON.stringify(entry('design-reviewer', 'BLOCK')),
+    'null',
+    JSON.stringify({ session_id: 'other', agent_type: 'x' }),
+    JSON.stringify({ session_id: SESSION, agent_type: 'x' }),
     '',
   ].join('\n')
   const r = ledgerLib.readSessionEntries(raw, SESSION, { promptId: PROMPT })
@@ -2239,8 +2242,14 @@ test('readSessionEntries (2.0.0): narrows to the session and the format; entries
     'design-reviewer/PASS/1.9.9',
     'design-reviewer/BLOCK/2.0.0',
   ])
-  assert.equal(r.skipped.length, 2, JSON.stringify(r.skipped))
+  assert.equal(r.skipped.length, 5, JSON.stringify(r.skipped))
+  assert.match(r.skipped[0], /line 3 .*is not JSON/)
   assert.match(r.skipped[1], /line 6 .*missing agent_type or verdict .*an earlier prompt/)
+  assert.match(r.skipped[2], /line 8 .*is not an object/)
+  assert.match(r.skipped[3], /line 9 .*missing agent_type or verdict \(another session's entry\)/)
+  // This session's, with no prompt_id: it does not name the current prompt, the key its
+  // lifetime always had, so it is stepped over and named, as through 1.1.x.
+  assert.match(r.skipped[4], /line 10 .*\(this session's, with no prompt_id to date it\)/)
   // The prompt is NOT a filter: the same read with no prompt id returns the same entries …
   const tornless = raw.split('\n').filter((l) => !l.includes('"agent_type":"x"')).join('\n')
   assert.deepEqual(tags(ledgerLib.readSessionEntries(tornless, SESSION).entries), tags(r.entries))
