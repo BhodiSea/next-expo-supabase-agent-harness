@@ -151,11 +151,13 @@ this heading if none does. -->
   is clean. The v1.1.0 tag is local until the maintainer pushes it, so the tag-reading checks
   on this pull request's CI compare against v1.0.3, and `check-ramp-ledger`'s vintage closure
   there reports `1.0.4` and `1.1.0` as not yet released; the local run with the tags present
-  is the one that proves this commit (#86). For the encryption rule's move, the nine cases of
-  `tests/installer/e2ee-rule-module.test.mjs` were red on the tree before it (the template
-  half, the empty closure, and every upgrade case), the dry-run case stayed red after the move
-  until `applyFileMigrations` returned its removals, and the `e2ee` round-trip and npm-pack
-  additions to `lifecycle.test.mjs` were red on the tree before the move. A zero-edit core
+  is the one that proves this commit (#86). For the encryption rule's move, the eight cases of
+  `tests/installer/e2ee-rule-module.test.mjs` written first were red on the tree before it (the
+  template half, the empty closure, and every upgrade case), and a ninth, a fork on an install
+  whose version shipped other rule bytes, was added after the move to pin the parked copy the
+  runbook describes. The dry-run case stayed red after the move until `applyFileMigrations`
+  returned its removals, and the `e2ee` round-trip and npm-pack additions to
+  `lifecycle.test.mjs` were red on the tree before the move. A zero-edit core
   scaffold carries no `.claude/rules/e2ee.md` and validates, a `--modules e2ee` scaffold
   records it with `module: "e2ee"`, and upgrade-lane legs A (v1.1.0), N (v1.0.4) and E (v0.3.0,
   swept) pass locally; leg A's plant-vs-withhold check needed a fix first, because a v1.1.0

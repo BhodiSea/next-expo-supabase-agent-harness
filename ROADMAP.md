@@ -355,9 +355,13 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
 - **The example leaves the scaffold.** Reference-only by default, with an
   optional materialised demo and an `eject` verb.
   ([B01](design/FIELD-UPGRADES-2026-09.md#b01-the-example-leaves-the-scaffold))
-- **The encryption rule ships with its module.** An install without `e2ee`
-  carries none of it.
-  ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module))
+- **The encryption rule ships with its module.** Built in 2.0.0: the full rule,
+  `.claude/rules/e2ee.md`, is stored in the `e2ee` module, so an install without
+  `e2ee` does not carry it, and the 2.0.0 record removes the base copy from
+  existing installs. The always-loaded stub stays everywhere, and every base file
+  cites it.
+  ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module),
+  issue #86)
 - **`prompt_id` leaves the ledger key.** After ledger v2 the path digest is
   what makes a verdict current.
   ([B03](design/FIELD-UPGRADES-2026-09.md#b03-prompt_id-leaves-the-ledger-key))
