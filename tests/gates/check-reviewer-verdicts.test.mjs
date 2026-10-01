@@ -2266,8 +2266,12 @@ test('judgeReviewerV2 (2.0.0): an entry in another format never counts as a PASS
   })
   /** @param {object[]} session @param {object[]} older */
   const judge = (session, older) => ledgerLib.judgeReviewerV2(owed, session, cur, older)
+  // `older` holds the SAME objects as the session list, as readSessionEntries returns them:
+  // the judge tells them apart by identity, so a 1.1.x step that passes no list loses nothing.
   const oldPass = e('PASS', UNSTAMPED)
   const oldBlock = e('BLOCK', UNSTAMPED)
+  const newerPass = e('PASS', { v: '1.9.9' })
+  const oddPass = e('PASS', { v: 'a\nb' })
   const cases = /** @type {Array<[string, object[], object[], RegExp | null]>} */ ([
     ['only an older-format PASS', [oldPass], [oldPass], /only in another ledger format \(no format stamp/],
     ['an older PASS beside a counted current one', [oldPass, e('PASS')], [oldPass], null],
@@ -2275,8 +2279,8 @@ test('judgeReviewerV2 (2.0.0): an entry in another format never counts as a PASS
     ['an older BLOCK, then the same run', [oldBlock, e('PASS')], [oldBlock], null],
     ['a current BLOCK, then the same run in the old format', [e('BLOCK'), oldPass], [oldPass], /BLOCK \(agent_id a1\)/],
     ['the same run passed BEFORE its older-format BLOCK', [e('PASS'), oldBlock], [oldBlock], /BLOCK \(agent_id a1\)/],
-    ['two older formats, named once each', [oldPass, e('PASS', { v: '1.9.9' })], [oldPass, e('PASS', { v: '1.9.9' })], /no format stamp: a hook from before 2\.0\.0 wrote them; format 1\.9\.9/],
-    ['a stamp not spelled like a version', [e('PASS', { v: 'a\nb' })], [e('PASS', { v: 'a\nb' })], /an unreadable format stamp\)/],
+    ['two other formats, each named once', [oldPass, newerPass, oldPass], [oldPass, newerPass], /\(no format stamp: a hook from before 2\.0\.0 wrote them; format 1\.9\.9\)/],
+    ['a stamp not spelled like a version', [oddPass], [oddPass], /\(an unreadable format stamp\)/],
   ])
   for (const [name, session, older, want] of cases) {
     const got = judge(session, older)
