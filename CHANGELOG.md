@@ -43,15 +43,7 @@ example: it is seeded, and `update` neither rewrites nor deletes it (#85).
 not the prompt.** The step needs only the session id, and a reviewer whose verdicts in the
 current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
 
-### Security
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
-
 ### Added
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **`init --with-demo` and `eject`.** The worked example is stored in `template/demo/`, an
   overlay on the base and stack plan the way the design-token presets overlay the stack:
@@ -106,9 +98,6 @@ this heading if none does. -->
   runs every journey in the directory (#85).
 
 ### Fixed
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **`reviewer-verdicts` no longer prints a remedy that does not work for a mis-shaped ledger
   line.** A line of the current prompt that lacks `agent_type` or `verdict` fails closed, and
