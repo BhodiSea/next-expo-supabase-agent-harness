@@ -564,7 +564,15 @@ test('i18n: a clean tree passes and reports what it scanned', () => {
   const dir = fixture({ files: { 'Uses.tsx': USES(['a.key']) } })
   const r = runGate(dir)
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('no hardcoded copy'), r.out)
+  // Since 2.0.0 (#86) the copy check is the syntax-tree walk's alone. Where `typescript` is
+  // not installed (selftest.yml installer-unit installs nothing, and check-canary-coverage
+  // runs this file there as the gate's red proof) the OK line names what it did NOT judge;
+  // with the parser it says it found none. Either way it reports what it scanned.
+  assert.ok(
+    r.out.includes(TS_AVAILABLE ? 'no hardcoded copy' : 'hardcoded copy and the Intl boundary NOT judged'),
+    r.out,
+  )
+  assert.match(r.out, /1 message key\(s\), .*1 locale\(s\)/)
 })
 
 // ── the syntax-tree walk (1.1.0, #76) ──────────────────────────────────────────────
