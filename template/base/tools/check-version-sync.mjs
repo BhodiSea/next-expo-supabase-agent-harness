@@ -509,6 +509,14 @@ if (eolErrs.length > 0) {
 // harness's own re-affirmation to those installs; this ramp is what makes the arrival a
 // dated NOTE while it does. The upstream discharge condition is stated in the row's reason.
 //
+// EXTENDED A THIRD TIME AT 1.1.0 — to (minVersion 1.1.0, until 1.2.0) — and this time by the
+// standing rule rather than by a lane finding. The 1.1.0 re-review found the uuid discharge
+// condition still unmet (xcode@3.0.1 still declares uuid ^7.0.3, and @expo/config-plugins
+// still depends on that xcode), so the harness moved its own row to 1.2.0. Every 1.0.x
+// install holds a seeded "1.1.0" that arrives at 1.1.0, and an escape opened at 1.0.0 is
+// inert for exactly those installs, so the escape re-opens at 1.1.0. The 1.1.0 record's
+// seededSourceFixes probe on '"removalTarget": "1.1.0"' is the re-date's channel to them.
+//
 // THE DEFECT IT FIXES, found by the upgrade lane on the v0.11.0 tag and not before it.
 // `rampNote` is INERT when baseVersion >= minVersion, so minVersion 0.10.0 meant a
 // 0.10.0-vintage install was never covered. That install is precisely the one holding a
@@ -525,8 +533,8 @@ if (eolErrs.length > 0) {
 // The comment lives HERE and not inside the condition, for the reason the 0.7.0 site records.
 if (arrivalErrs.length > 0) {
   if (
-    rampNote(GATE, '1.0.0', "the arrival of tools/eol.json's removalTarget dates", {
-      until: '1.1.0',
+    rampNote(GATE, '1.1.0', "the arrival of tools/eol.json's removalTarget dates", {
+      until: '1.2.0',
     })
   ) {
     for (const e of arrivalErrs) console.log(`${GATE}: NOTE — (ramp) ${e}`)

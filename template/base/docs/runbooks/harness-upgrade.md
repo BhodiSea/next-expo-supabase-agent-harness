@@ -1600,6 +1600,91 @@ naming the parked copy.
    other drifted or forked owned file in the run, so read `update --dry-run` first if you
    use it.
 
+## 1.1.0 — the sharper verdicts release: the 1.0.0 notes fall due
+
+**If your `baseVersion` is 1.0.0 or later, nothing expires for you.** Every ramp 1.0.0
+opened carries `minVersion 1.0.0`, so none of them has ever been live on your install. What
+the version bump itself brings a 1.0.x install is the uuid arrival NOTE below; each ramp a
+later 1.1.0 change opens has its own part of this section. Read what applies
+to YOUR `baseVersion` off `node scripts/ci/ramp-expectations.mjs <your base> 1.1.0` in a
+harness checkout, and off `pnpm validate 2>&1 | grep -E 'NOTE — \(ramp\)|RAMP EXPIRED'` in
+your own tree, never off this page.
+
+**If your `baseVersion` is below 1.0.0, this is where the 1.0.0 sweep stops being
+optional.** The 1.0.0 section above is the sweep, and nothing in it changed. If you are
+more than one release behind, read the sections above in order before crossing this one.
+
+### What ARRIVES (hard) — for installs below 1.0.0
+
+The six-gate NOTE fleet 1.0.0 opened, less its re-opened eol arrival. Each finding that
+printed as `NOTE — (ramp)` with `expires in 1.1.0` now prints under a `RAMP EXPIRED`
+banner and reds its step. The numbers are the items of the 1.0.0 section's "What OPENS"
+list, which says what to do for each:
+
+1. **`suppressions`** (item 1). Reconcile `tools/suppressions-allow.json` to your tree: a
+   directive with no row, and a row naming a directive your tree lacks, both red.
+2. **`resilience`** (item 2). Every outbound seam your tree added needs its
+   `tools/resilience.json` row.
+3. **`docs-sync`'s gate list** (item 3). Your seeded `AGENTS.md` must list every step the
+   chain runs. Paste the names the finding prints.
+4. **`boundaries`, two sites.** The behavior-keyed anatomy widening (item 4), and the
+   census module-name closure: an entry in `tools/exports-walls.json` whose `module` is not
+   in the owned `tools/modules.json` reds. Fix the name, or remove the entry's sanction.
+5. **`version-sync`'s vendor-support register** (item 5, its first half):
+   `tools/support-register.json` and its platform-fact closure against your Postgres and
+   Node pins.
+6. **`auth-posture`'s `[auth.hook.*]` floors** (item 6), and only if the auth-event trail
+   migration is in your tree. With neither the migration nor the config sections, nothing
+   is demanded, exactly as before.
+
+`scripts/ci/upgrade-sweep.mjs` `SWEEPS['1.0.0']` is what the upgrade lane's swept leg runs
+before it requires `graduate` to succeed, and it adds no step for this release
+(`SWEEPS['1.1.0']` is empty, and says why).
+
+### What re-OPENS (a dated NOTE, until 1.2.0) — for every install below 1.1.0
+
+**`version-sync`'s uuid arrival.** The harness re-reviewed its own uuid 7 acceptance at
+this release and moved its `removalTarget` from 1.1.0 to 1.2.0. `xcode` 3.0.1 still
+declares `uuid: ^7.0.3`, `@expo/config-plugins` still depends on that `xcode`, and a
+registry sweep of a fresh scaffold (`scripts/sweep-registry-deprecations.mjs`) still finds
+uuid@7.0.3 as the only deprecated package in the production closure. The vendor's
+message now also tells ESM codebases to update to uuid@latest and CommonJS codebases to
+use uuid@11. Neither is a move this tree can make, because `xcode` chooses the range.
+
+Your `tools/eol.json` is seeded, so it still says what it said: `"removalTarget": "1.1.0"`
+on a 1.0.x install, and `"0.12.0"` or earlier on an older one that never re-dated it. That
+date has arrived. `update` parks the re-affirmation under
+`.harness/pending/source-fixes.json` (a `SEEDED SOURCE FIX` note naming `version-sync`),
+and `version-sync` prints the arrival as `NOTE — (ramp)` with `expires in 1.2.0` rather
+than a hard red. Re-affirm the row under a release you mean, recording what you
+re-checked, or remove the dependency. If you never edited `tools/eol.json`, taking the
+harness's register is the same act:
+
+```
+update --refresh-seeded tools/eol.json
+git add tools/eol.json
+```
+
+That pull replaces the whole file, your own rows included, so read the diff before you
+commit it. The parked fix clears itself once your file no longer says `"1.1.0"`.
+`graduate` refuses while this NOTE stands.
+
+### What `update` plants, and what else moved
+
+Owned files, re-planted when your copy still matches a released sha: the hooks under
+`.claude/hooks/` (their version stamps), this runbook, `tools/check-version-sync.mjs` (the
+re-opened arrival ramp), `tools/deferrals.json`, `tools/auth-posture.json`,
+`tools/check-auth-posture.mjs` and `docs/harness/gates-catalog.md` (the census date below),
+`tools/conformance-map.json` and the comments of `tools/check-docs-sync.mjs` and
+`tools/check-workspace-deps.mjs` (the sentences that called the 1.0.0 ramps open). What
+you may notice afterwards:
+
+- **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
+  upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
+  subcommand the census waits for, is still open, and the CLI documents `config push` as
+  its only `config` subcommand. The date moved in the owned ledger and its three sentences
+  together, so `docs-sync` does not red on it. Nothing is yours to do.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

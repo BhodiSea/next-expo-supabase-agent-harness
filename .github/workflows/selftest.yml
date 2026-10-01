@@ -1734,10 +1734,18 @@ jobs:
           # L one release apart, one expiry there and none here. `graduate` REFUSES on
           # NOTEs alone, un-swept, exactly as leg I did at 0.9.9. Verified against
           # `ramp-expectations.mjs 0.11.0 1.0.0`.
+          #
+          # AT 1.1.0 IT BECOMES THE HEADLINE EXPIRY LEG, the leg-H pattern one release on:
+          # the fleet it NOTEd at 1.0.x falls due, so a v0.11.0 install meets exactly the
+          # seven 1.0.0-opened sites that did not re-open (six gates) and NOTHING older —
+          # the cleanest expiry population of this release. version-sync's eol arrival
+          # re-opened at (1.1.0, 1.2.0) and stays a NOTE here, as it does on leg A.
+          # `graduate` now refuses on the red chain rather than on NOTEs alone. Verified
+          # against `ramp-expectations.mjs 0.11.0 1.1.0`.
           - leg: M
             baseline: v0.11.0
             dir: upgrade-0-11-0
-            why: the vintage leg A vacated at 1.0.0 — zero expiries, the whole 1.0.0 NOTE fleet, graduate refuses on NOTEs alone
+            why: the vintage leg A vacated at 1.0.0 — at 1.1.0 the seven 1.0.0-opened expiries and nothing older
     name: "upgrade (leg ${{ matrix.leg }} — ${{ matrix.baseline || 'previous release' }})"
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0

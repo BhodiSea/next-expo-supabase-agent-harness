@@ -27,7 +27,7 @@ The package installs from GitHub. It is not published to the npm registry. Each
 GitHub Release carries the packed tarball with a build provenance attestation;
 see [Verifying a release](SECURITY.md#verifying-a-release).
 
-**Status: stable (1.0.x).** CI proves the scaffold on Linux only. The installer's
+**Status: stable (1.1.x).** CI proves the scaffold on Linux only. The installer's
 unit tests also run on Windows. `pnpm validate` has never run in CI on macOS or
 Windows. See [Limitations](#limitations).
 

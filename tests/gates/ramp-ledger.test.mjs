@@ -521,16 +521,17 @@ test('tags at or above the version being cut, and below the lineage floor, are n
   assert.deepEqual(checkVintages(['v0.1.2', 'v0.1.3', 'v0.6.0'], '0.6.0', ['0.1.3']), [])
 })
 
-test('the GROWN list (1.0.4): v1.0.3 released means VINTAGES carries it, judged as the bump will', () => {
+test('the GROWN list (1.1.0): v1.0.4 released means VINTAGES carries it, judged as the bump will', () => {
   // The live-tag test below asks checkVintages about the CURRENT package version, and
   // checkVintages skips tags >= the version being cut — so at package 0.9.5 the entry
   // '0.9.5' is never demanded and its absence would stay green right up to the bump commit,
   // where the same test reds with no code having changed. This is that wire, pulled early
   // (0.8.0 pulled it for v0.7.0, 0.9.5 for v0.9.0, 0.9.9 for v0.9.5, 0.10.0 for v0.9.9,
   // 0.11.0 for v0.10.0, 0.11.1 for v0.11.0, 1.0.0 for v0.11.1, 1.0.1 for v1.0.0, 1.0.2 for
-  // v1.0.1, 1.0.3 for v1.0.2, and 1.0.4 for v1.0.3): the real released-tag set, judged as the
-  // 1.0.4 release will judge it, against the SHIPPED VINTAGES (the default argument — a local
-  // literal here would be the drift the one-definition test above exists to prevent).
+  // v1.0.1, 1.0.3 for v1.0.2, 1.0.4 for v1.0.3, and 1.1.0 for v1.0.4): the real released-tag
+  // set, judged as the 1.1.0 release will judge it, against the SHIPPED VINTAGES (the default
+  // argument — a local literal here would be the drift the one-definition test above exists
+  // to prevent).
   //
   // 0.10.0 WAS THE HOP THIS TEST WARNED ABOUT from 0.9.5 onward — 0.9.9 -> 0.10.0 is the
   // first minor to cross a two-digit segment, where a string compare would order '0.10.0'
@@ -557,8 +558,9 @@ test('the GROWN list (1.0.4): v1.0.3 released means VINTAGES carries it, judged 
     'v1.0.1',
     'v1.0.2',
     'v1.0.3',
+    'v1.0.4',
   ]
-  assert.deepEqual(checkVintages(tags, '1.0.4'), [])
+  assert.deepEqual(checkVintages(tags, '1.1.0'), [])
 
   // And the defect shape it guards: the list stopped at 0.9.0 — exactly the forgotten-entry
   // red the bump would otherwise be the first to surface. The comparison underneath is
@@ -978,7 +980,7 @@ test('highestReleaseBelow: ordering is numeric and non-release refs are ignored'
 // theirs met. This is the regression proof: it fails against minVersion 0.10.0.
 const ARRIVAL = "the arrival of tools/eol.json's removalTarget dates"
 
-test('0.11.1 → 1.0.0 — the eol ARRIVAL escape reaches the vintage it used to exclude, one release on', () => {
+test('0.11.1 → 1.0.0 → 1.1.0 — the eol ARRIVAL escape reaches the vintages it used to exclude, one release on each time', () => {
   const sites = shippedRampSites()
   const arrival = sites.filter((s) => s.detail?.includes(ARRIVAL))
   assert.equal(arrival.length, 1, `expected exactly one arrival site, got ${arrival.length}`)
@@ -994,12 +996,25 @@ test('0.11.1 → 1.0.0 — the eol ARRIVAL escape reaches the vintage it used to
     assert.equal(at.expired.length, 0)
   }
 
+  // 1.1.0 moved it to minVersion 1.1.0 by the standing rule, with no lane having to find
+  // it: the 1.1.0 re-review moved the template's uuid row from 1.1.0 to 1.2.0, and every
+  // 1.0.x install holds the seeded "1.1.0" that arrives at 1.1.0. An escape opened at 1.0.0
+  // is inert for exactly them, so each 1.0.x vintage must be ADVISORY at 1.1.0 — and so
+  // must every older one, which also holds a date that has arrived.
+  for (const base of ['0.10.0', '0.11.1', '1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
+    const at = classifyForInstall(base, '1.1.0', arrival)
+    assert.equal(at.noting.length, 1, `the ${base} vintage is not covered by the arrival ramp`)
+    assert.equal(at.inert.length, 0)
+    assert.equal(at.expired.length, 0)
+  }
+
   // A FRESH install of this harness is judged immediately — the escape is for installs
   // seeded before the demand, never for trees that ship with the re-dated register.
-  assert.equal(classifyForInstall('1.0.0', '1.0.0', arrival).inert.length, 1)
+  assert.equal(classifyForInstall('1.1.0', '1.1.0', arrival).inert.length, 1)
 
   // And it is still an escape with an expiry, not an open-ended one.
-  assert.equal(arrival[0].until, '1.1.0')
+  assert.equal(arrival[0].minVersion, '1.1.0')
+  assert.equal(arrival[0].until, '1.2.0')
 })
 
 test('0.11.1 — the extension is RECORDED, and matches the site byte-for-byte', () => {
@@ -1087,7 +1102,15 @@ test('the SHIPPED 1.0.1 rampExpiry record equals what the shipped call sites com
   }
   const at100 = classifyForInstall('1.0.0', '1.0.1', sites)
   assert.equal(at100.expired.length, 0, '1.0.0 meets no expiry at 1.0.1')
-  assert.equal(at100.noting.length, 0, '1.0.0 meets no NOTE at 1.0.1')
+  // At 1.0.1's own release a 1.0.0 install met NO note at all. These pins read the CURRENT
+  // fleet at a historical version and move with each reviewed ramp change, in the same diff:
+  // since 1.1.0 re-opened version-sync's eol arrival at minVersion 1.1.0, that one site reads
+  // as advisory for a 1.0.0 base at every version below its 1.2.0 deadline, and nothing else.
+  assert.deepEqual(
+    at100.noting.map((s) => s.detail),
+    [`"${ARRIVAL}"`],
+    '1.0.0 meets only the re-opened eol arrival under the current fleet',
+  )
   assert.match(record.why, /ramp-expectations\.mjs/)
 })
 
@@ -1108,12 +1131,85 @@ test('1.0.0 — TWO extensions are RECORDED, and each matches its site byte-for-
   assert.ok(arrival.detail.includes(ARRIVAL), `detail does not name the site: ${arrival.detail}`)
   for (const e of exts)
     assert.ok(e.why.length > 200, `thin why (${String(e.why.length)} chars) for ${e.file}`)
-  // And both moved sites now open at 1.0.0 — ABOVE the population they protect.
+  // And both moved sites opened at 1.0.0 — ABOVE the population they protected. The
+  // gate-list site still reads (1.0.0, 1.1.0), now expired for every install below 1.0.0.
+  // The arrival site moved on at 1.1.0 by the same standing rule, to (1.1.0, 1.2.0), and the
+  // 1.1.0 record carries that move (the 1.1.0 test below).
   const sites = shippedRampSites()
-  for (const detail of ['AGENTS.md gate-list lockstep after an injected chain step', ARRIVAL]) {
-    const site = sites.find((s) => s.detail?.includes(detail))
-    assert.ok(site, `site not found: ${detail}`)
-    assert.equal(site.minVersion, '1.0.0')
-    assert.equal(site.until, '1.1.0')
+  const gateListSite = sites.find((s) =>
+    s.detail?.includes('AGENTS.md gate-list lockstep after an injected chain step'),
+  )
+  assert.ok(gateListSite, 'the gate-list site is still shipped')
+  assert.equal(gateListSite.minVersion, '1.0.0')
+  assert.equal(gateListSite.until, '1.1.0')
+  const arrivalSite = sites.find((s) => s.detail?.includes(ARRIVAL))
+  assert.ok(arrivalSite, 'the arrival site is still shipped')
+  assert.equal(arrivalSite.minVersion, '1.1.0')
+  assert.equal(arrivalSite.until, '1.2.0')
+})
+
+// ── 1.1.0: the six-gate 1.0.0 fleet falls due, and its eighth site re-opens ─────────
+test('the SHIPPED 1.1.0 rampExpiry record equals what the shipped call sites compute', () => {
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const record = migrations['1.1.0']?.rampExpiry
+  assert.ok(record, 'the release that reds fifteen vintages at once must say which, in data')
+
+  const sites = shippedRampSites()
+  const computed = VINTAGES.filter((v) => cmpDotted(v, '1.1.0') < 0).filter(
+    (base) => classifyForInstall(base, '1.1.0', sites).expired.length > 0,
+  )
+  assert.deepEqual(record.affects, computed)
+  // Fifteen: 1.0.0's thirteen plus 0.11.0 and 0.11.1, which met nothing expiring at 1.0.0
+  // and meet the whole 1.0.0-opened fleet here.
+  assert.equal(record.affects.length, 15)
+  assert.equal(record.affects.at(-1), '0.11.1')
+
+  // The 0.11.x vintages meet exactly the seven 1.0.0-opened sites that did not re-open,
+  // across six gates (check-exports-walls.mjs reports as boundaries), and nothing older.
+  const SEVEN = ['auth-posture', 'boundaries', 'docs-sync', 'resilience', 'suppressions', 'version-sync']
+  for (const base of ['0.11.0', '0.11.1']) {
+    const at = classifyForInstall(base, '1.1.0', sites)
+    assert.equal(at.expired.length, 7, `${base} must meet the seven 1.0.0-opened expiries`)
+    assert.ok(at.expired.every((s) => s.minVersion === '1.0.0'))
+    assert.deepEqual([...new Set(at.expired.map((s) => s.gate))].sort(), SEVEN)
+    // …and the re-opened arrival stays a NOTE for them: its fix is parked, not due.
+    assert.deepEqual(
+      at.noting.map((s) => s.detail),
+      [`"${ARRIVAL}"`],
+    )
   }
+  // Every 1.0.x vintage meets NOTHING expired and exactly the one re-opened NOTE — the
+  // inverse proof that the wave is dated, not blanket.
+  for (const base of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4']) {
+    const at = classifyForInstall(base, '1.1.0', sites)
+    assert.equal(at.expired.length, 0, `${base} must meet no expiry at 1.1.0`)
+    assert.equal(at.noting.length, 1, `${base} meets only the re-opened arrival`)
+  }
+  assert.match(record.why, /SWEEPS\['1\.0\.0'\]/)
+  assert.match(record.why, /ramp-expectations\.mjs/)
+})
+
+test('1.1.0 — ONE extension is RECORDED, the arrival re-open, and it matches its site byte-for-byte', () => {
+  const migrations = JSON.parse(
+    readFileSync(new URL('../../template/migrations.json', import.meta.url), 'utf8'),
+  )
+  const exts = migrations['1.1.0'].rampExtensions
+  assert.equal(exts.length, 1, 'one move, one record')
+  const [ext] = exts
+  assert.equal(ext.file, 'check-version-sync.mjs')
+  assert.equal(ext.from, '1.1.0')
+  assert.equal(ext.to, '1.2.0')
+  assert.ok(ext.detail.includes(ARRIVAL), `detail does not name the site: ${ext.detail}`)
+  assert.ok(ext.why.length > 200, `thin why (${String(ext.why.length)} chars)`)
+  // The standing rule's other debt, in the same record: the parked fix on the OLD literal.
+  const probes = (migrations['1.1.0'].seededSourceFixes ?? []).flatMap((f) => f.probes ?? [])
+  assert.ok(
+    probes.some(
+      (p) =>
+        p.path === 'tools/eol.json' && p.brokenWhen?.contains === '"removalTarget": "1.1.0"',
+    ),
+    'the 1.1.0 record must park the re-date for installs still holding "1.1.0"',
+  )
 })
