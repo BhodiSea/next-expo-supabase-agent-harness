@@ -13,6 +13,13 @@
 //   - Stack up: run both; either failing fails the run.
 //   - Stack up and nothing either suite reads has changed since the last green run: print
 //     `rls-isolation: STAMPED — …` and run neither (1.0.4, below). Never in CI.
+//
+// WHICH CLI (1.0.4). The Stop hook starts this file with plain `node` and the session's
+// PATH, so through 1.0.3 a bare `supabase` here was whichever one the machine had first, or
+// none, while `pnpm test:rls` and CI ran the catalog-pinned copy in node_modules/.bin.
+// tools/lib/supabase-cli.mjs puts that copy first when it is installed (never on Windows,
+// where .bin holds .cmd shims), every spawn below uses its environment, and the run names
+// the CLI it used. The rule above, for when to skip and when to fail, is unchanged.
 // SOURCE: docs/harness/README.md (RLS testing doctrine) [corpus: harness/doctrine]
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -21,16 +28,18 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { inCI as requiresToolchains, stampGate } from '../../tools/lib/gate.mjs'
 import { STAMP_INPUTS } from '../../tools/lib/stamp-inputs.mjs'
+import { supabaseCli } from '../../tools/lib/supabase-cli.mjs'
 
 const GATE = 'rls-isolation'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const haveMigrations = existsSync(path.join(repoRoot, 'supabase', 'migrations'))
 const underStopGate = process.env['HARNESS_STOP_GATE'] === '1'
 const inCI = Boolean(process.env['CI'])
+const cli = supabaseCli(repoRoot, process.env, process.platform)
 
 function available(cmd, args) {
   try {
-    execFileSync(cmd, args, { stdio: 'ignore', timeout: 30_000 })
+    execFileSync(cmd, args, { env: cli.env, stdio: 'ignore', timeout: 30_000 })
     return true
   } catch {
     return false
@@ -42,6 +51,7 @@ function available(cmd, args) {
 function cliVersion() {
   try {
     const out = execFileSync('supabase', ['--version'], {
+      env: cli.env,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 30_000,
@@ -54,6 +64,14 @@ function cliVersion() {
 
 const version = cliVersion()
 const haveCli = version !== null
+if (haveCli) {
+  // Never the word the Stop hook collects skip lines by: this line is printed on every run.
+  const where =
+    cli.source === 'workspace'
+      ? `${path.relative(repoRoot, cli.bin).split(path.sep).join('/')} (the workspace copy)`
+      : '`supabase` from PATH (no workspace copy in node_modules/.bin)'
+  console.log(`[rls] Supabase CLI ${version}: ${where}`)
+}
 // `supabase status` exits non-zero when the local stack is not running.
 const stackUp = haveCli && available('supabase', ['status'])
 
@@ -102,7 +120,13 @@ function dbIdentity() {
     const out = execFileSync(
       'supabase',
       ['db', 'query', '--local', '--output-format', 'json', IDENTITY_SQL],
-      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 60_000 },
+      {
+        cwd: repoRoot,
+        env: cli.env,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 60_000,
+      },
     )
     // Only the rows: the envelope carries a fresh random boundary on every call.
     const parsed = JSON.parse(out.slice(out.search(/[[{]/)))
@@ -166,13 +190,18 @@ function recordStamp(record) {
 const recordGreen = stampOrRecorder()
 
 function run(cmd, args, extraEnv = {}) {
-  execFileSync(cmd, args, { cwd: repoRoot, env: { ...process.env, ...extraEnv }, stdio: 'inherit' })
+  execFileSync(cmd, args, { cwd: repoRoot, env: { ...cli.env, ...extraEnv }, stdio: 'inherit' })
 }
 
-// The local keys, read from `supabase status` at RUNTIME — never committed (they are
-// JWT-shaped, and the hygiene gate reds a literal one).
+// The local keys and the database URL, read from `supabase status` at RUNTIME — never
+// committed (the keys are JWT-shaped, and the hygiene gate reds a literal one; the URL's
+// port is whatever this project's supabase/config.toml says).
 function statusEnv() {
-  const out = execFileSync('supabase', ['status', '-o', 'env'], { cwd: repoRoot, encoding: 'utf8' })
+  const out = execFileSync('supabase', ['status', '-o', 'env'], {
+    cwd: repoRoot,
+    env: cli.env,
+    encoding: 'utf8',
+  })
   const env = {}
   for (const line of out.split('\n')) {
     const m = line.match(/^([A-Z0-9_]+)="?(.*?)"?$/)
@@ -197,6 +226,10 @@ try {
     SUPABASE_URL: s['API_URL'] ?? '',
     SUPABASE_ANON_KEY: s['ANON_KEY'] ?? '',
     SUPABASE_SERVICE_ROLE_KEY: s['SERVICE_ROLE_KEY'] ?? '',
+    // The name the shipped workflow maps DB_URL to and the shipped tools read (1.0.4).
+    // auth-trail.test.ts counts its rows through it, so a forked runner that drops this key
+    // makes that suite throw rather than reach a database on a guessed port.
+    SUPABASE_DB_URL: s['DB_URL'] ?? '',
   })
 } catch {
   console.error('[rls] client isolation suite FAILED')

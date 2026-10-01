@@ -44,11 +44,13 @@ process.exit(0)
 `
 
 /**
- * @param {{ committed?: string, genOutput?: string } & Record<string, string>} [opts]
- *   Anything beyond `committed`/`genOutput` is passed through as an env flag.
+ * @param {{ committed?: string, genOutput?: string, workspace?: boolean } & Record<string, string | boolean>} [opts]
+ *   Anything beyond `committed`/`genOutput`/`workspace` is passed through as an env flag.
+ *   `workspace: true` also plants a WORKING fake at node_modules/.bin/supabase (POSIX shim
+ *   only), which ignores FAKE_CLI and FAKE_UP, so those flags then steer the PATH fake alone.
  * @returns {{ code: number | null, out: string }}
  */
-function run({ committed, genOutput = GEN_OUTPUT, ...flags } = {}) {
+function run({ committed, genOutput = GEN_OUTPUT, workspace = false, ...flags } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-typesdrift-'))
   const bin = join(dir, 'bin')
   mkdirSync(bin, { recursive: true })
@@ -60,6 +62,16 @@ function run({ committed, genOutput = GEN_OUTPUT, ...flags } = {}) {
   chmodSync(join(bin, 'supabase'), 0o755)
   // CRLF: cmd.exe mis-parses a .cmd file with bare LF line endings.
   writeFileSync(join(bin, 'supabase.cmd'), `@echo off\r\n"${process.execPath}" "%~dp0impl.mjs" %*\r\n`)
+
+  if (workspace) {
+    const wsBin = join(dir, 'node_modules', '.bin')
+    mkdirSync(wsBin, { recursive: true })
+    writeFileSync(
+      join(wsBin, 'supabase'),
+      `#!/bin/sh\nFAKE_CLI=1 FAKE_UP=1 exec "${process.execPath}" "${join(bin, 'impl.mjs')}" "$@"\n`,
+    )
+    chmodSync(join(wsBin, 'supabase'), 0o755)
+  }
 
   const genFile = join(dir, 'gen-output.ts')
   writeFileSync(genFile, genOutput)
@@ -225,3 +237,35 @@ test('GREEN (c): a line-ending-only difference (CRLF against LF) passes and prin
   assert.deepEqual(diffLines(r.out, '- '), [])
   assert.deepEqual(diffLines(r.out, '+ '), [])
 })
+
+// ── The workspace CLI first (1.0.4, #43) ─────────────────────────────────────────────────
+// Through 1.0.3 the gate looked `supabase` up on the session's PATH only, while its own
+// remedy (`pnpm db:types`) and every CI job ran the catalog-pinned copy in node_modules/.bin.
+// Different CLI versions generate different output, so on a machine with another global CLI
+// the gate could red a mirror `pnpm db:types` had just written, and on one with none it
+// skipped with the stack up. It now puts the workspace copy first when it exists. POSIX only:
+// on win32 .bin holds .cmd shims the gate's lookup cannot start, so the helper leaves PATH
+// as it is there (tests/gates/supabase-cli.test.mjs proves that branch on both legs).
+const POSIX = process.platform !== 'win32'
+if (!POSIX) console.log('# SKIPPED the workspace-CLI case in check-types-drift.test.mjs: POSIX-only (#!/bin/sh fake)')
+
+test(
+  'GREEN: a working workspace CLI is used ahead of a failing PATH CLI (#43)',
+  { skip: POSIX ? false : 'POSIX-only: the workspace fake is a #!/bin/sh script' },
+  () => {
+    const r = run({ workspace: true, FAKE_CLI: '0', committed: GEN_OUTPUT })
+    assert.equal(r.code, 0, r.out)
+    assert.ok(r.out.includes('OK'), r.out)
+    assert.ok(!r.out.includes('SKIPPED'), r.out)
+  },
+)
+
+test(
+  'RED: the workspace CLI judges a stale mirror even when the PATH CLI is absent (#43)',
+  { skip: POSIX ? false : 'POSIX-only: the workspace fake is a #!/bin/sh script' },
+  () => {
+    const r = run({ workspace: true, FAKE_CLI: '0', committed: 'export type Database = {}\n' })
+    assert.equal(r.code, 1, r.out)
+    assert.ok(r.out.includes('stale'), r.out)
+  },
+)

@@ -17,6 +17,9 @@ This lineage's own history starts at 0.1.3.
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
 every changed file that is owned. The one seeded change, the regenerated database types,
 reaches fresh scaffolds only (see Fixed, which says what an existing install does instead).
+One gate can red locally where it used to skip: `types-drift`, on a machine with no global
+Supabase CLI, now runs on the workspace CLI with the stack up, as CI's `runtime-rls` job
+already did (see Fixed).
 The `template/migrations.json` record for 1.0.4 is `rampExpiry` only, restating 1.0.0's
 thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.3 meet nothing here.
 `scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
@@ -75,6 +78,37 @@ this heading if none does. -->
   test reds any list, base or module, that misses a module its script imports. A closure only
   adds inputs, so a stamp can expire more often and never less, and CI still never rides one.
   `update` delivers both libs, and the eas-update gate where that module is enabled (#42).
+- **The Stop hook's database steps run the workspace Supabase CLI.** The hook starts
+  `node tests/rls/run-rls.mjs` and `node tools/check-types-drift.mjs` with the session's
+  `PATH`, and both spawned a bare `supabase`, while `pnpm test:rls`, `pnpm db:types` and
+  every CI job run the catalog-pinned copy in `node_modules/.bin`. On a machine with no
+  global CLI the `rls-isolation` step failed closed with the stack up ("supabase CLI not
+  installed"), so every turn was blocked while `pnpm test:rls` passed; on a machine with
+  another version the suite ran on that version. A new owned helper,
+  `tools/lib/supabase-cli.mjs`, puts `node_modules/.bin` first on the child's `PATH` when it
+  holds `supabase`, and falls back to `PATH` as before when it does not. On Windows it
+  changes nothing, because `.bin` holds `.cmd` shims there. The runner prints the CLI's
+  version and where it came from; its rule for when to skip and when to fail is unchanged,
+  and every spawn, the stamp's database-identity query included, uses that CLI. The
+  `rls-isolation` stamp list names the helper, so an edit to it runs both suites again.
+  **`types-drift` uses the same CLI, and that is the one place a gate can now red locally
+  where it used to skip:** on a machine with no global CLI, with the stack up and a stale
+  mirror, it reds a turn. CI's `runtime-rls` job already judges the same tree with the same
+  binary, and `pnpm db:types`, then committing the diff, clears it. Its probes gain the
+  runner's 30-second timeout (#43).
+- **`auth-trail.test.ts` reads the running stack's database URL.** It named port 54322 in a
+  literal, so a project that moved the port in `supabase/config.toml`, or a machine where
+  another stack held it, sent its `psql` to another database or to none. The runner now
+  hands vitest `SUPABASE_DB_URL` from `supabase status -o env`, the name the shipped
+  workflow and tools already use, and the suite reads it when it runs, never at module
+  scope, so a skipped suite still loads. With no URL it throws, naming
+  `node tests/rls/run-rls.mjs`; there is no fallback. The RLS doctrine in
+  `docs/harness/README.md` now says which CLI the runner resolves and that it hands vitest
+  `SUPABASE_DB_URL`, which it never did before, and `docs/harness/gates-catalog.md` says the
+  same of both steps. `update` plants the new helper and re-plants, when unmodified, the
+  owned files these two fixes touch: `tests/rls/run-rls.mjs`, `tests/rls/auth-trail.test.ts`,
+  `tools/check-types-drift.mjs`, `tools/lib/stamp-inputs.mjs`, `docs/harness/README.md`,
+  `docs/harness/gates-catalog.md` and the upgrade runbook (#43).
 
 ### Changed
 
@@ -113,6 +147,18 @@ this heading if none does. -->
   other stamps. No step, floor entry or command changes. `update` delivers the Stop hook, the
   runner, `lib/gate.mjs`, `docs/harness/README.md`, whose new "Stamped gates" section and
   corrected RLS doctrine say what the runner does, and `docs/harness/gates-catalog.md` (#42).
+- **`doctor` reports the toolchain, and `doctor --clean` deletes ignored residue.** For
+  `node`, `pnpm`, the Supabase CLI (the workspace copy and the one on `PATH`) and `psql`, an
+  `info` line names the binary found, its version and the pin it is compared with:
+  `.node-version`, `packageManager`, the `pnpm-workspace.yaml` catalog and `[db]
+  major_version`. A probe ignores stdin, times out after 10 seconds and never throws, and a
+  tool it could not run is reported as not probed, never as missing. `--clean` deletes
+  `.harness/stop-output/` and `apps/mobile/dist/`, which nothing else deleted, and prints
+  each path; `--clean --dry-run` only lists them. An entry is skipped with a note unless it
+  is inside the install, not reached through a symlink, holds no tracked file and is
+  ignored by git at run time. The manifest, `pending/`, `rollback/`, `turn.lock`, the
+  `.jsonl` ledgers and the `.ok` stamps are never on the list. Neither the report nor
+  `--clean` changes doctor's exit code (#43).
 
 ### What stays open, honestly
 
@@ -136,6 +182,11 @@ this heading if none does. -->
   The rls stamp cannot see SQL someone runs by hand against the running database; after
   that, `pnpm db:reset` or a human deleting `.harness/rls-isolation.ok` re-arms it, and CI
   never rides it (#42).
+- **A forked rls runner must pass `SUPABASE_DB_URL`.** `update` re-plants
+  `tests/rls/run-rls.mjs` and `tests/rls/auth-trail.test.ts` together when both are
+  unmodified. When the runner is forked, `update` keeps the fork and parks the incoming
+  copy, and a fork that does not hand vitest `SUPABASE_DB_URL` makes the new `auth-trail`
+  suite throw, locally and in `runtime-rls`, until it does (#43).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -166,7 +217,24 @@ this heading if none does. -->
   edited migration each ran both suites again before the next run rode the new stamp. In a
   zero-edit core scaffold a warm `validate --report-all` printed a `STAMPED` line for every
   stamped validate gate, and one Stop run with the stack up exited 0 listing those lines and
-  `rls-isolation` as stamped layers (#42).
+  `rls-isolation` as stamped layers (#42). A fixture copy of the runner with a working
+  workspace fake and a failing `PATH` fake failed under `HARNESS_STOP_GATE=1` with
+  "supabase CLI not installed" before the fix, and after it named the workspace CLI, handed
+  vitest the fake `DB_URL` as `SUPABASE_DB_URL`, ended `[rls] OK` and rode its stamp on the
+  next run through the same CLI; the same fakes took `types-drift` from SKIPPED to OK, and
+  the import-closure test was red until the `rls-isolation` list named the helper. In a
+  zero-edit core scaffold on a machine with no global CLI, with no stack,
+  `pnpm exec vitest run tests/rls` skipped all three files and passed, and the Stop-hook
+  command failed closed on "no running supabase stack" after naming the workspace CLI. With
+  the stack up it named the workspace CLI 2.118.0, passed the pgTAP suite and all three
+  supabase-js files, `auth-trail` among them through `SUPABASE_DB_URL`, and ended
+  `[rls] OK`, and the next run printed `rls-isolation: STAMPED`; `types-drift` ran and
+  passed where it used to skip, and redded a mirror with one line appended; `auth-trail`
+  run without `SUPABASE_DB_URL` threw the error naming the runner. `doctor --clean
+  --dry-run` there listed both entries, removed nothing, and printed a line for each tool.
+  Its report and `--clean` were also driven through an injected probe, including a failing,
+  a timing-out and a throwing one, with the exit code unchanged, and every `--clean` skip
+  case was exercised (#43).
 
 ## [1.0.3] — 2026-09-23
 

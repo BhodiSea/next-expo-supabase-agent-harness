@@ -1120,7 +1120,10 @@ running local stack and compares it with the committed
 text's trailing whitespace; a mismatch means a migration landed without a `pnpm db:types`
 regen, so the checked-in types describe a schema no database runs. A new Supabase CLI can
 also change the generator's output on an unchanged schema (2.117.0 and 2.118.0 both did);
-`pnpm db:types` with the install's own CLI clears that red the same way. Before its FAIL
+`pnpm db:types` with the install's own CLI clears that red the same way. Since 1.0.4 the
+gate runs that same CLI: the workspace copy in `node_modules/.bin` when one is installed
+(`tools/lib/supabase-cli.mjs`; never on Windows), `PATH` otherwise, so on a machine with no
+global CLI it runs with the stack up where it used to skip. Before its FAIL
 sentence the gate prints each side's line count, the first differing line, and at most
 `DIFF_LINES` lines of each side from there (committed `- `, generated `+ `), so a CI log
 alone tells a layout change from a schema change. A LIVE-STACK gate: it SKIPS LOUDLY
@@ -1873,7 +1876,11 @@ SKIP locally; in CI with migrations present, unreachable = FAIL. Stamped locally
 with the stack up and its declared inputs, the `supabase --version` output and the
 database's identity (server start time + applied migration versions) all unchanged since
 the last green run, it prints `rls-isolation: STAMPED` and runs neither suite; any non-empty
-`CI` always runs both (see docs/harness/README.md, Stamped gates).
+`CI` always runs both (see docs/harness/README.md, Stamped gates). Since 1.0.4 every spawn
+uses the workspace Supabase CLI in `node_modules/.bin` when one is installed
+(`tools/lib/supabase-cli.mjs`; `PATH` otherwise, and always on Windows), the run prints
+which CLI it used, and the supabase-js suite gets `SUPABASE_DB_URL` from
+`supabase status -o env` beside the API URL and keys.
 
 **There is no plan probe in THIS suite, and that is a placement decision, not an
 omission.** A plan is a planner opinion at one statistics snapshot; against the

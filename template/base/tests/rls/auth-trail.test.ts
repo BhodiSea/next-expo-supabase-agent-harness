@@ -12,24 +12,37 @@
 // The count goes through psql as the local superuser, deliberately: the trail
 // has NO client read path by design (the migration header records the no-reader
 // posture), so asserting through a client would require adding the exact read
-// surface the design refuses. The local stack's postgres credentials are fixed
-// by the CLI — the same ones `supabase test db` itself uses; nothing secret
-// leaves this file.
+// surface the design refuses. The URL is the running stack's own, from
+// `supabase status -o env` (DB_URL), which tests/rls/run-rls.mjs hands this suite
+// as SUPABASE_DB_URL (1.0.4). Through 1.0.3 it was a literal naming the default
+// Postgres port: a project that moved the port in supabase/config.toml, or a
+// machine where another stack held it, sent psql to another database or to none.
 import { execFileSync } from 'node:child_process'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { anonClient, createTenant, RLS_SUITE_READY, serviceClient, type Tenant } from './db-context'
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+// Read when the suite RUNS, never at module scope: the `rls` vitest project loads this
+// file on every `unit` Stop step, where no URL is set and the suite is skipped, and a
+// module-scope throw would block every turn. There is no fallback URL.
+function stackDbUrl(): string {
+  const url = process.env['SUPABASE_DB_URL'] ?? ''
+  if (url === '') {
+    throw new Error(
+      'SUPABASE_DB_URL is not set. Run this suite through `node tests/rls/run-rls.mjs` (`pnpm test:rls`), which reads it from `supabase status -o env`; a forked runner must pass it too.',
+    )
+  }
+  return url
+}
 
 // A dedicated identity, so the count is scoped to THIS suite's attempt and a
 // re-run against an un-reset database cannot collide with the isolation suite.
 const PROBE: Tenant = { email: 'auth-trail@example.test', password: 'auth-trail-pw-x9', id: '' }
 
-function failureCount(userId: string): number {
+function failureCount(dbUrl: string, userId: string): number {
   const out = execFileSync(
     'psql',
     [
-      DB_URL,
+      dbUrl,
       '-tAc',
       `select count(*) from auth_trail.events
         where event_kind = 'password_failure' and user_id = '${userId}'`,
@@ -40,7 +53,10 @@ function failureCount(userId: string): number {
 }
 
 describe.runIf(RLS_SUITE_READY)('the auth event trail (GoTrue → hook → row)', () => {
+  let dbUrl = ''
+
   beforeAll(async () => {
+    dbUrl = stackDbUrl()
     const svc = serviceClient()
     try {
       await createTenant(svc, PROBE)
@@ -55,7 +71,7 @@ describe.runIf(RLS_SUITE_READY)('the auth event trail (GoTrue → hook → row)'
   })
 
   it('records a REAL failed password attempt — the half no client seam can see', async () => {
-    const before = failureCount(PROBE.id)
+    const before = failureCount(dbUrl, PROBE.id)
 
     const attempt = await anonClient().auth.signInWithPassword({
       email: PROBE.email,
@@ -66,6 +82,6 @@ describe.runIf(RLS_SUITE_READY)('the auth event trail (GoTrue → hook → row)'
     })
     expect(attempt.error).not.toBeNull()
 
-    expect(failureCount(PROBE.id)).toBe(before + 1)
+    expect(failureCount(dbUrl, PROBE.id)).toBe(before + 1)
   })
 })

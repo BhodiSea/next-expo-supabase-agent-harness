@@ -332,17 +332,18 @@ Doctrine notes for the citations:
 
 ## RLS testing doctrine
 
-The `schema-rls` gate proves policies **exist**; the runtime suites prove they
+The `schema-rls` gate proves policies **exist**; the runtime suite proves they
 **isolate**. `node tests/rls/run-rls.mjs` (the `rls-isolation` Stop-hook step /
-`pnpm test:rls`) probes `supabase --version` and `supabase status`. No CLI, or no running
-stack, is a loud SKIP on a local run and a FAIL under CI or the Stop hook once
-`supabase/migrations` exists. With the stack up it runs both suites against the stack as it
-stands: the pgTAP suite through `supabase test db`, then the supabase-js suite through
-vitest, handed the stack's URL and keys from `supabase status -o env`. It applies no
-migration and restarts nothing: migrations reach the database on the first `pnpm db:up` or
-on `pnpm db:reset`, and a stopped stack keeps its data. When nothing either suite reads has
-changed since its last green run, it prints `rls-isolation: STAMPED` instead (see Stamped
-gates). Per `ISOLATION_TARGETS` entry:
+`pnpm test:rls`) resolves the Supabase CLI (the workspace copy in `node_modules/.bin`
+first, then `PATH`; `PATH` only on Windows) and probes the stack with `supabase status`.
+No CLI or no stack: a loud SKIP on a manual run, a FAIL in CI and under the Stop hook
+once `supabase/migrations` exists. Otherwise it runs the pgTAP suite with
+`supabase test db`, then the supabase-js suite with the API URL, the keys and
+`SUPABASE_DB_URL`, all read from `supabase status -o env`. It runs both against the stack
+as it stands: it applies no migration and restarts nothing, since migrations reach the
+database on the first `pnpm db:up` or on `pnpm db:reset`, and a stopped stack keeps its
+data. When nothing either suite reads has changed since its last green run, it prints
+`rls-isolation: STAMPED` instead (see Stamped gates). Per `ISOLATION_TARGETS` entry:
 
 - **Seeded positive control** — user A sees its OWN row first. Without this, a deny-all
   database would pass every negative assertion vacuously. The same doctrine applies to

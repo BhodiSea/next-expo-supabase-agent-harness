@@ -78,7 +78,9 @@ existing install. Where one changes what `update` does, its section says so.
   issue #41)
 - **Preflight hygiene and a pinned runner environment.** `doctor` reports the
   toolchain it resolved and clears enumerated residue, and the local database
-  lane stops taking its CLI and its port from the machine.
+  lane stops taking its CLI and its port from the machine. On a machine with no
+  global CLI, `types-drift` then runs where it skipped and can red a stale
+  mirror locally, as CI's `runtime-rls` job already did.
   ([N03](design/FIELD-UPGRADES-2026-09.md#n03-preflight-residue-hygiene-and-a-pinned-runner-environment),
   issue #43)
 - **`validate --ci-parity`.** One flag gives a local run CI's posture: no
