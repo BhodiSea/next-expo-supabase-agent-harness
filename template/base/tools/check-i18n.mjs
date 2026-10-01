@@ -59,9 +59,9 @@
 //     loud NOTE locally, a failure in CI (skip-local / fail-closed-CI). Checks 3 and 4 do not
 //     need the parser and still judge.
 //
-// LIMITS, HONESTLY. Neither scan is a type checker: each sees the shapes copy takes, not
+// LIMITS, HONESTLY. The walk is not a type checker: it sees the shapes copy takes, not
 // every expression that could produce a string. A message assembled at runtime from
-// fragments, or returned by a helper, is invisible to both. That is precisely why the
+// fragments, or returned by a helper, is invisible to it, as it was to the expressions. That is precisely why the
 // pseudo-locale lane exists (the RNTL fast lane + the Maestro device lane): under `en-XA`
 // every catalog string is visibly mangled, so any plain-English text still on screen is BY
 // CONSTRUCTION a string that never went through the catalog. The static check is fast and

@@ -1278,7 +1278,7 @@
     ],
     "tools/check-i18n.mjs": [
       {
-        "sha256": "ba55eb40562a8eec35b4b28fbb67c770e3319a46ac4ec2952cd005f1d2bd06ed"
+        "sha256": "de964852ca05fc5cf022dc04c587e26f96eac19cf52904b919c21224234b5322"
       }
     ],
     "tools/check-licenses.mjs": [
