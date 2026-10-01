@@ -271,6 +271,21 @@ this heading if none does. -->
   factory Stop hook start it from the root, so their verdicts do not change, and a record
   missing at the root still reports every function as new. The 1.0.3 entry listed this as
   open. The fix is factory-only: `scripts/` does not ship, so no install gets it (#53).
+- **The factory's workflow checks read the module workflows too.** Through 1.0.3,
+  `workflow-lanes`, `check-ci-preconditions` and the canary `lanes` closure read
+  `template/base/` only, so the module workflows, which run in every install that enables
+  their module, were outside all three; 1.0.2 recorded the gap and left it open. `check-canary-coverage` now closes
+  every module job through a new `moduleLanes` section of `tests/canary/injections.json`,
+  keyed `<module>/<file>#<job>`, and judges its proofs with the function that judges
+  `lanes`, so a fixture proof is run unless `--no-spawn` is passed and a `steps` proof needs
+  a note. A module job with no entry, a stale or malformed key, a module file with no
+  `jobs:` block or no parseable job, and an empty module tree each red, and a new
+  `--modules-dir` flag lets a test present its own tree. `lanes` keeps its bare base ids,
+  so the conformance and Essential Eight evidence that reads it does not change.
+  `check-ci-preconditions` judges every module workflow's installs and action pins and names
+  the module's path in a finding, and the generic `workflow-lanes` tests run over both trees
+  with a minimum file count for each. No module workflow needed an edit and nothing under
+  `template/` changes, so nothing here reaches an install (#55).
 
 ### Changed
 
@@ -447,6 +462,14 @@ this heading if none does. -->
   on `installer-unit`'s Windows leg and say so: the ratchet spawns `pnpm` without a shell,
   and a `.cmd` stand-in needs one. The gate itself runs in `machinery-lint`, on Linux, and
   from the repository root, as the factory Stop hook does (#53).
+- **A module lane's proof is the half this repository owns.** No module workflow runs
+  here, so each `moduleLanes` entry proves the job's wiring and, where the job runs
+  `validate --min-floor`, that chain; the credentialed and vendor-run parts are not
+  reproduced. The module tools the jobs run without a factory test, `check-eas-update.mjs`,
+  `check-notices.mjs`, `check-gbnf.mjs`, `check-eval-disjoint.mjs` and
+  `tools/ci/device-e2e-matrix.sh`, are named in their entries as unproven, and writing those
+  tests is out of scope. #73's consumer-side lint job, for shells and job timeouts, does
+  not cover this factory closure (#55).
 - **What was proven where.** With full history and every release tag through v1.0.3 fetched,
   `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
   states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
@@ -593,6 +616,15 @@ this heading if none does. -->
   cases skip on Windows, where the ratchet's shell-less spawn of `pnpm` cannot reach a test
   shim. Run from the root and from `installer/`, the ratchet printed the same `CLEAN` line,
   and `scripts/complexity-ratchet.json` did not change (#53).
+  The new cases in `tests/gates/check-canary-coverage.test.mjs`, the base-plus-module count in
+  `tests/gates/ci-preconditions.test.mjs` and the two-tree `workflow-lanes` tests were red on
+  this release's base, where the checker printed CLEAN on every module case, the
+  precondition gate counted the base workflows alone and the shared walker did not exist,
+  and green after. On the changed tree, deleting the `eas-update/eas-update.yml#publish`
+  entry made the checker exit 1 naming that key, `continue-on-error: true` under that job
+  made `workflow-lanes` fail naming the module file, and one module `uses:` moved to `@v7`
+  made `check-ci-preconditions` exit 1 naming the module path and line; on the base the
+  last two edits stayed green (#55).
 
 ## [1.0.3] — 2026-09-23
 

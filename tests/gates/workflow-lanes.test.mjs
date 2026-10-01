@@ -1,11 +1,14 @@
-// THE HALF OF A VENDOR LANE THAT IS OURS (0.3.0).
+// THE HALF OF A VENDOR LANE THAT IS OURS (0.3.0), over base AND modules (1.0.4, #55).
 //
 // The canary registry's CI-lane closure was written against `quality-gate.yml` by name,
 // which made the other seven shipped workflows invisible to it: codeql, gitleaks, osv-scan,
 // actions-lint, adr-guard, migration-safety and mutation are every one of them a lane a
 // reviewer reads as enforcement, and not one had to carry a red-proof. A supply-chain scan
 // that cannot go red is decoration exactly the way a gate that cannot go red is — and it
-// is the kind nobody re-reads, because its name sounds like it is working.
+// is the kind nobody re-reads, because its name sounds like it is working. Through 1.0.3
+// this file still read template/base/ only, so the ten module workflows a consumer enables
+// were outside it; the five generic tests below now hold for every shipped workflow, base
+// and modules, and only the wiring and paths-filter tests, which name base files, stay base.
 //
 // What a fixture can and cannot prove here has to be stated plainly. It CANNOT prove that
 // CodeQL finds an injection or that gitleaks finds a key: that is the vendor's detection,
@@ -16,15 +19,20 @@
 // reads to a reviewer as a scan that ran. Those three shapes are the ways a lane silently
 // stops being enforcement, and they are all decidable from the file.
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { baseWorkflows, moduleWorkflows } from '../../scripts/lib/shipped-workflows.mjs'
 
-const DIR = fileURLToPath(new URL('../../template/base/github/workflows/', import.meta.url))
-const FILES = readdirSync(DIR)
-  .filter((f) => /\.ya?ml$/.test(f))
-  .sort()
+const ROOT = fileURLToPath(new URL('../../', import.meta.url))
+const DIR = join(ROOT, 'template', 'base', 'github', 'workflows')
+// Every shipped workflow, labelled with its repo-relative '/'-joined path so a finding names
+// its module: template/base/github/workflows/<file> and
+// template/modules/<module>/github/workflows/<file>.
+const BASE = baseWorkflows(ROOT)
+const MODULES = moduleWorkflows(join(ROOT, 'template', 'modules'))
+const SHIPPED = [...BASE, ...MODULES]
 
 /**
  * The jobs of one workflow, sliced by the two-space job headings. YAML-shaped rather than
@@ -44,21 +52,24 @@ function jobsOf(text) {
   }))
 }
 
-test('every shipped workflow exposes a parseable jobs: block', () => {
-  assert.ok(FILES.length >= 8, `expected the shipped workflow fleet, got ${String(FILES.length)}`)
-  for (const f of FILES) {
-    assert.ok(jobsOf(readFileSync(join(DIR, f), 'utf8')).length > 0, `${f} exposes no jobs`)
+test('every shipped workflow, base and modules, exposes a parseable jobs: block', () => {
+  // One floor per tree, so losing either one — a moved directory, a broken walk — is a red,
+  // never a vacuous pass over the other tree alone.
+  assert.ok(BASE.length >= 9, `expected the base workflow fleet, got ${String(BASE.length)}`)
+  assert.ok(MODULES.length >= 10, `expected the module workflow fleet, got ${String(MODULES.length)}`)
+  for (const { label, text } of SHIPPED) {
+    assert.ok(jobsOf(text).length > 0, `${label} exposes no jobs`)
   }
 })
 
 test('no shipped lane is neutered by continue-on-error', () => {
   // The quietest way to turn a blocking lane into a suggestion: the job still runs, still
   // reports, and its failure stops mattering.
-  for (const f of FILES) {
-    for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
+  for (const { label, text } of SHIPPED) {
+    for (const job of jobsOf(text)) {
       assert.ok(
         !/continue-on-error:\s*true/.test(job.body),
-        `${f} job '${job.id}' sets continue-on-error: true — the lane runs, reports, and its failure stops mattering. If the lane is genuinely advisory, say so in the registry note; do not leave it looking blocking.`,
+        `${label} job '${job.id}' sets continue-on-error: true — the lane runs, reports, and its failure stops mattering. If the lane is genuinely advisory, say so in the registry note; do not leave it looking blocking.`,
       )
     }
   }
@@ -67,11 +78,11 @@ test('no shipped lane is neutered by continue-on-error', () => {
 test('no shipped lane is disabled by a constant-false condition', () => {
   // `if: false` (and its `${{ false }}` spelling) leaves the job in the checks list as
   // "skipped", which `if: always()` fan-ins and human reviewers both read as benign.
-  for (const f of FILES) {
-    for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
+  for (const { label, text } of SHIPPED) {
+    for (const job of jobsOf(text)) {
       assert.ok(
         !/^\s{4}if:\s*(?:false|\$\{\{\s*false\s*\}\})\s*$/m.test(job.body),
-        `${f} job '${job.id}' is disabled by a constant-false condition — it stays in the checks list as a skip, which reads as benign.`,
+        `${label} job '${job.id}' is disabled by a constant-false condition — it stays in the checks list as a skip, which reads as benign.`,
       )
     }
   }
@@ -79,12 +90,12 @@ test('no shipped lane is disabled by a constant-false condition', () => {
 
 test('every shipped lane actually does something (steps, or a reusable-workflow call)', () => {
   // An emptied job is the third silent-neuter shape: green, instantly, forever.
-  for (const f of FILES) {
-    for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
+  for (const { label, text } of SHIPPED) {
+    for (const job of jobsOf(text)) {
       const hasWork = /^\s{4}steps:\s*$/m.test(job.body) || /^\s{4}uses:\s*\S/m.test(job.body)
       assert.ok(
         hasWork,
-        `${f} job '${job.id}' has neither steps: nor a reusable-workflow uses: — it is green by construction`,
+        `${label} job '${job.id}' has neither steps: nor a reusable-workflow uses: — it is green by construction`,
       )
     }
   }
@@ -170,13 +181,13 @@ test('no lane that builds a PRODUCTION artifact pins NODE_ENV to development (0.
   // and Expo lanes (integration-lane, mobile-e2e), which bundle a development client on
   // purpose — a blanket ban would red two jobs that are right.
   const BUILDS = /\bnext build\b|pnpm run build|playwright test/
-  for (const f of FILES) {
-    for (const job of jobsOf(readFileSync(join(DIR, f), 'utf8'))) {
+  for (const { label, text } of SHIPPED) {
+    for (const job of jobsOf(text)) {
       if (!BUILDS.test(job.body)) continue
       assert.doesNotMatch(
         job.body,
         /^\s*NODE_ENV:\s*development\s*$/m,
-        `${f} job \`${job.id}\` runs a production build AND pins NODE_ENV: development — \`next build\` fails outright under it, so the lane can never reach its first assertion. Leave NODE_ENV unset and let the toolchain decide.`,
+        `${label} job \`${job.id}\` runs a production build AND pins NODE_ENV: development — \`next build\` fails outright under it, so the lane can never reach its first assertion. Leave NODE_ENV unset and let the toolchain decide.`,
       )
     }
   }

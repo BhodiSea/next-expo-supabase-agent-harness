@@ -795,7 +795,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-canary-coverage.test.mjs",
-        "note": "the closure closing over itself: every red/green this checker owns is driven through its positional overrides — including the factoryGates/factoryLanes closures this very section satisfies, proven against synthetic scripts-dir/hook/workflows fixtures"
+        "note": "the closure closing over itself: every red/green this checker owns is driven through its positional overrides — including the factoryGates/factoryLanes closures this very section satisfies, proven against synthetic scripts-dir/hook/workflows fixtures. 1.0.4 (#55): also the #moduleLanes closure over every module workflow job, keyed '<module>/<file>#<job>' — a missing, stale or malformed key, a file with no jobs: block or no parseable job, an empty module tree, a note-less steps proof, a missing fixture ref and an executed module proof, each driven through --modules-dir on a synthetic tree, plus the LIVE LOCKSTEP of #moduleLanes against the real module jobs"
       }
     ],
     "check-chain-budget.mjs": [
@@ -809,7 +809,7 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/ci-preconditions.test.mjs",
-        "note": "0.9.0: the shipped CI's entry-path closure, proven red as a pure function — a bare `pnpm install` (posture resolved from the CI env var) reds naming file:line, an init next-steps note that stops naming pnpm-lock.yaml reds while `cache: pnpm` demands it (the cross-file half), an unpinned or comment-less `uses:` reds, and an empty workflow universe fails closed. The executed twin is the consumer-ci-static selftest lane, which ran the entry path both ways: the commit-before-install order refused with ERR_PNPM_NO_LOCKFILE, the guided tree completed the static job."
+        "note": "0.9.0: the shipped CI's entry-path closure, proven red as a pure function — a bare `pnpm install` (posture resolved from the CI env var) reds naming file:line, an init next-steps note that stops naming pnpm-lock.yaml reds while `cache: pnpm` demands it (the cross-file half), an unpinned or comment-less `uses:` reds, and an empty workflow universe fails closed. The executed twin is the consumer-ci-static selftest lane, which ran the entry path both ways: the commit-before-install order refused with ERR_PNPM_NO_LOCKFILE, the guided tree completed the static job. 1.0.4 (#55): the gate reads base AND every module workflow and labels each finding with its repo-relative path; the test pins the real run's base-plus-module count."
       }
     ],
     "check-claims.mjs": [
@@ -1164,6 +1164,141 @@
       {
         "kind": "steps",
         "note": "the emulator canaries (19, 20) on a real Android emulator, schedule/dispatch-only for cost — registered as the #lanes mobile-e2e and perf-lane selftest proofs, which grep-match their leg titles into this workflow"
+      }
+    ]
+  },
+  "moduleLanesComment": "THE MODULE-LANE CLOSURE (1.0.4, #55). Every job in every template/modules/<module>/github/workflows/*.y?ml, keyed '<module>/<workflow-file>#<job>' — never bare ids, and never in #lanes. #lanes keys are evidence: check-conformance-evidence resolves claims against steps ∪ lanes ∪ hookRules and check-essential-eight-evidence against steps ∪ lanes, and a module row may leave its canary null because this registry keys only what the BASE tree runs; a separate section leaves both checks, and that rule, unchanged. Module job ids are also generic (build, push, publish, attest, gates, submit, device), so bare ids would collide with base ids and with the `build` chain step. Kinds and bars are exactly #lanes': 'fixture' and 'runner' refs must exist and are EXECUTED under the G28 bars unless --no-spawn, 'selftest' must appear in the selftest corpus, and 'steps' needs a note — the lanes loop and the module loop call one judge. No module workflow runs in this repository (template workflows are stored without the leading dot), so every entry proves the half this repo owns: tests/gates/workflow-lanes.test.mjs holds the wiring of every job, base and modules, check-ci-preconditions.mjs holds their installs frozen and their actions SHA-pinned, and tests/gates/workflow-hardening.test.mjs holds their shell default and timeouts. Every note says what its proof does not cover: the credentialed or vendor-run part of the job, and any module tool the job runs that has no factory test, named as unproven here.",
+  "moduleLanes": {
+    "ci-mobile-release/preview-mobile.yml#fingerprint": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The fingerprint diff is expo/expo-github-action's, run on GitHub's runner against the action's fingerprint database, and the PR comment it posts is GitHub-side: neither is reproduced here."
+      }
+    ],
+    "ci-mobile-release/preview-mobile.yml#preview-build": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The label condition, the loud EXPO_TOKEN skip and the queued `eas build --profile preview --no-wait` are credentialed and vendor-side (EAS): none of them is reproduced here."
+      }
+    ],
+    "ci-mobile-release/release-mobile.yml#gates": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The EXPO_TOKEN-presence output that chooses between build-eas and build-degraded is not exercised here."
+      },
+      {
+        "kind": "steps",
+        "note": "Runs node tools/validate.mjs --min-floor on the tagged tree; every step of that chain is proven in #steps. What the job does around the chain is not."
+      }
+    ],
+    "ci-mobile-release/release-mobile.yml#build-eas": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The EAS cloud build, the parse of its --json artifact URLs and the store-artifact download are credentialed and vendor-side: not reproduced here."
+      }
+    ],
+    "ci-mobile-release/release-mobile.yml#build-degraded": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The unsigned prebuild and gradle bundleRelease need the Android toolchain on the runner, and the UNSIGNED-BUILD.txt marker is written there: not reproduced here."
+      }
+    ],
+    "ci-mobile-release/release-mobile.yml#verify-and-attach": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The size budgets read from tools/perf-baseline.json, the SHA-256 checksums and the release upload are inline shell and node in the workflow with no factory test, and the upload is GitHub-side: unproven here."
+      }
+    ],
+    "ci-mobile-release/release-mobile.yml#submit": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. `eas submit` by build id runs on EAS servers against the stores, and the NOT-SUBMITTED.txt record is attached GitHub-side: credentialed and vendor-side, not reproduced here."
+      }
+    ],
+    "ci-mobile-release/release-please.yml#release-please": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The release PR and the tag are googleapis/release-please-action's, run on GitHub with the repository token: not reproduced here."
+      }
+    ],
+    "ci-provenance/provenance.yml#attest": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The attestations, the SBOM and the in-CI `gh attestation verify` are GitHub OIDC and vendor-side: not reproduced here. tools/check-notices.mjs, which the job runs, has no factory test: unproven here."
+      }
+    ],
+    "ci-web-deploy/web-deploy.yml#attest-web": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The production `pnpm --filter web run build` on the runner is not run by this proof, and the attestation and its in-CI verify are GitHub OIDC and vendor-side: not reproduced here."
+      }
+    ],
+    "device-e2e/device-e2e.yml#build": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The prebuild and assembleRelease need the Android toolchain on the runner: not reproduced here."
+      }
+    ],
+    "device-e2e/device-e2e.yml#device": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The emulator matrix needs KVM and an Android emulator: not reproduced here. tools/ci/device-e2e-matrix.sh, which the job runs, has no factory test: unproven here. The base tools it calls carry their own proofs (tests/gates/check-e2e-device.test.mjs, tests/gates/measure-startup.test.mjs), which prove those tools, not this job."
+      }
+    ],
+    "eas-update/eas-update.yml#publish": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The publish itself is credentialed and vendor-side, and tools/check-eas-update.mjs, which the job runs, has no factory test: unproven here."
+      },
+      {
+        "kind": "steps",
+        "note": "Runs node tools/validate.mjs --min-floor; every step of that chain is proven in #steps. The rollout-percentage check, the export and the publish around it are not."
+      }
+    ],
+    "eval-live/eval-live.yml#pre-validate": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The job runs on a self-hosted GPU runner with a llama.cpp checkout, and tools/check-gbnf.mjs and tools/check-eval-disjoint.mjs, which it runs, have no factory test: unproven here."
+      }
+    ],
+    "eval-live/eval-live.yml#live-eval": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The endpoint preflight and the eval run against a served model on a self-hosted GPU runner: not reproduced here. The vitest suite it re-runs (packages/eval) belongs to the scaffold, not to this repository's tests."
+      }
+    ],
+    "gate-a11y-deep/a11y-deep.yml#a11y-deep": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The deep sweep, jest over apps/mobile/__tests__/a11y-deep.test.tsx, runs only in a scaffold with the module enabled: not reproduced here."
+      }
+    ],
+    "store-metadata/store-metadata-push.yml#push": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/workflow-lanes.test.mjs",
+        "note": "The half of the lane this repo owns: the job is not neutered by continue-on-error, not disabled by a constant-false if:, has steps, and pins no NODE_ENV: development on a production build. The `eas metadata:push` leg is credentialed and vendor-side (App Store Connect): not reproduced here."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-store-config.test.mjs",
+        "note": "Proves the credential-free check the job runs in both legs, tools/check-store-config.mjs: the schema-lite bounds and the refusal of the scaffold's sentinel values. It does not run the job, and the push leg is credentialed and vendor-side."
       }
     ]
   }

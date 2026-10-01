@@ -12,14 +12,20 @@
 // .claude/hooks/stop-factory-gate.mjs needs a registry entry in #factoryGates, and
 // every job in the factory's own .github/workflows needs one in #factoryLanes —
 // keyed '<file>#<job>', never bare ids.
+// 1.0.4 (#55) closes the module workflows the same way: every job in every
+// template/modules/<module>/github/workflows/*.y?ml needs an entry in #moduleLanes, keyed
+// '<module>/<file>#<job>' and judged by the function that judges #lanes.
 //   usage: node scripts/check-canary-coverage.mjs [registry-path] [hook-contract-path]
 //            [factory-scripts-dir] [factory-hook-path] [factory-workflows-dir]
-//          flags: --no-spawn, --hooks-dir=<path>
+//          flags: --no-spawn, --hooks-dir=<path>,
+//                 --modules-dir=<path>  the module tree the #moduleLanes closure walks
+//                                       (default template/modules)
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { walkTemplate } from '../installer/lib/copy.mjs'
+import { baseWorkflows, jobIdsOf, moduleWorkflows } from './lib/shipped-workflows.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // Flags and positionals are separated so `--no-spawn` may appear anywhere without being
@@ -39,6 +45,10 @@ const HOOKS_DIR = resolve(
   process.argv.find((a) => a.startsWith('--hooks-dir='))?.slice('--hooks-dir='.length) ??
     join(ROOT, 'template/base/.claude/hooks'),
 )
+// The module universe (1.0.4, #55), a flag for the same reason as --hooks-dir: the module-lane
+// closure walks a DIRECTORY, and a fixture must be able to present its own tree shapes.
+const MODULES_FLAG = process.argv.find((a) => a.startsWith('--modules-dir='))?.slice('--modules-dir='.length)
+const MODULES_DIR = resolve(MODULES_FLAG ?? join(ROOT, 'template/modules'))
 const errs = []
 
 const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
@@ -191,27 +201,22 @@ for (const [name, proofs] of Object.entries(registry.steps ?? {})) {
 //     exactly like a gate that cannot, so every JOB in the shipped quality-gate workflow
 //     must carry a proof here — including the explicit, reasoned declaration that a job
 //     runs nothing but already-proven steps.
-// ALL EIGHT SHIPPED WORKFLOWS (0.3.0), not just quality-gate.yml. The closure was written
+// EVERY SHIPPED BASE WORKFLOW (0.3.0), not just quality-gate.yml. The closure was written
 // against the merge gate because that is where most lanes live, and the single hardcoded
 // filename made the other seven invisible: codeql, gitleaks, osv-scan, actions-lint,
 // adr-guard, migration-safety and mutation are every one of them a BLOCKING lane a
 // reviewer reads as enforcement, and not one of them had to carry a red-proof. A supply-
 // chain scan that cannot go red is decoration in exactly the way a gate that cannot go red
 // is, and it is the kind nobody re-reads because its name sounds like it is working.
-const WORKFLOW_DIR = join(ROOT, 'template/base/github/workflows')
-const workflowFiles = readdirSync(WORKFLOW_DIR)
-  .filter((f) => /\.ya?ml$/.test(f))
-  .sort()
+// The module workflows are closed in 2b-bis below, in their own #moduleLanes section.
 /** job id -> the workflow file it lives in (for the error messages). */
 const jobHome = new Map()
-for (const file of workflowFiles) {
-  const text = readFileSync(join(WORKFLOW_DIR, file), 'utf8')
-  const at = text.indexOf('\njobs:')
-  if (at === -1) {
+for (const { file, text } of baseWorkflows(ROOT)) {
+  const ids = jobIdsOf(text)
+  if (ids === null) {
     errs.push(`${file} exposes no \`jobs:\` block — the CI-lane closure cannot fail open`)
     continue
   }
-  const ids = [...text.slice(at).matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1])
   if (ids.length === 0) {
     errs.push(`${file} exposes no parseable jobs — the CI-lane closure cannot fail open`)
   }
@@ -243,39 +248,126 @@ for (const id of Object.keys(lanes)) {
     errs.push(`lanes registry covers '${id}' but no shipped workflow has such a job — stale entry`)
   }
 }
+/**
+ * Judge one proof in a CI-lane registry that admits the four lane kinds: #lanes and, since
+ * 1.0.4 (#55), #moduleLanes. One function, so a module lane meets exactly the bar a base lane
+ * does. #factoryLanes keeps its own narrower loop below (fixture and steps only).
+ * @param {string} label e.g. `lane 'static'` or `module lane 'eas-update/eas-update.yml#publish'`
+ * @param {{ kind?: unknown, ref?: unknown, note?: unknown }} proof
+ */
+function judgeLaneProof(label, proof) {
+  if (proof.kind === 'steps') {
+    // The note requirement, mirrored from the factoryLanes loop below (0.11.0). A bare
+    // {"kind":"steps"} here was a silent skip wearing a registry entry: it asserted that
+    // the step registry already proves this lane's work and named nothing that does.
+    if (typeof proof.note !== 'string' || proof.note.trim() === '') {
+      errs.push(
+        `${label}: a {"kind":"steps"} declaration must carry a non-empty note naming what already proves the lane's work — a bare declaration is a silent skip wearing a registry entry`,
+      )
+    }
+    return
+  }
+  if (proof.kind === 'fixture' || proof.kind === 'runner') {
+    if (typeof proof.ref !== 'string' || !existsSync(join(ROOT, proof.ref))) {
+      errs.push(`${label}: ${proof.kind} proof ${String(proof.ref)} does not exist`)
+      return
+    }
+    // EXECUTED, not merely present (0.11.0). Through 0.10.0 the two lane registries got
+    // existsSync and nothing else, so a lane proof gutted to an empty file — or repointed
+    // at a file testing something entirely different — passed the closure that exists to
+    // catch exactly that. Same G28 bar the `steps` pass has applied since 0.3.0; 12
+    // distinct files are added to the spawn set by this and the factoryLanes loop.
+    runProof(label, proof.ref)
+    return
+  }
+  if (proof.kind === 'selftest') {
+    if (typeof proof.ref !== 'string' || !selftest.includes(proof.ref)) {
+      errs.push(`${label}: selftest proof step "${String(proof.ref)}" not found in .github/workflows/selftest.yml (or a scripts/ci/* helper it invokes)`)
+    }
+    return
+  }
+  errs.push(`${label}: unknown proof kind ${JSON.stringify(proof.kind)}`)
+}
 for (const [id, proofs] of Object.entries(lanes)) {
-  for (const proof of proofs ?? []) {
-    if (proof.kind === 'steps') {
-      // The note requirement, mirrored from the factoryLanes loop below (0.11.0). A bare
-      // {"kind":"steps"} here was a silent skip wearing a registry entry: it asserted that
-      // the step registry already proves this lane's work and named nothing that does.
-      if (typeof proof.note !== 'string' || proof.note.trim() === '') {
-        errs.push(
-          `lane '${id}': a {"kind":"steps"} declaration must carry a non-empty note naming what already proves the lane's work — a bare declaration is a silent skip wearing a registry entry`,
-        )
-      }
+  for (const proof of proofs ?? []) judgeLaneProof(`lane '${id}'`, proof)
+}
+
+// 2b-bis. MODULE-LANE closure (1.0.4, #55). The module workflows a consumer enables are
+//     blocking lanes in that consumer's repository exactly as the base ones are, and through
+//     1.0.3 this closure, workflow-lanes and check-ci-preconditions all read template/base/
+//     only, so the module jobs (ten files and 17 jobs at 1.0.3) had to carry nothing
+//     (CHANGELOG 1.0.2 recorded the gap and left it open). Keyed '<module>/<file>#<job>' in
+//     a SEPARATE section, never bare ids in #lanes:
+//       - #lanes keys are evidence. check-conformance-evidence resolves claims against
+//         steps ∪ lanes ∪ hookRules and check-essential-eight-evidence against steps ∪ lanes;
+//         module ids there would become citable canaries and change what both accept.
+//       - module job ids are generic (build, push, publish, attest, gates, submit, device).
+//         The jobHome check above refuses an id shared by two files, so bare ids would force
+//         every future base job to avoid all of them, or a module job to be renamed, which
+//         renames a status check in consumers' repositories.
+//     Keys are joined from the module directory NAME, the file name and the job id with '/'
+//     and '#', never from a filesystem path: this checker also runs on the Windows leg.
+const MODULE_LANE_KEY = /^[a-z0-9][a-z0-9-]*\/[A-Za-z0-9._-]+\.ya?ml#[a-z][a-z0-9-]*$/
+const MODULES_LABEL = MODULES_FLAG ?? 'template/modules'
+
+/**
+ * The module-lane universe. Fails closed on a file with no `jobs:` block, a block with no
+ * parseable job, and on no module workflow at all.
+ * @returns {Set<string>} every '<module>/<file>#<job>'
+ */
+function moduleLaneUniverse() {
+  const keys = new Set()
+  const workflows = moduleWorkflows(MODULES_DIR, MODULES_LABEL)
+  if (workflows.length === 0) {
+    errs.push(
+      `no module workflows found at all — the module-lane closure cannot fail open (searched ${MODULES_LABEL}/<module>/github/workflows/)`,
+    )
+  }
+  for (const { module, file, label, text } of workflows) {
+    const ids = jobIdsOf(text)
+    if (ids === null) {
+      errs.push(`${label} exposes no \`jobs:\` block — the module-lane closure cannot fail open`)
       continue
     }
-    if (proof.kind === 'fixture' || proof.kind === 'runner') {
-      if (!existsSync(join(ROOT, proof.ref))) {
-        errs.push(`lane '${id}': ${proof.kind} proof ${proof.ref} does not exist`)
-        continue
-      }
-      // EXECUTED, not merely present (0.11.0). Through 0.10.0 the two lane registries got
-      // existsSync and nothing else, so a lane proof gutted to an empty file — or repointed
-      // at a file testing something entirely different — passed the closure that exists to
-      // catch exactly that. Same G28 bar the `steps` pass has applied since 0.3.0; 12
-      // distinct files are added to the spawn set by this and the factoryLanes loop.
-      runProof(`lane '${id}'`, proof.ref)
-    } else if (proof.kind === 'selftest') {
-      if (!selftest.includes(proof.ref)) {
-        errs.push(`lane '${id}': selftest proof step "${proof.ref}" not found in .github/workflows/selftest.yml (or a scripts/ci/* helper it invokes)`)
-      }
-    } else {
-      errs.push(`lane '${id}': unknown proof kind ${JSON.stringify(proof.kind)}`)
+    if (ids.length === 0) {
+      errs.push(`${label} exposes no parseable jobs — the module-lane closure cannot fail open`)
+    }
+    for (const id of ids) keys.add(`${module}/${file}#${id}`)
+  }
+  return keys
+}
+
+/**
+ * Both directions over #moduleLanes, then every proof through judgeLaneProof.
+ * @param {Set<string>} universe
+ * @param {Record<string, unknown>} moduleLanes
+ */
+function closeModuleLanes(universe, moduleLanes) {
+  for (const key of universe) {
+    const proofs = moduleLanes[key]
+    if (!Array.isArray(proofs) || proofs.length === 0) {
+      errs.push(
+        `module workflow job '${key}' has NO entry in tests/canary/injections.json#moduleLanes — a module lane is a blocking CI lane in every install that enables the module, so one that cannot go red is decoration. Point at a fixture that exercises the job, or declare {"kind":"steps"} with a note naming what already proves its work.`,
+      )
     }
   }
+  for (const key of Object.keys(moduleLanes)) {
+    if (!MODULE_LANE_KEY.test(key)) {
+      errs.push(
+        `moduleLanes key '${key}' is not shaped '<module>/<workflow-file>#<job>' — module job ids are generic (build, push, publish), so a bare or file-only key would let one proof stand in for several jobs. Rekey it.`,
+      )
+      continue
+    }
+    if (!universe.has(key)) {
+      errs.push(`moduleLanes registry covers '${key}' but no module workflow has such a job — stale entry`)
+    }
+  }
+  for (const [key, proofs] of Object.entries(moduleLanes)) {
+    for (const proof of Array.isArray(proofs) ? proofs : []) judgeLaneProof(`module lane '${key}'`, proof)
+  }
 }
+const moduleLaneKeys = moduleLaneUniverse()
+closeModuleLanes(moduleLaneKeys, registry.moduleLanes ?? {})
 
 // 2c. FACTORY-LANE closure (0.7.0). The factory's own workflows are enforcement in
 //     exactly the way the shipped ones are — hygiene, lint, release, scorecard and the
@@ -600,6 +692,7 @@ if (errs.length > 0) {
 console.log(
   `CANARY COVERAGE: CLEAN (${stepNames.size} steps each carry a red-proof; ` +
     `${factoryGateHome.size} factory gates and ${factoryJobs.size} factory lanes closed; ` +
+    `${moduleLaneKeys.size} module lanes closed; ` +
     `${ruleIds.length} guard rule ids all canaried; ` +
     `${String(spawned)} proof file(s) ${SPAWN ? 'EXECUTED green with real tests (not proof of redness — see G28 note)' : 'existence-checked only (--no-spawn)'})`,
 )
