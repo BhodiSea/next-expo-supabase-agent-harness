@@ -22,9 +22,12 @@
 // (fail-closed, never skip-green), GITHUB_BASE_REF scrubbed (the scaffold is a DIFFERENT
 // git repo — leaking the harness PR's base ref makes diff-based gates fail closed on a
 // correct tree), HARNESS_ALLOW_SELF_EDIT scrubbed (gate-integrity consults it; the
-// baseline must check what CI checks), and a synthetic HARNESS_SESSION_ID/
-// HARNESS_PROMPT_ID so reviewer-verdicts EXECUTES with owed=[] on the clean scaffold — a
-// real code path, not a skip.
+// baseline must check what CI checks), and a synthetic HARNESS_SESSION_ID so
+// reviewer-verdicts EXECUTES with owed=[] on the clean scaffold — a real code path, not a
+// skip. Since 2.0.0 (#87) the session id is the only identity that step requires; the
+// synthetic HARNESS_PROMPT_ID stays because the Stop hook still passes one, and because the
+// clean scaffold has no merge base, so the step's 1.0.x judgement, which keys on the prompt,
+// is the one that decides there.
 //   usage: node scripts/ci/run-stop-chain.mjs <scaffoldDir> [--exclusions <json>] [--selftest <yml>]
 // SOURCE: .github/workflows/selftest.yml (canary job) · tests/gates/run-stop-chain.test.mjs
 import { spawnSync } from 'node:child_process'

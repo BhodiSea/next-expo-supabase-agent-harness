@@ -4,18 +4,19 @@
 // This is the second half of the process layer; .claude/hooks/subagent-verdict.mjs is the
 // first. That hook records each reviewer's terminal verdict into a session-scoped ledger from
 // the `last_assistant_message` field SubagentStop hands it. This step decides who was OWED a
-// verdict this turn, and refuses to let the turn end without one.
+// verdict, and refuses to let the turn end without one.
 //
 // WHY IT IS A STOP STEP AND NOT A CHAIN GATE. `pnpm validate` runs over a TREE and knows
-// nothing about a turn. "Did the security reviewer run for these changes" is a question about
-// a turn, and the ledger is keyed by the turn's session_id and prompt_id. A chain step asking
-// it would either have to invent a turn boundary or answer about the wrong one.
+// nothing about a session. "Did the security reviewer run for these changes" is a question
+// about a session's turns, and the ledger is keyed by the session_id (since 2.0.0, with the
+// entry's format stamp; through 1.1.x, with the prompt_id). A chain step asking it would
+// either have to invent a session or answer about the wrong one.
 //
 // FAIL CLOSED, in every direction that matters:
 //   - no ledger file, an unreadable one, or one whose lines do not parse -> BLOCK;
-//   - the Stop hook did not pass down this turn's identity -> BLOCK (an unkeyed ledger would
-//     let last turn's PASS satisfy this turn's obligation, which is the one failure mode that
-//     would make the whole control decorative);
+//   - the Stop hook did not pass down the session's identity -> BLOCK (an unkeyed ledger
+//     would let another session's PASS satisfy this one's obligation, which is the one
+//     failure mode that would make the whole control decorative);
 //   - a reviewer that was owed and is absent -> BLOCK;
 //   - a reviewer that ran and said BLOCK -> BLOCK, loudly, because that is the case the
 //     reviewer exists for and the one most likely to be argued with;
@@ -87,6 +88,22 @@
 // run clears a BLOCK, so judging it there would red a loop the verdict calls closed. The hook
 // cannot carry this ramp, because a hook has no NOTE channel, so the ramp lives here.
 //
+// THE LEDGER KEY (2.0.0, #87): the session and the format, not the prompt. Under v2 a PASS is
+// current while its digest pair matches the tree, so prompt_id only forced re-runs, and it
+// leaves v2's key. v2 reads the ledger with tools/lib/reviewer-verdicts.mjs readSessionEntries:
+// this session's entries, split by the format stamp `v` the hook writes (LEDGER_FORMAT). An
+// entry in another format never counts as a PASS, a BLOCK in any format still stands until
+// the same run passes in this format, and a reviewer whose entries are all in another format
+// gets a finding that names the format and asks for one re-run, never "did not run". The
+// step's identity is HARNESS_SESSION_ID alone. HARNESS_PROMPT_ID is still read, and the Stop
+// hook still passes it: the 1.0.x judgement keeps the prompt in its key (its path_state leaves
+// deletions out and has no dispatch digest, so an earlier prompt's PASS is not provably about
+// this tree), and the prompt dates a mis-shaped line of this session, whose error lasts until
+// the prompt ends (decision 3, the lifetime it always had). Without a prompt id the 1.0.x
+// judgement, where it decides, reds with a finding that says why: a skip outside CI would
+// switch the check off. Nothing here is ramped: it is the 2.0.0 key, and its one tightening,
+// the format finding, rides v2's own ramp like every v2 finding.
+//
 // WHAT IT DELIBERATELY DOES NOT DO: judge the CONTENT of a review. A PASS is an attestation by
 // a read-only agent whose tools, pinned model, fallback list and body are hashed in
 // tools/agents.lock.json (its `models` map records the pin alone), and since 1.1.0 the model it
@@ -126,29 +143,41 @@ if (!existsSync(TRIGGERS)) {
 }
 const cfg = JSON.parse(readFileSync(TRIGGERS, 'utf8'))
 
-// THE TURN'S IDENTITY, passed down by stop-validate-gate.mjs from the Stop payload. Without
-// it the ledger cannot be narrowed to this turn, and a PASS from an earlier turn would satisfy
-// an obligation raised by this one. Outside the Stop hook there is no turn to judge, so the
-// step skips loudly rather than inventing one — and fails closed in CI, where a Stop-chain
-// step running without its identity means the hook that supplies it has changed.
+// THE SESSION'S IDENTITY, passed down by stop-validate-gate.mjs from the Stop payload, and
+// since 2.0.0 (#87) the only variable this step requires. Without it the ledger cannot be
+// narrowed to this session, and a PASS from another session would satisfy an obligation
+// raised by this one. Outside the Stop hook there is no session to judge, so the step skips
+// loudly rather than inventing one — and fails closed in CI, where a Stop-chain step running
+// without its identity means the hook that supplies it has changed. HARNESS_PROMPT_ID is
+// optional here (see THE LEDGER KEY above); the Stop hook keeps passing it, because a step
+// from 1.1.x, a kept fork or the old copy mid-update, still requires it.
 const sessionId = process.env.HARNESS_SESSION_ID ?? null
 const promptId = process.env.HARNESS_PROMPT_ID ?? null
-if (sessionId === null || promptId === null) {
+if (sessionId === null) {
   skipOrFail(
     GATE,
-    'no HARNESS_SESSION_ID/HARNESS_PROMPT_ID in the environment — this step is meaningful only inside the Stop hook, which passes the turn identity down from the SubagentStop payload',
+    'no HARNESS_SESSION_ID in the environment — this step is meaningful only inside the Stop hook, which passes the session identity down from the Stop payload',
   )
 }
 
 /** @param {string} p */
 const readFileOrNull = (p) => (existsSync(p) ? readFileSync(p) : null)
 
-// The ledger is read ONCE, for both judgements. Malformed lines are bounded to the LINE
+// The ledger is read ONCE, under each judgement's key. Malformed lines are bounded to the LINE
 // (0.9.0): a torn write from a crashed session is named and stepped over, never allowed to
 // brick every later turn in the directory.
 const rawLedger = existsSync(LEDGER) ? readFileSync(LEDGER, 'utf8') : null
-const turnRead = rawLedger === null ? null : readLedger(rawLedger, sessionId, promptId, LEDGER)
-for (const s of turnRead?.skipped ?? []) console.log(`${GATE}: NOTE — ${s}`)
+// v2's key (2.0.0): the session and the format. Null with no ledger, or beside a lib that
+// predates the reader (a parked fork, which judgeV2 names).
+const sessionRead =
+  rawLedger === null || typeof verdicts.readSessionEntries !== 'function'
+    ? null
+    : verdicts.readSessionEntries(rawLedger, sessionId, { promptId, label: LEDGER })
+// The 1.0.x key: the session and the prompt. With no prompt id there is no turn to narrow to,
+// and judgeV1 says so.
+const turnRead =
+  rawLedger === null || promptId === null ? null : readLedger(rawLedger, sessionId, promptId, LEDGER)
+for (const s of (sessionRead ?? turnRead)?.skipped ?? []) console.log(`${GATE}: NOTE — ${s}`)
 
 // ── THE MODEL A VERDICT RAN ON (1.1.0, #62) ──────────────────────────────────────────────
 
@@ -239,8 +268,14 @@ function collectModel(into, one) {
 const hintFor = (agent) =>
   typeof verdicts.fallbackHint === 'function' ? ` ${verdicts.fallbackHint(agent)}` : ''
 
-const TORN_REMEDY =
-  "this turn's own verdict lines must be readable, so it fails CLOSED. Run the reviewer again: the ledger is append-only and the LATEST entry is the one judged, so a fresh well-formed PASS supersedes the torn line. (The file is write-guard-protected — clearing it wholesale is a human act under HARNESS_ALLOW_SELF_EDIT=1, and re-running the reviewer makes that unnecessary.)"
+// DECISION 3 (2.0.0, #87): a mis-shaped line of this session fails closed for the prompt it
+// was written in, the lifetime it always had, and the remedy now says what clears it. Through
+// 1.1.x it said a re-run would, and it never did: the reader stops at the line.
+const TORN_REMEDY = `this prompt's own verdict lines must be readable, so it fails CLOSED until the prompt ends. Re-running the reviewer does not clear it: the ledger is append-only, the line stays where it is, and the step stops reading at it. It clears at the next prompt: end the turn and tell the user what this finding says. From their next message on, the step skips the line with a NOTE and judges the ledger as if it were absent, so then run any reviewer it names. (The file is write-guard-protected: removing the line by hand is a human act under HARNESS_ALLOW_SELF_EDIT=1.)${
+  promptId === null
+    ? ' With no HARNESS_PROMPT_ID, outside the Stop hook, the step cannot date such a line and every one of this session fails closed: run the step from the Stop hook, or set HARNESS_PROMPT_ID to the current prompt.'
+    : ''
+}`
 
 // ── THE 1.0.x JUDGEMENT: the diff against HEAD, this prompt ─────────────────────────────
 
@@ -294,6 +329,15 @@ function judgeOneV1(o, entries, files) {
 }
 
 /**
+ * The 1.0.x judgement with no prompt id (2.0.0, #87): it keys on the prompt, so it can bind no
+ * verdict to this turn. A red that says so, never a skip: a skip outside CI would switch the
+ * check off wherever this judgement decides.
+ * @param {Array<{agent: string}>} owed
+ */
+const noPromptFinding = (owed) =>
+  `${owed.length} reviewer(s) are owed a verdict by this diff (${owed.map((o) => o.agent).join(', ')}), and the 1.0.x judgement decides here and keys the ledger on the prompt: with no HARNESS_PROMPT_ID in the environment it can bind no verdict to this turn, so none counts. The Stop hook passes it from the Stop payload; outside the hook, set it to the current prompt. Where the reviewer ledger v2 decides, HARNESS_SESSION_ID alone is enough: that needs an upstream (\`git branch --set-upstream-to=origin/main\`, say) and a baseVersion of 1.1.0 or later.`
+
+/**
  * @param {Array<{agent: string, because: string, why?: string}>} owed
  * @param {string[]} files
  * @returns {{ errs: string[], stale: string[], model: { findings: string[], lines: string[] } }}
@@ -301,7 +345,7 @@ function judgeOneV1(o, entries, files) {
 function judgeV1(owed, files) {
   const model = { findings: [], lines: [] }
   if (owed.length === 0) return { errs: [], stale: [], model }
-  if (turnRead === null) {
+  if (rawLedger === null) {
     return {
       errs: [
         `${owed.length} reviewer(s) are owed a verdict by this diff and ${LEDGER} does not exist — no reviewer ran at all this turn. The ledger is written by .claude/hooks/subagent-verdict.mjs on SubagentStop; if it is missing entirely, check that the hook is wired in .claude/settings.json.${owed.map((o) => hintFor(o.agent)).join('')}`,
@@ -310,6 +354,7 @@ function judgeV1(owed, files) {
       model,
     }
   }
+  if (turnRead === null) return { errs: [noPromptFinding(owed)], stale: [], model }
   if (turnRead.error !== null) {
     return { errs: [`${turnRead.error} — ${TORN_REMEDY}`], stale: [], model }
   }
@@ -396,15 +441,13 @@ const firstLineOf = (e) => String(e instanceof Error ? e.message : e).split('\n'
  */
 function v2Findings(owed2, reviewFiles) {
   const model = { findings: [], lines: [] }
-  const read =
-    rawLedger === null
-      ? { entries: [], error: null }
-      : verdicts.readSessionLedger(rawLedger, sessionId, promptId, LEDGER)
+  const read = sessionRead ?? { entries: [], older: [], session: [], error: null }
   if (read.error !== null) return { findings: [`${read.error} — ${TORN_REMEDY}`], model }
   const findings = []
   for (const o of owed2) {
     const current = verdicts.reviewStateDigest(o.agent, cfg, reviewFiles, readFileOrNull)
-    const finding = verdicts.judgeReviewerV2(o, read.entries, current)
+    // The session in ledger order, and the entries in another format apart (2.0.0, #87).
+    const finding = verdicts.judgeReviewerV2(o, read.session, current, read.older)
     if (finding !== null) findings.push(finding)
     else collectModel(model, modelOf(o.agent, countedPassOf(o.agent, read.entries, current)))
   }
@@ -432,21 +475,32 @@ const v2Broken = (finding) => ({
   model: { findings: [], lines: [] },
 })
 
+// What v2 needs from each lib, by file (readSessionEntries since 2.0.0, the rest since 1.1.0).
+const V2_LIB = /** @type {Array<[string, Record<string, unknown>, string[]]>} */ ([
+  ['tools/lib/git-diff.mjs', gitDiff, ['reviewChanges']],
+  [
+    'tools/lib/reviewer-verdicts.mjs',
+    verdicts,
+    ['owedByTurn', 'readSessionEntries', 'judgeReviewerV2', 'reviewStateDigest'],
+  ],
+])
+
+/** What a parked fork of either lib lacks, one clause per file, or none. */
+const v2LibGaps = () =>
+  V2_LIB.flatMap(([file, lib, names]) => {
+    const missing = names.filter((n) => typeof lib[n] !== 'function')
+    return missing.length === 0 ? [] : [`${file} lacks ${missing.join(', ')}`]
+  })
+
 /**
  * The v2 judgement, or `{ ran: false }` when this branch has no merge base.
  * @returns {{ ran: boolean, base?: string|null, owed?: Array<{agent: string}>, fileCount?: number, findings?: string[], model?: { findings: string[], lines: string[] } }}
  */
 function judgeV2() {
-  const lib = [
-    gitDiff.reviewChanges,
-    verdicts.owedByTurn,
-    verdicts.readSessionLedger,
-    verdicts.judgeReviewerV2,
-    verdicts.reviewStateDigest,
-  ]
-  if (lib.some((f) => typeof f !== 'function')) {
+  const gaps = v2LibGaps()
+  if (gaps.length > 0) {
     return v2Broken(
-      'tools/lib/git-diff.mjs or tools/lib/reviewer-verdicts.mjs predates 1.1.0, so the reviewer ledger v2 cannot judge this branch. It is an owned file you forked: `update` kept your copy and parked the 1.1.0 one under .harness/pending/. Merge the parked copy into yours, then re-record the sha (docs/runbooks/harness-upgrade.md, 1.0.2 section, "Forking an owned file").',
+      `${gaps.join(' and ')}, so the reviewer ledger v2 cannot judge this branch. It is an owned file you forked: \`update\` kept your copy and parked the incoming one under .harness/pending/. Merge the parked copy into yours, then re-record the sha (docs/runbooks/harness-upgrade.md, 1.0.2 section, "Forking an owned file").`,
     )
   }
   let review
@@ -489,10 +543,7 @@ const v2Found = v2.findings ?? []
  */
 function budgetFindings(agents) {
   if (agents.length === 0) return []
-  if (
-    typeof verdicts.judgeRoundBudget !== 'function' ||
-    typeof verdicts.readSessionLedger !== 'function'
-  ) {
+  if (typeof verdicts.judgeRoundBudget !== 'function') {
     return [
       {
         agent: null,
@@ -501,12 +552,13 @@ function budgetFindings(agents) {
       },
     ]
   }
-  if (rawLedger === null) return []
-  const read = verdicts.readSessionLedger(rawLedger, sessionId, promptId, LEDGER)
-  // A torn line of this turn is already a finding of both judgements, and fails closed there.
-  if (read.error !== null) return []
+  // No ledger, nothing to count; a lib without the 2.0.0 reader is v2's finding already, and
+  // a torn line of this prompt is already a finding of both judgements, failing closed there.
+  if (sessionRead === null || sessionRead.error !== null) return []
+  // Every entry of the session is a round, in any format (2.0.0): an older hook's verdicts
+  // spent the budget when they were written, and a format change does not refund them.
   return agents
-    .map((agent) => ({ agent, finding: verdicts.judgeRoundBudget({ agent }, read.entries) }))
+    .map((agent) => ({ agent, finding: verdicts.judgeRoundBudget({ agent }, sessionRead.session) }))
     .filter((b) => b.finding !== null)
 }
 

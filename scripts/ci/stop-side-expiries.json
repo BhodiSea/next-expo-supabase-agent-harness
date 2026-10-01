@@ -16,7 +16,7 @@
     {
       "detail": "closure over the reviewer roster",
       "proof": "tests/gates/check-reviewer-verdicts.test.mjs",
-      "note": "Stop-chain step, and the only check whose subject is the TURN: it needs HARNESS_SESSION_ID/HARNESS_PROMPT_ID and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. The 0.6.0 roster ramp expired at 0.7.0 this way."
+      "note": "Stop-chain step, and the only check whose subject is the session's turns: it needs HARNESS_SESSION_ID (since 2.0.0 the only id it requires; the Stop hook also passes HARNESS_PROMPT_ID, which its 1.0.x judgement keys on) and the SubagentStop ledger, which exist inside a live Stop hook and nowhere in this lane. The 0.6.0 roster ramp expired at 0.7.0 this way."
     },
     {
       "detail": "verdict-to-diff binding",
