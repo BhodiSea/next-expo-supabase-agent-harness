@@ -41,11 +41,18 @@ is kept: the incoming version is parked when upstream changed that file since
 your install's version, and nothing is parked when it did not. The upgrade
 runbook's "Forking an owned file" section describes the flow.
 
+A file at a harness-owned path with no record in `.harness/manifest.json` is
+judged by its bytes alone. It is replaced only when some release of the harness
+shipped exactly those bytes for that path. Otherwise it is kept and the
+incoming version is parked, whether or not upstream changed the file. A
+`removed` or `renamed` migration leaves such a file in place in the same case.
+The upgrade runbook's 1.0.4 section describes how to resolve it.
+
 | Flag | Meaning |
 |---|---|
 | `--dir <path>` | Install to update. Default `.` |
 | `--dry-run` | Report and write nothing. The report names every path a real run would write and every path it would park. |
-| `--force` | Overwrite owned files that have drifted locally, or that you forked and re-recorded, instead of parking the incoming version. |
+| `--force` | Overwrite owned files that have drifted locally, that you forked and re-recorded, or that have no manifest record and bytes no release shipped, instead of parking the incoming version. |
 | `--refresh-seeded <path>` | Pull the template version of a seeded, project-owned file, or of a whole subtree when the path ends in `/`. Overwrites when untouched, parks on drift. Repeatable. |
 | `--rollback` | Restore the tree recorded before the last update. Combines with no other update flag. |
 | `--report json` | Print the update report as JSON. |
@@ -127,7 +134,7 @@ the default for anything not set. Every value is validated.
 |---|---|
 | 0 | Success |
 | 1 | Error, or an unknown command |
-| 2 | `init` or `update` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it |
+| 2 | `init` or `update` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it, and a file with no manifest record whose bytes no release shipped |
 
 ## Environment variables in a scaffolded project
 
