@@ -176,7 +176,9 @@ const sessionRead =
 // The 1.0.x key: the session and the prompt. With no prompt id there is no turn to narrow to,
 // and judgeV1 says so.
 const turnRead =
-  rawLedger === null || promptId === null ? null : readLedger(rawLedger, sessionId, promptId, LEDGER)
+  rawLedger === null || promptId === null
+    ? null
+    : readLedger(rawLedger, sessionId, promptId, LEDGER)
 for (const s of (sessionRead ?? turnRead)?.skipped ?? []) console.log(`${GATE}: NOTE — ${s}`)
 
 // ── THE MODEL A VERDICT RAN ON (1.1.0, #62) ──────────────────────────────────────────────

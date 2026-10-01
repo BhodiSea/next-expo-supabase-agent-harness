@@ -342,7 +342,9 @@ function sessionLine(line, where, sessionId, promptId) {
   try {
     parsed = JSON.parse(line)
   } catch {
-    return { skipped: `${where} is not JSON — skipped (unattributable, so it can authorize nothing)` }
+    return {
+      skipped: `${where} is not JSON — skipped (unattributable, so it can authorize nothing)`,
+    }
   }
   if (parsed === null || typeof parsed !== 'object') {
     return {
@@ -473,7 +475,10 @@ function standingBlocks(mine, counts) {
       e.verdict === 'BLOCK' &&
       !mine
         .slice(i + 1)
-        .some((later) => typeof e.agent_id === 'string' && later.agent_id === e.agent_id && counts(later)),
+        .some(
+          (later) =>
+            typeof e.agent_id === 'string' && later.agent_id === e.agent_id && counts(later),
+        ),
   )
 }
 
