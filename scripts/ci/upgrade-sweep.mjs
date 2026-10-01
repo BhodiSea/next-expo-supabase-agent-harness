@@ -318,6 +318,14 @@ const SWEEPS = {
   // and the seeded end-of-life register are both played by upgrade-lane.sh BEFORE the chain
   // is judged, because an unswept leg has to be green too.
   '1.0.2': {},
+  // 1.0.4 withholds ONE path, tools/mcp/corpus/project.json (the project citation corpus,
+  // #47), and a swept leg adopts nothing: provenance, docs-sync and the corpus_search
+  // server all read an absent project.json as empty, so there is nothing for the leg to
+  // be green WITH that it is not already green without. Adopting the skeleton would only
+  // plant a reviewed-authority file nobody reviewed — the upgrade-lane plant-vs-withhold
+  // contract, which is why the record withholds it. Empty, and written down, because
+  // computeSweepSet asks every withholding version for a reviewed posture.
+  '1.0.4': {},
 }
 
 /**

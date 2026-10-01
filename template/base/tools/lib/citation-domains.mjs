@@ -3,10 +3,11 @@
 // gate (tools/check-sources.mjs via payloadResolves) and referenced as the
 // single source of truth by .claude/agents/citation-verifier.md — there is
 // deliberately no second copy of this list anywhere. A URL on any other host is
-// NOT provenance by itself: pin the authority in tools/mcp/corpus/index.json
-// (version + hashed excerpt) and cite `[corpus: <id>]` instead, or widen this
-// list via a reviewed human edit (the file is write-guard-protected; widening
-// the allowlist weakens the gate).
+// NOT provenance by itself: pin the authority in the project corpus,
+// tools/mcp/corpus/project.json (version + hashed excerpt; the harness's own
+// pins live in tools/mcp/corpus/index.json), and cite `[corpus: <id>]` instead,
+// or widen this list via a reviewed human edit (the file is write-guard-protected;
+// widening the allowlist weakens the gate).
 // SOURCE: docs/harness/README.md (provenance; one heuristic, two enforcement
 // layers) [corpus: harness/doctrine]
 

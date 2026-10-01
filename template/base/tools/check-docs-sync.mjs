@@ -47,6 +47,7 @@ import {
   splitList,
 } from './lib/agent-roster.mjs'
 import { isAllowedCitationHost } from './lib/citation-domains.mjs'
+import { loadCorpus, PROJECT_CORPUS, UPSTREAM_CORPUS } from './lib/corpus.mjs'
 import { walkFiles } from './lib/fs-walk.mjs'
 import {
   cmpDotted,
@@ -349,13 +350,14 @@ for (const cmd of advertised) {
   const ADR_DIR = 'docs/adr'
   const adrFindings = []
   if (existsSync(ADR_DIR)) {
-    let corpusIds = null
-    try {
-      const corpus = JSON.parse(readFileSync('tools/mcp/corpus/index.json', 'utf8'))
-      if (Array.isArray(corpus)) corpusIds = new Set(corpus.map((e) => e?.id).filter(Boolean))
-    } catch {
-      corpusIds = null // corpus integrity is the provenance gate's subject, not this one's
-    }
+    // Ids only, from both corpus files (tools/lib/corpus.mjs, 1.0.4): the per-entry lint is
+    // the provenance gate's subject, not this one's. A missing or malformed index, or a
+    // malformed project.json, skips the corpus-id check here; provenance reds the file.
+    const corpus = loadCorpus({ root: process.cwd() })
+    const corpusIds =
+      corpus.upstream === 'ok' && corpus.project !== 'malformed'
+        ? new Set(corpus.entries.map((e) => e.id))
+        : null
     // Prefix match, deliberately: `## Decision 1 — the quota is a trigger` is
     // legitimate multi-decision authorship (the seeded resource-limits ADR),
     // and `## Context and constraints` is a title, not an evasion. The body
@@ -401,7 +403,7 @@ for (const cmd of advertised) {
         for (const m of sources.body.matchAll(/\[corpus:\s*([^\]\s]+)\s*\]/g)) {
           if (corpusIds !== null && !corpusIds.has(m[1])) {
             adrFindings.push(
-              `${at} Sources cites \`[corpus: ${m[1]}]\` but tools/mcp/corpus/index.json has no such id`,
+              `${at} Sources cites \`[corpus: ${m[1]}]\` but neither ${UPSTREAM_CORPUS} nor ${PROJECT_CORPUS} has such an id`,
             )
           }
         }
@@ -414,7 +416,7 @@ for (const cmd of advertised) {
           }
           if (host !== null && !isAllowedCitationHost(host)) {
             adrFindings.push(
-              `${at} Sources cites host '${host}', which is not on the tools/lib/citation-domains.mjs allowlist — pin the authority in the corpus instead`,
+              `${at} Sources cites host '${host}', which is not on the tools/lib/citation-domains.mjs allowlist — pin the authority in ${PROJECT_CORPUS} instead`,
             )
           }
         }

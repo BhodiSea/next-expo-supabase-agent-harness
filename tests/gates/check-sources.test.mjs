@@ -43,12 +43,13 @@ function git(dir, ...args) {
 // Minimal scaffold-shaped fixture: a git index (the gate scans `git ls-files`
 // relative to cwd) plus corpus + decision-groups copies where the gate reads
 // them FROM CWD. A files entry for tools/decision-groups.json overrides the
-// seeded copy.
+// seeded copy; one for tools/mcp/corpus/project.json writes the project corpus
+// (1.0.4); `corpus: null` omits tools/mcp/corpus/index.json altogether.
 function fixture({ files = {}, corpus = SHIPPED_CORPUS } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-srcgate-'))
   git(dir, 'init', '-q')
   mkdirSync(join(dir, 'tools/mcp/corpus'), { recursive: true })
-  writeFileSync(join(dir, 'tools/mcp/corpus/index.json'), corpus)
+  if (corpus !== null) writeFileSync(join(dir, 'tools/mcp/corpus/index.json'), corpus)
   writeFileSync(join(dir, 'tools/decision-groups.json'), SHIPPED_GROUPS)
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true })
@@ -224,7 +225,9 @@ test('RED: a bare-URL SOURCE on a non-allowlisted host fails naming the host and
   assert.ok(r.out.includes('apps/server/src/auth.ts:1'), r.out)
   assert.ok(r.out.includes('some-blog.example.dev'), r.out)
   assert.ok(r.out.includes('citation-domains.mjs'), r.out)
-  assert.ok(r.out.includes('tools/mcp/corpus/index.json'), r.out)
+  // 1.0.4: the remedy names the PROJECT corpus. Extending the owned index forks it, and
+  // gate-integrity then reds until a human re-records its sha.
+  assert.ok(r.out.includes('tools/mcp/corpus/project.json'), r.out)
 })
 
 test('GREEN: an allowlisted host grounds a bare-URL citation', () => {
@@ -444,4 +447,197 @@ test('GREEN: `[corpus: <id>]` documentation placeholders never parse as referenc
     files: { 'docs/howto.md': 'Cite as `// SOURCE: <authority> [corpus: <id>]` on the line above.\n' },
   }))
   assert.equal(r.code, 0, r.out)
+})
+
+// ── the project corpus, tools/mcp/corpus/project.json (1.0.4) ─────────────────
+// A project adds an authority here instead of forking the owned, hash-pinned index.
+// The same per-entry lint judges both files, a project id may not reuse an upstream
+// id, and every message about a project entry names the project file.
+const PROJECT = 'tools/mcp/corpus/project.json'
+const INDEX = 'tools/mcp/corpus/index.json'
+// Read inside the test that needs it, so a missing seeded file reds that test alone.
+const shippedProject = () =>
+  readFileSync(
+    fileURLToPath(new URL('../../template/base/tools/mcp/corpus/project.json', import.meta.url)),
+    'utf8',
+  )
+
+const sha = (text) => createHash('sha256').update(text, 'utf8').digest('hex')
+
+function projectEntry(overrides = {}) {
+  const text = overrides.text ?? 'A project-pinned authority for verifying the session token.'
+  return {
+    id: 'project/token-authority',
+    title: 'Fixture authority',
+    url: 'https://example.com/authority',
+    version: '1',
+    text,
+    sha256: sha(text),
+    groups: ['token-verification'],
+    ...overrides,
+  }
+}
+
+const projectCorpus = (entries, extra = {}) =>
+  JSON.stringify({ comment: 'fixture project corpus', entries, ...extra }, null, 2)
+
+const CITES_PROJECT_ID =
+  '// SOURCE: project authority [corpus: project/token-authority]\nconst claims = await jwtVerify(token, jwks)\n'
+
+test('GREEN: the seeded project.json (an empty entries list) changes no verdict', () => {
+  const seeded = shippedProject()
+  const r = runGate(fixture({ files: { [PROJECT]: seeded } }))
+  assert.equal(r.code, 0, r.out)
+  assert.deepEqual(JSON.parse(seeded).entries, [])
+})
+
+test('GREEN: a site cites an id that exists only in project.json', () => {
+  const r = runGate(fixture({
+    files: {
+      [PROJECT]: projectCorpus([projectEntry()]),
+      'apps/server/src/auth.ts': CITES_PROJECT_ID,
+    },
+  }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('corpus verified'), r.out)
+})
+
+test('GREEN: a consumer decision group is covered only by a project entry', () => {
+  // The G27 case that used to force a fork: a group added to the seeded
+  // decision-groups.json needs a covering entry, and the index is owned.
+  const merged = JSON.parse(SHIPPED_GROUPS)
+  merged.groups.push({ key: 'chunk-size', description: 'RAG chunk sizing', patterns: ['chunkSize'] })
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': JSON.stringify(merged),
+      [PROJECT]: projectCorpus([
+        projectEntry({ id: 'project/chunking', groups: ['chunk-size'], text: 'Chunk at 512 tokens.' }),
+      ]),
+      'packages/importer/src/rag.ts':
+        '// SOURCE: our chunking study [corpus: project/chunking]\nexport const chunkSize = 512\n',
+    },
+  }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED: a project entry justifies only the groups it declares', () => {
+  const r = runGate(fixture({
+    files: {
+      [PROJECT]: projectCorpus([projectEntry({ groups: ['llm-sampling'] })]),
+      'apps/server/src/auth.ts': CITES_PROJECT_ID,
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("decision group 'token-verification' is not justified"), r.out)
+  assert.ok(r.out.includes('project/token-authority (groups: llm-sampling)'), r.out)
+  assert.ok(r.out.includes(`add the authority to ${PROJECT}`), r.out)
+})
+
+test('RED: a project entry whose text does not match its sha256 names project.json', () => {
+  const r = runGate(fixture({
+    files: { [PROJECT]: projectCorpus([projectEntry({ sha256: '0'.repeat(64) })]) },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(
+    r.out.includes(`${PROJECT}: corpus entry project/token-authority text/hash mismatch`),
+    r.out,
+  )
+})
+
+test('RED: a project entry with bad groups names project.json (missing key, unknown group)', () => {
+  const noGroups = projectEntry()
+  delete noGroups.groups
+  const missing = runGate(fixture({ files: { [PROJECT]: projectCorpus([noGroups]) } }))
+  assert.equal(missing.code, 1, missing.out)
+  assert.ok(
+    missing.out.includes(`${PROJECT}: corpus entry project/token-authority: missing/invalid \`groups\``),
+    missing.out,
+  )
+
+  const unknown = runGate(fixture({
+    files: { [PROJECT]: projectCorpus([projectEntry({ groups: ['no-such-group'] })]) },
+  }))
+  assert.equal(unknown.code, 1, unknown.out)
+  assert.ok(
+    unknown.out.includes(
+      `${PROJECT}: corpus entry project/token-authority: unknown decision group "no-such-group"`,
+    ),
+    unknown.out,
+  )
+})
+
+test('RED: a project entry with an empty url names project.json', () => {
+  const r = runGate(fixture({
+    files: { [PROJECT]: projectCorpus([projectEntry({ url: '' })]) },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: corpus entry project/token-authority: missing/empty url`), r.out)
+})
+
+test('RED: a project.json that is not JSON names project.json and fails closed', () => {
+  const r = runGate(fixture({ files: { [PROJECT]: 'not json {' } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: invalid JSON`), r.out)
+})
+
+test('RED: a project.json whose top level is not { comment, entries } names project.json', () => {
+  const r = runGate(fixture({ files: { [PROJECT]: JSON.stringify([projectEntry()]) } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: expected { comment: string, entries: array }`), r.out)
+})
+
+test('RED: a project.json whose entries is not an array names project.json', () => {
+  const r = runGate(fixture({
+    files: { [PROJECT]: JSON.stringify({ comment: 'x', entries: { id: 'project/a' } }) },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: \`entries\` is not an array`), r.out)
+})
+
+test('RED: a project.json with an unknown top-level key names project.json and the key', () => {
+  const r = runGate(fixture({ files: { [PROJECT]: projectCorpus([], { overrides: [] }) } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: unknown top-level key "overrides"`), r.out)
+})
+
+test('RED: a project id equal to an upstream id names both files, and the upstream entry still decides', () => {
+  // llamacpp/sampling ships with groups: ["llm-sampling"]. A project copy that claims
+  // token-verification must not widen what the upstream authority justifies.
+  const r = runGate(fixture({
+    files: {
+      [PROJECT]: projectCorpus([projectEntry({ id: 'llamacpp/sampling' })]),
+      'apps/server/src/auth.ts':
+        '// SOURCE: pinned [corpus: llamacpp/sampling]\nconst claims = await jwtVerify(token, jwks)\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${PROJECT}: corpus id "llamacpp/sampling" is already pinned in ${INDEX}`), r.out)
+  assert.ok(r.out.includes('llamacpp/sampling (groups: llm-sampling)'), r.out)
+})
+
+test('RED: index.json missing while project.json is present — the project file never stands in for it', () => {
+  const r = runGate(fixture({
+    corpus: null,
+    files: {
+      [PROJECT]: projectCorpus([projectEntry()]),
+      'apps/server/src/auth.ts': CITES_PROJECT_ID,
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${INDEX}: missing`), r.out)
+})
+
+test('RED: an id in neither file names both files', () => {
+  const r = runGate(fixture({
+    files: {
+      [PROJECT]: projectCorpus([projectEntry()]),
+      'apps/server/src/auth.ts':
+        '// SOURCE: pinned nowhere [corpus: project/ghost]\nconst claims = await jwtVerify(token, jwks)\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(
+    r.out.includes(`[corpus: project/ghost] does not resolve to any entry in ${INDEX} or ${PROJECT}`),
+    r.out,
+  )
 })

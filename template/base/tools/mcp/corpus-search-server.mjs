@@ -3,18 +3,22 @@
 // standards corpus. Keyword match for now; swap for embeddings later behind the same
 // tool contract. Used by the citation-verifier subagent and slice authors to ground a
 // // SOURCE: citation. Returns NO_MATCH honestly rather than fabricating.
+// It serves both corpus files through tools/lib/corpus.mjs (1.0.4), the reader the
+// provenance gate uses: tools/mcp/corpus/index.json (the harness's pinned authorities)
+// and tools/mcp/corpus/project.json (the project's own). On an id both pin, the index
+// wins; a malformed project.json is ignored, so its ids answer NO_MATCH until it parses.
 // SOURCE: docs/harness/README.md (writing tools for agents; corpus grounding) [corpus: harness/doctrine]
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { corpusById, loadCorpus } from '../lib/corpus.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-
-const LOCAL_INDEX = join(here, 'corpus', 'index.json')
+// The install root: this file lives at tools/mcp/.
+const ROOT = join(here, '..', '..')
 
 function loadIndex() {
   const url = process.env['CORPUS_INDEX_URL']
@@ -24,17 +28,15 @@ function loadIndex() {
   // citation-verification pass).
   // SOURCE: .mcp.json (env template)
   const usable = url && !/^https?:/.test(url) && !url.includes('${')
-  const path = usable ? url.replace(/^file:\/\//, '') : LOCAL_INDEX
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'))
-  } catch {
-    // An override that points nowhere must not silently blank the corpus — fall back to local.
-    try {
-      return JSON.parse(readFileSync(LOCAL_INDEX, 'utf8'))
-    } catch {
-      return []
-    }
-  }
+  // The override replaces the UPSTREAM index only; project.json is always read from the
+  // install. A relative override resolves against the server's cwd, as it always has.
+  let corpus = loadCorpus({
+    root: ROOT,
+    upstreamPath: usable ? resolve(url.replace(/^file:\/\//, '')) : undefined,
+  })
+  // An override that points nowhere must not silently blank the corpus — fall back to local.
+  if (usable && corpus.upstream !== 'ok') corpus = loadCorpus({ root: ROOT })
+  return [...corpusById(corpus.entries).values()].map((e) => e.entry)
 }
 
 const server = new Server(

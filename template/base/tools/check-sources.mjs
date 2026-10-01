@@ -12,10 +12,15 @@
 //      shared allowlist in tools/lib/citation-domains.mjs (an arbitrary URL is
 //      a claim, not an authority);
 //   2. every corpus reference anywhere in the tracked tree must resolve to an
-//      entry in tools/mcp/corpus/index.json;
-//   3. the corpus itself is tamper-evident data — each entry carries a sha256
-//      over its text, non-empty title/url/version, and the entries' `groups`
-//      tags must cover every decision group the heuristic can flag;
+//      entry in tools/mcp/corpus/index.json (the harness's pinned authorities,
+//      owned) or tools/mcp/corpus/project.json (the project's own, seeded; 1.0.4);
+//   3. the corpus itself is tamper-evident data — each entry in either file
+//      carries a sha256 over its text, non-empty title/url/version, and the
+//      entries' `groups` tags must cover every decision group the heuristic can
+//      flag. The per-entry lint lives in tools/lib/corpus.mjs, the one reader
+//      of both files, which docs-sync and the corpus_search server share. A
+//      project id that reuses an upstream id reds naming both files: a project
+//      adds authorities, never replaces one;
 //   4. group-match: a decision site citing a corpus entry must cite one whose
 //      `groups` cover the site's OWN decision group — a resolvable citation
 //      that grounds a different decision class is not justification. Reviewed
@@ -28,10 +33,10 @@
 // per edit — a hook can only block or pass).
 // SOURCE: docs/harness/README.md (the gate is the enforcement; provenance) [corpus: harness/doctrine]
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { isAllowedCitationHost } from './lib/citation-domains.mjs'
+import { corpusById, loadCorpus, PROJECT_CORPUS, UPSTREAM_CORPUS } from './lib/corpus.mjs'
 import { fail, MAX_BUFFER, ok } from './lib/gate.mjs'
 import {
   CORPUS_REF,
@@ -46,7 +51,9 @@ import {
 } from './lib/provenance-rules.mjs'
 
 // cwd-relative like every other gate (fixtures and scaffolds carry their own corpus).
-const CORPUS_PATH = 'tools/mcp/corpus/index.json'
+// Messages about the upstream file's own integrity name index.json; messages that say
+// where to ADD an authority name project.json, because extending the owned index forks it.
+const CORPUS_PATH = UPSTREAM_CORPUS
 // Reviewed cross-group citation escapes. ABSENT is fine and means "no escapes";
 // MALFORMED fails closed — the file is write-guard-protected, so unparseable
 // content is tampering, not config.
@@ -161,7 +168,7 @@ for (const file of tracked.filter(gateFileMatch).filter(gateScansFile)) {
     if (badHosts.length) {
       semantic.push(
         `${file}:${s.line}  SOURCE cites URL host(s) not on the citation allowlist: ${badHosts.join(', ')} — ` +
-          `pin the authority in ${CORPUS_PATH} and cite [corpus: <id>] (extend the corpus in the same PR), ` +
+          `pin the authority in ${PROJECT_CORPUS} and cite [corpus: <id>] (add the entry in the same PR), ` +
           'or add the domain to tools/lib/citation-domains.mjs via a reviewed human edit',
       )
     } else {
@@ -174,77 +181,22 @@ for (const file of tracked.filter(gateFileMatch).filter(gateScansFile)) {
 }
 
 // ── 2. corpus integrity: tamper-evident, well-formed, group-covering ──────────
-let corpus = null
-if (!existsSync(CORPUS_PATH)) {
-  problems.push(`${CORPUS_PATH}: missing — the pinned corpus is part of the provenance surface`)
-} else {
-  try {
-    corpus = JSON.parse(readFileSync(CORPUS_PATH, 'utf8'))
-  } catch (e) {
-    problems.push(`${CORPUS_PATH}: invalid JSON (${e.message})`)
-  }
-  if (corpus !== null && !Array.isArray(corpus)) {
-    problems.push(`${CORPUS_PATH}: expected an ARRAY of entries`)
-    corpus = null
-  }
-}
-
-const knownIds = new Set()
+// Both files, one lint (tools/lib/corpus.mjs). The upstream index stays MANDATORY: when it
+// is missing or malformed the corpus checks below stand down, exactly as before 1.0.4, and
+// the project file never stands in for it.
 const knownGroupKeys = new Set(DECISION_GROUPS.map((g) => g.key))
-const coveredGroups = new Set()
-if (corpus !== null) {
-  for (const entry of corpus) {
-    const id = typeof entry?.id === 'string' && entry.id.trim() !== '' ? entry.id : null
-    if (id === null) {
-      problems.push(
-        `${CORPUS_PATH}: entry with missing/empty id: ${JSON.stringify(entry).slice(0, 80)}`,
-      )
-      continue
-    }
-    knownIds.add(id)
-    for (const field of ['title', 'url', 'version']) {
-      if (typeof entry[field] !== 'string' || entry[field].trim() === '') {
-        problems.push(
-          `corpus entry ${id}: missing/empty ${field} — pinned entries must name their authority`,
-        )
-      }
-    }
-    if (typeof entry.text !== 'string' || entry.text.trim() === '') {
-      problems.push(`corpus entry ${id}: missing/empty text — nothing to hash, nothing cited`)
-      continue
-    }
-    const actual = createHash('sha256').update(entry.text, 'utf8').digest('hex')
-    if (entry.sha256 !== actual) {
-      problems.push(`corpus entry ${id} text/hash mismatch — the corpus is tamper-evident data`)
-    }
-    // groups is MANDATORY: a missing `groups` key would be a WILDCARD — citing such an
-    // entry would short-circuit the per-site group-match, so any groups-less shipped entry
-    // could justify any flagged decision class. Every entry must declare its groups;
-    // `groups: []` is the explicit "presence-only" marker (a real authority for a decision
-    // NOT in the flagged taxonomy — a11y, tokens, migration discipline) that grounds
-    // citation existence but can never justify a flagged decision group.
-    if (!Array.isArray(entry.groups)) {
-      problems.push(
-        `corpus entry ${id}: missing/invalid \`groups\` — declare an array of decision-group keys, or [] for a presence-only authority (a groups-less entry can never universally justify a flagged decision site)`,
-      )
-    } else {
-      for (const g of entry.groups) {
-        if (knownGroupKeys.has(g)) {
-          coveredGroups.add(g)
-        } else {
-          problems.push(
-            `corpus entry ${id}: unknown decision group ${JSON.stringify(g)} (known: ${[...knownGroupKeys].join(', ')})`,
-          )
-        }
-      }
-    }
-  }
+const corpus = loadCorpus({ root: process.cwd(), groupKeys: knownGroupKeys })
+problems.push(...corpus.problems)
+const corpusReady = corpus.upstream === 'ok'
+const knownIds = new Set(corpus.entries.map((e) => e.id))
+const coveredGroups = corpus.coveredGroups
+if (corpusReady) {
   // Depth lockstep: the heuristic must never flag a decision class the corpus
   // cannot ground — every group needs at least one authorizing entry.
   for (const g of DECISION_GROUPS) {
     if (!coveredGroups.has(g.key)) {
       problems.push(
-        `decision group '${g.key}' (${g.description}) has no corpus entry tagged groups: ["${g.key}"] in ${CORPUS_PATH}`,
+        `decision group '${g.key}' (${g.description}) has no corpus entry tagged groups: ["${g.key}"] in ${CORPUS_PATH} or ${PROJECT_CORPUS} — add the authority that grounds it to ${PROJECT_CORPUS}`,
       )
     }
   }
@@ -254,15 +206,14 @@ if (corpus !== null) {
 // For each cited decision site, the UNION of the cited entries' `groups` must
 // cover every group the site's line matched. Unknown cited ids are already
 // failed by sweep 3 below, so they are simply skipped here. Reviewed
-// { file, group, id } overrides accept a specific cross-group pairing.
-if (corpus !== null) {
+// { file, group, id } overrides accept a specific cross-group pairing. On an id both
+// files pin (already a red above), the upstream entry's groups decide.
+if (corpusReady) {
   const entryGroups = new Map()
-  for (const entry of corpus) {
-    if (typeof entry?.id === 'string' && entry.id !== '') {
-      // Absent/invalid groups is already a `problems` red above; treat it as [] here so a
-      // malformed entry can never open a wildcard by being cited.
-      entryGroups.set(entry.id, Array.isArray(entry.groups) ? entry.groups : [])
-    }
+  for (const [id, { entry }] of corpusById(corpus.entries)) {
+    // Absent/invalid groups is already a `problems` red above; treat it as [] here so a
+    // malformed entry can never open a wildcard by being cited.
+    entryGroups.set(id, Array.isArray(entry.groups) ? entry.groups : [])
   }
   for (const site of citedSites) {
     const refs = [...site.payload.matchAll(CORPUS_REF)].map((m) => m[1])
@@ -281,7 +232,7 @@ if (corpus !== null) {
       semantic.push(
         `${site.file}:${site.line}  decision group '${g}' is not justified by the cited corpus ` +
           `entr${known.length === 1 ? 'y' : 'ies'} ${cited.join('; ')} — cite an entry whose groups ` +
-          `include '${g}' (extend ${CORPUS_PATH} in the same PR if the authority is missing), or add ` +
+          `include '${g}' (add the authority to ${PROJECT_CORPUS} in the same PR if it is missing), or add ` +
           `a reviewed { file, group, id, reason } entry to ${OVERRIDES_PATH}`,
       )
     }
@@ -289,7 +240,7 @@ if (corpus !== null) {
 }
 
 // ── 3. every corpus reference in the tracked tree must resolve ────────────────
-if (corpus !== null) {
+if (corpusReady) {
   for (const file of tracked.filter((f) => !BINARY_FILE.test(f))) {
     const src = read(file)
     if (src === null || !src.includes('[corpus:')) continue
@@ -297,7 +248,7 @@ if (corpus !== null) {
       for (const m of ln.matchAll(CORPUS_REF)) {
         if (!knownIds.has(m[1])) {
           problems.push(
-            `${file}:${i + 1}  [corpus: ${m[1]}] does not resolve to any entry in ${CORPUS_PATH}`,
+            `${file}:${i + 1}  [corpus: ${m[1]}] does not resolve to any entry in ${CORPUS_PATH} or ${PROJECT_CORPUS}`,
           )
         }
       }
@@ -334,6 +285,6 @@ if (uncited.length || problems.length) {
 
 process.stdout.write('check:sources — all decision sites carry SOURCE citations (0 flagged)\n')
 process.stdout.write(
-  `check:sources — corpus verified: ${String(corpus.length)} entr(ies) hash-clean, all corpus refs resolve, ${String(coveredGroups.size)}/${String(knownGroupKeys.size)} decision groups covered; group-match + URL-host allowlist clean\n`,
+  `check:sources — corpus verified: ${String(corpus.entries.length)} entr(ies) hash-clean, all corpus refs resolve, ${String(coveredGroups.size)}/${String(knownGroupKeys.size)} decision groups covered; group-match + URL-host allowlist clean\n`,
 )
 ok('provenance', 'resolvable, group-matched citations over a tamper-evident corpus')

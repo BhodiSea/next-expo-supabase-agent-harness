@@ -15,6 +15,9 @@
     ".claude/agents/citation-verifier.md": [
       {
         "sha256": "c26e616f55e9f67b9746accab565e3cf6b317367c33657bf3615f3c83f00660d"
+      },
+      {
+        "sha256": "dda2b869f2b19e6f38ac4868b3958de6df4fbae5bedafabcab6aad75b3c52bbc"
       }
     ],
     ".claude/agents/dal-author.md": [
@@ -95,6 +98,9 @@
       }
     ],
     ".claude/commands/verify-citations.md": [
+      {
+        "sha256": "410301bc6e12afabeec4f97755ad3404043242a4b557eee8bede7ab4d33afbe2"
+      },
       {
         "sha256": "e0c0485124b19e2f80fdb4ffde7e90269c07513c14733774e607df10fdbd9c9b"
       }
@@ -215,6 +221,9 @@
     ],
     ".claude/rules/provenance.md": [
       {
+        "sha256": "03eb4a46104237456395f176ed25ae616e48317354dde78d2a6b4b356b652a1d"
+      },
+      {
         "sha256": "aa3f8793f6d0d503e3678f219db43d908de70841de5606b8e6c3399ff21d5093"
       }
     ],
@@ -236,6 +245,9 @@
     ".claude/skills/authoring-e2ee-feature/SKILL.md": [
       {
         "sha256": "22f182df960bad4da2060b6a61bb44e24b11ffeab05a4d6084177f038b9df270"
+      },
+      {
+        "sha256": "a5a7b0ac4b9868d64735d1a5b8d38f2191c6057f30530051f22b04ded9090e1e"
       }
     ],
     ".claude/skills/authoring-vertical-slice/SKILL.md": [
@@ -719,6 +731,9 @@
     "docs/adr/README.md": [
       {
         "sha256": "4f4717be7c8f37f324755fbf4174d095a59a8fb82532fdb1a8deea1a13118d9d"
+      },
+      {
+        "sha256": "ad26e121cd5b86ab29a57e4d4ef453412d2eff7fba1c113d7a9e22d613b3706a"
       }
     ],
     "docs/compliance/controls-crosswalk.md": [
@@ -737,6 +752,15 @@
         "sites": [
           [
             16364,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "213789fb7052b25714068200bdbc773888e08c1952f65ebefaedd92514ebe159",
+        "sites": [
+          [
+            17834,
             "SECURITY_OWNERS"
           ]
         ]
@@ -816,6 +840,15 @@
         "sites": [
           [
             116445,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "a1275634c4b72b0c0294169d42d85155bb5c8f9b0bf5aafb1c7b72ca93e35c60",
+        "sites": [
+          [
+            120062,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1020,6 +1053,15 @@
         ]
       },
       {
+        "sha256": "38cdeb0dff13ee44f44a55929f78be0896c1bfc75195deca1eff408be8c43f3d",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "3d3b8c8ea771a10e326768ece0d0c1ba1ab24c2e6c235de1339ae62be48d71e0",
         "sites": [
           [
@@ -1079,6 +1121,9 @@
     "docs/security/approved-tools.md": [
       {
         "sha256": "48e7d270778290f72daadc74db529c5385c405a79ec3d16855c3c2310f5f501d"
+      },
+      {
+        "sha256": "5306edd4c8725cc7c013b31b91ea2fff8bd15e279b9c21d9970ae7631c263565"
       }
     ],
     "docs/security/managed-settings.md": [
@@ -1365,6 +1410,9 @@
     ],
     "tools/check-docs-sync.mjs": [
       {
+        "sha256": "9815ab68b00d878efa0768349c58ba353b3c3b8350a4161b02c257880308a064"
+      },
+      {
         "sha256": "de0e5d2a59de1b2d7d79626360beb09490354916ec4b7ff48497dea28e519c8b"
       }
     ],
@@ -1559,6 +1607,9 @@
     "tools/check-sources.mjs": [
       {
         "sha256": "2ecc321da6f39143d372c177af5f3549e3cceb0307c430dc595e22d619427f03"
+      },
+      {
+        "sha256": "c11c02f558e11ae282bfd76dc55e55d10e18118c5d789165359242dcc543bff8"
       }
     ],
     "tools/check-store-config.mjs": [
@@ -1801,6 +1852,9 @@
     ],
     "tools/lib/citation-domains.mjs": [
       {
+        "sha256": "42bd293c96c1bb70fb4384bfd638d104e5dc3f30e8c4e1dcb1b8ed4dec4d4d88"
+      },
+      {
         "sha256": "75c3561c859d31d5477970a811374c5413d22f205729fbaffcba22d937d4e282"
       }
     ],
@@ -1812,6 +1866,11 @@
     "tools/lib/conformance-map.mjs": [
       {
         "sha256": "52e042309d4f98397e927d5dddff4ee556afb682502fcea4693b102c59c2b377"
+      }
+    ],
+    "tools/lib/corpus.mjs": [
+      {
+        "sha256": "39da8a71efe38461e82674819d0a737e7565a4c7595d62654dfac8fcd86bf85c"
       }
     ],
     "tools/lib/data-flow.mjs": [
@@ -1827,6 +1886,9 @@
     "tools/lib/enforcement-surface.mjs": [
       {
         "sha256": "16611a8e1b4e3757387fde65df4417576abc160702f7b38b0fccea121cd0140c"
+      },
+      {
+        "sha256": "27b7191246cc3094a4961cf669743a96482522b7032f3a8e1276937d44054011"
       }
     ],
     "tools/lib/eol.mjs": [
@@ -1911,6 +1973,9 @@
       }
     ],
     "tools/lib/provenance-rules.mjs": [
+      {
+        "sha256": "05cbc11aa1acc35464be245058bcaf471ab15d8f1110d86290b21a92e718f18d"
+      },
       {
         "sha256": "443df8dced9e1bbc3dbab9bf89b0f36efa6846a03443b0cecea770efa579610d"
       }
@@ -2014,12 +2079,18 @@
     ],
     "tools/mcp/README.md": [
       {
+        "sha256": "ebb58f23fe4b2ff6063d9a25ac39606e2d8349ed104e6c29ae2aa4760ace79ce"
+      },
+      {
         "sha256": "f480610451363a358c7e9dbe1915e7645683d7268d2a57e6c6b8a25fac58cae1"
       }
     ],
     "tools/mcp/corpus-search-server.mjs": [
       {
         "sha256": "1bbe0e611c62cbccff5142e7a871dc053ac1075125a82bc3ae25b66319cca0b3"
+      },
+      {
+        "sha256": "80cf4f22bf536e2fe8bd7b98ccc460d3db4baa6f95d501138523329e3754f1ab"
       }
     ],
     "tools/mcp/corpus/index.json": [
