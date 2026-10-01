@@ -138,8 +138,8 @@ suppressions disabled.
 green `selftest.yml` and `lint.yml` runs on that exact commit, and signs a
 build provenance attestation for the tarball with an identity issued to that
 workflow run. No long-lived signing key exists. SECURITY.md gives the
-verification command, which was tested against the v1.0.1 asset and fails for
-any other repository or workflow.
+verification commands, which were run against the v1.0.3 assets on
+2026-09-29 and fail for any other repository or workflow.
 
 **R8. Untrusted pull requests.** Every factory workflow sets
 `permissions: contents: read` at the top and grants more only per job. No
