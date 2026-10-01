@@ -11,7 +11,20 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [Unreleased]
+## [1.0.4] — 2026-09-29
+
+**A patch, the local loop release: what a local run says matches what CI will say.** No gate
+is added, the chain length does not change, and no ramp opens or moves. `update` delivers
+every changed file that is owned. The one seeded change, the regenerated database types,
+reaches fresh scaffolds only (see Fixed, which says what an existing install does instead).
+The `template/migrations.json` record for 1.0.4 is `rampExpiry` only, restating 1.0.0's
+thirteen-vintage population; `baseVersion` 1.0.0 through 1.0.3 meet nothing here.
+`scripts/lib/ramp-sites.mjs` `VINTAGES` grows by `1.0.3`.
+
+### Security
+
+<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
+this heading if none does. -->
 
 ### Fixed
 
@@ -50,6 +63,35 @@ This lineage's own history starts at 0.1.3.
   re-reads and their sources are in `design/CONFORMANCE-FACTS.md` §2 and §4, which also
   records a new open question about open-source software stewards. Nothing here reaches an
   install (#54).
+
+### Changed
+
+<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
+this heading if none does. -->
+
+### What stays open, honestly
+
+- **An existing install keeps its database types until it regenerates them.** The file is
+  seeded, so `update` does not plant the types regenerated for Supabase CLI 2.118.0, and an
+  install whose own CLI has moved sees `types-drift` red with its stack up until it runs
+  `pnpm db:types` and commits the diff (#40).
+- **The two re-dated calendar rows are re-dated, not discharged.** Each falls due again, on
+  2027-05-31 and 2027-06-11. Whether this project has an open-source software steward, whose
+  reporting duties start on 2027-12-11, is recorded as an open question for the maintainer in
+  `design/CONFORMANCE-FACTS.md` §4 (#54).
+- **What was proven where.** With full history and every release tag through v1.0.3 fetched,
+  `check-ramp-ledger` computed the thirteen-vintage population at 1.0.4 and the record
+  states it, `check-release-lockstep` passed at 1.0.4 everywhere, and the renamed GROWN-list
+  test failed while `VINTAGES` lacked `1.0.3` before it passed. A fresh core scaffold from
+  the bumped tree passed all 36 steps with no stack up, so `types-drift` skipped loudly
+  there. Leg A of `upgrade-linux` passed locally from v1.0.3: `update` wrote the eleven
+  owned files the record names (the eight hook stamps, the runbook, the types-drift gate and
+  the gates catalog), `doctor` named the seeded types file as the one seeded file that
+  differs, and `graduate` moved the install to 1.0.4 (#38). The regenerated types came from
+  CLI 2.118.0 against a live local stack, where `types-drift` passed on them and printed its
+  bounded diff before its FAIL on v1.0.3's file; both `bootstrap-linux` legs then passed in
+  CI with the stack up (#40). `check-obligations --clockful` was red on the two overdue rows
+  before the re-read and clean after it, on 2026-09-29 (#54).
 
 ## [1.0.3] — 2026-09-23
 
