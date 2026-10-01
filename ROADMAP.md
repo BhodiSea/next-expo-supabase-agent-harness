@@ -14,15 +14,14 @@ when they fall due.
 
 ## Now: overdue
 
-- **Two dated compliance re-verifications are overdue**:
-  `conformance-play-target-api-window` (Google Play target API level, due
-  2026-08-31) and `conformance-cra-art14-application` (EU Cyber Resilience Act
-  Article 14 reporting, due 2026-09-11). Each needs the re-read its row
-  prescribes.
 - **Make the nightly run able to raise an alarm again.** It had been red every
   night since 2026-08-11, which hid the lapse of the Next.js security floor
-  review in September (see the 1.0.2 CHANGELOG entry). Clearing the two items
-  above is the first half. The second is a check that compares the framework
+  review in September (see the 1.0.2 CHANGELOG entry). The first half is done:
+  the two overdue calendar rows behind its last red job, `obligations-clockful`,
+  were re-read on 2026-09-29 and re-dated (issue #54). They are
+  `conformance-play-target-api-window` (Google Play target API level) and
+  `conformance-cra-art14-application` (EU Cyber Resilience Act Article 14
+  reporting). The second half is a check that compares the framework
   floor against the vendor's advisory feed, so that a security release is
   noticed when it ships and not when a review window happens to end.
 - **Get dependency updates flowing.** `renovate.json` is configured here and in
@@ -196,6 +195,8 @@ proposed again.
 | 2026-10-30 | Supabase stops granting Data API privileges automatically on new projects. The scaffold's migrations already grant explicitly; this is the date to re-verify that against a project created after it. | `conformance-supabase-grants-arrival` |
 | 2026-12-02 | EU AI Act Article 50 transitional period ends. The recorded disposition is a confirmed negative, to be re-read. | `conformance-ai-act-transitional` |
 | 2026-12-31 | Re-check whether a harmonised standard for the Cyber Resilience Act has been cited. The CRA rows of the conformance map have a shelf life tied to this. | `conformance-cra-hens-citation` |
+| 2027-05-31 | Google Play has raised the target API level it requires on 31 August in each of the last two years, and no 2027 level is published yet. This date is three months before the next 31 August. A level above 36 would raise the scaffold's floor, which needs a ramp in a minor release, so the question is asked early. | `conformance-play-target-api-window` |
+| 2027-06-11 | Six months before 2027-12-11, when the EU Cyber Resilience Act's reporting duties reach open-source software stewards (Article 24(3)). Whether this project has a steward is an open question for the maintainer. | `conformance-cra-art14-application` |
 | 2027-06-15 | ASD is consulting on replacing the Essential Eight. The Essential Eight register gets re-based or retired depending on the outcome. | `conformance-e8-retirement` |
 
 ## When something outside this project changes

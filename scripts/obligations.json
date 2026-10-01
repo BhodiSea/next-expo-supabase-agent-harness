@@ -165,28 +165,36 @@
     {
       "id": "conformance-play-target-api-window",
       "kind": "calendar",
-      "target": "2026-08-31",
+      "target": "2027-05-31",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-08-31"
+          "mustContain": "Play target-API row re-verified 2026-09-29"
+        },
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "2027-05-31"
         }
       ],
-      "reason": "Google Play's target API deadline (36 general, 35 Wear/Automotive, 34 TV/XR; two requirement families — submission and continued-distribution). The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut still holds at the deadline, re-opening only if the template ever seeds a Wear/Automotive/TV/XR target. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED: the row's job is to ask the question ON the deadline, so slipping it forward would retire the check rather than satisfy it, and a calendar row cannot red a PR in any case (obligations.mjs gates the calendar branch on `clockful`). What the pre-verification found, all local because the claim is local: tools/store-policy.json's androidTargetSdk floor is 36, matching the requirement that takes effect on the target date; expoSdkDefaults maps SDK 57 to targetSdkVersion 36, so a stock scaffold satisfies it without declaring anything; and a search of the seeded config surface for wear/automotive/androidtv/leanback/xr found NO form-factor target — the only occurrences anywhere are store-policy.json's own prose describing the lower floors those form factors would use. The cut therefore still holds, and the scheduled lane's firing on the date is a confirmation rather than a discovery.",
-      "reviewedOn": "2026-08-13"
+      "reason": "Google Play's target API requirement: to SUBMIT, 36 general, 35 Wear OS/Automotive, 34 TV/XR; to stay available to new users (continued distribution), 35 general, 34 Wear OS/XR, 32 Automotive, and 33 or 34 for TV depending on which of Google's two pages is read. The regime was CUT as already satisfied and not derivable (the form factor is not expressible in this template's config surface); this row is the dated re-verification that the cut and the tools/store-policy.json floor still hold, re-opening if the template ever seeds a Wear/Automotive/TV/XR target or Google publishes a higher level. RE-VERIFIED 2026-09-29, 29 days after the 2026-08-31 deadline the row carried until then (the scheduled obligations-clockful job had been red on it every night since that date). Both Google pages were re-read (developer.android.com's target-sdk page, last updated 2026-09-16, and Play Console Help answer 11926878, which shows no date): the levels are unchanged, the extension runs to 2026-11-01 and store-policy.json does not assume it, and neither page names a requirement after 2026-08-31. The local half was re-confirmed in the tree: the floor is 36; expoSdkDefaults maps SDK 57 to 36, re-derived from the published packages (expo-modules-autolinking 57.0.13 reads targetSdk from React Native's version catalog, and react-native 0.86.2 sets it to 36); expo is pinned at 57.0.9; checkTargetSdk reads both values; and template/ carries no leanback, watch or automotive hardware feature, supportsTVOnly or EXPO_TV. No shipped value is contradicted, so nothing is filed. RE-DATED to 2027-05-31 rather than deleted: three months before the next annual 31 August step that the Help page's own table implies (API 35 from 2025-08-31, API 36 from 2026-08-31). Raising the floor tightens what check-expo-policy judges for an existing install, so it needs a ramp in a minor release, and a row that fires on the deadline fires too late to ship one. The first sites[] anchor pins the re-verification date, so the next re-read has to move this row in the same diff; design/CONFORMANCE-FACTS.md §2 carries the full record and its sources.",
+      "reviewedOn": "2026-09-29"
     },
     {
       "id": "conformance-cra-art14-application",
       "kind": "calendar",
-      "target": "2026-09-11",
+      "target": "2027-06-11",
       "sites": [
         {
           "file": "design/CONFORMANCE-FACTS.md",
-          "mustContain": "2026-09-11"
+          "mustContain": "CRA Article 14 row re-verified 2026-09-29"
+        },
+        {
+          "file": "design/CONFORMANCE-FACTS.md",
+          "mustContain": "2027-06-11"
         }
       ],
-      "reason": "CRA Article 14 reporting applies from this date (Art. 71(2); a SINGLE reporting end-point simultaneously accessible to ENISA, not three recipients). This repository is out of scope as unmonetised FOSS — the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs) — and this row is the dated re-verification of that scope reading against the final guidance in force on the day. PRE-VERIFIED 2026-08-13 in the 0.10.0 release pass, and the DATE IS DELIBERATELY NOT MOVED, for the same reason as the Play row: 'the guidance in force on the day' is not readable before the day, so moving the target would convert a dated check into a retired one. The local half of the scope reading was re-confirmed — SECURITY.md ships in template/base and is planted for existing installs, so the consumer-enablement deliverable stands whatever the final guidance says about this repository's own status. The row stays undischarged on purpose: it is the one obligation in this register whose answer this repository cannot compute, only look up.",
-      "reviewedOn": "2026-08-13"
+      "reason": "CRA Article 14 reporting applies from 2026-09-11 (Art. 71(2)): one submission through ENISA's Single Reporting Platform (Art. 16), addressed to the CSIRT of the main establishment and simultaneously available to ENISA, not three recipients. This repository is out of scope as a MANUFACTURER, because unmonetised free and open-source software is not supplied in the course of a commercial activity, so the deliverable was consumer ENABLEMENT (SECURITY.md ships, planted for existing installs). RE-VERIFIED 2026-09-29, 18 days after the 2026-09-11 date the row carried until then. The date, the single end-point (the platform has been operational since 2026-09-11) and the manufacturer-scope reading are CONFIRMED through the Commission's own CRA pages (reporting obligations, summary, open source). EUR-Lex answered every request from that session with an empty bot challenge, and the Commission guidance C(2026) 5252 and the Commission FAQ are hosted on ec.europa.eu, which the session could not reach, so the maintainer re-reads those three before approving this re-dating. The re-read found what neither this row nor §4 had considered: the OPEN-SOURCE SOFTWARE STEWARD (Art. 3(14): a legal person, other than a manufacturer, that systematically supports free and open-source software intended for commercial activities on a sustained basis). Art. 24(3) extends the Art. 14 duties to report actively exploited vulnerabilities and severe incidents to a steward, but from 2027-12-11 (Art. 71(2)), not 2026-09-11. So nothing reached this repository on 2026-09-11 in either role. Whether Cogvera Labs, named as the author in package.json, CITATION.cff and GOVERNANCE.md, is this harness's steward is a fact about the maintainer's organisation that the tree cannot compute, and design/CONFORMANCE-FACTS.md §4 records it as OPEN. Both shipped texts (the Downstream obligations paragraph of template/base/SECURITY.md and the CRA-II.5 note in tools/conformance-map.json) still read true and are unchanged. RE-DATED to 2027-06-11 rather than deleted: six months before the steward duties apply, because a steward's Art. 24 policy and its route into the reporting platform must exist on 2027-12-11, and a row that fires on that day fires too late to prepare them. The first sites[] anchor pins the re-verification date, so the next re-read has to move this row in the same diff.",
+      "reviewedOn": "2026-09-29"
     },
     {
       "id": "conformance-cra-hens-citation",
