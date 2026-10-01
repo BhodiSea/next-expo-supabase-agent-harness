@@ -22,17 +22,6 @@ import { z } from 'zod'
 // unbounded wire input [corpus: harness/doctrine]
 // ---------------------------------------------------------------------------
 
-/** Titles are single-line labels; 200 chars covers real titles without inviting body-in-title. */
-export const NOTE_TITLE_MAX = 200
-/** Bodies are prose, not blobs: 20 000 chars (~4 000 words), well under a 1 MiB request cap. */
-export const NOTE_BODY_MAX = 20_000
-/**
- * The excerpt is the list-row summary both surfaces render. 160 chars is two
- * comfortable lines on a phone at the body type scale and one line on the web
- * list — chosen so neither surface has to re-truncate and invent its own limit.
- */
-export const NOTE_EXCERPT_MAX = 160
-
 /**
  * Addresses are bounded by the SMTP path limit, not by a guess: RFC 5321 §4.5.3.1.3
  * fixes the maximum reverse/forward path at 256 octets, of which 320 is the
@@ -60,23 +49,6 @@ export const VERSION_MAX = 64
  * spelling without leaving the field effectively unbounded.
  */
 export const TIMESTAMP_TEXT_MAX = 64
-
-/**
- * Keyset pagination bounds. Defaults follow large public REST APIs (GitHub:
- * per_page default 30, max 100) scaled to this payload size; the max also caps
- * the DAL's LIMIT so no request can demand an unbounded scan.
- * SOURCE: https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
- */
-export const NOTES_PAGE_LIMIT_DEFAULT = 50
-export const NOTES_PAGE_LIMIT_MAX = 200
-
-/**
- * Page cursors are opaque tokens (base64url of the last row's keyset). 256
- * chars bounds the token while leaving headroom over the ~120 chars the server
- * actually emits.
- * SOURCE: opaque page tokens per Google AIP-158 https://google.aip.dev/158
- */
-export const NOTES_CURSOR_MAX = 256
 
 /**
  * The header the client stamps on every request with its own release version.
@@ -137,8 +109,8 @@ export type TransportErrorCode = z.infer<typeof TransportErrorCode>
  *
  * Deliberately a prefix check, not an anchored one: this validates driver
  * OUTPUT (shape assurance), and Postgres is free to add precision. Wire INPUT
- * that is re-bound into a query — the page cursor — is anchored at both ends by
- * its own schema in the notes vertical, where a loose tail is exploitable.
+ * that is re-bound into a query — a page cursor — is anchored at both ends by
+ * the schema of the vertical that mints it, where a loose tail is exploitable.
  */
 export const WireTimestamp = z
   .string()
@@ -234,137 +206,7 @@ export const OrgSummary = z.object({
 export type OrgSummary = z.infer<typeof OrgSummary>
 
 // ---------------------------------------------------------------------------
-// Note — the seeded reference entity
-//
-// Two shapes per entity, and the split is load-bearing:
-//
-//   *Record  the persisted contract. What the DAL parses rows INTO and what
-//            server-side code reasons about. Carries ownership and lifecycle
-//            columns the UI has no business rendering.
-//   *View    the ONE shape both surfaces render. Web and mobile import the same
-//            type, so a field rename is a compile error on both at once instead
-//            of a silent divergence where the phone says `updatedAt` and the
-//            web says `modified_at`.
-//
-// The Record -> View mapping is a single pure function in @app/notes; there is
-// no second one, which is what keeps the two surfaces honest.
-// ---------------------------------------------------------------------------
-
-/**
- * The persisted note contract — the DAL's exit shape. Column names are
- * camelCased here on purpose: snake_case belongs to the table, and letting it
- * leak onto the wire welds every consumer to the physical schema.
- */
-export const NoteRecord = z.object({
-  archivedAt: WireTimestamp.nullable(),
-  body: z.string().max(NOTE_BODY_MAX),
-  createdAt: WireTimestamp,
-  id: z.uuid(),
-  // NULLABLE, and that is the B2B attribution demotion reaching the contract.
-  //
-  // 20260201000100_notes_org_scope.sql dropped this column's NOT NULL and made its
-  // foreign key ON DELETE SET NULL: in a B2B product the data controller is the ORG,
-  // so removing an employee must not delete the company's rows. A non-null contract
-  // over a nullable column is not a stricter contract, it is a WRONG one — and it
-  // fails in the worst available way. `toNoteRecord` throws on the first orphaned
-  // row, listNotes catches it as `contractDrift`, and the whole PAGE returns an
-  // internal error rather than the one row losing its attribution. One departed
-  // employee would blank their org's notes list.
-  //
-  // Found by the integration lane, not by reasoning: every unit test stamped an
-  // owner, so the null case existed only against a real database. Nothing in
-  // TypeScript authorizes on this field — the DELETE policy's owner_id arm lives in
-  // SQL and reads the column, never this type — so widening it costs no boundary.
-  ownerId: z.uuid().nullable(),
-  title: z.string().min(1).max(NOTE_TITLE_MAX),
-  updatedAt: WireTimestamp,
-})
-export type NoteRecord = z.infer<typeof NoteRecord>
-
-/**
- * The render contract. `ownerId` is deliberately absent: the list a caller can
- * see is already the list RLS let through, so echoing the owner back adds an
- * identifier to every payload and buys the UI nothing.
- */
-export const NoteView = z.object({
-  createdAt: WireTimestamp,
-  excerpt: z.string().max(NOTE_EXCERPT_MAX),
-  hasBody: z.boolean(),
-  id: z.uuid(),
-  isArchived: z.boolean(),
-  title: z.string().min(1).max(NOTE_TITLE_MAX),
-  updatedAt: WireTimestamp,
-})
-export type NoteView = z.infer<typeof NoteView>
-
-/**
- * Client-supplied fields only. `ownerId` is injected by the DAL from the
- * verified actor and must NEVER be accepted from the wire — an owner-bearing
- * create input is an account-takeover primitive dressed as a convenience.
- *
- * `body` is optional: the column default ('') stands in when the client omits it.
- */
-export const NewNoteInput = z.object({
-  body: z.string().max(NOTE_BODY_MAX).optional(),
-  title: z.string().min(1).max(NOTE_TITLE_MAX),
-})
-export type NewNoteInput = z.infer<typeof NewNoteInput>
-
-/**
- * A partial patch. The refinement rejects an empty patch outright rather than
- * letting it through as a no-op UPDATE: a no-op still bumps `updated_at`, which
- * reorders the list and invalidates every live cursor for no reason at all.
- */
-export const NoteUpdateInput = z
-  .object({
-    body: z.string().max(NOTE_BODY_MAX).optional(),
-    id: z.uuid(),
-    isArchived: z.boolean().optional(),
-    title: z.string().min(1).max(NOTE_TITLE_MAX).optional(),
-  })
-  .refine(
-    (patch) =>
-      patch.body !== undefined || patch.isArchived !== undefined || patch.title !== undefined,
-    { message: 'an update must change at least one field' },
-  )
-export type NoteUpdateInput = z.infer<typeof NoteUpdateInput>
-
-/** Addressing a single note. Its own schema so the router never hand-rolls `{ id }`. */
-export const NoteRef = z.object({ id: z.uuid() })
-export type NoteRef = z.infer<typeof NoteRef>
-
-/**
- * List query — keyset pagination, never OFFSET. An offset scan re-reads and
- * re-discards every skipped row, so page 500 costs 500 pages of work; a keyset
- * seek is O(page) regardless of depth.
- * SOURCE: https://use-the-index-luke.com/no-offset
- */
-export const NotesListQuery = z.object({
-  cursor: z
-    .string()
-    .min(1)
-    .max(NOTES_CURSOR_MAX)
-    .regex(/^[A-Za-z0-9_-]+$/) // base64url alphabet — anything else is not our token
-    .optional(),
-  includeArchived: z.boolean().default(false),
-  limit: z.coerce.number().int().min(1).max(NOTES_PAGE_LIMIT_MAX).default(NOTES_PAGE_LIMIT_DEFAULT),
-})
-export type NotesListQuery = z.infer<typeof NotesListQuery>
-
-/** One page of the render shape, plus the cursor for the next. */
-export const NotesPage = z.object({
-  items: z.array(NoteView).max(NOTES_PAGE_LIMIT_MAX),
-  nextCursor: z.string().min(1).max(NOTES_CURSOR_MAX).nullable(),
-})
-export type NotesPage = z.infer<typeof NotesPage>
-
-/** What a delete reports back: enough to reconcile a client cache, nothing more. */
-export const NoteDeletion = z.object({ id: z.uuid() })
-export type NoteDeletion = z.infer<typeof NoteDeletion>
-
-// ---------------------------------------------------------------------------
-// Actor — the second entity, and the reason the ladder above `publicProcedure`
-// exists at all.
+// Actor — the reason the ladder above `publicProcedure` exists at all.
 // ---------------------------------------------------------------------------
 
 /**
@@ -422,10 +264,12 @@ export type HealthReport = z.infer<typeof HealthReport>
 // Data export — the DSR portability surface (`system.exportMyData`).
 //
 // These shapes are the WIRE form of the reviewed projection in
-// tools/data-flow.json `export.projection` — profiles, memberships and notes,
-// exactly the columns a human reviewed there and no more. The projection file
-// is the authority; these schemas are how it crosses the wire, so a column
-// added to one without the other is a drift the export test suite catches.
+// tools/data-flow.json `export.projection` — profiles and memberships, exactly
+// the columns a human reviewed there and no more. The projection file is the
+// authority; these schemas are how it crosses the wire, so a column added to one
+// without the other is a drift the export test suite catches. A vertical that
+// stores the subject's data adds its own section to all three (the notes vertical
+// that `init --with-demo` plants is the worked example of one).
 // SOURCE: docs/runbooks/data-subject-requests.md (Art. 20 — the portability half)
 // ---------------------------------------------------------------------------
 
@@ -439,15 +283,6 @@ export type HealthReport = z.infer<typeof HealthReport>
  * (ordered by org id); the runbook records it beside the procedure.
  */
 export const EXPORT_MEMBERSHIPS_LIMIT = 200
-
-/**
- * The export page cursor is a COMPOUND token — the org being walked plus the
- * notes keyset within it (see @app/notes `encodeNotesExportCursor`) — so it is
- * roughly an org id longer than the plain notes cursor. 512 bounds it with the
- * same headroom ratio NOTES_CURSOR_MAX gives the inner token.
- * SOURCE: opaque page tokens per Google AIP-158 https://google.aip.dev/158
- */
-export const EXPORT_CURSOR_MAX = 512
 
 /**
  * The subject's own profiles row. `displayName` has NO min(1), unlike
@@ -479,31 +314,6 @@ export const MembershipExport = z.object({
 export type MembershipExport = z.infer<typeof MembershipExport>
 
 /**
- * One authored note in the export projection. Field bounds are BORROWED from
- * NoteRecord so the two cannot drift; `orgId` rides along because the export
- * spans every org the subject can still read, and a note with no tenant would
- * be unattributable in the archive. Archived notes are included — an export is
- * about completeness, not about what a working list shows.
- */
-export const ExportedNote = z.object({
-  body: NoteRecord.shape.body,
-  createdAt: WireTimestamp,
-  id: z.uuid(),
-  // eslint-disable-next-line local/org-id-from-session-only -- OUTPUT attribution, same reading as MembershipExport.orgId above: the reviewed export.projection names notes.org_id, and this schema is that projection's wire form, never a request input.
-  orgId: z.uuid(),
-  title: NoteRecord.shape.title,
-  updatedAt: WireTimestamp,
-})
-export type ExportedNote = z.infer<typeof ExportedNote>
-
-/** One page of authored notes plus the compound cursor for the next. */
-export const ExportedNotesPage = z.object({
-  items: z.array(ExportedNote).max(NOTES_PAGE_LIMIT_MAX),
-  nextCursor: z.string().min(1).max(EXPORT_CURSOR_MAX).nullable(),
-})
-export type ExportedNotesPage = z.infer<typeof ExportedNotesPage>
-
-/**
  * The two self-reads' ROW shapes (snake_case, as the database returns them),
  * borrowing every field bound from the wire DTOs above so the two can never
  * drift — the rows.ts law, stated once, here, because this package owns zod:
@@ -530,31 +340,21 @@ export const MembershipExportRows = z.array(
 )
 
 /**
- * One page of the export. Profile and memberships repeat on every page —
- * they are small, and a page that is complete on its own can be handed over
- * without stitching; notes are the unbounded half and carry the cursor.
+ * The export. Profile and memberships are small, so the whole archive is one
+ * page; a vertical whose rows are unbounded adds a paged section and the cursor
+ * that walks it.
  */
 export const DataExportPage = z.object({
   memberships: z.array(MembershipExport).max(EXPORT_MEMBERSHIPS_LIMIT),
-  notes: ExportedNotesPage,
   profile: ProfileExport,
 })
 export type DataExportPage = z.infer<typeof DataExportPage>
 
 /**
  * The input. NOTE THE ABSENCE, same law as every input in this file: no org
- * field. Which org a page reads from is carried INSIDE the opaque cursor and
- * is resolved server-side against the caller's real seats before it means
- * anything — a cursor naming an org the caller no longer holds simply resumes
- * at their next held org.
+ * field, and nothing at all yet — the export reads the VERIFIED caller's own
+ * rows, so there is nothing for a request to choose. `.strict()` makes a field a
+ * client invents a parse failure rather than a silently ignored selector.
  */
-export const ExportMyDataSchema = z.object({
-  cursor: z
-    .string()
-    .min(1)
-    .max(EXPORT_CURSOR_MAX)
-    .regex(/^[A-Za-z0-9_-]+$/) // base64url alphabet — anything else is not our token
-    .optional(),
-  limit: z.coerce.number().int().min(1).max(NOTES_PAGE_LIMIT_MAX).default(NOTES_PAGE_LIMIT_DEFAULT),
-})
+export const ExportMyDataSchema = z.object({}).strict()
 export type ExportMyDataSchema = z.infer<typeof ExportMyDataSchema>

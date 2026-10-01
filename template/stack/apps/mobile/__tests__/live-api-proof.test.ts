@@ -277,92 +277,38 @@ suite('live-api-proof (LIVE_PROOF=1): the real mobile -> web tRPC auth seam', ()
     }
   })
 
-  // Two things at once: that the bearer becomes `auth.uid()` under RLS, and that
-  // the authed tRPC read reaches the data channel over the live transport.
+  // Two things at once: that the bearer becomes `auth.uid()` under RLS, and that the
+  // authed tRPC read reaches the data channel over the live transport.
   //
-  // (i) DB-level RLS binding. The row is admitted by the caller's SEAT, not by their
-  // user id: `notes_insert_org` is
-  // `WITH CHECK coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20`,
-  // and `member_ranks()` reads public.memberships as the caller, so the rank map is a
-  // function of auth.uid(). service_role is REVOKED on public.notes, so this INSERT can
-  // ONLY be the RLS-scoped authenticated client. That is the identity binding the whole
-  // seam rests on — the same binding as before, now expressed through the org.
+  // (i) DB-level RLS binding. profiles is self-only for `authenticated`, so the caller's
+  // own row is visible to the RLS-scoped client ONLY because the bearer became
+  // auth.uid(): an anonymous client sees nothing, and another user's client sees nothing.
   //
-  // (ii) tRPC read-path seam. WITH the bearer, notes.list authenticates, RESOLVES
-  // to an OK ActionOutcome ON THE DATA CHANNEL, and the page carries the very row
-  // just inserted (the `archived_at` column the list DAL selects is now part of the
-  // seeded schema, so the projection succeeds); strip the bearer (C01) and the same
-  // call THROWS UNAUTHORIZED before any handler runs. An ok envelope is precisely
-  // NOT a transport reject: that gap is what the bearer buys.
-  it('the bearer binds RLS (the seat admits the write) and an authed notes.list returns it on the data channel', async () => {
-    const title = `live-proof note ${runId}`
-    const inserted = await authedSb
-      .from('notes')
-      .insert({ title, org_id: orgId })
-      .select('id, org_id, owner_id')
-      .single()
-    expect(inserted.error).toBeNull()
-    const row = inserted.data
-    expect(row?.org_id).toBe(orgId)
-    // owner_id is ATTRIBUTION now, not authorization. The org-scope migration dropped its
-    // DEFAULT along with its NOT NULL (in B2B the data controller is the org, so firing an
-    // employee must not delete the company's rows), so a RAW client insert leaves it null
-    // and the DAL is what stamps it. Asserting null here is the demotion, on the record:
-    // this write was authorized by a seat, and nothing about owner_id decided it.
-    expect(row?.owner_id).toBeNull()
-
-    const visible = await authedSb
-      .from('notes')
-      .select('id, org_id')
-      .eq('id', row?.id ?? '')
+  // (ii) tRPC read-path seam. WITH the bearer, system.exportMyData authenticates and
+  // RESOLVES to an ok ActionOutcome ON THE DATA CHANNEL carrying that same row and the
+  // seat provisioned in beforeAll; strip the bearer (C01) and the same call THROWS
+  // UNAUTHORIZED before any handler runs. An ok envelope is precisely NOT a transport
+  // reject: that gap is what the bearer buys.
+  it('the bearer binds RLS (the caller reads its own profile) and an authed export returns it on the data channel', async () => {
+    const visible = await authedSb.from('profiles').select('id').eq('id', userId)
     expect(visible.error).toBeNull()
     expect((visible.data ?? []).length).toBe(1)
 
-    const page = await authedApi.notes.list.query({})
-    // Report the ENVELOPE, not merely `false`. This assertion was `expect(page.ok).toBe(true)`
-    // and it failed in CI as "Expected: true, Received: false" — naming neither the code nor
-    // the reason. The defect underneath was a non-null `ownerId` contract over a column the
-    // org-scope migration had made nullable, and finding it took a local database because the
-    // one thing the failure would not say was what it was. An err outcome carries a
-    // discriminated AppError; a live proof that hides it is a proof you cannot act on.
+    const page = await authedApi.system.exportMyData.query({})
+    // Report the ENVELOPE, not merely `false`: an err outcome carries a discriminated
+    // AppError, and a live proof that hides it is a proof you cannot act on.
     if (!page.ok) {
-      throw new Error(`notes.list returned an err envelope: ${JSON.stringify(page.error)}`)
+      throw new Error(`system.exportMyData returned an err envelope: ${JSON.stringify(page.error)}`)
     }
-    expect(page.data.items.some((note) => note.id === row?.id)).toBe(true)
+    expect(page.data.profile.id).toBe(userId)
+    expect(page.data.memberships.some((seat) => seat.orgId === orgId)).toBe(true)
   })
 
-  // notes.create is an orgProcedure. The caller holds exactly one seat — their personal
-  // org, provisioned in beforeAll — and sends no `x-org-id`, so `resolveActiveOrg`
-  // returns that org and `orgGate` resolves. WITH the bearer the request authenticates,
-  // the gate resolves an acting org, and the DAL returns an ok NoteView; strip the bearer
-  // (C01) and this exact call THROWS UNAUTHORIZED before any handler runs.
-  //
-  // Worth being precise about what this does and does not prove. The gate is a good-error
-  // rung, not the boundary: it turns "no acting org" into a `forbidden` outcome before the
-  // round trip. THE POLICY IS THE ENFORCEMENT — a bug in this rung yields a database
-  // denial, not a leak, and the cross-tenant suites are what prove that.
-  it('notes.create with a valid bearer passes the org gate and creates the note on the data channel', async () => {
-    const title = `live-proof create ${runId}`
-    const outcome = await authedApi.notes.create.mutate({ title })
-    // It RESOLVED (did not throw) — that is the seam. Under C01 this same call
-    // throws UNAUTHORIZED and never produces a value.
-    expect(outcome.ok).toBe(true)
-    // The write actually landed: an ok envelope carrying the created note, a fresh
-    // note is un-archived (archived_at NULL round-trips to isArchived=false), and
-    // the returned title is the one sent — distinct from BOTH the transport
-    // `unauthorized` of the negative control and the org-less `forbidden`.
-    if (outcome.ok) {
-      expect(outcome.data.title).toBe(title)
-      expect(outcome.data.isArchived).toBe(false)
-      expect(outcome.data.id).not.toBe('')
-    }
-  })
-
-  // NEGATIVE CONTROL. A session-less client attaches no bearer, so the host sees
-  // an anonymous request and the authed procedure throws UNAUTHORIZED. This is the
+  // NEGATIVE CONTROL. A session-less client attaches no bearer, so the host sees an
+  // anonymous request and the authed procedure throws UNAUTHORIZED. This is the
   // permanent, always-on mirror of what C01 forces onto the authed client.
-  it('a session-less client attaches no bearer and its create is rejected as unauthenticated', async () => {
-    const cause = await anonApi.notes.create.mutate({ title: 'unauth' }).then(
+  it('a session-less client attaches no bearer and its export is rejected as unauthenticated', async () => {
+    const cause = await anonApi.system.exportMyData.query({}).then(
       () => null,
       (error: unknown) => error,
     )

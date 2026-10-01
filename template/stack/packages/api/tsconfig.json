@@ -19,9 +19,5 @@
     "types": ["node"]
   },
   "include": ["src"],
-  "references": [
-    { "path": "../contracts" },
-    { "path": "../platform/errors" },
-    { "path": "../verticals/notes" }
-  ]
+  "references": [{ "path": "../contracts" }, { "path": "../platform/errors" }]
 }

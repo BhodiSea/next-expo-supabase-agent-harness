@@ -363,7 +363,10 @@ test('RED closure: a feature importing useKeysetQuery with no perfSubject reds w
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('imports useKeysetQuery (data-dense by doctrine) but ships NO perfSubject.tsx'), r.out)
   assert.ok(r.out.includes('PerfSubject({ cells })'), r.out)
-  assert.ok(r.out.includes(`worked pattern: ${MATRIX_SUBJECT}`), r.out)
+  // 2.0.0 (#85): the pointer names the docs and the demo, never a path a default scaffold
+  // does not ship (the gate is owned, the same file in every install).
+  assert.ok(r.out.includes('worked pattern: docs/harness/gates-catalog.md ("perf-budget"), and the matrix screen `init --with-demo` plants'), r.out)
+  assert.ok(!r.out.includes(MATRIX_SUBJECT), r.out)
 })
 
 test('RED closure: density is a SHAPE — getItemLayout / FlashList / react-native-skia each red', () => {

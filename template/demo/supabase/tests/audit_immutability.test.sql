@@ -1,0 +1,529 @@
+-- supabase/tests/audit_immutability.test.sql — the audit trail, proven against a
+-- database rather than against migration text.
+--
+-- Run with `supabase test db`. Everything happens inside one transaction that ends in
+-- ROLLBACK, so the suite leaves no residue and can run against a seeded database.
+--
+-- WHY THIS FILE EXISTS ALONGSIDE THE STATIC GATE. tools/check-tenancy.mjs reads the
+-- migration text and can prove that four immutability layers were WRITTEN. It cannot
+-- prove they BIND, and three of the facts the design rests on are properties of the
+-- running database that no parser can reach:
+--
+--   * that the layer-3 trigger fires for a role holding BYPASSRLS (the entire reason
+--     layers 1 and 2 are insufficient — a policy and a grant are both invisible to
+--     such a role, and `postgres` on Supabase holds rolbypassrls);
+--   * that TRUNCATE on a PARTITION is refused, which depends on the per-partition
+--     triggers the maintenance function creates at RUNTIME and which therefore appear
+--     in no migration at all;
+--   * that the rank floor on the read path admits rank 30 and refuses rank 20 — the
+--     same user, the same org, one column different.
+--
+-- The last is the assertion that matters most, because the failure it catches is
+-- silent: private.member_ranks() is SECURITY INVOKER, so an audit reader without its
+-- own seat policy reads an empty rank map, every comparison is false, and the trail
+-- returns ZERO ROWS while reporting success. An admin sees "no activity" and does not
+-- investigate. Only a bidirectional test — rank 30 sees rows AND rank 20 sees none —
+-- distinguishes a working floor from a floor that refuses everyone.
+-- SOURCE: docs/adr/20260202-audit-trail.md
+
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+
+-- Counted by hand against the assertions below. pgTAP fails a plan mismatch, which is
+-- the point: an assertion deleted in a hurry cannot pass as a smaller suite.
+SELECT plan(32);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Shape
+-- ─────────────────────────────────────────────────────────────────────────────
+SELECT has_schema('audit', 'the audit schema exists');
+SELECT has_table('audit', 'events', 'audit.events exists');
+
+-- The partition horizon, read from pg_class AT RUNTIME rather than from migration
+-- text. pg_cron is the real source of partitions, so a statically-derived horizon
+-- shrinks by one day per day and eventually reds a perfectly healthy database.
+SELECT cmp_ok(
+  (SELECT count(*)::int FROM pg_inherits WHERE inhparent = 'audit.events'::regclass),
+  '>=',
+  2,
+  'audit.events is partitioned with at least a month partition and the default'
+);
+
+-- EVERY partition carries RLS of its own. This is the breach in the obvious design:
+-- RLS on a partitioned PARENT does not cascade, and a partition accessed DIRECTLY is
+-- judged by its own policies. Enabled with ZERO policies, a partition is deny-all for
+-- direct access while writes routed through the parent are unaffected — verified.
+-- A partition created without this is one URL away from being readable.
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as
+-- well, and a partition's own RLS governs direct access to it [corpus: postgres/rls-force]
+SELECT is_empty(
+  $$ SELECT c.relname
+       FROM pg_inherits i
+       JOIN pg_class c ON c.oid = i.inhrelid
+      WHERE i.inhparent = 'audit.events'::regclass
+        AND NOT (c.relrowsecurity AND c.relforcerowsecurity) $$,
+  'every partition of audit.events has RLS enabled AND forced'
+);
+
+-- Layer 1: the ABSENCE of an update/delete policy is a control, so assert the absence.
+SELECT is_empty(
+  $$ SELECT polname FROM pg_policy
+      WHERE polrelid = 'audit.events'::regclass AND polcmd IN ('w', 'd', '*') $$,
+  'audit.events has no UPDATE, DELETE or ALL policy (layer 1)'
+);
+
+-- Layer 2: no client role holds any privilege on the trail. service_role is the one
+-- that matters most — it BYPASSES RLS, so for it the grant is the only binding control.
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'audit.events', 'SELECT')
+  AND NOT has_table_privilege('authenticated', 'audit.events', 'INSERT')
+  AND NOT has_table_privilege('anon', 'audit.events', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'audit.events', 'SELECT')
+  AND NOT has_table_privilege('service_role', 'audit.events', 'INSERT'),
+  'no client role holds a privilege on audit.events (layer 2)'
+);
+
+-- The schema itself is the outermost layer: without USAGE the NAME does not resolve,
+-- so a policy or grant added by mistake is still unreachable.
+SELECT ok(
+  NOT has_schema_privilege('authenticated', 'audit', 'USAGE')
+  AND NOT has_schema_privilege('anon', 'audit', 'USAGE')
+  AND NOT has_schema_privilege('service_role', 'audit', 'USAGE'),
+  'no client role holds USAGE on the audit schema'
+);
+
+-- The writer is a definer owned by a NOLOGIN role, and the reader is a DIFFERENT one.
+SELECT is(
+  (SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE oid = 'audit.write_row()'::regprocedure),
+  'app_audit_writer',
+  'audit.write_row() is owned by app_audit_writer'
+);
+SELECT ok(
+  (SELECT prosecdef FROM pg_proc WHERE oid = 'audit.write_row()'::regprocedure),
+  'audit.write_row() is SECURITY DEFINER'
+);
+SELECT ok(
+  NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('app_audit_writer', 'app_audit_reader') AND rolcanlogin),
+  'neither audit role can log in'
+);
+-- The split is the control: a writer that can read is an exfiltration path that
+-- leaves no audit row, because reading is the one thing the trail does not record.
+SELECT ok(
+  NOT has_table_privilege('app_audit_writer', 'audit.events', 'SELECT'),
+  'the audit writer cannot READ the trail it appends to'
+);
+SELECT ok(
+  NOT has_table_privilege('app_audit_reader', 'audit.events', 'INSERT'),
+  'the audit reader cannot WRITE the trail it reads'
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Coverage: every org-scoped table is audited, read from pg_trigger
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TEMPORARY TABLE audited_targets (table_name text PRIMARY KEY);
+INSERT INTO audited_targets (table_name) VALUES ('orgs'), ('memberships'), ('invitations'), ('notes');
+
+SELECT is_empty(
+  $$ SELECT t.table_name
+       FROM audited_targets t
+      WHERE NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger g
+         WHERE g.tgrelid = ('public.' || t.table_name)::regclass
+           AND NOT g.tgisinternal
+           AND g.tgfoid = 'audit.write_row()'::regprocedure
+           -- tgtype bits: 1 = ROW, 4 = INSERT, 8 = DELETE, 16 = UPDATE.
+           -- AFTER is the absence of bit 2 (BEFORE).
+           AND (g.tgtype & 1) = 1
+           AND (g.tgtype & 2) = 0
+           AND (g.tgtype & 4) = 4
+           AND (g.tgtype & 8) = 8
+           AND (g.tgtype & 16) = 16
+      ) $$,
+  'every org-scoped table has an AFTER INSERT OR UPDATE OR DELETE row trigger writing the trail'
+);
+
+-- A WHEN clause is a documented blind spot whose condition is written by the person
+-- the trail exists to record. pg_trigger.tgqual is NULL when there is none.
+SELECT is_empty(
+  $$ SELECT g.tgname
+       FROM pg_trigger g
+       JOIN audited_targets t ON g.tgrelid = ('public.' || t.table_name)::regclass
+      WHERE NOT g.tgisinternal
+        AND g.tgfoid = 'audit.write_row()'::regprocedure
+        AND g.tgqual IS NOT NULL $$,
+  'no audit trigger carries a WHEN clause'
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 3, against the role that layers 1 and 2 cannot touch
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The suite runs as `postgres`, which holds BYPASSRLS on Supabase. That is not an
+-- inconvenience to work around — it is precisely the condition under which layers 1
+-- and 2 are inert, so it is the only condition under which layer 3 is worth testing.
+SELECT ok(
+  (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user),
+  'the test runs as a role holding BYPASSRLS (so layers 1-2 are inert here by construction)'
+);
+
+-- The fixture table, as the migration role. The write below lands on
+-- public.pgtap_fixture, which this transaction builds and the ROLLBACK removes, rather
+-- than on the worked example's table, so a project that deletes the example keeps this
+-- proof of audit capture. Between the markers is the RLS skeleton the
+-- authoring-vertical-slice skill teaches (references/migration-rls.md), with the table
+-- named pgtap_fixture and two slice columns added, followed by the audit trigger exactly
+-- as the worked example writes it (supabase/migrations/20260930000100_notes_rails.sql, which
+-- `init --with-demo` plants), renamed.
+-- It fires the real audit.write_row(), which takes the tenant and identity columns from
+-- its arguments; nothing in this file redefines it. The coverage read above still judges
+-- the real tables' own triggers. Keep the markers, and keep the region in step with the
+-- skeleton and with that trigger.
+-- fixture:begin
+CREATE TABLE public.pgtap_fixture (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  -- THE TENANT KEY, NOT NULL with a declared FK, as the skeleton teaches.
+  org_id uuid NOT NULL REFERENCES public.orgs (id) ON DELETE CASCADE,
+  -- ATTRIBUTION, not authorization: it appears only in the delete policy's author arm.
+  owner_id uuid REFERENCES auth.users (id) ON DELETE SET NULL,
+  -- The slice columns the assertions write, as 20_notes.sql declares them.
+  title text NOT NULL,
+  body text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, id)
+);
+
+-- A row may not change tenant.
+CREATE TRIGGER pgtap_fixture_freeze_org
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION private.freeze_org_id();
+
+CREATE TRIGGER pgtap_fixture_set_updated_at
+  BEFORE UPDATE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX pgtap_fixture_org_id_created_at_id_idx
+  ON public.pgtap_fixture (org_id, created_at DESC, id DESC);
+
+-- SOURCE: PostgreSQL row security — FORCE applies row security to the table owner as well
+-- [corpus: postgres/rls-force]
+ALTER TABLE public.pgtap_fixture ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pgtap_fixture FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.pgtap_fixture FROM anon;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM service_role;
+REVOKE ALL ON TABLE public.pgtap_fixture FROM authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.pgtap_fixture TO authenticated;
+
+-- Reading is MEMBERSHIP; writing is RANK.
+-- SOURCE: RLS performance — wrap the identity call in a scalar sub-select for an initPlan
+-- [corpus: postgres/rls-initplan]
+CREATE POLICY pgtap_fixture_select_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR SELECT TO authenticated
+  USING (org_id = ANY((SELECT private.member_org_ids())::uuid[]));
+
+-- SOURCE: PostgreSQL row security — WITH CHECK validates the new row, so a client cannot
+-- INSERT into an org it may not write [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_insert_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR INSERT TO authenticated
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — UPDATE evaluates USING then WITH CHECK [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_update_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR UPDATE TO authenticated
+  USING (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20)
+  WITH CHECK (coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20);
+
+-- SOURCE: PostgreSQL row security — DELETE USING restricts which rows the role may remove
+-- [corpus: postgres/rls-force]
+CREATE POLICY pgtap_fixture_delete_org ON public.pgtap_fixture
+  AS PERMISSIVE FOR DELETE TO authenticated
+  USING (
+    coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 30
+    OR (
+      owner_id = (SELECT auth.uid())
+      AND coalesce(((SELECT private.member_ranks()) ->> org_id::text)::smallint, 0) >= 20
+    )
+  );
+
+-- The audit trigger, as the audit migration writes it for the example: AFTER, FOR EACH
+-- ROW, all three operations, no WHEN clause.
+CREATE TRIGGER pgtap_fixture_audit
+  AFTER INSERT OR UPDATE OR DELETE ON public.pgtap_fixture
+  FOR EACH ROW EXECUTE FUNCTION audit.write_row('org_id', 'id');
+-- fixture:end
+
+-- Seed one row through the fixture's audit trigger, which fires the real writer, as a
+-- real member, so the assertions below have something to fail against. Written as alice
+-- (rank 40 in acme) from seed.sql.
+CREATE TEMPORARY TABLE audit_probe AS
+SELECT m.user_id, m.org_id
+  FROM public.memberships m
+ WHERE m.role_rank = 40
+ ORDER BY m.org_id
+ LIMIT 1;
+
+-- The ids are interpolated with format(%L) rather than read from the temp table
+-- inside the assertion: the statement switches to `authenticated`, and a temporary
+-- table created by `postgres` is not readable by that role. Resolving them BEFORE the
+-- role switch is also more honest about what is being tested — the write, not the
+-- lookup.
+SELECT lives_ok(
+  format(
+    -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+    $fmt$ SELECT set_config('request.jwt.claims', %L, true);
+          -- SOURCE: transaction-local GUCs — the identity must not outlive the transaction [corpus: postgres/guc-set-local]
+          SET LOCAL ROLE authenticated;
+          INSERT INTO public.pgtap_fixture (org_id, owner_id, title, body)
+          VALUES (%L, %L, 'audit pgtap probe', 'x'); $fmt$,
+    json_build_object('sub', (SELECT user_id FROM audit_probe), 'role', 'authenticated')::text,
+    (SELECT org_id FROM audit_probe),
+    (SELECT user_id FROM audit_probe)
+  ),
+  'a write by a real member succeeds and fires the audit trigger'
+);
+-- pgTAP's lives_ok carries no SET clause, so the role switch above outlives the
+-- assertion. Every check below reads the audit schema, which `authenticated` cannot
+-- resolve at all — without this they would fail on permissions rather than on facts.
+RESET ROLE;
+
+SELECT cmp_ok(
+  (SELECT count(*)::int FROM audit.events WHERE table_name = 'public.pgtap_fixture' AND action = 'INSERT'),
+  '>=', 1,
+  'the write produced an audit row'
+);
+SELECT is(
+  (SELECT actor_id FROM audit.events WHERE table_name = 'public.pgtap_fixture' ORDER BY id DESC LIMIT 1),
+  (SELECT user_id FROM audit_probe),
+  'the audit row names the acting user, derived inside the writer rather than supplied'
+);
+-- Metadata by default: an INSERT records WHICH row, not WHAT it contained.
+SELECT is(
+  (SELECT payload FROM audit.events WHERE table_name = 'public.pgtap_fixture' ORDER BY id DESC LIMIT 1),
+  '{}'::jsonb,
+  'a row audited with the example trigger''s arguments is metadata only — no value capture'
+);
+
+SELECT throws_ok(
+  $$ UPDATE audit.events SET actor_id = NULL WHERE id = (SELECT max(id) FROM audit.events) $$,
+  '42501',
+  NULL,
+  'UPDATE on the trail is refused (layer 3), for a BYPASSRLS role'
+);
+SELECT throws_ok(
+  $$ DELETE FROM audit.events WHERE id = (SELECT max(id) FROM audit.events) $$,
+  '42501',
+  NULL,
+  'DELETE on the trail is refused (layer 3), for a BYPASSRLS role'
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 4, on the parent AND on a partition
+-- ─────────────────────────────────────────────────────────────────────────────
+SELECT throws_ok(
+  $$ TRUNCATE audit.events $$,
+  '42501',
+  NULL,
+  'TRUNCATE on the parent is refused (layer 4)'
+);
+-- The one that a parent-only guard misses. TRUNCATE triggers are NOT cloned to
+-- partitions, and truncating a leaf does not fire the parent's — so without the
+-- per-partition twins the trail is emptiable one month at a time.
+SELECT throws_ok(
+  format('TRUNCATE audit.%I', (
+    SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+     WHERE i.inhparent = 'audit.events'::regclass ORDER BY c.relname LIMIT 1
+  )),
+  '42501',
+  NULL,
+  'TRUNCATE on a PARTITION is refused — the guard is not inherited, so it is duplicated'
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The ELEVATED role, ATTEMPTED rather than inferred (0.9.9)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Layer 2 above asks the privilege catalog whether `service_role` holds a grant. This
+-- section makes the elevated role actually TRY, and that difference is the whole reason
+-- the section exists: ASD's assessment process guide ranks documentation and interviews
+-- as POOR evidence and testing with simulated activity as EXCELLENT, and a catalog read
+-- is closer to the first than the second. `has_table_privilege` returning false is a
+-- statement about pg_class; a statement that raises is a statement about the system.
+--
+-- `service_role` is the role worth attempting it as. It BYPASSES RLS, no policy in this
+-- repository constrains it, and it is the credential an Edge Function holds — so "can the
+-- most privileged thing in the application tamper with the trail" is the question an
+-- assessor asks, and until now the answer was inferred from two grant lookups.
+--
+-- WHICH LAYER OWNS WHICH PROPERTY — established by experiment, not by reading. Granting
+-- `service_role` USAGE on the schema and full DML on the trail (i.e. deleting layer 2
+-- outright) reds EXACTLY the READ and the FORGED INSERT below, and leaves the UPDATE,
+-- DELETE and TRUNCATE assertions passing — the layer-3 row trigger and the layer-4
+-- statement triggers refuse those on their own, with every grant in place.
+--
+-- That is the four-layer design demonstrating itself rather than being described, and it
+-- corrects the assumption this comment first carried: the refusal is NOT uniformly
+-- over-determined. Reading and forging are held by the grant alone. If layer 2 is ever
+-- weakened — the single likeliest edit, since "just grant the Edge Function read access to
+-- the audit table" is a reasonable-sounding request — those two are the assertions that
+-- catch it, and nothing else in the suite would.
+-- The forged INSERT is built HERE, before the role switch, and stashed in a
+-- transaction-local GUC — because it has to be a statement that would OTHERWISE SUCCEED.
+-- An INSERT with a NULL org_id is refused by a NOT NULL constraint no matter who runs it,
+-- so asserting that it raises would prove nothing about privilege; this one carries a real
+-- org and lands cleanly as a privileged role. `audit_probe` is a temp table owned by
+-- postgres and unreadable by service_role, which is the other reason the interpolation
+-- cannot happen after the switch.
+-- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+SELECT set_config(
+  'audit.forge_sql',
+  format(
+    $fmt$ INSERT INTO audit.events (occurred_at, org_id, actor_id, action, table_name, row_id, payload)
+          VALUES (now(), %L, NULL, 'INSERT', 'public.pgtap_fixture', gen_random_uuid(), '{}'::jsonb) $fmt$,
+    (SELECT org_id FROM audit_probe)
+  ),
+  true
+);
+
+-- SOURCE: transaction-local GUCs — the role must not outlive the transaction, or a pooled
+-- backend serves the next request as the wrong identity [corpus: postgres/guc-set-local]
+SET LOCAL ROLE service_role;
+
+SELECT throws_ok(
+  $$ SELECT id FROM audit.events LIMIT 1 $$,
+  '42501',
+  NULL,
+  'service_role cannot READ the trail — an elevated role that could is a second, less-policied copy of every tenant history'
+);
+SELECT throws_ok(
+  -- SOURCE: transaction-local GUCs — the statement text crosses the role switch in a
+  -- transaction-local GUC, which every role can read [corpus: postgres/guc-set-local]
+  current_setting('audit.forge_sql'),
+  '42501',
+  NULL,
+  'service_role cannot FORGE a trail entry — a well-formed INSERT that would otherwise land, refused on privilege'
+);
+SELECT throws_ok(
+  $$ UPDATE audit.events SET actor_id = NULL WHERE true $$,
+  '42501',
+  NULL,
+  'service_role cannot MODIFY the trail (the elevated role, attempted — not inferred from a grant lookup)'
+);
+SELECT throws_ok(
+  $$ DELETE FROM audit.events WHERE true $$,
+  '42501',
+  NULL,
+  'service_role cannot DELETE from the trail (attempted, as the role that bypasses RLS)'
+);
+SELECT throws_ok(
+  $$ TRUNCATE audit.events $$,
+  '42501',
+  NULL,
+  'service_role cannot TRUNCATE the trail — the one statement no row trigger can see'
+);
+
+RESET ROLE;
+
+-- The client role, for the same reason and in one assertion. `authenticated` is what a
+-- stolen JWT gets you, and the trail must not be readable with one.
+-- SOURCE: transaction-local GUCs — SET LOCAL keeps the role inside this transaction
+-- [corpus: postgres/guc-set-local]
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$ SELECT id FROM audit.events LIMIT 1 $$,
+  '42501',
+  NULL,
+  'authenticated cannot reach the trail at all — the audit schema does not resolve for a client role'
+);
+RESET ROLE;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The read path, in BOTH directions
+-- ─────────────────────────────────────────────────────────────────────────────
+-- One assertion each way, on the SAME user and the SAME org. A one-directional test
+-- cannot tell a working rank floor from one that refuses everybody, and "refuses
+-- everybody" is the exact failure an INVOKER helper produces when its role has no
+-- seat policy — silently, with a success status.
+CREATE TEMPORARY TABLE rank_probe AS
+SELECT m.user_id, m.org_id
+  FROM public.memberships m
+ WHERE m.role_rank = 40
+ ORDER BY m.org_id
+ LIMIT 1;
+
+-- The privilege lifecycle (1.0.0): the audit read floor is judged against the
+-- EFFECTIVE rank, which for rank >= 30 exists only while an unexpired elevation
+-- does — so the probe's owner elevates first, as themselves, exactly the way a
+-- real caller would. The probe values are read into locals BEFORE the role
+-- switch, because the temp table belongs to the harness role.
+DO $probe_elevate$
+DECLARE
+  v_user uuid;
+  v_org uuid;
+BEGIN
+  SELECT user_id, org_id INTO v_user, v_org FROM rank_probe;
+  -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  PERFORM set_config('role', 'authenticated', true);
+  PERFORM public.elevate(v_org);
+  -- SOURCE: transaction-local GUCs — the pooling identity hazard [corpus: postgres/guc-set-local]
+  PERFORM set_config('role', 'none', true);
+END;
+$probe_elevate$;
+
+SELECT cmp_ok(
+  (SELECT count(*)::int FROM (
+     -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+     SELECT set_config('request.jwt.claims',
+       json_build_object('sub', (SELECT user_id FROM rank_probe), 'role', 'authenticated')::text, true)
+   ) _cfg, LATERAL public.org_audit_events((SELECT org_id FROM rank_probe))),
+  '>=', 1,
+  'a rank-40 member reads their own org''s trail'
+);
+
+-- The same call for an org the caller holds no seat in. The function takes the org as
+-- an argument, so this is the assertion that the argument is a SELECTOR and not the
+-- authorization: the policy is what returns nothing.
+SELECT is_empty(
+  $$ SELECT e.id FROM (
+       -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+       SELECT set_config('request.jwt.claims',
+         json_build_object('sub', (SELECT user_id FROM rank_probe), 'role', 'authenticated')::text, true)
+     ) _cfg,
+     LATERAL public.org_audit_events(
+       (SELECT o.id FROM public.orgs o
+         WHERE NOT EXISTS (SELECT 1 FROM public.memberships m
+                            WHERE m.org_id = o.id AND m.user_id = (SELECT user_id FROM rank_probe))
+         ORDER BY o.id LIMIT 1)
+     ) e $$,
+  'the org argument can only NARROW — an org the caller has no seat in returns the empty set'
+);
+
+-- THE RANK BOUNDARY ITSELF: a member of the SAME org, below the floor. This is the
+-- assertion the whole read path turns on, because it is the only one that separates
+-- "the floor works" from "the floor refuses everyone" — and refusing everyone is what
+-- an audit reader without its own seat policy silently does. Paired with assertion 24
+-- (a rank-40 member of an org DOES see rows) it closes both directions on the same
+-- function, so a database in which every rank were 40, or in which the rank map read
+-- empty, could not pass both.
+CREATE TEMPORARY TABLE below_floor AS
+SELECT m.user_id, m.org_id
+  FROM public.memberships m
+ WHERE m.role_rank < 30
+ ORDER BY m.org_id, m.user_id
+ LIMIT 1;
+
+SELECT is_empty(
+  format(
+    -- SOURCE: transaction-local GUCs — SET LOCAL / set_config(..., true) [corpus: postgres/guc-set-local]
+    $fmt$ SELECT e.id FROM (SELECT set_config('request.jwt.claims', %L, true)) _cfg,
+          LATERAL public.org_audit_events(%L) e $fmt$,
+    json_build_object('sub', (SELECT user_id FROM below_floor), 'role', 'authenticated')::text,
+    (SELECT org_id FROM below_floor)
+  ),
+  'a member BELOW the rank floor reads nothing from an org they genuinely belong to'
+);
+
+SELECT * FROM finish();
+ROLLBACK;

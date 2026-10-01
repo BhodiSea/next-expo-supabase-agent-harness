@@ -1,8 +1,7 @@
 import { CLIENT_VERSION_HEADER } from '@app/contracts'
-import type { NotesDatabase } from '@app/notes'
 import { TRPCError } from '@trpc/server'
 import { describe, expect, it } from 'vitest'
-import { createContext, type Session } from './context.js'
+import { type ApiDatabase, createContext, type Session } from './context.js'
 import { appRouter } from './index.js'
 import {
   isBelowMinimum,
@@ -30,7 +29,7 @@ const SESSION: Session = {
  * about short-circuiting, so "the handler did not run" has to be provable, not
  * assumed — this is the tRPC equivalent of the inherited test's handler counter.
  */
-const forbiddenDb: NotesDatabase = {
+const forbiddenDb: ApiDatabase = {
   from: () => {
     throw new Error('a skewed request must be rejected before any handler runs')
   },
@@ -199,17 +198,9 @@ describe('gate coverage — no procedure can dodge the guard', () => {
    */
   const procedurePaths = Object.keys(appRouter._def.procedures)
 
-  it('sees the whole surface (non-vacuous: notes CRUD + health + me)', () => {
+  it('sees the whole surface (non-vacuous: health + me + the export)', () => {
     expect(procedurePaths).toEqual(
-      expect.arrayContaining([
-        'notes.create',
-        'notes.get',
-        'notes.list',
-        'notes.remove',
-        'notes.update',
-        'system.health',
-        'system.me',
-      ]),
+      expect.arrayContaining(['system.exportMyData', 'system.health', 'system.me']),
     )
   })
 

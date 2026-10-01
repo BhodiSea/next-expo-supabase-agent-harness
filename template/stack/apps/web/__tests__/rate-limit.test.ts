@@ -59,11 +59,8 @@ describe('bucketForProcedure', () => {
     expect(bucketForProcedure('system.nonexistent')?.name).toBe('write')
   })
 
-  it('maps reads to the read budget and mutations to the write budget', () => {
-    expect(bucketForProcedure('notes.list')?.name).toBe('read')
-    expect(bucketForProcedure('notes.get')?.name).toBe('read')
-    expect(bucketForProcedure('notes.create')?.name).toBe('write')
-    expect(bucketForProcedure('notes.remove')?.name).toBe('write')
+  it('maps a declared read to the read budget', () => {
+    expect(bucketForProcedure('system.me')?.name).toBe('read')
   })
 
   it('resolves a path that collides with an Object.prototype key', () => {
@@ -81,7 +78,6 @@ describe('bucketForAction', () => {
     // A Server Action is a public HTTP endpoint with a generated id — the form on the page
     // is not the only caller, merely the only one you wrote. The two seams share no code,
     // so each is limited on its own.
-    expect(bucketForAction('createNoteAction')?.name).toBe('write')
     expect(bucketForAction('acceptInvitationAction')?.name).toBe('provisioning')
     expect(bucketForAction('ensurePersonalOrgAction')?.name).toBe('provisioning')
   })

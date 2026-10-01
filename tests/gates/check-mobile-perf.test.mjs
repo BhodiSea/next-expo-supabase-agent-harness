@@ -36,7 +36,7 @@ const SHIPPED_FLOW = (id) =>
   )
 
 // The shipped scaffold's route ids — flows are seeded one per id.
-const SCAFFOLD_IDS = ['home', 'matrix', 'actions', 'security']
+const SCAFFOLD_IDS = ['home', 'actions', 'security']
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 
@@ -116,6 +116,21 @@ test('GREEN --closure: the shipped triangle (routes + flows + budget rows) passe
   const r = runGate(fixture(), { closure: true })
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('mobile-perf: OK'), r.out)
+  assert.ok(r.out.includes('closure OK — 3 route(s)'), r.out)
+})
+
+test('GREEN --closure (2.0.0): the --with-demo triangle passes verbatim — the demo brings its route, flow and budget row together', () => {
+  const demo = (rel) => readFileSync(fileURLToPath(new URL(`../../template/demo/${rel}`, import.meta.url)), 'utf8')
+  const r = runGate(
+    fixture({
+      routes: demo('apps/mobile/src/routes.ts'),
+      budget: demo('tools/startup-budget.json'),
+      flows: [...SCAFFOLD_IDS, 'matrix'],
+      flowBodies: { matrix: demo('maestro/flows/matrix.yaml') },
+    }),
+    { closure: true },
+  )
+  assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('closure OK — 4 route(s)'), r.out)
 })
 
@@ -165,7 +180,7 @@ test('RED --closure: a budget row without a positive maxTotalTimeMs is a budget 
 
 test('RED --closure: a flow that only launches proves nothing about the screen', () => {
   const r = runGate(
-    fixture({ flowBodies: { matrix: 'appId: example\n---\n- launchApp\n' } }),
+    fixture({ flowBodies: { security: 'appId: example\n---\n- launchApp\n' } }),
     { closure: true },
   )
   assert.equal(r.code, 1, r.out)
@@ -174,11 +189,11 @@ test('RED --closure: a flow that only launches proves nothing about the screen',
 })
 
 test('RED --closure: a non-root route whose flow never REACHES it', () => {
-  // Launching lands on the root route, so an assertion here is about `/`, not `/matrix`.
+  // Launching lands on the root route, so an assertion here is about `/`, not `/security`.
   const r = runGate(
     fixture({
       flowBodies: {
-        matrix: 'appId: example\n---\n- launchApp\n- assertVisible:\n    id: "home-screen"\n',
+        security: 'appId: example\n---\n- launchApp\n- assertVisible:\n    id: "home-screen"\n',
       },
     }),
     { closure: true },
@@ -203,7 +218,7 @@ test('RED --closure: a flow with no appId runs against no app', () => {
   const r = runGate(
     fixture({
       flowBodies: {
-        matrix: '---\n- launchApp\n- tapOn: "Matrix"\n- assertVisible:\n    id: "matrix-screen"\n',
+        security: '---\n- launchApp\n- tapOn: "Security"\n- assertVisible:\n    id: "security-screen"\n',
       },
     }),
     { closure: true },
@@ -214,7 +229,7 @@ test('RED --closure: a flow with no appId runs against no app', () => {
 
 test('RED --closure: two routes sharing one flow body — a copy reads like coverage', () => {
   const shared = 'appId: example\n---\n- launchApp\n- tapOn: "X"\n- assertVisible:\n    id: "x-screen"\n'
-  const r = runGate(fixture({ flowBodies: { matrix: shared, actions: shared } }), { closure: true })
+  const r = runGate(fixture({ flowBodies: { security: shared, actions: shared } }), { closure: true })
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('byte-identical'), r.out)
   assert.ok(r.out.includes('one flow with two names'), r.out)
@@ -224,7 +239,7 @@ test('RED --closure: extendedWaitUntil with no visible/notVisible child waits fo
   const r = runGate(
     fixture({
       flowBodies: {
-        matrix: 'appId: example\n---\n- launchApp\n- openLink: "x://matrix"\n- extendedWaitUntil:\n    timeout: 30000\n',
+        security: 'appId: example\n---\n- launchApp\n- openLink: "x://security"\n- extendedWaitUntil:\n    timeout: 30000\n',
       },
     }),
     { closure: true },
@@ -243,10 +258,10 @@ test('LOCKSTEP: the GENERATOR\'s own output satisfies the scan (the mandatory co
   )
   /** @type {Record<string, string>} */
   const bodies = {}
-  for (const [id, path] of [['home', '/'], ['matrix', '/matrix'], ['actions', '/actions']]) {
+  for (const [id, path] of [['home', '/'], ['security', '/security'], ['actions', '/actions']]) {
     bodies[id] = buildRouteFlowYaml({ id, path }, { appId: 'com.example.app', scheme: 'exampleapp' })
   }
-  assert.ok(!/assert[A-Za-z]+\s*:/.test(bodies.matrix), 'the generator emits no assert* — that is the whole point of this test')
+  assert.ok(!/assert[A-Za-z]+\s*:/.test(bodies.security), 'the generator emits no assert* — that is the whole point of this test')
   const r = runGate(fixture({ flowBodies: bodies }), { closure: true })
   assert.equal(r.code, 0, r.out)
 })
@@ -317,7 +332,6 @@ test('RED: a budget without a "screens" object fails naming the contract', () =>
 const GREEN_RESULTS = {
   screens: {
     home: { totalTimeMs: 900 },
-    matrix: { totalTimeMs: 1100 },
     actions: { totalTimeMs: 800 },
     security: { totalTimeMs: 850 },
   },
@@ -327,7 +341,7 @@ test('GREEN measurement: results within every budget pass, printing the measured
   const r = runGate(fixture({ results: GREEN_RESULTS }))
   assert.equal(r.code, 0, r.out)
   assert.ok(r.out.includes('measured (am start -W'), r.out)
-  assert.ok(r.out.includes('4 screen(s) within startup budget'), r.out)
+  assert.ok(r.out.includes('3 screen(s) within startup budget'), r.out)
 })
 
 test('RED measurement: a cold-start over its cap fails naming the screen and both numbers', () => {
@@ -361,31 +375,31 @@ test('RED measurement: a measured screen with no budget row is naming drift', ()
 test('RED measurement: fullyDrawn caps enforce both halves — over-cap, and cap-with-no-report', () => {
   const budget = budgetWith((b) => {
     b.screens.home.maxFullyDrawnMs = 100
-    b.screens.matrix.maxFullyDrawnMs = 100
+    b.screens.security.maxFullyDrawnMs = 100
   })
   const results = structuredClone(GREEN_RESULTS)
   results.screens.home.fullyDrawnMs = 500 // over the cap
-  // matrix reports none while the budget caps it
+  // security reports none while the budget caps it
   const r = runGate(fixture({ budget, results }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('home: fully-drawn 500ms exceeds its 100ms budget'), r.out)
-  assert.ok(r.out.includes('matrix: tools/startup-budget.json caps fullyDrawn (100ms)'), r.out)
+  assert.ok(r.out.includes('security: tools/startup-budget.json caps fullyDrawn (100ms)'), r.out)
   assert.ok(r.out.includes('reportFullyDrawn()'), r.out)
 })
 
 test('RED measurement: warm caps (0.1.2) enforce both halves — over-cap, and cap-with-no-report', () => {
   const budget = budgetWith((b) => {
     b.screens.home.maxWarmTotalTimeMs = 100
-    b.screens.matrix.maxWarmTotalTimeMs = 100
+    b.screens.security.maxWarmTotalTimeMs = 100
   })
   const results = structuredClone(GREEN_RESULTS)
   results.screens.home.warmTotalTimeMs = 500 // over the cap
-  // matrix reports none while the budget caps it — a warm launch does not
+  // security reports none while the budget caps it — a warm launch does not
   // always print TotalTime; a declared cap enforced against nothing must red.
   const r = runGate(fixture({ budget, results }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('home: warm start 500ms exceeds its 100ms budget'), r.out)
-  assert.ok(r.out.includes('matrix: tools/startup-budget.json caps warm starts (100ms)'), r.out)
+  assert.ok(r.out.includes('security: tools/startup-budget.json caps warm starts (100ms)'), r.out)
 
   // Undeclared caps ignore the reported warm numbers entirely.
   const green = runGate(

@@ -14,7 +14,7 @@ import type { MessageKey } from '../../i18n'
 // visible headers, which welded the type system to English): the header copy
 // lives in the catalog under `actions.group.<id>` and translates freely without
 // touching a single command.
-export type ActionGroup = 'navigation' | 'notes' | 'session'
+export type ActionGroup = 'navigation' | 'session'
 
 /**
  * What a command needs from its host screen to run. Injected — the registry is
@@ -61,14 +61,6 @@ export const ACTION_COMMANDS: readonly ActionCommand[] = [
     },
   },
   {
-    id: 'nav.matrix',
-    titleKey: 'command.goMatrix',
-    group: 'navigation',
-    run: (context) => {
-      context.navigate('/matrix')
-    },
-  },
-  {
     // The security route's front door — a content screen outside the tab bar
     // needs an in-app path to it, and the command palette is that path.
     id: 'nav.security',
@@ -76,16 +68,6 @@ export const ACTION_COMMANDS: readonly ActionCommand[] = [
     group: 'navigation',
     run: (context) => {
       context.navigate('/security')
-    },
-  },
-  {
-    id: 'notes.create',
-    titleKey: 'command.createNote',
-    group: 'notes',
-    run: (context) => {
-      // Lands on Home with the composer focused (app/(tabs)/index.tsx reads the
-      // param and forwards autoFocus to the NoteComposer).
-      context.navigate('/?focus=composer')
     },
   },
   {

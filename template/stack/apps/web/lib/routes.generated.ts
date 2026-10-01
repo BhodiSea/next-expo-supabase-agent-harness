@@ -6,7 +6,6 @@
 // `page.tsx`. The `route-manifest` gate closes the loop both ways — a page with no meta and no
 // reviewed chrome entry in tools/web-route-allowlist.json fails validate, and a meta naming a
 // page that no longer exists fails too.
-import { meta as notesMeta } from '../app/(protected)/o/[orgSlug]/notes/page.meta'
 import { meta as orgsMeta } from '../app/(protected)/o/page.meta'
 import { meta as securityMeta } from '../app/(protected)/security/page.meta'
 import type { WebRouteEntry } from './routes'
@@ -16,11 +15,6 @@ export const WEB_ROUTES = [
     ...orgsMeta,
     file: '(protected)/o/page',
     path: '/o',
-  },
-  {
-    ...notesMeta,
-    file: '(protected)/o/[orgSlug]/notes/page',
-    path: '/o/:orgSlug/notes',
   },
   {
     ...securityMeta,

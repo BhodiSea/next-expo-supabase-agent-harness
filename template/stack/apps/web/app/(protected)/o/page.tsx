@@ -23,7 +23,7 @@ export const metadata = { title: t(meta.titleKey) }
 export default async function OrgPickerPage(): Promise<ReactNode> {
   const orgs = await resolveOrgs(await createRequestScopedClient())
 
-  if (orgs.length === 1 && orgs[0] !== undefined) redirect(`/o/${orgs[0].slug}/notes`)
+  if (orgs.length === 1 && orgs[0] !== undefined) redirect(`/o/${orgs[0].slug}`)
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
@@ -50,7 +50,7 @@ export default async function OrgPickerPage(): Promise<ReactNode> {
                   and a second tab all agree about which tenant is on screen — and a stale
                   tab cannot write into an org the user switched away from. */}
               <Link
-                href={`/o/${org.slug}/notes`}
+                href={`/o/${org.slug}`}
                 className="block rounded-lg border border-line px-4 py-3 hover:bg-canvas-subtle"
                 data-testid={`org-link-${org.slug}`}
               >

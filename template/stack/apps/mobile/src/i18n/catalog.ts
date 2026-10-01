@@ -32,7 +32,6 @@ export type Message = string | PluralMessage
 export const en = {
   // ---- shell ------------------------------------------------------------------
   'route.home': 'Home',
-  'route.matrix': 'Matrix',
   'route.actions': 'Actions',
   'route.security': 'Security',
 
@@ -42,54 +41,16 @@ export const en = {
   'common.loading': 'Loading…',
   'common.dismiss': 'Dismiss notification',
 
-  // ---- notes (the home screen's data panel) -------------------------------------
-  'notes.heading': 'Notes',
-  'notes.error.title': 'Could not load notes.',
-  'notes.empty.title': 'No notes yet',
-  'notes.empty.description': 'The first note you create will appear here.',
-  'notes.composer.label': 'Add a note',
-  'notes.composer.placeholder': 'Note title',
-  'notes.composer.submit': 'Add note',
-  'notes.composer.pending': 'Adding…',
-  'notes.composer.invalid': 'Enter a title between 1 and {max} characters.',
-  'notes.createdAt': 'Created {when}',
-  // The accessible name of an optimistic row: ONE key, not the title glued to a
-  // status fragment — a locale is free to reorder the two halves.
-  'notes.row.pending': '{title} — not yet saved',
-
-  // ---- matrix -----------------------------------------------------------------
-  'matrix.heading': 'Matrix',
-  'matrix.list': 'Notes matrix',
-  'matrix.error.title': 'Could not load the matrix.',
-  'matrix.empty.title': 'No rows to chart yet',
-  'matrix.empty.description':
-    'Once notes exist, their numeric columns appear here as a dense, virtualized matrix.',
-  // Plural on the ROW count — "1 rows" must be unconstructable.
-  'matrix.summary': {
-    one: '{rows} row × {columns} columns, virtualized.',
-    other: '{rows} rows × {columns} columns, virtualized.',
+  // ---- home (the caller's organizations) ---------------------------------------
+  'home.error.title': 'Could not load your organizations.',
+  'home.empty.title': 'You are not in any organization yet.',
+  'home.empty.description':
+    'Create your workspace on the web, or open an invitation link someone sent you.',
+  // Plural on the seat count — "1 organizations" must be unconstructable.
+  'home.orgs.summary': {
+    one: 'You hold a seat in {count} organization.',
+    other: 'You hold seats in {count} organizations.',
   },
-  'matrix.pagination.hint': 'Scrolling to the end loads more rows.',
-  'matrix.loadMore': 'Load more',
-  'matrix.loadingMore': 'Loading…',
-  'matrix.loadMore.failed': 'Loading more failed.',
-  // `{message}` is the server's envelope text — a support detail we interpolate,
-  // never copy we author. The sentence around it is the catalog's.
-  'matrix.loadMore.toast': 'Could not load more rows: {message}',
-  // The columns are the numeric projection of a NoteView (@app/contracts) — the
-  // ONE shape both surfaces render. They changed with the contract: `NoteView`
-  // deliberately carries no `body` and no model-confidence column (the render
-  // contract exposes an `excerpt` and a `hasBody` flag instead, so a list row
-  // never ships a 20 000-character body it will not draw), so a "Body length"
-  // or "Confidence" header here would be a column with nothing behind it.
-  'matrix.column.note': 'Note',
-  'matrix.column.hasBody': 'Has body',
-  'matrix.column.title': 'Title length',
-  'matrix.column.excerpt': 'Excerpt length',
-  'matrix.column.words': 'Words',
-  'matrix.column.archived': 'Archived',
-  'matrix.column.day': 'Day',
-  'matrix.row': 'Row {n}',
 
   // ---- actions ----------------------------------------------------------------
   'actions.search': 'Search actions',
@@ -100,12 +61,9 @@ export const en = {
   // registry's group union carries IDS, never copy (see features/actions/registry.ts).
   'actions.group.recents': 'Recents',
   'actions.group.navigation': 'Navigation',
-  'actions.group.notes': 'Notes',
   'actions.group.session': 'Session',
   'command.goHome': 'Go to Home',
-  'command.goMatrix': 'Go to Matrix',
   'command.goSecurity': 'Go to Security',
-  'command.createNote': 'Create a note',
   'command.signOut': 'Sign out',
   'command.deleteAccount': 'Delete account…',
   // In-app account deletion (Apple 5.1.1(v)) — the ellipsis on the command and

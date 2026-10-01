@@ -38,6 +38,9 @@
         "sha256": "a987ebbc5dc3c616e62e3c48527442394c4ffe3ba137844352a890cc53016a26"
       },
       {
+        "sha256": "bdbad351ab94386b8e50e26b91d80d9c02fb688eb428387696196a48adec85ab"
+      },
+      {
         "sha256": "cf52322d19eca6d47892781bc9ad400622bfc3042e631b667ccb6f0196462d6a"
       },
       {
@@ -46,6 +49,9 @@
     ],
     "tools/db-limits.json": [
       {
+        "sha256": "1630bea6639c4f503d71d8a511ccdd74d8aa2182717967459c8077124c5689fb"
+      },
+      {
         "sha256": "61ba23a1b12dff11a3fabc7ba97fbc53334a828704993d0648b46fa760b82686"
       },
       {
@@ -53,6 +59,9 @@
       }
     ],
     "tools/db-perf-baseline.json": [
+      {
+        "sha256": "63fd1861ce421faa458bff3f21fc2ad71f32d82d20f8f2ac15a2c7eb2f0f56b5"
+      },
       {
         "sha256": "6891bba471aadb401977df60d73a159d505996fcebb3080fd004f9906ea6f5fa"
       }
@@ -152,6 +161,9 @@
       },
       {
         "sha256": "321a2b9a788b7ab2274cbaeb4ce2ccd66f18550d24028417ec7f40a1a0733e3f"
+      },
+      {
+        "sha256": "72f9e9f9aea340d9add23c6374a1cb3a81a94a87591f11434d3765fafd79c651"
       }
     ],
     "tools/mutation-scope-extra.json": [
@@ -174,10 +186,16 @@
     ],
     "tools/perf-budget.json": [
       {
+        "sha256": "73c12e1f5db32e595c9610b51afe8a19e19056a7733eef77cf2c0b381c5fc282"
+      },
+      {
         "sha256": "e6f39cc6152f04d6f5a0f237a0e828d305be3708af3339f6ad0834d5d3afb4bb"
       }
     ],
     "tools/pii-columns.json": [
+      {
+        "sha256": "0b12300de7ecc36e1c9b272432ebac6f931d7a5d06de9fad28f4522a785d4327"
+      },
       {
         "sha256": "518f00d200e258007ab925a69a7bc70d6e12b18c9f0a96be6dd2cd9cfcd32491"
       }
@@ -192,7 +210,13 @@
     ],
     "tools/rate-limit-budget.json": [
       {
+        "sha256": "10f34b5e530720315fc20a12f7aba79899ac37b8c1cf362580502bc753fa1379"
+      },
+      {
         "sha256": "2b87d526b00515a63669f8ed4fee9a5932a6784e25eb3c1c72338bb756ae2d7c"
+      },
+      {
+        "sha256": "b128f385cdde3926c41eb768bbab7403cb0842b364e5d8a162ae325fb48f19d4"
       },
       {
         "sha256": "d0491f0caf3aec820ad83dce0534e79402c7f8a5c5cf912457653e2d47d3b9d5"
@@ -220,6 +244,10 @@
     "tools/rls-exempt.json": [
       {
         "sha256": "27b76c892d506b8dbdd5c814dc17c65650c8eb45bdc20794aae0ce32b4eb6a79",
+        "sites": [[197, "SECURITY_OWNERS"]]
+      },
+      {
+        "sha256": "9421a2df643e8ee9b82a59a04503b759b4ba68967f3ad4e526efe69f06de6b84",
         "sites": [[197, "SECURITY_OWNERS"]]
       },
       {
@@ -260,6 +288,9 @@
         "sha256": "34b100d743c323cf484cd72c5bbebc5acbdbfb8bd92ed4b397efdd22287a3362"
       },
       {
+        "sha256": "44c534833db996d34be4730b5ddefff77231633654279708121cff90d820d4de"
+      },
+      {
         "sha256": "c8d6186e5ba8014b269f5deb515f71c6d7afdac1ba73329e8de4efb63160eee5"
       }
     ],
@@ -282,6 +313,9 @@
       }
     ],
     "tools/suppressions-allow.json": [
+      {
+        "sha256": "242d30efb74f4fa5147cf48078765ca42fb2a1d6321049e638850c8b2a6b43de"
+      },
       {
         "sha256": "ace755280bd52ae207f737005fd90327c7f41af071b06ffcd8f376e50e0085af"
       }
@@ -312,12 +346,18 @@
     ],
     "tools/vertical-anatomy-allow.json": [
       {
+        "sha256": "74ae63a48917144259c4c4068d7479558e7ed86357777742f9468ab128e8ab58"
+      },
+      {
         "sha256": "f03b7dbde7e5c141fb62c540a7eaf040d8bc2463d30cc8bbf115d75b0f11c817"
       }
     ],
     "tools/web-route-allowlist.json": [
       {
         "sha256": "9aabaab39034e1d8cfaa186e70465f111e8a5c8f55804cc8bb053ee83d8bae38"
+      },
+      {
+        "sha256": "e08cce44131fce74f16cb95bc85b795b6602f2953079191c5c2561291e3a8641"
       },
       {
         "sha256": "eea32b8ddd7f955d4def5f2b7d3bbff28321ac939fc9b01ff0354d5e251517f3"

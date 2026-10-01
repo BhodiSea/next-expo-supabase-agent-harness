@@ -84,7 +84,9 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
     'apps/mobile/app.config.ts',
     'apps/mobile/eas.json',
     'apps/web/app/page.tsx',
-    'supabase/migrations/20260101000100_notes.sql',
+    // The tenancy spine, in every scaffold (2.0.0: the worked example's migrations ship only
+    // with `init --with-demo`, so the spine's first migration is the sentinel).
+    'supabase/migrations/20260201000000_tenancy_spine.sql',
     'supabase/config.toml',
     'tests/rls/run-rls.mjs',
     '.harness/manifest.json',
@@ -143,7 +145,7 @@ test('bootstrap init renders the monorepo layout with manifest modes', () => {
   assert.equal(manifest.files['.claude/hooks/stop-validate-gate.mjs'].mode, 'owned')
   assert.equal(manifest.files['apps/mobile/app.config.ts'].mode, 'seeded')
   assert.equal(manifest.files['apps/web/app/page.tsx'].mode, 'seeded')
-  assert.equal(manifest.files['supabase/migrations/20260101000100_notes.sql'].mode, 'seeded')
+  assert.equal(manifest.files['supabase/migrations/20260201000000_tenancy_spine.sql'].mode, 'seeded')
   assert.equal(manifest.files['pnpm-workspace.yaml'].mode, 'seeded')
   assert.equal(manifest.files['AGENTS.md'].mode, 'seeded')
 
@@ -1160,7 +1162,13 @@ test('npm pack ships every template path (dotless storage survives packing)', ()
     'template/stack/apps/mobile/app.config.ts',
     'template/stack/apps/mobile/assets/icon.png',
     'template/stack/apps/web/app/page.tsx',
-    'template/stack/supabase/migrations/20260101000100_notes.sql',
+    'template/stack/supabase/migrations/20260201000000_tenancy_spine.sql',
+    // 2.0.0 (#85): the worked example's tree, outside base/stack like the presets — a packing
+    // rule keyed on the old prefixes would make `init --with-demo` plan nothing from a tarball
+    // while a checkout worked — and its sidecar index, read by `eject`.
+    'template/demo/supabase/migrations/20260101000100_notes.sql',
+    'template/demo/packages/verticals/notes/package.json.tmpl',
+    'template/demo-index.json',
     // A NESTED package manifest: packages/*/* is a second glob level, and a
     // packing rule that only reached one level deep would drop the entire
     // platform/verticals half of the workspace while still looking green.

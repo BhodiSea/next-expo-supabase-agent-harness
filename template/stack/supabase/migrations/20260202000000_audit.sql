@@ -42,7 +42,7 @@
 -- SOURCE: docs/adr/20260202-audit-trail.md
 
 -- CREATE TRIGGER takes SHARE ROW EXCLUSIVE on tables that are already serving
--- traffic (public.notes and the tenancy spine), so the file fails fast rather than
+-- traffic (the tenancy spine), so the file fails fast rather than
 -- queueing every writer behind an open transaction. Plain SET, never SET LOCAL: the
 -- Supabase CLI applies migrations outside an explicit transaction block, where SET
 -- LOCAL warns and sets nothing.
@@ -120,8 +120,8 @@ CREATE TABLE audit.events (
   action text NOT NULL,
   table_name text NOT NULL,
   -- The identifying value of the row, as text, because the tables audited here do not
-  -- agree on a key type: public.notes is keyed (org_id, id) and public.memberships is
-  -- keyed (user_id, org_id). Which column carries it is declared per trigger.
+  -- agree on a key type: public.orgs is keyed (id) and public.memberships is keyed
+  -- (user_id, org_id). Which column carries it is declared per trigger.
   row_id text,
   -- METADATA BY DEFAULT: which columns changed, not what they became.
   changed_columns text[] NOT NULL DEFAULT '{}',
@@ -529,9 +529,8 @@ GRANT EXECUTE ON FUNCTION public.org_audit_events(uuid, timestamptz, int) TO aut
 --
 -- The trigger name pattern <table>_audit is what the gate closes over, so a new
 -- org-scoped table without one reds at authoring time rather than at the first audit.
-CREATE TRIGGER notes_audit
-  AFTER INSERT OR UPDATE OR DELETE ON public.notes
-  FOR EACH ROW EXECUTE FUNCTION audit.write_row('org_id', 'id');
+-- A vertical's table joins the trail in its own migration, after this one (the notes
+-- rails migration `init --with-demo` plants is the worked example).
 
 -- The org table's own primary key IS the tenant key, so the tenant column is 'id'.
 CREATE TRIGGER orgs_audit

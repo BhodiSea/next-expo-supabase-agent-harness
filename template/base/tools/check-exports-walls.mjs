@@ -88,6 +88,21 @@ for (const entry of census.sanctioned) {
       `${CENSUS}: sanction for ${entry.package} carries a "module" that is not a non-empty string — it names the opt-in module providing the package, and a blank value would disable the stale check silently`,
     )
   }
+  // Optional `demo` (2.0.0, #85): the package ships with the worked example
+  // (`init --with-demo`). Only `true` is a value: anything else would park the stale arm
+  // on a typo, and a package cannot come from both a module and the demo.
+  if (entry.demo !== undefined && entry.demo !== true) {
+    fail(
+      GATE,
+      `${CENSUS}: sanction for ${entry.package} carries a "demo" that is not true — the key marks a package the worked example provides, and any other value would disable the stale check silently`,
+    )
+  }
+  if (entry.demo === true && entry.module !== undefined) {
+    fail(
+      GATE,
+      `${CENSUS}: sanction for ${entry.package} names both a "module" and "demo" — a package comes from one opt-in source, and the stale arm cannot follow both`,
+    )
+  }
   sanctioned.set(entry.package, entry)
 }
 
@@ -158,25 +173,38 @@ for (const [name, { hasClient }] of declared) {
 //    reads as DORMANT, and that is a deliberate, bounded fail-open: this arm is
 //    hygiene, and the security-critical direction is arm 1 above (a `./client`
 //    barrel with no sanction), which is unaffected by module state.
-const enabledModules = new Set(
-  (() => {
-    try {
-      const m = JSON.parse(readFileSync('.harness/manifest.json', 'utf8'))
-      return Array.isArray(m.modules) ? m.modules : []
-    } catch {
-      return []
-    }
-  })(),
-)
+//
+//    THE DEMO-PROVIDED PACKAGE (2.0.0, #85). An entry with `"demo": true` names a
+//    package the worked example ships, which `init --with-demo` plants and `eject`
+//    removes. Its stale arm follows the manifest's demo record the same way: live when
+//    the record is true, dormant when it is false. A manifest with NO record was written
+//    before 2.0.0, when every scaffold shipped the example, so it reads as present and
+//    those installs are held exactly as before. No manifest reads as dormant, as above.
+const manifest = (() => {
+  try {
+    return JSON.parse(readFileSync('.harness/manifest.json', 'utf8'))
+  } catch {
+    return null
+  }
+})()
+const enabledModules = new Set(Array.isArray(manifest?.modules) ? manifest.modules : [])
+const demoInstalled = manifest !== null && manifest.demo !== false
 for (const [name, entry] of sanctioned) {
   if (declared.has(name)) continue
   const providedBy = typeof entry.module === 'string' ? entry.module : null
   if (providedBy !== null && !enabledModules.has(providedBy)) continue
-  errs.push(
-    providedBy === null
-      ? `${name} is sanctioned in ${CENSUS} but no package under ${PACKAGES_DIR}/ declares that name — remove the stale sanction or add the package`
-      : `${name} is sanctioned in ${CENSUS} as provided by the '${providedBy}' module, that module is ENABLED, and yet no package under ${PACKAGES_DIR}/ declares the name — the module's package is missing; re-enable the module or remove the sanction`,
-  )
+  if (entry.demo === true && !demoInstalled) continue
+  errs.push(staleSanction(name, providedBy, entry.demo === true))
+}
+
+/** @param {string} name @param {string | null} providedBy @param {boolean} demo */
+function staleSanction(name, providedBy, demo) {
+  if (demo) {
+    return `${name} is sanctioned in ${CENSUS} as the worked example's package, .harness/manifest.json records the example as installed (\`init --with-demo\`, or a scaffold made before 2.0.0), and yet no package under ${PACKAGES_DIR}/ declares the name — restore the package, or run \`eject\` (an install made before 2.0.0: docs/runbooks/harness-upgrade.md, 2.0.0, says how to record its removal)`
+  }
+  return providedBy === null
+    ? `${name} is sanctioned in ${CENSUS} but no package under ${PACKAGES_DIR}/ declares that name — remove the stale sanction or add the package`
+    : `${name} is sanctioned in ${CENSUS} as provided by the '${providedBy}' module, that module is ENABLED, and yet no package under ${PACKAGES_DIR}/ declares the name — the module's package is missing; re-enable the module or remove the sanction`
 }
 
 failures(

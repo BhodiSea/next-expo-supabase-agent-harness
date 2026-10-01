@@ -26,6 +26,7 @@
 //      control), judged per statement
 // SOURCE: docs/harness/README.md (migration discipline)
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 // A NAMESPACE import (1.0.4) for `noteMissingPrerequisite` alone: it is new, and an install
@@ -155,9 +156,44 @@ function changedAgainst(ref) {
     .filter(([status]) => status.startsWith('M') || status.startsWith('D'))
 }
 const base = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : 'HEAD'
+
+// THE ONE SANCTIONED DELETION (2.0.0, #85). `eject` removes the worked example, its
+// migrations included, and records in .harness/manifest.json `ejectedMigrations` the sha256
+// of the exact bytes it deleted. Such a deletion is accepted ONLY when the bytes at the diff
+// base hash to that record, so the record cannot excuse an edit, another file, or different
+// bytes under a recorded name. A malformed record excuses nothing.
+const ejected = (() => {
+  try {
+    const record = JSON.parse(readFileSync('.harness/manifest.json', 'utf8')).ejectedMigrations
+    return record !== null && typeof record === 'object' && !Array.isArray(record) ? record : {}
+  } catch {
+    return {}
+  }
+})()
+
+/** The verdict on one deletion `eject` may have made: 'ejected', 'other-bytes' or null. */
+function ejectVerdict(ref, file) {
+  const recorded = ejected[file]
+  if (typeof recorded !== 'string') return null
+  let bytes
+  try {
+    bytes = execFileSync('git', ['show', `${ref}:${file}`], { stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch {
+    return 'other-bytes'
+  }
+  return createHash('sha256').update(bytes).digest('hex') === recorded ? 'ejected' : 'other-bytes'
+}
+
 for (const [status, file] of changedAgainst(base)) {
+  const verdict = status.startsWith('D') ? ejectVerdict(base, file) : null
+  if (verdict === 'ejected') {
+    console.log(
+      `${GATE}: NOTE — ${file}: deleted by \`eject\` (the worked example's history, the bytes .harness/manifest.json ejectedMigrations records). A database that applied it keeps its schema; docs/runbooks/harness-upgrade.md (2.0.0) says what to do about that.`,
+    )
+    continue
+  }
   errs.push(
-    `${file}: ${status === 'D' ? 'deleted' : 'modified'} — migrations are append-only; add a NEW migration that transforms the schema forward`,
+    `${file}: ${status === 'D' ? 'deleted' : 'modified'} — migrations are append-only; add a NEW migration that transforms the schema forward${verdict === 'other-bytes' ? ' (.harness/manifest.json ejectedMigrations records other bytes under this name, so this is not the deletion `eject` made)' : ''}`,
   )
 }
 

@@ -209,7 +209,7 @@ test('seededSourceFixes: a path the template does not ship is named, not skipped
     REAL_ROOT,
   )
   assert.equal(problems.length, 1)
-  assert.match(problems[0], /clientt\.ts, which is in neither template\/stack nor template\/base/)
+  assert.match(problems[0], /clientt\.ts, which is in none of template\/stack, template\/base and template\/demo/)
 })
 
 test('seededSourceFixes: an unreasoned, ungated or empty record is a review reject', () => {
@@ -249,7 +249,7 @@ test('probes: a probe path the template does not ship reds on the probe, not onl
     paths: ['apps/web/lib/supabase/clientt.ts'],
     probes: [{ path: 'apps/web/lib/supabase/clientt.ts', brokenWhen: { lacks: 'cookieSessionStorage' } }],
   }
-  assert.match(p(typo).join('\n'), /probes\[0\][^\n]*neither template\/stack nor template\/base/)
+  assert.match(p(typo).join('\n'), /probes\[0\][^\n]*none of template\/stack, template\/base and template\/demo/)
 })
 
 test('probes: brokenWhen must be exactly one of contains/lacks, non-empty', () => {

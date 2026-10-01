@@ -2318,8 +2318,12 @@ jobs:
           echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" | sha256sum -c -
           unzip -q maestro.zip -d "$HOME/.maestro-dist"
           echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
-      - name: Bootstrap a fresh project
-        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes
+      # --with-demo (2.0.0, #85): the lane runs the worked example's write journey (sign in,
+      # create a note, relaunch, it persists) beside the default session journey, and
+      # Canaries 19 and 20 edit files every scaffold ships, so the demo scaffold is the one
+      # that keeps every leg of this lane executing.
+      - name: Bootstrap a fresh project (with the worked example)
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes --with-demo
       - name: Git baseline + corepack
         working-directory: .selftest/app
         run: |

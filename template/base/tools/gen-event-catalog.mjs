@@ -19,14 +19,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-import {
-  CATALOG_EXPORT,
-  catalogOf,
-  discoverVerticals,
-  LEGACY,
-  legacyApplies,
-  readRootPackage,
-} from './lib/event-catalogs.mjs'
+import { CATALOG_EXPORT, catalogOf, discoverVerticals } from './lib/event-catalogs.mjs'
 import { renderEvents } from './lib/inventory.mjs'
 
 export const OUTPUT = 'tools/generated/event-catalog.json'
@@ -38,13 +31,10 @@ for (const v of verticals.filter((x) => x.declares)) {
   const mod = await import(pathToFileURL(join(process.cwd(), v.file)).href)
   catalogs.push(catalogOf(mod[CATALOG_EXPORT], v.file))
 }
-// 1.0.x compatibility, removed when the example leaves the scaffold: the import 1.0.x
-// hard-coded, under the condition it resolved (the root package.json lists the package),
-// taken as-is.
-const legacy = legacyApplies(readRootPackage(), verticals)
-if (legacy) catalogs.push((await import(LEGACY.specifier))[LEGACY.exportName])
+// The 1.0.x compatibility entry (the one import 1.0.x hard-coded) left with the example
+// at 2.0.0 (#85): a vertical is catalogued by its own EVENT_CATALOG export, or not at all.
 for (const v of verticals) {
-  if (v.declares || (legacy && v.pkg === LEGACY.pkg)) continue
+  if (v.declares) continue
   process.stdout.write(
     `${OUTPUT}: ${v.pkg} is not catalogued (its ./client declares no ${CATALOG_EXPORT})\n`,
   )

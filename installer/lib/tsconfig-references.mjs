@@ -20,11 +20,49 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { walkDemo } from './copy.mjs'
 import { fileMode } from './manifest.mjs'
 import { matchSeedOnInitOnly } from './migrations.mjs'
 
 /** `{ "path": "packages/x" }` — the shape every reference entry has. */
 const REFERENCE_LINE = /^(\s*)\{\s*"path":\s*"([^"]+)"\s*\}(,?)\s*$/
+
+/**
+ * Re-fix the trailing commas of the reference run: whichever reference is last must not
+ * carry one, and every one before it must. Rebuilding the run is simpler than patching
+ * around a hole.
+ *
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function refixCommas(lines) {
+  const out = [...lines]
+  const idx = out.map((l, i) => (REFERENCE_LINE.test(l) ? i : -1)).filter((i) => i !== -1)
+  for (const [n, i] of idx.entries()) {
+    out[i] = out[i].replace(/,\s*$/, '')
+    if (n < idx.length - 1) out[i] = `${out[i]},`
+  }
+  return out
+}
+
+/**
+ * The solution file's text with the references to `dirs` removed and the commas re-fixed.
+ * `eject` uses it after deleting the demo's packages (2.0.0, #85): tsconfig.json is the one
+ * owned file the installer DERIVES (provenance.mjs DERIVED_AT_INSTALL), and a reference to a
+ * project that no longer exists kills `tsc -b` on its first line.
+ *
+ * @param {string} content
+ * @param {string[]} dirs
+ * @returns {string}
+ */
+export function dropProjectReferences(content, dirs) {
+  const drop = new Set(dirs)
+  const kept = content.split('\n').filter((line) => {
+    const path = REFERENCE_LINE.exec(line)?.[2]
+    return path === undefined || !drop.has(path)
+  })
+  return refixCommas(kept).join('\n')
+}
 
 /**
  * Drop references to projects that will not exist after this run.
@@ -82,14 +120,7 @@ export function pruneMissingProjectReferences(plan, targetDir, report, withheld 
   }
   if (pruned.length === 0) return []
 
-  // Re-fix the trailing comma: whichever reference is last must not carry one, and the
-  // one before a survivor must. Rebuilding the run is simpler than patching around a hole.
-  const idx = kept.map((l, i) => (REFERENCE_LINE.test(l) ? i : -1)).filter((i) => i !== -1)
-  for (const [n, i] of idx.entries()) {
-    kept[i] = kept[i].replace(/,\s*$/, '')
-    if (n < idx.length - 1) kept[i] = `${kept[i]},`
-  }
-  root.content = kept.join('\n')
+  root.content = refixCommas(kept).join('\n')
   report.notes.push(
     `tsconfig.json: project reference(s) omitted for package(s) not in this install: ${pruned.join(', ')} — they are seedOnInitOnly; pull one with \`update --refresh-seeded <path>/\` and the reference returns on the next update`,
   )
@@ -147,5 +178,46 @@ export function injectModuleProjectReferences(plan, report, verb) {
   for (let i = 1; i < missing.length; i += 1) lines[last + i] = `${lines[last + i]},`
   root.content = lines.join('\n')
   report.notes.push(`tsconfig.json: project reference(s) ${verb} for module package(s) ${missing.join(', ')}`)
+  return missing
+}
+
+/**
+ * The demo's workspace packages in the root solution file (2.0.0, #85).
+ *
+ * The template's tsconfig.json names no demo package: an owned file that named one would
+ * break `tsc -b` on every default install. So the reference is derived, like a module's,
+ * for every demo package that is planned in this run (`init --with-demo`, or `update` of a
+ * demo install) or already on disk (an install from before 2.0.0, whose example was part of
+ * the scaffold: `update` rewrites the owned file and must not drop its vertical). Unlike a
+ * module package, a demo vertical has a known layer: it goes directly above `@app/api`, which
+ * composes it, so the list keeps reading in the layering order its own comment states.
+ *
+ * @param {{ installPath: string, content: unknown, demo?: boolean }[]} plan
+ * @param {string} targetDir
+ * @param {{ notes: string[] }} report
+ * @param {string} verb — 'added' at init, 'kept' at update
+ * @returns {string[]} the package directories added
+ */
+export function injectDemoProjectReferences(plan, targetDir, report, verb) {
+  const root = plan.find((e) => e.installPath === 'tsconfig.json')
+  if (root === undefined || typeof root.content !== 'string') return []
+  const planned = new Set(plan.filter((e) => e.demo === true).map((e) => e.installPath))
+  const wanted = walkDemo()
+    .map((e) => /^(packages\/.+)\/tsconfig\.json$/.exec(e.installPath)?.[1])
+    .filter((dir) => dir !== undefined)
+    .filter((dir) => planned.has(`${dir}/tsconfig.json`) || existsSync(join(targetDir, dir, 'tsconfig.json')))
+
+  const lines = root.content.split('\n')
+  const present = new Set(lines.map((l) => REFERENCE_LINE.exec(l)?.[2]).filter((p) => p !== undefined))
+  const missing = /** @type {string[]} */ (wanted).filter((p) => !present.has(p)).sort()
+  const refs = lines.map((l, i) => (REFERENCE_LINE.test(l) ? i : -1)).filter((i) => i !== -1)
+  if (missing.length === 0 || refs.length === 0) return []
+
+  const api = refs.find((i) => REFERENCE_LINE.exec(lines[i])?.[2] === 'packages/api')
+  const at = api ?? refs[refs.length - 1] + 1
+  const [, indent] = /** @type {RegExpExecArray} */ (REFERENCE_LINE.exec(lines[refs[0]]))
+  lines.splice(at, 0, ...missing.map((p) => `${indent}{ "path": "${p}" }`))
+  root.content = refixCommas(lines).join('\n')
+  report.notes.push(`tsconfig.json: project reference(s) ${verb} for demo package(s) ${missing.join(', ')}`)
   return missing
 }

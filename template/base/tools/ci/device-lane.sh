@@ -52,17 +52,23 @@ adb shell run-as {{APP_IDENTIFIER}} mkdir -p files/SQLite
 adb shell run-as {{APP_IDENTIFIER}} cp /data/local/tmp/kv-seed.db files/SQLite/ExpoSQLiteStorage
 node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/i18n-rtl.yaml --out-dir artifacts/maestro/i18n
 
-# Mutation flow: REAL sign-in -> create note -> relaunch -> persists
-# (clearState inside the flow resets the seeded locale first — order matters).
-# The identity is minted here, against the job's Supabase stack, with its personal
-# org (tools/ci/mint-device-user.mjs — admin createUser + ensure_personal_org as
+# The signed-in journeys: REAL sign-in through the app's own screen, a server read or
+# write, relaunch, and the result persists (clearState inside each flow resets the seeded
+# locale first — order matters). Every scaffold ships session.yaml; the worked example
+# (`init --with-demo`) adds its write journey beside it, and a project adds its own, so
+# the lane runs every hand-authored journey except the RTL one above rather than a fixed
+# list (2.0.0). The identity is minted here, against the job's Supabase stack, with its
+# personal org (tools/ci/mint-device-user.mjs — admin createUser + ensure_personal_org as
 # that user), and handed to Maestro as flow variables; the workflow publishes
 # SUPABASE_SERVICE_ROLE_KEY for exactly this step. Fixed address, idempotent minter.
 DEVICE_EMAIL="device-mutation@example.com"
 DEVICE_PASSWORD="device-mutation-pw-1"
 node tools/ci/mint-device-user.mjs "$DEVICE_EMAIL" "$DEVICE_PASSWORD"
-node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation \
-  --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
+for journey in maestro/journeys/*.yaml; do
+  [ "$journey" = maestro/journeys/i18n-rtl.yaml ] && continue
+  node tools/check-e2e-device.mjs --phase journey --file "$journey" --out-dir "artifacts/maestro/$(basename "$journey" .yaml)" \
+    --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
+done
 
 # Interaction budgets: the dev perf-harness screen self-measures against
 # tools/interaction-budget.json and the flow asserts its perf-pass marker.

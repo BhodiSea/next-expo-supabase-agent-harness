@@ -2,7 +2,7 @@
 // next-expo-supabase-agent-harness installer.
 //   npx --yes github:<owner>/next-expo-supabase-agent-harness#<tag> <command> [flags]
 // Commands: init | update | doctor | graduate | enable <module> | disable <module> |
-//           apply-proposal [<id>]
+//           eject | apply-proposal [<id>]
 // Reference: docs/cli.md (held to this file by tests/gates/cli-docs-sync.test.mjs)
 import { parseArgs } from 'node:util'
 import { resolve } from 'node:path'
@@ -22,6 +22,7 @@ const { values, positionals } = parseArgs({
     set: { type: 'string', multiple: true },
     report: { type: 'string' },
     clean: { type: 'boolean', default: false },
+    'with-demo': { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
   },
 })
@@ -40,6 +41,7 @@ const opts = {
   set: values.set,
   report: values.report,
   clean: values.clean,
+  withDemo: values['with-demo'],
 }
 
 const USAGE = `next-expo-supabase-agent-harness
@@ -47,6 +49,8 @@ const USAGE = `next-expo-supabase-agent-harness
 Usage:
   init     [--dir .] [--tier core|standard|strict] [--modules a,b] [--yes]
            [--set VAR=value ...] [--dry-run] [--report json] [--consume]
+           [--with-demo]  (also plant the worked example: the notes vertical,
+           its screens and migrations; a default init carries none of it)
   update   [--dir .] [--dry-run] [--force] [--report json]
            [--refresh-seeded <path> ...]  (pull the template version of a
            seeded, project-owned file or whole subtree — e.g. a trailing '/'
@@ -63,6 +67,10 @@ Usage:
            store-metadata, ci-provenance, gate-a11y-deep, crash-reporting,
            push-notifications, eval-live, observability, e2ee)
   disable  <module>
+  eject    [--dir .] [--dry-run] [--report json]  (remove the --with-demo
+           example: deletes demo files still as planted, restores the default
+           bytes of files it replaced, drops its rows from registers you
+           changed; keeps anything you edited and exits 2 to say so)
   apply-proposal [<id>] [--dir .] [--dry-run]  (a human applies a register
            edit an agent staged in harness-proposals/: shows the reason and
            the diff, asks you to type the target path, writes it; no id lists
@@ -98,6 +106,9 @@ try {
   } else if (command === 'apply-proposal') {
     const { applyProposal } = await import('./commands/apply-proposal.mjs')
     code = await applyProposal(opts, positionals[1])
+  } else if (command === 'eject') {
+    const { eject } = await import('./commands/eject.mjs')
+    code = await eject(opts)
   } else if (command === 'enable' || command === 'disable') {
     const { enable } = await import('./commands/enable.mjs')
     code = await enable(opts, positionals[1], command === 'enable')

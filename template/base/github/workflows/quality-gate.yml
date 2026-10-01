@@ -919,6 +919,14 @@ jobs:
       # The asymmetry is what keeps this from being a hole. A pre-0.2.0 baseVersion may
       # skip; a 0.2.0+ install MUST carry all three files, so deleting the seed to quiet
       # the lane FAILS here instead. Adoption is a version fact, not a missing file.
+      #
+      # THE EMPTY STATE (2.0.0, #85). A default scaffold ships no vertical, so its committed
+      # tools/generated/query-shapes.json records no shape and there is no plan to probe:
+      # the lane notices and stands down, and the scale seed, which only the worked example
+      # (`init --with-demo`) or a project's own first vertical brings, is not demanded. That
+      # is not a quiet switch either: `contracts` regen-diffs the manifest against the DAL,
+      # and the query-shapes gate is green on an empty manifest only while no
+      # packages/verticals/* exists, so an install with a DAL cannot reach this branch.
       - name: Adoption gate — does this install carry the 0.2.0 scale surface?
         id: adoption
         shell: bash
@@ -929,6 +937,12 @@ jobs:
           # sorts above 0.2.0 — a string compare gets that backwards.
           if node -e "const p=String(process.argv[1]).split('.'),q=[0,2,0];for(let i=0;i<3;i++){const a=Number(p[i])||0;if(a!==q[i])process.exit(a<q[i]?0:1)}process.exit(1)" "$base"; then
             echo "::notice::db-scale: baseVersion $base predates 0.2.0 — the scale seed and plan budgets are seedOnInitOnly and were not planted. Adopt with \`update --refresh-seeded supabase/seeds/\` and \`update --refresh-seeded tools/db-perf-baseline.json\`, then graduate baseVersion (docs/runbooks/harness-upgrade.md)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          shapes="$(node -e "try{const a=JSON.parse(require('fs').readFileSync('tools/generated/query-shapes.json','utf8'));process.stdout.write(String(Array.isArray(a)?a.length:-1))}catch{process.stdout.write('-1')}")"
+          if [ "$shapes" = "0" ]; then
+            echo "::notice::db-scale: tools/generated/query-shapes.json records no query shape (no vertical issues a query yet), so there is no plan to probe. The first vertical's probes, its scale seed and its tools/db-perf-baseline.json minRows floor arm this lane."
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

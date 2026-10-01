@@ -23,16 +23,6 @@ export const CATALOG_EXPORT = 'EVENT_CATALOG'
 const VERTICALS_ROOT = 'packages/verticals'
 const DECLARES = new RegExp(`\\b${CATALOG_EXPORT}\\b`)
 
-// The 1.0.x compatibility entry, removed when the example leaves the scaffold: the one
-// import the 1.0.x generator hard-coded. An upgraded install keeps its seeded vertical,
-// whose ./client exports the catalog under this name, so reading only the new export would
-// drop its rows from a catalog nobody changed. See legacyApplies for when it is read.
-export const LEGACY = {
-  pkg: '@app/notes',
-  specifier: '@app/notes/client',
-  exportName: 'noteEvents',
-}
-
 const absent = (/** @type {any} */ e) => e?.code === 'ENOENT' || e?.code === 'ENOTDIR'
 
 /** @param {string} path @returns {string | null} */
@@ -127,38 +117,4 @@ export function catalogOf(value, where) {
     }
   }
   return value
-}
-
-/** The root package.json text, or null when there is none. @param {string} [root] */
-export function readRootPackage(root = '.') {
-  return readOrNull(join(root, 'package.json'))
-}
-
-/**
- * Whether the generator reads LEGACY: only while BOTH hold —
- *   - the root package.json lists LEGACY.pkg in `dependencies` or `devDependencies`, the
- *     condition under which the 1.0.x import resolved at all;
- *   - no discovered vertical named LEGACY.pkg declares EVENT_CATALOG, so the catalog is
- *     never walked twice.
- * No root package.json never applies; text that does not parse throws naming package.json.
- * @param {string | null} rootPackageText
- * @param {Array<{ pkg: string, declares: boolean }>} verticals
- */
-export function legacyApplies(rootPackageText, verticals) {
-  if (rootPackageText === null) return false
-  let manifest
-  try {
-    manifest = JSON.parse(rootPackageText)
-  } catch (e) {
-    throw new Error(`package.json is not valid JSON (${e.message})`)
-  }
-  const listed = [manifest?.dependencies, manifest?.devDependencies].some(
-    (deps) =>
-      deps !== null &&
-      typeof deps === 'object' &&
-      !Array.isArray(deps) &&
-      Object.hasOwn(deps, LEGACY.pkg),
-  )
-  if (!listed) return false
-  return !verticals.some((v) => v.pkg === LEGACY.pkg && v.declares)
 }

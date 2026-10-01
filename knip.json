@@ -33,6 +33,9 @@
     // the base tools — and module .ts/.tsx/.txt files need consumer deps.
     // Scanned here they would all red as unresolved imports (same call as SRC).
     "template/stack/**",
+    // template/demo (2.0.0, #85) is the worked example's consumer source, overlaid on stack
+    // by `init --with-demo`; it resolves only inside a scaffold, exactly like stack.
+    "template/demo/**",
     "template/modules/**",
     "template/base/**/*.ts"
   ],

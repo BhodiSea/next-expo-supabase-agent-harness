@@ -325,13 +325,13 @@ function oneSourceFixProblems(fix, at, root) {
   }
   const missing = paths.filter(
     (rel) =>
-      !['template/stack', 'template/base'].some((t) =>
+      !['template/stack', 'template/base', 'template/demo'].some((t) =>
         templateCandidates(rel).some((c) => existsSync(join(root, t, c))),
       ),
   )
   for (const rel of missing) {
     problems.push(
-      `${at} names ${rel}, which is in neither template/stack nor template/base. The sweep's \`adopt()\` skips a missing source in SILENCE, so this entry would quietly stop being applied while the runbook kept telling consumers to apply it.`,
+      `${at} names ${rel}, which is in none of template/stack, template/base and template/demo. The sweep's \`adopt()\` skips a missing source in SILENCE, so this entry would quietly stop being applied while the runbook kept telling consumers to apply it.`,
     )
   }
   // The probes are the record's RUNTIME half (0.7.0): `update` parks the set and `doctor`
@@ -367,12 +367,14 @@ function oneProbeProblems(probe, at, paths, root) {
       `${at} names ${rel === '' ? '(no path)' : rel}, which is not in the record's own \`paths\` — a probe must sample the fix set it judges.`,
     )
   }
-  const shipped = ['template/stack', 'template/base']
+  // template/demo too (2.0.0): every install a record fixes predates 2.0.0 and carries the
+  // worked example, whose files live there now.
+  const shipped = ['template/demo', 'template/stack', 'template/base']
     .flatMap((t) => templateCandidates(rel).map((c) => join(root, t, c)))
     .find((p) => rel !== '' && existsSync(p))
   if (shipped === undefined) {
     problems.push(
-      `${at} names ${rel === '' ? '(no path)' : rel}, which is in neither template/stack nor template/base — a probe over a file the template does not ship judges nothing.`,
+      `${at} names ${rel === '' ? '(no path)' : rel}, which is in none of template/stack, template/base and template/demo — a probe over a file the template does not ship judges nothing.`,
     )
   }
   const brokenWhen = probe?.brokenWhen ?? {}
@@ -403,7 +405,11 @@ export function findUnregisteredSeededAdditions({
     const p = raw.replace(/^template\//, '')
     // Which storage tree? base/ and stack/ strip one segment; modules/<name>/
     // strips two (module files install for every consumer with the module
-    // enabled — the auto-plant hazard is identical there).
+    // enabled — the auto-plant hazard is identical there). demo/ is not judged
+    // (2.0.0): `update` plants a demo file only into an install whose manifest
+    // records demo: true, and no such install existed before the release that adds
+    // the tree. Judging a LATER demo addition against demo installs is open, and
+    // the 2.0.0 CHANGELOG says so.
     let treeRel = null
     if (p.startsWith('base/')) treeRel = p.slice('base/'.length)
     else if (p.startsWith('stack/')) treeRel = p.slice('stack/'.length)
@@ -433,7 +439,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // Grounding first — it needs no git, and a pattern that names nothing is wrong
   // whether or not there is a previous release to diff against.
   const migrations = readTemplateMigrations()
-  const trees = ['base', 'stack']
+  // Every tree an install can receive a file from (2.0.0: the demo and the presets joined
+  // base, stack and the modules — a seedOnInitOnly pattern naming a demo file is grounded).
+  const trees = ['base', 'stack', 'demo']
+  for (const name of readdirSync(join(ROOT, 'template', 'presets')).sort()) trees.push(`presets/${name}`)
   for (const name of readdirSync(join(ROOT, 'template', 'modules')).sort()) {
     trees.push(`modules/${name}`)
   }

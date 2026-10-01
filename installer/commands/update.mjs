@@ -14,7 +14,7 @@
 import { existsSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
-import { renderEntry, toPosix, walkStack, walkTemplate } from '../lib/copy.mjs'
+import { renderEntry, toPosix, walkStack, walkTemplate, withDemo, withDemoAdditions } from '../lib/copy.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import {
   effectiveMode,
@@ -40,7 +40,11 @@ import {
 } from '../lib/migrations.mjs'
 import { createProvenance, parkedNote, readReleasedShas } from '../lib/provenance.mjs'
 import { printReport } from '../lib/report.mjs'
-import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
+import {
+  injectDemoProjectReferences,
+  injectModuleProjectReferences,
+  pruneMissingProjectReferences,
+} from '../lib/tsconfig-references.mjs'
 import { refreshAgentsLockEntries, writeAgentsLock } from '../lib/agents-lock.mjs'
 import { writeRollbackSnapshot } from '../lib/rollback.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
@@ -315,11 +319,25 @@ export async function update(
   // Preset-aware: on a metal install, --refresh-seeded must pull the METAL
   // bytes of an overlaid path, never the default ones.
   entries.push(...walkStack(answers))
+  // 2.0.0 (#85): a demo install's template IS the demo overlay — its shared files' incoming
+  // bytes are the demo's, and a demo file new in a later release is offered like any other
+  // seeded file. An install without the demo is never handed a demo file by the sweep; one
+  // that predates the record keeps its example because the example is seeded.
+  const planned = withDemo(entries, manifest.demo)
 
   // Focused mode: refresh the requested SEEDED path(s) from the current
-  // template and stop — no version migrations, no owned-file sweep.
+  // template and stop — no version migrations, no owned-file sweep. A demo path resolves
+  // here even on an install without the demo record (copy.mjs withDemoAdditions).
   if (opts.refreshSeeded?.length) {
-    return refreshSeeded({ targetDir, manifest, entries, answers, paths: opts.refreshSeeded, opts, releasedShas })
+    return refreshSeeded({
+      targetDir,
+      manifest,
+      entries: withDemoAdditions(planned),
+      answers,
+      paths: opts.refreshSeeded,
+      opts,
+      releasedShas,
+    })
   }
 
   const report = {
@@ -344,10 +362,10 @@ export async function update(
   // A newer template must never plan ZERO files — that is a packaging
   // regression (empty tarball, broken walker), and recording a version bump
   // over it would be a false-green update. Checked before anything mutates.
-  if (entries.length === 0) {
+  if (planned.length === 0) {
     throw new Error('template plan is empty — refusing to record an update over a packaging regression')
   }
-  const plan = entries.map((e) => ({ ...e, content: renderEntry(e, answers) }))
+  const plan = planned.map((e) => ({ ...e, content: renderEntry(e, answers) }))
   const sweep = parkingUnwiredHooks({ provenance, targetDir, manifest, plan, releasedShas, force: opts.force, report })
 
   recordRollbackPoint({ targetDir, manifest, plan, report, dryRun: opts.dryRun })
@@ -356,6 +374,7 @@ export async function update(
   // template on every run — without this the reference would be planted at init and
   // silently removed by the first `update`, redding `contracts` on a tree nobody touched.
   injectModuleProjectReferences(plan, report, 'kept')
+  injectDemoProjectReferences(plan, targetDir, report, 'kept')
 
   // Version migrations FIRST: removals/renames prune stale files before the
   // plan loop writes the current tree, and gate promotions must reach the

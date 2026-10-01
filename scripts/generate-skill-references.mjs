@@ -39,9 +39,11 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 // markers, so an id both sides agree on still reds when nobody meant it to exist.
 const REGION_IDS = ['create-procedure', 'org-policies']
 
-// Where an install-relative source= path may resolve, in this order: the stack tree first,
-// the base tree second (check-seeded-migrations resolves a record's paths the same way).
-const TREES = ['template/stack', 'template/base']
+// Where an install-relative source= path may resolve, in this order: the demo tree first,
+// because the worked example lives there since 2.0.0 (#85) and its copy of a shared file is
+// the example's; then the stack tree, then the base tree (check-seeded-migrations resolves a
+// record's paths the same way).
+const TREES = ['template/demo', 'template/stack', 'template/base']
 
 const USAGE = 'usage: node scripts/generate-skill-references.mjs [--check | --write]'
 const args = process.argv.slice(2)

@@ -37,9 +37,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // layer up. The generated types still earn their keep — the W3 `types-drift`
 // gate diffs them against the deployed schema, which is a CI assertion rather
 // than a compile-time licence to skip validation.
-// SOURCE: packages/verticals/notes/src/data/port.ts (rows are `unknown` at the
-// entrance and re-parsed at the exit) · design/W1-STACK-SPEC.md §9 (types-drift
-// lands in W3)
+// SOURCE: .claude/skills/authoring-vertical-slice/references/dal-dto.md (a vertical's
+// structural port: rows are `unknown` at the entrance and re-parsed at the exit) ·
+// design/W1-STACK-SPEC.md §9 (types-drift lands in W3)
 // ---------------------------------------------------------------------------
 
 /**

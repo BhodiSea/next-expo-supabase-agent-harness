@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- Count checked by hand against the SELECTs below. pgTAP fails a plan mismatch,
 -- which is the point: an assertion deleted in a hurry cannot pass as a smaller
 -- suite.
-SELECT plan(35);
+SELECT plan(34);
 
 -- The tables under the RLS contract, and the column their policies filter on.
 -- Adding a table to the domain means adding a row here; a table that never
@@ -43,7 +43,6 @@ INSERT INTO rls_targets (table_name, owner_column) VALUES
   -- its policies are the self-only scalars the effective-rank fold depends on.
   ('admin_elevations', 'user_id'),
   ('invitations', 'org_id'),
-  ('notes', 'org_id'),
   ('org_usage', 'org_id');
 
 SELECT has_table('public', 'profiles', 'public.profiles exists');
@@ -51,7 +50,6 @@ SELECT has_table('public', 'orgs', 'public.orgs exists');
 SELECT has_table('public', 'memberships', 'public.memberships exists');
 SELECT has_table('public', 'invitations', 'public.invitations exists');
 SELECT has_table('public', 'admin_elevations', 'public.admin_elevations exists');
-SELECT has_table('public', 'notes', 'public.notes exists');
 
 -- ENABLE alone leaves the table owner exempt, and the owner is the role that
 -- runs migrations, seeds and every SQL-editor session — i.e. the role most
@@ -93,7 +91,7 @@ SELECT is_empty(
 -- a restrictive policy with no `FOR` clause is the opposite shape — it ANDs onto the
 -- permissive set and can only remove rows, so covering every command is the SAFE
 -- choice and splitting it per operation would be four copies of one predicate with
--- four chances to omit one. The seeded `notes_mfa_aal2` rail is exactly that, and
+-- four chances to omit one. The taught `<table>_mfa_aal2` rail is exactly that, and
 -- Supabase's own documentation writes the same policy `for update`, which gates
 -- writes while leaving SELECT wide open.
 SELECT is_empty(
@@ -230,7 +228,7 @@ SELECT is_empty(
 -- assertion below it.
 SELECT is_empty(
   $$ SELECT t, priv
-       FROM unnest(ARRAY['profiles', 'notes']) AS t
+       FROM unnest(ARRAY['profiles']) AS t
        CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']) AS priv
       WHERE NOT has_table_privilege('authenticated'::name, 'public.' || t, priv) $$,
   'authenticated holds all four DML grants on every directly-writable RLS target'
@@ -402,8 +400,7 @@ INSERT INTO freeze_triggers (table_name, trigger_name) VALUES
   -- UPDATEd would walk one seat's privilege onto another user.
   ('admin_elevations', 'admin_elevations_freeze'),
   ('admin_elevations', 'admin_elevations_freeze_identity'),
-  ('invitations', 'invitations_freeze_org'),
-  ('notes', 'notes_freeze_org');
+  ('invitations', 'invitations_freeze_org');
 
 SELECT is_empty(
   $$ SELECT f.table_name, f.trigger_name

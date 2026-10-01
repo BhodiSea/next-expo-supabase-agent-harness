@@ -180,13 +180,20 @@ export function expandBraces(glob) {
   if (!m) return [glob]
   return m[2].split(',').flatMap((alt) => expandBraces(`${m[1]}${alt}${m[3]}`))
 }
-const globToRe = (glob) =>
-  new RegExp(
-    `^${glob
-      .split('**')
-      .map((part) => part.split('*').map(escapeRe).join('[^/]*'))
-      .join('.*')}$`,
-  )
+const segmentRe = (part) =>
+  part
+    .split('**')
+    .map((p) => p.split('*').map(escapeRe).join('[^/]*'))
+    .join('.*')
+// One picomatch extglob is mirrored too (2.0.0): `!(X)` within a single path segment, as in
+// COVERAGE_EXCLUDE's 'apps/web/lib/app-data/!(*-model).ts' — the segment matches anything
+// the rest of the pattern matches EXCEPT X there, so it becomes a negative lookahead.
+const globToRe = (glob) => {
+  const m = glob.match(/^(.*?)!\(([^()/]*)\)(.*)$/)
+  if (m === null) return new RegExp(`^${segmentRe(glob)}$`)
+  const rest = segmentRe(m[3])
+  return new RegExp(`^${segmentRe(m[1])}(?!${segmentRe(m[2])}${rest}$)[^/]*?${rest}$`)
+}
 
 // collectCoverageFrom globs are relative to apps/mobile (jest's rootDir); root
 // them so they compare against repo-relative paths like everything else here.

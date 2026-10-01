@@ -32,8 +32,8 @@ import { type AppError, appError } from '@app/errors'
 // see, so a SELECT the policy excludes returns no rows rather than an error;
 // INSERT/UPDATE violating WITH CHECK raises insufficient_privilege.
 // https://www.postgresql.org/docs/current/ddl-rowsecurity.html
-// SOURCE: packages/verticals/notes/src/data/errors.ts (the same asymmetry,
-// restated at the vertical's own kernel seam)
+// SOURCE: .claude/skills/authoring-vertical-slice/references/dal-dto.md (the same
+// asymmetry, restated at a vertical's own kernel seam — the taught DAL shape)
 // ---------------------------------------------------------------------------
 
 /**

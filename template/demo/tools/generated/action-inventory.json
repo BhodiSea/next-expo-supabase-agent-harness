@@ -1,0 +1,34 @@
+[
+  {
+    "action": "notes.create",
+    "type": "mutation"
+  },
+  {
+    "action": "notes.get",
+    "type": "query"
+  },
+  {
+    "action": "notes.list",
+    "type": "query"
+  },
+  {
+    "action": "notes.remove",
+    "type": "mutation"
+  },
+  {
+    "action": "notes.update",
+    "type": "mutation"
+  },
+  {
+    "action": "system.exportMyData",
+    "type": "query"
+  },
+  {
+    "action": "system.health",
+    "type": "query"
+  },
+  {
+    "action": "system.me",
+    "type": "query"
+  }
+]

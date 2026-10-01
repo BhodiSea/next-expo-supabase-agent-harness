@@ -92,6 +92,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `db-perf-baseline` — protected path `^tools\/db-perf-baseline\.json$`
 - `query-shapes-manifest` — protected path `^tools\/generated\/query-shapes\.json$`
 - `action-inventory-manifest` — protected path `^tools\/generated\/action-inventory\.json$`
+- `event-catalog-manifest` — protected path `^tools\/generated\/event-catalog\.json$`
 - `claude-rules` — protected path `^\.claude\/rules\/`
 - `claude-agents` — protected path `^\.claude\/agents\/`
 - `claude-commands` — protected path `^\.claude\/commands\/`

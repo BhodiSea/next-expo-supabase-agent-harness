@@ -1,4 +1,4 @@
-import type { Session } from '@app/api'
+import type { ApiDatabase, Session } from '@app/api'
 import {
   appRouter,
   CSRF_REJECTED_CODE,
@@ -7,7 +7,6 @@ import {
   isCrossSiteRequest,
 } from '@app/api'
 import { optionalServerEnv } from '@app/env/optional'
-import type { NotesDatabase } from '@app/notes'
 import type { SupabaseServerClient } from '@app/supabase'
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch'
 import { resolveHostSession } from '../../../../lib/auth/session'
@@ -35,7 +34,7 @@ import pkg from '../../../../package.json'
 export const runtime = 'nodejs'
 
 // Never prerendered, never cached. Every response here is scoped to a verified identity;
-// a cached one is the same cross-tenant leak that lib/app-data/notes.ts refuses caching for.
+// a cached one is the same cross-tenant leak every lib/app-data read refuses caching for.
 export const dynamic = 'force-dynamic'
 
 // `Bearer <token>`, case-insensitively — RFC 7235 makes the scheme name case-insensitive and
@@ -141,15 +140,15 @@ const handler = async (request: Request): Promise<Response> => {
     session = await resolveHostSession(db, token)
   }
 
-  // Narrowed to the DAL's structural port. `as unknown as`: checking a full SupabaseServerClient
-  // against NotesDatabase instantiates supabase-js's vast `.from()` overload set (TS2589,
-  // "excessively deep"). The assertion is SOUND — NotesDatabase is a hand-authored subset of
-  // exactly the supabase surface the DAL calls, and `db` is a real supabase client. The cast
-  // rides a `const` (never the createClient return position) for the same reason the sibling
-  // does: an assertion in a contextually-typed slot reads as redundant to no-unnecessary-type-
-  // assertion, which does not see the deep check that makes it load-bearing.
-  // SOURCE: apps/web/app/actions/notes.ts (the same NotesDatabase-subset cast, full rationale)
-  const notesDb = db as unknown as NotesDatabase
+  // Narrowed to the router's structural port. `as unknown as`: checking a full
+  // SupabaseServerClient against ApiDatabase instantiates supabase-js's vast `.from()` overload
+  // set (TS2589, "excessively deep"). The assertion is SOUND — ApiDatabase is a hand-authored
+  // subset of exactly the supabase surface the router's reads call, and `db` is a real supabase
+  // client. The cast rides a `const` (never the createClient return position): an assertion in
+  // a contextually-typed slot reads as redundant to no-unnecessary-type-assertion, which does
+  // not see the deep check that makes it load-bearing. A vertical whose port needs more widens
+  // this to an intersection (packages/api/src/context.ts says how).
+  const apiDb = db as unknown as ApiDatabase
 
   // The rate-limit port, closed over what only the HOST knows: which budget a procedure
   // spends from (lib/rate-limit.ts, the reviewed policy) and how to identify an anonymous
@@ -168,7 +167,7 @@ const handler = async (request: Request): Promise<Response> => {
     router: appRouter,
     createContext: () =>
       createContext({
-        createClient: () => notesDb,
+        createClient: () => apiDb,
         headers: request.headers,
         minSupportedClient: MIN_SUPPORTED_CLIENT,
         // SOURCE: docs/adr/20260204-rate-limiting.md (both seams, and what neither bounds)

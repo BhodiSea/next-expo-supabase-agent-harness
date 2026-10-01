@@ -56,17 +56,6 @@ export const ROUTES = [
     },
   },
   {
-    id: 'matrix',
-    titleKey: 'route.matrix',
-    path: '/matrix',
-    file: '(tabs)/matrix',
-    states: {
-      loading: 'matrix-loading',
-      empty: 'matrix-empty',
-      error: 'matrix-error',
-    },
-  },
-  {
     id: 'actions',
     titleKey: 'route.actions',
     path: '/actions',

@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { renderEntry, walkStack, walkTemplate } from '../lib/copy.mjs'
+import { renderEntry, walkStack, walkTemplate, withDemo } from '../lib/copy.mjs'
 import { walkFiles } from '../lib/fs-walk.mjs'
 import { RETIRED_MODULES } from '../lib/layout.mjs'
 import { installerVersion, readManifest, sha256 } from '../lib/manifest.mjs'
@@ -391,7 +391,11 @@ export async function doctor(opts, { releasedShas = readReleasedShas(), probe = 
     // that plants default content. A garbage hand-edited preset value throws
     // inside this try and degrades to no advisory — update is where it fails loud.
     const answers = manifest.answers
-    const entries = [...walkTemplate('base'), ...walkStack({ DESIGN_TOKENS: 'default', ...answers })]
+    // A demo install (2.0.0, #85) is compared against the demo's bytes of each shared file.
+    const entries = withDemo(
+      [...walkTemplate('base'), ...walkStack({ DESIGN_TOKENS: 'default', ...answers })],
+      manifest.demo,
+    )
     for (const m of manifest.modules ?? []) {
       if (RETIRED_MODULES.has(m)) continue
       entries.push(...walkTemplate(`modules/${m}`))

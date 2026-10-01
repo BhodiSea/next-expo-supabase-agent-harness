@@ -33,7 +33,7 @@
 //      tree). This is the plain-node equivalent of what jest-expo's preset
 //      provides for a component test, cut down to what a perf subject may
 //      legitimately import: a subject is an ISLAND by contract (worked pattern:
-//      apps/mobile/src/features/matrix/perfSubject.tsx). An unmocked
+//      the matrix screen's perfSubject.tsx, which `init --with-demo` plants). An unmocked
 //      react-native export throws a NAMED error instead of undefined-soup, so a
 //      subject that grows a native dependency fails loudly, never vacuously.
 //   5. React 19's test renderer renders CONCURRENTLY: create() alone only
@@ -119,8 +119,8 @@ function reactNativeMock() {
       if (prop === 'default' || prop === 'then') return undefined
       throw new Error(
         `react-native.${prop} is not in the perf-subject mock layer — a perf subject is an ` +
-          `island (plain View/Text markup, no lists, no native modules); see the worked ` +
-          `pattern apps/mobile/src/features/matrix/perfSubject.tsx`,
+          `island (plain View/Text markup, no lists, no native modules); see ` +
+          `docs/harness/gates-catalog.md ("perf-budget")`,
       )
     },
   })

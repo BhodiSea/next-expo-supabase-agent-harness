@@ -594,7 +594,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
 
   const done = []
-  const TEMPLATE_ROOTS = ['template/stack', 'template/base']
+  // template/demo FIRST (2.0.0, #85): every install a sweep adopts into predates 2.0.0, so
+  // it carries the worked example, and for a file the demo also ships, the demo's copy is
+  // the one that matches it (the default's drops the example's wiring).
+  const TEMPLATE_ROOTS = ['template/demo', 'template/stack', 'template/base']
 
   /**
    * Where in the template a given install-relative path lives, or null —

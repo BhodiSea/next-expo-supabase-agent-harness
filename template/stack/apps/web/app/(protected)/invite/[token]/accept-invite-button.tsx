@@ -26,7 +26,7 @@ export function AcceptInviteButton({ token }: { readonly token: string }): React
     }
     // Straight into the org that was just joined. `replace`, not `push`: the invitation URL
     // is spent, and leaving it in history invites a back-button retry that can only fail.
-    router.replace(`/o/${outcome.data.slug}/notes`)
+    router.replace(`/o/${outcome.data.slug}`)
     router.refresh()
   }
 

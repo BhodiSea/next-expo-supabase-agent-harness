@@ -1,4 +1,3 @@
-import { notesRouter } from './routers/notes.js'
 import { systemRouter } from './routers/system.js'
 import { router } from './trpc.js'
 
@@ -24,10 +23,11 @@ import { router } from './trpc.js'
 /**
  * The routers are FLAT and named after the vertical they front. A slice's whole
  * API surface is `appRouter.<slice>`, so adding a vertical is one line here and
- * removing one is one line here — no cross-slice namespace to untangle.
+ * removing one is one line here — no cross-slice namespace to untangle. A default
+ * scaffold mounts only the system procedures; `init --with-demo` mounts the notes
+ * vertical beside them as the worked example of a slice.
  */
 export const appRouter = router({
-  notes: notesRouter,
   system: systemRouter,
 })
 
@@ -39,6 +39,7 @@ export type AppRouter = typeof appRouter
 
 export type {
   Actor,
+  ApiDatabase,
   CreateContextOptions,
   DomainEvent,
   EventSink,
@@ -46,6 +47,10 @@ export type {
   HeaderSource,
   RequestContext,
   Session,
+  StoreFailure,
+  StoreOutcome,
+  StoreQuery,
+  StoreTable,
 } from './context.js'
 export { createContext, resolveActiveOrg } from './context.js'
 // The CSRF guard for the ambient (cookie) transport. Framework-neutral header

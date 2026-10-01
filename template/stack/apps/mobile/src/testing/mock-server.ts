@@ -1,10 +1,4 @@
-import type {
-  HealthReport,
-  NewNoteInput,
-  NotesListQuery,
-  NotesPage,
-  NoteView,
-} from '@app/contracts'
+import type { ActorView, HealthReport } from '@app/contracts'
 import type { ActionOutcome } from '@app/errors'
 import type { ApiClient } from '../lib/trpc/use-api'
 
@@ -43,19 +37,8 @@ export type MockProcedure<I, O> = (input: I) => O | Promise<O>
  * to notice a new server dependency.
  */
 export interface MockApiHandlers {
-  /** `notes.create` — the envelope; a domain refusal is `{ ok: false }`, never a throw. */
-  readonly notesCreate?: MockProcedure<NewNoteInput, ActionOutcome<NoteView>>
-  /**
-   * `notes.list` — the envelope wrapping one keyset page.
-   *
-   * `Partial<NotesListQuery>` deliberately. The contract's `limit` and
-   * `includeArchived` carry zod DEFAULTS, and a default is applied by the
-   * parse — which happens on the SERVER. What actually leaves the client is
-   * whatever the screen passed, so a handler typed against the parsed shape
-   * would promise a `limit` this double never fills in, and a test asserting on
-   * it would be asserting a value no request contains.
-   */
-  readonly notesList?: MockProcedure<Partial<NotesListQuery>, ActionOutcome<NotesPage>>
+  /** `system.me` — the envelope wrapping the signed-in caller and their seats. */
+  readonly systemMe?: MockProcedure<undefined, ActionOutcome<ActorView>>
   /** `system.health` — the ONE un-enveloped procedure (health has no failure mode). */
   readonly systemHealth?: MockProcedure<undefined, HealthReport>
 }
@@ -114,21 +97,13 @@ export function mockApiClient(): ApiClient {
 
 function buildClient(): ApiClient {
   return {
-    notes: {
-      create: {
-        mutate: (input: NewNoteInput) => {
-          const handler = live().notesCreate ?? unstubbed('notes.create')
-          return Promise.resolve(handler(input))
-        },
-      },
-      list: {
-        query: (input: Partial<NotesListQuery>) => {
-          const handler = live().notesList ?? unstubbed('notes.list')
-          return Promise.resolve(handler(input))
-        },
-      },
-    },
     system: {
+      me: {
+        query: () => {
+          const handler = live().systemMe ?? unstubbed('system.me')
+          return Promise.resolve(handler(undefined))
+        },
+      },
       health: {
         query: () => {
           const handler = live().systemHealth ?? unstubbed('system.health')

@@ -105,25 +105,25 @@ describe('rankCommands properties', () => {
 // the rendered tree.
 const APP_COMMANDS = [
   cmd('nav.home', 'Go to Home'),
-  cmd('nav.matrix', 'Go to Matrix'),
-  cmd('notes.create', 'Create a note'),
+  cmd('nav.security', 'Go to Security'),
   cmd('session.signOut', 'Sign out'),
+  cmd('session.deleteAccount', 'Delete account…'),
 ] as const
 
 const rankedIds = (query: string): readonly string[] =>
   rankCommands(query, APP_COMMANDS).map((entry) => entry.id)
 
 describe('rankCommands pinned examples', () => {
-  it("'tm' ranks Go to Matrix (two word-boundary hits) over the scattered match", () => {
-    expect(rankedIds('tm')).toEqual(['nav.matrix', 'nav.home'])
+  it("'to' ranks the word-boundary 'to' titles above the mid-word match", () => {
+    expect(rankedIds('to')).toEqual(['nav.home', 'nav.security', 'session.deleteAccount'])
   })
 
-  it("'go' puts the word-boundary Go-titles above the mid-word 'o' matches", () => {
-    expect(rankedIds('go')).toEqual(['nav.home', 'nav.matrix', 'session.signOut'])
+  it("'go' puts the word-boundary Go-titles above the mid-word 'g' match", () => {
+    expect(rankedIds('go')).toEqual(['nav.home', 'nav.security', 'session.signOut'])
   })
 
-  it("'note' matches creation by word boundary", () => {
-    expect(rankedIds('note')).toEqual(['notes.create'])
+  it("'acc' matches account deletion by word boundary", () => {
+    expect(rankedIds('acc')).toEqual(['session.deleteAccount'])
   })
 
   it('drops non-subsequence titles entirely', () => {

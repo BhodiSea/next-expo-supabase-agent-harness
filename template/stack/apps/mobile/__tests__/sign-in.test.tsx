@@ -30,7 +30,16 @@ const PASSWORD = 'correct horse battery staple'
 // surface has to be declared too.
 const HOME_API = {
   systemHealth: () => ({ ok: true as const, version: '0.0.0' }),
-  notesList: () => ({ ok: true as const, data: { items: [], nextCursor: null } }),
+  systemMe: () => ({
+    ok: true as const,
+    data: {
+      activeOrg: null,
+      displayName: 'Sam',
+      email: null,
+      id: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
+      orgs: [],
+    },
+  }),
 }
 
 afterEach(() => {

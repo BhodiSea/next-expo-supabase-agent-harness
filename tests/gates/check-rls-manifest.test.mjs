@@ -27,6 +27,9 @@ const SHIPPED_DEFINER_ALLOW = fileURLToPath(
 const SHIPPED_EXEMPT = fileURLToPath(
   new URL('../../template/base/tools/rls-exempt.json', import.meta.url),
 )
+// The worked example's overlay (2.0.0, #85): `init --with-demo` plants template/demo over
+// base + stack, and its copies of the registers replace the default's.
+const DEMO = fileURLToPath(new URL('../../template/demo', import.meta.url))
 
 const EXEMPT_EMPTY = '{"comment":"x","exempt":[]}\n'
 
@@ -36,8 +39,10 @@ REVOKE ALL ON TABLE public.thing FROM service_role;
 REVOKE ALL ON TABLE public.thing FROM authenticated;`
 const GEN = fileURLToPath(new URL('../../template/base/tools/gen-grant-assertions.mjs', import.meta.url))
 const GENERATED = 'supabase/tests/rls_grants.generated.test.sql'
-/** The shipped migration that applies the doctrine to profiles and notes (#74). */
+/** The shipped migration that applies the doctrine to profiles (#74; to notes too until 2.0.0). */
 const THREE_ROLE_REVOKE = '20260930000000_three_role_revoke.sql'
+/** The demo's migration that attaches the spine's rails, the doctrine among them, to notes (2.0.0). */
+const NOTES_RAILS = '20260930000100_notes_rails.sql'
 /** The shipped 1.0.2 migration that revoked authenticated's writes on seven read-only tables. */
 const WRITE_REVOKE = '20260920000000_authenticated_write_revoke.sql'
 
@@ -93,7 +98,9 @@ const THING_TARGET = "{ table: 'thing', ownerColumn: 'owner_id' }"
 const THING_STRUCT = "('thing', 'owner_id')"
 
 // schema/migration/structure/dbContext each override a slice; `shipped: true` copies the
-// REAL supabase/ tree instead (the scaffold-passes-untouched regression guard).
+// REAL supabase/ tree instead (the scaffold-passes-untouched regression guard), and
+// `shipped: 'demo'` the tree `init --with-demo` plants (template/demo over it).
+/** @param {{ schema?: string, migration?: string | null, exempt?: string, dbContext?: string, structureRows?: string, definerAllow?: string, configToml?: string | null, shipped?: boolean | 'demo', manifest?: any, grantAllow?: string | null, generated?: boolean }} [o] */
 function fixture({
   schema = SCHEMA_THING,
   migration: mig = migration(),
@@ -124,6 +131,11 @@ function fixture({
     // empty list here would make the test assert a tree nobody ships.
     cpSync(SHIPPED_EXEMPT, join(dir, 'tools/rls-exempt.json'))
     cpSync(STACK_SUPABASE, join(dir, 'supabase'), { recursive: true })
+    if (shipped === 'demo') {
+      cpSync(join(DEMO, 'tests/rls/db-context.ts'), join(dir, 'tests/rls/db-context.ts'))
+      cpSync(join(DEMO, 'tools/rls-exempt.json'), join(dir, 'tools/rls-exempt.json'))
+      cpSync(join(DEMO, 'supabase'), join(dir, 'supabase'), { recursive: true })
+    }
   } else {
     writeFileSync(join(dir, 'tools/security-definer-allow.json'), definerAllow)
     writeFileSync(join(dir, 'tests/rls/db-context.ts'), dbContext)
@@ -157,9 +169,16 @@ function runGate(dir) {
   return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
 }
 
-test('GREEN: the untouched shipped supabase/ scaffold passes (profiles inline-PK + notes)', () => {
+test('GREEN: the untouched shipped supabase/ scaffold passes (profiles inline-PK, no example table)', () => {
   const r = runGate(fixture({ shipped: true }))
   assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (2.0.0): the untouched --with-demo scaffold passes (profiles inline-PK + notes)', () => {
+  const r = runGate(fixture({ shipped: 'demo' }))
+  assert.equal(r.code, 0, r.out)
+  // The demo's table carries the rail, so the default's reviewed empty state is absent.
+  assert.ok(!r.out.includes('mfaRailUnused'), r.out)
 })
 
 test('GREEN: minimal owner-scoped table with a separate leading index', () => {
@@ -609,14 +628,15 @@ test('RED (0.6.0): the SHIPPED tree with one GRANT line deleted — the green ab
   // scaffold, minus one line. A closure that passes the shipped tree because it never
   // looked at it would survive every fixture-only red-proof in this file.
   //
-  // Since 1.1.0 (#74) the line is the three-role revoke migration's: it revokes ALL from
-  // `authenticated` on notes and re-grants the four verbs, so that GRANT is the one the
-  // privileges come from, and the creating migration's older GRANT no longer counts.
-  const dir = fixture({ shipped: true })
-  const mig = join(dir, `supabase/migrations/${THREE_ROLE_REVOKE}`)
+  // Since 1.1.0 (#74) the line is the one after a revoke of ALL from `authenticated` on
+  // notes, so that GRANT is the one the privileges come from, and the creating migration's
+  // older GRANT no longer counts. Since 2.0.0 (#85) notes ships only with --with-demo, and
+  // the revoke and grant live in the demo's rails migration.
+  const dir = fixture({ shipped: 'demo' })
+  const mig = join(dir, `supabase/migrations/${NOTES_RAILS}`)
   const before = readFileSync(mig, 'utf8')
   const GRANT = 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;'
-  assert.ok(before.includes(GRANT), 'the shipped three-role revoke migration must carry the grant this deletes')
+  assert.ok(before.includes(GRANT), "the demo's rails migration must carry the grant this deletes")
   writeFileSync(mig, before.replace(GRANT, ''))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
@@ -826,6 +846,49 @@ test('RED (0.9.9): helpers defined with NO policy using them — a rail nothing 
   const r = runGate(mfaFixture({ extra: '' }))
   assert.equal(r.code, 1, r.out)
   assert.match(r.out, /are defined but NO policy uses them/)
+})
+
+// THE EMPTY STATE (2.0.0, #85). A default scaffold no longer ships the worked example, and
+// the example's table was the only one carrying the rail: the spine defines the helpers and
+// no table of the project's warrants a second factor yet. That is legal ONLY as a reviewed,
+// dated row in tools/rls-exempt.json (`mfaRailUnused`), never as a silent pass, and the row
+// reds the moment a policy does use the rail, because then it reviews a state that is gone.
+const exemptWith = (mfaRailUnused) =>
+  JSON.stringify({ comment: 'x', exempt: [], ...(mfaRailUnused === undefined ? {} : { mfaRailUnused }) })
+const REVIEWED_UNUSED = {
+  reason: 'no table of this project warrants a second factor yet; the first one opts in with the restrictive policy',
+  reviewedOn: '2026-09-30',
+}
+
+test('GREEN (2.0.0): helpers with no policy pass ONLY under a reviewed mfaRailUnused row, and say so', () => {
+  const dir = mfaFixture({ extra: '' })
+  writeFileSync(join(dir, 'tools/rls-exempt.json'), exemptWith(REVIEWED_UNUSED))
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /no policy uses the MFA rail — the reviewed empty state \(tools\/rls-exempt\.json mfaRailUnused, reviewed 2026-09-30\)/)
+})
+
+test('RED (2.0.0): an mfaRailUnused row without a real reason or date is not a review', () => {
+  for (const row of [
+    { reason: '', reviewedOn: '2026-09-30' },
+    { reason: 'too short', reviewedOn: '2026-09-30' },
+    { reason: REVIEWED_UNUSED.reason, reviewedOn: 'soon' },
+    'not an object',
+  ]) {
+    const dir = mfaFixture({ extra: '' })
+    writeFileSync(join(dir, 'tools/rls-exempt.json'), exemptWith(row))
+    const r = runGate(dir)
+    assert.equal(r.code, 1, `${JSON.stringify(row)}\n${r.out}`)
+    assert.match(r.out, /mfaRailUnused/)
+  }
+})
+
+test('RED (2.0.0): an mfaRailUnused row beside a policy that uses the rail is stale', () => {
+  const dir = mfaFixture({ extra: mfaPolicy() })
+  writeFileSync(join(dir, 'tools/rls-exempt.json'), exemptWith(REVIEWED_UNUSED))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /mfaRailUnused.*stale/s)
 })
 
 test('RED (0.9.9): a RESTRICTIVE policy does not satisfy the per-operation requirement', () => {
@@ -1038,13 +1101,28 @@ const doctrineNamed = (out) =>
     (m) => m[1],
   )
 
-test('RED (1.1.0, #74): the SHIPPED tree without the three-role revoke migration reports profiles and notes', () => {
+test('RED (1.1.0, #74): the SHIPPED tree without the three-role revoke migration reports profiles', () => {
   const dir = fixture({ shipped: true })
   rmSync(join(dir, `supabase/migrations/${THREE_ROLE_REVOKE}`))
   const r = runGate(dir)
   assert.equal(r.code, 1, r.out)
-  assert.deepEqual([...new Set(doctrineNamed(r.out))].sort(), ['notes', 'profiles'], r.out)
+  assert.deepEqual([...new Set(doctrineNamed(r.out))].sort(), ['profiles'], r.out)
   assert.match(r.out, /profiles: `authenticated` holds TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on public\.profiles, which no policy admits/)
+})
+
+test('RED (2.0.0, #85): the --with-demo tree without the doctrine lines reports profiles and notes', () => {
+  // The demo's table takes the doctrine in its own rails migration, so the spine's
+  // migration no longer covers it: both sites must go before notes is named.
+  const dir = fixture({ shipped: 'demo' })
+  rmSync(join(dir, `supabase/migrations/${THREE_ROLE_REVOKE}`))
+  const rails = join(dir, `supabase/migrations/${NOTES_RAILS}`)
+  const before = readFileSync(rails, 'utf8')
+  const DOCTRINE = 'REVOKE ALL ON TABLE public.notes FROM authenticated;\nGRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notes TO authenticated;\n'
+  assert.ok(before.includes(DOCTRINE), "the demo's rails migration must carry the doctrine lines this deletes")
+  writeFileSync(rails, before.replace(DOCTRINE, ''))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.deepEqual([...new Set(doctrineNamed(r.out))].sort(), ['notes', 'profiles'], r.out)
   assert.match(r.out, /REVOKE ALL ON TABLE public\.notes FROM authenticated;/)
 })
 

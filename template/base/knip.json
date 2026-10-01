@@ -37,7 +37,7 @@
         "e2e/**/*.ts",
         "*.{ts,mjs}"
       ],
-      "ignore": ["lib/app-data/notes.ts", "lib/app-data/notes-model.ts", "lib/supabase/client.ts"],
+      "ignore": ["lib/supabase/client.ts"],
       "ignoreDependencies": ["@app/design-system", "@supabase/ssr", "@supabase/supabase-js"]
     },
     "apps/mobile": {
@@ -47,7 +47,7 @@
         "babel.config.js",
         "metro.config.js",
         "jest.config.js",
-        "src/features/matrix/perfSubject.tsx!",
+        "src/features/*/perfSubject.tsx!",
         "src/crash/redact.ts!",
         "src/testing/mock-server.ts",
         "src/testing/mock-supabase.ts",
@@ -124,7 +124,7 @@
       "project": ["src/**/*.ts!"],
       "ignore": ["src/database.types.ts"]
     },
-    "packages/verticals/notes": {
+    "packages/verticals/*": {
       "entry": ["src/index.ts!", "src/client.ts!", "src/**/*.test.ts", "src/data/query-probes.ts!"],
       "project": ["src/**/*.ts!"],
       "ignoreDependencies": ["@app/supabase"]

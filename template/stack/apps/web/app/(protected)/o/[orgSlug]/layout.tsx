@@ -41,7 +41,7 @@ export default async function OrgLayout({
             return (
               <Link
                 key={candidate.id}
-                href={`/o/${candidate.slug}/notes`}
+                href={`/o/${candidate.slug}`}
                 // aria-current is what tells a screen-reader user which tenant they are in.
                 // Colour alone would leave that information visible only to people who can
                 // see it — and "which company's data am I looking at" is not decorative.

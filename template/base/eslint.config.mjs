@@ -7,6 +7,7 @@
 // the boundary bans: global fetch outside the api-client one-door,
 // expo-secure-store outside the host/auth keychain seam, chart libraries in the
 // dense features. Runs as `eslint . --max-warnings 0`.
+import { readdirSync } from 'node:fs'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactNative from 'eslint-plugin-react-native'
 import reactNativeA11y from 'eslint-plugin-react-native-a11y'
@@ -15,6 +16,30 @@ import tseslint from 'typescript-eslint'
 // The harness's custom rules (tools/eslint-rules/index.mjs) — plain rules keyed on
 // JS/TS-shared syntax nodes, scoped by the blocks at the bottom of this config.
 import localRules from './tools/eslint-rules/index.mjs'
+
+// The DATA-DENSE mobile features (2.0.0, #85): every apps/mobile/src/features/<name>/ that
+// ships a perfSubject.tsx, the marker the perf-budget gate's dense-feature closure already
+// demands of a dense feature. Derived rather than named because this file is owned and the
+// same in every install: through 1.1.x the chart-library ban below named the worked
+// example's matrix feature, which a default scaffold no longer ships. With no dense feature
+// the block is absent, and the first one arms it.
+const DENSE_FEATURE_GLOBS = (() => {
+  try {
+    return readdirSync(new URL('./apps/mobile/src/features/', import.meta.url), {
+      withFileTypes: true,
+    })
+      .filter((d) => d.isDirectory())
+      .filter((d) =>
+        readdirSync(new URL(`./apps/mobile/src/features/${d.name}/`, import.meta.url)).includes(
+          'perfSubject.tsx',
+        ),
+      )
+      .map((d) => `apps/mobile/src/features/${d.name}/**`)
+      .sort()
+  } catch {
+    return []
+  }
+})()
 
 // Every rule the plugin ships, at error severity. Derived from the plugin's own
 // rule table ON PURPOSE: a plugin upgrade that adds a rule arms it here
@@ -302,67 +327,71 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    // The dense matrix feature draws its own cells (FlatList + token styles) for
-    // performance and accessibility-tree control; charting libraries are banned
-    // there. This block is LAST so it also restates the secure-store ban — later
-    // flat-config blocks replace rule entries wholesale.
-    files: ['apps/mobile/src/features/matrix/**'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
+  ...(DENSE_FEATURE_GLOBS.length === 0
+    ? []
+    : [
         {
-          patterns: [
-            {
-              group: [
-                'victory-native',
-                'react-native-chart-kit',
-                'react-native-svg-charts',
-                'recharts',
-                'recharts/*',
-                'd3-*',
-                '@nivo/*',
-              ],
-              message:
-                'matrix draws its own rows/cells (FlatList + token styles); chart libraries are banned here.',
-            },
-            {
-              group: ['expo-secure-store', 'expo-secure-store/*'],
-              message:
-                'The keychain has one door: import the secure* helpers from src/host (or go through src/auth providers). Direct expo-secure-store use bypasses the corrupt-safe seam.',
-            },
-            {
-              group: ['expo-haptics', 'expo-haptics/*'],
-              message:
-                'Haptics have one door: call haptic() from src/lib/haptics.ts — the closed selection/success/warning vocabulary keeps tactile feedback consistent app-wide.',
-            },
-            {
-              group: ['react-native-svg', 'react-native-svg/*'],
-              message:
-                'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
-            },
-            {
-              // 0.9.5: cryptographic primitives are the fourth seam with one
-              // door — the host implements @app/crypto's CryptoProvider and a
-              // screen takes primitives from the injected port. A cipher
-              // library imported into a feature is a second envelope format
-              // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
-              group: [
-                'aes-js',
-                '@noble/*',
-                'libsodium*',
-                'react-native-libsodium*',
-                'react-native-quick-crypto',
-                'tweetnacl*',
-              ],
-              message:
-                'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
-            },
-          ],
+          // A dense feature draws its own cells (FlatList + token styles) for
+          // performance and accessibility-tree control; charting libraries are banned
+          // there. This block is LAST so it also restates the secure-store ban — later
+          // flat-config blocks replace rule entries wholesale.
+          files: DENSE_FEATURE_GLOBS,
+          rules: {
+            'no-restricted-imports': [
+              'error',
+              {
+                patterns: [
+                  {
+                    group: [
+                      'victory-native',
+                      'react-native-chart-kit',
+                      'react-native-svg-charts',
+                      'recharts',
+                      'recharts/*',
+                      'd3-*',
+                      '@nivo/*',
+                    ],
+                    message:
+                      'A data-dense feature draws its own rows/cells (FlatList + token styles); chart libraries are banned here.',
+                  },
+                  {
+                    group: ['expo-secure-store', 'expo-secure-store/*'],
+                    message:
+                      'The keychain has one door: import the secure* helpers from src/host (or go through src/auth providers). Direct expo-secure-store use bypasses the corrupt-safe seam.',
+                  },
+                  {
+                    group: ['expo-haptics', 'expo-haptics/*'],
+                    message:
+                      'Haptics have one door: call haptic() from src/lib/haptics.ts — the closed selection/success/warning vocabulary keeps tactile feedback consistent app-wide.',
+                  },
+                  {
+                    group: ['react-native-svg', 'react-native-svg/*'],
+                    message:
+                      'Svg primitives have one door: render a named glyph through src/components/icons/Icon.tsx — the closed set keeps iconography one idiom; new glyphs are added there in review.',
+                  },
+                  {
+                    // 0.9.5: cryptographic primitives are the fourth seam with one
+                    // door — the host implements @app/crypto's CryptoProvider and a
+                    // screen takes primitives from the injected port. A cipher
+                    // library imported into a feature is a second envelope format
+                    // nobody reviewed. See docs/modules/e2ee/mobile-provider.patch.md.
+                    group: [
+                      'aes-js',
+                      '@noble/*',
+                      'libsodium*',
+                      'react-native-libsodium*',
+                      'react-native-quick-crypto',
+                      'tweetnacl*',
+                    ],
+                    message:
+                      'Cipher libraries have one door: the host seam (apps/mobile/src/host/**) implements @app/crypto CryptoProvider, and screens take primitives from the injected port — see docs/modules/e2ee/mobile-provider.patch.md.',
+                  },
+                ],
+              },
+            ],
+          },
         },
-      ],
-    },
-  },
+      ]),
   {
     // app-error-only — the lint half of the single-error-channel doctrine. Scoped to the
     // enveloped surfaces (web Server Actions, tRPC procedures, the vertical DAL) where a domain

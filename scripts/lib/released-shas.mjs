@@ -18,7 +18,7 @@
 // template as the OWNED file tools/lib/planted-shas.json, which gate-integrity reads to ask
 // whether a harness release planted an untracked escape list, not merely whether its bytes
 // match a manifest record anyone can re-record.
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { sha256 } from '../../installer/lib/manifest.mjs'
 import { tokenSites } from '../../installer/lib/placeholders.mjs'
@@ -41,8 +41,10 @@ const PLANTED_NOTE =
 
 /**
  * Every template tree that can hold an installable file: base, each module, stack, each
- * design-token preset. Stack and presets are seeded almost everywhere — almost: one owned
- * file lives under stack, and a walk that skipped it would park that file forever.
+ * design-token preset, and the worked example (2.0.0, #85: `init --with-demo`). Stack,
+ * presets and demo are seeded almost everywhere — almost: owned files live under stack and
+ * under demo (the example's Maestro flow and journey), and a walk that skipped one would
+ * park that file forever.
  *
  * @param {string} templateDir absolute path of a `template/` directory
  */
@@ -58,7 +60,8 @@ export function templateTrees(templateDir) {
       return [] // a commit older than the directory
     }
   }
-  return ['base', ...dirs('modules'), 'stack', ...dirs('presets')]
+  const demo = existsSync(join(templateDir, 'demo')) ? ['demo'] : [] // a commit older than 2.0.0
+  return ['base', ...dirs('modules'), 'stack', ...dirs('presets'), ...demo]
 }
 
 /** @param {Variant[]} variants @param {Variant} variant */

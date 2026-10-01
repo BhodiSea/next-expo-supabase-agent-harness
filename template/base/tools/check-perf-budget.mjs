@@ -68,7 +68,10 @@ const BUDGET_PATH = 'tools/perf-budget.json'
 // every navigation).
 const SCAN_ROOTS = ['apps/mobile/src', 'apps/mobile/app']
 const FEATURES_DIR = 'apps/mobile/src/features'
-const WORKED_SUBJECT = 'apps/mobile/src/features/matrix/perfSubject.tsx'
+// Where a perf subject's shape is shown. Prose, not a path (2.0.0, #85): this gate is owned
+// and the same in every install, and the worked subject ships only with the example.
+const WORKED_SUBJECT =
+  'docs/harness/gates-catalog.md ("perf-budget"), and the matrix screen `init --with-demo` plants'
 const DEFAULT_EXPECT = 'role="cell"'
 
 if (!existsSync('apps/mobile/package.json'))

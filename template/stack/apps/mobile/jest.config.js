@@ -77,7 +77,6 @@ module.exports = {
     '<rootDir>/src/lib/sse\\.test\\.ts$',
     '<rootDir>/src/features/actions/fuzzyScore\\.test\\.ts$',
     '<rootDir>/src/features/actions/recents\\.test\\.ts$',
-    '<rootDir>/src/features/matrix/matrixData\\.test\\.ts$',
   ],
   // `json` writes coverage/coverage-final.json — the istanbul artifact the
   // diff-coverage step merges with the vitest map (both runners feed one floor).

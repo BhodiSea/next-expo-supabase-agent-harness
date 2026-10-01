@@ -33,8 +33,8 @@ import { type Palette, radius, space, useThemedStyles } from '../src/theme/theme
 // factor row is a security fact, and an optimistic security fact is a lie
 // waiting for a network blip.
 
-// ROUTES entry 3 IS the security entry (id 'security') — literal-typed testIDs.
-const SECURITY = ROUTES[3]
+// ROUTES entry 2 IS the security entry (id 'security') — literal-typed testIDs.
+const SECURITY = ROUTES[2]
 
 interface FactorRow {
   readonly id: string

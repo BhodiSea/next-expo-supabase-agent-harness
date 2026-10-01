@@ -50,7 +50,7 @@ GRANT EXECUTE ON FUNCTION public.mfa_fixture(text) TO authenticated;
 
 -- Counted by hand against the assertions below. pgTAP fails a plan mismatch, so an
 -- assertion deleted in a hurry cannot pass as a smaller suite.
-SELECT plan(25);
+SELECT plan(23);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Shape: the rail is built the way the migration claims
@@ -87,22 +87,6 @@ SELECT ok(
 SELECT ok(
   NOT has_table_privilege('authenticated', 'auth.mfa_factors', 'SELECT'),
   'authenticated holds NO read on auth.mfa_factors — the definer function is the whole access path'
-);
-
-SELECT is(
-  (SELECT permissive FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'notes' AND policyname = 'notes_mfa_aal2'),
-  'RESTRICTIVE',
-  'notes_mfa_aal2 is RESTRICTIVE — it ANDs onto the permissive set and can only subtract'
-);
-
--- No `FOR` clause, so every command. The vendor’s other documentation page writes this
--- same policy `for update`, which gates writes and leaves SELECT wide open.
-SELECT is(
-  (SELECT cmd FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'notes' AND policyname = 'notes_mfa_aal2'),
-  'ALL',
-  'notes_mfa_aal2 covers every command, not just one'
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────

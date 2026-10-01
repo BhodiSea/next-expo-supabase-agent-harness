@@ -85,6 +85,10 @@ node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/i18n-rtl
 DEVICE_EMAIL="device-mutation@example.com"
 DEVICE_PASSWORD="device-mutation-pw-1"
 node tools/ci/mint-device-user.mjs "$DEVICE_EMAIL" "$DEVICE_PASSWORD"
+# 2.0.0 (#85): the scaffold this lane builds is `init --with-demo`, so it carries both the
+# default session journey and the worked example's write journey; each runs, by name.
+node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/session.yaml --out-dir artifacts/maestro/session \
+  --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
 node tools/check-e2e-device.mjs --phase journey --file maestro/journeys/mutation.yaml --out-dir artifacts/maestro/mutation \
   --env "DEVICE_EMAIL=$DEVICE_EMAIL" --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"
 

@@ -1,0 +1,4 @@
+{
+  "comment": "Reviewed escapes for the vertical-anatomy laws (boundaries gate, part 3 — lib/vertical-anatomy.mjs). A genuinely-justified deviation from the worked anatomy goes here as {\"package\": \"@app/<name>\", \"law\": \"<law id>\", \"path\": \"<optional file>\", \"reason\": \"...\" (>= 40 chars), \"reviewedOn\": \"YYYY-MM-DD\"}. Law ids: dual-barrel, pure-barrel, domain-purity, dal-client-value-import, port-presence, events-purity, select-star. Closed BOTH ways: an entry matching no live finding reds as stale. Write-guard-protected and listed in ESCAPE_LISTS: widening it must be COMMITTED, so it appears in the PR diff under CODEOWNERS. Seeded empty — the taught anatomy (packages/verticals/notes) needs no escape, and that is the point.",
+  "allow": []
+}

@@ -406,7 +406,6 @@ SELECT lives_ok(
   $$ SELECT (SELECT count(*) FROM public.orgs)
           + (SELECT count(*) FROM public.memberships)
           + (SELECT count(*) FROM public.invitations)
-          + (SELECT count(*) FROM public.notes)
           + (SELECT count(*) FROM public.profiles) $$,
   'no policy recurses (54001 stack depth exceeded) when authenticated reads every RLS target'
 );

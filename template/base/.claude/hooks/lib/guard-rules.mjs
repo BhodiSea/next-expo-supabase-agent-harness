@@ -520,6 +520,13 @@ export const WRITE_PROTECTED = [
   // why the guard exists: nothing may hand-edit it, theirs or ours; `pnpm gen` is the
   // only author.
   { id: 'action-inventory-manifest', re: /^tools\/generated\/action-inventory\.json$/ },
+  // The third sibling, for the event catalogs (2.0.0, #85): generated from the platform
+  // catalog and each vertical's EVENT_CATALOG by `pnpm gen`, regen-diffed by `contracts`.
+  // Owned until 2.0.0, when gate-integrity's hash pin was its guard; seeded since (the
+  // worked example's three rows left the default copy, and an owned re-plant would have
+  // dropped them from every upgraded install), so the write-guard is now what stops a hand
+  // edit. `pnpm gen` is the only author.
+  { id: 'event-catalog-manifest', re: /^tools\/generated\/event-catalog\.json$/ },
   // THE AGENT SURFACE — the most privileged prose in the repository, and until 0.2.0 the
   // least protected. `.claude/rules/` is loaded into every turn; `.claude/agents/` decides
   // which reviewers exist and what they may touch; `.claude/commands/` and

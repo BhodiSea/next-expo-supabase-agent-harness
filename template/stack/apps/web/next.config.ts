@@ -35,7 +35,6 @@ const WORKSPACE_PACKAGES = [
   '@app/design-tokens',
   '@app/env',
   '@app/errors',
-  '@app/notes',
   '@app/observability',
   '@app/supabase',
 ]

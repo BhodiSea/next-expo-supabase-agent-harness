@@ -603,8 +603,11 @@ const GROUNDED_ELSEWHERE = {
     'written by GIT, never by a template: `git init`/`clone` creates it and the `git config` CLI maintains it. The rule exists because a DIRECT overwrite of the file is `core.hooksPath` (and more) rewritten with no `git config` token for the bash guard\'s git-hookspath-repoint rule to see — layer 2 was disarmable by one Write while the whole chain stayed green.',
 }
 
+// Every tree an install can receive a file from: base, stack, the worked example (2.0.0,
+// `init --with-demo`), the design-token presets and each module.
 const shippedPaths = new Set(
-  ['base', 'stack']
+  ['base', 'stack', 'demo']
+    .concat(readdirSync(join(ROOT, 'template', 'presets')).sort().map((p) => `presets/${p}`))
     .concat(readdirSync(join(ROOT, 'template', 'modules')).sort().map((m) => `modules/${m}`))
     .flatMap((tree) => walkTemplate(tree))
     .map((e) => e.installPath),

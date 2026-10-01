@@ -908,6 +908,13 @@
   },
   "factoryComment": "THE FACTORY CLOSURE (0.7.0). #factoryGates: every gate script in scripts/ (check-*.mjs, hygiene.mjs, generate-floor.mjs) unioned with every step name in .claude/hooks/stop-factory-gate.mjs — a hook step invoking a scripts/*.mjs identifies with that script, so each gate carries ONE entry; toolchain-only steps (eslint, types, dead-code, format, tests) stand alone. Kinds: 'fixture' (a repo test that drives the gate red — executed in spawn mode under the same G28 bars as #steps proofs) and 'lane' (a '<file>#<job>' declaration naming the factory workflow job that executes what no fixture can — a vendor toolchain or a network scan). #factoryLanes: every job in the factory's own .github/workflows, keyed '<workflow-file>#<job>' — NEVER bare ids, because #lanes above already claims 'actionlint' and 'zizmor' and one proof must never silently stand in for two workflows. Kinds: 'fixture' (the lane logic's own death-tests) and 'steps' (a reasoned declaration — the note must name what already proves the job's work; a note-less declaration is rejected). This closes the class the 0.6.0 lineage named 'hygiene had none': the gates that guard the guards, and the lanes that run them, were the last enforcement surfaces with no falsifiability ledger.",
   "factoryGates": {
+    "check-demo-index.mjs": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/check-demo-index.test.mjs",
+        "note": "2.0.0 (#85): the gate-proposal #85 carries. Over a fixture template tree, the real script reds on each case it exists for and names the file and the row or the needle: a register row that differs from the default copy but is missing from the index (JSON pointer and markdown row key, delete and restore), an index entry that resolves to nothing or names a row both copies share, an absent or malformed index, an owned file (base or module tree) naming a demo-only file, directory or package (@app/notes), a demo marker other than true, the demo overlaying an owned file, and a markdown register whose copies differ outside table rows. Prose, seeded files, generic slots and a \"demo\": true object stay green; --write regenerates the index and refuses while a structural finding stands; and the LIVE case runs the check over this checkout."
+      }
+    ],
     "check-canary-coverage.mjs": [
       {
         "kind": "fixture",

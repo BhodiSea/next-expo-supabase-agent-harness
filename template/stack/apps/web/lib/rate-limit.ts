@@ -70,11 +70,6 @@ export function rateLimitBuckets(): readonly RateLimitBucket[] {
  * budget is three orders of magnitude away from the others.
  */
 const PROCEDURE_BUCKETS: Readonly<Record<string, RateLimitBucket | null>> = {
-  'notes.create': WRITE,
-  'notes.get': READ,
-  'notes.list': READ,
-  'notes.remove': WRITE,
-  'notes.update': WRITE,
   // Deliberately null — see above. The reason is recorded in tools/rate-limit-budget.json
   // where a reviewer looks for it, and the gate refuses an exemption without one.
   'system.health': null,
@@ -109,7 +104,6 @@ export function bucketForProcedure(path: string): RateLimitBucket | null {
  */
 const ACTION_BUCKETS: Readonly<Record<string, RateLimitBucket | null>> = {
   acceptInvitationAction: PROVISIONING,
-  createNoteAction: WRITE,
   ensurePersonalOrgAction: PROVISIONING,
 }
 

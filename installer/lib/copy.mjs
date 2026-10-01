@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RENAMES, TOKEN_PRESETS } from './layout.mjs'
+import { DEMO_TREE, RENAMES, TOKEN_PRESETS } from './layout.mjs'
 import { render } from './placeholders.mjs'
 
 // Manifest keys, mode prefixes (SEEDED_PREFIXES 'apps/'), RETROFIT_ADDITIVE
@@ -127,12 +127,73 @@ export function walkStack(answers) {
   if (overlay.length === 0) {
     throw new Error(`preset '${preset}' resolved to zero files — installer packaging is broken`)
   }
+  return overlayEntries(stack, overlay)
+}
+
+/**
+ * @typedef {{ storagePath: string, installPath: string, sourcePath: string, demo?: boolean, module?: string }} TemplateEntry
+ */
+
+/**
+ * THE overlay rule, shared by the design-token presets (over the stack) and the demo (over
+ * base and stack): an overlay entry with an installPath the plan already has REPLACES that
+ * entry in place, so plan order is preserved (init's package.json/pnpm-workspace special-
+ * casing keys off installPath); the rest APPEND. Entries keep their true storagePath.
+ *
+ * @param {TemplateEntry[]} entries
+ * @param {TemplateEntry[]} overlay
+ * @returns {TemplateEntry[]}
+ */
+function overlayEntries(entries, overlay) {
   const byInstall = new Map(overlay.map((e) => [e.installPath, e]))
-  const covered = new Set(stack.map((e) => e.installPath))
+  const covered = new Set(entries.map((e) => e.installPath))
   return [
-    ...stack.map((e) => byInstall.get(e.installPath) ?? e),
+    ...entries.map((e) => byInstall.get(e.installPath) ?? e),
     ...overlay.filter((e) => !covered.has(e.installPath)),
   ]
+}
+
+/**
+ * The demo tree (2.0.0, #85), each entry tagged `demo: true`. Fail loud, never fail open:
+ * a demo resolving to zero files would record `demo: true` over an install that has none.
+ *
+ * @returns {TemplateEntry[]}
+ */
+export function walkDemo() {
+  const demo = walkTemplate(DEMO_TREE)
+  if (demo.length === 0) {
+    throw new Error('the demo tree (template/demo) resolved to zero files — installer packaging is broken')
+  }
+  return demo.map((e) => ({ ...e, demo: true }))
+}
+
+/**
+ * A plan with the demo overlaid when the install has it (`manifest.demo === true`, or an
+ * `init --with-demo`), and unchanged otherwise. Every caller passes the recorded choice, so
+ * no command grows a branch for it.
+ *
+ * @param {TemplateEntry[]} entries
+ * @param {unknown} demo
+ * @returns {TemplateEntry[]}
+ */
+export function withDemo(entries, demo) {
+  return demo === true ? overlayEntries(entries, walkDemo()) : entries
+}
+
+/**
+ * The entries `update --refresh-seeded` resolves a path against: the install's own plan
+ * plus every demo path that plan does not already cover. An install that predates the
+ * demo record still carries the example, and `--refresh-seeded apps/mobile/src/features/matrix/`
+ * is the channel its seedOnInitOnly notes advertise; a path both trees ship keeps the
+ * plan's bytes, so an install without the demo is never handed the demo's version of a
+ * shared file.
+ *
+ * @param {TemplateEntry[]} entries
+ * @returns {TemplateEntry[]}
+ */
+export function withDemoAdditions(entries) {
+  const covered = new Set(entries.map((e) => e.installPath))
+  return [...entries, ...walkDemo().filter((e) => !covered.has(e.installPath))]
 }
 
 // walkStack + renderEntry — the preset-aware sibling of planTree('stack', …).
@@ -144,5 +205,23 @@ export function planStack(answers) {
     storagePath,
     installPath,
     content: renderEntry({ sourcePath }, answers),
+  }))
+}
+
+/**
+ * The base + stack plan `init` writes, with the demo overlaid when asked for, rendered.
+ * Demo entries keep `demo: true` so the solution-file injection can find the demo's
+ * workspace packages (tsconfig-references.mjs injectDemoProjectReferences).
+ *
+ * @param {object} answers
+ * @param {boolean} demo
+ * @returns {{ storagePath: string, installPath: string, content: string | Buffer, demo?: boolean, module?: string }[]}
+ */
+export function planInstall(answers, demo) {
+  return withDemo([...walkTemplate('base'), ...walkStack(answers)], demo).map(({ storagePath, installPath, sourcePath, demo: isDemo }) => ({
+    storagePath,
+    installPath,
+    content: renderEntry({ sourcePath }, answers),
+    ...(isDemo === true ? { demo: true } : {}),
   }))
 }

@@ -76,7 +76,7 @@ describe('interpolation', () => {
   it('formats an interpolated NUMBER through Intl — a bare template literal could not', () => {
     // Numbers routed through a placeholder pick up the locale's grouping separator; raw
     // interpolation would show every reader the same "1234567".
-    expect(t('matrix.summary', { count: 2, rows: 1234567, columns: 6 })).toContain('1,234,567')
+    expect(t('home.orgs.summary', { count: 1234567 })).toContain('1,234,567')
   })
 
   it('leaves an unknown placeholder intact rather than printing "undefined"', () => {
@@ -86,17 +86,17 @@ describe('interpolation', () => {
 
 describe('plurals', () => {
   it('selects the branch by CLDR category, not by an English if-statement', () => {
-    expect(t('matrix.summary', { count: 1, rows: 1, columns: 6 })).toContain('1 row ×')
-    expect(t('matrix.summary', { count: 2, rows: 2, columns: 6 })).toContain('2 rows ×')
+    expect(t('home.orgs.summary', { count: 1 })).toContain('1 organization.')
+    expect(t('home.orgs.summary', { count: 2 })).toContain('2 organizations.')
   })
 
-  it('"1 rows" — the classic hardcoded-plural bug — cannot be produced', () => {
-    const one = t('matrix.summary', { count: 1, rows: 1, columns: 6 })
-    expect(one).not.toContain('1 rows')
+  it('"1 organizations" — the classic hardcoded-plural bug — cannot be produced', () => {
+    const one = t('home.orgs.summary', { count: 1 })
+    expect(one).not.toContain('1 organizations')
   })
 
   it('falls back to `other` when a count is absent', () => {
-    expect(t('matrix.summary', { rows: 3, columns: 6 })).toContain('3 rows')
+    expect(t('home.orgs.summary', {})).toContain('organizations')
   })
 })
 
@@ -154,7 +154,7 @@ describe('number formatting', () => {
   })
 
   it('a number interpolated into a message picks up the locale grouping', () => {
-    expect(t('matrix.summary', { count: 2, rows: 1234567, columns: 6 })).toContain('1,234,567')
+    expect(t('home.orgs.summary', { count: 1234567 })).toContain('1,234,567')
   })
 
   it('formatDate renders the absolute instant in the locale', () => {
@@ -207,10 +207,10 @@ describe('pseudo-locale', () => {
 
 describe('locale switching', () => {
   it('switching the locale swaps the active catalog for every subsequent t()', () => {
-    expect(t('notes.empty.title')).toBe('No notes yet')
+    expect(t('home.empty.title')).toBe('You are not in any organization yet.')
     switchLocale('en-XA')
-    expect(t('notes.empty.title')).not.toBe('No notes yet')
-    expect(t('notes.empty.title')).toBe(translate('en-XA', 'notes.empty.title'))
+    expect(t('home.empty.title')).not.toBe('You are not in any organization yet.')
+    expect(t('home.empty.title')).toBe(translate('en-XA', 'home.empty.title'))
   })
 
   it('every declared locale resolves every key (no silent English fallback)', () => {

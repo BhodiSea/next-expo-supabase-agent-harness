@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-// tools/ci/mint-device-user.mjs — mint the identity the on-device MUTATION journey
-// signs in as, and provision its personal org, against the local Supabase stack the
-// device lane started (the consumer's mobile-e2e job; the harness's own maestro-smoke).
+// tools/ci/mint-device-user.mjs — mint the identity the on-device signed-in journeys
+// (maestro/journeys/: the session journey every scaffold ships, and the worked example's
+// write journey) sign in as, and provision its personal org, against the local Supabase
+// stack the device lane started (the consumer's mobile-e2e job; the harness's own
+// maestro-smoke).
 //
-// WHY THIS EXISTS (1.0.0). maestro/journeys/mutation.yaml was written against the
+// WHY THIS EXISTS (1.0.0). The device lane's write journey was written against the
 // inherited harness's __DEV__ stub authority: tap the empty sign-in form and a dev
 // user was minted for you. Supabase Auth replaced that authority releases ago, the
 // mobile sign-in became a real email/password form, and the journey kept tapping an

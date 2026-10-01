@@ -707,14 +707,50 @@ if (mfaPolicies.length > 0) {
 }
 // The other direction — a rail nothing uses is decoration, and a helper left behind
 // after its policy was dropped reads to the next person as enforcement that exists.
-if (mfaPolicies.length === 0 && functions.some((f) => /^(?:private\.)?mfa_/.test(f.qualified))) {
+//
+// THE EMPTY STATE (2.0.0, #85). The spine defines the helpers in every install, and a
+// default scaffold has no table that warrants a second factor yet: the worked example's
+// table carried the rail, and it now ships only with `init --with-demo`. So "defined but
+// unused" is legal exactly when tools/rls-exempt.json records it as a reviewed decision —
+// an `mfaRailUnused` row with a real reason and the date it was reviewed. The row is itself
+// a finding the moment a policy uses the rail, because it then reviews a state that no
+// longer exists. Without the row, "defined but unused" is the finding it always was.
+const MFA_REVIEW_MIN_REASON = 40
+
+/**
+ * The reviewed mfaRailUnused row; null when absent. A malformed row is a finding (and null).
+ *
+ * @returns {{ reason: string, reviewedOn: string } | null}
+ */
+function mfaRailReview() {
+  if (!existsSync(EXEMPT)) return null
+  const row = JSON.parse(readFileSync(EXEMPT, 'utf8')).mfaRailUnused
+  if (row === undefined) return null
+  const reasonOk =
+    typeof row?.reason === 'string' && row.reason.trim().length >= MFA_REVIEW_MIN_REASON
+  const dateOk = typeof row?.reviewedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.reviewedOn)
+  if (reasonOk && dateOk) return row
   errs.push(
-    `the MFA helpers (${functions
-      .filter((f) => /^(?:private\.)?mfa_/.test(f.qualified))
-      .map((f) => f.qualified)
-      .join(
-        ', ',
-      )}) are defined but NO policy uses them — a rail no policy references enforces nothing while reading, to the next person, as MFA enforcement that is already in place.`,
+    `${EXEMPT}: mfaRailUnused must be {"reason": at least ${MFA_REVIEW_MIN_REASON} characters on why no table here warrants a second factor yet, "reviewedOn": "YYYY-MM-DD"} — got ${JSON.stringify(row)}. An unexplained, undated row is not a review.`,
+  )
+  return null
+}
+
+const mfaHelpers = functions
+  .filter((f) => /^(?:private\.)?mfa_/.test(f.qualified))
+  .map((f) => f.qualified)
+const mfaReview = mfaRailReview()
+if (mfaPolicies.length > 0 && mfaReview !== null) {
+  errs.push(
+    `${EXEMPT}: mfaRailUnused (reviewed ${mfaReview.reviewedOn}) is stale — ${mfaPolicies.map(({ table, p }) => `${table}.${p.name}`).join(', ')} use(s) the MFA rail, so the empty state it reviews is gone. Delete the row.`,
+  )
+} else if (mfaPolicies.length === 0 && mfaHelpers.length > 0 && mfaReview !== null) {
+  console.log(
+    `${GATE}: NOTE — no policy uses the MFA rail — the reviewed empty state (${EXEMPT} mfaRailUnused, reviewed ${mfaReview.reviewedOn}). The first table that warrants a second factor takes the restrictive policy (docs/adr/20260812-mfa-aal2.md), and this row goes.`,
+  )
+} else if (mfaPolicies.length === 0 && mfaHelpers.length > 0) {
+  errs.push(
+    `the MFA helpers (${mfaHelpers.join(', ')}) are defined but NO policy uses them — a rail no policy references enforces nothing while reading, to the next person, as MFA enforcement that is already in place. Put the restrictive policy on the table that warrants it, or (human decision) record the empty state as a reviewed mfaRailUnused row in ${EXEMPT}.`,
   )
 }
 

@@ -1,11 +1,11 @@
-// tools/gen-event-catalog.mjs over fixture trees (1.1.0, #82). The generator walks the
-// platform catalog plus each vertical whose `./client` declares EVENT_CATALOG, and, while
-// the root package.json lists @app/notes and that vertical has not opted in, the one
-// catalog 1.0.x imported by name. These cases run the SHIPPED generator with plain node
-// over the three kinds of tree the issue names, which must all regenerate the committed
-// five-row catalog byte for byte, and over the issue's proofs B, C and D:
-//   - a fresh 1.1.0 scaffold: notes has opted in and the root does not list it;
-//   - an upgraded 1.0.x install: notes has not opted in and the root lists it;
+// tools/gen-event-catalog.mjs over fixture trees (1.1.0, #82; 2.0.0, #85). The generator
+// walks the platform catalog plus each vertical whose `./client` declares EVENT_CATALOG.
+// Through 1.1.x it also read the one catalog 1.0.x imported by name; that compatibility
+// entry left with the example at 2.0.0, as the 1.1.0 record said it would. These cases run
+// the SHIPPED generator with plain node over:
+//   - a default 2.0.0 scaffold: no vertical, the default's committed two-row catalog;
+//   - a --with-demo scaffold: notes has opted in, the demo's committed five-row catalog;
+//   - a 1.0.x install that never opted in: its vertical is named as not catalogued;
 //   - an install that adopted the export and kept the root dependency;
 //   - B, a vertical that names EVENT_CATALOG and exports no catalog, fails closed;
 //   - C, a vertical that names it only in a comment is listed as not catalogued;
@@ -13,7 +13,7 @@
 //
 // The fixture stands in for an install: @app/events is a stub package under node_modules
 // whose catalog is the committed file's two platform rows, the notes vertical's catalog is
-// its three notes rows, and its sources are .mjs so no tsx is needed. The generator and
+// the demo's three notes rows, and its sources are .mjs so no tsx is needed. The generator and
 // the libraries it imports are copied from the template into the fixture's tools/, because
 // a bare specifier resolves from the importing file's directory, not from the cwd. The root
 // dependency is a directory junction, which Windows creates without privileges; there is
@@ -39,11 +39,14 @@ import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const BASE = fileURLToPath(new URL('../../template/base/', import.meta.url))
-const STACK = fileURLToPath(new URL('../../template/stack/', import.meta.url))
+const DEMO = fileURLToPath(new URL('../../template/demo/', import.meta.url))
 const OUTPUT = 'tools/generated/event-catalog.json'
+/** The default scaffold's committed catalog: the platform rows alone. */
 const COMMITTED = readFileSync(join(BASE, OUTPUT), 'utf8')
+/** The --with-demo scaffold's committed catalog: the platform rows and the example's. */
+const DEMO_COMMITTED = readFileSync(join(DEMO, OUTPUT), 'utf8')
 /** @type {Array<{ name: string, version: number, description: string }>} */
-const ROWS = JSON.parse(COMMITTED)
+const ROWS = JSON.parse(DEMO_COMMITTED)
 const byPrefix = (/** @type {string} */ prefix) =>
   Object.fromEntries(ROWS.filter((r) => r.name.startsWith(prefix)).map((r) => [r.name, r]))
 const PLATFORM = byPrefix('platform.')
@@ -76,11 +79,12 @@ function write(dir, files) {
 
 /**
  * An install-shaped tree.
- * @param {{ notes?: 'declared' | 'legacy' | null, rootLists?: boolean, extra?: Record<string, unknown> }} shape
+ * @param {{ notes?: 'declared' | 'legacy' | null, rootLists?: boolean, extra?: Record<string, unknown>, committed?: string }} shape
  *   notes: how the example's ./client exports its catalog (null: the example is absent);
- *   rootLists: whether the root package.json lists @app/notes (and so links it).
+ *   rootLists: whether the root package.json lists @app/notes (and so links it);
+ *   committed: the catalog the tree has committed (the demo's, unless a test says).
  */
-function install({ notes = 'declared', rootLists = false, extra = {} } = {}) {
+function install({ notes = 'declared', rootLists = false, extra = {}, committed = DEMO_COMMITTED } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-gen-events-'))
   made.push(dir)
   for (const rel of TOOL_FILES) {
@@ -89,7 +93,7 @@ function install({ notes = 'declared', rootLists = false, extra = {} } = {}) {
     copyFileSync(join(BASE, rel), join(dir, rel))
   }
   write(dir, {
-    [OUTPUT]: COMMITTED,
+    [OUTPUT]: committed,
     'package.json': {
       name: 'scaffold',
       private: true,
@@ -148,20 +152,29 @@ function generate(dir, args = []) {
 
 const IN_SYNC = `${OUTPUT}: in sync (5 events)\n`
 
-test('the fixture splits the committed catalog into two platform rows and three notes rows', () => {
+test('the fixture splits the demo catalog into two platform rows and three notes rows; the default holds the platform two', () => {
   assert.equal(ROWS.length, 5)
   assert.deepEqual(Object.keys(PLATFORM), ['platform.error_surfaced', 'platform.session_changed'])
   assert.deepEqual(Object.keys(NOTES), ['notes.created', 'notes.deleted', 'notes.updated'])
+  assert.equal(COMMITTED, `${JSON.stringify(Object.values(PLATFORM), null, 2)}\n`)
 })
 
-test('a fresh 1.1.0 scaffold (notes opted in, the root does not list it) regenerates the committed catalog', () => {
+test('2.0.0: a default scaffold (no vertical) regenerates the default committed catalog', () => {
+  const dir = install({ notes: null, committed: COMMITTED })
+  assert.deepEqual(generate(dir, ['--check']), { status: 0, stdout: `${OUTPUT}: in sync (2 events)\n`, stderr: '' })
+})
+
+test('a --with-demo scaffold (notes opted in, the root does not list it) regenerates the demo committed catalog', () => {
   const dir = install({ notes: 'declared', rootLists: false })
   assert.deepEqual(generate(dir, ['--check']), { status: 0, stdout: IN_SYNC, stderr: '' })
 })
 
-test('an upgraded 1.0.x install (notes not opted in, the root lists it) regenerates the committed catalog', () => {
+test('2.0.0: a 1.0.x install that never opted in is told its vertical is not catalogued — the compatibility entry is gone', () => {
   const dir = install({ notes: 'legacy', rootLists: true })
-  assert.deepEqual(generate(dir, ['--check']), { status: 0, stdout: IN_SYNC, stderr: '' })
+  const run = generate(dir, ['--check'])
+  assert.equal(run.status, 1, `${run.stdout}${run.stderr}`)
+  assert.ok(run.stdout.includes(`${OUTPUT}: @app/notes is not catalogued (its ./client declares no EVENT_CATALOG)`), run.stdout)
+  assert.ok(run.stderr.startsWith(`${OUTPUT} is stale`), run.stderr)
 })
 
 test('proof A: an install that adopted the export and kept the root dependency regenerates it once', () => {
@@ -213,9 +226,10 @@ test('proof D: without the example the generator regenerates without it instead 
   assert.equal(check.status, 1, 'the committed copy still lists the three notes rows, so --check reds')
   assert.ok(check.stderr.startsWith(`${OUTPUT} is stale`), check.stderr)
   assert.deepEqual(generate(dir), { status: 0, stdout: `wrote ${OUTPUT}\n`, stderr: '' })
-  // Exactly the three notes.* rows are gone; the platform rows are byte-identical.
+  // Exactly the three notes.* rows are gone; what is left is the default's committed file.
   const kept = ROWS.filter((r) => !r.name.startsWith('notes.'))
   assert.equal(readFileSync(join(dir, OUTPUT), 'utf8'), `${JSON.stringify(kept, null, 2)}\n`)
+  assert.equal(readFileSync(join(dir, OUTPUT), 'utf8'), COMMITTED)
   assert.deepEqual(generate(dir, ['--check']), {
     status: 0,
     stdout: `${OUTPUT}: in sync (2 events)\n`,
@@ -264,25 +278,13 @@ test('the generator names neither the example package nor its catalog export', (
   assert.doesNotMatch(src, NAMED)
 })
 
-test('under template/base/tools/, only the LEGACY constant names the example or its export', () => {
-  const offenders = []
-  for (const rel of toolScripts()) {
-    let src = readFileSync(join(BASE, 'tools', rel), 'utf8')
-    if (rel === 'lib/event-catalogs.mjs') {
-      const legacy = /^export const LEGACY = \{[^}]*\}$/m.exec(src)
-      assert.ok(legacy, 'lib/event-catalogs.mjs declares `export const LEGACY = { … }`')
-      assert.match(legacy[0], /'@app\/notes'/)
-      assert.match(legacy[0], /'@app\/notes\/client'/)
-      assert.match(legacy[0], /'noteEvents'/)
-      src = src.replace(legacy[0], '')
-    }
-    if (NAMED.test(src)) offenders.push(rel)
-  }
-  assert.deepEqual(offenders, [], 'these tools name @app/notes or noteEvents outside LEGACY')
+test('2.0.0 (#85): no script under template/base/tools/ names the example or its export', () => {
+  const offenders = toolScripts().filter((rel) => NAMED.test(readFileSync(join(BASE, 'tools', rel), 'utf8')))
+  assert.deepEqual(offenders, [], 'these tools name @app/notes or noteEvents')
 })
 
-test('the seeded example opts in, and the seeded root package.json no longer lists it', () => {
-  const client = readFileSync(join(STACK, 'packages/verticals/notes/src/client.ts'), 'utf8')
+test('the demo\'s example opts in, and the seeded root package.json does not list it', () => {
+  const client = readFileSync(join(DEMO, 'packages/verticals/notes/src/client.ts'), 'utf8')
   assert.ok(client.includes("export { noteEvents as EVENT_CATALOG } from './events.js'\n"), client)
   assert.doesNotMatch(client, /export \{ noteEvents \}/)
   const rootPkg = JSON.parse(readFileSync(join(BASE, 'package.json.tmpl'), 'utf8'))

@@ -90,6 +90,7 @@ node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot b
 # need full git history (fetch-depth: 0) and SKIP LOUDLY without a previous release tag
 # rather than passing.
 node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED / PROPOSABLE reconcile
+node scripts/check-demo-index.mjs          # the demo index lists every demo register row both ways, and no owned config/tool/register names a demo path (`--write` regenerates the index)
 node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install
