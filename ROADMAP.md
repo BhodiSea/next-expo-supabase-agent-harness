@@ -103,7 +103,7 @@ with their positions. The other positions are these:
 | 49 | 2.0.0 | #86 | B02 | #140 | The version moves to 2.0.0 first, with B02 |
 | 52 | 2.0.0 | #37 | — | — | This record, and a merge of `main` that brings #51 into the stack |
 
-Two items of the work plan are outside the stack. C01, the cloud-session
+Two parts of the work plan are outside the stack. C01, the cloud-session
 tooling in #36, merged to `main` on 2026-09-29, before the stack's first
 position, which merges it. #51 (F03), the version-free pin and verify examples
 in `README.md` and `SECURITY.md`, merged to `main` as #90 on 2026-09-30, after
