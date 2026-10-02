@@ -3,7 +3,8 @@
 What this project intends to do over roughly the next twelve months, and what
 it does not intend to do. Every item below links to the record in this
 repository that tracks it. Most of those records are commitments. The
-"Field-report upgrades" section holds proposals, and says so.
+"Field-report upgrades" section began as proposals; each is now built in a
+pull request of the stack the work plan section describes, and says which.
 Dates on calendar items are external deadlines. Nothing here is a promise about
 delivery dates for features.
 
@@ -64,17 +65,65 @@ each one (issue #86):
 
 The rest of 2.0.0 is the breaking field-report upgrades below.
 
+## The 2026-09 work plan: one stack of pull requests
+
+Issue #37 indexed the field-report items below and the follow-ups found while
+shipping 1.0.2 and 1.0.3, one issue per item. On 2026-10-01 every one of them
+except #51 has a pull request in one stack of fifty-two, each based on the one
+before it. The maintainer merges them in order with merge commits, and tags
+each release on its last position once that position is merged: 1.0.4 on
+position 18, 1.1.0 on 48 and 2.0.0 on 52. Until then none of those three
+releases exists, and where this file says something is built in 1.0.4, 1.1.0
+or 2.0.0 it describes a pull request.
+
+The field-report items are the bullets under "Field-report upgrades" below,
+each with its pull request, and the design record's status table lists them
+with their positions. The other positions are these:
+
+| Position | Release | Issue | Key | Pull request | What |
+|---|---|---|---|---|---|
+| 1 | 1.0.4 | #40 | F12 | #91 | Database types regenerated for Supabase CLI 2.118.0, and `types-drift` prints a bounded diff |
+| 2 | 1.0.4 | #54 | F09 | #92 | The overdue Play target-API and CRA Article 14 rows re-read and re-dated |
+| 3 | 1.0.4 | #38 | — | #93 | The version moves to 1.0.4 first: the local loop release |
+| 12 | 1.0.4 | #49 | F01 | #102 | The runbook's 1.0.1 agents-lock claim corrected |
+| 13 | 1.0.4 | #50 | F02 | #103 | `git init` before `pnpm install` in the scaffold recipe and the issue forms |
+| 14 | 1.0.4 | #52 | F04 | #104 | `update --rollback` removes a directory the update created |
+| 15 | 1.0.4 | #53 | F05 | #105 | The complexity ratchet keeps its record at the repository root |
+| 16 | 1.0.4 | #55 | F14 | #106 | The factory workflow checks cover the module workflows |
+| 17 | 1.0.4 | #88 | F11 | #107 | The catalog's Supabase CLI pinned exactly, with a note on Renovate's bump |
+| 18 | 1.0.4 | #10 | — | #108 | The device lane boots its web host, and a device red names the screen |
+| 19 | 1.1.0 | #39 | — | #109 | The version moves to 1.1.0 first, and the 1.0.0 ramps are discharged |
+| 37 | 1.1.0 | #80 | F08 | #127 | What `HARNESS_ALLOW_SELF_EDIT=1` relaxes, and the Stop-hook cost advice |
+| 38 | 1.1.0 | #81 | F10 | #128 | A nightly lane fails on an unrecorded advisory against a framework floor |
+| 39 | 1.1.0 | #82 | F13 | #129 | Event catalogs found from each vertical's `./client` (N07's second half) |
+| 40 | 1.1.0 | #83 | F15 | #130 | Installs are told when a seeded catalog pin is below a security floor |
+| 44 | 1.1.0 | #79 | F07 | #134 | `query-shapes` records and judges `rpc()` and `upsert()` calls |
+| 47 | 1.1.0 | #78 | F06 | #138 | Edge Functions under lint, unit tests, mutation and a typecheck |
+| 48 | 1.1.0 | #84 | F16 | #139 | `gate-integrity` proves an uncommitted escape list's bytes were planted |
+| 49 | 2.0.0 | #86 | B02 | #140 | The version moves to 2.0.0 first, with B02 |
+| 52 | 2.0.0 | #37 | — | — | This record |
+
+Two parts of the work plan are outside the stack. C01, the cloud-session
+tooling in #36, merged to `main` on 2026-09-29, before the stack's first
+position, which merges it. #51 (F03), the version-free pin and verify examples
+in `README.md` and `SECURITY.md`, merged to `main` as #90 on 2026-09-30, after
+the stack began. Position 1 merges `main` again, so #51 ships in 1.0.4, the
+first release whose tag carries it, and the 1.0.4 CHANGELOG lists it under
+Fixed.
+
 ## Field-report upgrades
 
-Proposals that came out of a retrospective on a project built with this
-harness. Unlike the sections above, these are not commitments. None has a row
-in `scripts/obligations.json`, so none blocks a release, and the maintainer
-decides which become binding. Each item links to its section of
+These came out of a retrospective on a project built with this harness, as
+proposals. The maintainer made each one an issue of the work plan in issue #37,
+every `gate-proposal` among them was accepted (CONTRIBUTING.md, ground rule 6),
+and each is now built in a pull request of the stack the section above
+describes. Each item links to its section of
 [`design/FIELD-UPGRADES-2026-09.md`](design/FIELD-UPGRADES-2026-09.md), which states the
-defect from this repository's own code, the proposal, and the guard that keeps
-the change from weakening a gate. An item that adds a check, or changes what an
-existing check judges, needs a `gate-proposal` issue first (CONTRIBUTING.md,
-ground rule 6).
+defect from this repository's own code, the proposal, the guard that keeps the
+change from weakening a gate, and where it was built. Each bullet names its
+issue and pull request and sits under the release it was built for. The items
+have no row in `scripts/obligations.json`; a ramp one of them opened has its
+expiry row there.
 
 ### 1.0.4, no ramp
 
@@ -89,22 +138,22 @@ does, its section says so.
   `mobile-unit` needs a wrapper that changes floored commands. It was left for
   1.1.0, and no 1.1.0 issue schedules it yet.
   ([N01](design/FIELD-UPGRADES-2026-09.md#n01-input-stamped-stop-steps),
-  issue #42)
+  issue #42, pull request #95)
 - **Stop-step and gate-event telemetry.** Untrimmed local records of step
   durations and of in-turn gate and guard events, read by no gate.
   ([N02](design/FIELD-UPGRADES-2026-09.md#n02-stop-step-and-gate-event-telemetry),
-  issue #41)
+  issue #41, pull request #94)
 - **Preflight hygiene and a pinned runner environment.** `doctor` reports the
   toolchain it resolved and clears enumerated residue, and the local database
   lane stops taking its CLI and its port from the machine. On a machine with no
   global CLI, `types-drift` then runs where it skipped and can red a stale
   mirror locally, as CI's `runtime-rls` job already did.
   ([N03](design/FIELD-UPGRADES-2026-09.md#n03-preflight-residue-hygiene-and-a-pinned-runner-environment),
-  issue #43)
+  issue #43, pull request #96)
 - **`validate --ci-parity`.** One flag gives a local run CI's posture: no
   skips and no stamps.
   ([N04](design/FIELD-UPGRADES-2026-09.md#n04-a-ci-parity-flag-for-validate),
-  issue #44)
+  issue #44, pull request #97)
 - **Legal empty states on day 0.** `perf-budget` accepts `subjects: []` beside
   a reviewed `emptySubjects` row, and an optional `accountDeletion.registry`
   moves the command registry the account-deletion closure reads. The
@@ -113,7 +162,7 @@ does, its section says so.
   that discovers each vertical's catalog, changes the `contracts` verdict for
   an existing install, so it moves to 1.1.0 (issue #82).
   ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
-  issue #46)
+  issue #46, pull request #99)
 - **A project-side citation corpus.** The citation corpus splits into an owned
   upstream index and a seeded project file, which the provenance gate,
   `docs-sync` and the MCP server merge. The project file joins the escape lists,
@@ -122,18 +171,18 @@ does, its section says so.
   no owner reds. The proposal flow that is the other half of this item stays in
   1.1.0.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
-  issue #47)
+  issue #47, pull request #100)
 - **Two guard carve-outs.** The write guard lets an Edit or Write reach a
   migration git reports as untracked and the install manifest does not record,
   and `doctor --clean` deletes ignored build output, which the bash guard's
   force-delete deny now names.
   ([N16](design/FIELD-UPGRADES-2026-09.md#n16-two-guard-carve-outs),
-  issue #45)
+  issue #45, pull request #98)
 - **An owned path with no manifest record.** `update` keeps the file and parks
   the incoming copy unless the bytes on disk are a released version, and a
   `removed` or `renamed` migration keeps it too. Follows #21.
   ([N21](design/FIELD-UPGRADES-2026-09.md#n21-an-owned-path-with-no-manifest-record),
-  issue #48)
+  issue #48, pull request #101)
 
 ### 1.1.0, no ramp
 
@@ -147,7 +196,7 @@ None of these tightens a gate for an existing install. Where one changes what
   and after its date the scheduled `floor-review` job reds it. The register
   takes `mobile` rows only.
   ([N05](design/FIELD-UPGRADES-2026-09.md#n05-a-dated-deferral-for-a-surface-that-is-not-built-yet),
-  issue #56)
+  issue #56, pull request #110)
 - **Skip a lane that already passed on the same tree.** On a push, `static`,
   `unit`, `mutation`, `runtime-rls`, `e2e-fast` and `integration-lane` reuse the
   merged pull request's `success` for the same job when the tree is identical,
@@ -155,7 +204,7 @@ None of these tightens a gate for an existing install. Where one changes what
   and dispatched runs never reuse. Those jobs now request `actions: read` and
   `pull-requests: read`, and `update` parks the new workflow beside a fork.
   ([N06](design/FIELD-UPGRADES-2026-09.md#n06-skip-a-lane-that-already-passed-on-the-same-tree),
-  issue #57)
+  issue #57, pull request #111)
 - **Event catalogs found in each vertical.** A vertical opts in by exporting
   its catalog from `./client` as `EVENT_CATALOG`, so the generator no longer
   imports the example by name and a new vertical needs no edit to an owned,
@@ -164,7 +213,7 @@ None of these tightens a gate for an existing install. Where one changes what
   regenerate the same catalog. Nothing checks that a vertical opts in: that
   needs a `gate-proposal` of its own.
   ([N07](design/FIELD-UPGRADES-2026-09.md#n07-legal-empty-states-on-day-0-and-a-factory-lane-that-proves-them),
-  issue #82)
+  issue #82, pull request #129)
 - **Database proofs on a fixture table.** The isolation, MFA and audit pgTAP
   suites build `public.pgtap_fixture` inside their transaction from the
   vertical-slice skill's RLS skeleton, so deleting the example does not delete
@@ -172,7 +221,7 @@ None of these tightens a gate for an existing install. Where one changes what
   and the recursion probe stay on the real tables, and the suites are seeded,
   so existing installs keep theirs.
   ([N08](design/FIELD-UPGRADES-2026-09.md#n08-behavioural-database-proofs-on-a-fixture-table),
-  issue #58)
+  issue #58, pull request #113)
 - **Generated skill references.** The code blocks in the vertical-slice
   skill's references are regions cut verbatim from spans the example marks,
   and a factory check fails on drift in either direction. The table, trigger,
@@ -180,7 +229,7 @@ None of these tightens a gate for an existing install. Where one changes what
   1.1.0 the example grants what it teaches (the three-role revoke, #74), so
   that half could be cut from it next.
   ([N09](design/FIELD-UPGRADES-2026-09.md#n09-skill-references-generated-from-the-example),
-  issue #59)
+  issue #59, pull request #112)
 - **A session-start brief and `harness:status`.** A `SessionStart` hook and
   `node tools/harness-status.mjs` print the same four fields: the version,
   base and tier, the parked upgrades, how the last turn ended, and the
@@ -190,14 +239,14 @@ None of these tightens a gate for an existing install. Where one changes what
   beside it until the `SessionStart` entry is merged. The `SessionStart`
   payload is documented, not yet probed (CONTROL-PLANE-FACTS Fact 15).
   ([N10](design/FIELD-UPGRADES-2026-09.md#n10-a-session-start-brief-and-a-status-command),
-  issue #60)
+  issue #60, pull request #115)
 - **Per-gate field notes.** A seeded, write-guarded `tools/field-notes.json`,
   keyed on the gate token, adds one capped `FIELD-NOTE[<gate>]:` line after a
   failing gate's FIX line. It never prints on a pass and cannot change a
   verdict, and `update` plants the empty file. Steps whose scripts print no
   gate FAIL line get no note.
   ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
-  issue #61)
+  issue #61, pull request #116)
 - **A resolver for spec anchors.** The spec template's fields are `##`
   headings whose ids are their GitHub anchors, and
   `node tools/spec-anchor.mjs specs/<feature>.md#<id>` prints one section.
@@ -205,7 +254,7 @@ None of these tightens a gate for an existing install. Where one changes what
   and ADRs cite them. A project's own specs are not rewritten, and nothing
   checks that a citation resolves: that needs a `gate-proposal` of its own.
   ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors),
-  issue #63)
+  issue #63, pull request #120)
 - **Review records outside ADRs.** Each change keeps its review rounds in
   `docs/reviews/<YYYYMMDD>-<slice>.md`, one table per round (reviewer, verdict,
   findings, resolution), linked from its ADR's Traceability, so the ADR keeps
@@ -213,7 +262,7 @@ None of these tightens a gate for an existing install. Where one changes what
   README only where an install has none. The whole-turn reviewers bind to the
   whole diff, record included, so the README orders their last run after it.
   ([N14](design/FIELD-UPGRADES-2026-09.md#n14-review-records-outside-adrs),
-  issue #64)
+  issue #64, pull request #121)
 - **A proposal flow for register edits.** An agent writes the whole proposed
   register as `harness-proposals/<id>.json`, a committed directory no deny
   layer names, and a human applies it with `apply-proposal <id>` in a
@@ -221,11 +270,12 @@ None of these tightens a gate for an existing install. Where one changes what
   target is refused, the bash guard denies an agent the verb, and `doctor`
   lists pending proposals as `info`. The corpus half of this item is in 1.0.4.
   ([N15](design/FIELD-UPGRADES-2026-09.md#n15-a-proposal-flow-for-register-edits-and-a-project-side-corpus),
-  issue #65)
+  issue #65, pull request #122)
 - **Absence checklists and a reviewer eval.** Reviewers report what a change
   should have brought with it and did not, and a factory-side eval measures
   them on seeded defects.
-  ([N17](design/FIELD-UPGRADES-2026-09.md#n17-absence-checklists-for-reviewers-and-a-reviewer-eval))
+  ([N17](design/FIELD-UPGRADES-2026-09.md#n17-absence-checklists-for-reviewers-and-a-reviewer-eval),
+  issue #66, pull request #123)
 - **A smaller always-loaded context.** `encryption.md` is a stub that keeps the
   invariants whose checks run with the `e2ee` module off, and the full rule is
   the path-scoped `e2ee.md`, which the `authoring-e2ee-feature` skill reads
@@ -235,7 +285,7 @@ None of these tightens a gate for an existing install. Where one changes what
   commands the bash guard denies outright. `AGENTS.md` is seeded, so installs
   keep theirs.
   ([N18](design/FIELD-UPGRADES-2026-09.md#n18-a-smaller-always-loaded-context),
-  issue #67)
+  issue #67, pull request #124)
 - **Compliance register checks behind an input stamp.** `essential-eight` and
   `conformance-map`, the `docs-sync` step's register scripts, skip locally when
   nothing their verdict reads has changed: the register, the chain config, the
@@ -245,7 +295,7 @@ None of these tightens a gate for an existing install. Where one changes what
   on every run, before the stamp. CI always judges both in full; running them
   only at release time is out of scope.
   ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence),
-  issue #68)
+  issue #68, pull request #125)
 - **Provenance by decision class.** Mandatory where a citation guards a
   security decision, advisory elsewhere. `vector-index`, `llm-sampling` and
   `tuning-constants` are advisory: an uncited or wrongly grounded site there
@@ -254,7 +304,7 @@ None of these tightens a gate for an existing install. Where one changes what
   stays mandatory, a seeded `"mandatory"` list promotes a class back, and
   nothing demotes one. A written citation must still resolve in every class.
   ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere),
-  issue #69)
+  issue #69, pull request #126)
 
 ### 1.1.0, behind a ramp
 
@@ -272,7 +322,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   there. With no upstream it does not judge. Whether a resumed reviewer keeps
   its `agent_id` is documented and not yet probed.
   ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2),
-  issue #70)
+  issue #70, pull request #114)
 - **The model each reviewer verdict ran on, and a reviewed fallback list.** The
   ledger records the model that wrote each verdict, read from the subagent's
   transcript, and each reviewer file carries a `harnessFallbackModels` list.
@@ -285,7 +335,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   configuration already forces a model off the list from redding on its first
   Stop.
   ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models),
-  issue #62)
+  issue #62, pull request #117)
 - **A severity contract and a round budget.** Every reviewer body states
   `Blocking: CRITICAL, HIGH`, and `docs-sync` holds the line. The SubagentStop
   hook bounces a PASS that lists a finding at a blocking severity and records
@@ -295,7 +345,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   that `baseVersion`: the contract's until 1.2.0, which arrived at 2.0.0, and
   the budget's until 2.1.0, where 2.0.0 moved it to wait for the ledger v2.
   ([R02](design/FIELD-UPGRADES-2026-09.md#r02-a-severity-contract-and-a-round-budget),
-  issue #71)
+  issue #71, pull request #118)
 - **`docs-sync` holds the verdict demand to the end of the body.** Each
   reviewer body's last paragraph must be the verdict demand, optionally
   followed by its shipped rationale sentence, so nothing is asked for after the
@@ -304,7 +354,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   `baseVersion` until 1.2.0. An earlier paragraph that asks for text after the
   verdict is still not caught.
   ([R03](design/FIELD-UPGRADES-2026-09.md#r03-docs-sync-holds-the-verdict-demand-to-the-end-of-the-body),
-  issue #72)
+  issue #72, pull request #119)
 - **A CI self-lint job.** The shipped `actions-lint` workflow runs a
   `workflow-hardening` job that holds a project's own workflows, `.yml` and
   `.yaml`, to a workflow-level bash default, a ceiling on every job and
@@ -314,7 +364,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   YAML's shape rather than parsing YAML, so a flow mapping or an anchor is
   reported as unreadable, and `graduate` does not run it.
   ([R04](design/FIELD-UPGRADES-2026-09.md#r04-a-ci-self-lint-job-for-shells-and-ceilings),
-  issue #73)
+  issue #73, pull request #131)
 - **Grants bounded by policies.** `schema-rls` folds the grant history a
   second time from the platform's default privileges: every privilege `anon`
   or `authenticated` holds must be admitted by a policy, every table revokes
@@ -326,10 +376,11 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   NOTEs below that `baseVersion` until 1.2.0. Sequences, views, custom roles
   and `ALTER DEFAULT PRIVILEGES` stay outside the fold.
   ([R05](design/FIELD-UPGRADES-2026-09.md#r05-grants-bounded-by-policies-generated-exactness-and-a-revoke-doctrine),
-  issue #74)
+  issue #74, pull request #133)
 - **`sql-parse` learns `DROP TABLE` and `ALTER POLICY`.** Seven gates stop
   reasoning about tables that are gone and predicates that were replaced.
-  ([R06](design/FIELD-UPGRADES-2026-09.md#r06-the-sql-parser-learns-drop-table-and-alter-policy))
+  ([R06](design/FIELD-UPGRADES-2026-09.md#r06-the-sql-parser-learns-drop-table-and-alter-policy),
+  issue #75, pull request #132)
 - **i18n detection on the syntax tree.** The `i18n` step walks the TypeScript
   syntax tree beside its regular expressions and reports the union, and its
   allowlist is keyed on a hash of the string's content instead of a line
@@ -339,7 +390,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   entries, so the walk is the only scan. A string reached through a variable or
   a helper is still not seen.
   ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree),
-  issue #76)
+  issue #76, pull request #136)
 - **The web build in the chain, and a browser test per route.** A stamped
   `web-compile` step runs `next build` after `build`, so a web app that does not
   compile reds the chain and `static`, and `route-manifest` asks that some spec
@@ -348,7 +399,7 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   hold both as NOTEs below that `baseVersion` until 1.2.0, and `docs-sync`'s
   gate-list escape re-opens for the 37th step.
   ([R08](design/FIELD-UPGRADES-2026-09.md#r08-the-web-build-in-the-chain-and-a-browser-test-per-route),
-  issue #77)
+  issue #77, pull request #137)
 
 ### 2.0.0, breaking
 
@@ -358,21 +409,21 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   factory check holds complete in both directions. An existing install keeps its
   example, and the runbook says how to remove it by hand.
   ([B01](design/FIELD-UPGRADES-2026-09.md#b01-the-example-leaves-the-scaffold),
-  issue #85)
+  issue #85, pull request #141)
 - **The encryption rule ships with its module.** Built in 2.0.0: the full rule,
   `.claude/rules/e2ee.md`, is stored in the `e2ee` module, so an install without
   `e2ee` does not carry it, and the 2.0.0 record removes the base copy from
   existing installs. The always-loaded stub stays everywhere, and every base file
   cites it.
   ([B02](design/FIELD-UPGRADES-2026-09.md#b02-the-encryption-rule-ships-with-its-module),
-  issue #86)
+  issue #86, pull request #140)
 - **`prompt_id` leaves the ledger key.** Built in 2.0.0: after ledger v2 the
   path digest is what makes a verdict current, so `reviewer-verdicts` reads the
   reviewer ledger by session and a format stamp every entry now carries. An entry
   in another format never counts as a PASS and is named, the step needs only the
   session id, and the 1.0.x judgement keeps the prompt in its key.
   ([B03](design/FIELD-UPGRADES-2026-09.md#b03-prompt_id-leaves-the-ledger-key),
-  issue #87)
+  issue #87, pull request #142)
 
 Five further ideas were considered and rejected. The design record
 [lists them with the reason](design/FIELD-UPGRADES-2026-09.md#dropped-after-design-review), so they are not

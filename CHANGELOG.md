@@ -11,7 +11,7 @@ ancestor's** — they describe an Expo-only app over a self-hosted Hono/Drizzle
 server and are kept for provenance, not because this repository shipped them.
 This lineage's own history starts at 0.1.3.
 
-## [2.0.0] — 2026-09-30
+## [2.0.0] — 2026-10-01
 
 **A major, the opt-in release: what an install carries is what it opted into, and the notes
 1.1.0 opened become verdicts.** 1.2.0 is never cut: this lineage goes from 1.1.0 to 2.0.0
@@ -43,15 +43,7 @@ example: it is seeded, and `update` neither rewrites nor deletes it (#85).
 not the prompt.** The step needs only the session id, and a reviewer whose verdicts in the
 current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (#87).
 
-### Security
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
-
 ### Added
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **`init --with-demo` and `eject`.** The worked example is stored in `template/demo/`, an
   overlay on the base and stack plan the way the design-token presets overlay the stack:
@@ -106,9 +98,6 @@ this heading if none does. -->
   runs every journey in the directory (#85).
 
 ### Fixed
-
-<!-- Entries from the 2.0.0 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **`reviewer-verdicts` no longer prints a remedy that does not work for a mis-shaped ledger
   line.** A line of the current prompt that lacks `agent_type` or `verdict` fails closed, and
@@ -214,6 +203,14 @@ this heading if none does. -->
   names, signatures and meaning, for that judgement and for a step forked at 1.1.x. The round
   budget counts entries of every format. Not ramped: this is the major's key, and the format
   finding is a v2 finding, under v2's ramp (#87).
+- **`ROADMAP.md` and the field-report design record say where each item was built.**
+  `design/FIELD-UPGRADES-2026-09.md` gains a dated status table and, under each section's
+  heading, a status line naming the issue, pull request, stack position and release that
+  built it. `ROADMAP.md` gains a work-plan section listing the stack's other positions, and
+  each field-report bullet names its pull request. `tests/gates/work-plan-status.test.mjs`
+  holds the three to each other, every position of the stack to one issue and pull request
+  in release order, and the stated tag positions to each release's last one. Factory docs:
+  nothing reaches an install (#37).
 
 ### Removed
 
@@ -283,12 +280,6 @@ this heading if none does. -->
   do, and that release owes the judgement (#85).
 - **`eject` leaves the database alone.** A database that applied the example's migrations
   keeps its tables; the runbook gives the migration that drops them (#85).
-- **The i18n catalog pair's accepted clone is keyed on its extent.** `duplication`
-  normalizes every string, so the mobile and web catalogs match over the type preamble plus
-  their opening rows, and the accepted fingerprint changes whenever either catalog's first rows
-  change shape. A project that edits them meets the clone again under a new fingerprint and
-  re-accepts it. The gate is unchanged here: moving the example is no reason to redesign a
-  detector (#85).
 
 - **uuid 7 is re-dated, not discharged.** Nothing in this tree can move `xcode`'s major. The
   2.1.0 record owes either the arrival ramp's expiry or the next re-open (#86).
@@ -314,6 +305,15 @@ this heading if none does. -->
 - **The dispatch records carry no format stamp.** `.harness/reviewer-dispatch.jsonl` is keyed
   by session and `agent_id`, and its one field means what it meant at 1.1.0; a change to it
   would need a stamp of its own (#87).
+- **The i18n catalog pair's accepted clone is keyed on its extent.** `duplication`
+  normalizes every string, so the mobile and web catalogs match over the type preamble plus
+  their opening rows, and the accepted fingerprint changes whenever either catalog's first rows
+  change shape. A project that edits them meets the clone again under a new fingerprint and
+  re-accepts it. The gate is unchanged here: a cut is no place to redesign a detector (#37).
+- **The work plan's status record is dated.** It names pull requests that are open on
+  2026-10-01 and says no release is tagged. Once the maintainer merges the stack and pushes
+  the tags it describes the past, and it is re-dated or retired then. Its test holds the
+  records to each other, not to GitHub (#37).
 - **What was proven where.** With `package.json` at 2.0.0 and nothing discharged,
   `check-obligations` was red on the fourteen rows targeting 1.2.0, `check-ramp-ledger` on the
   missing `1.1.0` vintage and the missing `"2.0.0"` `rampExpiry`, `check-eol-target` on the
@@ -350,34 +350,6 @@ this heading if none does. -->
   leaves 50 survivors on a default scaffold and 80 on a `--with-demo` one, each within its
   committed baseline. Upgrade-lane leg A (a v1.1.0 install with its example, updated to this
   tree) validates on 37 steps and graduates (#85).
-  CI on this item's pull request then found six reds that the Local development list cannot
-  see, all from the default scaffold this item introduced and the lanes around it. Each was
-  reproduced here before its fix. `actionlint` reported two shellcheck findings in
-  `selftest.yml` (Canary 14's target check and demo-eject's grep). They were rewritten without
-  a directive, and `actionlint` with `shellcheck` on PATH is clean over every workflow.
-  `demo-eject`'s byte comparison differed on every file that carries the project owner,
-  because `init` reads the owner from the enclosing repository's origin and the comparison
-  scaffold sat outside the checkout. It now sits inside, and a replay with the factory
-  worktree as `GITHUB_WORKSPACE` ends on "the ejected tree equals a default init". Behind
-  it, the lane's validate after `eject` reddened `gate-integrity` on every register `eject` had
-  trimmed: the documented order was validate, then commit, and an uncommitted escape list is
-  red. The builder's replay had `HARNESS_ALLOW_SELF_EDIT=1` in its environment, which skips
-  that rule. `eject`'s next steps, the runbook and `docs/cli.md` now say commit, then validate.
-  The lane commits and judges the deletions against the scaffold baseline, as a pull request
-  would, and a replay without the flag ends on "migrations accepted 4 deletion(s)".
-  `bootstrap-linux`'s Stop chain reddened on `duplication`: the default catalogs match over a
-  new span. The shipped allow list gains its fingerprint, and a new case in
-  `tests/gates/check-duplication.test.mjs` renders a default and a `--with-demo` init and runs
-  the gate over each; it was red on the default before the entry. `integration`'s live proof
-  read no `profiles` row, because nothing creates one at signup. It now writes the caller's
-  own row first, and a replay of the lane on a default scaffold against a local stack went
-  from one failing case to all three passing, with Canary C01 still red on "authentication
-  required". Upgrade leg E (v0.3.0, swept) failed `types` because the sweep adopted only the
-  demo's part of `apps/web/lib/i18n/`. It also failed on three things a pre-2.0.0 install
-  carrying the example needs: the runbook's `EVENT_CATALOG` line, and the remedies for the
-  two registers `update` plants as 2.0.0's default copies. The sweep now adopts a directory as
-  the union of the template's roots and runs those three steps, each pinned in
-  `tests/gates/upgrade-sweep.test.mjs` (#85).
   For the ledger key, fifteen cases written first were red on the tree before the change: the
   session-only headline and its stale canary, the earlier-prompt BLOCK, the older-format
   finding and the older-format PASS that must not clear a BLOCK, decision 3's remedy (a re-run
@@ -385,6 +357,43 @@ this heading if none does. -->
   cases, the reader and judge units, the parked-lib finding, the fail-closed canary's remedy,
   and the hook's stamp in both hook files. After the change the step's suite, the hook's,
   `hook-contract` and `run-stop-chain` are green (#87).
+  For the work plan's record, the first five cases of `tests/gates/work-plan-status.test.mjs`
+  ran on the records before the change: the dated table, a row for every section and a pull
+  request in every field-report bullet were red, and the uniqueness and coverage cases passed
+  on an empty table. The two stack-position cases came with the records, and each was red on a
+  copy of the documents with a position's row dropped or a tag position moved. A local replay
+  of the merge procedure, from `main` through positions 1 to 52 with merge commits, met no
+  conflict, the final tree equalled this position's, and the local tags v1.0.4, v1.1.0 and
+  v2.0.0 were all in its history (#37).
+  At the cut, CI on the release commit found six reds that the Local development list
+  cannot see, all from the default scaffold #85 introduced and the lanes around it. Each was
+  reproduced here before its fix. `actionlint` reported two shellcheck findings in
+  `selftest.yml` (Canary 14's target check and demo-eject's grep). They were reproduced with
+  shellcheck 0.10 and rewritten without a directive. `demo-eject`'s byte comparison differed on
+  every file that carries the project owner, because `init` reads the owner from the enclosing
+  repository's origin and the comparison scaffold sat outside the checkout. It now sits
+  inside, and a replay with the factory worktree as `GITHUB_WORKSPACE` ends on "the ejected
+  tree equals a default init". Behind it, the lane's validate after `eject` reddened
+  `gate-integrity` on every register `eject` had trimmed: the documented order was validate,
+  then commit, and an uncommitted escape list is red. The builder's replay had
+  `HARNESS_ALLOW_SELF_EDIT=1` in its environment, which skips that rule. `eject`'s next steps,
+  the runbook and `docs/cli.md` now say commit, then validate. The lane commits and judges the
+  deletions against the scaffold baseline, as a pull request would, and a replay without the
+  flag ends on "migrations accepted 4 deletion(s)". `bootstrap-linux`'s Stop chain reddened on `duplication`: the
+  default catalogs match over a new span. The shipped allow list gains its fingerprint, and a
+  new case in `tests/gates/check-duplication.test.mjs` renders a default and a `--with-demo`
+  init and runs the gate over each; it was red on the default before the entry.
+  `integration`'s live proof read no `profiles` row, because nothing creates one at signup. It
+  now writes the caller's own row first, and a replay of the lane on a default scaffold against
+  a local stack went from one failing case to all three passing, with Canary C01 still red on
+  "authentication required". Upgrade leg E (v0.3.0, swept) failed `types` because the sweep
+  adopted only the demo's part of `apps/web/lib/i18n/`. It also failed on three things a
+  pre-2.0.0 install carrying the example needs: the runbook's `EVENT_CATALOG` line, and the
+  remedies for the two registers `update` plants as 2.0.0's default copies. The sweep now
+  adopts a directory as the union of the template's roots and runs those three steps, each
+  pinned in `tests/gates/upgrade-sweep.test.mjs`. Leg E replayed with the local tags ends on
+  "graduate advancing baseVersion 0.3.0 -> 2.0.0", and leg N (v1.0.4) on its expected
+  expiries (#37).
 
 ## [1.1.0] — 2026-10-02
 

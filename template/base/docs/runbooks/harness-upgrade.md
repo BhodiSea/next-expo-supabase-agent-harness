@@ -3550,7 +3550,7 @@ authoring skill's `scaffold-slice.mjs`.
 The registers that gained an empty state (`tools/rls-exempt.json`'s `mfaRailUnused` row,
 `tools/rate-limit-budget.json`'s `unmapped` bucket) are seeded and change for fresh
 scaffolds only.
-Two more seeded files changed in 2.0.0, for fresh scaffolds only.
+Two more seeded files changed at the 2.0.0 cut, for fresh scaffolds only.
 `tools/duplication-allow.json` gains `4f2c41321264`, the mobile and web i18n catalogs'
 match on a tree without the example (the same kind of match as `e83e21400fb2`; the span
 moved with the example's keys). `apps/mobile/__tests__/live-api-proof.test.ts` writes the
