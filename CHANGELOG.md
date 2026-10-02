@@ -332,7 +332,7 @@ this heading if none does. -->
   the union of the template's roots and runs those three steps, each pinned in
   `tests/gates/upgrade-sweep.test.mjs` (#85).
 
-## [1.1.0] — 2026-09-30
+## [1.1.0] — 2026-10-02
 
 **A minor, the sharper verdicts release: the notes 1.0.0 opened become verdicts, and the
 checks that land after them judge more precisely.** Six of the eight ramp sites 1.0.0
@@ -425,6 +425,24 @@ a `planted` map (#84).
   manifest read for the CLI, which reaches it through a namespace import, so a parked fork
   of the lib without it voids a row rather than failing `changes`. No chain step and no
   ramp (#56).
+- **The package is published to the npm registry, through trusted publishing.** npm 12
+  refuses git sources by default, so the documented
+  `npx --yes github:BhodiSea/next-expo-supabase-agent-harness` stopped with `EALLOWGIT`
+  before running anything, and every scaffold already named the registry package in its
+  gate messages, runbooks and module READMEs, each of which failed with `E404`.
+  `release.yml` gains a `publish-npm` job. It fetches the GitHub Release's tarball and
+  bundle, verifies them with `gh attestation verify`, and publishes that file unchanged
+  through trusted publishing: Node 24's bundled npm, the `npm` environment, and no npm
+  token. The dist-tag comes from `scripts/ci/npm-publish.mjs tag`, which refuses a
+  version with no mechanical answer. The job then fails unless the registry reports the
+  attested bytes, a SLSA provenance statement and the GitHub trusted publisher, because
+  npm's OIDC exchange falls back silently to any other credential and `npm publish`
+  exiting 0 proves nothing about how the version was published.
+  `tests/gates/npm-publish.test.mjs` pins both verdicts and runs the CLI against a
+  stand-in registry. The README, `docs/cli.md`, SECURITY.md ("Verifying the npm
+  package"), the assurance case (R7 and residual risk 2), CONTRIBUTING.md and ROADMAP.md,
+  whose non-goal is withdrawn, describe the registry path. The `github:` form still works,
+  with `--allow-git=root` on npm 12. Nothing changes for an existing install (#161).
 - **Post-merge lanes reuse the merged pull request's green result on an identical tree.**
   `quality-gate.yml` runs on the pull request and again on the push its merge produces, so
   an up-to-date squash merge re-ran `static`, `unit`, `mutation`, `runtime-rls`, `e2e-fast`
@@ -1289,10 +1307,13 @@ a `planted` map (#84).
   1.2.0, the move recorded as the "1.1.0" record's second `rampExtensions` entry and the
   obligations row `docs-sync-gate-list-ramp-expiry` back, targeting 1.2.0. Only additive
   drift rides it: a documented step that no longer exists, or a reordering, stays a hard red
-  at every vintage. The README's two `pnpm validate` timings are withdrawn until the 37-step
-  chain is re-measured: `check-claims` refuses a figure whose recorded step count differs
-  from the chain, and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step
-  with no measurement yet (#77).
+  at every vintage. The README withdrew its two `pnpm validate` timings when the chain grew,
+  because `check-claims` refuses a figure whose recorded step count differs from the chain,
+  and `scripts/chain-budget.json` budgets `web-compile` as a toolchain step. They were
+  republished, with the Stop figure, only after the dispatched warm, Stop and cold re-record
+  landed and was committed (selftest run 36958995612 on the release branch, before the tag,
+  stamped from its job log with an explicit `--runner`): measure, commit, then publish, as
+  1.0.0 did (#77).
 - **`unit`, `diff-coverage` and the mutation lane reach `supabase/functions`, behind ramps
   until 1.2.0.** `vitest.config.ts` now derives two lists from the tree: every `*.test.ts`
   under `supabase/functions` that imports from `'vitest'` joins `unit-node` (a `deno test`
@@ -1703,9 +1724,6 @@ a `planted` map (#84).
 - **The browser closure reads text.** It proves a spec names one state test id per route,
   not that the spec asserts that state or that it passes; the `web-e2e` lane runs every
   spec, and is path-filtered. A route needs one named id, not all of them (#77).
-- **The two `pnpm validate` timings are not re-measured yet.** The re-record is a selftest
-  `workflow_dispatch` on the release branch before the tag, as 1.0.0's was; until then the
-  README says so instead of printing a figure (#77).
 - **deno is a prerequisite the job installs, not a dependency.** It is not in the catalog,
   so no install carries its binary and `doctor` asks for nothing, and locally the gate
   SKIPS until you install deno yourself. The binary comes from the SHA-pinned
@@ -2268,7 +2286,7 @@ a `planted` map (#84).
   finding and no 1.1.0 ramp line; on the 0.x baselines, every list the update planted printed
   the release-plant NOTE (#84).
 
-## [1.0.4] — 2026-09-29
+## [1.0.4] — 2026-10-01
 
 **A patch, the local loop release: what a local run says matches what CI will say.** No gate
 is added, the chain length does not change, and no ramp opens or moves. `update` delivers
@@ -2298,11 +2316,6 @@ unrecorded file whose bytes a release shipped refreshes as before, and an instal
 unrecorded owned file sees no change; `init` and `update` record every owned file they
 write. `update --force` still overwrites. The remedy is in
 `docs/runbooks/harness-upgrade.md`, 1.0.4 section.
-
-### Security
-
-<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 ### Added
 
@@ -2580,9 +2593,6 @@ this heading if none does. -->
   not change (#10).
 
 ### Changed
-
-<!-- Entries from the 1.0.4 items that land after the version bump go here. The cut removes
-this heading if none does. -->
 
 - **The hooks keep a telemetry log, `.harness/telemetry.jsonl`.** It records what the turn
   ledger never did: each Stop step's status, duration and count of `SKIPPED` lines, the gate

@@ -1230,6 +1230,13 @@
         "note": "0.7.0 (W8): the publish-blocking wait is scripts/ci/wait-for-workflows.mjs — release blocks on green selftest.yml AND lint.yml runs at the tag SHA (tag-time parity) — and these are its death-tests: all-green → 0, any all-failed → hard fail naming it, still-running → keep polling, ZERO runs for a required workflow → hard fail after the timeout (absence-as-pending-forever is the silent-skip shape). The job's remaining inline steps — check-syntax, hygiene, check-release-lockstep, the full node --test suite — are proven in #factoryGates; hygiene.yml stays deliberately unawaited, with the reason written at the invocation."
       }
     ],
+    "release.yml#publish-npm": [
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/npm-publish.test.mjs",
+        "note": "1.1.0 (#161): the job's two decisions are scripts/ci/npm-publish.mjs, and these are its death-tests. `tag`: a package the registry has never seen, a version already published, a lower version on the current major line and a malformed version all hard-fail; a prerelease never takes latest. `verify`: different bytes, a missing or wrong provenance predicate, and a version published by anything but the GitHub trusted publisher all hard-fail at once, an absent version is retried within the budget and then fails, all against a stand-in registry. The inline steps are vendor verdicts whose non-zero exit is the red: `gh attestation verify` against the release's own bundle, and `npm publish`."
+      }
+    ],
     "scorecard.yml#analysis": [
       {
         "kind": "steps",
