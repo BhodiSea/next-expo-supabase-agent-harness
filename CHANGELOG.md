@@ -107,6 +107,23 @@ current session a 1.1.x hook wrote is re-run once after `update` (see Changed) (
   clear it, the next prompt does, and the agent should end the turn and tell the user. With
   the session as the whole key the error would otherwise have lasted the rest of the session,
   with nothing the agent could do about it (decision 3) (#87).
+- **A release whose CHANGELOG section is over GitHub's release body limit still publishes.
+  1.1.0 is a tag with no release.** `release.yml` published the section for the tag as the
+  GitHub Release's body, and GitHub refuses one over 125000 characters. The 1.1.0 section is
+  over 166000, so the v1.1.0 build packed and attested the tarball and then failed at
+  `gh release create` with HTTP 422. `publish-npm` needs that job and was skipped, so 1.1.0
+  has no GitHub Release and no npm version. The workflow runs from the tagged commit, so the
+  build could not be repeated without moving a published tag, and the lineage goes on to
+  2.0.0 instead. The `v1.1.0` tag stands, and the 1.1.0 records in this file, the upgrade
+  runbook and `template/shas` describe it as before. An install below 1.1.0 that wants the
+  1.1.0 NOTEs before 2.0.0 makes them hard can still update from the tag through the
+  `github:` form (`#v1.1.0`). The step now runs `scripts/ci/release-notes.mjs`. A section
+  within the limit is the body unchanged. One over it keeps the opening paragraphs and every
+  heading, shortens each entry to its bold lead and issue references, and links this file at
+  the tag for the full text. A section still over the limit after that, or a missing one,
+  fails the step. `tests/gates/release-notes.test.mjs` pins those verdicts and bounds this
+  file's section for the version in `package.json`, so a section that cannot be published
+  fails a pull request instead of a tag build. Nothing changes for an install.
 
 ### Changed
 

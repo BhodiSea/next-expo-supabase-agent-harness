@@ -66,12 +66,17 @@ jobs:
         # converts flake into a stuck tag (the hygiene GATE itself already ran inline in
         # the Gates step above).
         run: node scripts/ci/wait-for-workflows.mjs selftest.yml lint.yml
+      # The section becomes the release body, and GitHub refuses one over 125000 characters
+      # (HTTP 422 at `gh release create`, after the tarball is packed and attested). The
+      # first v1.1.0 build failed there on a 166000-character section. Over the limit, the
+      # script shortens each entry to its lead sentence and links the full section at the
+      # tag; a section it cannot bring under the limit, or none at all, fails this step
+      # (scripts/ci/release-notes.mjs, tested by tests/gates/release-notes.test.mjs, which
+      # also bounds the section for package.json's version on every pull request).
       - name: CHANGELOG must have a section for this tag
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          grep -q "^## \\[${TAG}\\]" CHANGELOG.md || {
-            echo "CHANGELOG.md is missing a '## [${TAG}]' section" >&2; exit 1; }
-          awk "/^## \\[${TAG}\\]/{flag=1;next}/^## \\[/{flag=0}flag" CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          node scripts/ci/release-notes.mjs "${GITHUB_REF_NAME#v}" --repository "$GITHUB_REPOSITORY" \
+            > "$RUNNER_TEMP/notes.md"
       - name: Pack
         run: npm pack
       - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1

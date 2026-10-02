@@ -1228,6 +1228,11 @@
         "kind": "fixture",
         "ref": "tests/gates/wait-for-workflows.test.mjs",
         "note": "0.7.0 (W8): the publish-blocking wait is scripts/ci/wait-for-workflows.mjs — release blocks on green selftest.yml AND lint.yml runs at the tag SHA (tag-time parity) — and these are its death-tests: all-green → 0, any all-failed → hard fail naming it, still-running → keep polling, ZERO runs for a required workflow → hard fail after the timeout (absence-as-pending-forever is the silent-skip shape). The job's remaining inline steps — check-syntax, hygiene, check-release-lockstep, the full node --test suite — are proven in #factoryGates; hygiene.yml stays deliberately unawaited, with the reason written at the invocation."
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/release-notes.test.mjs",
+        "note": "2.0.0: the release body is scripts/ci/release-notes.mjs, and these are its death-tests. A section within GitHub's 125000-character limit is the body unchanged; one over it keeps every heading and non-entry line and shortens each entry to its bold lead and issue references, then links the full section at the tag; one still over the limit, a missing section and a malformed --repository all hard-fail. The last case bounds this repository's own section for package.json's version, so a section that cannot be published is red on the pull request, not at the tag (the first v1.1.0 build failed at `gh release create` with HTTP 422 on a 166000-character section)."
       }
     ],
     "release.yml#publish-npm": [
