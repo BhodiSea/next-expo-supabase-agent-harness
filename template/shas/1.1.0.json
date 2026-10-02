@@ -177,6 +177,9 @@
         "sha256": "24e1f77783202bdd98f304ba8797b4cdf635776addfcdb03cdb50bfadae44ff1"
       },
       {
+        "sha256": "45ac79e5efc479eff16ae3e70711597fa10cb77fa694fc228f7cc46f97e4ada6"
+      },
+      {
         "sha256": "7585e2945d8ade80796b275e627649763b69665688291910f8e7c283b4cd1b7a"
       },
       {
@@ -925,6 +928,15 @@
         ]
       },
       {
+        "sha256": "8f81f9620b38e5424722dede8dcb293d862de90da2e3c2782c3b68e65546372e",
+        "sites": [
+          [
+            123533,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "9c956ff1b65c5ec3aaa363f69c68fef79ee48ed93ff35ccaa1c14d316b74f236",
         "sites": [
           [
@@ -1123,6 +1135,15 @@
       }
     ],
     "docs/runbooks/harness-upgrade.md": [
+      {
+        "sha256": "08a523a5550c20489c6f9b67200b0d98f5736130a6882fd0b850e3f5f1e5572b",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "098f792c0a23687fac0815f918dc06a793d0a2eae120c3dffedb758a128479e9",
         "sites": [
@@ -1507,6 +1528,9 @@
     "tools/check-docs-sync.mjs": [
       {
         "sha256": "1e1de2e4d05792aa1c65dd8806e22546a91fb29260d0b276014646972a6d2931"
+      },
+      {
+        "sha256": "5be478852accb197385ea4f49653d87b6bd95c4c725ad77374a6cd8fb7f6c51c"
       },
       {
         "sha256": "7df0dc1fbfe109a5a98fb0f28ddfdf7b248184490e6d2d490794e9abe2efa4b2"
@@ -1909,6 +1933,9 @@
     "tools/gen-agents-lock.mjs": [
       {
         "sha256": "19569328133d2f67ceb33ddcbfe4ef0a86ec1e58ba0775c57f0919b7ea1f626a"
+      },
+      {
+        "sha256": "2f3e87181d3b022168a9e87bf494fe4ac070947e95210e0f52552e865157435a"
       }
     ],
     "tools/gen-conformance-docs.mjs": [
@@ -1955,6 +1982,9 @@
       },
       {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
+      },
+      {
+        "sha256": "e40ecd90208f2cb065bba27d2ab438ea948410bd4d0ed854f262f8d6d6220b58"
       }
     ],
     "tools/lib/agent-surface.mjs": [

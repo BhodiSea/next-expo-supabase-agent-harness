@@ -329,6 +329,19 @@
       "reason": "The reviewer model record (1.1.0, #62) was probed against Claude Code 2.1.285 in print mode (design/CONTROL-PLANE-FACTS.md, Fact 16): no Subagent* payload names a model, each assistant line of the subagent transcript at agent_transcript_path carries the model that produced it at message.model as a full ID, a model error with no chain never reaches SubagentStop while a fallbackModel chain moves the subagent silently, and a green Stop hook's JSON systemMessage surfaces as a notice while its stderr does not. Three answers print mode cannot give are still owed: how the interactive terminal, the VS Code extension and the desktop app render a green Stop's systemMessage (the channel that keeps a fallback from being silent), whether the plugin loader accepts the harnessFallbackModels key, and whether the main agent's Edit tool may write a subagent transcript under ~/.claude/projects/. Discharge = run the three probes Fact 16 names, record each answer in Fact 16 (which moves this anchor), and delete this row in the same diff; if a surface does not show the systemMessage, move the FALLBACK MODEL lines to a channel it does show first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "docs-sync-verdict-demand-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-docs-sync.mjs",
+          "mustContain": "reviewer bodies closing on the verdict demand"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#72, R03). docs-sync now holds every reviewer body in REVIEWER_AGENTS to CLOSE on the verdict demand: its last paragraph must be exactly the demand, optionally followed by the shipped rationale sentence (verdictDemandProblem in template/base/tools/lib/agent-roster.mjs). Presence of the demand stays a hard red on every vintage, as it has been since 0.2.0; only the position rides this ramp, because since 1.0.2 `update` keeps a re-recorded fork of an owned reviewer body and parks the incoming copy, so a fork made before 1.1.0 was never judged for position. The same ramp carries the one finding a parked fork of tools/lib/agent-roster.mjs without the helper produces. The deadline is the one issue #72 sets as its default, the next minor. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry, as it owes the version-sync arrival row and the two other 1.1.0 ramps above that target the same release (docs-sync's severity contract and reviewer-verdicts' round budget, #71). Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming this site's population (every vintage below 1.1.0 that forked a reviewer body), with its sweep in that release's runbook section (restore the closing paragraph from .harness/pending/ or the template, a human re-locks with HARNESS_ALLOW_SELF_EDIT=1 node tools/gen-agents-lock.mjs --write, re-record the sha), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }
