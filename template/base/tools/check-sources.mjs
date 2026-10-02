@@ -30,7 +30,17 @@
 // vintage gets them hard (the rampNote mechanism in tools/lib/gate.mjs exists
 // for checks added AFTER consumers install, not for these). The per-edit hook
 // enforces only the presence floor (see provenance-rules.mjs: no corpus load
-// per edit — a hook can only block or pass).
+// per edit).
+//
+// MANDATORY AND ADVISORY CLASSES (1.1.0, #69). The presence check (the
+// hook-parity sweep below) and the group-match (4) judge a site by its decision
+// classes. A site in any MANDATORY class reds exactly as before. A site whose
+// every class is ADVISORY (provenance-rules.mjs ADVISORY_DECISION_GROUPS, less
+// any class the seeded tools/decision-groups.json promotes) prints one
+// `provenance: ADVISORY (n) — file:line [class]` line on every run, green or
+// red, and is never a red on its own. Resolvability, the host allowlist, corpus
+// integrity and the coverage lockstep stay hard for every class: a citation
+// that is written must be true.
 // SOURCE: docs/harness/README.md (the gate is the enforcement; provenance) [corpus: harness/doctrine]
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -38,6 +48,12 @@ import process from 'node:process'
 import { isAllowedCitationHost } from './lib/citation-domains.mjs'
 import { corpusById, loadCorpus, PROJECT_CORPUS, UPSTREAM_CORPUS } from './lib/corpus.mjs'
 import { fail, MAX_BUFFER, ok } from './lib/gate.mjs'
+// The rules as a NAMESPACE for the 1.1.0 surface (#69): an install can keep a FORK of
+// tools/lib/provenance-rules.mjs that `update` parked while it re-planted this gate, and a
+// named import of an export the fork lacks fails at LINK time. Through the namespace a
+// missing isMandatorySite is `undefined`, and every class then stays mandatory, exactly as
+// before the split. The 0.x names stay named.
+import * as rulesLib from './lib/provenance-rules.mjs'
 import {
   CORPUS_REF,
   DECISION_GROUPS,
@@ -86,10 +102,18 @@ function read(file) {
   }
 }
 
-const uncited = [] // decision sites with no SOURCE in the window (hook parity)
+const uncited = [] // MANDATORY decision sites with no SOURCE in the window (hook parity)
 const problems = [] // resolvability + corpus-integrity failures
 const semantic = [] // semantic findings: group-match + URL-host allowlist (floor-native, still hard)
 const citedSites = [] // cited decision sites, held for the corpus group-match below
+// ADVISORY findings (1.1.0): an uncited site or a group-match miss whose classes are all
+// advisory. Printed on every run, never a red. { at: 'file:line', groups, why }
+const advisory = []
+
+// A fork of the rules lib that predates the split has no isMandatorySite, and no `groups`
+// on its findings: every site is then mandatory, as it was.
+const isMandatorySite =
+  typeof rulesLib.isMandatorySite === 'function' ? rulesLib.isMandatorySite : () => true
 
 // ── 0. reviewed cross-group overrides: schema-validated, fail closed ──────────
 // Shape: { comment: string, entries: [{ file, group, id, reason }] } — every
@@ -156,7 +180,8 @@ for (const file of tracked.filter(gateFileMatch).filter(gateScansFile)) {
   const src = read(file)
   if (src === null) continue
   for (const f of findUncitedDecisionSites(src)) {
-    uncited.push(`${file}:${f.line}  ${f.excerpt}`)
+    if (isMandatorySite(f.groups)) uncited.push(`${file}:${f.line}  ${f.excerpt}`)
+    else advisory.push({ at: `${file}:${f.line}`, groups: f.groups, why: 'no SOURCE citation' })
   }
   for (const site of findCitedDecisionSites(src)) {
     citedSites.push({ file, ...site })
@@ -223,12 +248,22 @@ if (corpusReady) {
     // at a flagged decision site does not auto-satisfy the group-match. The site must
     // cite an entry whose groups actually include the flagged class.
     const covered = new Set(known.flatMap((id) => entryGroups.get(id)))
+    // A site in any mandatory class is judged whole, advisory co-classes included (1.1.0).
+    const mandatorySite = isMandatorySite(site.groups)
     for (const g of site.groups) {
       if (covered.has(g)) continue
       if (overrides.some((o) => o.file === site.file && o.group === g && refs.includes(o.id))) {
         continue
       }
       const cited = known.map((id) => `${id} (groups: ${entryGroups.get(id).join(', ') || 'none'})`)
+      if (!mandatorySite) {
+        advisory.push({
+          at: `${site.file}:${site.line}`,
+          groups: [g],
+          why: `cited ${cited.join('; ')} does not cover this class`,
+        })
+        continue
+      }
       semantic.push(
         `${site.file}:${site.line}  decision group '${g}' is not justified by the cited corpus ` +
           `entr${known.length === 1 ? 'y' : 'ies'} ${cited.join('; ')} — cite an entry whose groups ` +
@@ -262,6 +297,26 @@ if (corpusReady) {
 // gate.mjs) instead; these two predate every install by construction.
 problems.push(...semantic)
 
+// Every run prints the advisory findings, green or red, one line each. The line is shaped so
+// that neither graduate's ramp-NOTE filter nor any Stop-hook collector (SKIPPED, STAMPED,
+// FALLBACK MODEL) can take it for one of theirs.
+// The classes still advisory on THIS install: the owned list less any seeded promotion.
+const advisoryClasses = (rulesLib.ADVISORY_DECISION_GROUPS ?? []).filter(
+  (key) => rulesLib.isMandatoryGroup?.(key) === false,
+)
+for (const a of advisory) {
+  process.stdout.write(
+    `provenance: ADVISORY (${String(advisory.length)}) — ${a.at} [${a.groups.join(', ')}] ${a.why}\n`,
+  )
+}
+if (advisory.length) {
+  process.stdout.write(
+    `check:sources — ${String(advisory.length)} advisory finding(s) above, in advisory classes ` +
+      `(${advisoryClasses.join(', ')}): reported on every run, never a red on their own. Cite them, ` +
+      'or promote a class with "mandatory": ["<key>"] in tools/decision-groups.json\n',
+  )
+}
+
 if (uncited.length) {
   process.stderr.write(
     `Provenance gate (check:sources): ${String(uncited.length)} decision site(s) lack an inline ` +
@@ -283,8 +338,15 @@ if (uncited.length || problems.length) {
   )
 }
 
-process.stdout.write('check:sources — all decision sites carry SOURCE citations (0 flagged)\n')
 process.stdout.write(
-  `check:sources — corpus verified: ${String(corpus.entries.length)} entr(ies) hash-clean, all corpus refs resolve, ${String(coveredGroups.size)}/${String(knownGroupKeys.size)} decision groups covered; group-match + URL-host allowlist clean\n`,
+  advisory.length
+    ? `check:sources — every mandatory decision site carries a justified SOURCE citation; ${String(advisory.length)} advisory finding(s) reported above\n`
+    : 'check:sources — all decision sites carry SOURCE citations (0 flagged)\n',
 )
-ok('provenance', 'resolvable, group-matched citations over a tamper-evident corpus')
+process.stdout.write(
+  `check:sources — corpus verified: ${String(corpus.entries.length)} entr(ies) hash-clean, all corpus refs resolve, ${String(coveredGroups.size)}/${String(knownGroupKeys.size)} decision groups covered; ${advisory.length ? 'group-match clean for every mandatory site, ' : 'group-match + '}URL-host allowlist clean\n`,
+)
+ok(
+  'provenance',
+  `resolvable, group-matched citations over a tamper-evident corpus${advisory.length ? `; ${String(advisory.length)} advisory finding(s) reported, not a red` : ''}`,
+)

@@ -401,6 +401,44 @@ test('inline deny sites record a telemetry LABEL (not a rule id): append-only mi
   assert.equal(onlyEvent(mcp).rule, 'mcp-server-unregistered')
 })
 
+test('a source-check advisory records one advisory event per class, and never the path (#69)', () => {
+  // 1.1.0: an advisory-class finding is counted per class, `rule: provenance/<class>`,
+  // `outcome: advisory`, whether the hook blocked on a mandatory site in the same file or not.
+  const dir = install()
+  mkdirSync(join(dir, 'apps/server/src'), { recursive: true })
+  const file = join(dir, 'apps/server/src/limits.ts')
+  writeFileSync(file, 'export const opts = { timeoutMs: 5000 }\nexport const p = { temperature: 0.2, maxRetries: 3 }\n')
+  const r = runHook(dir, 'posttool-source-check.mjs', { tool_name: 'Edit', tool_input: { file_path: file }, ...IDS })
+  assert.equal(r.code, 0, r.stderr)
+  const log = readLog(dir)
+  assert.deepEqual(
+    log.map((e) => [e.kind, e.hook, e.tool, e.rule, e.outcome]),
+    [
+      ['hook-event', 'posttool-source-check', 'Edit', 'provenance/tuning-constants', 'advisory'],
+      ['hook-event', 'posttool-source-check', 'Edit', 'provenance/llm-sampling', 'advisory'],
+      ['hook-event', 'posttool-source-check', 'Edit', 'provenance/tuning-constants', 'advisory'],
+    ],
+  )
+  for (const e of log) {
+    assert.deepEqual(Object.keys(e), ['v', 'kind', 'at', 'session_id', 'prompt_id', 'hook', 'tool', 'rule', 'outcome'])
+  }
+  assert.ok(!readFileSync(join(dir, LOG), 'utf8').includes('limits.ts'), 'no path in the record')
+
+  const mixed = install()
+  mkdirSync(join(mixed, 'apps/server/src'), { recursive: true })
+  const both = join(mixed, 'apps/server/src/auth.ts')
+  writeFileSync(both, 'const claims = await jwtVerify(token, jwks)\nexport const opts = { timeoutMs: 5000 }\n')
+  const m = runHook(mixed, 'posttool-source-check.mjs', { tool_name: 'Edit', tool_input: { file_path: both }, ...IDS })
+  assert.equal(m.code, 2, m.stderr)
+  assert.deepEqual(
+    readLog(mixed).map((e) => [e.rule, e.outcome]),
+    [
+      ['provenance/tuning-constants', 'advisory'],
+      ['provenance', 'block'],
+    ],
+  )
+})
+
 test('a source-check block records block/provenance', () => {
   const dir = install()
   const file = join(dir, 'apps/server/src/auth.ts')

@@ -41,6 +41,9 @@ position (see Changed) opens one more at 1.1.0, with a deadline of 1.2.0, and ad
 release row (#72).
 A second new seeded file is planted the same way as `tools/field-notes.json`: `update` writes
 `docs/reviews/README.md` (see Added) where an install has none, and no gate reads it (#64).
+`provenance` relaxes rather than tightens (see Changed): three decision classes become
+advisory, so it needs no ramp, and its one new red is a malformed promotion list that no
+install carries yet (#69).
 
 ### Security
 
@@ -524,6 +527,34 @@ this heading if none does. -->
   judgement. The selftest's warm validate must print both stamp lines. The `docs-sync` line
   of `harness.config.mjs` is unchanged, so the chain and both floors do not move, and there
   is no ramp (#68).
+- **`provenance` reds only the classes that guard a security decision; three become
+  advisory.** Every decision class blocked alike: an uncited `timeoutMs` failed the gate
+  and exit-2'd the per-edit hook exactly as an uncited `CREATE POLICY` did, and the gate's
+  own documented anti-vacuity proof was the `timeoutMs`. The owned
+  `tools/lib/provenance-rules.mjs` now exports `ADVISORY_DECISION_GROUPS`: `vector-index`,
+  `llm-sampling` and `tuning-constants`. Every other class stays mandatory, the other
+  built-ins, the seeded `mobile-security`, any group a project adds and any later built-in
+  alike, and a site that matches any mandatory class is judged whole, as before.
+  `findUncitedDecisionSites` now returns each site's `groups` through the one matcher the
+  cited-site finder shares. An uncited site or a group-match miss whose classes are all
+  advisory prints `provenance: ADVISORY (n) — file:line [class]` on every run, green or
+  red, and never reds; the summary and OK lines say so instead of `0 flagged`.
+  Resolvability, the host allowlist, corpus integrity and the coverage lockstep stay hard
+  for every class. The seeded `tools/decision-groups.json` may carry a top-level
+  `"mandatory": ["<key>"]` that promotes a class back, parsed from the object the lib
+  already reads by the new pure `parseMandatoryPromotions()`; a value that is not an array
+  or a key that is not a group fails closed, and nothing in the file can demote a class.
+  `posttool-source-check` exits 2 only on a mandatory site, and its stderr then lists the
+  file's advisory sites too, marked advisory; for advisory sites alone it exits 0 with one
+  PostToolUse `additionalContext` object on stdout, which reaches the model beside the tool
+  result. Each advisory finding is counted per class in the telemetry log, as a
+  `hook-event` with `rule` `provenance/<class>` and `outcome` `advisory`. The factory's
+  PostToolUse adapter now forwards the shipped hook's stdout as well as its stderr and exit
+  code. The `citation-verifier` body lists an uncited advisory-class site at MEDIUM, so it
+  never makes the verdict `CITATIONS: REJECTED` on its own. The gate and the hook reach the
+  new exports through the rules namespace, so a parked fork of the lib keeps every class
+  mandatory. A relaxation with one new red, a malformed `mandatory` list, which no existing
+  file carries: no ramp, no chain step and no floor changes (#69).
 
 ### What stays open, honestly
 
@@ -710,6 +741,20 @@ this heading if none does. -->
   whether to run them only when a release is cut. They still run at every turn end, riding
   the stamp when nothing they read changed, and `template/base` has no release checklist to
   move them to. `check-docs-sync.mjs`, the step's first script, is not stamped (#68).
+- **An existing install's seeded files keep their old text.** The comment of
+  `tools/decision-groups.json` that documents `mandatory`, and the `citation-verifier`
+  sentence in `tools/reviewer-triggers.json`, are seeded, so `update` does not rewrite
+  them. The key works without the comment; the runbook's 1.1.0 section shows it (#69).
+- **Advisory findings reach the model, not the Stop summary.** The hook's
+  `additionalContext` and the gate's ADVISORY lines are the whole report: the Stop hook
+  does not list them on a green turn, and the telemetry counts the per-edit hook's
+  findings, not the gate's tree-wide ones (#69).
+- **The factory adapter reads template/base/ only.** It runs the shipped hook with
+  `template/base/` as its cwd, so an edit under `template/stack/`, `template/modules/` or
+  `template/presets/` is read at a path that does not exist there, and the hook exits 0.
+  Run in a copy of the layout, an uncited `jwtVerify` under `template/stack/` passed at
+  exit 0 while the same file under `template/base/` exited 2. Out of this item's scope,
+  and left for its own issue (#69).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -941,6 +986,36 @@ this heading if none does. -->
   v1.0.4 core install updated by this installer exited 0 and stamped both on the second
   run; one whose `tools/lib/stamp-inputs.mjs` had been edited kept it, parked the new one,
   exited 2, and judged both scripts in full on every run (#68).
+  For the provenance advisory split, the tests-only commit was red on 12 cases. The three
+  advisory greens printed `3 decision site(s) lack an inline` and exited 1, a wrong-group
+  cite on a `timeoutMs` red naming `decision group 'tuning-constants' is not justified`,
+  and `"mandatory": ["x"]` and a non-array `mandatory` each printed `provenance: OK`,
+  because the key was ignored. `tests/gates/provenance-rules.test.mjs` could not load
+  (`does not provide an export named 'ADVISORY_DECISION_GROUPS'`). The hook exited 2 on an
+  uncited `USING hnsw`, wrote no advisory event, and did not mark the advisory site in a
+  mixed file; and the new `tests/hooks/posttool-factory-check.test.mjs` showed the adapter
+  dropping a stub hook's stdout (`stdout: ''` for `OUT apps/server/src/x.ts`) while it
+  forwarded the stderr and exit 3. After the change each case is green, and so are the
+  reds that were already red and must stay so: `runtimeVersion`, `jwtVerify` beside
+  `timeoutMs` on one line, a promoted `timeoutMs`, a project-added group with its corpus
+  coverage in place, and `// SOURCE: trust me` above a `timeoutMs`. The rendered scaffold
+  in `check-sources.test.mjs` passes and prints no `ADVISORY` line. The channel the hook
+  now speaks on was probed first (`design/CONTROL-PLANE-FACTS.md` Fact 18): in print mode
+  against Claude Code 2.1.285, a PostToolUse hook's `additionalContext` at exit 0 reached
+  the model, which quoted it, and the 2.0.0 bundle validates and applies the field, below
+  the 2.1.163 floor, so `tools/cc-floor.json` does not move. In a zero-edit core scaffold
+  `validate --report-all` was green and printed no `ADVISORY` line, and the issue's probes
+  ran there: an uncited `timeoutMs` in `apps/web/lib/n20a.ts` printed
+  `provenance: ADVISORY (1) — apps/web/lib/n20a.ts:1 [tuning-constants]` and exited 0, the
+  hook answered the same file with the `additionalContext` object at exit 0, an uncited
+  `jwtVerify` beside it exited 1, and `"mandatory": ["tuning-constants"]` made the
+  `timeoutMs` alone exit 1. Canary 4, stripping the citations from the notes migration, still
+  reds. A v1.0.4 core install updated by this installer exited 0 and behaved the same with
+  its seeded `tools/decision-groups.json` still carrying the old comment; adding
+  `"mandatory": ["x"]` to that file failed the gate and the hook closed. One whose
+  `tools/lib/provenance-rules.mjs` had been edited kept it, parked the new copy and exited 2,
+  and there the same `timeoutMs` still failed the gate and made the hook exit 2: under a
+  parked fork every class stays mandatory (#69).
 
 ## [1.0.4] — 2026-10-01
 

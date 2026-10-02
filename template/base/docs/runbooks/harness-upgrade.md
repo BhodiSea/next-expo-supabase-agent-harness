@@ -1742,7 +1742,14 @@ re-plants `.claude/rules/encryption.md` (now a stub), the `authoring-e2ee-featur
 change is yours to take or leave (its subsection below). The register stamps re-plant
 `tools/check-essential-eight.mjs`, `tools/check-conformance-map.mjs`,
 `tools/lib/stamp-inputs.mjs`, `docs/harness/gates-catalog.md` and `docs/harness/README.md`;
-nothing of it is seeded. What you may notice afterwards:
+nothing of it is seeded. The provenance advisory split re-plants
+`tools/lib/provenance-rules.mjs`, `tools/check-sources.mjs`,
+`.claude/hooks/posttool-source-check.mjs`, `.claude/hooks/lib/hookio.mjs`,
+`.claude/rules/provenance.md`, `.claude/agents/citation-verifier.md` (`update` re-records
+its `tools/agents.lock.json` entry), `docs/harness/gates-catalog.md` and
+`docs/harness/README.md`; the comments of your seeded `tools/decision-groups.json` and
+`tools/reviewer-triggers.json` stay as they are (its subsection below). What you may notice
+afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1846,6 +1853,12 @@ nothing of it is seeded. What you may notice afterwards:
   `validate --ci-parity` judge both in full, and the first run after `update` re-proves
   both. Nothing is yours to do. If you forked `tools/lib/stamp-inputs.mjs`, both judge in
   full until you merge the parked copy.
+- **`provenance` prints `ADVISORY` lines, and the source-check hook stops blocking on
+  some uncited sites.** An uncited or wrongly grounded site in `vector-index`,
+  `llm-sampling` or `tuning-constants` alone now prints
+  `provenance: ADVISORY (n) — file:line [class]` and passes, and the hook hands the agent
+  a note instead of exiting 2. Nothing that was green turns red. The subsection on
+  advisory classes below says how to keep a class mandatory.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2539,6 +2552,50 @@ secret-name bullet and the shell-hygiene bullet to:
 
 Leave the gate-list and Stop-chain sentences, the `Keep under ~N lines` sentence and every
 `pnpm` command it advertises as they are: `docs-sync` reads them.
+
+### Advisory decision classes: `provenance` reds only the mandatory ones
+
+Until 1.1.0 every decision class blocked alike: an uncited `timeoutMs` failed `provenance`
+and made the source-check hook exit 2, exactly as an uncited `CREATE POLICY` did. From
+1.1.0 three classes are **advisory**: `vector-index`, `llm-sampling` and
+`tuning-constants`, listed in the owned `tools/lib/provenance-rules.mjs`. An uncited site,
+or a citation whose corpus entry does not cover the class, whose classes are all advisory
+prints on every run and fails nothing:
+
+```
+provenance: ADVISORY (1) — apps/web/lib/limits.ts:1 [tuning-constants] no SOURCE citation
+```
+
+The hook answers the same site with a note in the agent's context and exits 0. Every other
+class stays **mandatory**: `rls-policy`, `guc-identity`, `token-verification`,
+`cryptography`, the seeded `mobile-security` and every group your
+`tools/decision-groups.json` adds. A line that matches a mandatory class and an advisory
+one, such as `jwtVerify(t, k, { timeoutMs: 5 })`, is mandatory. A citation you do write
+must still ground, whatever the class: a pinned corpus id, an existing repository path or
+a URL on an allowlisted host.
+
+**Keeping a class mandatory.** Add a top-level `mandatory` list to
+`tools/decision-groups.json`, beside `comment` and `groups`:
+
+```
+  "mandatory": ["tuning-constants"]
+```
+
+The file is write-guarded, so a human makes the edit and commits it, or reviews and applies
+an agent's `harness-proposals/<id>.json` for it (the subsection above). A value that is not
+an array, or a key that is not a decision group, fails `provenance` and blocks every edit
+until it is fixed. Nothing in the file can make a mandatory class advisory.
+
+**What `update` leaves alone.** `tools/decision-groups.json` and
+`tools/reviewer-triggers.json` are seeded, so an existing install keeps its copies. The
+`mandatory` key works without the new comment, which only documents it, and the
+`citation-verifier` sentence in `tools/reviewer-triggers.json` is prose no check reads.
+Copy either from the template if you want the text.
+
+**If you edited `tools/lib/provenance-rules.mjs`.** `update` keeps your copy, parks the new
+one under `.harness/pending/` and exits 2 while it stays there. The re-planted gate and
+hook find the split only in the new copy, so until you merge it every class stays
+mandatory, exactly as before 1.1.0, and nothing turns red that was green.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

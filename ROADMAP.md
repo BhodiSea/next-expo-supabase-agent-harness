@@ -224,8 +224,14 @@ None of these tightens a gate for an existing install. Where one changes what
   ([N19](design/FIELD-UPGRADES-2026-09.md#n19-compliance-register-checks-on-a-release-cadence),
   issue #68)
 - **Provenance by decision class.** Mandatory where a citation guards a
-  security decision, advisory elsewhere.
-  ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere))
+  security decision, advisory elsewhere. `vector-index`, `llm-sampling` and
+  `tuning-constants` are advisory: an uncited or wrongly grounded site there
+  prints an `ADVISORY` line and the hook hands the agent a note instead of
+  blocking. Every other class, the seeded and project-added ones included,
+  stays mandatory, a seeded `"mandatory"` list promotes a class back, and
+  nothing demotes one. A written citation must still resolve in every class.
+  ([N20](design/FIELD-UPGRADES-2026-09.md#n20-provenance-mandatory-where-it-guards-a-security-decision-advisory-elsewhere),
+  issue #69)
 
 ### 1.1.0, behind a ramp
 

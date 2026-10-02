@@ -99,6 +99,10 @@ test('GREEN: a rendered scaffold passes — every cited corpus id resolves, hash
   // seeded mobile-security G27 extension. The count is the LOCKSTEP that matters:
   // a new decision class ships only with a corpus authority that can ground it.
   assert.ok(r.out.includes('8/8 decision groups covered'), r.out)
+  // 1.1.0 (#69): the advisory classes print instead of redding, so a green run alone no
+  // longer proves the shipped template cites its tuning, sampling and index constants. It
+  // must print no ADVISORY line either.
+  assert.ok(!r.out.includes('ADVISORY'), r.out)
 })
 
 // ── decision-site presence (hook parity) ──────────────────────────────────────
@@ -347,6 +351,215 @@ test('G27: a malformed decision-groups extension fails CLOSED (citation duty can
     },
   }))
   assert.equal(r.code, 1, r.out)
+})
+
+// ── mandatory and advisory classes (1.1.0, #69) ────────────────────────────────
+// Three built-in classes are ADVISORY: vector-index, llm-sampling and tuning-constants. An
+// uncited site, or a group-match miss, that touches only advisory classes prints one
+// `provenance: ADVISORY (n) — file:line [class]` line and does not red. Every other class is
+// mandatory — the other built-ins, the seeded mobile-security, any group a project adds — and
+// a site that matches ANY mandatory class is judged exactly as before. A seeded
+// `"mandatory": [<key>]` promotes a class; nothing in the file can demote one. Resolvability,
+// the host allowlist, corpus integrity and the coverage lockstep stay hard for every class.
+const ADVISORY_LINE = /^provenance: ADVISORY \(\d+\) — .+$/gm
+const advisoryLines = (out) => out.match(ADVISORY_LINE) ?? []
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** The seeded groups file with extra top-level keys (the `mandatory` promotion list). */
+const groupsWith = (extra) => JSON.stringify({ ...JSON.parse(SHIPPED_GROUPS), ...extra }, null, 2)
+
+test('ADVISORY: an uncited timeoutMs, USING hnsw and temperature each exit 0 and print file:line and class', () => {
+  const r = runGate(fixture({
+    files: {
+      'apps/web/lib/limits.ts': 'export const opts = { timeoutMs: 5000 }\n',
+      'supabase/migrations/0002_idx.sql':
+        'CREATE INDEX items_embedding ON items USING hnsw (embedding vector_cosine_ops);\n',
+      'packages/ai/src/sampling.ts': 'export const params = { temperature: 0.2 }\n',
+    },
+  }))
+  assert.equal(r.code, 0, r.out)
+  const lines = advisoryLines(r.out)
+  assert.equal(lines.length, 3, r.out)
+  for (const [at, cls] of [
+    ['apps/web/lib/limits.ts:1', 'tuning-constants'],
+    ['supabase/migrations/0002_idx.sql:1', 'vector-index'],
+    ['packages/ai/src/sampling.ts:1', 'llm-sampling'],
+  ]) {
+    assert.ok(
+      lines.some((l) => new RegExp(`^provenance: ADVISORY \\(3\\) — ${escapeRe(at)} \\[${cls}\\]`).test(l)),
+      `${at} [${cls}]: ${r.out}`,
+    )
+  }
+  assert.ok(!r.out.includes('lack an inline'), r.out)
+  // "0 flagged" is no longer true when advisory findings exist.
+  assert.ok(!r.out.includes('0 flagged'), r.out)
+  assert.ok(r.out.includes('provenance: OK'), r.out)
+})
+
+test('ADVISORY: the line matches neither graduate\'s ramp-NOTE filter nor any Stop-hook collector', () => {
+  const r = runGate(fixture({ files: { 'apps/web/lib/limits.ts': 'export const opts = { timeoutMs: 5000 }\n' } }))
+  assert.equal(r.code, 0, r.out)
+  const lines = advisoryLines(r.out)
+  assert.equal(lines.length, 1, r.out)
+  for (const line of lines) {
+    // installer/commands/graduate.mjs: a ramp NOTE is /NOTE\s*—/ and /ramp/i.
+    assert.ok(!(/NOTE\s*—/.test(line) && /ramp/i.test(line)), line)
+    // .claude/hooks/stop-validate-gate.mjs: SKIP_RE, STAMP_RE and FALLBACK_RE.
+    assert.ok(!/\bSKIPPED\b/.test(line), line)
+    assert.ok(!/^[\w-]+: STAMPED — /.test(line), line)
+    assert.ok(!/^[\w-]+: FALLBACK MODEL — /.test(line), line)
+  }
+})
+
+test('ADVISORY: a wrong-group citation on a timeoutMs site is ADVISORY, not a red', () => {
+  // llamacpp/sampling is pinned with groups: ["llm-sampling"]: it resolves, and it does not
+  // justify a tuning constant.
+  const r = runGate(fixture({
+    files: {
+      'apps/web/lib/limits.ts':
+        '// SOURCE: pinned but off-topic [corpus: llamacpp/sampling]\nexport const opts = { timeoutMs: 5000 }\n',
+    },
+  }))
+  assert.equal(r.code, 0, r.out)
+  const lines = advisoryLines(r.out)
+  assert.equal(lines.length, 1, r.out)
+  assert.match(lines[0], /^provenance: ADVISORY \(1\) — apps\/web\/lib\/limits\.ts:2 \[tuning-constants\]/)
+  assert.ok(!r.out.includes('is not justified'), r.out)
+})
+
+test('ADVISORY lines print on a RED run too, and the red counts only the mandatory findings', () => {
+  const r = runGate(fixture({
+    files: {
+      'apps/server/src/auth.ts': 'const claims = await jwtVerify(token, jwks)\n',
+      'apps/web/lib/limits.ts': 'export const opts = { timeoutMs: 5000 }\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('1 decision site(s) lack an inline'), r.out)
+  assert.ok(r.out.includes('apps/server/src/auth.ts:1'), r.out)
+  const lines = advisoryLines(r.out)
+  assert.equal(lines.length, 1, r.out)
+  assert.match(lines[0], /apps\/web\/lib\/limits\.ts:1 \[tuning-constants\]/)
+})
+
+test('MANDATORY: an uncited runtimeVersion (the seeded mobile-security group) still reds', () => {
+  const r = runGate(fixture({
+    files: { 'apps/mobile/app.config.ts': "export default { runtimeVersion: { policy: 'appVersion' } }\n" },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('apps/mobile/app.config.ts:1'), r.out)
+  assert.ok(r.out.includes('lack an inline'), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('MANDATORY: a line carrying both jwtVerify and timeoutMs is mandatory — any mandatory class decides', () => {
+  const r = runGate(fixture({
+    files: { 'apps/server/src/auth.ts': 'const claims = await jwtVerify(token, jwks, { timeoutMs: 5 })\n' },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('apps/server/src/auth.ts:1'), r.out)
+  assert.ok(r.out.includes('lack an inline'), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('MANDATORY: a group-match miss on an advisory class still reds when the SITE is mandatory', () => {
+  // supabase/asymmetric-keys covers token-verification only. The site's tuning-constants half
+  // is unjustified; the site matches a mandatory class, so the miss is judged as before.
+  const r = runGate(fixture({
+    files: {
+      'apps/server/src/auth.ts':
+        '// SOURCE: key verification [corpus: supabase/asymmetric-keys]\nconst claims = await jwtVerify(token, jwks, { timeoutMs: 5 })\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("decision group 'tuning-constants' is not justified"), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('PROMOTION: "mandatory": ["tuning-constants"] makes an uncited timeoutMs red again', () => {
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': groupsWith({ mandatory: ['tuning-constants'] }),
+      'apps/web/lib/limits.ts': 'export const opts = { timeoutMs: 5000 }\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('apps/web/lib/limits.ts:1'), r.out)
+  assert.ok(r.out.includes('lack an inline'), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('PROMOTION: a promoted class judges the group-match as mandatory too', () => {
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': groupsWith({ mandatory: ['tuning-constants'] }),
+      'apps/web/lib/limits.ts':
+        '// SOURCE: pinned but off-topic [corpus: llamacpp/sampling]\nexport const opts = { timeoutMs: 5000 }\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes("decision group 'tuning-constants' is not justified"), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('PROMOTION: an unknown key in "mandatory" fails CLOSED, naming the key', () => {
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': groupsWith({ mandatory: ['x'] }),
+      'apps/clean.ts': 'export const nothing = 1\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('"mandatory"'), r.out)
+  assert.ok(r.out.includes('"x"'), r.out)
+})
+
+test('PROMOTION: a "mandatory" that is not an array fails CLOSED', () => {
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': groupsWith({ mandatory: 'tuning-constants' }),
+      'apps/clean.ts': 'export const nothing = 1\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('"mandatory" must be an ARRAY'), r.out)
+})
+
+test('MANDATORY: an uncited site of a project-added group reds, with its corpus coverage in place', () => {
+  // The coverage lockstep is satisfied (a project entry covers chunk-size), so the only
+  // finding is the uncited site: a group a project adds is mandatory, never advisory.
+  const merged = JSON.parse(SHIPPED_GROUPS)
+  merged.groups.push({ key: 'chunk-size', description: 'RAG chunk sizing', patterns: ['chunkSize'] })
+  const r = runGate(fixture({
+    files: {
+      'tools/decision-groups.json': JSON.stringify(merged),
+      'tools/mcp/corpus/project.json': JSON.stringify({
+        comment: 'fixture project corpus',
+        entries: [{
+          id: 'project/chunking',
+          title: 'Chunking study',
+          url: 'https://example.com/chunking',
+          version: '1',
+          text: 'Chunk at 512 tokens.',
+          sha256: createHash('sha256').update('Chunk at 512 tokens.', 'utf8').digest('hex'),
+          groups: ['chunk-size'],
+        }],
+      }),
+      'packages/importer/src/rag.ts': 'export const chunkSize = 512\n',
+    },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('packages/importer/src/rag.ts:1'), r.out)
+  assert.ok(r.out.includes('lack an inline'), r.out)
+  assert.ok(!r.out.includes("decision group 'chunk-size' ("), r.out)
+  assert.deepEqual(advisoryLines(r.out), [], r.out)
+})
+
+test('HARD FOR EVERY CLASS: `// SOURCE: trust me` above a timeoutMs still reds (a written citation must resolve)', () => {
+  const r = runGate(fixture({
+    files: { 'apps/web/lib/limits.ts': '// SOURCE: trust me\nexport const opts = { timeoutMs: 5000 }\n' },
+  }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('SOURCE payload resolves to nothing'), r.out)
 })
 
 test('FLOOR-NATIVE: a pre-ramp baseVersion manifest does NOT soften the semantic checks (no NOTE, still red)', () => {

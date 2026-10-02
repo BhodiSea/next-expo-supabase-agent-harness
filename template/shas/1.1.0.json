@@ -38,6 +38,9 @@
         "sha256": "dda2b869f2b19e6f38ac4868b3958de6df4fbae5bedafabcab6aad75b3c52bbc"
       },
       {
+        "sha256": "e9178a19ff6ad0b1920c4e9c7ade20fd9aec23c78459194bb2ff90711d17fab8"
+      },
+      {
         "sha256": "f439b7809d7cfdbccbfae416d1b001ba0725158bf888cc230c0a96b871d07103"
       }
     ],
@@ -233,6 +236,9 @@
     ],
     ".claude/hooks/lib/hookio.mjs": [
       {
+        "sha256": "1a39f901cf9ba220aa0362ce8d280e40d44c9fd6a8252085b60e958b84810ba5"
+      },
+      {
         "sha256": "9a4b2af6434716fd79fcdb7decdd25c61c0d9e5262cc15740d549d8a7d490996"
       }
     ],
@@ -249,6 +255,9 @@
     ".claude/hooks/posttool-source-check.mjs": [
       {
         "sha256": "9e648d1e468ebca7e58e2a4b3c6e038a7bdaab86505951f73a849a87b89ff4fb"
+      },
+      {
+        "sha256": "dc9ff27c66ee2bd3ff16765937a1c80602c4737de0302a09e5ccb649f0ca289f"
       }
     ],
     ".claude/hooks/pretool-bash-guard.mjs": [
@@ -328,6 +337,9 @@
     ".claude/rules/provenance.md": [
       {
         "sha256": "03eb4a46104237456395f176ed25ae616e48317354dde78d2a6b4b356b652a1d"
+      },
+      {
+        "sha256": "4aedd1b2f4d23cc4523087ccac0401c2ae58a88758ba0e0e3180b684ddfadbc2"
       }
     ],
     ".claude/rules/security-invariants.md": [
@@ -959,6 +971,15 @@
         ]
       },
       {
+        "sha256": "bcca5a69e1972ceb93483b710662482ffbb95219df299a113e3e027256adfedc",
+        "sites": [
+          [
+            20058,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "bda6aa93cdccde70d2453e5a26b5aaec2fad81017e09cbc4c07002cb2ff62138",
         "sites": [
           [
@@ -1072,6 +1093,15 @@
         "sites": [
           [
             123533,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "ef6cb5fe0fc099945ec4e5583a7581847fcd4089a2aa12f50e340adc224a1c4f",
+        "sites": [
+          [
+            124772,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1367,6 +1397,15 @@
       },
       {
         "sha256": "ab104b7c61a61fbea071d1f7f3d836f24ae251a66bfd7c6fd04752c3981000c6",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "b2e331a5edf0f92c71273443f5e83c5dc1c2889e49c213dc3524bf9bfb0f2d4a",
         "sites": [
           [
             14115,
@@ -1914,6 +1953,9 @@
     ],
     "tools/check-sources.mjs": [
       {
+        "sha256": "0b24d0f41b83a0e972e558bf68c493a00c120e68fc206a8ec2b98c552b07b119"
+      },
+      {
         "sha256": "c11c02f558e11ae282bfd76dc55e55d10e18118c5d789165359242dcc543bff8"
       }
     ],
@@ -2356,6 +2398,9 @@
     "tools/lib/provenance-rules.mjs": [
       {
         "sha256": "05cbc11aa1acc35464be245058bcaf471ab15d8f1110d86290b21a92e718f18d"
+      },
+      {
+        "sha256": "a13518dde1c19438bdf9a54702622aebe92b0c589cbcee82a9441633acad7cce"
       }
     ],
     "tools/lib/query-recorder.mjs": [

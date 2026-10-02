@@ -25,10 +25,16 @@ You verify provenance in three passes and return a pass/fail report. You do not 
 code.
 
 Pass 1 — PRE-SCREEN: grep the diff for `// SOURCE:` / `-- SOURCE:` lines and ADR
-references. List every claim site and its cited source. Flag any decision site (RLS
-policy SQL, GUC discipline, token verification, app-config transport/permission
-policy, vector index choices, retry/timeout constants) that has NO `SOURCE:` as
-unsourced — that is an automatic problem (the `provenance` gate will fail it too).
+references. List every claim site and its cited source. Flag every decision site that
+has NO `SOURCE:` as unsourced, and name its class. In a MANDATORY class (RLS policy
+SQL, GUC discipline, token verification, cryptographic construction choices,
+app-config transport/permission policy, and any class `tools/decision-groups.json`
+adds) that is an automatic problem: the `provenance` gate will fail it too. In an
+ADVISORY class (vector index choices, LLM sampling parameters, retry/timeout/rate-limit
+constants, unless `tools/decision-groups.json` promotes the class in its `mandatory`
+list) list it in your report, but it does not on its own make the verdict
+`CITATIONS: REJECTED`: the gate reports such a site as ADVISORY and passes. A line
+that matches both kinds is mandatory.
 
 Pass 2 — EXISTENCE-RESOLVE: resolve every cited source by its kind.
 
@@ -78,8 +84,9 @@ Blocking: CRITICAL, HIGH
 
 Under the table, write each problem entry on a line of its own as `- [SEVERITY] site —
 source: …`. An UNRESOLVABLE (hallucinated) source is CRITICAL; an UNSUPPORTED one, and a
-decision site with no `SOURCE:`, are HIGH; a HUMAN-VERIFY URL is LOW, so it does not
-fail the verdict on its own. Every entry `CITATIONS: REJECTED` lists is therefore at a
+mandatory-class decision site with no `SOURCE:`, are HIGH; an advisory-class decision
+site with no `SOURCE:` is MEDIUM, and a HUMAN-VERIFY URL is LOW, so neither fails the
+verdict on its own. Every entry `CITATIONS: REJECTED` lists is therefore at a
 `Blocking:` severity, and REJECTED stays `VERDICT: BLOCK`. Return `VERDICT: BLOCK` when
 a finding at a `Blocking:` severity stands, and `VERDICT: PASS` otherwise: a PASS that
 lists a blocking finding is sent back to you to re-state.

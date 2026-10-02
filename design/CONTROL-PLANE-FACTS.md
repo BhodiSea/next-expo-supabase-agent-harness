@@ -18,6 +18,9 @@ the three answers the print-mode probe could not observe.
 Fact 17 (2026-09-30) was probed against **Claude Code 2.1.285** in print mode: how
 `claude -p --agent <name>` runs a reviewer on its pinned model, which the reviewer eval's
 `--live` mode relies on (1.1.0, #66).
+Fact 18 (2026-09-30) was probed against **Claude Code 2.1.285** in print mode: that a
+PostToolUse hook's `additionalContext` reaches the model at exit 0, which the per-edit
+provenance hook's advisory answer relies on (1.1.0, #69).
 **Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
 sourced, re-verify-on-bump.
 
@@ -578,6 +581,39 @@ and `--agent probe-missing`.
 
 **Re-verify** on any Claude Code upgrade, and before a `--live` run whose score is compared
 with one recorded on another version: `live.json` records the version it ran on.
+## Fact 18 — a PostToolUse `additionalContext` reaches the model at exit 0: observed in print mode
+
+**Status, 2026-09-30: observed against Claude Code 2.1.285 in print mode (`claude -p`); the
+field's presence at 2.0.0 read from that release's bundle.** Recorded before
+`posttool-source-check.mjs` started answering an advisory-class site with it instead of an
+exit 2 (1.1.0, #69). Method, the same as Fact 16: a scratch project whose
+`.claude/settings.local.json` wired one probe hook to `PostToolUse` with matcher `Write`. The
+hook appended raw stdin to a scratch file and printed
+`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PROBE-69-MARKER: …"}}`
+at exit 0. One run, `claude -p` under `--output-format stream-json --verbose`, asked the
+model to write a file and then quote any context a hook had added to the tool result.
+
+1. **Does the string reach the model? Yes, observed.** The stream carried a `hook_response`
+   event for `PostToolUse:Write` with `exit_code: 0`, `outcome: success` and the JSON as
+   its stdout, and the model's reply quoted the marker verbatim. The turn went on as
+   usual: exit 0 with this object blocks nothing.
+2. **The payload.** `session_id`, `transcript_path`, `cwd`, `scratchpad_dir`, `prompt_id`,
+   `permission_mode`, `effort`, `hook_event_name`, `tool_name`, `tool_input`,
+   `tool_response`, `tool_use_id` and `duration_ms`. The hook reads only
+   `tool_input.file_path` (or `path`).
+3. **Since which version? At least 2.0.0, read from the bundle.** The `cli.js` of
+   `@anthropic-ai/claude-agent-sdk@0.1.0`, which states `Version: 2.0.0`, validates hook
+   output with `hookEventName: literal("PostToolUse"), additionalContext:
+   string().optional()` and copies it into the result for `PostToolUse` beside
+   `UserPromptSubmit` and `SessionStart`. The required floor in `tools/cc-floor.json` is
+   2.1.163, so the field needs no `featureFloors` row. The hooks reference, read the same
+   day (https://code.claude.com/docs/en/hooks), documents the field for `PostToolUse` and
+   caps the string at 10,000 characters, past which Claude Code saves it to a file and
+   keeps a 2,000-character preview; the hook caps its list at 20 sites.
+
+**Not observed.** How the interactive terminal, the VS Code extension and the desktop app
+show the note to the user; the hook does not rely on the user seeing it, since the gate
+prints the same finding as an ADVISORY line.
 
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
