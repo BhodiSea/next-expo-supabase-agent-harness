@@ -538,6 +538,10 @@
         "a reviewer reply ending without a \"VERDICT: PASS|BLOCK\" line",
         "an empty or unparseable SubagentStop payload"
       ]
+    },
+    "session-brief.mjs": {
+      "kind": "steps",
+      "note": "1.1.0 (#60), a REASONED exemption rather than a pin. The SessionStart brief blocks nothing and runs no rule: SessionStart cannot block (exit 2 only shows stderr to the user), so its contract is the reverse of a guard's, exit 0 on every path, nothing on stderr, nothing written, and no value printed that fails a closed validator. It has no denyTool( site and no deny example to pin. Its red proofs are tests/gates/harness-brief.test.mjs (the lib in process: the field order, each validator refusing a newline, a sentence, a `..` segment and a 161-character path, the 1,200-character cap under 1,000 parked files and 50 owed reviewers, a missing or corrupt manifest, another session's cap mark, and the owed set the Stop step decides on) and tests/hooks/session-brief.test.mjs (the hook spawned: exit 0 on empty and malformed stdin, no .harness/, a corrupt manifest, a torn ledger, a deleted or torn lib and outside a git repository; a parked file named as a sentence printed as (unprintable) with none of its content; no file written; stdout equal to `node tools/harness-status.mjs`, from a subdirectory too; a forked pre-1.1.0 git-diff.mjs printing the owed set as unavailable where v2 is live). It is wired directly, not through launch.mjs, whose load-failure message says an action was blocked."
     }
   },
   "lanes": {

@@ -57,6 +57,18 @@
         "matcher": "mcp__.*"
       }
     ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-brief.mjs\"",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -117,6 +129,8 @@
       "Bash(pnpm exec expo install --check*)",
       "Bash(pnpm exec expo-doctor*)",
       "Bash(node tools/validate.mjs*)",
+      "Bash(pnpm harness:status)",
+      "Bash(node tools/harness-status.mjs*)",
       "Bash(node tests/rls/run-rls.mjs*)",
       "Bash(pnpm db:up)",
       "Bash(pnpm db:reset)",

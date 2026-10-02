@@ -61,6 +61,7 @@ versions = `catalog:` (the catalog is the only place version numbers appear).
 - `pnpm db:up` (`supabase start`) · `pnpm db:reset` · `pnpm db:test` (pgTAP) ·
   `pnpm db:types` (regenerate the Supabase type mirror) · `pnpm gen` (types + tokens).
 - `pnpm dev:web` · `pnpm dev:mobile` · `pnpm mutation`.
+- `node tools/harness-status.mjs` — install state, parked files, last turn, reviewers owed.
 
 ## The validate contract (YOU MUST)
 

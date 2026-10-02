@@ -155,6 +155,11 @@
         "sha256": "a5a820faf3cf5a97cb2768a8b33c24d92340c886e3e2d34555a98840295f7066"
       }
     ],
+    ".claude/hooks/session-brief.mjs": [
+      {
+        "sha256": "2806b8add8ad76976f4b667b1ea8fa52f0ac97dab42c8cfa9fe60cf9aeb0a702"
+      }
+    ],
     ".claude/hooks/stop-validate-gate.mjs": [
       {
         "sha256": "aea878ef2fdfb101061b32a0c465a04dc0da866bf5796874f23ace1fab0e7835"
@@ -205,6 +210,9 @@
       },
       {
         "sha256": "750767a407531f76e0b11095b8a51738f3fe95737209fb12497e40fc099bc2df"
+      },
+      {
+        "sha256": "a0c40177ac1e709406edd8be1cf6806134b73e12766eeb5ce66a8071d48f1331"
       }
     ],
     ".claude/settings.local.json.example": [
@@ -770,6 +778,15 @@
             "SECURITY_OWNERS"
           ]
         ]
+      },
+      {
+        "sha256": "ec27a01f9e1a043c6e90518222535a860f77aa917e03983744565b82f02ad17d",
+        "sites": [
+          [
+            18784,
+            "SECURITY_OWNERS"
+          ]
+        ]
       }
     ],
     "docs/harness/enforcement-tiers.md": [
@@ -1000,6 +1017,15 @@
       },
       {
         "sha256": "43566f1f187a464925d820ec76052f9941e849dd521625da02db11a5b8830859",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "4a3b23444ab8bd4fc0ac815d901be9778644b0826aab7b0550c97042f0493141",
         "sites": [
           [
             14115,
@@ -1756,6 +1782,11 @@
         "sha256": "eddc6a285038410e42b7722937cbb525832a6aa5e74a2602435209efc13d3e15"
       }
     ],
+    "tools/harness-status.mjs": [
+      {
+        "sha256": "661c0857b4de6f1523aebc28b3726951fdef9a69b093ee7a8cce26465dfa3895"
+      }
+    ],
     "tools/lib/agent-roster.mjs": [
       {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
@@ -1853,6 +1884,11 @@
       },
       {
         "sha256": "e3d1aef752afc00e2ecb4e63c08c9fef364d2fab4b0b929bba334942f69c6bc6"
+      }
+    ],
+    "tools/lib/harness-brief.mjs": [
+      {
+        "sha256": "b0c972e188ef3f75fa6a6d03205f03683eff6c5320f08ec47f96cc55b51d1154"
       }
     ],
     "tools/lib/inventory.mjs": [

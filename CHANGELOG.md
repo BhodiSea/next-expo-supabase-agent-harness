@@ -105,6 +105,36 @@ this heading if none does. -->
   `20260201000100_notes_org_scope.sql` drops its four policies, are rewritten in
   `migration-rls.md` and the `migration-rls-author` agent. No consumer gate, chain step, hook
   or lock semantics change: an install receives markdown (#59).
+- **A length-capped SessionStart brief, and `harness:status` to print it on demand.** An
+  agent that started or resumed a session learned the install's state by running into it:
+  the version, base and tier sat in `.harness/manifest.json`, parked upgrades in
+  `.harness/pending/`, the blocks a turn spent in the turn ledger, and the reviewers the
+  current diff owes only inside Stop step `reviewer-verdicts`. The new
+  `.claude/hooks/session-brief.mjs`, wired under `SessionStart` with `"matcher": ""` and a
+  10-second timeout, prints four fields into context on every start, resume, clear, compact
+  and fork: `harness <version> (base <base>) · tier <tier> · mode <mode>`, `parked: <n>`
+  with up to five paths (the two obligation files `doctor` classifies apart are skipped),
+  `last turn in this directory:` `green`, `none recorded`, `<n> consecutive block(s), cap
+  <cap>` or `ended red at the cap (<gates>)`, and `reviewers owed by the current diff: <n>`
+  with up to five `<agent> (<path>)` entries. `node tools/harness-status.mjs` (`pnpm
+  harness:status` in a fresh scaffold) prints the same bytes. The last turn is read over
+  every session's records, because a new session's id matches none of the earlier ones, and
+  the cap is the one `.claude/settings.json` hands every hook. The owed set comes from the
+  libs the Stop step uses: the reviewer ledger v2's where it is live and the branch has an
+  upstream, the 1.0.x one otherwise, and `unavailable` where v2 is live but a forked
+  `tools/lib/git-diff.mjs` predates it. The hook reads from `$CLAUDE_PROJECT_DIR`, so a
+  resume after the shell moved into a subdirectory still reads the root. Every value
+  passes a closed validator or prints as `(unprintable)`, no file content is printed, the
+  output is capped at 1,200 characters and cut at a line with a marker, and a source that
+  cannot be read prints `<field>: unavailable`. The rules live in the new owned `tools/lib/harness-brief.mjs`, under the
+  write guard; the hook and the CLI are thin. The hook is invoked directly, not through
+  `launch.mjs`, whose load-failure message says an action was blocked, and it imports no
+  `hookio.mjs`, reads no stdin, writes nothing and exits 0 on every path. `update` gains one
+  rule for it: when it keeps a forked or retrofit-merged `.claude/settings.json`, a new hook
+  that file does not wire is parked beside the parked settings rather than written, so
+  `wiring` stays green, and once the entry is merged the next `update` writes and records
+  it. No chain step, gate, guard rule or floor changes, `HOOK_FLOOR` and `doctor`'s hook list
+  stay as they are, and no ramp (#60).
 
 ### Fixed
 
@@ -259,6 +289,21 @@ this heading if none does. -->
   the work will merge into keeps the whole branch owed. No CI lane runs v2 against a real
   ledger: the Stop-chain runs in this repository take the no-upstream path, so the unit
   fixtures are its proof (#70).
+- **The SessionStart payload has not been probed.** The brief relies on three documented
+  facts: plain stdout on exit 0 reaches the context for this event, exit 2 does not block
+  it, and the payload's `source` values. The session that wrote this item could not start a
+  Claude Code session, so `design/CONTROL-PLANE-FACTS.md` Fact 15 records them as documented
+  only and names the probe, and the obligations row `control-plane-facts-sessionstart-probe`
+  holds it until it runs. The hook cannot block or leak on any answer: it never exits 2 and
+  never reads stdin (#60).
+- **An existing install gets the hook, not the script or the `AGENTS.md` line.**
+  `package.json` and `AGENTS.md` are seeded, so `update` only notes the new `harness:status`
+  script; the runbook's 1.1.0 section gives both to copy, and every owned text cites
+  `node tools/harness-status.mjs`, which `update` does plant. A hook parked beside a kept
+  settings fork is adopted by merging the `SessionStart` entry and running `update` again; a
+  hook moved out of `.harness/pending/` by hand instead has no manifest record, and `wiring`'s
+  parked NOTE, like `doctor`'s, still says to reconcile the parked copy into its real path
+  (#60).
 - **What was proven where.** With `package.json` at 1.1.0 and nothing discharged,
   `check-obligations` was red on the eight release rows, `check-ramp-ledger` on the missing
   `1.0.4` vintage and the missing `"1.1.0"` `rampExpiry`, and `check-eol-target` on the
@@ -333,6 +378,21 @@ this heading if none does. -->
   core scaffold rendered after the line, given an upstream and a migration committed before
   Stop, left a clean tree, redded naming `security-reviewer` and both whole-turn reviewers,
   and at `baseVersion` 1.0.4 printed the same three as NOTEs and passed (#70).
+  For the session-start brief, `tests/gates/harness-brief.test.mjs` could not load before
+  `tools/lib/harness-brief.mjs` existed, `tests/hooks/session-brief.test.mjs` failed its
+  eight cases on a missing hook, and `check-wiring.test.mjs` read `8 hooks wired`. With the
+  hook and the settings entry in and `update` unchanged, the two new update-provenance cases
+  for a kept settings fork were red: the hook landed in `.claude/hooks/`, and `wiring` on
+  that install printed `.claude/settings.json no longer wires session-brief`. After the
+  change each case is green: each validator refuses a newline, a sentence, a `..` segment
+  and a 161-character path, 1,000 parked files and 50 owed reviewers stay under the cap,
+  another session's cap mark prints `ended red at the cap`, the owed set follows the Stop
+  step's v1, v2 and ramp paths, the hook exits 0 on every damaged tree, prints no parked
+  file's content, writes nothing and prints the CLI's bytes, and a kept fork gets the hook
+  parked with `wiring` green on 8 hooks, while a pristine install gets both files and 9.
+  Two hook cases added in review were red first as well: run from a subdirectory the hook
+  printed `harness: unavailable`, and with a forked pre-1.1.0 `git-diff.mjs` on a live-v2
+  install it printed the 1.0.x set the Stop step does not decide on (#60).
 
 ## [1.0.4] — 2026-10-01
 

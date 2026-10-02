@@ -1696,7 +1696,11 @@ The reviewer ledger v2 re-plants `tools/check-reviewer-verdicts.mjs`,
 `tools/lib/git-diff.mjs`, `tools/lib/reviewer-verdicts.mjs`,
 `.claude/hooks/subagent-verdict.mjs`, `.claude/settings.json`,
 `docs/harness/gates-catalog.md` and `docs/harness/README.md`; its three seeded texts are
-yours to copy (the last subsection before RECOVERY). What you may notice afterwards:
+yours to copy (its subsection below). The session-start brief adds
+`.claude/hooks/session-brief.mjs`, `tools/harness-status.mjs` and
+`tools/lib/harness-brief.mjs`, and re-plants `.claude/settings.json` and
+`docs/harness/README.md`; its two seeded texts are yours to copy, and a forked settings file
+has one entry to merge (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1726,8 +1730,15 @@ yours to copy (the last subsection before RECOVERY). What you may notice afterwa
 - **`reviewer-verdicts` prints NOTEs from the reviewer ledger v2.** On an install whose
   `baseVersion` is below 1.1.0 they read `NOTE — the reviewer ledger v2 judgement … expires
   in 2.1.0`, followed by each withheld finding; the 1.0.x judgement still decides. On a
-  branch with no upstream the step prints `NOTE — no merge base` instead. The last
-  subsection before RECOVERY says what v2 judges and what to copy.
+  branch with no upstream the step prints `NOTE — no merge base` instead. The subsection
+  on the reviewer ledger v2 below says what v2 judges and what to copy.
+- **Every session starts with a short brief in its context.** Four lines and up to ten
+  entries: the harness version, base and tier, the upgrades parked under
+  `.harness/pending/`, how the last turn in this directory ended, and the reviewers the
+  current diff owes. `node tools/harness-status.mjs` prints the same thing. It changes no
+  verdict. If your `.claude/settings.json` is a kept fork, you get no brief until you merge
+  its entry, and `update` parks the hook instead of writing it: the subsection on the brief
+  below says what to do.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -1950,6 +1961,78 @@ expires. A fresh 1.1.0 scaffold is judged by v2 from the start.
 6. **Before you graduate, run the owed reviewers once more.** Entries a 1.0.x hook wrote
    carry no v2 digests, so v2 counts none of them. Read what v2 would say off the NOTEs,
    with an upstream set, and graduate when they are gone.
+
+### The session-start brief: `node tools/harness-status.mjs` and a SessionStart hook
+
+A SessionStart hook, `.claude/hooks/session-brief.mjs`, prints the harness brief into every
+session's context when it starts, resumes, clears, compacts or forks, and
+`node tools/harness-status.mjs` prints the same bytes in a terminal:
+
+```
+harness 1.1.0 (base 1.0.4) · tier standard · mode bootstrap
+parked: 1
+  - .claude/settings.json
+last turn in this directory: green
+reviewers owed by the current diff: 1
+  - security-reviewer (supabase/migrations/20260930000000_x.sql)
+```
+
+The hook blocks nothing, reads no stdin, writes nothing and exits 0 on every path. A value
+that fails its validator prints as `(unprintable)`, and a source that cannot be read prints
+`<field>: unavailable`. The owed reviewers are the set Stop step `reviewer-verdicts` decides
+on, so on a `baseVersion` below 1.1.0 they are the 1.0.x set until you graduate, and with no
+upstream they are the uncommitted changes only. `.claude/settings.json`,
+`tools/harness-status.mjs` and `tools/lib/harness-brief.mjs` are owned and reach you with
+this `update`. Three things do not:
+
+1. **The `harness:status` script.** `package.json` is seeded, so `update` only prints `new
+   template script not installed: "harness:status"`. Add it by hand if you want it; nothing
+   in the harness's own text depends on it, because every owned file cites
+   `node tools/harness-status.mjs`:
+
+   ```json
+   "harness:status": "node tools/harness-status.mjs",
+   ```
+
+2. **The `AGENTS.md` line.** Also seeded. Copy it into the Commands list if you want agents
+   told about the command; it spends one line of the file's `~350` budget:
+
+   ```
+   - `node tools/harness-status.mjs` — install state, parked files, last turn, reviewers owed.
+   ```
+
+   Do not write `pnpm harness:status` there unless you added the script: `docs-sync` reds
+   an `AGENTS.md` that advertises a script `package.json` lacks.
+
+3. **With a kept-fork `.claude/settings.json`, the hook itself.** `wiring` reds a hook file
+   in `.claude/hooks/` that nothing wires, so when `update` keeps your settings fork it parks
+   the new hook at `.harness/pending/.claude/hooks/session-brief.mjs`, beside the parked
+   `.harness/pending/.claude/settings.json`, and says so in a note; `wiring` stays green.
+   To adopt it, merge the `SessionStart` block from the parked settings into yours, beside
+   `PreToolUse` (the settings keep their events in alphabetical order), re-record your fork
+   (the 1.0.2 section, "Forking an owned file"), and run `update` again: with the entry in
+   your settings, `update` writes the hook and records it. Then delete both parked copies.
+   Do not move the parked hook into `.claude/hooks/` by hand: a hook placed there by hand has
+   no manifest record, so `gate-integrity` cannot hash it.
+
+   ```json
+   "SessionStart": [
+     {
+       "hooks": [
+         {
+           "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-brief.mjs\"",
+           "timeout": 10,
+           "type": "command"
+         }
+       ],
+       "matcher": ""
+     }
+   ],
+   ```
+
+   The command runs the hook directly, not through `launch.mjs`: SessionStart cannot block,
+   so the launcher's "failing closed, action blocked" would be false there.
+   `gate-integrity` accepts this form.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

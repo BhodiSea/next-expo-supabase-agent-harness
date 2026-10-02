@@ -262,6 +262,20 @@
       "reason": "The reviewer ledger v2 (1.1.0, #70) keys its standing-BLOCK rule on agent_id and pairs each verdict with the latest SubagentStart record for its (session_id, agent_id). Two facts it relies on are documented and not observed: that a subagent resumed with SendMessage keeps its agent_id (the subagents page says a resume starts a new run under the same ID), and that SubagentStart fires for the resumed run (no page says either way). The session that wrote 1.1.0 could not start a Claude Code session to probe them, so Fact 14 records them as documentation-sourced, names the probe, and states why the rule fails closed on either answer: a changed id leaves the BLOCK standing until a new session, and a missing second SubagentStart makes a resumed PASS on a moved tree uncounted. Discharge = run the Fact 14 probe on a real Claude Code, record the version and the four agent_id values in Fact 14 (which moves this anchor), and delete this row in the same diff; if either answer is no, open an issue against the standing-BLOCK rule first.",
       "reviewedOn": "2026-09-30",
       "evidence": "design/CONTROL-PLANE-FACTS.md"
+    },
+    {
+      "id": "control-plane-facts-sessionstart-probe",
+      "kind": "condition",
+      "target": null,
+      "sites": [
+        {
+          "file": "design/CONTROL-PLANE-FACTS.md",
+          "mustContain": "the `SessionStart` payload and output contract: documented, NOT yet observed"
+        }
+      ],
+      "reason": "The 1.1.0 SessionStart brief (#60) prints the harness brief on SessionStart and relies on three documented facts nobody here has observed: that plain stdout on exit 0 is added to the context for this event, that exit 2 does not block it, and the payload's shape (source startup|resume|clear|compact|fork). The session that wrote 1.1.0 could not start a Claude Code session to probe them, so Fact 15 records them as documentation-sourced and states why the hook cannot block or leak on any answer: it never reads stdin, never exits 2 and caps its output at 1,200 characters. Discharge = run the Fact 15 probe on a real Claude Code, record the version, the payload keys per source and whether the marker line reached the context in Fact 15 (which moves this anchor), and delete this row in the same diff; if plain stdout does not reach the context, switch the hook to hookSpecificOutput.additionalContext first.",
+      "reviewedOn": "2026-09-30",
+      "evidence": "https://code.claude.com/docs/en/hooks"
     }
   ]
 }

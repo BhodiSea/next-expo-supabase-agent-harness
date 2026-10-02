@@ -9,6 +9,9 @@ Facts 1, 2, 3, 5, 6, 10 and 12 were re-verified by execution; Facts 7, 8, 9, 11 
 are documentation-sourced and were re-read, not re-probed. Fact 14 (read 2026-09-30) is
 documentation-sourced and has **not** been probed: it records what is documented about
 `agent_id` across a resumed subagent, and the probe that still owes an observed answer.
+Fact 15 (read 2026-09-30, for the 1.1.0 SessionStart brief) is documentation-sourced on the
+same terms: what the `SessionStart` payload and output contract are documented to be, what
+the brief relies on, and the probe that still owes an observed payload.
 **Re-verify on any Claude Code upgrade.** Same discipline as `EXPO-FACTS.md` and `CI-LANE-FACTS.md`: dated,
 sourced, re-verify-on-bump.
 
@@ -269,10 +272,14 @@ The 0.9.0 mitigations: the installer's write primitive stages to a dot-tmp and r
 destination is old bytes or new bytes, never a truncation), `update --rollback` restores the
 recorded pre-update tree, and the upgrade runbook's RECOVERY section names the torn-hook case
 as the urgent one. The fail-closed *launcher* SHIPPED at 1.0.0
-(`.claude/hooks/launch.mjs` — every hook command routes through it, and a hook that cannot
-load exits 2 and blocks; proven by the launcher block in tests/hooks/hook-contract.test.mjs
-against exactly this matrix). The residual is the launcher itself: one import-free file
-whose own tearing still fails open, re-probed at every Claude Code pin bump.
+(`.claude/hooks/launch.mjs` — every GUARD hook's command routes through it, and a hook that
+cannot load exits 2 and blocks; proven by the launcher block in
+tests/hooks/hook-contract.test.mjs against exactly this matrix). The residual is the launcher
+itself: one import-free file whose own tearing still fails open, re-probed at every Claude
+Code pin bump. The one hook that blocks nothing, the 1.1.0 SessionStart brief, is invoked
+directly instead: the launcher reports a load failure as "failing closed, action blocked",
+which would be false for an event that cannot block, and the brief exits 0 on every path
+(Fact 15).
 
 ## Fact 13 — a bare tool name in `permissions.allow` retires every scoped rule for that tool
 
@@ -328,6 +335,53 @@ again. Record the Claude Code version, the `agent_id` on all four payloads, and 
 second `SubagentStart` arrived. If the id changes, or no second `SubagentStart` arrives,
 write it here and open an issue against the standing-BLOCK rule: the rule stays fail-closed,
 but a reviewer could then clear its own BLOCK only in a new session.
+
+## Fact 15 — the `SessionStart` payload and output contract: documented, NOT yet observed
+
+**Status, 2026-09-30: documentation-sourced, not probed, no Claude Code version observed.**
+Recorded before the 1.1.0 SessionStart brief (`.claude/hooks/session-brief.mjs`, #60) was
+wired, because the hook's whole contract rests on what this event does with its output. The
+session that wrote it could not start a Claude Code session of its own, so the probe below
+did not run; it is an owner step, and the hook is built so that neither answer can make it
+block or leak.
+
+What the hooks reference states, read 2026-09-30 (https://code.claude.com/docs/en/hooks):
+
+- **When it fires, and the `source` it carries.** On a new session (`startup`), `--resume`,
+  `--continue` or `/resume` (`resume`), `/clear` (`clear`), auto or manual compaction
+  (`compact`), and a forked session (`fork`; before v2.1.214 a fork reported `resume`). The
+  matcher is matched against `source`, so `"matcher": ""` fires on all five.
+- **The payload.** The common fields (`session_id`, `transcript_path`, `cwd`,
+  `hook_event_name`, and `prompt_id` only after the first user input), plus `source`, and
+  optionally `model`, `agent_type` and `session_title`; on a `resume` or `fork` with at least
+  one response, also `seconds_since_last_response`, `context_tokens`,
+  `prompt_cache_likely_expired` and `estimated_cache_write_usd`.
+- **The output.** It cannot block. On exit 0, stdout that does not both start with `{` and end
+  with `}` is plain text, and plain text is added to Claude's context; `SessionStart` is one
+  of the four events that do this. Exit 2 "shows stderr to user only" (the per-event exit-2
+  table). Plain stdout is capped at 10,000 characters, measured whole; over it, Claude Code
+  saves the output to a file and keeps a 2,000-character preview. The default timeout is 600
+  seconds, and a hook runs "in the current directory with Claude Code's environment".
+
+What the brief relies on, and what happens if a reading is wrong:
+
+1. **Plain stdout on exit 0 reaches the context.** The brief's first line always starts with
+   `harness`, so it can never parse as JSON output. If plain stdout did not reach the context,
+   the brief would be lost, and nothing else changes: the hook blocks nothing either way.
+2. **Exit 2 is not a block here.** The hook never exits 2: it does not import
+   `lib/hookio.mjs`, is not routed through `launch.mjs`, loads its lib in a try/catch, and
+   exits 0 on an uncaught error. If exit 2 did block, the hook still never produces one.
+3. **Nothing in the payload is needed.** The hook never reads stdin, so no payload byte, and
+   no field the documentation adds later, can reach the brief. The brief reads the whole turn
+   ledger rather than scoping by `session_id`, because a new session's id matches none of the
+   earlier records. Its output is capped at 1,200 characters, well inside the 10,000 above.
+
+**The probe**, the same method as Facts 2 and 3: a probe hook for `SessionStart` in
+`.claude/settings.local.json` that appends raw stdin to a scratch file and prints one marker
+line; start a session, `/clear`, `/compact`, and resume it. Record the Claude Code version, the
+payload keys for each `source`, and whether the marker line reached the context (ask the model
+to quote it). Write the result here, and delete the obligations row
+`control-plane-facts-sessionstart-probe` in the same diff.
 
 ## Fact 5 — no CI lane in this repository spawns Claude at all
 
