@@ -9,6 +9,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: opus
+harnessFallbackModels: fable
 ---
 
 You audit the Expo (React Native) mobile host of this stack. The app is an untrusted

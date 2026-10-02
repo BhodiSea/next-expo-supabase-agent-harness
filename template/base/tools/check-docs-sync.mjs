@@ -21,7 +21,10 @@
 //      never a skip) and carries name (== filename), description, and model;
 //      the reviewer agents (REVIEWER_AGENTS) hold ONLY read-only tools and
 //      disallow Write + Edit — "read-only by construction" (README "The agent
-//      roster"), machine-asserted. Deliberately NOT version-ramped: the agent
+//      roster"), machine-asserted. Since 1.1.0 (#62) an agent's
+//      `harnessFallbackModels` list, where present, must name at least one model
+//      and each one once (the pin counts): reviewer-verdicts judges a security
+//      reviewer's recorded model against it. Deliberately NOT version-ramped: the agent
 //      files are harness-OWNED, so the update that delivers this check
 //      refreshes the roster with it — only a hand-widened reviewer reds, and
 //      that is the point.
@@ -40,6 +43,9 @@
 // SOURCE: docs/harness/README.md (docs-sync gate) [corpus: harness/doctrine]
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { VALIDATE_STEPS } from './harness.config.mjs'
+// The roster as a NAMESPACE for the 1.1.0 surface (#62): a parked fork of the lib without
+// fallbackListProblems must still load, and then has no list to check.
+import * as roster from './lib/agent-roster.mjs'
 import {
   parseFrontmatter,
   REVIEWER_AGENTS,
@@ -608,6 +614,8 @@ for (const file of rosterFiles) {
       `${path}: name '${fm.name.trim()}' must match the filename ('${stem}') — the subagent's identity is its filename`,
     )
   }
+  // The fallback list (1.1.0, #62): present and well formed, or absent.
+  for (const problem of roster.fallbackListProblems?.(fm) ?? []) errs.push(`${path}: ${problem}`)
   if (!REVIEWER_AGENTS.includes(stem)) continue
   reviewersChecked += 1
   // A reviewer's OUTPUT CONTRACT, not just its permissions. The rest of this loop proves a

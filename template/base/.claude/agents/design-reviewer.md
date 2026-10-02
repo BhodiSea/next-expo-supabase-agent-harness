@@ -9,6 +9,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: sonnet
+harnessFallbackModels: opus, fable
 ---
 
 You review mobile UI diffs for DESIGN quality — taste and choreography, not

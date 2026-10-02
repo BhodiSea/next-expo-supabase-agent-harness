@@ -175,10 +175,6 @@ None of these tightens a gate for an existing install. Where one changes what
   gate FAIL line get no note.
   ([N11](design/FIELD-UPGRADES-2026-09.md#n11-per-gate-field-notes-in-fail-lines),
   issue #61)
-- **A fallback order for reviewer models.** An owed reviewer can still run
-  when its pinned model is unavailable, and the ledger records which model
-  ran.
-  ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models))
 - **A resolver for spec anchors.** Specs gain addressable sections, so a
   prompt cites a section and not a file.
   ([N13](design/FIELD-UPGRADES-2026-09.md#n13-a-resolver-for-spec-anchors))
@@ -220,6 +216,19 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
   its `agent_id` is documented and not yet probed.
   ([R01](design/FIELD-UPGRADES-2026-09.md#r01-reviewer-ledger-v2),
   issue #70)
+- **The model each reviewer verdict ran on, and a reviewed fallback list.** The
+  ledger records the model that wrote each verdict, read from the subagent's
+  transcript, and each reviewer file carries a `harnessFallbackModels` list.
+  `reviewer-verdicts` names every verdict off its pin, on a green turn too, and
+  a security reviewer's PASS counts only on its pin or a listed model. That
+  finding is a NOTE below `baseVersion` 1.1.0 until 2.1.0. Where the transcript
+  records the model was probed at Claude Code 2.1.285 in print mode; how the
+  terminal, VS Code and the desktop app show the green-turn notice is not yet
+  observed. Planned as no-ramp; the ramp is what keeps an install whose
+  configuration already forces a model off the list from redding on its first
+  Stop.
+  ([N12](design/FIELD-UPGRADES-2026-09.md#n12-a-fallback-order-for-reviewer-models),
+  issue #62)
 - **A severity contract and a round budget.** Reviewer bodies say which
   severities block, and the hook bounds rounds without ever turning a spent
   budget into a pass.

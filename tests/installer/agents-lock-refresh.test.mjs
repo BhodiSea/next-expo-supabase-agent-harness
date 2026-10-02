@@ -17,8 +17,12 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { refreshAgentsLockEntries } from '../../installer/lib/agents-lock.mjs'
+
+const GENERATOR = fileURLToPath(new URL('../../template/base/tools/gen-agents-lock.mjs', import.meta.url))
 
 const sha = (s) => createHash('sha256').update(s).digest('hex')
 
@@ -88,6 +92,29 @@ test('the MODEL pin travels with the file it was recorded for', () => {
   })
   refreshAgentsLockEntries(dir, [rel], { notes: [] })
   assert.equal(readLock(dir).models['security-reviewer'], 'opus')
+})
+
+// 1.1.0 (#62): a reviewer's `harnessFallbackModels` list is covered by the FILE hash, and the
+// lock's `models` map keeps the pin alone. Both writers must agree on that shape: the shipped
+// generator (init) and recordModelPin here (update). Were the list to leak into `models` from
+// one of them only, `prompts` would red every install the other one wrote.
+test('a fallback list travels in the file hash; `models` keeps the pin alone, from both writers', () => {
+  const rel = '.claude/agents/security-reviewer.md'
+  const body = '---\nname: security-reviewer\ndescription: x\nmodel: opus\nharnessFallbackModels: fable, claude-opus-4-8\n---\nBody.\n'
+  const dir = fixture({ files: { [rel]: body }, lock: { models: { 'security-reviewer': 'opus' }, files: { [rel]: sha('old') } } })
+  refreshAgentsLockEntries(dir, [rel], { notes: [] })
+  const refreshed = readLock(dir)
+  assert.equal(refreshed.models['security-reviewer'], 'opus')
+  assert.equal(refreshed.files[rel], sha(body))
+
+  // The generator, run as init runs it, over the same file.
+  mkdirSync(join(dir, '.claude/commands'), { recursive: true })
+  mkdirSync(join(dir, '.claude/skills'), { recursive: true })
+  const gen = spawnSync(process.execPath, [GENERATOR], { cwd: dir, encoding: 'utf8' })
+  assert.equal(gen.status, 0, gen.stderr)
+  const generated = JSON.parse(gen.stdout)
+  assert.deepEqual(generated.models, refreshed.models)
+  assert.equal(generated.files[rel], refreshed.files[rel])
 })
 
 test('non-agent-surface writes are ignored entirely', () => {

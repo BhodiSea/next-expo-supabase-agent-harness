@@ -20,6 +20,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseFrontmatter, splitList } from '../../template/base/tools/lib/agent-roster.mjs'
+// A NAMESPACE import for the 1.1.0 surface (#62): a case that reaches a missing export fails
+// in ITS case, and every older case in this file still runs.
+import * as roster from '../../template/base/tools/lib/agent-roster.mjs'
 
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
 const AGENTS_TEMPLATE = fileURLToPath(new URL('../../template/base/AGENTS.md', import.meta.url))
@@ -580,6 +583,110 @@ test('RED: missing model, name/filename mismatch, unparseable frontmatter, delet
   const gone = runGate(fixture({ agents: shippedAgents, roster: { 'citation-verifier.md': null } }))
   assert.equal(gone.code, 1, gone.out)
   assert.ok(gone.out.includes('citation-verifier.md: reviewer agent missing'), gone.out)
+})
+
+// ── the reviewer fallback list (1.1.0, #62): `harnessFallbackModels: a, b` ──
+// Present and well formed, or absent. A list that splits to no entry, or repeats one (the
+// pin counts as an entry), is a red: the list is what a security reviewer's PASS is judged
+// against by reviewer-verdicts, so a list that says nothing, or says one thing twice, is a
+// reviewed statement nobody can read.
+
+test('RED (#62): a harnessFallbackModels list that splits to no entry reds, naming the file and the key', () => {
+  for (const empty of ['harnessFallbackModels:', 'harnessFallbackModels: ,', 'harnessFallbackModels: []']) {
+    const planted = shippedAgent('security-reviewer.md').replace(
+      /^harnessFallbackModels:.*$/m,
+      empty,
+    )
+    assert.ok(planted.includes(empty), `fixture must plant ${empty}`)
+    const r = runGate(fixture({ agents: shippedAgents, roster: { 'security-reviewer.md': planted } }))
+    assert.equal(r.code, 1, `${empty}: ${r.out}`)
+    assert.ok(
+      r.out.includes(".claude/agents/security-reviewer.md: 'harnessFallbackModels' is present but lists no model"),
+      r.out,
+    )
+  }
+})
+
+test('RED (#62): a harnessFallbackModels list that repeats an entry, or the pin, reds', () => {
+  const twice = shippedAgent('web-security-reviewer.md').replace(
+    /^harnessFallbackModels:.*$/m,
+    'harnessFallbackModels: fable, Fable',
+  )
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'web-security-reviewer.md': twice } }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(".claude/agents/web-security-reviewer.md: 'harnessFallbackModels' repeats 'Fable'"), r.out)
+
+  const pin = shippedAgent('design-reviewer.md').replace(
+    /^harnessFallbackModels:.*$/m,
+    'harnessFallbackModels: opus, sonnet',
+  )
+  const p = runGate(fixture({ agents: shippedAgents, roster: { 'design-reviewer.md': pin } }))
+  assert.equal(p.code, 1, p.out)
+  assert.ok(p.out.includes(".claude/agents/design-reviewer.md: 'harnessFallbackModels' repeats 'sonnet'"), p.out)
+})
+
+test('GREEN (#62): an agent file with no harnessFallbackModels list is fine — the pin alone counts', () => {
+  const none = shippedAgent('security-reviewer.md').replace(/^harnessFallbackModels:.*\n/m, '')
+  assert.ok(!none.includes('harnessFallbackModels'), 'fixture must drop the list')
+  const r = runGate(fixture({ agents: shippedAgents, roster: { 'security-reviewer.md': none } }))
+  assert.equal(r.code, 0, r.out)
+})
+
+test('agent-roster (#62): SECURITY_REVIEWERS is the three security reviewers, all of them reviewers', () => {
+  assert.deepEqual(roster.SECURITY_REVIEWERS, [
+    'mobile-security-reviewer',
+    'security-reviewer',
+    'web-security-reviewer',
+  ])
+  for (const agent of roster.SECURITY_REVIEWERS) assert.ok(roster.REVIEWER_AGENTS.includes(agent), agent)
+  assert.equal(roster.FALLBACK_MODELS_KEY, 'harnessFallbackModels')
+})
+
+test('agent-roster (#62): modelPolicy reads the pin and the list; an unreadable file is null', () => {
+  assert.deepEqual(
+    roster.modelPolicy('---\nname: x\nmodel: opus\nharnessFallbackModels: fable, claude-opus-4-8\n---\nBody.\n'),
+    { pin: 'opus', fallbacks: ['fable', 'claude-opus-4-8'] },
+  )
+  assert.deepEqual(roster.modelPolicy('---\nname: x\nmodel: sonnet\n---\n'), { pin: 'sonnet', fallbacks: [] })
+  assert.deepEqual(roster.modelPolicy('---\nname: x\n---\n'), { pin: null, fallbacks: [] })
+  assert.equal(roster.modelPolicy('no frontmatter'), null)
+  assert.equal(roster.modelPolicy(undefined), null)
+})
+
+test('agent-roster (#62): fallbackListProblems — absent and well formed pass; empty and repeated red', () => {
+  const p = (fm) => roster.fallbackListProblems(fm)
+  assert.deepEqual(p({ model: 'opus' }), [])
+  assert.deepEqual(p({ model: 'opus', harnessFallbackModels: 'fable, claude-opus-4-8' }), [])
+  assert.equal(p({ model: 'opus', harnessFallbackModels: '' }).length, 1)
+  assert.equal(p({ model: 'opus', harnessFallbackModels: '[ ]' }).length, 1)
+  assert.match(p({ model: 'opus', harnessFallbackModels: 'fable, fable' })[0], /repeats 'fable'/)
+  assert.match(p({ model: 'Opus', harnessFallbackModels: 'opus' })[0], /repeats 'opus'/)
+  assert.equal(p({ model: 'opus', harnessFallbackModels: 'a, b, a, b' }).length, 2)
+  assert.deepEqual(p(undefined), [])
+})
+
+test('the SHIPPED fallback lists (#62): never a weaker family for a security reviewer', () => {
+  const lists = Object.fromEntries(
+    readdirSync(ROSTER_TEMPLATE)
+      .filter((f) => f.endsWith('.md'))
+      .map((f) => {
+        const policy = roster.modelPolicy(readFileSync(join(ROSTER_TEMPLATE, f), 'utf8'))
+        return [f.slice(0, -3), `${String(policy?.pin)} | ${(policy?.fallbacks ?? []).join(', ')}`]
+      }),
+  )
+  assert.deepEqual(lists, {
+    'accessibility-reviewer': 'sonnet | opus, fable',
+    'architecture-reviewer': 'fable | opus',
+    'citation-verifier': 'sonnet | opus, fable',
+    'dal-author': 'opus | ',
+    'design-reviewer': 'sonnet | opus, fable',
+    'migration-rls-author': 'opus | ',
+    'mobile-security-reviewer': 'opus | fable',
+    'security-reviewer': 'opus | fable',
+    'test-author': 'sonnet | ',
+    'torvalds-reviewer': 'opus | fable',
+    'web-security-reviewer': 'opus | fable',
+  })
 })
 
 // ── the pinned frontmatter grammar itself (tools/lib/agent-roster.mjs) ──

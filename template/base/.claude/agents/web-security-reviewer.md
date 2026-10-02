@@ -9,6 +9,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: opus
+harnessFallbackModels: fable
 ---
 
 You audit the Next 16 web host of this stack — the one process that both renders the

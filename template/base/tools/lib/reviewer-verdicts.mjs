@@ -5,7 +5,8 @@
 // One module because the two ends must agree about three things and there is no second
 // chance to notice they do not: what a verdict LINE looks like, what a ledger ENTRY looks
 // like, and which turn an entry belongs to. Two copies of that agreement is the drift this
-// release has spent itself deleting.
+// release has spent itself deleting. Since 1.1.0 (#62) there is a fourth: which model a
+// verdict ran on, and when that model counts as the reviewer's pin.
 //
 // Pure: no process exit, no I/O (hashing is computation, not I/O — pathStateDigest takes a
 // reader precisely so the file system stays the caller's business). Every consumer supplies
@@ -368,7 +369,7 @@ function owedClause(owed) {
 function uncountedFinding(owed, pass, current) {
   const a = owed.agent
   if (pass === undefined) {
-    return `${a} has not returned a verdict in this session, and ${owedClause(owed)}. ${owed.why ?? ''} Run it, then end the turn.`
+    return `${a} has not returned a verdict in this session, and ${owedClause(owed)}. ${owed.why ?? ''} Run it, then end the turn. ${fallbackHint(a)}`
   }
   if (typeof pass.path_state_stop !== 'string') {
     return `${a} returned PASS with no ledger v2 binding: a hook from before 1.1.0 wrote the entry, or the hook could not compute the digest. An unverifiable attestation fails toward re-review: run ${a} again.`
@@ -408,6 +409,194 @@ export function judgeReviewerV2(owed, entries, current) {
   }
   if (mine.some((e) => isCountedPass(e, current))) return null
   return uncountedFinding(owed, mine.filter((e) => e.verdict === 'PASS').at(-1), current)
+}
+
+/**
+ * The latest PASS the v2 judgement COUNTS for this agent (its three digests agree with the
+ * tree now), or undefined. It is the entry a satisfied reviewer's verdict rests on, so it is
+ * the one whose model the step judges (1.1.0, #62).
+ * @param {string} agent @param {Array<Record<string, unknown>>} entries readSessionLedger's entries
+ * @param {string|null} current
+ * @returns {Record<string, unknown>|undefined}
+ */
+export function latestCountedPass(agent, entries, current) {
+  return entries.filter((e) => e.agent_type === agent && isCountedPass(e, current)).at(-1)
+}
+
+// ── THE MODEL A VERDICT RAN ON (1.1.0, #62) ─────────────────────────────────────────────
+// The hook records `model` (read from the subagent's own transcript) and `pinned` beside
+// every verdict, and the Stop step judges the model of the entry an owed reviewer's verdict
+// rests on against the reviewer's hash-locked agent file: its `model` pin, and its
+// `harnessFallbackModels` list (tools/lib/agent-roster.mjs). What each Claude Code mechanism
+// does to a subagent's model, and what the transcript was observed to hold, is
+// design/CONTROL-PLANE-FACTS.md Fact 16. Pure, like the rest of this file: the caller reads.
+
+// THE ALIAS RULE, as data, never looked up live. A family alias resolves to the latest model
+// of its family, or to the main conversation's own model when that is in the family (so any
+// version, and a `[1m]` suffix, can come back), and the version differs by provider. So an
+// alias entry matches ANY model ID naming one of its families as a whole word, and a plain
+// string comparison would read every PASS as off the pin. `best` and `opusplan` name two
+// families each, as the model-config page defines them. `inherit` and `default` name no
+// model, so they match nothing but themselves.
+const ALIAS_FAMILIES = new Map([
+  ['opus', ['opus']],
+  ['sonnet', ['sonnet']],
+  ['haiku', ['haiku']],
+  ['fable', ['fable']],
+  ['best', ['fable', 'opus']],
+  ['opusplan', ['opus', 'sonnet']],
+])
+
+// A MODEL ID as Claude Code and the providers spell one: letters, digits and `. _ : @ / [ ] -`,
+// at most 200 characters (a Bedrock application-inference-profile ARN is the longest shape).
+// Anything else is not a model, a newline above all: the transcript is outside the write
+// guard (Fact 16), and the value is printed into the Stop output. `<synthetic>` fails it too.
+const MODEL_ID_RE = /^[A-Za-z0-9._:@/[\]-]{1,200}$/
+
+/** A trimmed model ID, or null for anything not spelled like one. @param {unknown} m */
+const modelIdOrNull = (m) => {
+  const t = typeof m === 'string' ? m.trim() : ''
+  return MODEL_ID_RE.test(t) ? t : null
+}
+
+/** Lower-cased, trimmed, and without a trailing context-window suffix such as `[1m]`. */
+const normalizeModel = (m) =>
+  String(m)
+    .trim()
+    .toLowerCase()
+    .replace(/\[[^\]]*\]$/, '')
+
+/**
+ * Does a recorded model satisfy one pin or list entry? An alias entry matches the alias itself
+ * and any model ID naming one of its families as a whole word: `opus` matches a bare Opus ID,
+ * one with a `[1m]` suffix, a provider-prefixed one and an older `claude-3-opus-…` one. Any
+ * other entry is a full ID and matches only itself, case-insensitively and without a
+ * context-window suffix: a provider-prefixed variant of a full ID must be listed as itself.
+ * @param {unknown} spec a pin or a list entry @param {unknown} model the recorded model
+ */
+export function modelMatches(spec, model) {
+  if (typeof spec !== 'string' || typeof model !== 'string') return false
+  const s = normalizeModel(spec)
+  const m = normalizeModel(model)
+  if (s === '' || m === '') return false
+  if (s === m) return true
+  const families = ALIAS_FAMILIES.get(s) ?? []
+  return families.some((f) => new RegExp(`(?:^|[^a-z])${f}(?:[^a-z]|$)`).test(m))
+}
+
+/**
+ * The sentence a reviewer that never returned a verdict gets (1.1.0, #62). A reviewer whose
+ * pinned model cannot run never reaches SubagentStop (CONTROL-PLANE-FACTS Fact 16, point 5,
+ * observed): no entry is written, and this red is the one place the agent can learn that
+ * the reviewer may run on a model its hash-locked file lists. Claude Code picks no model
+ * from the list; the per-invocation `model` parameter does.
+ * @param {string} agent
+ * @returns {string}
+ */
+export function fallbackHint(agent) {
+  return `If ${agent} cannot run on its pinned model, dispatch it with the Agent tool's \`model\` parameter set to a model the harnessFallbackModels line of .claude/agents/${agent}.md names: a verdict on a listed model counts, and is named at Stop.`
+}
+
+/**
+ * Where a recorded model stands against an agent's pin and its fallback list.
+ * @param {unknown} model @param {string|null} pin @param {readonly string[]|undefined} fallbacks
+ * @returns {'pinned' | 'listed' | 'off-list' | 'unknown'}
+ */
+export function classifyModel(model, pin, fallbacks) {
+  if (typeof model !== 'string' || model.trim() === '') return 'unknown'
+  if (modelMatches(pin, model)) return 'pinned'
+  return (fallbacks ?? []).some((f) => modelMatches(f, model)) ? 'listed' : 'off-list'
+}
+
+/**
+ * The model that wrote a subagent's LAST assistant message, read from its transcript (the
+ * JSONL at the SubagentStop payload's `agent_transcript_path`), or null. The shape is
+ * Fact 16's, observed at Claude Code 2.1.285: every `assistant` line carries the model that
+ * produced it at `message.model`, as a full ID; `attachment` lines carry none, and the
+ * `model` attachment names the REQUESTED model, which after a failover is not the one that
+ * ran, so it is never read. `<synthetic>` there would mark a line Claude Code wrote itself
+ * (not observed, skipped defensively), which is never a model, and so is any value not
+ * spelled like a model ID (MODEL_ID_RE). A line that does not parse is skipped, so a torn
+ * tail cannot hide the lines before it. The last model, because that is the one that wrote
+ * the verdict.
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function transcriptModel(raw) {
+  let model = null
+  for (const line of String(raw ?? '').split('\n')) {
+    const found = assistantModel(parseObject(line))
+    if (found !== null) model = found
+  }
+  return model
+}
+
+/** @param {Record<string, any>|null} line @returns {string|null} */
+function assistantModel(line) {
+  const message = line?.message
+  if (line?.type !== 'assistant' && message?.role !== 'assistant') return null
+  return modelIdOrNull(message?.model)
+}
+
+/** @param {{pin: string|null, fallbacks: string[]}} p */
+const listText = (p) => (p.fallbacks.length === 0 ? 'none listed' : p.fallbacks.join(', '))
+
+/**
+ * The `FALLBACK MODEL` line for a verdict that did not run on its pin, without the gate prefix.
+ * @param {string} agent @param {string|null} model @param {{pin: string|null, fallbacks: string[]}} p
+ * @param {'listed' | 'off-list' | 'unknown'} cls @param {string} why
+ */
+function fallbackLine(agent, model, p, cls, why) {
+  if (cls === 'unknown') {
+    return `${agent}'s PASS carries model: null: the hook could not read which model it ran on${why}.`
+  }
+  const where =
+    cls === 'listed'
+      ? `a listed fallback (harnessFallbackModels: ${listText(p)})`
+      : `NOT on its harnessFallbackModels list (${listText(p)})`
+  return `${agent}'s PASS ran on ${String(model)}, not its pin (${p.pin ?? 'none readable'}): ${where}${why}.`
+}
+
+/**
+ * The finding for a security reviewer whose PASS does not count on the model it ran on.
+ * @param {string} agent @param {string|null} model @param {{pin: string|null, fallbacks: string[]}} p
+ * @param {string} why
+ */
+function modelFinding(agent, model, p, why) {
+  const file = `.claude/agents/${agent}.md`
+  if (model === null) {
+    return `${agent} returned PASS, but the hook could not read the model it ran on (model: null)${why}. A security reviewer's PASS counts only on a model its agent file names, and an unverifiable model fails toward re-review: run ${agent} again. If every run records null, your Claude Code no longer writes the model where the hook reads it (message.model on the transcript's assistant lines, the harness repository's design/CONTROL-PLANE-FACTS.md Fact 16): that is a harness defect, so report it with your Claude Code version.`
+  }
+  return `${agent} returned PASS on ${model}, which is neither its pinned model (${p.pin ?? 'none readable'}) nor on its harnessFallbackModels list (${listText(p)})${why}. A security reviewer's PASS counts only on a model its hash-locked agent file names. Run ${agent} again on its pin or a listed model (the per-invocation model parameter selects one); a configuration that forces this model (CLAUDE_CODE_SUBAGENT_MODEL_FORCE, an availableModels allowlist, a fallbackModel chain) lands a re-run on the same model, so lift it, or, if this model is one you accept for security review, add it to harnessFallbackModels in ${file} in a reviewed diff (the file is write-guarded and hashed in tools/agents.lock.json, so that is a human act).`
+}
+
+/**
+ * The model half of one owed reviewer's verdict, judged on the entry that verdict rests on:
+ * `{ finding, line }`, each a sentence or null. An entry with no `model` field (written by a
+ * hook from before 1.1.0) is judged exactly as before: nothing. A model that matches the pin
+ * is silent. Any other model is NAMED on a line, and for a security reviewer a model off the
+ * list, or one the hook could not read, is also a finding: that PASS does not count.
+ * @param {{agent: string, security: boolean}} who
+ * @param {Record<string, unknown>|undefined} entry
+ * @param {{pin: string|null, fallbacks: string[]}|null} policy the agent file's, or null when
+ *   it could not be read
+ * @returns {{ finding: string|null, line: string|null }}
+ */
+export function judgeModel(who, entry, policy) {
+  if (entry === undefined || entry === null || !Object.hasOwn(entry, 'model')) {
+    return { finding: null, line: null }
+  }
+  const p = policy ?? { pin: null, fallbacks: [] }
+  const why =
+    policy === null
+      ? ` (.claude/agents/${who.agent}.md could not be read, so no pin or list is known)`
+      : ''
+  const model = modelIdOrNull(entry.model)
+  const cls = classifyModel(model, p.pin, p.fallbacks)
+  if (cls === 'pinned') return { finding: null, line: null }
+  const line = fallbackLine(who.agent, model, p, cls, why)
+  if (!who.security || cls === 'listed') return { finding: null, line }
+  return { finding: modelFinding(who.agent, model, p, why), line }
 }
 
 /**

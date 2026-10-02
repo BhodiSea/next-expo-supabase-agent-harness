@@ -342,7 +342,9 @@ const SWEEPS = {
   // no leg runs (scripts/ci/stop-side-expiries.json names its unit proof), and the three
   // seeded texts it asks for, the wholeTurn class in tools/reviewer-triggers.json, the
   // AGENTS.md sentence and the .gitignore line for supabase/.branches/, are copied by hand
-  // from the runbook's 1.1.0 section.
+  // from the runbook's 1.1.0 section. The security-reviewer model check ramp (#62) opens here
+  // too and adds no step, for the same Stop-step reason; it asks for no seeded text, because
+  // the fallback lists it reads live in the OWNED agent files `update` re-plants.
   '1.1.0': {},
 }
 

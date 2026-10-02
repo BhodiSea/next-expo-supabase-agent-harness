@@ -23,8 +23,19 @@
 // payload was probed against a real invocation before a line of this was written (see
 // design/CONTROL-PLANE-FACTS.md, observed 2026-08-07): `SubagentStop` carries
 // `last_assistant_message` as a FIRST-CLASS FIELD holding the subagent's full final text. So
-// the mandated verdict line is read directly. There is no transcript scraping, no jsonl
-// parsing, no guessing at a format that changes between releases.
+// the mandated verdict line is read directly, and the VERDICT never comes from a transcript.
+//
+// ONE THING DOES, SINCE 1.1.0 (#62): the model the verdict ran on. No Subagent* payload names
+// a model (CONTROL-PLANE-FACTS, Fact 16), and a reviewer can run off its pin through a
+// per-invocation model, an override, an allowlist substitution or a fallback chain. So the
+// hook reads the subagent's OWN transcript, the JSONL at `agent_transcript_path`, for the
+// model of its last assistant line (tools/lib/reviewer-verdicts.mjs transcriptModel), and
+// records it as `model` beside `pinned`, whether that model matches the agent file's pin.
+// Where the model sits was probed, not read off a page (Fact 16, observed at Claude Code
+// 2.1.285): each assistant line carries the model that produced it at `message.model`, and
+// the file is complete when SubagentStop runs. The read is still bookkeeping in the strict
+// sense: anything it cannot read is `model: null`, and neither the verdict nor the exit code
+// ever depends on it. The Stop step decides what a null means.
 //
 // TWO THINGS IT DOES, IN ORDER:
 //   1. BLOCKS a reviewer whose final message carries no readable verdict (exit 2, which
@@ -73,6 +84,9 @@ import * as verdicts from '../../tools/lib/reviewer-verdicts.mjs'
 // hookio as a NAMESPACE too (1.0.4), for the same reason: `recordHookEvent` is new, and a
 // forked lib/hookio.mjs that `update` parked must still load. The guarded call is a no-op there.
 import * as hookio from './lib/hookio.mjs'
+// And the roster grammar as a NAMESPACE (1.1.0, #62): `modelPolicy` is new, and a parked fork
+// of tools/lib/agent-roster.mjs without it must still load. `pinned` is then null.
+import * as roster from '../../tools/lib/agent-roster.mjs'
 import { TURN_LOG, recordTurnOutcome } from './lib/turn-outcomes.mjs'
 
 export const HARNESS_HOOK_VERSION = '1.1.0'
@@ -143,6 +157,42 @@ function dispatchDigest(sessionId, agentId) {
   try {
     if (!existsSync(DISPATCH) || typeof verdicts.latestDispatchDigest !== 'function') return null
     return verdicts.latestDispatchDigest(readFileSync(DISPATCH, 'utf8'), sessionId, agentId)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The model this verdict ran on, and whether it is the agent's pin (1.1.0, #62): the model of
+ * the last assistant line of the subagent's own transcript, matched against the `model` of
+ * its agent file by the shared alias rule. `{ model: null, pinned: null }` on ANY failure (no
+ * transcript path, an unreadable file, no model in it, a lib without the readers), and
+ * `pinned` alone is null when the pin cannot be read. pathState's reason again: bookkeeping
+ * never decides whether a verdict is recorded.
+ * @param {string} agentType
+ * @returns {{ model: string|null, pinned: boolean|null }}
+ */
+function ranOn(agentType) {
+  const none = { model: null, pinned: null }
+  try {
+    const path = input.agent_transcript_path
+    if (typeof path !== 'string' || typeof verdicts.transcriptModel !== 'function') return none
+    const model = verdicts.transcriptModel(readFileSync(path, 'utf8'))
+    if (model === null) return none
+    return { model, pinned: isPinned(agentType, model) }
+  } catch {
+    return none
+  }
+}
+
+/** @param {string} agentType @param {string} model @returns {boolean|null} */
+function isPinned(agentType, model) {
+  try {
+    if (typeof roster.modelPolicy !== 'function' || typeof verdicts.modelMatches !== 'function') {
+      return null
+    }
+    const pin = roster.modelPolicy(readFileSync(join(AGENTS_DIR, `${agentType}.md`), 'utf8'))?.pin
+    return typeof pin === 'string' ? verdicts.modelMatches(pin, model) : null
   } catch {
     return null
   }
@@ -287,6 +337,8 @@ appendFileSync(
     // The reviewer ledger v2 pair (1.1.0): the tree at dispatch and the tree now.
     path_state_start: dispatchDigest(input.session_id, input.agent_id),
     path_state_stop: reviewState(agentType),
+    // The model the verdict ran on (1.1.0, #62), and whether it is the agent's pin.
+    ...ranOn(agentType),
   })}\n`,
 )
 process.exit(0)

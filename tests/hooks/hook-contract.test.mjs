@@ -1574,6 +1574,48 @@ test('stop gate: STAMPED lines are listed on a green run and on a red one', () =
   assert.ok(!/stamped/i.test(prose.stderr), prose.stderr)
 })
 
+// A verdict from a model other than the reviewer's pin is never silent (1.1.0, #62). The
+// `reviewer-verdicts` step prints one `<gate>: FALLBACK MODEL — …` line per such verdict, and
+// the hook lists them. On a GREEN run it must use the one channel that reaches anyone at exit
+// 0: stderr and plain stdout go to the debug log only, and a JSON `systemMessage` on stdout is
+// shown to the user without continuing the turn (design/CONTROL-PLANE-FACTS.md, Fact 16).
+test('stop gate (#62): a green run shows every FALLBACK MODEL line to the user through systemMessage, at exit 0', () => {
+  const step = `node -e "console.log(process.env.X_FB); console.log('reviewer-verdicts: OK - 1 owed')"`
+  const line =
+    "reviewer-verdicts: FALLBACK MODEL — security-reviewer's PASS ran on claude-fable-5-1, not its pin (opus): a listed fallback (harnessFallbackModels: fable)."
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['reviewer-verdicts', ${JSON.stringify(step)}]]\n`,
+  )
+  const green = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: line } })
+  assert.equal(green.code, 0, green.stderr)
+  const out = JSON.parse(green.stdout)
+  assert.deepEqual(Object.keys(out), ['systemMessage'], green.stdout)
+  assert.ok(out.systemMessage.includes(`[reviewer-verdicts] ${line}`), out.systemMessage)
+  assert.ok(!out.systemMessage.includes('OK - 1 owed'), 'only FALLBACK MODEL lines are listed')
+  assert.ok(green.stderr.includes(`[reviewer-verdicts] ${line}`), 'the debug log keeps them too')
+
+  // No such line: stdout stays EMPTY, so nothing is shown and nothing parses as JSON.
+  const quiet = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'reviewer-verdicts: nothing to name' } })
+  assert.equal(quiet.code, 0, quiet.stderr)
+  assert.equal(quiet.stdout.trim(), '')
+
+  // A line that only CONTAINS the words is not one: the tag follows `<gate>: `.
+  const prose = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: 'note: no FALLBACK MODEL — here' } })
+  assert.equal(prose.code, 0, prose.stderr)
+  assert.equal(prose.stdout.trim(), '')
+
+  // A red run blocks through stderr as always, and lists the green step's lines there.
+  writeFileSync(
+    join(proj, 'tools/harness.config.mjs'),
+    `export const VALIDATE_STEPS = []\nexport const STOP_HOOK_STEPS = [['reviewer-verdicts', ${JSON.stringify(step)}], ['boom', '${FAIL}']]\n`,
+  )
+  const red = runHook('stop-validate-gate.mjs', { stop_hook_active: false }, { env: { X_FB: line } })
+  assert.equal(red.code, 2, red.stderr)
+  assert.ok(red.stderr.includes('boom FAILED'), red.stderr)
+  assert.ok(red.stderr.includes(`[reviewer-verdicts] ${line}`), `a red run lists them too:\n${red.stderr}`)
+})
+
 // ── symlink shadowing: the write-guard judges the DESTINATION, not the name ───
 // A link whose name is innocuous but whose target is protected used to walk straight
 // through: the RAW tool path was matched against WRITE_PROTECTED, so `ln -s

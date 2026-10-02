@@ -9,6 +9,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: fable
+harnessFallbackModels: opus
 ---
 
 You are the architecture reviewer for a pnpm monorepo shipping a Next 16 web app

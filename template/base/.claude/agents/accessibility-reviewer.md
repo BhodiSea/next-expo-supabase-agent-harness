@@ -13,6 +13,7 @@ description: >
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit
 model: sonnet
+harnessFallbackModels: opus, fable
 ---
 
 You audit a React Native (Expo) app against the WCAG A/AA success criteria as they

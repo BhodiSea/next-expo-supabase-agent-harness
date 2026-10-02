@@ -4,15 +4,24 @@
   "files": {
     ".claude/agents/accessibility-reviewer.md": [
       {
+        "sha256": "65441baa06ce5eb30819508568caa582afaccbd23a8bd6795719af051862c802"
+      },
+      {
         "sha256": "a8147abbe1fe4544d83854cd964c5938f23558e090afb8651a728c4cde321c58"
       }
     ],
     ".claude/agents/architecture-reviewer.md": [
       {
         "sha256": "53adbab8965d0c5b93f833a46eb04e8c83bd137c1d6979fbc7ae7e1d915964b4"
+      },
+      {
+        "sha256": "d39ac3e6943d749068aca8efa9283f40b5716a32597fd6f353b8f4900cc48219"
       }
     ],
     ".claude/agents/citation-verifier.md": [
+      {
+        "sha256": "6018b9dce674e05ebea1c75eb43fb5be35134620f1b85b5228c46c1a7f86e818"
+      },
       {
         "sha256": "dda2b869f2b19e6f38ac4868b3958de6df4fbae5bedafabcab6aad75b3c52bbc"
       }
@@ -31,6 +40,9 @@
     ".claude/agents/design-reviewer.md": [
       {
         "sha256": "aa238dd5319483d093589bd7209a8bacb0b2834854001c7da43c55711bb604eb"
+      },
+      {
+        "sha256": "f7e167a60f862608966be8352575170a4cd2ab4bd4c4fe027daf2473146a52e1"
       }
     ],
     ".claude/agents/migration-rls-author.md": [
@@ -44,9 +56,21 @@
     ".claude/agents/mobile-security-reviewer.md": [
       {
         "sha256": "76e0787f03eaf387a029f7881da08caa163fe3c43465a6e835484dd6b515e8b4"
+      },
+      {
+        "sha256": "e798fa121f3b17de039f5759dac3b40fde369a1b913d20727deafe5d09e91862"
       }
     ],
     ".claude/agents/security-reviewer.md": [
+      {
+        "sha256": "96748819fc54ef916f934fb751ea59de5e4841dd6f1cf2a4915992e4fcd1da34",
+        "sites": [
+          [
+            5865,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
       {
         "sha256": "eb183b65dbfc732d7d14ecef8d8784f9d0bf7fc122238cce71a0f2eba6d0e20b",
         "sites": [
@@ -64,12 +88,18 @@
     ],
     ".claude/agents/torvalds-reviewer.md": [
       {
+        "sha256": "c3e3b5bffde93f37dd6aaa2202b0644cf08453fe974ecff632288a13860a8d6a"
+      },
+      {
         "sha256": "cb76a155795a0b84ce4e0668adcdc7a80d812aca48c01a1b3dac12ffa9200b51"
       }
     ],
     ".claude/agents/web-security-reviewer.md": [
       {
         "sha256": "29b37b6a22004e76e90629cfe6afcd87e02d75876940fed3ad8528938db736a5"
+      },
+      {
+        "sha256": "8a53cb1a163ca44b18ca1d8682f1ec0809792159a1b4e37df412799677455738"
       }
     ],
     ".claude/commands/adr.md": [
@@ -165,10 +195,16 @@
     ],
     ".claude/hooks/stop-validate-gate.mjs": [
       {
+        "sha256": "4ebe74a451e89062f05f995c543d82e7a32b6d103a6d208aebeb02352fc40b2b"
+      },
+      {
         "sha256": "aea878ef2fdfb101061b32a0c465a04dc0da866bf5796874f23ace1fab0e7835"
       }
     ],
     ".claude/hooks/subagent-verdict.mjs": [
+      {
+        "sha256": "acdb652a00cd0f18d88a3e05caaa8fbf49f39e832e6cec8437e4007d4b9c2c09"
+      },
       {
         "sha256": "d5e4f06af9bccda1df16e32760b43b3562dc3c19db1108d6f7da971f385bae2c"
       },
@@ -783,6 +819,15 @@
         ]
       },
       {
+        "sha256": "b4bee84fb7e3216858985e6da44c04ca20f04c590870c35e6fe174e54c025cfe",
+        "sites": [
+          [
+            19030,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "ec27a01f9e1a043c6e90518222535a860f77aa917e03983744565b82f02ad17d",
         "sites": [
           [
@@ -842,6 +887,15 @@
         "sites": [
           [
             121286,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
+        "sha256": "f054f5c96c13ae3fcd9487fa33ff09f2c05d704a68ab9425d1ac300792f0f812",
+        "sites": [
+          [
+            123344,
             "SECURITY_TXT_EXPIRES"
           ]
         ]
@@ -1047,6 +1101,15 @@
       },
       {
         "sha256": "56545256c7dc040cae45a00003e45111061cfcaf47e207c6fcc4f524e6bb6640",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "6e100b738f19f9372b6fcfa1e547e6c25df941aac1a6535b8f67b52881cc459b",
         "sites": [
           [
             14115,
@@ -1384,6 +1447,9 @@
     "tools/check-docs-sync.mjs": [
       {
         "sha256": "1e1de2e4d05792aa1c65dd8806e22546a91fb29260d0b276014646972a6d2931"
+      },
+      {
+        "sha256": "7df0dc1fbfe109a5a98fb0f28ddfdf7b248184490e6d2d490794e9abe2efa4b2"
       }
     ],
     "tools/check-duplication.mjs": [
@@ -1538,6 +1604,9 @@
       },
       {
         "sha256": "bfffa7fdf005f5730204dae219d341ce1b87532e8150f62c02d96a918892114f"
+      },
+      {
+        "sha256": "c1f532742c44eee08e7b40bdcc664469f453372ae06ab861eaafd47eb8f65d29"
       }
     ],
     "tools/check-rls-manifest.mjs": [
@@ -1813,6 +1882,9 @@
     ],
     "tools/lib/agent-roster.mjs": [
       {
+        "sha256": "1d7452acb02a36aa83f09184de504587fc7b5b9e7dc19d1ad98d554a39063a6f"
+      },
+      {
         "sha256": "dd31e83c49d539ed9ecae80f4fc937590eeee0e1069bb5422e6e3c17025ccc1c"
       }
     ],
@@ -1984,6 +2056,9 @@
       }
     ],
     "tools/lib/reviewer-verdicts.mjs": [
+      {
+        "sha256": "a7cb47c51a544f651eece0138d9e2bba4e1415f8be4e67b80873ab1a6005feeb"
+      },
       {
         "sha256": "aab147e205c1456c2888f5929cd69b6e08394d8735835b10330c64ec7ac263e1"
       },
