@@ -201,7 +201,10 @@ review. The last two are conventions the maintainer will ask for.
 5. Tag `vx.y.z` and push — `release.yml` re-runs the gates, waits for a green
    selftest matrix on the tagged SHA, verifies the changelog section, packs,
    attests provenance, publishes the GitHub Release, and then publishes that
-   release's tarball to the npm registry (`publish-npm`).
+   release's tarball to the npm registry (`publish-npm`). The changelog section
+   is the release body; one over GitHub's 125000-character limit is published
+   with each entry shortened to its lead and a link to the full section at the
+   tag (`scripts/ci/release-notes.mjs`).
 
 The mechanics the five releases through 0.9.0 actually used, written down so
 the next one inherits a procedure rather than an archaeology (this list is what
