@@ -258,7 +258,7 @@
       "measuredMs": 310
     },
     "i18n": {
-      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed",
+      "comment": "static source scan: hardcoded user-facing strings and out-of-seam Intl/toLocale*/toFixed. Since 1.1.0 (#76) it also loads the project's typescript and parses each scanned file once (the syntax-tree walk beside the regular expressions), the first shipped gate to load the compiler; measuredMs is the last selftest recording and predates the walk until the next one",
       "ceilingMs": 10000,
       "measuredMs": 106
     },

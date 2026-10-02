@@ -321,9 +321,15 @@ dated note first and becomes enforcing when its ramp expires. Each needs a
 - **`sql-parse` learns `DROP TABLE` and `ALTER POLICY`.** Seven gates stop
   reasoning about tables that are gone and predicates that were replaced.
   ([R06](design/FIELD-UPGRADES-2026-09.md#r06-the-sql-parser-learns-drop-table-and-alter-policy))
-- **i18n detection on the syntax tree.** Replaces expressions over source
-  text, and keys the allowlist on content instead of a line number.
-  ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree))
+- **i18n detection on the syntax tree.** The `i18n` step walks the TypeScript
+  syntax tree beside its regular expressions and reports the union, and its
+  allowlist is keyed on a hash of the string's content instead of a line
+  number. Two ramps opened at 1.1.0 hold what only the walk finds, and the old
+  `file:line` entries, as NOTEs below that `baseVersion` until 1.2.0, when the
+  expressions and `site` entries are removed. A string reached through a
+  variable or a helper is still seen by neither scan.
+  ([R07](design/FIELD-UPGRADES-2026-09.md#r07-i18n-detection-on-the-syntax-tree),
+  issue #76)
 - **The web build in the chain, and a browser test per route.** A web app that
   does not compile can pass the local chain today, and no closure asks whether
   a route has a browser test.

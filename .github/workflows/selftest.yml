@@ -84,6 +84,9 @@ jobs:
       # CHILD processes and are covered BEHAVIORALLY by the canary red-proof
       # closure (scripts/check-canary-coverage.mjs), not by line coverage — a
       # gate that cannot go red is decoration, which line counting cannot catch.
+      # This job installs nothing, so lib/i18n-tree.mjs (1.1.0, #76) is measured
+      # here without `typescript`: its tree-walk tests skip by name, and lint.yml's
+      # machinery-lint runs them with the parser, under that module's own floor.
       - run: >-
           node --test --experimental-test-coverage
           --test-coverage-include='template/base/tools/lib/**'
@@ -492,6 +495,23 @@ jobs:
           fi
           rm apps/mobile/src/oops-i18n.tsx
           echo 'canary OK: the static i18n gate went red'
+      # 1.1.0 (#76): a shape only the syntax-tree walk sees. The scaffold is installed above,
+      # so `typescript` loads from the project and the walk RUNS; the red must name the string
+      # and its attribute, which no regular expression of the gate reports.
+      - name: "Canary 34: accessibilityLabel={'Close dialog'} → the i18n syntax-tree walk must FAIL naming it"
+        working-directory: ${{ runner.temp }}/canary
+        run: |
+          printf 'import { Text } from "react-native"\n\nexport const Oops = () => <Text accessibilityLabel={%s} />\n' "'Close dialog'" > apps/mobile/src/oops-i18n-tree.tsx
+          if env -u GITHUB_BASE_REF node tools/check-i18n.mjs > canary34.log 2>&1; then
+            cat canary34.log
+            echo '::error::CANARY: i18n PASSED a string in an expression container — the syntax-tree walk did not run, or cannot fail'; exit 1
+          fi
+          cat canary34.log
+          if ! grep -qF '"Close dialog" (accessibilityLabel attribute)' canary34.log; then
+            echo '::error::CANARY: i18n went red without naming "Close dialog" (accessibilityLabel attribute) — the red came from somewhere other than the syntax-tree walk'; exit 1
+          fi
+          rm apps/mobile/src/oops-i18n-tree.tsx canary34.log
+          echo 'canary OK: the i18n syntax-tree walk went red on a shape the regular expressions miss'
       - name: 'Canary 21: delete a CSP directive → security-headers must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |

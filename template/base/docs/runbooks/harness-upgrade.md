@@ -1781,7 +1781,11 @@ and its three seeded texts are yours to copy (its subsection below). The query-s
 for `rpc()` and `upsert()` re-plant `tools/lib/query-recorder.mjs`, `tools/lib/query-shapes.mjs`,
 `tools/lib/sql-parse.mjs`, `tools/check-query-shapes.mjs`, `tools/conformance-map.json` and
 `docs/harness/gates-catalog.md`; your committed `tools/generated/query-shapes.json` is seeded
-and stays as it is (its subsection below). What you may notice afterwards:
+and stays as it is (its subsection below). The i18n syntax-tree walk adds
+`tools/lib/i18n-tree.mjs` and re-plants `tools/check-i18n.mjs` and
+`docs/harness/gates-catalog.md`; your `tools/i18n-allow.json` is seeded and stays as it is,
+and a `site` entry in it has a key to take instead (its subsection below). What you may
+notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1941,6 +1945,16 @@ and stays as it is (its subsection below). What you may notice afterwards:
   on the rpc, and an upsert failed `query-shapes` with advice about OFFSET pagination. Run
   `pnpm gen` again and commit the manifest; the subsection on rpc and upsert below says what
   the gate now checks.
+- **The `i18n` Stop step may print NOTEs that expire in 1.2.0, and every FAIL line ends
+  with a `{"key": …}` entry.** The step now also parses each file with your `typescript`
+  and finds copy its regular expressions never matched, such as
+  `accessibilityLabel={'Close dialog'}` or `<h2>Plans from $5</h2>`. On an install whose
+  `baseVersion` is below 1.1.0 each such string prints as a NOTE, and so does each
+  `{"site": "file:line"}` entry in `tools/i18n-allow.json`, with the key that replaces it.
+  A finding the step already reported stays a red, and one only its regular expressions
+  report says it retires with them in 1.2.0. Without an installed `typescript` the step
+  says the walk did not run, and in CI it fails. The subsection on the i18n syntax-tree
+  walk below says what to do.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -3036,6 +3050,52 @@ overloads (the last definition of a name wins), reads a partial UNIQUE index as 
 and does not judge the arguments of a function with an unnamed input parameter. If you
 edited one of the owned files this item re-plants, your copy stays, the new one is parked
 under `.harness/pending/`, and `update` exits 2 while it stays there.
+
+### The i18n syntax-tree walk: `tools/i18n-allow.json` keys, not lines
+
+`tools/check-i18n.mjs` now walks the TypeScript syntax tree of every file it scans, with
+the `typescript` your root `package.json` has listed since the first release, beside the
+regular expressions it has always run, and it reports both. Two ramps open at 1.1.0 and
+expire in 1.2.0; on a `baseVersion` of 1.1.0 or later, and on a fresh scaffold, both are
+already hard.
+
+**Strings only the walk finds.** A string inside `{…}` (`title={'Settings'}`), a template
+literal with no `${…}` (`` label: `Home` ``), a double-quoted object value in a `.ts`
+module, and JSX text holding `=`, `;`, a backtick or `$` were never matched before. Below
+1.1.0 each prints as `i18n: NOTE — <file>:<line>: hardcoded user-facing string …`, under
+one ramp NOTE naming `copy only the syntax-tree walk finds`. Move each into your catalog
+and render it through `t('<key>')`, as the line says, or, for a string no human reads, add
+the `{"key": …, "reason": …}` entry the line prints to `tools/i18n-allow.json`.
+
+**`site` entries become keys.** A 1.0.x entry `{"site": "file:line", "reason": …}` mutes
+whatever sits on that line, and a line inserted above the string moves it onto something
+else. A key is 12 hex characters hashed from the file's path, the finding's kind, its
+attribute or property name and its text, so it stays on its string. Below 1.1.0 the step
+still honours a `site` entry and prints its replacement:
+
+```
+i18n: NOTE — tools/i18n-allow.json: {"site": "apps/mobile/src/Brand.tsx:12"} mutes this line until 1.2.0; replace it with {"key": "6d2720cab99b", "reason": "a brand name"}, which stays on the string when the line moves
+```
+
+Replace each `site` entry with the entry its NOTE prints, keeping your reason. A `site`
+entry whose NOTE says it matches no finding is stale: delete it. The file is
+write-guarded, so a human makes the edit and commits it, or reviews and applies an agent's
+`harness-proposals/<id>.json` for it (the subsection on proposals above). Run
+`node tools/check-i18n.mjs` again: once no `site` entry is left and no NOTE names the walk,
+graduating turns nothing of either ramp red. `graduate` runs `validate`, and this is a Stop
+step, so run it yourself before you graduate. A key that matches no finding reds, as a
+stale `site` entry never did.
+
+**What `update` leaves alone.** `tools/i18n-allow.json` is seeded, so your copy and its
+comment stay as they are; only a fresh scaffold gets the comment that describes keys. The
+shipped allowlist is empty, and no release's own scaffold holds a string only the walk
+finds, so an install that never edited its copy or its screens' copy sees nothing new.
+
+**If `typescript` is not installed.** The step prints
+`i18n: NOTE — the syntax-tree walk did not run: …`, judges with the regular expressions
+alone, and cannot tell whether a key that matches none of their findings is stale. Run
+`pnpm install`. In CI, where the quality gate installs before it runs the step, a walk that
+did not run is a failure.
 
 ## RECOVERY — when an `update` is interrupted or fails
 

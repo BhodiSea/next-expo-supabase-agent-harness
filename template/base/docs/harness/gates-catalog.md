@@ -2313,14 +2313,38 @@ string — JSX text under AppText, user-facing props (`accessibilityLabel`,
 that hold copy (route titles, action command titles, matrix column headers) all
 resolve through catalog keys; (2) `Intl` / `toLocale*` / `.toFixed(` only inside
 `src/i18n/` — `.toFixed(2)` hardcodes the `.` decimal mark; (3) no dead catalog
-key. A text scan, not a compiler: a string assembled at runtime is invisible BY
+key. A static scan, not a type checker: a string assembled at runtime is invisible BY
 CONSTRUCTION — the pseudo-locale sweep in the RNTL lane (every `en` source string
 must come back mangled under `en-XA`; `ar-XB` is the RTL pass) is the behavioral
-other half. `tools/i18n-allow.json` is the reviewed escape (malformed or stale
-entries FAIL).
-**Anti-vacuity:** hardcode "Add a note" in a screen → the scan reds it; assemble
-it from fragments → the scan stays green and the pseudo-locale sweep reds it —
-run both before trusting either.
+other half.
+
+**Two scans (1.1.0).** Checks 1 and 2 were regular expressions over comment-blanked
+text through 1.0.x, one quote form each, with JSX text that could not hold `=`, `;`,
+a backtick or `$`. The gate now also walks the TypeScript syntax tree
+(`tools/lib/i18n-tree.mjs`, one parse per file with the project's own `typescript`
+devDependency) and judges the union: JSX text, a listed attribute or
+`label`/`title`/`subtitle`/`description` property whose value is a string or a
+template literal with no substitutions, bare or inside `{…}`, and `Intl` /
+`toLocale*` / `toFixed`. A finding both scans see, or only the expressions see, is
+hard; one only the expressions see is tagged as retiring with them in 1.2.0. A
+finding only the tree walk sees is hard on a fresh install and a NOTE on an install
+whose baseVersion predates 1.1.0, until 1.2.0. When `typescript` cannot load, the
+expressions judge alone and the output says the walk did not run: a loud NOTE
+locally, a failure in CI.
+
+**The escape is keyed on content.** `tools/i18n-allow.json` entries are
+`{"key": "<12 hex characters>", "reason": "…"}`. The key is a sha256 over the file's
+path, the finding kind, the attribute or property name and the text with its
+whitespace collapsed; every FAIL line prints the entry ready to paste, both scans
+compute the same key, and inserting a line above the string does not move it. A
+malformed entry, or a key that matches no finding, FAILS. A 1.0.x
+`{"site": "file:line"}` entry still mutes its line below baseVersion 1.1.0 and prints
+the key that replaces it, until 1.2.0; on a fresh install it is malformed.
+**Anti-vacuity:** hardcode "Add a note" in a screen → the scan reds it; put
+`<Text accessibilityLabel={'Close dialog'} />` under `apps/mobile/src` → only the
+tree walk reports it, and the FAIL names `"Close dialog" (accessibilityLabel
+attribute)`; assemble the string from fragments → the scan stays green and the
+pseudo-locale sweep reds it — run both before trusting either.
 
 ### test-quality — `node tools/check-test-quality.mjs`
 

@@ -1196,6 +1196,15 @@
         ]
       },
       {
+        "sha256": "b832e9305bbac2aad4590cb13920a15afc840966654435518140d00f05306d3e",
+        "sites": [
+          [
+            138354,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "c2093782d82b11e630c9a35a0412a9d28f7b0989e27acf05f6c6ccc82340d05b",
         "sites": [
           [
@@ -1450,6 +1459,15 @@
       },
       {
         "sha256": "0be9a3b751549a019ce51975221e8f9c3ae617512cb26ad02da87b758fbfa5b9",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
+        "sha256": "1ed4a6ce6aa5b8ead44630f04c57ca53b02aa292f32c3476471fb7e476b18a5a",
         "sites": [
           [
             14115,
@@ -2039,6 +2057,9 @@
     "tools/check-i18n.mjs": [
       {
         "sha256": "18288740e2d4eb73d82aee5d18b6c4ca213ff9bb23516ffbca6f9ed10676c3a9"
+      },
+      {
+        "sha256": "d2085cae5c2fb4d81b572a2c3afa7dfa6f4e2439bf3ff8f3d2bb6f38e48012ed"
       }
     ],
     "tools/check-licenses.mjs": [
@@ -2607,6 +2628,11 @@
       },
       {
         "sha256": "b0c972e188ef3f75fa6a6d03205f03683eff6c5320f08ec47f96cc55b51d1154"
+      }
+    ],
+    "tools/lib/i18n-tree.mjs": [
+      {
+        "sha256": "153afa80733a6ac5cc8c638197e95e2f24f97bfc7f801613dbd33c0cdd71b02c"
       }
     ],
     "tools/lib/inventory.mjs": [

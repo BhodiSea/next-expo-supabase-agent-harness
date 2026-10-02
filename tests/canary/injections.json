@@ -422,11 +422,20 @@
       {
         "kind": "fixture",
         "ref": "tests/gates/check-i18n.test.mjs",
-        "note": "STATIC half: a hardcoded user-facing string (JSX text, accessibilityLabel/placeholder/label/title/alt, or the copy-carrying object literals) reds naming the string + the catalog key to add; Intl./toLocale*/.toFixed( outside apps/mobile/src/i18n/ reds; a dead catalog key reds; the polyfill/locale-data closure reds both ways; tools/i18n-allow.json fails closed on malformed/stale entries. The BEHAVIOURAL half (pseudo-locale + RTL sweep) lives in the RNTL fast lane and the W6 Maestro lane — a runtime-assembled string is invisible to this scan by construction (stated in the gate header)."
+        "note": "STATIC half: a hardcoded user-facing string (JSX text, accessibilityLabel/placeholder/label/title/alt, or the copy-carrying object literals) reds naming the string + the catalog key to add; Intl./toLocale*/.toFixed( outside apps/mobile/src/i18n/ reds; a dead catalog key reds; the polyfill/locale-data closure reds both ways; tools/i18n-allow.json fails closed on malformed entries and on a stale content key. 1.1.0 (#76): the gate also walks the TypeScript syntax tree and judges the union with its regular expressions, so the four shapes they miss red here — accessibilityLabel={'Close dialog'} (a string in an expression container), title: `Settings` and label: \"Don't have an account?\" in a .ts module, <h2>Plans from $5</h2>; a content key stays on its string when a line is inserted above it; both 1.1.0 ramps (a tree-only finding, a file:line site entry) are executed as a NOTE on a 1.0.3 manifest, a plain red with none, and RAMP EXPIRED at harness 1.2.0; and a copy of the gate where `typescript` cannot resolve still reds on the regular expressions, says the walk did not run, and fails closed under CI=true. The tests that need the walk skip by name where `typescript` is not installed (selftest.yml#installer-unit) and run in lint.yml#machinery-lint. The BEHAVIOURAL half (pseudo-locale + RTL sweep) lives in the RNTL fast lane and the W6 Maestro lane — a runtime-assembled string is invisible to this scan by construction (stated in the gate header)."
       },
       {
         "kind": "selftest",
         "ref": "Canary 16: a hardcoded user-facing string → the static i18n gate must FAIL"
+      },
+      {
+        "kind": "fixture",
+        "ref": "tests/gates/i18n-tree.test.mjs",
+        "note": "1.1.0 (#76): the syntax-tree scanner itself (tools/lib/i18n-tree.mjs). Fixture parity: the walk ALONE finds every string check-i18n.test.mjs reds and nothing in its not-copy fixtures, the proof the regular expressions can retire at 1.2.0 without losing a finding; the content-key formula (CRLF and a Windows path give the same key); and loadParser over an injected loader that throws, rejects or returns no compiler, which yields null, never a scan."
+      },
+      {
+        "kind": "selftest",
+        "ref": "Canary 34: accessibilityLabel={'Close dialog'} → the i18n syntax-tree walk must FAIL naming it"
       }
     ],
     "test-quality": [
@@ -1166,7 +1175,7 @@
     "lint.yml#machinery-lint": [
       {
         "kind": "steps",
-        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates"
+        "note": "eslint/tsc/knip (the #factoryGates lane declarations for eslint/types/dead-code point HERE) plus eight machinery gates — complexity-ratchet, rule-integrity, ramp-ledger, tier-coverage, escape-registry, dependency-channel, obligations (the clockless half; --clockful is hygiene.yml#obligations-clockful's), ci-preconditions — every one proven in #factoryGates. 1.1.0 (#76): plus machinery-i18n-tree, which runs tests/gates/i18n-tree.test.mjs and tests/gates/check-i18n.test.mjs (both registered #steps i18n fixture proofs) with the root toolchain, so `typescript` loads, under HARNESS_TEST_REQUIRE_TYPESCRIPT=1 (a parser that cannot load fails there, never skips) and a coverage floor on template/base/tools/lib/i18n-tree.mjs"
       }
     ],
     "release.yml#release": [
@@ -1185,7 +1194,7 @@
     "selftest.yml#installer-unit": [
       {
         "kind": "steps",
-        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu AND windows — the job is the execution vehicle for every fixture proof in this registry"
+        "note": "runs five factory gates (syntax, hygiene, release-lockstep, plugin-manifest — proven in #factoryGates), THIS CHECKER in full spawn mode, and the whole suite under coverage floors on ubuntu AND windows — the job is the execution vehicle for every fixture proof in this registry; it installs nothing, so the i18n tests that need `typescript` skip there by name and run in lint.yml#machinery-lint (#76)"
       }
     ],
     "selftest.yml#render-smoke": [

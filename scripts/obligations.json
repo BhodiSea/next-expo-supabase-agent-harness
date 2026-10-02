@@ -401,6 +401,23 @@
       ],
       "reason": "OPENED AT 1.1.0 (#74, R05): one site for three kinds of finding in schema-rls, all from tools/lib/table-grants.mjs's second privilege fold, which starts each `public` table with every privilege Supabase's default hands anon, authenticated and service_role. THE BOUND: every privilege anon or authenticated holds, directly, through PUBLIC or on columns, is admitted by a PERMISSIVE policy for that operation naming the role, public or no role, whose predicate is not literally false; TRUNCATE, REFERENCES, TRIGGER and MAINTAIN never are, so they are revoked or listed in the tolerated-absent tools/grant-bound-allow.json. THE DOCTRINE: for each of the three roles the default-seeded fold holds nothing the explicit fold does not (docs/adr/20260930-three-role-revoke.md). THE GENERATED FILE: supabase/tests/rls_grants.generated.test.sql equals what tools/gen-grant-assertions.mjs renders. They pass through rampNote('schema-rls', '1.1.0', 'the grant bound, the three-role revoke doctrine and the generated grant assertions', { until: '1.2.0' }): NOTE lines below baseVersion 1.1.0, a plain red on a fresh 1.1.0 scaffold, RAMP EXPIRED from harness 1.2.0. The deadline is the one issue #74 fixes. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes this expiry beside the other 1.2.0-dated rows above. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming the population (every vintage below 1.1.0: each one's profiles and notes predate the doctrine, and every vintage below 1.0.2 also lacks 20260920000000_authenticated_write_revoke.sql), with its sweep in that release's runbook section (the SQL of the runbook's 1.1.0 section in a NEW migration, then `node tools/gen-grant-assertions.mjs`), and this row is deleted in the same diff; OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
       "reviewedOn": "2026-09-30"
+    },
+    {
+      "id": "i18n-syntax-tree-ramp-expiry",
+      "kind": "release",
+      "target": "1.2.0",
+      "sites": [
+        {
+          "file": "template/base/tools/check-i18n.mjs",
+          "mustContain": "copy only the syntax-tree walk finds"
+        },
+        {
+          "file": "template/base/tools/check-i18n.mjs",
+          "mustContain": "file:line site entries in tools/i18n-allow.json"
+        }
+      ],
+      "reason": "OPENED AT 1.1.0 (#76, R07). The i18n Stop step now walks the TypeScript syntax tree (template/base/tools/lib/i18n-tree.mjs, the project's own `typescript`) beside its 1.0.x regular expressions and reports the union, and tools/i18n-allow.json entries are keyed on content ({\"key\": 12 hex characters of a sha256 over the POSIX path, the finding kind, the attribute or property name and the whitespace-collapsed text, \"reason\"}) instead of file:line. Two rampNote calls, both opened at minVersion 1.1.0 until 1.2.0, the deadline issue #76 fixes: a finding only the tree walk sees is a NOTE on an install seeded before 1.1.0 and hard on a fresh one, and a 1.0.x {\"site\"} entry still mutes its line there, naming the key that replaces it, and is malformed on a fresh install. A finding only the regular expressions see is hard and tagged as retiring in 1.2.0. THIS LINEAGE CUTS 2.0.0 DIRECTLY AFTER 1.1.0, and every comparison is >=, so 1.2.0 arrives at the 2.0.0 cut: that record owes both expiries, beside the other 1.2.0-dated rows above (#71, #72, #73, #75, #74) and the version-sync arrival row. Discharge = the record of the first release at or past 1.2.0 carries a rampExpiry naming both sites' population (every vintage below 1.1.0 whose tree holds a tree-only finding or a site entry), with its sweep in that release's runbook section (convert each site entry to the key its NOTE prints; catalog or key each tree-only string), AND that release REMOVES what the ramp retires: the regular expressions in check-i18n.mjs (ATTR_LITERAL, OBJECT_LITERAL, JSX_TEXT, INTL_USE with intlText, regexScan and the union in unite, and the regex-only tag), after tests/gates/i18n-tree.test.mjs's fixture parity shows the walk alone reds every red fixture string and none of the not-copy ones, and the site entry shape (allowSites, SITE_SHAPE and the second rampNote), leaving the tree walk and key entries; this row is deleted in the same diff. OR the ramp is extended by a reviewed rampExtensions entry and this row re-targeted.",
+      "reviewedOn": "2026-09-30"
     }
   ]
 }
