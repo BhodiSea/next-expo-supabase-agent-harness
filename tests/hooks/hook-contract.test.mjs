@@ -619,6 +619,9 @@ const RULE_CANARIES = {
   'dto-bounds-allow': [pathDeny('tools/dto-bounds-allow.json')],
   'duplication-allow': [pathDeny('tools/duplication-allow.json')],
   'vertical-anatomy-allow': [pathDeny('tools/vertical-anatomy-allow.json')],
+  // 1.1.0 (#61). A field note prints under a gate's FIX line, so its text reaches an agent
+  // at the moment it is deciding how to make that red go away. A human writes it.
+  'field-notes': [pathDeny('tools/field-notes.json')],
   'i18n-allow': [pathDeny('tools/i18n-allow.json')],
   'test-quality-allow': [pathDeny('tools/test-quality-allow.json')],
   'rls-runner': [pathDeny('tests/rls/run-rls.mjs')],

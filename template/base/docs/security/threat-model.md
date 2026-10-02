@@ -119,6 +119,7 @@ Rule tables from `.claude/hooks/lib/guard-rules.mjs`, in source order. Each rule
 - `dto-bounds-allow` — protected path `^tools\/dto-bounds-allow\.json$`
 - `duplication-allow` — protected path `^tools\/duplication-allow\.json$`
 - `vertical-anatomy-allow` — protected path `^tools\/vertical-anatomy-allow\.json$`
+- `field-notes` — protected path `^tools\/field-notes\.json$`
 - `i18n-allow` — protected path `^tools\/i18n-allow\.json$`
 - `test-quality-allow` — protected path `^tools\/test-quality-allow\.json$`
 - `rls-runner` — protected path `^tests\/rls\/run-rls\.mjs$`

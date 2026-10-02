@@ -117,6 +117,9 @@
         "sha256": "24e1f77783202bdd98f304ba8797b4cdf635776addfcdb03cdb50bfadae44ff1"
       },
       {
+        "sha256": "7585e2945d8ade80796b275e627649763b69665688291910f8e7c283b4cd1b7a"
+      },
+      {
         "sha256": "afcf7995fca0b7231a74d94278454e78b67c145f536d35428a61426c107324b1"
       }
     ],
@@ -799,6 +802,15 @@
     ],
     "docs/harness/gates-catalog.md": [
       {
+        "sha256": "38d5e752fef25c747bec57de8c23fab1db3f3637a523b70471ad6b8bf6945554",
+        "sites": [
+          [
+            123106,
+            "SECURITY_TXT_EXPIRES"
+          ]
+        ]
+      },
+      {
         "sha256": "3e8228886c91cfe619936e0eb1b47c08475169057e2eecf06bbcc29d69614c9f",
         "sites": [
           [
@@ -1052,6 +1064,15 @@
         ]
       },
       {
+        "sha256": "9d8b8ccf6115831be1b00d8e291e4bff8fa37d0286a10a631d5e8bf0b55ca373",
+        "sites": [
+          [
+            14115,
+            "SECURITY_OWNERS"
+          ]
+        ]
+      },
+      {
         "sha256": "c9e33c807a8c6d693db2f9a3b3ffa4426dd39f48d2a8854f194f39960c44b770",
         "sites": [
           [
@@ -1106,6 +1127,9 @@
       }
     ],
     "docs/security/threat-model.md": [
+      {
+        "sha256": "22780103cdfe886e7dbd8e1521948e46c2e6a2e61923815160aaa291c526a9d4"
+      },
       {
         "sha256": "4f149346ca506f7cafc5caf5d46d76f4d61a729cb9218926b29d01c297f41acf"
       },
@@ -1873,6 +1897,9 @@
     "tools/lib/gate.mjs": [
       {
         "sha256": "0d37a1bc1987de8098bee68718c1c756853d2a3a0c3a77d8a8fa86fef6157278"
+      },
+      {
+        "sha256": "b79b3bcc546e9da89fea41a11b70e1d7da59e74f74c4d3e65af83059c5ea9ec1"
       },
       {
         "sha256": "e0cd1fb59e4126b6bd2941a4ce30347fe01f09872a1d5ce6a97a320e257575c0"

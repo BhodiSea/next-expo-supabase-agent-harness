@@ -1700,7 +1700,10 @@ yours to copy (its subsection below). The session-start brief adds
 `.claude/hooks/session-brief.mjs`, `tools/harness-status.mjs` and
 `tools/lib/harness-brief.mjs`, and re-plants `.claude/settings.json` and
 `docs/harness/README.md`; its two seeded texts are yours to copy, and a forked settings file
-has one entry to merge (its subsection below). What you may notice afterwards:
+has one entry to merge (its subsection below). Field notes re-plant `tools/lib/gate.mjs`,
+`.claude/hooks/lib/guard-rules.mjs`, `docs/harness/gates-catalog.md` and
+`docs/security/threat-model.md`, and plant the seeded `tools/field-notes.json` when your
+install has none (its subsection below). What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1739,6 +1742,9 @@ has one entry to merge (its subsection below). What you may notice afterwards:
   verdict. If your `.claude/settings.json` is a kept fork, you get no brief until you merge
   its entry, and `update` parks the hook instead of writing it: the subsection on the brief
   below says what to do.
+- **A new `tools/field-notes.json` appears, untracked, with an empty `notes` object.** It
+  changes nothing until you write a note in it: a failing gate then prints your note on the
+  line after its `FIX[<gate>]:` line. Commit it as it is, or with your first note.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 
@@ -2033,6 +2039,43 @@ this `update`. Three things do not:
    The command runs the hook directly, not through `launch.mjs`: SessionStart cannot block,
    so the launcher's "failing closed, action blocked" would be false there.
    `gate-integrity` accepts this form.
+
+### Field notes: `tools/field-notes.json`
+
+A place for what your project has learned about a gate in its own tree: the fixture it
+trips on, the fix that is usually right. `update` plants the empty skeleton when your
+install has none, and never touches one you already have. It stays untracked until you
+commit it. No gate judges its contents, so the planted skeleton cannot turn a validate red;
+the `format` step checks it like any JSON under `tools/`.
+
+```json
+{
+  "comment": "…",
+  "notes": {
+    "tenancy": "one line: what usually causes this red here, and the fix that is usually right"
+  }
+}
+```
+
+When that gate fails, its output ends with the usual `FIX[tenancy]:` line and then
+`FIELD-NOTE[tenancy]: <your text>`. Nothing else changes: the exit code, the finding and
+the FIX line are the same with or without a note, and a note never prints on a pass, a
+stamped run or a local skip.
+
+- **Key on the token the FAIL line prints** (`<gate>: FAIL`), which is not always the chain
+  step's name: the `docs-sync` step's scripts report as `docs-sync`, `essential-eight` and
+  `conformance-map`, and the scheduled floor review reports as `floor-review`. A key outside
+  `[a-z0-9-]`, and a value that is not a string, are ignored.
+- **One line of text.** Whitespace collapses to single spaces, control and format
+  characters are removed, and the text is cut at `FIELD_NOTE_MAX_CHARS` code points
+  (`tools/lib/gate.mjs`). A file that is not valid JSON prints one line saying so under
+  every failing gate, and no note.
+- **A human writes it.** The file is write-guarded (`field-notes`): its text reaches an
+  agent at the moment it decides how to make a red go away, so an agent cannot edit it.
+- **Where no note can print.** `format`, `types`, `lint`, `dead-code`, `architecture`,
+  `unit`, `mobile-unit` and `rls-isolation` print no `<gate>: FAIL` line, and a long failed
+  Stop step may keep a note only in `.harness/stop-output/<step>.log`. The catalog's
+  "Shared behavior" paragraph has the details.
 
 ## RECOVERY — when an `update` is interrupted or fails
 
