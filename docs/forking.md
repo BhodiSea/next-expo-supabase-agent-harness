@@ -14,7 +14,11 @@ The shipped `template/` tree needs no rebranding. It is placeholder-clean, and
 the hygiene gate denies upstream references inside it. What does need rewriting
 is the set of repo-root sites that hardcode the upstream owner:
 
-- `package.json`: `repository.url`, `homepage`, `bugs.url`, `author`
+- `package.json`: `name` and `bin` (the npm name is this repository's),
+  `repository.url`, `homepage`, `bugs.url`, `author`
+- `.github/workflows/release.yml`: the `publish-npm` job runs only in this
+  repository. Point its `if:` at yours once the package is renamed and has its own
+  first publish and trusted publisher, or delete the job
 - `README.md`: the `npx` command and the lineage links
 - `docs/forking.md`: this checklist
 - `CITATION.cff`: `title`, `authors`, `repository-code`

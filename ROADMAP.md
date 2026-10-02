@@ -409,9 +409,11 @@ let it close, and none has a date because none is in this project's hands.
 
 ## What this project will not do
 
-- **Publish to the npm registry.** The install channel is
-  `npx github:...` and each release is a provenance-attested GitHub Release
-  asset (CONTRIBUTING.md, "Releases").
+Publishing to the npm registry was on this list until 2026-10-02. It came off
+because npm 12 refuses the `npx github:` install by default, and because every
+scaffold already told its user to run the registry name. The release workflow now
+publishes each release's attested tarball there through trusted publishing (#161).
+
 - **Add runtime dependencies to the installer.** It uses Node built-ins only
   (CONTRIBUTING.md, ground rule 3).
 - **Claim a certification or a conformance level.** The compliance registers
