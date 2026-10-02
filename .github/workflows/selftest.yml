@@ -832,7 +832,8 @@ jobs:
   # The product promise on Linux: a fresh scaffold is validate-green OUT OF THE
   # BOX with real toolchains required, the warm agent-time experience stays
   # inside its wall-time budget (with the e2e stamp positive control — the
-  # biggest warm win must be SEEN engaging, not assumed), and the RLS story is
+  # biggest warm win must be SEEN engaging, not assumed — and, since 1.1.0, one
+  # for the two register scripts of docs-sync), and the RLS story is
   # proven in BOTH directions against the scaffold's own pinned database:
   # fail-closed with no db, green with one, and RED again when the keyset index
   # is dropped (Canary 17 — the DAL plan probe seeing the whole-partition Sort).
@@ -962,6 +963,29 @@ jobs:
             echo '::error::warm validate did not skip e2e via its stamp — the warm-path win regressed'
             exit 1
           fi
+      - name: Warm-lane positive control — the essential-eight and conformance-map stamps engaged
+        working-directory: .selftest/boot
+        # 1.1.0: the docs-sync step's two register scripts are stamped too. The cold run above
+        # recorded both stamps (HARNESS_REQUIRE_TOOLCHAINS ignores a stamp but still records
+        # one after a green run), so the warm run must ride each of them. essential-eight
+        # prints its stamp line only after its negative proof found nothing, which on a
+        # zero-edit scaffold it must not. A green warm log WITHOUT both lines means a stamp
+        # input churns between two runs over an unchanged tree, or a script stopped stamping.
+        run: |
+          missing=0
+          if grep -E '^essential-eight: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'essential-eight stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip essential-eight via its stamp'
+            missing=1
+          fi
+          if grep -E '^conformance-map: STAMPED.*inputs unchanged' warm-validate.log; then
+            echo 'conformance-map stamp engaged on the warm run: OK'
+          else
+            echo '::error::warm validate did not skip conformance-map via its stamp'
+            missing=1
+          fi
+          exit "$missing"
       - name: RLS runner FAILS CLOSED without a database (CI=true)
         working-directory: .selftest/boot
         run: |

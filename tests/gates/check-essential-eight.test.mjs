@@ -12,9 +12,11 @@
 // unbuilt row with nobody owning it, and an empty register reading as a clean bill of
 // health.
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   canaryProblems,
@@ -26,7 +28,11 @@ import {
   supersessionProblems,
 } from '../../template/base/tools/lib/essential-eight.mjs'
 import { STOP_HOOK_STEPS, VALIDATE_STEPS } from '../../template/base/tools/harness.config.mjs'
+import { hashInputs } from '../../template/base/tools/lib/gate.mjs'
 import { liveControls } from '../../template/base/tools/lib/live-controls.mjs'
+// A namespace import: a named import of an entry the register lacks would fail this whole
+// file at link time instead of failing the stamp cases that need it.
+import * as stampRegister from '../../template/base/tools/lib/stamp-inputs.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SHIPPED = JSON.parse(
@@ -405,4 +411,183 @@ test('summarise() partitions every row exactly once — published figures are DE
   // Every not-implemented row names an obligation, so the obligation set cannot be empty
   // while gaps exist — the closure that stops the register hiding one.
   assert.ok(s.notImplemented === 0 || s.obligations.length > 0)
+})
+
+// ---- the stamp (1.1.0, #68) -------------------------------------------------------------
+// The script is stamped like the other register-reading gates: a warm run over unchanged
+// inputs prints `essential-eight: STAMPED — inputs unchanged since last green run` and
+// exits 0 without judging the register. Two things must hold beside the win. CI (CI=true or
+// HARNESS_REQUIRE_TOOLCHAINS=1) always judges in full. And the negative proof, whose reads
+// (supabase/config.toml and five product roots) are deliberately NOT stamp inputs, runs on
+// every run BEFORE the stamp is consulted: a storage flip or an upload surface added this
+// turn reds this turn, warm stamp or not.
+//
+// The fixture is the anti-vacuity one: the script, harness.config.mjs, modules.json and
+// tools/lib/**, an EMPTY register, a config.toml with storage off and one workflow. Judged
+// in full it reds (an empty register is a missing one), so exit 0 can only be the stamp.
+// The child environment drops CI and HARNESS_REQUIRE_TOOLCHAINS, so the cases pass under
+// the CI-shaped command on both selftest legs; only the CI case sets CI=true.
+const BASE = join(ROOT, 'template/base')
+const GATE = 'essential-eight'
+const SCRIPT = 'tools/check-essential-eight.mjs'
+const STAMP_LINE = `${GATE}: STAMPED — inputs unchanged since last green run`
+const made = []
+after(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
+/** @param {{ register?: object }} [opts] */
+function stampFixture({ register = { requirements: [] } } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'epah-e8stamp-'))
+  made.push(dir)
+  mkdirSync(join(dir, 'tools'), { recursive: true })
+  for (const f of ['check-essential-eight.mjs', 'harness.config.mjs', 'modules.json']) {
+    cpSync(join(BASE, 'tools', f), join(dir, 'tools', f))
+  }
+  cpSync(join(BASE, 'tools', 'lib'), join(dir, 'tools', 'lib'), { recursive: true })
+  writeFileSync(join(dir, 'tools', 'essential-eight.json'), JSON.stringify(register))
+  mkdirSync(join(dir, 'supabase'), { recursive: true })
+  writeFileSync(join(dir, 'supabase', 'config.toml'), '[storage]\nenabled = false\n')
+  mkdirSync(join(dir, '.github', 'workflows'), { recursive: true })
+  writeFileSync(
+    join(dir, '.github', 'workflows', 'ci.yml'),
+    'name: ci\non: push\njobs:\n  static:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n',
+  )
+  return dir
+}
+
+/** @param {string} dir @param {{ ci?: boolean }} [opts] */
+function runGate(dir, { ci = false } = {}) {
+  const env = { ...process.env }
+  delete env.CI
+  delete env.HARNESS_REQUIRE_TOOLCHAINS
+  delete env.GITHUB_BASE_REF
+  if (ci) env.CI = 'true'
+  const res = spawnSync(process.execPath, [SCRIPT], { cwd: dir, encoding: 'utf8', env })
+  return { code: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}` }
+}
+
+// Write the digest a green run would record, from inside the fixture: hashInputs is
+// cwd-relative. The check-e2e.test.mjs pattern, copied (its helpers are local to that file).
+function seedStamp(dir) {
+  const prev = process.cwd()
+  process.chdir(dir)
+  try {
+    mkdirSync(join(dir, '.harness'), { recursive: true })
+    writeFileSync(join(dir, '.harness', `${GATE}.ok`), hashInputs(stampRegister.STAMP_INPUTS[GATE] ?? []))
+  } finally {
+    process.chdir(prev)
+  }
+}
+
+/** A fixture with a seeded stamp, asserted to ride it before the case changes anything. */
+function warmFixture() {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const warm = runGate(dir)
+  assert.equal(warm.code, 0, `precondition: the seeded stamp must hold\n${warm.out}`)
+  assert.ok(warm.out.includes(STAMP_LINE), warm.out)
+  return dir
+}
+
+/** @param {{ code: number | null, out: string }} r */
+function assertJudged(r) {
+  assert.equal(r.code, 1, r.out)
+  assert.ok(!r.out.includes('inputs unchanged'), `no stamp line may print once the script judges:\n${r.out}`)
+  assert.ok(!r.out.includes('STAMPED'), r.out)
+}
+
+test('STAMP (1.1.0): a seeded stamp over unchanged inputs exits 0 and prints the stamp line', () => {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes(STAMP_LINE), r.out)
+  // Proof the register was never judged: judged in full, this fixture reds on anti-vacuity.
+  assert.ok(!r.out.includes('declares no requirements'), r.out)
+})
+
+test('STAMP: CI=true ignores a seeded stamp and judges the register in full', () => {
+  const dir = stampFixture()
+  seedStamp(dir)
+  const r = runGate(dir, { ci: true })
+  assertJudged(r)
+  assert.ok(r.out.includes('declares no requirements'), r.out)
+})
+
+// Each input the verdict reads. The libraries are the script's import closure (the membership
+// test in gate-helpers.test.mjs derives it from the source; here it is written out, so a lib
+// that silently left the entry fails this list too).
+const E8_EDITS = {
+  'the register': (dir) => writeFileSync(join(dir, 'tools', 'essential-eight.json'), JSON.stringify({ requirements: [], edited: true })),
+  'tools/harness.config.mjs': (dir) => appendFileSync(join(dir, 'tools', 'harness.config.mjs'), '\n// edited\n'),
+  'a workflow': (dir) => appendFileSync(join(dir, '.github', 'workflows', 'ci.yml'), '# edited\n'),
+  'the workflow set (a new file)': (dir) => writeFileSync(join(dir, '.github', 'workflows', 'new.yml'), 'name: new\n'),
+}
+for (const lib of ['essential-eight.mjs', 'live-controls.mjs', 'fs-walk.mjs', 'gate.mjs', 'stamp-inputs.mjs']) {
+  E8_EDITS[`tools/lib/${lib}`] = (dir) => appendFileSync(join(dir, 'tools', 'lib', lib), '\n// edited\n')
+}
+
+for (const [input, edit] of Object.entries(E8_EDITS)) {
+  test(`STAMP: changing ${input} after a green stamp makes the script judge again`, () => {
+    const dir = warmFixture()
+    edit(dir)
+    assertJudged(runGate(dir))
+  })
+}
+
+test('STAMP: [storage] enabled = true reds on a warm stamp — the negative proof runs before it', () => {
+  const dir = warmFixture()
+  // supabase/config.toml is NOT a stamp input, so the digest still matches: only a proof
+  // that runs ahead of the stamp can see this edit.
+  writeFileSync(join(dir, 'supabase', 'config.toml'), '[storage]\nenabled = true\n')
+  const r = runGate(dir)
+  assertJudged(r)
+  assert.ok(r.out.includes('[storage] is ENABLED'), r.out)
+})
+
+test('STAMP: an upload surface added under apps/mobile/src reds on a warm stamp, naming the file', () => {
+  const dir = warmFixture()
+  mkdirSync(join(dir, 'apps', 'mobile', 'src', 'features', 'attach'), { recursive: true })
+  writeFileSync(
+    join(dir, 'apps', 'mobile', 'src', 'features', 'attach', 'pick.ts'),
+    "import * as DocumentPicker from 'expo-document-picker'\nexport const pick = () => DocumentPicker.getDocumentAsync()\n",
+  )
+  const r = runGate(dir)
+  assertJudged(r)
+  assert.ok(r.out.includes('apps/mobile/src/features/attach/pick.ts'), r.out)
+})
+
+test('STAMP: a green run over the shipped register records the stamp, and the next run rides it', () => {
+  // The whole loop, not a seeded digest: the shipped register over the shipped workflows is
+  // green, so recordGreen() writes .harness/essential-eight.ok and the warm run hits it.
+  const dir = stampFixture({ register: SHIPPED })
+  cpSync(join(BASE, 'github', 'workflows'), join(dir, '.github', 'workflows'), { recursive: true })
+  const cold = runGate(dir)
+  assert.equal(cold.code, 0, cold.out)
+  assert.match(cold.out, /^essential-eight: OK — 149 ML3 requirement/m)
+  assert.ok(existsSync(join(dir, '.harness', `${GATE}.ok`)), 'a green run must record the stamp')
+  const warm = runGate(dir)
+  assert.equal(warm.code, 0, warm.out)
+  assert.ok(warm.out.includes(STAMP_LINE), warm.out)
+  // ...and a red run records nothing: with storage on, the local run judges and reds, and
+  // the recorded digest is the one the green run wrote.
+  const before = readFileSync(join(dir, '.harness', `${GATE}.ok`), 'utf8')
+  writeFileSync(join(dir, 'supabase', 'config.toml'), '[storage]\nenabled = true\n')
+  assertJudged(runGate(dir))
+  assert.equal(readFileSync(join(dir, '.harness', `${GATE}.ok`), 'utf8'), before)
+})
+
+test('STAMP: a stamp register with no list for this gate judges in full, and never throws', () => {
+  // `update` keeps a forked tools/lib/stamp-inputs.mjs and parks the new one, so the 1.1.0
+  // script can meet a register that predates its entry. It must judge as it did through
+  // 1.0.4, not crash on hashInputs(undefined).
+  const dir = stampFixture()
+  writeFileSync(join(dir, 'tools', 'lib', 'stamp-inputs.mjs'), 'export const STAMP_INPUTS = {}\n')
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness', 'essential-eight.ok'), 'stale')
+  const r = runGate(dir)
+  assertJudged(r)
+  assert.ok(r.out.includes('declares no requirements'), r.out)
+  assert.ok(!r.out.includes('TypeError'), r.out)
 })

@@ -1985,6 +1985,28 @@ document → FAIL naming the drifted file; empty `requirements[]` → FAIL, beca
 conformance map is not a clean bill of health but a missing one
 (`tests/gates/check-conformance-map.test.mjs`).
 
+**Both register scripts are stamped (1.1.0).** A warm run over unchanged inputs prints
+`essential-eight: STAMPED — inputs unchanged since last green run` (or the
+`conformance-map` line) and exits 0 without judging; see docs/harness/README.md, Stamped
+gates. Each stamp is keyed on what its verdict reads, listed in `tools/lib/stamp-inputs.mjs`
+beside the manifest, the script and the stamp machinery: `essential-eight` on its register,
+`tools/harness.config.mjs`, `.github/workflows` and the libraries it imports;
+`conformance-map` on its register, `tools/harness.config.mjs`, `.github/workflows`,
+`.claude/hooks/lib/guard-rules.mjs`, `tools/modules.json`, the `docs/modules` tree (the
+module markers), `tools/gen-conformance-docs.mjs` and the two documents it compares, and the
+libraries both import. Neither is keyed on the evidence paths a row's `proof` names: neither
+script opens them, because that field is judged as text. `essential-eight`'s negative proof
+reads `supabase/config.toml` and the upload-scan roots, which are not stamp inputs. It runs
+on every run, before the stamp is consulted, and the script stamps only when the proof finds
+nothing, so a storage flip or an upload surface reds the turn it lands, warm stamp or not.
+CI always runs both scripts in full: `CI=true` or `HARNESS_REQUIRE_TOOLCHAINS=1` (which the
+shipped merge gate and `validate --ci-parity` set) ignores a stamp, and `update` and
+`graduate` delete every stamp. The step's first script, `check-docs-sync.mjs`, is not stamped.
+**Anti-vacuity:** with a stamp in place, edit any one input → the script judges again;
+set `[storage] enabled = true`, or import `expo-document-picker` under `apps/mobile/src` →
+FAIL on the warm run; `CI=true` → the full judgement
+(`tests/gates/check-essential-eight.test.mjs`, `tests/gates/check-conformance-map.test.mjs`).
+
 ### the validate runner — serial by default, pooled under `--report-all`
 
 `node tools/validate.mjs` runs the chain strictly serially with streamed output,

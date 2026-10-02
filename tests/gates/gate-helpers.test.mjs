@@ -620,6 +620,75 @@ function callText(src, open) {
   return null
 }
 
+// 1.1.0 (#68). The two compliance-register scripts of the `docs-sync` step stamp too, and
+// their lists are held to the files the verdicts actually read, derived from the source
+// text: every `const NAME = '<path>'` literal with a `/` in either script and in the
+// generator conformance-map spawns, and every relative import of those three files, followed
+// transitively through tools/lib. The directories each script walks are named here, because
+// a walk has no literal to derive. The negative proof's reads stay OUT of the essential-eight
+// list: that proof runs on every run, before the stamp is consulted, so a stamp keyed on
+// them would walk five product trees each run and miss on nearly every product edit.
+const REGISTER_STAMPS = {
+  'essential-eight': { reads: ['tools/check-essential-eight.mjs'], dirs: ['.github/workflows'] },
+  'conformance-map': {
+    reads: ['tools/check-conformance-map.mjs', 'tools/gen-conformance-docs.mjs'],
+    dirs: ['.github/workflows', 'docs/modules'],
+  },
+}
+const PATH_CONST_RE = /^const [A-Z][A-Z0-9_]* = '([^'\n]*\/[^'\n]*)'/gm
+const NEGATIVE_PROOF_READS = [
+  'supabase/config.toml',
+  'apps/web/app',
+  'apps/mobile/src',
+  'apps/mobile/app',
+  'packages/api/src',
+  'supabase/functions',
+]
+
+test('essential-eight and conformance-map stamps: each list holds every path its verdict reads', () => {
+  const missing = []
+  for (const [gate, { reads, dirs }] of Object.entries(REGISTER_STAMPS)) {
+    const inputs = STAMP_INPUTS[gate]
+    assert.ok(Array.isArray(inputs), `${gate}: no STAMP_INPUTS entry`)
+    const need = new Set(dirs)
+    for (const file of reads) {
+      need.add(file)
+      const src = readFileSync(join(BASE_DIR, file), 'utf8')
+      for (const [, p] of src.matchAll(PATH_CONST_RE)) need.add(p)
+      for (const p of importClosure(file, [BASE_DIR])) need.add(p)
+    }
+    for (const p of need) if (!inputs.includes(p)) missing.push(`${gate}: ${p}`)
+  }
+  assert.deepEqual(missing, [], `paths a register verdict reads but its stamp list omits:\n${missing.join('\n')}`)
+})
+
+test('the derivation is not vacuous: it finds the constants and the transitive imports', () => {
+  const src = readFileSync(join(BASE_DIR, 'tools/check-conformance-map.mjs'), 'utf8')
+  const consts = [...src.matchAll(PATH_CONST_RE)].map((m) => m[1])
+  for (const p of ['tools/conformance-map.json', 'tools/modules.json', '.claude/hooks/lib/guard-rules.mjs', 'tools/gen-conformance-docs.mjs']) {
+    assert.ok(consts.includes(p), `${p} must be derived from check-conformance-map.mjs: ${consts.join(', ')}`)
+  }
+  const gen = readFileSync(join(BASE_DIR, 'tools/gen-conformance-docs.mjs'), 'utf8')
+  const genConsts = [...gen.matchAll(PATH_CONST_RE)].map((m) => m[1])
+  for (const p of ['docs/compliance/controls-crosswalk.md', 'docs/security/threat-model.md']) {
+    assert.ok(genConsts.includes(p), `${p} must be derived from the generator: ${genConsts.join(', ')}`)
+  }
+  // lib/conformance-map.mjs imports lib/standards-claim.mjs: only the transitive walk sees it.
+  assert.ok(importClosure('tools/gen-conformance-docs.mjs', [BASE_DIR]).includes('tools/lib/standards-claim.mjs'))
+})
+
+test('the essential-eight stamp leaves out config.toml and the five upload-scan roots', () => {
+  const inputs = STAMP_INPUTS['essential-eight']
+  assert.ok(Array.isArray(inputs), 'essential-eight: no STAMP_INPUTS entry')
+  const src = readFileSync(join(BASE_DIR, 'tools/check-essential-eight.mjs'), 'utf8')
+  for (const p of NEGATIVE_PROOF_READS) {
+    assert.ok(!inputs.includes(p), `essential-eight: ${p} is a negative-proof read, which runs before the stamp and must not key it`)
+    // The list above is the script's, not a stale copy: each root is still one it scans.
+    const [head, ...rest] = p.split('/')
+    assert.ok(src.includes(`'${p}'`) || src.includes(`'${head}', '${rest.join("', '")}'`), `${p} is no longer read by the script; update NEGATIVE_PROOF_READS`)
+  }
+})
+
 // 1.0.4 (#46). expo-policy reads the store tunables (the account-deletion surface and,
 // from 1.0.4, the registry path it names), the whole mobile source tree (the EXPO_PUBLIC_
 // name scan, the routes the `route` surface reads, the auth-surface probe, any legal

@@ -1739,7 +1739,10 @@ is kept and the new one parked (its subsection below). The smaller always-loaded
 re-plants `.claude/rules/encryption.md` (now a stub), the `authoring-e2ee-feature` skill
 (`update` re-records its `tools/agents.lock.json` entry), `docs/harness/README.md` and
 `tools/conformance-map.json`, and plants the new `.claude/rules/e2ee.md`; the `AGENTS.md`
-change is yours to take or leave (its subsection below). What you may notice afterwards:
+change is yours to take or leave (its subsection below). The register stamps re-plant
+`tools/check-essential-eight.mjs`, `tools/check-conformance-map.mjs`,
+`tools/lib/stamp-inputs.mjs`, `docs/harness/gates-catalog.md` and `docs/harness/README.md`;
+nothing of it is seeded. What you may notice afterwards:
 
 - **The CLI config census now targets 1.2.0.** It was due at 1.1.0 and arrived with the
   upstream condition unmet: supabase/cli#5894, the side-effect-free `config validate`
@@ -1834,6 +1837,15 @@ change is yours to take or leave (its subsection below). What you may notice aft
   `.harness/pending/`, and `update` exits 2 while it stays there; a file of your own already
   at `.claude/rules/e2ee.md` is kept the same way, as the 1.0.4 section describes for a
   harness-owned path with no manifest record.
+- **A warm validate prints two more `STAMPED` lines: `essential-eight` and
+  `conformance-map`.** The `docs-sync` step's two register scripts now skip when nothing
+  their verdict reads has changed since their last green run: the register, the chain
+  config, the workflows and, for the map, the guard rules, the module list, `docs/modules`,
+  the generator and its two documents. `essential-eight` still checks `[storage]` and the
+  upload surfaces on every run, before it looks at its stamp. CI and
+  `validate --ci-parity` judge both in full, and the first run after `update` re-proves
+  both. Nothing is yours to do. If you forked `tools/lib/stamp-inputs.mjs`, both judge in
+  full until you merge the parked copy.
 
 ### A surface you have not built yet: `tools/surfaces.json`
 

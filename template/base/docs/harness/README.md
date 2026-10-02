@@ -323,8 +323,11 @@ every stamp, so the first run after either re-proves everything.
 - **What is stamped.** The gates that call `stampGate` in `tools/lib/gate.mjs`: `build`,
   `contracts`, `db-limits`, `e2e`, `expo-policy`, `licenses`, `native-deps`,
   `query-shapes`, `rate-limits`, `security-headers`, `tenancy` and `version-sync` in the
-  validate chain, the `eas-update` module gate, and (1.0.4) the `rls-isolation` Stop step.
-  Nothing else is: steps are never chosen by classifying the diff.
+  validate chain, (1.1.0) `essential-eight` and `conformance-map`, the second and third
+  scripts of the `docs-sync` step, the `eas-update` module gate, and (1.0.4) the
+  `rls-isolation` Stop step. Nothing else is: steps are never chosen by classifying the
+  diff. `essential-eight` runs its negative proof before it consults its stamp, and stamps
+  only when the proof finds nothing (docs/harness/gates-catalog.md, the `docs-sync` section).
 - **Inputs are reviewed data.** Each list lives in `tools/lib/stamp-inputs.mjs` (a module
   gate declares its own through `withMachinery`), and a missing input class is a stale-pass
   bug. Every list carries `.harness/manifest.json` (an `update` or a graduation changes what
