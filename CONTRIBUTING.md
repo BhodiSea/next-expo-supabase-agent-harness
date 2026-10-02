@@ -12,8 +12,9 @@ and vulnerabilities through the private channel in [SECURITY.md](SECURITY.md).
 1. **The selftest matrix is the contract.** Any change must keep
    `node scripts/check-syntax.mjs`, `node scripts/hygiene.mjs`, and
    `node --test tests/` green, and the scaffold-green jobs — `bootstrap-linux`
-   (node 22 **and** 24) and `metal-bootstrap` — must still produce a project
-   where `pnpm validate` passes out of the box. Both run on **ubuntu only**:
+   (node 22 **and** 24), `metal-bootstrap` and `demo-eject` (an
+   `init --with-demo` scaffold, before and after `eject`) — must still produce a
+   project where `pnpm validate` passes out of the box. Both run on **ubuntu only**:
    the one Windows runner in the matrix is `installer-unit`, which exists for
    the path-separator/CRLF bug class and does not build a scaffold. (This
    sentence claimed a Windows `bootstrap` job through 0.5.0. There has never
@@ -90,6 +91,7 @@ node scripts/check-rule-integrity.mjs      # the shipped boundary rules cannot b
 # need full git history (fetch-depth: 0) and SKIP LOUDLY without a previous release tag
 # rather than passing.
 node scripts/check-escape-registry.mjs     # SEEDED_FILES / ESCAPE_LISTS / WRITE_PROTECTED / PROPOSABLE reconcile
+node scripts/check-demo-index.mjs          # the demo index lists every demo register row both ways, and no owned config/tool/register names a demo path (`--write` regenerates the index)
 node scripts/check-tier-coverage.mjs       # every one-surface gate declares its surface
 node scripts/check-ramp-ledger.mjs         # no never-armed ramp; the expiry population is derived
 node scripts/check-dependency-channel.mjs  # every owned-config dependency has a channel to an EXISTING install

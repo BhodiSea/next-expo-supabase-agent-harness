@@ -20,8 +20,10 @@ import { type Palette, space, useThemedStyles } from '../../src/theme/theme'
 // that mirrors the near-end scroll trigger — the trigger is silent and
 // touch-only, the button is neither.
 
-// ROUTES entry 1 IS the matrix entry (id 'matrix') — literal-typed testIDs.
-const MATRIX = ROUTES[1]
+// ROUTES entry 3 IS the matrix entry (id 'matrix') — literal-typed testIDs. It is LAST
+// because the demo appends it: every entry before it sits at the index a default scaffold
+// gives it, so the screens both trees share read the same position in both.
+const MATRIX = ROUTES[3]
 
 const matrixStyles = (_palette: Palette) => ({
   loadMoreRow: {

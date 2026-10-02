@@ -23,7 +23,11 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const GATE_SRC = join(ROOT, 'template/base/tools/check-rate-limits.mjs')
 const LIB_SRC = join(ROOT, 'template/base/tools/lib')
-const BUDGET_SRC = join(ROOT, 'template/base/tools/rate-limit-budget.json')
+// The notes-shaped fixtures below read the --with-demo scaffold's budget, the one that maps
+// the worked example's procedures; the default scaffold's own budget has its own cases
+// (2.0.0, #85).
+const BUDGET_SRC = join(ROOT, 'template/demo/tools/rate-limit-budget.json')
+const DEFAULT_BUDGET_SRC = join(ROOT, 'template/base/tools/rate-limit-budget.json')
 
 /** The shipped inventory shape: the generator emits `{ action, type }` rows. */
 const INVENTORY = [
@@ -133,7 +137,7 @@ export async function acceptInvitationAction() {
  * (the malformed-JSON cases, which a structured edit cannot express).
  * @param {{ budget?: (base: any) => any, rawBudget?: string,
  *           inventory?: { action: string, type: string }[], policy?: string,
- *           route?: string, actions?: string }} [opts]
+ *           route?: string, actions?: string, budgetSrc?: string }} [opts]
  */
 function fixture({
   budget,
@@ -142,6 +146,7 @@ function fixture({
   policy = policyModule(),
   route = ROUTE_OK,
   actions = ACTIONS_OK,
+  budgetSrc = BUDGET_SRC,
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nesah-ratelimits-'))
   mkdirSync(join(dir, 'tools/generated'), { recursive: true })
@@ -152,7 +157,7 @@ function fixture({
   cpSync(GATE_SRC, join(dir, 'tools/check-rate-limits.mjs'))
   cpSync(LIB_SRC, join(dir, 'tools/lib'), { recursive: true })
 
-  const base = JSON.parse(readFileSync(BUDGET_SRC, 'utf8'))
+  const base = JSON.parse(readFileSync(budgetSrc, 'utf8'))
   writeFileSync(
     join(dir, 'tools/rate-limit-budget.json'),
     rawBudget ?? JSON.stringify(budget ? budget(base) : base),
@@ -417,6 +422,65 @@ test('RED: a declared bucket nothing spends from', () => {
   )
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('nothing spends from it'), r.out)
+})
+
+// ── the unmapped fallback (2.0.0, #85) ───────────────────────────────────────
+// A default scaffold maps no write: its only mutation-shaped surface is the code's
+// strict-by-default fallback, which limits every procedure or action the maps do not
+// name (system.exportMyData among them) as a write. That IS a spend, so the budget may say
+// so — `"unmapped": "<bucket>"` — and the gate then proves the running code agrees for
+// both seams before it counts the bucket as spent. Without the key nothing changes.
+
+const DEFAULT_INVENTORY = [
+  { action: 'system.exportMyData', type: 'query' },
+  { action: 'system.health', type: 'query' },
+  { action: 'system.me', type: 'query' },
+]
+const DEFAULT_POLICY = {
+  procedures: { 'system.health': null, 'system.me': 'read' },
+  actions: { acceptInvitationAction: 'provisioning', ensurePersonalOrgAction: 'provisioning' },
+}
+const DEFAULT_ACTIONS = ACTIONS_OK.replace(/export async function createNoteAction\(\) \{[\s\S]*?\n\}\n/, '')
+/** @param {Parameters<typeof fixture>[0]} [over] */
+const defaultShape = (over = {}) =>
+  fixture({
+    budgetSrc: DEFAULT_BUDGET_SRC,
+    inventory: DEFAULT_INVENTORY,
+    policy: policyModule(DEFAULT_POLICY),
+    actions: DEFAULT_ACTIONS,
+    ...over,
+  })
+
+test('GREEN (2.0.0): the default budget passes against the default router shape', () => {
+  const r = runGate(defaultShape())
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /unmapped surfaces fall to "write"/)
+})
+
+test('RED (2.0.0): without the unmapped declaration the default\'s write bucket is still stale', () => {
+  const r = runGate(defaultShape({ budget: (b) => ({ ...b, unmapped: undefined }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('bucket "write" is declared but nothing spends from it'), r.out)
+})
+
+test('RED (2.0.0): an unmapped declaration the running code does not honour', () => {
+  const r = runGate(defaultShape({ budget: (b) => ({ ...b, unmapped: 'read' }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /declares "unmapped": "read", but .*bucketForProcedure\(<unmapped>\) returns "write"/)
+  // And the bucket it named instead is not counted as spent on its word alone.
+  assert.ok(r.out.includes('bucket "write" is declared but nothing spends from it'), r.out)
+})
+
+test('RED (2.0.0): an unmapped declaration naming no declared bucket', () => {
+  const r = runGate(defaultShape({ budget: (b) => ({ ...b, unmapped: 'ghost' }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('"unmapped" names bucket "ghost", which "buckets" does not declare'), r.out)
+})
+
+test('RED (2.0.0): an unmapped declaration while the code falls to null (unlimited)', () => {
+  const r = runGate(defaultShape({ policy: policyModule({ ...DEFAULT_POLICY, unknownIsNull: true }) }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('returns null (unlimited) for an UNKNOWN name'), r.out)
 })
 
 // ── the WIRING ────────────────────────────────────────────────────────────────

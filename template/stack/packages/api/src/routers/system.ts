@@ -60,30 +60,24 @@ export const systemRouter = router({
   }),
 
   /**
-   * The DSR portability surface (GDPR Art. 20): one page of the caller's own
-   * data — profile, seats, and the notes they AUTHORED — running AS THE CALLER
-   * under RLS. tools/data-flow.json export.surface names this procedure;
+   * The DSR portability surface (GDPR Art. 20): the caller's own data — their
+   * profile and their seats — read AS THE CALLER under RLS.
+   * tools/data-flow.json export.surface names this procedure;
    * docs/runbooks/data-subject-requests.md is the human procedure around it.
    *
-   * `authedProcedure`, NOT `orgProcedure`, and the difference is the point:
-   * the subject's data spans every seat they hold (the notes walk visits each
-   * org in turn — the cursor carries the position), and a caller with ZERO
-   * seats still owns a profile the export must return. An acting org would be
-   * the wrong question — this read is about WHO, not WHERE.
+   * `authedProcedure`, NOT `orgProcedure`, and the difference is the point: the
+   * subject's data spans every seat they hold, and a caller with ZERO seats still
+   * owns a profile the export must return. An acting org would be the wrong
+   * question — this read is about WHO, not WHERE.
    *
-   * The router stays thin like every other procedure here: scope assembly only,
-   * with `actorId` from the VERIFIED actor and `orgIds` from the RESOLVED seat
-   * list — there is no expression in this file a future edit could point at
-   * the input instead. The projection, the walk and the one invariant RLS does
-   * not provide (authored-only) live in ../export.ts.
+   * The router stays thin like every other procedure here: `actorId` comes from
+   * the VERIFIED actor, and there is no expression in this file a future edit
+   * could point at the input instead. The projection lives in ../export.ts, and a
+   * vertical that stores the subject's data extends it there.
    */
   exportMyData: authedProcedure
     .input(ExportMyDataSchema)
-    .query(({ ctx, input }): Promise<ActionOutcome<DataExportPage>> => {
-      return exportMyData(
-        ctx.db,
-        { actorId: ctx.actor.userId, orgIds: ctx.orgs.map((org) => org.id) },
-        input,
-      )
+    .query(({ ctx }): Promise<ActionOutcome<DataExportPage>> => {
+      return exportMyData(ctx.db, { actorId: ctx.actor.userId })
     }),
 })

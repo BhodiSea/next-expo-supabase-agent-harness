@@ -24,7 +24,7 @@ import { defineConfig } from 'vitest/config'
 // does not run under vitest without a fragile transform pipeline, so they run
 // under jest-expo (the mobile-unit step in tools/harness.config.mjs). The PURE
 // mobile modules — import closure reaches zero react-native/expo native code —
-// DO run here, listed file-by-file in the unit-node include below.
+// DO run here: MOBILE_SUITES below, derived from the tree like EDGE_SUITES.
 // Tests are colocated as *.test.ts or live under <workspace>/tests/unit/.
 //
 // EDGE FUNCTIONS (1.1.0). supabase/functions/<fn>/index.ts is a Deno.serve shell that no
@@ -72,6 +72,23 @@ function vitestSuitesUnder(rel: string): string[] {
 }
 
 const EDGE_SUITES = vitestSuitesUnder(EDGE_FUNCTIONS)
+
+// The PURE apps/mobile suites (2.0.0, #85): every *.test.ts under apps/mobile/src that
+// imports from 'vitest'. Through 1.1.x this was a hand-kept file list, and the worked
+// example's matrix suite was on it, which made this owned file name a path a default
+// scaffold no longer ships. The import is the discriminator for the reason EDGE_SUITES uses
+// it: a jest-expo suite takes jest's globals and names no vitest import, so a glob over
+// *.test.ts would collect it and red the whole `unit` step. The membership is the old
+// list's exactly, on a default scaffold and on one that keeps the example. LOCKSTEP still
+// holds the other way: apps/mobile/jest.config.js testPathIgnorePatterns names each of
+// these suites, so no suite runs under both runners. MOBILE_MEASURED is each suite's
+// sibling module (`x.test.ts` measures `x.ts` when it exists); the i18n suite tests its
+// directory's index, so that directory is measured whole below.
+const MOBILE_SUITES = vitestSuitesUnder('apps/mobile/src')
+const MOBILE_MEASURED = MOBILE_SUITES.map((suite) => suite.replace(/\.test\.ts$/, '.ts')).filter(
+  (source) =>
+    listDir(source.slice(0, source.lastIndexOf('/'))).some((e) => source.endsWith(`/${e.name}`)),
+)
 const EDGE_MEASURED = [
   ...new Set(EDGE_SUITES.map((suite) => suite.split('/').slice(0, 3).join('/'))),
 ].map((dir) => `${dir}/**/*.ts`)
@@ -129,7 +146,12 @@ const COVERAGE_EXCLUDE = [
   'apps/web/lib/auth/session.ts',
   'apps/web/lib/safe-action.ts',
   'apps/web/lib/rate-limit-runtime.ts',
-  'apps/web/lib/app-data/notes.ts',
+  // The RSC read seams (2.0.0, #85), by convention rather than by name: a slice's
+  // apps/web/lib/app-data/<slice>.ts resolves the caller's org from the request and calls
+  // the vertical with a request-scoped client, so it is the browser lane's proof like the
+  // modules above. Its <slice>-model.ts sibling is a pure fold with a unit suite, and the
+  // extglob keeps it measured. Through 1.1.x this entry named the worked example's seam.
+  'apps/web/lib/app-data/!(*-model).ts',
   // An Edge Function's Deno.serve shell (1.1.0): it imports a jsr: specifier and starts a
   // server when it loads, so no Node runner can import it. `deno check` covers it
   // (tools/check-edge-functions.mjs); the code it wraps is measured in its handler.
@@ -181,11 +203,8 @@ export default defineConfig({
         // reward-hacking its own bar. That remains a DECLARED tier.
         'apps/web/lib/**',
         'apps/mobile/src/i18n/**',
-        'apps/mobile/src/routes.ts',
-        'apps/mobile/src/lib/kv.ts',
-        'apps/mobile/src/features/actions/fuzzyScore.ts',
-        'apps/mobile/src/features/actions/recents.ts',
-        'apps/mobile/src/features/matrix/matrixData.ts',
+        // The pure mobile modules — derived above, see MOBILE_SUITES.
+        ...MOBILE_MEASURED,
         // Edge Functions (1.1.0): each top-level directory under supabase/functions that holds
         // a vitest suite — derived above, see EDGE_MEASURED.
         ...EDGE_MEASURED,
@@ -233,19 +252,14 @@ export default defineConfig({
             // The layered groups sit one level deeper — see the coverage note above.
             'packages/*/*/src/**/*.test.ts',
             'packages/*/*/tests/unit/**/*.test.ts',
-            // apps/mobile PURE suites — an explicit FILE list, never a glob.
+            // apps/mobile PURE suites — derived, never globbed (see MOBILE_SUITES).
             // The runner split: a mobile module (and its test) belongs to vitest
             // ONLY when its import closure reaches zero react-native/expo native
             // code (this Node runner has no RN transform pipeline); everything
             // touching react-native runs under jest-expo. LOCKSTEP:
             // apps/mobile/jest.config.js testPathIgnorePatterns names exactly
             // these paths so no suite ever runs under both runners.
-            'apps/mobile/src/i18n/i18n.test.ts',
-            'apps/mobile/src/routes.test.ts',
-            'apps/mobile/src/lib/kv.test.ts',
-            'apps/mobile/src/features/actions/fuzzyScore.test.ts',
-            'apps/mobile/src/features/actions/recents.test.ts',
-            'apps/mobile/src/features/matrix/matrixData.test.ts',
+            ...MOBILE_SUITES,
             // Edge Function suites (1.1.0) — every vitest suite under supabase/functions,
             // derived above (EDGE_SUITES), so a `deno test` file is never collected.
             ...EDGE_SUITES,

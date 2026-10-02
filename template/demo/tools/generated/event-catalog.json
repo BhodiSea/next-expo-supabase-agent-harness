@@ -1,0 +1,27 @@
+[
+  {
+    "name": "notes.created",
+    "version": 1,
+    "description": "A note was inserted by its owner."
+  },
+  {
+    "name": "notes.deleted",
+    "version": 1,
+    "description": "A note was removed permanently. Archiving is an update, not this."
+  },
+  {
+    "name": "notes.updated",
+    "version": 1,
+    "description": "One or more fields of an existing note changed, including archive state."
+  },
+  {
+    "name": "platform.error_surfaced",
+    "version": 1,
+    "description": "A domain failure was rendered to a user on one of the two surfaces."
+  },
+  {
+    "name": "platform.session_changed",
+    "version": 1,
+    "description": "A surface observed the session cross the signed-in boundary."
+  }
+]

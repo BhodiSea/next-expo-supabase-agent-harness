@@ -62,7 +62,6 @@
   "references": [
     { "path": "../../packages/api" },
     { "path": "../../packages/contracts" },
-    { "path": "../../packages/verticals/notes" },
     { "path": "../../packages/platform/errors" },
     { "path": "../../packages/platform/supabase" },
     { "path": "../../packages/design-system" },

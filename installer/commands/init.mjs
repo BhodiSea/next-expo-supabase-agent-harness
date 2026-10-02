@@ -1,7 +1,7 @@
 // `init` — bootstrap a new project or retrofit an existing one.
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { planStack, planTree, toPosix } from '../lib/copy.mjs'
+import { planInstall, planTree, toPosix } from '../lib/copy.mjs'
 import { detect, detectContext } from '../lib/detect.mjs'
 import { CONFLICTABLE, MODULES, RETROFIT_ADDITIVE, TIERS } from '../lib/layout.mjs'
 import { fileMode, installerVersion, readManifest, sha256, writeManifest } from '../lib/manifest.mjs'
@@ -10,7 +10,11 @@ import { mergeGitignore } from '../lib/merge-gitignore.mjs'
 import { mergePackageJson } from '../lib/merge-package-json.mjs'
 import { mergeWorkspaceYaml } from '../lib/merge-workspace-yaml.mjs'
 import { printReport } from '../lib/report.mjs'
-import { injectModuleProjectReferences, pruneMissingProjectReferences } from '../lib/tsconfig-references.mjs'
+import {
+  injectDemoProjectReferences,
+  injectModuleProjectReferences,
+  pruneMissingProjectReferences,
+} from '../lib/tsconfig-references.mjs'
 import { writeAgentsLock } from '../lib/agents-lock.mjs'
 import { collectAnswers, parseSets } from '../lib/prompts.mjs'
 import { writeInstallFile } from '../lib/write-file.mjs'
@@ -32,6 +36,26 @@ function planModules(modules, answers) {
   return out
 }
 
+// THE DEMO IS AN INIT-TIME CHOICE (2.0.0, #85). `--with-demo` overlays template/demo on the
+// plan; `init --force` carries a recorded choice forward, like answers and modules. A
+// retrofit is refused outright: the demo REPLACES seeded files (the API router, the home tab,
+// the command palette), and a retrofit target's own app is exactly what it would replace.
+// Hoisted out of `init` for the complexity ratchet.
+/**
+ * @param {{ withDemo?: boolean }} opts
+ * @param {{ demo?: unknown } | null} priorManifest
+ * @param {{ mode: string }} det
+ * @returns {boolean}
+ */
+function demoChoice(opts, priorManifest, det) {
+  const demo = opts.withDemo === true || priorManifest?.demo === true
+  if (demo && det.mode === 'retrofit') {
+    throw new Error(
+      '--with-demo overlays the worked example on a fresh scaffold; a retrofit target already has its own apps, so the demo would replace them. Re-run without --with-demo.',
+    )
+  }
+  return demo
+}
 
 // A CONFLICT IS EVIDENCE, NOT A SILENT OUTCOME (0.3.0).
 //
@@ -120,7 +144,8 @@ export async function init(opts) {
     if (!MODULES.includes(m)) throw new Error(`unknown module: ${m} (known: ${MODULES.join(', ')})`)
   }
 
-  const plan = [...planTree('base', answers), ...planStack(answers)]
+  const demo = demoChoice(opts, priorManifest, det)
+  const plan = planInstall(answers, demo)
   // Fail loud, never fail open: an unreadable template tree must be an error,
   // not a 0-file "successful" install (Windows URL.pathname regression class).
   if (plan.length === 0) {
@@ -134,6 +159,7 @@ export async function init(opts) {
   // template — a core-tier install has no such directory and `tsc -b` fails on a
   // reference to a project that does not exist — so it is derived from the plan.
   injectModuleProjectReferences(plan, report, 'added')
+  injectDemoProjectReferences(plan, targetDir, report, 'added')
   pruneMissingProjectReferences(plan, targetDir, report)
   const files = {}
 
@@ -288,6 +314,7 @@ export async function init(opts) {
       mode: det.mode,
       tier: opts.tier ?? 'standard',
       modules,
+      demo,
       answers,
       files,
     })

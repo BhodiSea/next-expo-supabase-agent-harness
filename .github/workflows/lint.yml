@@ -182,6 +182,12 @@ jobs:
       # promised the drift would be invisible; on its first run this found three.
       - name: machinery-escape-registry (the three escape-hatch lists reconcile)
         run: node scripts/check-escape-registry.mjs
+      # The worked example stays removable (2.0.0, #85): template/demo-index.json lists every
+      # row the demo's copy of a seeded register adds or changes, both ways, so `eject` can
+      # trim a register the project edited; and no owned config, tool or register names a
+      # path only the demo ships.
+      - name: machinery-demo-index (the demo index is complete both ways; no owned file names the demo)
+        run: node scripts/check-demo-index.mjs
       # A dependency a harness-OWNED config needs must reach an EXISTING install, not just
       # a fresh scaffold. 0.4.0 shipped a config importing eslint-plugin-jsx-a11y against a
       # pin no upgraded tree had, and eslint died before linting a file.

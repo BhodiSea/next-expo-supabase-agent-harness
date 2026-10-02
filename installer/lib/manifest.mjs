@@ -79,7 +79,16 @@ export function writeManifest(targetDir, manifest) {
     mode: manifest.mode,
     tier: manifest.tier,
     modules: [...manifest.modules].sort(),
+    // 2.0.0 (#85): whether this install carries the worked example (`init --with-demo`).
+    // true or false on an install made by 2.0.0 or later; ABSENT on an older manifest, whose
+    // example was part of the scaffold and is woven into its spine migrations — `eject`
+    // refuses that install rather than guess, and `update` never invents the field.
+    demo: manifest.demo,
     answers: manifest.answers,
+    // 2.0.0 (#85): each migration `eject` deleted, with the sha256 of the bytes it deleted.
+    // tools/check-migrations.mjs reads it: a deletion of exactly these bytes at exactly this
+    // path is the recorded act of removing the demo, not an edit of applied history.
+    ejectedMigrations: manifest.ejectedMigrations,
     files: Object.fromEntries(Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b))),
   }
   // The manifest is the update transaction's LAST write and the file every

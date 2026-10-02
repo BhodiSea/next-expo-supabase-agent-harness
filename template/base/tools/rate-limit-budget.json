@@ -1,5 +1,5 @@
 {
-  "comment": "The reviewed rate-limit budget. apps/web/lib/rate-limit.ts is the code that RUNS; this file is what a human approved, and `node tools/check-rate-limits.mjs` evaluates that module and diffs it against this one BY VALUE — so a number changed in code without a reviewed diff here reds, and so does the reverse. Two closures make it non-vacuous: every MUTATION in tools/generated/action-inventory.json (which is generated from the composed router, not hand-written) must map to a declared bucket or appear in `exemptProcedures` with a reason, and every declared bucket must be referenced by something. The ceilings exist because a bucket of 100000/second is not a limit while reading exactly like one in review. HONEST SCOPE, restated here because this is where someone will look for it: these budgets bind the application seams — the tRPC router and the Next Server Action layer. They do NOT bind a client that calls PostgREST directly with the publishable key and its own JWT, and they do not bind sign-in or sign-up, which go to GoTrue. The controls that bind every path are the per-org quota trigger and the per-role statement timeouts (tools/db-limits.json).",
+  "comment": "The reviewed rate-limit budget. apps/web/lib/rate-limit.ts is the code that RUNS; this file is what a human approved, and `node tools/check-rate-limits.mjs` evaluates that module and diffs it against this one BY VALUE — so a number changed in code without a reviewed diff here reds, and so does the reverse. Two closures make it non-vacuous: every MUTATION in tools/generated/action-inventory.json (which is generated from the composed router, not hand-written) must map to a declared bucket or appear in `exemptProcedures` with a reason, and every declared bucket must be referenced by something. The ceilings exist because a bucket of 100000/second is not a limit while reading exactly like one in review. HONEST SCOPE, restated here because this is where someone will look for it: these budgets bind the application seams — the tRPC router and the Next Server Action layer. They do NOT bind a client that calls PostgREST directly with the publishable key and its own JWT, and they do not bind sign-in or sign-up, which go to GoTrue. The controls that bind every path are the per-org quota trigger and the per-role statement timeouts (tools/db-limits.json). `unmapped` names the bucket the code falls to for a procedure or Server Action neither map names (system.exportMyData today): the gate proves the running code agrees before it counts that bucket as spent.",
   "buckets": [
     {
       "name": "read",
@@ -24,12 +24,8 @@
     "limit": 1000,
     "windowSeconds": 86400
   },
+  "unmapped": "write",
   "procedures": {
-    "notes.create": "write",
-    "notes.get": "read",
-    "notes.list": "read",
-    "notes.remove": "write",
-    "notes.update": "write",
     "system.me": "read"
   },
   "exemptProcedures": [
@@ -40,12 +36,11 @@
   ],
   "actions": {
     "acceptInvitationAction": "provisioning",
-    "createNoteAction": "write",
     "ensurePersonalOrgAction": "provisioning"
   },
   "failOpen": {
     "decided": true,
     "fallback": "The in-process sliding-window limiter (@app/ratelimit createMemoryRateLimiter), wired as withFailOpen’s outage rung since 0.10.0. During a backend outage the configured budget is therefore multiplied by the instance count, and on a serverless platform that discards the process between requests it approaches no limit at all — which is the honest ceiling, not a claim that limiting continues unchanged.",
-    "reason": "When the limiter cannot answer — Redis unreachable, a REST timeout, a provider 500 — the request is ALLOWED and the decision is marked `degraded`. A limiter that fails closed converts a dependency outage into a total outage of a product that was working a second earlier, at exactly the moment an operator is least able to react, and it does so for a control that is a courtesy layer rather than the authorization boundary. AMENDED 0.10.0 — the outage rung DEGRADES rather than disappearing. Through 0.9.9 the cost stated here was \"during a limiter outage there is no rate limiting\", and that was accurate: the catch returned an unconditional allow. It now falls back to the in-process limiter, which already existed in the same file and was already wired at the configuration rung, so the cost is now `limit \u00d7 instances` during an outage rather than no limit — and on a serverless platform that discards the process between requests, still effectively no limit. Two further costs, stated rather than discovered: retryAfterSeconds comes from the fallback\u2019s own log so it can be a full window and survives the backend recovering, and the outage working set is retained afterwards (bounded in key count by the maxKeys LRU, unbounded per key). The `degraded` flag still makes every backend-less decision a metric instead of a silence, INCLUDING a denial, and `counted` separates \"the fallback decided\" from \"the fallback failed too\"."
+    "reason": "When the limiter cannot answer — Redis unreachable, a REST timeout, a provider 500 — the request is ALLOWED and the decision is marked `degraded`. A limiter that fails closed converts a dependency outage into a total outage of a product that was working a second earlier, at exactly the moment an operator is least able to react, and it does so for a control that is a courtesy layer rather than the authorization boundary. AMENDED 0.10.0 — the outage rung DEGRADES rather than disappearing. Through 0.9.9 the cost stated here was \"during a limiter outage there is no rate limiting\", and that was accurate: the catch returned an unconditional allow. It now falls back to the in-process limiter, which already existed in the same file and was already wired at the configuration rung, so the cost is now `limit × instances` during an outage rather than no limit — and on a serverless platform that discards the process between requests, still effectively no limit. Two further costs, stated rather than discovered: retryAfterSeconds comes from the fallback’s own log so it can be a full window and survives the backend recovering, and the outage working set is retained afterwards (bounded in key count by the maxKeys LRU, unbounded per key). The `degraded` flag still makes every backend-less decision a metric instead of a silence, INCLUDING a denial, and `counted` separates \"the fallback decided\" from \"the fallback failed too\"."
   }
 }

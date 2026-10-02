@@ -8,6 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -326,6 +327,65 @@ test('RED: deleting a committed migration is an append-only violation', () => {
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('deleted'), r.out)
   assert.ok(r.out.includes('append-only'), r.out)
+})
+
+// ---- rule 1's one sanctioned deletion: `eject` (2.0.0, #85) ------------------------------
+// `eject` deletes the worked example's migrations and records, in
+// .harness/manifest.json ejectedMigrations, the sha256 of the exact bytes it deleted. A
+// deletion is accepted ONLY when the bytes at the diff base hash to that record: any other
+// deletion, an edit, or a deletion of different bytes under a recorded name stays red.
+
+/** @param {string} dir @param {Record<string, string>} ejected */
+function writeEjected(dir, ejected) {
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '2.0.0', harnessVersion: '2.0.0', demo: false, ejectedMigrations: ejected }),
+  )
+}
+const sha = (text) => createHash('sha256').update(text).digest('hex')
+
+test('GREEN (2.0.0): a migration `eject` deleted, at exactly the bytes it recorded, is not an append-only violation', () => {
+  const dir = fixture()
+  rmSync(join(dir, MIGRATIONS, '0000_init.sql'))
+  writeEjected(dir, { [`${MIGRATIONS}/0000_init.sql`]: sha(CLEAN_MIGRATION) })
+  const r = runGate(dir)
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /migrations: NOTE — supabase\/migrations\/0000_init\.sql: deleted by `eject`/)
+})
+
+test('RED (2.0.0): a recorded name whose deleted bytes differ from the record is still a violation', () => {
+  const dir = fixture()
+  rmSync(join(dir, MIGRATIONS, '0000_init.sql'))
+  writeEjected(dir, { [`${MIGRATIONS}/0000_init.sql`]: sha('other bytes') })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('deleted') && r.out.includes('append-only'), r.out)
+  assert.ok(r.out.includes('ejectedMigrations records other bytes'), r.out)
+})
+
+test('RED (2.0.0): an ejectedMigrations record excuses neither an edit nor another file', () => {
+  const dir = fixture()
+  appendMigration(dir, '0001_more.sql', CLEAN_MIGRATION.replaceAll('notes', 'more'))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'more')
+  writeFileSync(join(dir, MIGRATIONS, '0000_init.sql'), `${CLEAN_MIGRATION}-- edited\n`)
+  rmSync(join(dir, MIGRATIONS, '0001_more.sql'))
+  writeEjected(dir, { [`${MIGRATIONS}/0000_init.sql`]: sha(CLEAN_MIGRATION) })
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes(`${MIGRATIONS}/0000_init.sql: modified`), r.out)
+  assert.ok(r.out.includes(`${MIGRATIONS}/0001_more.sql: deleted`), r.out)
+})
+
+test('RED (2.0.0): a malformed ejectedMigrations record fails closed rather than excusing anything', () => {
+  const dir = fixture()
+  rmSync(join(dir, MIGRATIONS, '0000_init.sql'))
+  mkdirSync(join(dir, '.harness'), { recursive: true })
+  writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify({ ejectedMigrations: ['0000_init.sql'] }))
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('deleted'), r.out)
 })
 
 test('CI: an unresolvable diff base (no commits) fails CLOSED, never vacates the check', () => {

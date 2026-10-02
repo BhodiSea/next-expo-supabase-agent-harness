@@ -35,8 +35,8 @@ import { space, useThemedStyles } from '../src/theme/theme'
 // keeps all three ids so the contract stays uniform; the states sweep documents
 // the two that cannot occur here.
 
-// ROUTES entry 2 IS the actions entry (id 'actions') — literal-typed testIDs.
-const ACTIONS = ROUTES[2]
+// ROUTES entry 1 IS the actions entry (id 'actions') — literal-typed testIDs.
+const ACTIONS = ROUTES[1]
 
 // The pinned-recents section id. Not an ActionGroup: no command declares itself
 // 'recents' — the section is synthesized from storage below.

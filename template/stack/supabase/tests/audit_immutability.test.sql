@@ -122,7 +122,7 @@ SELECT ok(
 -- Coverage: every org-scoped table is audited, read from pg_trigger
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TEMPORARY TABLE audited_targets (table_name text PRIMARY KEY);
-INSERT INTO audited_targets (table_name) VALUES ('orgs'), ('memberships'), ('invitations'), ('notes');
+INSERT INTO audited_targets (table_name) VALUES ('orgs'), ('memberships'), ('invitations');
 
 SELECT is_empty(
   $$ SELECT t.table_name
@@ -173,7 +173,8 @@ SELECT ok(
 -- proof of audit capture. Between the markers is the RLS skeleton the
 -- authoring-vertical-slice skill teaches (references/migration-rls.md), with the table
 -- named pgtap_fixture and two slice columns added, followed by the audit trigger exactly
--- as supabase/migrations/20260202000000_audit.sql writes it for the example, renamed.
+-- as the worked example writes it (supabase/migrations/20260930000100_notes_rails.sql, which
+-- `init --with-demo` plants), renamed.
 -- It fires the real audit.write_row(), which takes the tenant and identity columns from
 -- its arguments; nothing in this file redefines it. The coverage read above still judges
 -- the real tables' own triggers. Keep the markers, and keep the region in step with the

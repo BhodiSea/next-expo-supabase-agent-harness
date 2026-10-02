@@ -62,25 +62,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"notes": {
-                  Row: {
-                    "archived_at": string | null,"body": string,"created_at": string,"id": string,"org_id": string,"owner_id": string | null,"title": string,"updated_at": string
-                  }
-                  Insert: {
-                    "archived_at"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"org_id": string,"owner_id"?: string | null,"title": string,"updated_at"?: string
-                  }
-                  Update: {
-                    "archived_at"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"org_id"?: string,"owner_id"?: string | null,"title"?: string,"updated_at"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "notes_org_id_fkey"
-      columns: ["org_id"]
-isOneToOne: false
-      referencedRelation: "orgs"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"org_quota": {
                   Row: {
                     "hard_limit": number,"metric": string,"org_id": string,"updated_at": string

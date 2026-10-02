@@ -36,7 +36,13 @@ const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url
 const STACK = fileURLToPath(new URL('../../template/stack/supabase', import.meta.url))
 const STACK_ROOT = fileURLToPath(new URL('../../template/stack', import.meta.url))
 const DOCS = fileURLToPath(new URL('../../template/base/docs', import.meta.url))
-const SHIPPED_POLICY = JSON.parse(readFileSync(join(TOOLS, 'data-flow.json'), 'utf8'))
+// 2.0.0 (#85): the worked example's table is the one most cases below perturb (its severed
+// and retained links, its export projection), so the fixture is the --with-demo scaffold's
+// shape — the demo's supabase/ over the stack's and the demo's two registers — unless a case
+// asks for the default one.
+const DEMO = fileURLToPath(new URL('../../template/demo', import.meta.url))
+const SHIPPED_POLICY = JSON.parse(readFileSync(join(DEMO, 'tools/data-flow.json'), 'utf8'))
+const DEFAULT_POLICY = JSON.parse(readFileSync(join(TOOLS, 'data-flow.json'), 'utf8'))
 
 /**
  * The 0.7.0 pre-ship surface shape — what every install seeded BEFORE the
@@ -52,21 +58,31 @@ const DEFERRED_SURFACE = {
 }
 
 /**
+ * The real supabase/ tree and pii-columns register: the default scaffold's, or with `demo`
+ * the --with-demo scaffold's (the demo's copies over the stack's).
+ * @param {string} dir @param {boolean} demo
+ */
+function plantSchemaTree(dir, demo) {
+  cpSync(STACK, join(dir, 'supabase'), { recursive: true })
+  if (demo) cpSync(join(DEMO, 'supabase'), join(dir, 'supabase'), { recursive: true })
+  cpSync(join(demo ? join(DEMO, 'tools') : TOOLS, 'pii-columns.json'), join(dir, 'tools/pii-columns.json'))
+}
+
+/**
  * A project root carrying the real supabase tree. `policy` may be mutated by `edit`; an
  * `extraSql` string is appended as one more migration, which is how a hypothetical column is
  * introduced without rewriting a shipped file. `manifest` plants a .harness/manifest.json,
  * which is what drives the export-target deadline and the ramps — the same lever
  * tests/gates/check-docs-sync.test.mjs uses for the Target-column judgments.
- * @param {{ policy?: any, edit?: (p: any) => void, extraSql?: string, schemaEdit?: (s: string) => string, manifest?: {harnessVersion: string, baseVersion: string} }} [opts]
+ * @param {{ policy?: any, edit?: (p: any) => void, extraSql?: string, schemaEdit?: (s: string) => string, manifest?: {harnessVersion: string, baseVersion: string}, demo?: boolean }} [opts]
  */
-function fixture({ policy, edit, extraSql, schemaEdit, manifest } = {}) {
+function fixture({ policy, edit, extraSql, schemaEdit, manifest, demo = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-dataflow-'))
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   mkdirSync(join(dir, 'docs/runbooks'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
-  cpSync(STACK, join(dir, 'supabase'), { recursive: true })
+  plantSchemaTree(dir, demo)
   cpSync(join(DOCS, 'runbooks'), join(dir, 'docs/runbooks'), { recursive: true })
-  cpSync(join(TOOLS, 'pii-columns.json'), join(dir, 'tools/pii-columns.json'))
   if (manifest !== undefined) {
     mkdirSync(join(dir, '.harness'), { recursive: true })
     writeFileSync(join(dir, '.harness/manifest.json'), JSON.stringify(manifest))
@@ -105,7 +121,7 @@ function fixture({ policy, edit, extraSql, schemaEdit, manifest } = {}) {
   if (extraSql !== undefined) {
     writeFileSync(join(dir, 'supabase/migrations/29990101000000_fixture.sql'), extraSql)
   }
-  const next = policy === null ? null : structuredClone(policy ?? SHIPPED_POLICY)
+  const next = policy === null ? null : structuredClone(policy ?? (demo ? SHIPPED_POLICY : DEFAULT_POLICY))
   if (next !== null && edit) edit(next)
   if (next !== null) writeFileSync(join(dir, 'tools/data-flow.json'), JSON.stringify(next, null, 2))
   return dir
@@ -139,6 +155,13 @@ test('GREEN: the shipped schema satisfies the shipped policy', () => {
   assert.match(r.out, /data-flow: OK/)
   assert.match(r.out, /0 delete-blocking link\(s\)/)
   assert.match(r.out, /supabase\/schemas agrees with the applied history/)
+})
+
+test('GREEN (2.0.0): the default scaffold, with no example table, satisfies its own policy', () => {
+  const r = runGate(fixture({ demo: false }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /data-flow: OK/)
+  assert.ok(!r.out.includes('notes'), r.out)
 })
 
 // ── the bucket nobody watches ────────────────────────────────────────────────────────

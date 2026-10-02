@@ -3,7 +3,9 @@ import { Icon } from '../../src/components/icons/Icon'
 import { useI18n } from '../../src/i18n'
 import { usePalette } from '../../src/theme/theme'
 
-// The tab shell for the two content screens. Titles come from the catalog via
+// The tab shell. A default scaffold has ONE tab, home; a feature's content screen
+// joins it as a second <Tabs.Screen> (the matrix tab `init --with-demo` plants is the
+// worked example). Titles come from the catalog via
 // useI18n (subscribed: a locale switch re-titles the bar live); colors are
 // tokens through the palette hook — the navigator's option bag is config, not
 // a style prop, so it reads raw hex from exactly one sanctioned source. Tab
@@ -31,13 +33,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => (
             <Icon name="house" tone={focused ? 'accent' : 'ink-muted'} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="matrix"
-        options={{
-          title: t('route.matrix'),
-          tabBarIcon: ({ focused }) => <Icon name="grid" tone={focused ? 'accent' : 'ink-muted'} />,
         }}
       />
     </Tabs>

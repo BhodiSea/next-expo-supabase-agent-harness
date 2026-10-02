@@ -206,8 +206,11 @@ function formatNumber(value: number, options?: Intl.NumberFormatOptions): string
 }
 
 /**
- * A matrix cell. Integers render bare; fractions get exactly two decimals — but the decimal
- * mark is the LOCALE's ("0,75" in de, "٠٫٧٥" in ar), which `.toFixed(2)` could never be.
+ * A numeric cell in a dense list or table. Integers render bare; fractions get exactly two
+ * decimals — but the decimal mark is the LOCALE's ("0,75" in de, "٠٫٧٥" in ar), which
+ * `.toFixed(2)` could never be.
+ * @public — seam API: the worked example's matrix screen (`init --with-demo`) is its first
+ * consumer; the formatting door features must use, never Intl.
  */
 export function formatCellValue(value: number): string {
   return Number.isInteger(value)
@@ -231,7 +234,11 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** "3 minutes ago" / "last week" — in the active locale, with its own grammar. */
+/**
+ * "3 minutes ago" / "last week" — in the active locale, with its own grammar.
+ * @public — seam API: the worked example's notes panel (`init --with-demo`) is its first
+ * consumer; the formatting door features must use, never Intl.
+ */
 export function formatRelativeTime(iso: string, now: number = Date.now()): string {
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return ''

@@ -30,6 +30,7 @@ Scaffold the harness and reference app into a directory.
 | `--dry-run` | Report what would be written and write nothing. |
 | `--report json` | Print the install report as JSON instead of text. |
 | `--consume` | For a copy made with GitHub's "Use this template": turn the checkout itself into a project, removing the installer and template trees. |
+| `--with-demo` | Also plant the worked example (2.0.0): the notes vertical, its web route, Server Action and read seam, the mobile notes and matrix screens, its router, its migrations, and the example's rows in the seeded registers. A default `init` plans none of it. Recorded as `demo: true` in `.harness/manifest.json`, carried by `init --force`, and refused for a retrofit. `eject` removes it again. |
 
 ### `update`
 
@@ -126,6 +127,47 @@ are clean. It runs validate and refuses while any ramp note remains.
 
 Add or remove one opt-in module in an existing install.
 
+### `eject`
+
+Remove the worked example from an install made with `init --with-demo`
+(2.0.0). It works in three parts:
+
+1. A file only the demo ships is deleted while it is still the demo's: its
+   bytes match its record in `.harness/manifest.json`, and that record is the
+   demo's bytes. A file you changed, or forked and re-recorded, is kept, its
+   record is dropped, and `eject` lists it.
+2. A shared file the demo replaced (the API router, the mobile home tab, the
+   command palette, the seeded registers) gets the default install's bytes back
+   while it is still the demo's. One you changed is kept, and the default copy
+   is parked under `.harness/pending/`.
+3. In a seeded register you changed, only the demo's rows are deleted, and
+   only where they still equal the row the demo shipped. `template/demo-index.json`
+   lists those rows, as `{file, jsonPointer}` or, for `PARITY.md`, `{file, rowKey}`.
+
+`eject` also drops the root `tsconfig.json` reference to each package it
+deleted, and records each migration it deleted, with the sha256 of the deleted
+bytes, as `ejectedMigrations` in the manifest. The `migrations` gate accepts the
+deletion of exactly those bytes and still fails on any other deleted or edited
+migration. If a database you keep has already applied the demo's migrations,
+read the upgrade runbook's 2.0.0 section before you commit their deletion.
+
+After `eject` on an untouched demo install, the tree outside `.harness/` is
+byte for byte the tree a default `init` with the same answers writes. Run
+`pnpm install` next, because the lockfile still names the demo's workspace
+packages. Then commit, and only then run `pnpm validate`: `eject` rewrites
+registers that `gate-integrity` holds to a commit, so a validate before the
+commit fails on each of them.
+
+`eject` exits 1 on an install without the demo: one made without
+`--with-demo`, or one made before 2.0.0, whose example is written into the spine
+migrations and cannot be removed file by file. It exits 2 when it kept anything.
+
+| Flag | Meaning |
+|---|---|
+| `--dir <path>` | Install to eject the demo from. Default `.` |
+| `--dry-run` | List what a real run would remove and write nothing. |
+| `--report json` | Print the eject report as JSON. |
+
 ### `apply-proposal [<id>]`
 
 Apply a register edit an agent staged for you. The write guard denies an agent
@@ -213,8 +255,8 @@ the default for anything not set. Every value is validated.
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Error, or an unknown command |
-| 2 | `init`, `update` or `update --rollback` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it, and a file with no manifest record whose bytes no release shipped. For `update --rollback` it is a directory left in place that the update may have created |
+| 1 | Error, or an unknown command. For `eject`, also an install without the demo |
+| 2 | `init`, `update`, `update --rollback` or `eject` finished, but the report lists conflicts or drift to resolve. For `update` that includes a forked file whose incoming version was parked because upstream changed it, and a file with no manifest record whose bytes no release shipped. For `update --rollback` it is a directory left in place that the update may have created. For `eject` it is a demo file, row or reference it kept because you changed it |
 
 ## Environment variables in a scaffolded project
 

@@ -395,6 +395,15 @@ vertical depend on another → FAIL "verticals never import each other"; put a `
 import in a domain file → FAIL naming file and law; hollow out every vertical's src →
 FAIL "scanned ZERO files".
 
+**A wall the worked example provides (2.0.0).** The `@app/notes` row of
+`tools/exports-walls.json` carries `"demo": true`: the package exists only where
+`init --with-demo` planted it. On an install whose manifest records `"demo": false` the row
+is dormant; where the manifest records the demo, or no choice at all (every install made
+before 2.0.0), the row is live, and a missing package reds it as stale, naming `eject` and
+the runbook. `"demo"` must be `true` when present, because any other value would park the
+stale check, and a row cannot be both module- and demo-provided. **Anti-vacuity:** a
+manifest recording the demo with the package gone → FAIL stale; `"demo": "yes"` → FAIL.
+
 ### 10. resilience — `node tools/check-resilience.mjs`
 
 The outbound-seam posture register, closed both ways. Every seam that calls OUT of
@@ -960,6 +969,14 @@ only; `GRANT ALL`, a grant behind a deny-all policy, `WITH GRANT OPTION`, a sche
 stale allow row and a stale or missing generated file → FAIL; the generated file passes on a
 live stack and fails on an injected `GRANT TRUNCATE ON public.notes TO authenticated`.
 
+**The MFA rail with no policy on it (2.0.0).** A default scaffold defines the step-up
+helpers (`mfa_satisfied()`) but no table's policy calls them yet: the worked example's was
+the only one. Helpers no policy calls fail the step unless `tools/rls-exempt.json` carries
+a reviewed `mfaRailUnused` row (`reason` of at least 40 characters, `reviewedOn` as
+`YYYY-MM-DD`); with the row the step prints a NOTE naming it. The row goes stale, and reds,
+the moment a policy uses the rail. **Anti-vacuity:** a short reason or a missing date → FAIL;
+the row beside a policy that calls `mfa_satisfied()` → FAIL stale.
+
 ### 18. tenancy — `node tools/check-tenancy.mjs`
 
 The multi-tenant contract as reviewed data. schema-rls proves a predicate is REAL;
@@ -1412,6 +1429,14 @@ one rename does not excuse a rewrite beside it. Its findings ride their own ramp
 `ALTER POLICY notes_select_own ON public.notes USING (true);` and no ADR line → FAIL
 "removes an authorization control"; the same with `RENAME TO` → GREEN.
 
+**A migration `eject` deleted (2.0.0).** `eject` removes the worked example's migrations
+from an install made with `init --with-demo`, and records each one's sha256 under
+`ejectedMigrations` in `.harness/manifest.json`. A deletion of a recorded file whose bytes at
+the diff base hash to the record prints a NOTE naming the runbook instead of failing. Every
+other deletion still reds, as do an edit to a recorded file and a recorded name whose
+deleted bytes differ, and a malformed record excuses nothing. **Anti-vacuity:** delete a
+recorded migration whose bytes were changed first → FAIL append-only.
+
 ### 23. db-limits — `node tools/check-db-limits.mjs`
 
 The per-role resource ceilings and the per-org quota machinery, judged as data
@@ -1604,6 +1629,13 @@ through `rampNote('query-shapes', '1.1.0', 'the SQL history fold (DROP TABLE and
 fold, with no ramp: it runs only against a live, scale-seeded database, where a dropped
 table's indexes are already gone.
 
+**No vertical yet (2.0.0).** A default scaffold has no `packages/verticals/*`, so no DAL
+issues a query and the manifest records none. With no vertical directory, an existing
+migrations directory, and a manifest that is `[]` or absent, the step is green and its OK line
+names the empty state; a manifest that still records shapes there reds as stale, and one that
+does not parse reds. The first vertical's `src/data/query-probes.ts` arms every rule above.
+**Anti-vacuity:** no vertical and a manifest holding one shape → FAIL.
+
 ### 26. rate-limits — `node tools/check-rate-limits.mjs`
 
 The rate-limit budget as reviewed data (`tools/rate-limit-budget.json`), closed against
@@ -1665,6 +1697,14 @@ is a window with no rate limiting at all**: the outage rung degrades to the in-p
 limiter, so the budget is multiplied by the instance count rather than removed — and on a
 serverless platform that discards the process, still effectively removed. A degraded
 decision may now be a DENIAL, and `counted` says whether anything counted.
+
+**A surface no row maps: `unmapped` (2.0.0).** Both seams send a procedure or action that
+no row maps to a fallback bucket. The budget may declare that bucket as `"unmapped"`; the
+declaration must name a declared bucket, and must be what `bucketForProcedure` and
+`bucketForAction` actually return for an unmapped name, or the step reds per seam. A bucket
+the fallback spends from counts as referenced only when both seams agree. The default
+budget declares `"unmapped": "write"`. **Anti-vacuity:** `"unmapped": "nope"` → FAIL
+undeclared; `"unmapped": "read"` while the seams fall to `write` → FAIL naming each seam.
 
 ### 27. parity — `node tools/check-mobile-parity.mjs`
 
@@ -2695,7 +2735,12 @@ tests/gates/severity-contract.test.mjs.
   leading-column assertion — while db-perf reds on all three ordered shapes at once
   (a Sort node, the planner falling back to `notes_pkey`, and 1491 buffers against
   a 900 budget). Deliberately a different edit from Canary 17, which must drop the
-  primary key too before pgTAP notices anything.
+  primary key too before pgTAP notices anything. (Both canaries run in the factory on an
+  `init --with-demo` scaffold, because the index is the worked example's.)
+  **No read shape, no lane (2.0.0).** On a manifest that records no read shape there is no
+  plan to probe: the shipped `db-scale` adoption step stands down with a notice, and the
+  gate itself skips locally and fails in CI if it is run anyway. A default scaffold is in
+  that state until its first vertical records a shape.
 
 - **query-budget** (`integration-lane`) — `node tools/check-query-budget.mjs -- <workload>`.
   It wraps the live-api-proof suite rather than issuing its own requests, resets

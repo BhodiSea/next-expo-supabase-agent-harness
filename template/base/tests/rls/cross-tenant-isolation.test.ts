@@ -166,24 +166,26 @@ if (!RLS_SUITE_READY) {
       })
 
       // NON-VACUITY, asserted HERE rather than inferred from a sibling test. The
-      // whole assertion below is "A sees none of B's notes" — which is trivially
-      // true if B has no notes. B reads its own org through its own client first,
-      // so the ∅ that follows is B's rows being HIDDEN, not B's rows being absent.
-      const bHas = await b.from('notes').select('id').eq('org_id', ctxB.teamOrgId)
+      // whole assertion below is "A sees nothing of B's org" — which is trivially
+      // true if B's org row is unreadable to everyone. B reads its own org through its
+      // own client first, so the ∅ that follows is B's row being HIDDEN, not absent.
+      // public.orgs is the one org-scoped table every install has (its tenant key is
+      // its own id), so this proof does not depend on any vertical.
+      const bHas = await b.from('orgs').select('id').eq('id', ctxB.teamOrgId)
       expect(bHas.error, `B own-read before the spoof: ${bHas.error?.message}`).toBeNull()
       expect(
         bHas.data?.length ?? 0,
-        "B's org must hold at least one note, or the empty set below proves nothing",
+        'B must read its own org row, or the empty set below proves nothing',
       ).toBeGreaterThanOrEqual(1)
 
-      const foreign = await aSpoofed.from('notes').select('id').eq('org_id', ctxB.teamOrgId)
+      const foreign = await aSpoofed.from('orgs').select('id').eq('id', ctxB.teamOrgId)
       expect(foreign.error, 'a spoofed X-Org-Id must not raise').toBeNull()
       expect(foreign.data ?? [], "claiming B's org must still return the empty set").toHaveLength(0)
 
       // POSITIVE CONTROL: the header did not simply break the client. A still reads its
       // own org through the very same connection — so the ∅ above is isolation, not a
       // malformed request.
-      const own = await aSpoofed.from('notes').select('id').eq('org_id', ctxA.teamOrgId)
+      const own = await aSpoofed.from('orgs').select('id').eq('id', ctxA.teamOrgId)
       expect(own.error, `A own-read while spoofing: ${own.error?.message}`).toBeNull()
       expect(
         own.data?.length ?? 0,

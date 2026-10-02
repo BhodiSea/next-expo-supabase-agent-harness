@@ -1,7 +1,6 @@
 import { ORG_ID_HEADER } from '@app/contracts'
-import type { NotesDatabase } from '@app/notes'
 import { describe, expect, it, vi } from 'vitest'
-import { createContext, type Session } from './context.js'
+import { type ApiDatabase, createContext, type Session } from './context.js'
 import { appRouter } from './index.js'
 import { isRateLimitedError, RATE_LIMITED_CODE, RateLimitedError } from './ratelimit.js'
 import { createCallerFactory } from './trpc.js'
@@ -26,7 +25,7 @@ const SESSION: Session = {
  * audit row and the quota check are already paid for. "The handler did not run" has to be
  * provable, and this is what proves it.
  */
-const forbiddenDb: NotesDatabase = {
+const forbiddenDb: ApiDatabase = {
   from: () => {
     throw new Error('a rate-limited request must be rejected before any handler runs')
   },
@@ -123,13 +122,13 @@ describe('the rate-limit guard', () => {
 
   it('runs on EVERY rung — the guard is on the base of the ladder, not on one procedure', async () => {
     // The structural property: there is no route table to walk and therefore no procedure
-    // that can be added without the guard. `notes.list` is three rungs above the base.
+    // that can be added without the guard. `system.exportMyData` is a rung above the base.
     const port = vi.fn(() => Promise.resolve({ allowed: false, retryAfterSeconds: 7 }))
     const caller = await callerWith(port)
-    await expect(caller.notes.list({ limit: 10 })).rejects.toMatchObject({
+    await expect(caller.system.exportMyData({})).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     })
-    expect(port).toHaveBeenCalledWith(expect.objectContaining({ path: 'notes.list' }))
+    expect(port).toHaveBeenCalledWith(expect.objectContaining({ path: 'system.exportMyData' }))
   })
 })
 

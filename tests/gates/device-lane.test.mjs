@@ -39,8 +39,13 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8')
 const posix = (p) => p.split('\\').join('/')
 
-const MUTATION = 'template/base/maestro/journeys/mutation.yaml'
+// 2.0.0 (#85): the write journey is the worked example's (template/demo), and every
+// scaffold ships the session journey (template/base) beside it.
+const MUTATION = 'template/demo/maestro/journeys/mutation.yaml'
+const SESSION = 'template/base/maestro/journeys/session.yaml'
+const JOURNEYS = [SESSION, MUTATION]
 const MOBILE_DIRS = ['template/stack/apps/mobile/app', 'template/stack/apps/mobile/src']
+const DEMO_MOBILE_DIRS = ['template/demo/apps/mobile/app', 'template/demo/apps/mobile/src']
 const LIVE_PROOF_SUITE = 'template/stack/apps/mobile/__tests__/live-api-proof.test.ts'
 const WEB_ENV_SCHEMA = 'template/stack/packages/platform/env/src/client.ts'
 const SERVER_ENV_SCHEMA = 'template/stack/packages/platform/env/src/index.ts'
@@ -69,10 +74,14 @@ function selectorIds(yaml) {
   )
 }
 
-/** Every string literal in the shipped mobile source, tests excluded. */
-function appLiterals() {
+/**
+ * Every string literal in the shipped mobile source, tests excluded: the default
+ * scaffold's, or with `demo` the --with-demo scaffold's (the demo overlays the stack).
+ * @param {boolean} [demo]
+ */
+function appLiterals(demo = false) {
   const literals = new Set()
-  for (const dir of MOBILE_DIRS) {
+  for (const dir of demo ? [...MOBILE_DIRS, ...DEMO_MOBILE_DIRS] : MOBILE_DIRS) {
     for (const rel of filesUnder(dir, /\.tsx?$/)) {
       if (/(?:^|\/)__tests__\//.test(rel) || /\.test\.tsx?$/.test(rel)) continue
       for (const m of read(rel).matchAll(/['"`]([A-Za-z0-9_.-]+)['"`]/g)) literals.add(m[1])
@@ -82,8 +91,8 @@ function appLiterals() {
 }
 
 /** The shipped flows and journeys, plus the two the runner generates from committed data. */
-function shippedYamls() {
-  const files = filesUnder('template/base/maestro', /\.ya?ml$/).map((rel) => ({
+function shippedYamls(root = 'template/base/maestro') {
+  const files = filesUnder(root, /\.ya?ml$/).map((rel) => ({
     name: rel,
     yaml: read(rel),
   }))
@@ -116,12 +125,18 @@ test('every selector a shipped journey or flow waits on is a testID the shipped 
   // Anti-vacuity: the mutation journey alone waits on eight surfaces; a parser that
   // stopped reading them would pass everything.
   assert.ok(mutationIds.length >= 8, `mutation.yaml selectors parsed: ${mutationIds.join(', ')}`)
-  assert.ok(files.length >= 8, `shipped + generated YAMLs: ${String(files.length)}`)
+  assert.ok(selectorIds(read(SESSION)).length >= 8, 'session.yaml selectors parsed')
+  assert.ok(files.length >= 7, `shipped + generated YAMLs: ${String(files.length)}`)
   assert.deepEqual(unresolvedSelectors(files, literals), [])
+  // The default scaffold's YAMLs resolve against the default app; the demo's own flows and
+  // journey resolve against the app `init --with-demo` plants.
+  assert.deepEqual(unresolvedSelectors(shippedYamls('template/demo/maestro').slice(0, -2), appLiterals(true)), [])
+  // RED: the demo's journey against the DEFAULT app — its composer is not there.
+  assert.ok(unresolvedSelectors([{ name: MUTATION, yaml: read(MUTATION) }], literals).includes(`${MUTATION}: 'note-composer-input'`))
   // RED: one renamed testID is exactly the "element selector timeout" of issue #10, found
   // here instead of on the emulator.
-  const typo = [{ name: MUTATION, yaml: read(MUTATION).replace('sign-in-email', 'sign-in-emial') }]
-  assert.deepEqual(unresolvedSelectors(typo, literals), [`${MUTATION}: 'sign-in-emial'`])
+  const typo = [{ name: SESSION, yaml: read(SESSION).replace('sign-in-email', 'sign-in-emial') }]
+  assert.deepEqual(unresolvedSelectors(typo, literals), [`${SESSION}: 'sign-in-emial'`])
 })
 
 // ---------------------------------------------------------------------------
@@ -195,10 +210,12 @@ const PRE_1_0_0_SIGN_IN = `appId: {{APP_IDENTIFIER}}
     timeout: 30000
 `
 
-test('the mutation journey signs in as the identity the lane mints', () => {
+test('the session and mutation journeys sign in as the identity the lane mints', () => {
+  for (const journey of JOURNEYS) {
+    assert.deepEqual(signInProblems(read(journey)), [], journey)
+    assert.deepEqual(flowVariables(read(journey)), ['DEVICE_EMAIL', 'DEVICE_PASSWORD'], journey)
+  }
   const yaml = read(MUTATION)
-  assert.deepEqual(signInProblems(yaml), [])
-  assert.deepEqual(flowVariables(yaml), ['DEVICE_EMAIL', 'DEVICE_PASSWORD'])
   // RED: the journey issue #10 names, which tapped an empty form.
   assert.deepEqual(signInProblems(PRE_1_0_0_SIGN_IN), [
     'sign-in-email must be tapped and typed ${DEVICE_EMAIL} before sign-in-submit',
@@ -227,27 +244,40 @@ function laneScripts() {
 /** Shell text with backslash continuations joined, one command per line. */
 const commands = (sh) => sh.replace(/\\\n\s*/g, ' ').split('\n')
 
-/** What is wrong with how a lane script runs the mutation journey. */
+/**
+ * What is wrong with how a lane script runs the signed-in journeys: every journey run other
+ * than the RTL one (named, or the consumer lane's loop over maestro/journeys/*.yaml) must
+ * come after the minter and hand the journey each variable.
+ */
 function journeyLaneProblems(sh, variables) {
   const lines = commands(sh)
-  const run = lines.findIndex((line) => line.includes('--file maestro/journeys/mutation.yaml'))
-  if (run === -1) return []
+  const runs = lines.flatMap((line, i) =>
+    /--phase journey --file /.test(line) && !line.includes('i18n-rtl.yaml') ? [i] : [],
+  )
+  if (runs.length === 0) return []
   const problems = []
   const mint = lines.findIndex((line) => /node tools\/ci\/mint-device-user\.mjs /.test(line))
-  if (mint === -1 || mint > run) problems.push('mint-device-user.mjs must run before the journey')
-  for (const name of variables) {
-    if (!lines[run].includes(`--env "${name}=`)) problems.push(`the journey needs --env "${name}=…"`)
+  if (mint === -1 || runs.some((run) => mint > run)) problems.push('mint-device-user.mjs must run before the journey')
+  for (const run of runs) {
+    for (const name of variables) {
+      if (!lines[run].includes(`--env "${name}=`)) problems.push(`the journey needs --env "${name}=…"`)
+    }
   }
   return problems
 }
 
-test('every lane that runs the mutation journey mints the identity first and passes each variable', () => {
+test('every lane that runs a signed-in journey mints the identity first and passes each variable', () => {
   const variables = flowVariables(read(MUTATION))
-  const lanes = laneScripts().filter((rel) => read(rel).includes('maestro/journeys/mutation.yaml'))
+  const lanes = laneScripts().filter((rel) => /--phase journey --file (?!maestro\/journeys\/i18n-rtl)/.test(read(rel)))
   assert.deepEqual(lanes, ['scripts/ci/device-smoke.sh', 'template/base/tools/ci/device-lane.sh'])
   for (const rel of lanes) assert.deepEqual(journeyLaneProblems(read(rel), variables), [], rel)
+  // The consumer lane runs every hand-authored journey but the RTL one, so a project's own
+  // journey and the worked example's both run, without the lane naming either.
+  const consumer = read(lanes[1])
+  assert.ok(consumer.includes('for journey in maestro/journeys/*.yaml; do'), consumer)
+  assert.ok(!consumer.includes('maestro/journeys/mutation.yaml'), 'the owned lane names no demo path')
   // RED: a lane that drops the password variable.
-  const dropped = read(lanes[1]).replace(' --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"', '')
+  const dropped = consumer.replace(' --env "DEVICE_PASSWORD=$DEVICE_PASSWORD"', '')
   assert.deepEqual(journeyLaneProblems(dropped, variables), [
     'the journey needs --env "DEVICE_PASSWORD=…"',
   ])

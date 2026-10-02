@@ -1,0 +1,140 @@
+{
+  "comment": "The reviewed inline-suppression register — the census tools/check-suppressions.mjs closes BOTH WAYS against the product tree (apps/, packages/, supabase/). One row per file that carries directives; `directives` is exact (family, rule, count), so a new suppression cannot ride an old review and a removed one cannot leave a stale acceptance. The inline ` -- <reason>` at each site says what that site excuses; the row's `why` says why the FILE is licensed to carry suppressions at all — two different questions, deliberately both required. This file is SEEDED (the consumer's tree is theirs to reason about) and write-guard-protected: adding a row is a reviewed act. The shipped rows below match the scaffold's own 17 directives exactly, which is what keeps a fresh install green with zero edits.",
+  "files": [
+    {
+      "file": "apps/mobile/__tests__/primitives-a11y.test.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 2
+        }
+      ],
+      "why": "A11y fixtures asserting the ABSENCE of a hint: Field wires the hint only when an error exists, and these two fixtures are the no-error state under test — the directive is part of the assertion, not an escape from it."
+    },
+    {
+      "file": "apps/mobile/app/actions.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "@typescript-eslint/no-unsafe-assignment",
+          "count": 1
+        },
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 1
+        }
+      ],
+      "why": "The command modal touches the untyped supabase client (types.ts doctrine: no Database generic, rows re-parsed at the DAL exit) once, reading only `error`; and one search field whose label+placeholder already say everything a hint would repeat."
+    },
+    {
+      "file": "apps/mobile/src/components/Skeleton.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 1
+        }
+      ],
+      "why": "A progressbar primitive whose accessible name (Loading…) is the entire message; a hint would only repeat it, and the states sweep asserts the role either way."
+    },
+    {
+      "file": "apps/mobile/src/components/Spinner.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 1
+        }
+      ],
+      "why": "Same shape as Skeleton: a progressbar primitive whose accessible name is the whole message — the suppression is the reviewed statement that no interaction outcome exists to hint."
+    },
+    {
+      "file": "apps/mobile/src/features/matrix/MatrixList.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 1
+        }
+      ],
+      "why": "A static readout row: the label IS the whole content and the row is not a control, so there is no interaction outcome for a hint to describe — the one-accessible-element-per-row design the dense-screen doctrine mandates."
+    },
+    {
+      "file": "apps/mobile/src/features/notes/NotesPanel.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "react-native-a11y/has-accessibility-hint",
+          "count": 1
+        }
+      ],
+      "why": "A static note card whose label (title + pending state) is the whole content; no interaction outcome exists for a hint, same reviewed reading as MatrixList's readout row."
+    },
+    {
+      "file": "apps/mobile/src/lib/supabase/provider.tsx",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "@typescript-eslint/prefer-nullish-coalescing",
+          "count": 1
+        }
+      ],
+      "why": "The one site where `??` IS the bug the rule would introduce: an empty-string env value must read as unset for the project URL, and `||` is the operator that says so — the rule is right in general and wrong here, stated at the site."
+    },
+    {
+      "file": "apps/mobile/src/lib/trpc/client.ts",
+      "directives": [
+        {
+          "family": "eslint-disable",
+          "rule": "@typescript-eslint/prefer-nullish-coalescing",
+          "count": 1
+        }
+      ],
+      "why": "The origin read's twin of the provider.tsx site: '' must fall through to the configured origin rather than pass through as the origin itself, so `||` is load-bearing and `??` would ship the bug."
+    },
+    {
+      "file": "packages/contracts/src/index.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "local/org-id-from-session-only", "count": 2 }
+      ],
+      "why": "OUTPUT attribution, not input: the DSR export projections carry the org id the server READ BACK for the subject's archive (the reviewed export.projection rows). The rule targets payload fields flowing INTO handlers; nothing parses these shapes off a request."
+    },
+    {
+      "file": "packages/platform/supabase/src/access-token.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "@typescript-eslint/no-unsafe-return", "count": 1 }
+      ],
+      "why": "The deliberate untyped-client boundary: createClient carries no Database generic by doctrine (types.ts — rows re-parsed at the DAL exit), so the factory's return is `any` by design and this is the one reviewed crossing per factory."
+    },
+    {
+      "file": "packages/platform/supabase/src/browser.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "@typescript-eslint/no-unsafe-return", "count": 1 }
+      ],
+      "why": "Same reviewed crossing as access-token.ts: the browser factory returns the deliberately-untyped client, one directive per factory so the census counts each boundary exactly once."
+    },
+    {
+      "file": "packages/platform/supabase/src/cookie-server.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "@typescript-eslint/no-unsafe-return", "count": 1 }
+      ],
+      "why": "Same reviewed crossing as access-token.ts, on the cookie-backed server factory — the untyped-client doctrine is one decision expressed at five factory exits."
+    },
+    {
+      "file": "packages/platform/supabase/src/native.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "@typescript-eslint/no-unsafe-return", "count": 1 }
+      ],
+      "why": "Same reviewed crossing as access-token.ts, on the mobile factory whose storage adapter is LargeSecureStore — the return is the doctrine's untyped client, nothing else in the file is excused."
+    },
+    {
+      "file": "packages/platform/supabase/src/service-role.ts",
+      "directives": [
+        { "family": "eslint-disable", "rule": "@typescript-eslint/no-unsafe-return", "count": 1 }
+      ],
+      "why": "Same reviewed crossing as access-token.ts, on the warrant-gated service-role factory — the suppression covers the untyped return only; the BYPASSES_RLS discipline around it is enforced elsewhere and excused nowhere."
+    }
+  ]
+}

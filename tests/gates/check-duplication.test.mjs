@@ -210,3 +210,33 @@ test('duplication: real pasted CODE still reds — the data filter did not blunt
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('clone'), r.out)
 })
+
+// The shipped scaffolds themselves. `duplication` is a Stop step, not a chain gate, so the
+// zero-edit `validate` the Local development list runs never executes it: a template change
+// that shifts a clone's extent (and so its fingerprint) reaches CI's Stop-chain lane before
+// anything local. 2.0.0 did exactly that: the default scaffold's i18n catalogs lost the
+// example's keys, the catalog pair matched over a new span, and bootstrap-linux's Stop chain
+// went red on a fingerprint the shipped allowlist did not carry. Render both shapes the
+// installer ships and run the real gate over each, with the shipped allowlist.
+const CLI = fileURLToPath(new URL('../../installer/cli.mjs', import.meta.url))
+
+for (const [label, flags] of [
+  ['a default init', []],
+  ['an init --with-demo', ['--with-demo']],
+]) {
+  test(`duplication: ${label} is clean under the shipped allowlist`, () => {
+    const root = mkdtempSync(join(tmpdir(), 'epah-dup-init-'))
+    const dir = join(root, 'app')
+    try {
+      const init = spawnSync('node', [CLI, 'init', '--dir', dir, '--tier', 'core', '--yes', ...flags], {
+        encoding: 'utf8',
+      })
+      assert.equal(init.status, 0, `${init.stdout ?? ''}${init.stderr ?? ''}`)
+      const res = spawnSync('node', [join(dir, 'tools/check-duplication.mjs')], { cwd: dir, encoding: 'utf8' })
+      assert.equal(res.status, 0, `${res.stdout ?? ''}${res.stderr ?? ''}`)
+      assert.match(res.stdout ?? '', /duplication: OK/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+}

@@ -1,13 +1,10 @@
 {
   "runs": 7,
-  "subjects": [
-    {
-      "subject": "apps/mobile/src/features/matrix/perfSubject.tsx",
-      "cells": 10000,
-      "medianBudgetMs": 320,
-      "medianUpdateBudgetMs": 400
-    }
-  ],
+  "subjects": [],
+  "emptySubjects": {
+    "reason": "a default scaffold has no data-dense screen to measure yet; the first feature that renders a dense list ships a perfSubject.tsx and its row here (the matrix screen `init --with-demo` plants is the worked example)",
+    "reviewedOn": "2026-09-30"
+  },
   "exempt": [],
   "effectCleanupAllow": []
 }

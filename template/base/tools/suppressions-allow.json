@@ -51,28 +51,6 @@
       "why": "Same shape as Skeleton: a progressbar primitive whose accessible name is the whole message — the suppression is the reviewed statement that no interaction outcome exists to hint."
     },
     {
-      "file": "apps/mobile/src/features/matrix/MatrixList.tsx",
-      "directives": [
-        {
-          "family": "eslint-disable",
-          "rule": "react-native-a11y/has-accessibility-hint",
-          "count": 1
-        }
-      ],
-      "why": "A static readout row: the label IS the whole content and the row is not a control, so there is no interaction outcome for a hint to describe — the one-accessible-element-per-row design the dense-screen doctrine mandates."
-    },
-    {
-      "file": "apps/mobile/src/features/notes/NotesPanel.tsx",
-      "directives": [
-        {
-          "family": "eslint-disable",
-          "rule": "react-native-a11y/has-accessibility-hint",
-          "count": 1
-        }
-      ],
-      "why": "A static note card whose label (title + pending state) is the whole content; no interaction outcome exists for a hint, same reviewed reading as MatrixList's readout row."
-    },
-    {
       "file": "apps/mobile/src/lib/supabase/provider.tsx",
       "directives": [
         {
@@ -97,9 +75,9 @@
     {
       "file": "packages/contracts/src/index.ts",
       "directives": [
-        { "family": "eslint-disable", "rule": "local/org-id-from-session-only", "count": 2 }
+        { "family": "eslint-disable", "rule": "local/org-id-from-session-only", "count": 1 }
       ],
-      "why": "OUTPUT attribution, not input: the DSR export projections carry the org id the server READ BACK for the subject's archive (the reviewed export.projection rows). The rule targets payload fields flowing INTO handlers; nothing parses these shapes off a request."
+      "why": "OUTPUT attribution, not input: the DSR export projection carries the org id the server READ BACK for the subject's archive (the reviewed export.projection rows). The rule targets payload fields flowing INTO handlers; nothing parses these shapes off a request."
     },
     {
       "file": "packages/platform/supabase/src/access-token.ts",

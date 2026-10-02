@@ -3,11 +3,6 @@
   "subjectRoot": "auth.users",
   "severed": [
     {
-      "table": "notes",
-      "column": "owner_id",
-      "reason": "The ORG is the data controller for its notes, not the author. An employee closing their personal account must not delete the company's content, so owner_id is nullable attribution with ON DELETE SET NULL and the row survives without an author. This is the decision docs/adr/20260201-org-scoped-tenancy.md was written for; it is also the decision that ended the one-statement account sweep, which is why supabase/functions/delete-account carries a personal-org sweep instead."
-    },
-    {
       "table": "orgs",
       "column": "created_by",
       "reason": "Attribution, not ownership. In B2B the data controller is the organization: the person who created the workspace leaving the company must not delete the workspace. NOTE THE ORDERING HAZARD this creates and that delete-account exists to handle — because this action NULLS the column, running auth.admin.deleteUser before the personal-org sweep makes that org permanently unsweepable and unauthenticatable, so the sweep runs first and is verified."
@@ -33,18 +28,6 @@
       "procedure": "docs/runbooks/data-subject-requests.md"
     },
     {
-      "table": "notes",
-      "column": "title",
-      "reason": "Customer content on a row that SURVIVES by design — notes.owner_id is the severed link above, so the note keeps its title with no author attached. The org is the data controller and an Art. 17 request from a departing employee does not reach it; the org's own deletion does, by CASCADE on org_id. This entry exists because the surviving-row decision is recorded against owner_id, and a reader looking for what happens to the CONTENT would not find it there.",
-      "procedure": "docs/runbooks/data-subject-requests.md"
-    },
-    {
-      "table": "notes",
-      "column": "body",
-      "reason": "Customer content, bounded at 20000 characters, on the same surviving row as the title above. It is the largest quantity of free text in the schema and therefore the most likely place for a subject to have written something about themselves that no column name predicts — which is exactly why the request is answered by a procedure that can look, rather than by a cascade that cannot.",
-      "procedure": "docs/runbooks/data-subject-requests.md"
-    },
-    {
       "table": "orgs",
       "column": "slug",
       "reason": "A PERSONAL org's slug embeds the subject's own auth id: public.ensure_personal_org mints it as 'personal-' || replace(<uid>::text,'-',''). So the slug is a pseudonymous identifier for exactly one person, on a row whose created_by goes NULL when they are deleted — meaning that after a FAILED sweep the identifier survives with nothing left pointing at it. The delete-account function exists to make that state unreachable: it sweeps the personal org FIRST, verifies both the error and the row count, and refuses to call deleteUser on any mismatch. Recorded here because the property that protects it is application ordering, not a constraint, and an unrecorded application-ordering guarantee is the kind that a later refactor removes.",
@@ -54,7 +37,7 @@
   "blockingAllowed": [],
   "blockingAllowedWhy": "A foreign key to the subject with ON DELETE RESTRICT or NO ACTION makes account deletion FAIL — a GDPR Art. 17 failure and an Apple 5.1.1(v) review rejection at the same time — and the spelling nobody notices is the omitted clause, because NO ACTION is what PostgreSQL assumes when none is written. The list is empty and should stay empty. An entry is legal only with a `procedure` naming the committed file that clears the rows BEFORE the delete is attempted, the way delete-account sweeps the personal org; the gate requires that file to exist.",
   "export": {
-    "//": "The portability half. A projection is the answer to 'what is MY data' and it is the same question the erasure half asks, which is why one gate owns both: a column that survives erasure with a reviewed reason and a column that must appear in an export are drawn from one inventory. Closed both ways against the schema — a projected column no migration creates is a promise nobody can keep, and a subject-data column that is neither projected nor excluded is a gap. THE DELIVERED SURFACE (0.7.0) is system.exportMyData on the tRPC system router, running AS THE CALLER under RLS — every projected row is readable by the subject's own policies, so no elevated privilege is involved anywhere in the path (supabase/functions/README.md rule 1: anything expressible as a procedure running as the user is NOT an Edge Function; the plan's original Edge-Function placement was wrong by the repo's own rule and is recorded here rather than silently followed). AND THE ONE READING RLS CANNOT PROVIDE: the notes projection is filtered owner_id = the verified caller IN THE QUERY. The SELECT policy admits every org-mate's notes to this caller, so authored-only is APPLICATION LOGIC, not an authorization derivation — an export missing that filter would copy the whole org's content into one member's personal archive, exactly the over-export the excluded[] rationale below forbids for orgs and invitations. The filter lives in @app/notes listAuthoredNotes, and its red-proof is packages/api/src/routers/system.export.test.ts, because no RLS suite can see an over-projection that the policies happily admit.",
+    "//": "The portability half. A projection is the answer to 'what is MY data' and it is the same question the erasure half asks, which is why one gate owns both: a column that survives erasure with a reviewed reason and a column that must appear in an export are drawn from one inventory. Closed both ways against the schema — a projected column no migration creates is a promise nobody can keep, and a subject-data column that is neither projected nor excluded is a gap. THE DELIVERED SURFACE (0.7.0) is system.exportMyData on the tRPC system router, running AS THE CALLER under RLS — every projected row is readable by the subject's own policies, so no elevated privilege is involved anywhere in the path (supabase/functions/README.md rule 1: anything expressible as a procedure running as the user is NOT an Edge Function; the plan's original Edge-Function placement was wrong by the repo's own rule and is recorded here rather than silently followed). A VERTICAL THAT STORES THE SUBJECT'S CONTENT adds its table here and its section to the export, usually with the one reading RLS cannot provide: an authored-only filter IN THE QUERY, because a SELECT policy that admits every org-mate's rows to this caller would otherwise copy the whole org's content into one member's personal archive — the over-export the excluded[] rationale below forbids for orgs and invitations. The notes vertical `init --with-demo` plants is the worked example, with its red-proof in packages/api/src/routers/system.export.test.ts.",
     "surface": {
       "kind": "procedure",
       "procedure": "packages/api/src/routers/system.ts"
@@ -67,10 +50,6 @@
       {
         "table": "memberships",
         "columns": ["user_id", "org_id", "role_rank", "created_at"]
-      },
-      {
-        "table": "notes",
-        "columns": ["id", "org_id", "title", "body", "created_at", "updated_at"]
       }
     ],
     "excluded": [

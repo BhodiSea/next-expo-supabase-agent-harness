@@ -3,11 +3,12 @@ import { View } from 'react-native'
 import { AppText } from '../src/components/AppText'
 import { OptionRow } from '../src/components/OptionRow'
 import { Screen } from '../src/components/Screen'
+import { Spinner } from '../src/components/Spinner'
 import { rankCommands } from '../src/features/actions/fuzzyScore'
 import { ACTION_COMMANDS } from '../src/features/actions/registry'
 import { useI18n } from '../src/i18n'
 import { type ProbeControls, parseProbeBudgets, usePerfProbes } from '../src/lib/perf-probes'
-import { type Palette, useThemedStyles } from '../src/theme/theme'
+import { type Palette, space, useThemedStyles } from '../src/theme/theme'
 
 // The dev perf-harness screen — the on-device consumer of tools/interaction-budget.json.
 //
@@ -26,6 +27,11 @@ import { type Palette, useThemedStyles } from '../src/theme/theme'
 // SOURCE: docs/harness/gates-catalog.md (CI-only lanes — the device lane) [corpus: harness/doctrine]
 
 const perfStyles = (_palette: Palette) => ({
+  running: {
+    alignItems: 'center' as const,
+    flexDirection: 'row' as const,
+    gap: space[2],
+  },
   workload: {
     // Off-screen on purpose: the probes price render commits, not pixels the
     // operator needs to see; opacity keeps the subtree composited for real.
@@ -59,11 +65,16 @@ function Workload({ step, titles }: { readonly step: number; readonly titles: re
 
 function Verdict({ controls }: { readonly controls: ProbeControls }) {
   const { t } = useI18n()
+  const styles = useThemedStyles(perfStyles)
   if (controls.report === null) {
+    // An in-place wait too small for a Skeleton block: the Spinner primitive's job.
     return (
-      <AppText variant="muted" testID="perf-running">
-        {t('perf.running')}
-      </AppText>
+      <View style={styles.running}>
+        <Spinner />
+        <AppText variant="muted" testID="perf-running">
+          {t('perf.running')}
+        </AppText>
+      </View>
     )
   }
   if (controls.report.pass) {

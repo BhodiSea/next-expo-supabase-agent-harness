@@ -18,7 +18,11 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const GATE_SRC = join(ROOT, 'template/base/tools/check-db-limits.mjs')
 const LIB_SRC = join(ROOT, 'template/base/tools/lib')
-const CONFIG_SRC = join(ROOT, 'template/base/tools/db-limits.json')
+// The metered-table cases read the --with-demo scaffold's config, which meters the worked
+// example's table (2.0.0, #85); the default scaffold's own config meters nothing, and has
+// its own GREEN case below.
+const CONFIG_SRC = join(ROOT, 'template/demo/tools/db-limits.json')
+const DEFAULT_CONFIG_SRC = join(ROOT, 'template/base/tools/db-limits.json')
 
 const ROLE_SETTINGS = `ALTER ROLE anon SET statement_timeout = '3s';
 ALTER ROLE anon SET idle_in_transaction_session_timeout = '10s';
@@ -99,6 +103,14 @@ function runGate(dir) {
 test('GREEN: the shipped shape passes — full matrix, statement-level quota, no inert knobs', () => {
   const r = runGate(fixture())
   assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (2.0.0): the default scaffold meters no table, and its config passes with no quota trigger at all', () => {
+  const def = JSON.parse(readFileSync(DEFAULT_CONFIG_SRC, 'utf8'))
+  assert.deepEqual(def.quota.meteredTables, [])
+  const r = runGate(fixture({ config: () => def, mig: migration({ triggers: '' }) }))
+  assert.equal(r.code, 0, r.out)
+  assert.match(r.out, /0 metered table\(s\)/)
 })
 
 // The inert-ceiling pair. Both fixtures below have a PERFECT catalog: every role×knob

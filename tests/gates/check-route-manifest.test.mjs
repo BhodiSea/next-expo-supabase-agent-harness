@@ -31,6 +31,16 @@ const SHIPPED_CATALOG = readFileSync(
   fileURLToPath(new URL('../../template/stack/apps/mobile/src/i18n/catalog.ts', import.meta.url)),
   'utf8',
 )
+// The --with-demo scaffold's manifest and catalog (2.0.0, #85): the worked example's matrix
+// tab is the shipped route inside an expo-router (group), so the group-elision case reads it.
+const DEMO_ROUTES = readFileSync(
+  fileURLToPath(new URL('../../template/demo/apps/mobile/src/routes.ts', import.meta.url)),
+  'utf8',
+)
+const DEMO_CATALOG = readFileSync(
+  fileURLToPath(new URL('../../template/demo/apps/mobile/src/i18n/catalog.ts', import.meta.url)),
+  'utf8',
+)
 
 // The scaffold's app/ tree, plumbing included: _layout/+html/api are pattern-excluded
 // from enumeration, sign-in/+not-found/perf-harness are the allowlisted chrome
@@ -38,7 +48,6 @@ const SHIPPED_CATALOG = readFileSync(
 const SCAFFOLD_APP_FILES = [
   '(tabs)/_layout.tsx',
   '(tabs)/index.tsx',
-  '(tabs)/matrix.tsx',
   '_layout.tsx',
   '+html.tsx',
   '+not-found.tsx',
@@ -159,7 +168,7 @@ test('RED: an orphan app/ route file (claimed by no entry) reds with its derived
 
 test('RED: one app/ file claimed by TWO entries is a duplicate; content AND chrome is a conflict', () => {
   const dupFile = runGate(
-    fixture({ routes: SHIPPED_ROUTES.replace("file: '(tabs)/matrix'", "file: '(tabs)/index'") }),
+    fixture({ routes: SHIPPED_ROUTES.replace("file: 'security'", "file: '(tabs)/index'") }),
   )
   assert.equal(dupFile.code, 1, dupFile.out)
   assert.ok(dupFile.out.includes('duplicate file'), dupFile.out)
@@ -186,14 +195,16 @@ test('GREEN: the expo-router derivation accepts [param]→:param and [...param]�
     fixture({ routes, appFiles: [...SCAFFOLD_APP_FILES, 'notes/[id].tsx', 'docs/[...slug].tsx'] }),
   )
   assert.equal(r.code, 0, r.out)
-  assert.ok(r.out.includes('6 route(s)'), r.out)
+  assert.ok(r.out.includes('5 route(s)'), r.out)
 })
 
 test('RED: a manifest path disagreeing with the derived URL reds — the manifest is lying', () => {
   // (tabs)/matrix derives "/matrix" ((group) elided); declaring "/grid" is a lie.
-  const routes = SHIPPED_ROUTES.replace("path: '/matrix'", "path: '/grid'")
-  assert.notEqual(routes, SHIPPED_ROUTES, 'fixture replacement must hit')
-  const r = runGate(fixture({ routes }))
+  const demoShape = { appFiles: [...SCAFFOLD_APP_FILES, '(tabs)/matrix.tsx'], catalog: DEMO_CATALOG }
+  assert.equal(runGate(fixture({ routes: DEMO_ROUTES, ...demoShape })).code, 0, 'the --with-demo shape is green first')
+  const routes = DEMO_ROUTES.replace("path: '/matrix'", "path: '/grid'")
+  assert.notEqual(routes, DEMO_ROUTES, 'fixture replacement must hit')
+  const r = runGate(fixture({ routes, ...demoShape }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('matrix: path "/grid" disagrees with the URL expo-router serves'), r.out)
   assert.ok(r.out.includes('"/matrix"'), r.out)
@@ -263,14 +274,14 @@ test('GREEN: without the locale seam, titleKeys go unchecked (a project is not f
 
 test('RED: duplicate paths and reused state test ids red naming both owners', () => {
   const dupPath = runGate(
-    fixture({ routes: SHIPPED_ROUTES.replace("path: '/matrix'", "path: '/'") }),
+    fixture({ routes: SHIPPED_ROUTES.replace("path: '/security'", "path: '/'") }),
   )
   assert.equal(dupPath.code, 1, dupPath.out)
   assert.ok(dupPath.out.includes('duplicate path'), dupPath.out)
   assert.ok(dupPath.out.includes('also declared by "home"'), dupPath.out)
 
   const reusedId = runGate(
-    fixture({ routes: SHIPPED_ROUTES.replace("loading: 'matrix-loading'", "loading: 'home-loading'") }),
+    fixture({ routes: SHIPPED_ROUTES.replace("loading: 'security-loading'", "loading: 'home-loading'") }),
   )
   assert.equal(reusedId.code, 1, reusedId.out)
   assert.ok(reusedId.out.includes('already used by home.loading'), reusedId.out)

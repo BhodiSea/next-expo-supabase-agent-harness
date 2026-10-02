@@ -74,6 +74,14 @@ export const KINDS = new Map([
     },
   ],
   [
+    'tools/generated/event-catalog.json',
+    {
+      kind: 'generated',
+      why: 'generated from the platform event catalog and each vertical’s EVENT_CATALOG by `pnpm gen` and regen-diffed by the `contracts` step (seeded as of 2.0.0, #85 — while it was owned, `update` would have planted the default scaffold’s two-row catalog over every upgraded install that keeps the worked example’s three rows). Nothing may hand-edit it, so "commit the widening" is not the applicable rule.',
+      owes: ['seeded', 'guard'],
+    },
+  ],
+  [
     'tools/field-notes.json',
     {
       kind: 'advisory',

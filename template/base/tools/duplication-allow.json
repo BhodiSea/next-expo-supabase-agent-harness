@@ -36,6 +36,10 @@
     {
       "fingerprint": "f6a177d37c0d",
       "reason": "apps/mobile/src/i18n/catalog.ts vs apps/web/lib/i18n/catalog.ts — the same two files as e83e21400fb2, whose region GREW when the MFA enrolment surface added catalog keys to both: the tokenizer normalizes string literals, so a run of `'key': 'value',` message rows is token-identical to any other run of the same length regardless of what the copy says, and the type preamble plus each catalog's opening key rows now clears the threshold as one span. The match is STRUCTURAL identity of a data table, not a copied implementation — a catalog IS rows of key to sentence, and the two surfaces' catalogs are deliberately the same shape (one product, two surfaces; the i18n gate reads both with one set of rules). Extraction is barred by the same seeded-root property e83e21400fb2 records, and 'de-duplicating' the rows would mean making the two surfaces' copy or key names differ to satisfy a tokenizer — divergence manufactured to defeat a detector, which is the exact drift the shared mfa-flow machine exists to prevent in code."
+    },
+    {
+      "fingerprint": "4f2c41321264",
+      "reason": "apps/mobile/src/i18n/catalog.ts vs apps/web/lib/i18n/catalog.ts on a scaffold WITHOUT the worked example (2.0.0) — the same two files and the same kind of match as e83e21400fb2 and f6a177d37c0d. The example's keys moved to `init --with-demo`, so each default catalog opens with different rows, and the span the tokenizer matches (the type preamble plus the first `'key': 'value',` rows, every string normalized to one token) has a new extent and so a new fingerprint. f6a177d37c0d stays for an install that keeps the example. It is still the structural identity of two data tables of one shape, not a copied implementation, and extraction is barred by the same seeded-root property e83e21400fb2 records."
     }
   ]
 }

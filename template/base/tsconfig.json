@@ -12,6 +12,11 @@
   // The `contracts` gate cross-checks this list against the pnpm workspace graph:
   // three parallel topologies (workspace deps, project references, the knip map)
   // desynchronise into type errors that point everywhere except at the drift.
+  //
+  // A vertical's package goes directly above @app/api. The installer DERIVES two kinds
+  // of entry rather than shipping them here, because a reference to a project that does
+  // not exist kills `tsc -b` on its first line: an enabled module's package, and the
+  // demo vertical `init --with-demo` plants (installer/lib/tsconfig-references.mjs).
   "files": [],
   "references": [
     { "path": "packages/platform/errors" },
@@ -24,7 +29,6 @@
     { "path": "packages/design-tokens" },
     { "path": "packages/design-system" },
     { "path": "packages/design-system-native" },
-    { "path": "packages/verticals/notes" },
     { "path": "packages/api" }
     // apps/web and apps/mobile are DELIBERATELY absent. They are build LEAVES (nothing
     // imports them), non-composite + noEmit, so a reference here would red with

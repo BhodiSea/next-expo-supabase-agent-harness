@@ -21,7 +21,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -339,6 +339,49 @@ test('RED: an ABSENT manifest beside a live DAL', () => {
   const r = runGate(fixture({ shapes: null }))
   assert.equal(r.code, 1, r.out)
   assert.ok(r.out.includes('is missing'), r.out)
+})
+
+// ── THE EMPTY STATE (2.0.0, #85) ─────────────────────────────────────────────
+// A default scaffold ships no vertical: the worked example arrives only with
+// `init --with-demo`. With no packages/verticals/<name>/ there is no DAL to issue a query,
+// so there is nothing to judge and nothing to hide, and CI must not fail a tree for
+// having no feature yet. The state is green ONLY with a manifest that records nothing;
+// a vertical directory without probes is still the uninstrumented-DAL red.
+
+/** @param {{ manifest?: string | null, keepDir?: boolean }} [o] */
+function emptyStateFixture({ manifest = '[]\n', keepDir = false } = {}) {
+  const dir = fixture({ shapes: null })
+  rmSync(join(dir, 'packages/verticals'), { recursive: true })
+  if (keepDir) mkdirSync(join(dir, 'packages/verticals'), { recursive: true })
+  if (manifest !== null) writeFileSync(join(dir, 'tools/generated/query-shapes.json'), manifest)
+  return dir
+}
+
+test('GREEN (2.0.0): no vertical at all, and a manifest that records nothing — the default scaffold', () => {
+  for (const [manifest, keepDir] of [
+    ['[]\n', false],
+    [null, false],
+    ['[]\n', true],
+  ]) {
+    const r = runGate(emptyStateFixture({ manifest: /** @type {string | null} */ (manifest), keepDir: Boolean(keepDir) }))
+    assert.equal(r.code, 0, `${JSON.stringify([manifest, keepDir])}\n${r.out}`)
+    assert.match(r.out, /query-shapes: OK — empty state: no packages\/verticals\/\* yet/)
+  }
+})
+
+test('RED (2.0.0): no vertical, but a manifest that still records shapes, is stale and named', () => {
+  const r = runGate(emptyStateFixture({ manifest: `${JSON.stringify([listShape()], null, 2)}\n` }))
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /records 1 shape\(s\) but no packages\/verticals\/\* exists/)
+})
+
+test('RED (2.0.0): a vertical without query probes is still the uninstrumented DAL, not the empty state', () => {
+  const dir = emptyStateFixture()
+  mkdirSync(join(dir, 'packages/verticals/orders/src/data'), { recursive: true })
+  writeFileSync(join(dir, 'packages/verticals/orders/package.json'), '{"name":"@app/orders"}\n')
+  const r = runGate(dir)
+  assert.equal(r.code, 1, r.out)
+  assert.match(r.out, /query-probes\.ts/)
 })
 
 test('RED: a manifest that is not valid JSON — generated files are tampering, not drift', () => {

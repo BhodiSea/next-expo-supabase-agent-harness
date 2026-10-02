@@ -77,7 +77,7 @@ export async function createTenant(svc: SupabaseClient, t: Tenant): Promise<void
 // Tear-down, in the SAME order the delete-account Edge Function uses, and for the
 // same reason. `public.orgs.created_by` is ON DELETE SET NULL, so deleting the auth
 // user first would null the only column that identifies which orgs to remove and
-// leave them — plus their memberships, invitations and notes — permanently
+// leave them — plus their memberships and invitations — permanently
 // unreachable. Sweep the orgs, then the identity. Deleting an org cascades
 // everything hanging off it; deleting the user cascades public.profiles and revokes
 // every remaining seat.
@@ -245,36 +245,5 @@ export const ISOLATION_TARGETS: IsolationTarget[] = [
       // if the write it is testing were wrongly admitted.
       token_digest: '\\x00',
     }),
-  },
-  {
-    table: 'notes',
-    ownerColumn: 'org_id',
-    provision: 'direct',
-    scopeValue: (ctx) => ctx.teamOrgId,
-    row: (ctx) => ({
-      org_id: ctx.teamOrgId,
-      // Attribution, not authorization: nullable since the org re-scope, and
-      // stated explicitly because the column no longer defaults to auth.uid().
-      owner_id: ctx.userId,
-      title: 'rls probe',
-      body: 'seeded by the isolation suite',
-    }),
-  },
-  {
-    // The quota counter. 'rpc' rather than 'direct' because it is READ-ONLY to
-    // authenticated for the same reason the seat tables are: a tenant that can write
-    // its own usage counter has no quota. The row arrives as a side effect of the
-    // notes insert above — the statement-level enforcement trigger creates it through
-    // app_quota_writer — rather than from an RPC, which is the only way this differs
-    // from the seat tables and does not change a single assertion.
-    //
-    // The cross-tenant read is the one that matters here: a usage counter discloses
-    // how much data another tenant holds, which is a business fact even when the rows
-    // themselves stay hidden.
-    table: 'org_usage',
-    ownerColumn: 'org_id',
-    provision: 'rpc',
-    scopeValue: (ctx) => ctx.teamOrgId,
-    row: (ctx) => ({ org_id: ctx.teamOrgId, metric: 'notes', used: 1 }),
   },
 ]

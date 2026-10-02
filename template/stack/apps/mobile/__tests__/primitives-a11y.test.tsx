@@ -19,9 +19,6 @@ import { Field } from '../src/components/Field'
 import { Input } from '../src/components/Input'
 import { OptionRow } from '../src/components/OptionRow'
 import { ToastProvider, useToast } from '../src/components/Toast'
-import { MatrixList } from '../src/features/matrix/MatrixList'
-import { MATRIX_COLUMNS, makeSyntheticRows } from '../src/features/matrix/matrixData'
-import { PerfSubject } from '../src/features/matrix/perfSubject'
 import { en } from '../src/i18n/catalog'
 import { haptic } from '../src/lib/haptics'
 import { fontScaleCap, minTouchTarget } from '../src/theme/theme'
@@ -60,8 +57,8 @@ describe('Button', () => {
 
 describe('OptionRow', () => {
   it('exposes role=button with its label as the accessible name', () => {
-    render(<OptionRow label="Go to matrix" onPress={jest.fn()} />)
-    expect(screen.getByRole('button', { name: 'Go to matrix' })).toBeTruthy()
+    render(<OptionRow label="Go to security" onPress={jest.fn()} />)
+    expect(screen.getByRole('button', { name: 'Go to security' })).toBeTruthy()
   })
 
   it('the testID rides the interactive leaf: pressing by testID fires the handler', () => {
@@ -242,33 +239,5 @@ describe('AppText font scaling', () => {
     expect(screen.getByTestId('cap-dense').props['maxFontSizeMultiplier'] as number).toBe(
       fontScaleCap.dense,
     )
-  })
-})
-
-describe('MatrixList a11y contract', () => {
-  it('exposes ONE labelled role=row element per data row, plus the list label + pagination hint', () => {
-    const rows = makeSyntheticRows(3)
-    render(<MatrixList rows={rows} columns={MATRIX_COLUMNS} onEndReached={jest.fn()} />)
-    const rendered = screen.getAllByRole('row')
-    expect(rendered).toHaveLength(3)
-    for (const [index, row] of rows.entries()) {
-      expect(rendered[index]?.props['accessibilityLabel'] as string).toBe(row.label)
-    }
-    const list = screen.getByTestId('matrix-list')
-    expect(list.props['accessibilityLabel'] as string).toBe(en['matrix.list'])
-    expect(list.props['accessibilityHint'] as string).toBe(en['matrix.pagination.hint'])
-  })
-})
-
-describe('PerfSubject', () => {
-  it('materializes EVERY cell with the countable role=cell marker (the W5 perf-gate contract)', () => {
-    const cells = 120
-    render(<PerfSubject cells={cells} />)
-    const rowCount = Math.round(cells / MATRIX_COLUMNS.length)
-    expect(screen.getAllByRole('cell')).toHaveLength(rowCount * MATRIX_COLUMNS.length)
-    // Row count via the rowheader TEXTS (Texts are accessibility elements; the
-    // subject's plain row Views deliberately are not — no `accessible` prop, so
-    // the render stays a pure materialization measurement).
-    expect(screen.getAllByRole('rowheader')).toHaveLength(rowCount)
   })
 })

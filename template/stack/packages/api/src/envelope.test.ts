@@ -1,11 +1,11 @@
 import type { OrgSummary } from '@app/contracts'
-import { appError } from '@app/errors'
-import type { NotesDatabase, PostgrestOutcome, PostgrestQuery, PostgrestTable } from '@app/notes'
+import { appError, outcomeOk } from '@app/errors'
 import { TRPCError } from '@trpc/server'
 import { describe, expect, it } from 'vitest'
+import type { ApiDatabase, StoreOutcome, StoreQuery, StoreTable } from './context.js'
 import { createContext, type Session } from './context.js'
-import { appRouter } from './index.js'
-import { createCallerFactory } from './trpc.js'
+import { systemRouter } from './routers/system.js'
+import { createCallerFactory, orgProcedure, router } from './trpc.js'
 
 // ---------------------------------------------------------------------------
 // The envelope rule, asserted end to end through the real router.
@@ -14,26 +14,17 @@ import { createCallerFactory } from './trpc.js'
 //   Everything else — including authorization outcomes — is a VALUE on the data
 //   channel.
 //
-// The distinction is the whole reason a screen can say "someone else deleted
-// this note" instead of "something went wrong", so it is pinned here rather
+// The distinction is the whole reason a screen can say "you are not acting in an
+// organization" instead of "something went wrong", so it is pinned here rather
 // than left to convention.
 // ---------------------------------------------------------------------------
 
 const SERVER_VERSION = '1.2.3'
 const ACTOR_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
 const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
-const NOTE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+const OTHER_ORG_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
 const NOW = '2026-06-01T12:00:00.000Z'
-
-const NOTE_ROW = {
-  archived_at: null,
-  body: 'hello world',
-  created_at: '2026-01-01T00:00:00.000000+00:00',
-  id: NOTE_ID,
-  owner_id: ACTOR_ID,
-  title: 'note one',
-  updated_at: '2026-01-01T00:00:00.000000+00:00',
-}
+const WIRE = '2026-01-01T00:00:00.000000+00:00'
 
 const ORG: OrgSummary = { id: ORG_ID, name: 'Acme', role: 'owner', slug: 'acme' }
 
@@ -46,28 +37,42 @@ const member: Session = {
 
 const seatless: Session = { actor: member.actor, orgs: [] }
 
-/** A PostgREST client scripted with one outcome — see the vertical's own tests. */
-function fakeDatabase(outcome: PostgrestOutcome): NotesDatabase {
-  const query: PostgrestQuery = Object.assign(Promise.resolve(outcome), {
-    eq: (): PostgrestQuery => query,
-    is: (): PostgrestQuery => query,
-    limit: (): PostgrestQuery => query,
-    lte: (): PostgrestQuery => query,
-    or: (): PostgrestQuery => query,
-    order: (): PostgrestQuery => query,
-    select: (): PostgrestQuery => query,
-  })
-  const table: PostgrestTable = {
-    delete: (): PostgrestQuery => query,
-    insert: (): PostgrestQuery => query,
-    select: (): PostgrestQuery => query,
-    update: (): PostgrestQuery => query,
+/**
+ * The org rung, mounted the way a vertical's router mounts it. A default scaffold
+ * mounts no vertical, so nothing in appRouter sits on `orgProcedure`; this probe is
+ * the smallest procedure that does, with the same two-line gate every org procedure
+ * opens with. Mounted beside the real system router, so the rungs below it are the
+ * real ones.
+ */
+const probedRouter = router({
+  system: systemRouter,
+  probe: router({
+    actingOrg: orgProcedure.query(({ ctx }) => {
+      const gate = ctx.org
+      if (!gate.ok) return gate
+      return outcomeOk({ orgId: gate.data.id })
+    }),
+  }),
+})
+
+/** A PostgREST client scripted with one outcome per table, in call order. */
+function fakeDatabase(outcomes: Record<string, StoreOutcome>): ApiDatabase {
+  const table = (outcome: StoreOutcome): StoreTable => {
+    const query: StoreQuery = Object.assign(Promise.resolve(outcome), {
+      eq: (): StoreQuery => query,
+      limit: (): StoreQuery => query,
+      order: (): StoreQuery => query,
+      select: (): StoreQuery => query,
+    })
+    return { select: (): StoreQuery => query }
   }
-  return { from: (): PostgrestTable => table }
+  return {
+    from: (name: string): StoreTable => table(outcomes[name] ?? { data: [], error: null }),
+  }
 }
 
 /** A client that fails the test if a handler ever reaches it. */
-const untouchableDb: NotesDatabase = {
+const untouchableDb: ApiDatabase = {
   from: () => {
     throw new Error('the gate must reject before any query is built')
   },
@@ -75,7 +80,7 @@ const untouchableDb: NotesDatabase = {
 
 async function callerFor(
   session: Session | null,
-  db: NotesDatabase,
+  db: ApiDatabase,
   extraHeaders: Record<string, string> = {},
 ) {
   const ctx = await createContext({
@@ -86,8 +91,10 @@ async function callerFor(
     resolveSession: () => Promise.resolve(session),
     serverVersion: SERVER_VERSION,
   })
-  return createCallerFactory(appRouter)(ctx)
+  return createCallerFactory(probedRouter)(ctx)
 }
+
+const PROFILE_ROW = { created_at: WIRE, display_name: 'Sam', id: ACTOR_ID, updated_at: WIRE }
 
 describe('health — public, and the one procedure that is not enveloped', () => {
   it('answers with no session and no database', async () => {
@@ -103,7 +110,11 @@ describe('health — public, and the one procedure that is not enveloped', () =>
 })
 
 describe('the auth rung THROWS — the one sanctioned transport-level rejection', () => {
-  it.each(['system.me', 'notes.list'])('%s rejects an anonymous caller', async (path) => {
+  it.each([
+    'system.me',
+    'system.exportMyData',
+    'probe.actingOrg',
+  ])('%s rejects an anonymous caller', async (path) => {
     const caller = await callerFor(null, untouchableDb)
     const groups = caller as unknown as Record<
       string,
@@ -158,7 +169,7 @@ describe('the auth rung THROWS — the one sanctioned transport-level rejection'
     // Not "the first one". Picking one would make the acting tenant a function of
     // array order, and a write landing in whichever org sorted first is a data
     // corruption nobody would think to look for.
-    const other: OrgSummary = { id: NOTE_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
+    const other: OrgSummary = { id: OTHER_ORG_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
     const caller = await callerFor({ ...member, orgs: [ORG, other] }, untouchableDb)
     const outcome = await caller.system.me()
     expect(outcome.ok && outcome.data.activeOrg).toBeNull()
@@ -177,27 +188,7 @@ describe('the org rung does NOT throw — authorization rides the envelope', () 
 
   it('returns forbidden on the data channel and never touches the database', async () => {
     const caller = await callerFor(seatless, untouchableDb)
-    await expect(caller.notes.create({ title: 'blocked' })).resolves.toEqual(denied)
-  })
-
-  it('gates every write, not just create', async () => {
-    const caller = await callerFor(seatless, untouchableDb)
-    await expect(caller.notes.update({ id: NOTE_ID, title: 'x' })).resolves.toEqual(denied)
-    await expect(caller.notes.remove({ id: NOTE_ID })).resolves.toEqual(denied)
-  })
-
-  it('gates READS too — under org scope a read without an org is not a narrower read', () => {
-    // A CHANGE from the pre-org model, where reads rode authedProcedure because
-    // "their own notes are always in that set". With several orgs, RLS admits all
-    // of them at once and an ungated read would interleave tenants with no way to
-    // tell which row came from where. The acting org is not an extra permission on
-    // top of the read — it is WHICH DATA the read is about.
-    return callerFor(seatless, untouchableDb).then(async (caller) => {
-      await expect(caller.notes.list({ includeArchived: false, limit: 50 })).resolves.toEqual(
-        denied,
-      )
-      await expect(caller.notes.get({ id: NOTE_ID })).resolves.toEqual(denied)
-    })
+    await expect(caller.probe.actingOrg()).resolves.toEqual(denied)
   })
 
   it('an x-org-id naming an org the caller does not hold is NOT an elevation', async () => {
@@ -207,77 +198,72 @@ describe('the org rung does NOT throw — authorization rides the envelope', () 
     const caller = await callerFor(member, untouchableDb, {
       'x-org-id': '00000000-0000-4000-8000-000000000000',
     })
-    await expect(caller.notes.create({ title: 'blocked' })).resolves.toEqual(denied)
+    await expect(caller.probe.actingOrg()).resolves.toEqual(denied)
   })
 
-  it('a caller WITH a seat reaches the vertical', async () => {
-    const caller = await callerFor(member, fakeDatabase({ data: [NOTE_ROW], error: null }))
-    const outcome = await caller.notes.list({ includeArchived: false, limit: 50 })
-    expect(outcome.ok).toBe(true)
+  it('a caller in SEVERAL orgs acts only where x-org-id selects a seat they hold', async () => {
+    const other: OrgSummary = { id: OTHER_ORG_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
+    const twoSeats = { ...member, orgs: [ORG, other] }
+    await expect((await callerFor(twoSeats, untouchableDb)).probe.actingOrg()).resolves.toEqual(
+      denied,
+    )
+    const selected = await callerFor(twoSeats, untouchableDb, { 'x-org-id': OTHER_ORG_ID })
+    await expect(selected.probe.actingOrg()).resolves.toEqual({
+      ok: true,
+      data: { orgId: OTHER_ORG_ID },
+    })
+  })
+
+  it('a caller WITH a seat passes the gate with the RESOLVED org', async () => {
+    const caller = await callerFor(member, untouchableDb)
+    await expect(caller.probe.actingOrg()).resolves.toEqual({ ok: true, data: { orgId: ORG_ID } })
   })
 })
 
 describe('domain failures are values, never throws', () => {
-  it('reports a missing note on the data channel', async () => {
-    const caller = await callerFor(member, fakeDatabase({ data: [], error: null }))
-    await expect(caller.notes.get({ id: NOTE_ID })).resolves.toEqual({
-      ok: false,
-      error: appError.notFound({ resource: 'note' }),
-    })
-  })
-
-  it('reports an RLS write denial on the data channel as rlsDenied', async () => {
+  it('reports an RLS read denial on the data channel as rlsDenied', async () => {
     const caller = await callerFor(
       member,
-      fakeDatabase({
-        data: null,
-        error: { code: '42501', message: 'new row violates row-level security policy' },
-      }),
+      fakeDatabase({ profiles: { data: null, error: { code: '42501', message: 'denied' } } }),
     )
-    await expect(caller.notes.create({ title: 'denied' })).resolves.toEqual({
+    await expect(caller.system.exportMyData({})).resolves.toEqual({
       ok: false,
       // `rlsDenied`, not `forbidden`: the database said no, not the application.
       error: appError.rlsDenied({
-        relation: 'notes',
-        message: 'a row-security policy refused the create',
+        relation: 'profiles',
+        message: 'a row-security policy refused the profiles export read',
       }),
     })
   })
 
   it('keeps the AppError discriminant intact through the transport', async () => {
-    // The point of the rule: a thrown TRPCError would flatten these two
-    // distinct `kind` discriminants into one HTTP status, and the screen could
-    // no longer tell them apart.
-    const emptyCaller = await callerFor(member, fakeDatabase({ data: [], error: null }))
-    const deniedCaller = await callerFor(
-      member,
-      fakeDatabase({ data: null, error: { code: '42501', message: 'denied' } }),
-    )
-    const missing = await emptyCaller.notes.get({ id: NOTE_ID })
-    const denied = await deniedCaller.notes.get({ id: NOTE_ID })
-
-    expect(missing.ok).toBe(false)
+    // The point of the rule: a thrown TRPCError would flatten these two distinct
+    // `kind` discriminants into one HTTP status, and the screen could no longer
+    // tell them apart.
+    const missing = await (await callerFor(member, fakeDatabase({}))).system.exportMyData({})
+    const denied = await (
+      await callerFor(
+        member,
+        fakeDatabase({ profiles: { data: null, error: { code: '42501', message: 'denied' } } }),
+      )
+    ).system.exportMyData({})
+    expect(missing).toEqual({ ok: false, error: appError.notFound({ resource: 'profile' }) })
     expect(denied.ok).toBe(false)
     expect(missing).not.toEqual(denied)
   })
 
-  it('returns the render shape on success — the DAL never leaks a row', async () => {
-    const caller = await callerFor(member, fakeDatabase({ data: [NOTE_ROW], error: null }))
-    const outcome = await caller.notes.list({ includeArchived: false, limit: 50 })
-
-    expect(outcome.ok).toBe(true)
-    if (!outcome.ok) return
-    expect(outcome.data.items).toEqual([
-      {
-        createdAt: '2026-01-01T00:00:00.000000+00:00',
-        excerpt: 'hello world',
-        hasBody: true,
-        id: NOTE_ID,
-        isArchived: false,
-        title: 'note one',
-        updatedAt: '2026-01-01T00:00:00.000000+00:00',
+  it('returns the projection on success — the read never leaks a row', async () => {
+    const caller = await callerFor(
+      member,
+      fakeDatabase({ profiles: { data: [PROFILE_ROW], error: null } }),
+    )
+    await expect(caller.system.exportMyData({})).resolves.toEqual({
+      ok: true,
+      data: {
+        memberships: [],
+        profile: { createdAt: WIRE, displayName: 'Sam', id: ACTOR_ID, updatedAt: WIRE },
       },
-    ])
+    })
   })
 })
 
@@ -288,103 +274,12 @@ describe('input validation is a CONTRACT violation, not a domain outcome', () =>
       string,
       Record<string, (input?: unknown) => Promise<unknown>>
     >
-    const thrown: unknown = await groups['notes']
-      ?.['get']?.({ id: 'not-a-uuid' })
+    const thrown: unknown = await groups['system']
+      ?.['exportMyData']?.({ orgId: ORG_ID })
       .catch((cause: unknown) => cause)
 
     expect(thrown).toBeInstanceOf(TRPCError)
     if (!(thrown instanceof TRPCError)) return
     expect(thrown.code).toBe('BAD_REQUEST')
-  })
-
-  it('rejects a title that is only whitespace — the bound alone cannot see it', async () => {
-    const caller = await callerFor(member, untouchableDb)
-    const thrown: unknown = await caller.notes
-      .create({ title: '   ' })
-      .catch((cause: unknown) => cause)
-    expect(thrown).toBeInstanceOf(TRPCError)
-  })
-})
-
-// --- R3c mutation-kill tests (added by triage) ---
-describe('seated-member writes reach the vertical (kill: gate short-circuit + writeContext assembly)', () => {
-  it('create with a seat resolves ok — writeContext must carry actor/workspace/emit, not {}', async () => {
-    // With writeContext() -> {}, ctx.emit is undefined and createNote throws on
-    // the emit call, turning this resolve into a reject. Kills e88e9329a73f.
-    const caller = await callerFor(member, fakeDatabase({ data: [NOTE_ROW], error: null }))
-    await expect(caller.notes.create({ title: 'a seated create' })).resolves.toMatchObject({
-      ok: true,
-    })
-  })
-
-  it('update with a seat returns the vertical outcome, not the membership gate', async () => {
-    // Original: no row -> notFound. Mutant `if (true) return gate` leaks the
-    // membership success outcome { ok: true, data: membership } instead.
-    const caller = await callerFor(member, fakeDatabase({ data: [], error: null }))
-    await expect(caller.notes.update({ id: NOTE_ID, title: 'x' })).resolves.toEqual({
-      ok: false,
-      error: appError.notFound({ resource: 'note' }),
-    })
-  })
-
-  it('remove with a seat returns the vertical outcome, not the membership gate', async () => {
-    const caller = await callerFor(member, fakeDatabase({ data: [], error: null }))
-    await expect(caller.notes.remove({ id: NOTE_ID })).resolves.toEqual({
-      ok: false,
-      error: appError.notFound({ resource: 'note' }),
-    })
-  })
-})
-
-// --- the router hands the DAL the GATED org, not an empty scope --------------
-//
-// The mutation lane found `{ orgId: gate.data.id }` surviving on both read procedures:
-// replacing it with `{}` changed nothing any test noticed. That object is the entire
-// mechanical link between "the gate resolved an acting org" and "the query filters by it",
-// and the rung above it is a good-error rung, not the boundary — so a break here does not
-// leak (RLS still refuses), it silently sends an UNSCOPED query and lets the policy do all
-// the work by scanning. This asserts the value actually arrives, by RECORDING what the DAL
-// was asked to filter on rather than inspecting the router's source.
-describe('the org gate is wired to the DAL, not merely evaluated', () => {
-  /** A client that records the `eq` filters the DAL builds on it. */
-  function recordingDatabase(outcome: PostgrestOutcome): {
-    filters: [string, string][]
-    db: NotesDatabase
-  } {
-    const filters: [string, string][] = []
-    const query: PostgrestQuery = Object.assign(Promise.resolve(outcome), {
-      eq: (column: string, value: string): PostgrestQuery => {
-        filters.push([column, value])
-        return query
-      },
-      is: (): PostgrestQuery => query,
-      limit: (): PostgrestQuery => query,
-      lte: (): PostgrestQuery => query,
-      or: (): PostgrestQuery => query,
-      order: (): PostgrestQuery => query,
-      select: (): PostgrestQuery => query,
-    })
-    const table: PostgrestTable = {
-      delete: (): PostgrestQuery => query,
-      insert: (): PostgrestQuery => query,
-      select: (): PostgrestQuery => query,
-      update: (): PostgrestQuery => query,
-    }
-    return { filters, db: { from: (): PostgrestTable => table } }
-  }
-
-  it('notes.list filters on the ACTIVE org resolved by the gate', async () => {
-    const { filters, db } = recordingDatabase({ data: [], error: null })
-    const caller = await callerFor(member, db)
-    await caller.notes.list({ includeArchived: false, limit: 50 })
-    expect(filters).toContainEqual(['org_id', ORG_ID])
-  })
-
-  it('notes.get filters on the ACTIVE org as well as the row id', async () => {
-    const { filters, db } = recordingDatabase({ data: [], error: null })
-    const caller = await callerFor(member, db)
-    await caller.notes.get({ id: NOTE_ID })
-    expect(filters).toContainEqual(['org_id', ORG_ID])
-    expect(filters).toContainEqual(['id', NOTE_ID])
   })
 })

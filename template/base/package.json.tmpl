@@ -30,7 +30,6 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "db:types": "supabase gen types typescript --local --schema public > packages/platform/supabase/src/database.types.ts",
-    "db:scale": "psql \"$SUPABASE_DB_URL\" -v ON_ERROR_STOP=1 -f supabase/seeds/scale.sql",
     "db:perf": "node tools/check-db-perf.mjs",
     "dev:web": "pnpm --filter web run dev",
     "dev:mobile": "pnpm --filter mobile run dev",

@@ -65,6 +65,9 @@ const STEPS = [
   // (1.1.0). The references said they were copied from the example and nothing held them to
   // it; this is the regen-diff, both directions, and it cannot pass on zero regions.
   ['skill-references', ['scripts/generate-skill-references.mjs', '--check']],
+  // The worked example stays removable (2.0.0): the demo index is complete both ways and no
+  // owned config, tool or register names a path only the demo ships. Pure node, one walk.
+  ['demo-index', ['scripts/check-demo-index.mjs']],
   // A ramp whose minVersion predates the lineage's oldest release can never fire, and the
   // deadlines a release is responsible for are COMPUTED here rather than typed into a
   // changelog. Six never-armed ramps shipped for three releases before anything counted.
@@ -167,7 +170,7 @@ const TOOLCHAIN_STEPS = [
   // ENOENT on spawn, which the skip branch below already reads as a missing toolchain.
   [
     'format',
-    ['ci', '--vcs-enabled=false', '.', '../stack', '../modules', '../presets'],
+    ['ci', '--vcs-enabled=false', '.', '../stack', '../demo', '../modules', '../presets'],
     { cwd: 'template/base', command: join(ROOT, 'node_modules/.bin/biome') },
   ],
   // THE RED-PROOF CORPUS ITSELF (0.7.0), scoped. tests/gates and tests/hooks are the

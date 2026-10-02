@@ -49,11 +49,16 @@ apps/mobile     Expo 57, expo-router, React Native 0.86.
 packages/api            framework-neutral tRPC v11 router
 packages/contracts      zod DTOs shared by both apps
 packages/platform/*     env, errors, events, observability, ratelimit, supabase
-packages/verticals/notes   one worked feature, end to end on both apps
+packages/verticals/*   your features (empty until you add one, or init --with-demo)
 packages/design-tokens, design-system, design-system-native
 supabase/       SQL-first schema, migrations, RLS policies, pgTAP tests, one Edge Function
 tools/, .claude/, .github/   the gates, hooks and workflows described below
 ```
+
+A default `init` writes no example feature. `init --with-demo` adds one worked
+feature end to end on both apps (the `@app/notes` vertical, its screens, routes
+and migrations, and its rows in the registers), and `eject` takes it back out;
+see [docs/cli.md](docs/cli.md).
 
 Postgres row-level security keyed on `auth.uid()` is the one authorization
 boundary for both apps. Versions are pinned in a single pnpm catalog
@@ -63,7 +68,7 @@ supabase-js 2, tRPC 11, zod 4.
 ## How it works
 
 - **PreToolUse guards.** Hooks check every shell command, file write and MCP
-  call against a data table of 146 guard-rule ids before the agent's tool runs.
+  call against a data table of 147 guard-rule ids before the agent's tool runs.
   Nine hooks are wired: seven guards, a launcher that fails closed if a hook
   cannot load, and a session-start brief.
 - **Stop hook.** The agent cannot end a turn until `pnpm validate`, the RLS
@@ -114,8 +119,8 @@ workflow, EAS Build/Submit and release-please come from modules, not the base.
   rate-limit backend is unreachable, it degrades to an in-process limiter, and
   it fails open if that also fails.
 - **The `e2ee` module ships building blocks, not an encrypted app.** No shipped
-  feature is encrypted; the `notes` example stores plaintext. The module's own
-  README lists what it does not solve.
+  feature is encrypted; the worked example `init --with-demo` adds stores
+  plaintext. The module's own README lists what it does not solve.
 - **Device tests are not per-PR.** The Android emulator and Maestro lane runs on
   a schedule and on manual dispatch.
 - **The guards are tamper-evident, not tamper-proof.** See the scope notes in

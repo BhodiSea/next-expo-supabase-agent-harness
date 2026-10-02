@@ -92,10 +92,11 @@ CREATE POLICY quota_defaults_update_none ON public.quota_defaults
 CREATE POLICY quota_defaults_delete_none ON public.quota_defaults
   AS PERMISSIVE FOR DELETE TO authenticated USING (false);
 
--- harness-allow-dml: the seeded metric ceiling is reference data, not fixtures — the
--- quota is meaningless without a default, and an install whose defaults table is empty
--- would enforce nothing while every gate stayed green.
-INSERT INTO public.quota_defaults (metric, hard_limit) VALUES ('notes', 10000);
+-- No metric is seeded here. A metric's ceiling is reference data that arrives WITH the
+-- table it meters, in that table's own migration (`-- harness-allow-dml:` marks the
+-- INSERT): the quota is meaningless without a default, and a metered table whose
+-- defaults row is missing enforces nothing while every gate stays green. The notes rails
+-- migration `init --with-demo` plants is the worked example.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Per-org override and per-org counter
@@ -338,41 +339,20 @@ REVOKE ALL ON FUNCTION private.release_org_quota() FROM anon;
 -- blocks a paying customer from writing rows they are entitled to, drift DOWN gives
 -- the product away. Recomputing from count(*) is the only thing that closes both.
 --
--- Not generic: it names the metric's source table explicitly, because a function that
+-- Not generic: it names each metric's source table explicitly, because a function that
 -- took a table name from a caller would be a definer that runs arbitrary SQL as its
--- owner. Adding a metric means extending the CASE here, in a reviewed migration.
+-- owner. No table is metered yet, so it reconciles nothing. Adding a metric means
+-- replacing this function in the metered table's own reviewed migration, with one
+-- recount per metric (the notes rails migration `init --with-demo` plants is the worked
+-- example): CREATE OR REPLACE keeps the owner and the revokes below.
 CREATE FUNCTION public.reconcile_org_usage()
 RETURNS TABLE (metric_name text, orgs_corrected bigint)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $reconcile$
-DECLARE
-  _corrected bigint;
 BEGIN
-  WITH truth AS (
-    SELECT n.org_id, count(*)::bigint AS used FROM public.notes n GROUP BY 1
-  ), upserted AS (
-    INSERT INTO public.org_usage (org_id, metric, used, updated_at)
-    SELECT t.org_id, 'notes', t.used, pg_catalog.now() FROM truth t ORDER BY t.org_id
-    ON CONFLICT (org_id, metric) DO UPDATE
-      SET used = excluded.used, updated_at = pg_catalog.now()
-      WHERE public.org_usage.used IS DISTINCT FROM excluded.used
-    RETURNING 1
-  )
-  SELECT count(*) INTO _corrected FROM upserted;
-
-  -- An org whose rows are all gone must fall to zero rather than keep its last value:
-  -- the truth CTE has no row for it, so the upsert above cannot reach it.
-  UPDATE public.org_usage u
-     SET used = 0, updated_at = pg_catalog.now()
-   WHERE u.metric = 'notes'
-     AND u.used <> 0
-     AND NOT EXISTS (SELECT 1 FROM public.notes n WHERE n.org_id = u.org_id);
-
-  metric_name := 'notes';
-  orgs_corrected := _corrected;
-  RETURN NEXT;
+  RETURN;
 END
 $reconcile$;
 
@@ -396,17 +376,13 @@ REVOKE ALL ON FUNCTION public.reconcile_org_usage() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.reconcile_org_usage() FROM anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Wire the metered table
+-- Wiring a metered table
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TRIGGER notes_quota_add
-  AFTER INSERT ON public.notes
-  REFERENCING NEW TABLE AS new_rows
-  FOR EACH STATEMENT EXECUTE FUNCTION private.enforce_org_quota('notes', 'org_id');
-
-CREATE TRIGGER notes_quota_release
-  AFTER DELETE ON public.notes
-  REFERENCING OLD TABLE AS old_rows
-  FOR EACH STATEMENT EXECUTE FUNCTION private.release_org_quota('notes', 'org_id');
+-- A metered table attaches two statement-level triggers in its own migration:
+--   AFTER INSERT ... REFERENCING NEW TABLE AS new_rows
+--     FOR EACH STATEMENT EXECUTE FUNCTION private.enforce_org_quota('<metric>', 'org_id')
+--   AFTER DELETE ... REFERENCING OLD TABLE AS old_rows
+--     FOR EACH STATEMENT EXECUTE FUNCTION private.release_org_quota('<metric>', 'org_id')
 
 -- The limit is a commercial fact about a customer, so changing one is an auditable
 -- act. org_usage is deliberately NOT audited — it is a derived counter that moves on

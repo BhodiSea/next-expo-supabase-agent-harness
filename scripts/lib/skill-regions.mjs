@@ -240,7 +240,7 @@ function pairRegions(sources, references, resolveSource, problems) {
     const src = key === null ? undefined : sources.find((s) => s.id === ref.id && s.file === key)
     if (key === null) {
       problems.push(
-        `${where(ref.file, ref.begin)}: region '${ref.id}' names source=${ref.source}, which resolves to no file under template/stack or template/base`,
+        `${where(ref.file, ref.begin)}: region '${ref.id}' names source=${ref.source}, which resolves to no file under template/demo, template/stack or template/base`,
       )
     } else if (src === undefined) {
       problems.push(

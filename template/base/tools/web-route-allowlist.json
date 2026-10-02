@@ -18,6 +18,10 @@
       "reason": "auth chrome, not content — the second half of sign-in for an enrolled user (the same call the mobile side makes for apps/mobile/app/mfa-challenge): the TOTP challenge is a step INSIDE the credential ceremony, its pending/failure handling is form state driven by the mfa-flow machine, and the enforcement it satisfies lives in the database rail (supabase/migrations/20260812000000_mfa_aal2.sql), not on this page"
     },
     {
+      "name": "(protected)/o/[orgSlug]",
+      "reason": "the org's landing CHROME: the org layout above it has already resolved the slug against the caller's real seats (a 404 for anything else) and renders the org's name and switcher, and this page reads nothing — it is what an org shows before the project has a content route of its own, so there is no query and no loading, empty or error state to declare. The first content route a vertical adds becomes the org's landing (the notes route `init --with-demo` plants is the worked example)"
+    },
+    {
       "name": "(protected)/invite/[token]",
       "reason": "single-action chrome: the page renders NOTHING about the invitation before it is redeemed — no org name, no inviter, no role — because the acceptor holds no seat yet and every policy that could describe the org returns them nothing. There is no query, so there is no loading, empty or error state to declare. Showing a preview would require a definer RPC that answers questions about an org to anyone holding a guessable token, which is the token oracle the invitation design exists to avoid"
     }

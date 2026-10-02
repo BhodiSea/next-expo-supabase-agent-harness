@@ -1,10 +1,9 @@
 // In-process proofs for tools/lib/event-catalogs.mjs (1.1.0, #82): how
 // tools/gen-event-catalog.mjs finds the event catalogs it walks. A vertical opts in by
 // exporting its catalog from its `./client` entry as EVENT_CATALOG, so adding a vertical
-// no longer means editing the owned, hash-pinned generator. The LEGACY entry keeps a 1.0.x
-// install's catalog exactly as 1.0.x built it: while the root package.json lists
-// @app/notes and that vertical has not opted in, the generator reads `noteEvents` from
-// @app/notes/client, as the 1.0.x import did.
+// no longer means editing the owned, hash-pinned generator. The 1.0.x compatibility entry
+// (LEGACY, legacyApplies, readRootPackage) left with the example at 2.0.0 (#85), as the
+// 1.1.0 record said it would: no owned tool names the example any more.
 //
 // In-process on purpose: only tests/gates/*.test.mjs count toward the
 // template/base/tools/lib/** coverage floor in selftest.yml, and the generator itself runs
@@ -21,14 +20,8 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import {
-  CATALOG_EXPORT,
-  LEGACY,
-  catalogOf,
-  discoverVerticals,
-  legacyApplies,
-  readRootPackage,
-} from '../../template/base/tools/lib/event-catalogs.mjs'
+import * as eventCatalogs from '../../template/base/tools/lib/event-catalogs.mjs'
+import { CATALOG_EXPORT, catalogOf, discoverVerticals } from '../../template/base/tools/lib/event-catalogs.mjs'
 
 const SCAFFOLD_SLICE = fileURLToPath(
   new URL(
@@ -65,12 +58,8 @@ test('CATALOG_EXPORT is the one name a vertical exports its catalog under', () =
   assert.equal(CATALOG_EXPORT, 'EVENT_CATALOG')
 })
 
-test('LEGACY names exactly the import 1.0.x hard-coded', () => {
-  assert.deepEqual(LEGACY, {
-    pkg: '@app/notes',
-    specifier: '@app/notes/client',
-    exportName: 'noteEvents',
-  })
+test('2.0.0 (#85): the 1.0.x compatibility entry is gone — the module exports only the discovery reads', () => {
+  assert.deepEqual(Object.keys(eventCatalogs).sort(), ['CATALOG_EXPORT', 'catalogOf', 'discoverVerticals'])
 })
 
 // ── discoverVerticals ────────────────────────────────────────────────────────
@@ -357,85 +346,4 @@ test('catalogOf: a missing or mistyped field, or a non-object entry, throws nami
   for (const value of cases) {
     assert.throws(() => catalogOf(value, 'where.ts'), /^Error: where\.ts: EVENT_CATALOG\["a\.b"\] is not an event definition/, JSON.stringify(value))
   }
-})
-
-// ── readRootPackage ──────────────────────────────────────────────────────────
-
-test('readRootPackage: the root package.json text, verbatim', () => {
-  const text = '{\n  "name": "scaffold",\n  "devDependencies": { "@app/notes": "workspace:*" }\n}\n'
-  assert.equal(readRootPackage(root({ 'package.json': text })), text)
-})
-
-test('readRootPackage: null when the root has no package.json', () => {
-  assert.equal(readRootPackage(root()), null)
-})
-
-test('readRootPackage: the default root is the current directory', () => {
-  const dir = root({ 'package.json': '{}\n' })
-  const prev = process.cwd()
-  process.chdir(dir)
-  try {
-    assert.equal(readRootPackage(), '{}\n')
-  } finally {
-    process.chdir(prev)
-  }
-})
-
-// ── legacyApplies ────────────────────────────────────────────────────────────
-
-const pkgText = (/** @type {Record<string, unknown>} */ manifest) => JSON.stringify(manifest)
-const notes = (/** @type {boolean} */ declares) => ({
-  pkg: '@app/notes',
-  file: 'packages/verticals/notes/src/client.ts',
-  declares,
-})
-
-test('legacyApplies: listed in devDependencies and not opted in', () => {
-  const text = pkgText({ devDependencies: { '@app/notes': 'workspace:*' } })
-  assert.equal(legacyApplies(text, [notes(false)]), true)
-  // A 1.0.x install that removed the vertical but kept the root dependency: 1.0.x imported
-  // it there too, so the entry still applies and the import fails as it did.
-  assert.equal(legacyApplies(text, []), true)
-})
-
-test('legacyApplies: listed in dependencies and not opted in', () => {
-  const text = pkgText({ dependencies: { '@app/notes': 'workspace:*' } })
-  assert.equal(legacyApplies(text, [notes(false)]), true)
-})
-
-test('legacyApplies: not listed in either field', () => {
-  assert.equal(legacyApplies(pkgText({}), [notes(false)]), false)
-  assert.equal(
-    legacyApplies(
-      pkgText({ dependencies: { '@app/api': 'workspace:*' }, devDependencies: { '@app/events': 'workspace:*' } }),
-      [notes(false)],
-    ),
-    false,
-  )
-  // A field that is not an object lists nothing.
-  assert.equal(legacyApplies(pkgText({ devDependencies: ['@app/notes'] }), [notes(false)]), false)
-  assert.equal(legacyApplies(pkgText({ dependencies: null }), [notes(false)]), false)
-  assert.equal(legacyApplies('null', [notes(false)]), false)
-})
-
-test('legacyApplies: listed but opted in stands down', () => {
-  const text = pkgText({ devDependencies: { '@app/notes': 'workspace:*' } })
-  assert.equal(legacyApplies(text, [notes(true)]), false)
-  // Only the vertical NAMED @app/notes counts: another vertical opting in changes nothing.
-  assert.equal(
-    legacyApplies(text, [notes(false), { pkg: '@app/probe', file: 'packages/verticals/probe/c.ts', declares: true }]),
-    true,
-  )
-})
-
-test('legacyApplies: no root package.json text never applies', () => {
-  assert.equal(legacyApplies(null, [notes(false)]), false)
-})
-
-test('legacyApplies: text that does not parse throws an error naming package.json', () => {
-  assert.throws(() => legacyApplies('{ "devDependencies": ', [notes(false)]), (e) => {
-    assert.ok(e instanceof Error)
-    assert.match(e.message, /^package\.json is not valid JSON \(/)
-    return true
-  })
 })

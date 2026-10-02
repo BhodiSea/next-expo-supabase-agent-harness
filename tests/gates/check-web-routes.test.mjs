@@ -16,6 +16,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -32,6 +33,10 @@ const GATE = fileURLToPath(new URL('../../template/base/tools/check-web-routes.m
 const GEN = fileURLToPath(new URL('../../template/base/tools/gen-web-routes.mjs', import.meta.url))
 const TOOLS = fileURLToPath(new URL('../../template/base/tools', import.meta.url))
 const WEB = fileURLToPath(new URL('../../template/stack/apps/web', import.meta.url))
+// The worked example's web tree (2.0.0, #85). Most cases below perturb its notes route, the
+// one shipped content route with a page of its own state markup, so the fixture is the
+// --with-demo scaffold's web surface unless a case asks for the default one.
+const DEMO_WEB = fileURLToPath(new URL('../../template/demo/apps/web', import.meta.url))
 const SHIPPED_ALLOWLIST = readFileSync(join(TOOLS, 'web-route-allowlist.json'), 'utf8')
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
@@ -39,14 +44,17 @@ const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
 /**
  * A scaffold-shaped tree: the shipped app/, lib/ and e2e/ verbatim, plus the gate's own lib/
  * so the script's relative imports resolve. `mutate(dir)` edits the tree before the gate runs.
- * e2e/ joined the copy in 1.1.0 (#77): the per-route browser closure reads the specs.
- * @param {{ allowlist?: any, mutate?: (dir: string) => void }} [opts]
+ * e2e/ joined the copy in 1.1.0 (#77): the per-route browser closure reads the specs. `demo`
+ * (the default) overlays the worked example's web tree the way `init --with-demo` does.
+ * @param {{ allowlist?: any, mutate?: (dir: string) => void, demo?: boolean }} [opts]
  */
-function fixture({ allowlist = SHIPPED_ALLOWLIST, mutate } = {}) {
+function fixture({ allowlist = SHIPPED_ALLOWLIST, mutate, demo = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'epah-webroutes-'))
-  cpSync(join(WEB, 'app'), join(dir, 'apps/web/app'), { recursive: true })
-  cpSync(join(WEB, 'lib'), join(dir, 'apps/web/lib'), { recursive: true })
-  cpSync(join(WEB, 'e2e'), join(dir, 'apps/web/e2e'), { recursive: true })
+  for (const root of demo ? [WEB, DEMO_WEB] : [WEB]) {
+    for (const sub of ['app', 'lib', 'e2e']) {
+      if (existsSync(join(root, sub))) cpSync(join(root, sub), join(dir, 'apps/web', sub), { recursive: true })
+    }
+  }
   mkdirSync(join(dir, 'tools/lib'), { recursive: true })
   cpSync(join(TOOLS, 'lib'), join(dir, 'tools/lib'), { recursive: true })
   if (allowlist !== null) {
@@ -89,6 +97,13 @@ test('GREEN: the shipped web surface passes verbatim', () => {
   assert.ok(r.out.includes('route-manifest: OK'), r.out)
   assert.ok(r.out.includes('in sync'), r.out)
   assert.ok(r.out.includes('not-found present'), r.out)
+})
+
+test('GREEN (2.0.0): the DEFAULT web surface passes verbatim, and its generated registry is in sync', () => {
+  const r = runGate(fixture({ demo: false }))
+  assert.equal(r.code, 0, r.out)
+  assert.ok(r.out.includes('in sync'), r.out)
+  assert.equal(run(GEN, fixture({ demo: false }), {}).code, 0)
 })
 
 test('the GENERATOR and the GATE agree on the shipped tree — --check is in sync', () => {

@@ -63,7 +63,7 @@
 // SOURCE: https://docs.postgrest.org/en/v12/references/errors.html#group-2-schema-cache
 // SOURCE: https://docs.postgrest.org/en/v12/references/api/tables_views.html#on-conflict
 // SOURCE: https://www.postgresql.org/docs/17/sql-insert.html
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fail, failures, ok, rampNote, skipOrFail, stampGate } from './lib/gate.mjs'
 import { parseShapes, probeModules, resolveIndex } from './lib/query-shapes.mjs'
 import { foldOnlyFindings, foldTouches, historyFor, withhold } from './lib/sql-fold-ramp.mjs'
@@ -85,6 +85,43 @@ const VERTICALS_ROOT = 'packages/verticals'
 const RAMP = '0.2.0'
 
 const recordGreen = stampGate(GATE, STAMP_INPUTS[GATE])
+
+// THE EMPTY STATE (2.0.0, #85). A default scaffold ships no vertical — the worked example
+// arrives only with `init --with-demo` — so no DAL issues a query and there is nothing to
+// judge or to hide. It is green, and named as the empty state, only while the manifest
+// records nothing: a manifest that still lists shapes describes verticals that are gone.
+// A vertical DIRECTORY without probes is not this state; it falls through to the
+// uninstrumented-DAL verdict below, as before.
+const verticalDirs = existsSync(VERTICALS_ROOT)
+  ? readdirSync(VERTICALS_ROOT, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort()
+  : []
+if (verticalDirs.length === 0 && existsSync(MIGRATIONS_DIR)) emptyState()
+
+function emptyState() {
+  let recorded = []
+  try {
+    if (existsSync(MANIFEST)) recorded = JSON.parse(readFileSync(MANIFEST, 'utf8'))
+  } catch (e) {
+    fail(
+      GATE,
+      `${MANIFEST}: not valid JSON (${e.message}) — it is generated and write-guard-protected; re-run \`pnpm gen\``,
+    )
+  }
+  if (!Array.isArray(recorded) || recorded.length > 0) {
+    fail(
+      GATE,
+      `${MANIFEST} records ${Array.isArray(recorded) ? recorded.length : 'non-array'} shape(s) but no ${VERTICALS_ROOT}/* exists — the manifest describes verticals that are gone; run \`pnpm gen\` and commit the diff`,
+    )
+  }
+  recordGreen()
+  ok(
+    GATE,
+    `empty state: no ${VERTICALS_ROOT}/* yet, so no DAL issues a query and ${MANIFEST} records none — the first vertical's src/data/query-probes.ts arms every rule here`,
+  )
+}
 
 // No DAL surface at all: nothing to judge. Distinguished from "a DAL exists and the
 // manifest is empty", which is the tampering case and fails closed below.

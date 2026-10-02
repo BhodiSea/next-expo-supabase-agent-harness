@@ -1,12 +1,11 @@
-import type { NotesDatabase } from '@app/notes'
 import { describe, expect, it } from 'vitest'
-import { createContext, readHeader, type Session } from './context.js'
+import { type ApiDatabase, createContext, readHeader, type Session } from './context.js'
 
 const SERVER_VERSION = '3.1.4'
 
 // A DB that FAILS if it is ever touched: building a context must not query, and the tests
 // below assert on identity, not data. The createClient port hands this back unconditionally.
-const db: NotesDatabase = {
+const db: ApiDatabase = {
   from: () => {
     throw new Error('the database must not be touched while building a context')
   },

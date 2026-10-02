@@ -29,10 +29,10 @@ appId: {{APP_IDENTIFIER}}
 # Pseudo-locale proof on the home surface: some catalog message rendered mangled.
 - assertVisible:
     text: ".*⟦.*"
-- openLink: "{{APP_SCHEME}}://matrix"
+- openLink: "{{APP_SCHEME}}://security"
 - extendedWaitUntil:
     visible:
-        id: "matrix-screen"
+        id: "security-screen"
     timeout: 30000
 - assertVisible:
     text: ".*⟦.*"

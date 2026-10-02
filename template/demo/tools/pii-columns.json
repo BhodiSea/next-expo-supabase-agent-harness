@@ -1,0 +1,25 @@
+{
+  "comment": "Columns whose VALUES must never be copied into the audit trail. tools/check-tenancy.mjs reds when any of them appears as a captured column in an audit.write_row(...) trigger argument, and reds again when an entry here names a column no migration creates — so the list cannot quietly go stale as the schema moves under it. This is not a general PII inventory and does not pretend to be one: it is the deny-list for ONE mechanism, and its job is to make the easy mistake (capturing a value because the value is what you wanted to see) impossible without a reviewed diff. The audit trail defaults to metadata — WHICH columns changed, not what they became — precisely so that this list rarely has to be consulted at all. SOURCE: docs/adr/20260202-audit-trail.md",
+  "columns": [
+    {
+      "table": "profiles",
+      "column": "display_name",
+      "reason": "A person's name. Copying it into the trail republishes it to every rank-30 admin of every org the subject belongs to, none of whom can read profiles directly."
+    },
+    {
+      "table": "invitations",
+      "column": "email",
+      "reason": "The invitee's email address, which is the one identifier in this schema that reaches a human directly. It also belongs to someone who is not yet a member and has consented to nothing."
+    },
+    {
+      "table": "notes",
+      "column": "title",
+      "reason": "Customer content. The whole point of the notes vertical is that only the org can read it; capturing titles would make the audit table a second, less-policied copy readable by anyone with rank 30."
+    },
+    {
+      "table": "notes",
+      "column": "body",
+      "reason": "Customer content, unbounded to 20000 characters. Copying it on every UPDATE would also make the trail larger than the table it audits."
+    }
+  ]
+}

@@ -48,12 +48,6 @@
     "reconcileFunction": "public.reconcile_org_usage",
     "writerRole": "app_quota_writer",
     "errorCode": "53400",
-    "meteredTables": [
-      {
-        "table": "notes",
-        "metric": "notes",
-        "reason": "The seeded vertical's row table, and the worked example every later metered table copies. Metering row COUNT rather than bytes because it is the number a customer understands and the only one a statement-level trigger can compute without reading the rows it is counting."
-      }
-    ]
+    "meteredTables": []
   }
 }

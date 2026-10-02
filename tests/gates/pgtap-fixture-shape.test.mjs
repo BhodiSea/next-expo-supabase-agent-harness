@@ -25,6 +25,12 @@
 //      reads "no policy recurses"), comments included.
 // Every rule has its own failing input below, built by planting one defect in the
 // shipped text and asserting the unplanted text is green first.
+//
+// 2.0.0 (#85): the worked example lives in template/demo, so the sources the model reads
+// (20_notes.sql, and the notes audit trigger, which moved out of the spine's audit migration
+// into the demo's own 20260930000100_notes_rails.sql) are the demo's. The suites are judged
+// twice: the default scaffold's copies (template/stack, which have no recursion probe on
+// public.notes because there is no public.notes) and the --with-demo copies (template/demo).
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -32,14 +38,15 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const STACK_SUPABASE = fileURLToPath(new URL('../../template/stack/supabase', import.meta.url))
+const DEMO_SUPABASE = fileURLToPath(new URL('../../template/demo/supabase', import.meta.url))
 const SKELETON_MD = fileURLToPath(
   new URL(
     '../../template/base/.claude/skills/authoring-vertical-slice/references/migration-rls.md',
     import.meta.url,
   ),
 )
-const NOTES_SCHEMA = join(STACK_SUPABASE, 'schemas', '20_notes.sql')
-const AUDIT_MIGRATION = join(STACK_SUPABASE, 'migrations', '20260202000000_audit.sql')
+const NOTES_SCHEMA = join(DEMO_SUPABASE, 'schemas', '20_notes.sql')
+const AUDIT_MIGRATION = join(DEMO_SUPABASE, 'migrations', '20260930000100_notes_rails.sql')
 
 const FIXTURE = 'pgtap_fixture'
 const BEGIN = '-- fixture:begin'
@@ -64,7 +71,7 @@ const ADDITIONS = {
   },
   auditTrigger: {
     label: 'the audit trigger',
-    file: 'supabase/migrations/20260202000000_audit.sql',
+    file: 'supabase/migrations/20260930000100_notes_rails.sql',
     head: 'CREATE TRIGGER notes_audit ',
   },
 }
@@ -463,12 +470,13 @@ function judgeFixtures(input) {
 /** @param {string} path */
 const read = (path) => readFileSync(path, 'utf8')
 
-function shipped() {
+/** @param {string} [supabase] whose suites: the default scaffold's (stack) unless named */
+function shipped(supabase = STACK_SUPABASE) {
   return {
     skeleton: read(SKELETON_MD),
     notesSchema: read(NOTES_SCHEMA),
     auditMigration: read(AUDIT_MIGRATION),
-    suites: SUITES.map((s) => ({ ...s, text: read(join(STACK_SUPABASE, 'tests', s.name)) })),
+    suites: SUITES.map((s) => ({ ...s, text: read(join(supabase, 'tests', s.name)) })),
   }
 }
 
@@ -509,9 +517,11 @@ function assertRed(planted, reason) {
 
 // ─── live ────────────────────────────────────────────────────────────────────
 
-test('LIVE: the three shipped suites satisfy every fixture rule', () => {
-  const problems = judgeFixtures(shipped())
-  assert.deepEqual(problems, [], problems.join('\n'))
+test('LIVE: the three shipped suites satisfy every fixture rule, in the default and the --with-demo copies', () => {
+  for (const tree of [STACK_SUPABASE, DEMO_SUPABASE]) {
+    const problems = judgeFixtures(shipped(tree))
+    assert.deepEqual(problems, [], `${tree}\n${problems.join('\n')}`)
+  }
 })
 
 test('LIVE: the model is not vacuous — the skeleton, the slice columns and both additions resolve', () => {
@@ -527,10 +537,15 @@ test('LIVE: the model is not vacuous — the skeleton, the slice columns and bot
   assert.match(model.additions.auditTrigger, /^CREATE TRIGGER pgtap_fixture_audit .* ON public\.pgtap_fixture .*audit\.write_row\('org_id', 'id'\)$/)
 })
 
-test('LIVE: public.notes is named once in rls_isolation (the recursion probe) and never in the other two', () => {
-  const counts = shipped().suites.map((s) => [s.name, (s.text.match(/\bpublic\.notes\b/g) ?? []).length])
-  assert.deepEqual(counts, [
+test('LIVE: public.notes is named once in the --with-demo rls_isolation (the recursion probe), never elsewhere, and nowhere by default', () => {
+  const count = (tree) => shipped(tree).suites.map((s) => [s.name, (s.text.match(/\bpublic\.notes\b/g) ?? []).length])
+  assert.deepEqual(count(DEMO_SUPABASE), [
     ['rls_isolation.test.sql', 1],
+    ['mfa_aal2.test.sql', 0],
+    ['audit_immutability.test.sql', 0],
+  ])
+  assert.deepEqual(count(STACK_SUPABASE), [
+    ['rls_isolation.test.sql', 0],
     ['mfa_aal2.test.sql', 0],
     ['audit_immutability.test.sql', 0],
   ])
@@ -705,7 +720,7 @@ test('rule 3: a suite that drops its addition is red — the audit trigger is re
       '',
     ),
   )
-  assertRed(planted, /^audit_immutability\.test\.sql: the fixture region lacks the audit trigger as written in supabase\/migrations\/20260202000000_audit\.sql/)
+  assertRed(planted, /^audit_immutability\.test\.sql: the fixture region lacks the audit trigger as written in supabase\/migrations\/20260930000100_notes_rails\.sql/)
 })
 
 test("rule 3: an audit trigger with other arguments than the source's is red", () => {

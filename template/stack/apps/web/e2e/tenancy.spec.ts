@@ -57,7 +57,7 @@ test.describe('tenancy surface', () => {
     // Anonymous, so the protected layout redirects first. The signed-in case (a real seat
     // vs somebody else's org) is the 404 the org layout raises — both answers are chosen so
     // that "exists but not yours" and "does not exist" stay indistinguishable.
-    await page.goto('/o/some-other-tenant/notes')
+    await page.goto('/o/some-other-tenant')
     await expect(page).toHaveURL(/\/sign-in$/)
   })
 

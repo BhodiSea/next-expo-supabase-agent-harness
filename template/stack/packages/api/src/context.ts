@@ -1,5 +1,4 @@
 import { CLIENT_VERSION_HEADER, ORG_ID_HEADER, type OrgSummary } from '@app/contracts'
-import type { NotesDatabase } from '@app/notes'
 import type { RateLimitPort } from './ratelimit.js'
 import { requireServerMajor } from './skew.js'
 
@@ -23,6 +22,54 @@ import { requireServerMajor } from './skew.js'
 // downstream decorative. Verification happens in `resolveSession`, against
 // Supabase, where the signing key is.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// The database port the router reads through.
+//
+// STRUCTURAL, for the reasons a vertical's DAL port is (the --with-demo notes
+// vertical's data/port.ts is the worked example): `data` is typed `unknown`, so a
+// row is re-parsed against its contract at the exit rather than trusted at the
+// entrance; it is fake-able in a few lines, so every branch is reachable from a
+// unit test with no database; and it keeps this package free of `@supabase/*`.
+// Only the operators the router's own reads use are declared.
+//
+// A VERTICAL WIDENS IT. The host mints ONE client per request and hands it to
+// every procedure, so when a vertical's port needs more (an insert, a keyset
+// `or`), the host's client type becomes the intersection — `ApiDatabase &
+// BillingDatabase` — here and in the host's cast, in the same change that mounts
+// the vertical's router.
+// ---------------------------------------------------------------------------
+
+/** The failure half of a PostgREST response; every field but `message` optional. */
+export interface StoreFailure {
+  readonly code?: string | undefined
+  readonly details?: string | null | undefined
+  readonly hint?: string | null | undefined
+  readonly message: string
+}
+
+/** PostgREST returns `{ data, error }` and never rejects: branch on `error` first. */
+export interface StoreOutcome {
+  readonly data: unknown
+  readonly error: StoreFailure | null
+}
+
+/** A chainable, awaitable read. */
+export interface StoreQuery extends PromiseLike<StoreOutcome> {
+  eq(column: string, value: string): StoreQuery
+  limit(count: number): StoreQuery
+  order(column: string, options: { readonly ascending: boolean }): StoreQuery
+  select(columns: string): StoreQuery
+}
+
+export interface StoreTable {
+  select(columns: string): StoreQuery
+}
+
+/** The one method the router needs from a Supabase client. */
+export interface ApiDatabase {
+  from(table: string): StoreTable
+}
 
 /** The verified caller. Nothing here is ever read from the wire. */
 export interface Actor {
@@ -90,7 +137,7 @@ export interface CreateContextOptions {
    */
   readonly accessToken?: string | null
   /** Mints the per-request, RLS-scoped client. Anonymous when the token is null. */
-  readonly createClient: (accessToken: string | null) => NotesDatabase
+  readonly createClient: (accessToken: string | null) => ApiDatabase
   /** Where domain events go. Defaults to dropping them, so a test needs no sink. */
   readonly emit?: EventSink
   readonly headers: HeaderSource
@@ -169,7 +216,7 @@ export interface RequestContext {
   readonly activeOrg: OrgSummary | null
   readonly actor: Actor | null
   readonly clientVersion: string | null
-  readonly db: NotesDatabase
+  readonly db: ApiDatabase
   readonly emit: EventSink
   /** Every seat the caller holds right now. Empty for a seatless authenticated user. */
   readonly orgs: readonly OrgSummary[]

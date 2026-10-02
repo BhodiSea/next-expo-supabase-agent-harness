@@ -22,8 +22,8 @@ const SCRIPT = 'scripts/generate-skill-references.mjs'
 const REFS = 'template/base/.claude/skills/authoring-vertical-slice/references'
 const DAL = `${REFS}/dal-dto.md`
 const RLS = `${REFS}/migration-rls.md`
-const ROUTER = 'template/stack/packages/api/src/routers/notes.ts'
-const SCHEMA = 'template/stack/supabase/schemas/20_notes.sql'
+const ROUTER = 'template/demo/packages/api/src/routers/notes.ts'
+const SCHEMA = 'template/demo/supabase/schemas/20_notes.sql'
 const MIRRORED = [
   SCRIPT,
   'scripts/lib/skill-regions.mjs',

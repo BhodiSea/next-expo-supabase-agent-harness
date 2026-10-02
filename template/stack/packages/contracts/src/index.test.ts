@@ -1,7 +1,7 @@
 // Pure contract behaviour — bounds, formats, and the closed code sets. These
 // tests exercise WIRE semantics only; anything table- or policy-coupled (column
-// types, RLS text, the keyset index) belongs to the database suite, and the
-// Record -> View mapping belongs to @app/notes' domain tests. Keeping the split
+// types, RLS text, an index) belongs to the database suite, and a vertical's
+// Record -> View mapping belongs to that vertical's domain tests. Keeping the split
 // means a contract test never needs a database and never needs a router.
 import { describe, expect, it } from 'vitest'
 import {
@@ -11,25 +11,10 @@ import {
   DataExportPage,
   DISPLAY_NAME_MAX,
   EMAIL_MAX,
-  EXPORT_CURSOR_MAX,
   EXPORT_MEMBERSHIPS_LIMIT,
   ExportMyDataSchema,
   HealthReport,
   MembershipExport,
-  NewNoteInput,
-  NOTE_BODY_MAX,
-  NOTE_EXCERPT_MAX,
-  NOTE_TITLE_MAX,
-  NOTES_CURSOR_MAX,
-  NOTES_PAGE_LIMIT_DEFAULT,
-  NOTES_PAGE_LIMIT_MAX,
-  NoteDeletion,
-  NoteRecord,
-  NoteRef,
-  NotesListQuery,
-  NotesPage,
-  NoteUpdateInput,
-  NoteView,
   ORG_ROLE_RANK,
   ORG_SLUG_MAX,
   OrgRole,
@@ -41,28 +26,8 @@ import {
 } from './index.js'
 
 const OWNER_ID = '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e'
-const NOTE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
 const ORG_ID = '5c2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5f'
-
-const record: NoteRecord = {
-  archivedAt: null,
-  body: '',
-  createdAt: '2026-01-01T00:00:00.123456+00:00',
-  id: NOTE_ID,
-  ownerId: OWNER_ID,
-  title: 'RLS smoke note',
-  updatedAt: '2026-01-01T00:00:00.123456+00:00',
-}
-
-const view: NoteView = {
-  createdAt: record.createdAt,
-  excerpt: '',
-  hasBody: false,
-  id: NOTE_ID,
-  isArchived: false,
-  title: 'RLS smoke note',
-  updatedAt: record.updatedAt,
-}
+const OTHER_ORG_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
 
 describe('WireTimestamp', () => {
   it('keeps the driver text verbatim, microseconds and all', () => {
@@ -77,126 +42,6 @@ describe('WireTimestamp', () => {
     expect(() => WireTimestamp.parse('yesterday')).toThrow()
     expect(() => WireTimestamp.parse('2026-01-01')).toThrow()
     expect(() => WireTimestamp.parse('')).toThrow()
-  })
-})
-
-describe('NoteRecord', () => {
-  it('round-trips the persisted shape', () => {
-    expect(NoteRecord.parse(record)).toEqual(record)
-  })
-
-  it('carries a nullable archivedAt (lifecycle is a column, not a second table)', () => {
-    const archived = { ...record, archivedAt: '2026-02-02T09:00:00+00:00' }
-    expect(NoteRecord.parse(archived).archivedAt).toBe('2026-02-02T09:00:00+00:00')
-  })
-
-  it('bounds every wire string (no unbounded input)', () => {
-    expect(() => NoteRecord.parse({ ...record, title: 'x'.repeat(NOTE_TITLE_MAX + 1) })).toThrow()
-    expect(() => NoteRecord.parse({ ...record, body: 'x'.repeat(NOTE_BODY_MAX + 1) })).toThrow()
-    expect(NoteRecord.parse({ ...record, title: 'x'.repeat(NOTE_TITLE_MAX) }).title).toHaveLength(
-      NOTE_TITLE_MAX,
-    )
-  })
-
-  it('rejects an empty title and a non-uuid id', () => {
-    expect(() => NoteRecord.parse({ ...record, title: '' })).toThrow()
-    expect(() => NoteRecord.parse({ ...record, id: 'note-1' })).toThrow()
-  })
-})
-
-describe('NoteView', () => {
-  it('round-trips the render shape', () => {
-    expect(NoteView.parse(view)).toEqual(view)
-  })
-
-  it('does NOT carry ownerId — the render shape leaks no identifiers', () => {
-    const withOwner = NoteView.parse({ ...view, ownerId: OWNER_ID })
-    expect(withOwner).not.toHaveProperty('ownerId')
-  })
-
-  it('bounds the excerpt so neither surface has to re-truncate', () => {
-    expect(NoteView.parse({ ...view, excerpt: 'x'.repeat(NOTE_EXCERPT_MAX) })).toBeTruthy()
-    expect(() => NoteView.parse({ ...view, excerpt: 'x'.repeat(NOTE_EXCERPT_MAX + 1) })).toThrow()
-  })
-})
-
-describe('write inputs', () => {
-  it('accepts client fields only in NewNoteInput and rejects an empty title', () => {
-    expect(NewNoteInput.parse({ body: 'world', title: 'hello' })).toEqual({
-      body: 'world',
-      title: 'hello',
-    })
-    expect(NewNoteInput.parse({ title: 'body is optional' })).toEqual({ title: 'body is optional' })
-    expect(() => NewNoteInput.parse({ title: '' })).toThrow()
-  })
-
-  it('never accepts ownerId from the wire', () => {
-    // Stripped, not honoured: an owner-bearing create input is an
-    // account-takeover primitive dressed as a convenience.
-    expect(NewNoteInput.parse({ ownerId: OWNER_ID, title: 'x' })).toEqual({ title: 'x' })
-  })
-
-  it('rejects an empty patch (a no-op UPDATE still bumps updated_at)', () => {
-    expect(NoteUpdateInput.parse({ id: NOTE_ID, title: 'renamed' })).toEqual({
-      id: NOTE_ID,
-      title: 'renamed',
-    })
-    expect(NoteUpdateInput.parse({ id: NOTE_ID, isArchived: true }).isArchived).toBe(true)
-    expect(NoteUpdateInput.parse({ body: '', id: NOTE_ID }).body).toBe('')
-    expect(() => NoteUpdateInput.parse({ id: NOTE_ID })).toThrow()
-  })
-
-  it('bounds the patch fields exactly as the record bounds them', () => {
-    expect(() =>
-      NoteUpdateInput.parse({ id: NOTE_ID, title: 'x'.repeat(NOTE_TITLE_MAX + 1) }),
-    ).toThrow()
-    expect(() =>
-      NoteUpdateInput.parse({ body: 'x'.repeat(NOTE_BODY_MAX + 1), id: NOTE_ID }),
-    ).toThrow()
-  })
-
-  it('locks the single-note addressing shapes', () => {
-    expect(NoteRef.parse({ id: NOTE_ID })).toEqual({ id: NOTE_ID })
-    expect(NoteDeletion.parse({ id: NOTE_ID })).toEqual({ id: NOTE_ID })
-    expect(() => NoteRef.parse({ id: '1' })).toThrow()
-  })
-})
-
-describe('keyset pagination', () => {
-  it('defaults the page size and the archived filter', () => {
-    expect(NotesListQuery.parse({})).toEqual({
-      includeArchived: false,
-      limit: NOTES_PAGE_LIMIT_DEFAULT,
-    })
-  })
-
-  it('coerces a string limit (query strings are strings) inside the bounds', () => {
-    expect(NotesListQuery.parse({ cursor: 'abc_-123', limit: '25' })).toEqual({
-      cursor: 'abc_-123',
-      includeArchived: false,
-      limit: 25,
-    })
-    expect(() => NotesListQuery.parse({ limit: String(NOTES_PAGE_LIMIT_MAX + 1) })).toThrow()
-    expect(() => NotesListQuery.parse({ limit: '0' })).toThrow()
-    expect(() => NotesListQuery.parse({ limit: '1.5' })).toThrow()
-  })
-
-  it('accepts only base64url cursors, bounded', () => {
-    expect(() => NotesListQuery.parse({ cursor: 'not+base64url!' })).toThrow()
-    expect(() => NotesListQuery.parse({ cursor: 'x'.repeat(NOTES_CURSOR_MAX + 1) })).toThrow()
-    expect(() => NotesListQuery.parse({ cursor: '' })).toThrow()
-  })
-
-  it('locks the page envelope', () => {
-    const page = { items: [view], nextCursor: null }
-    expect(NotesPage.parse(page)).toEqual(page)
-    expect(NotesPage.parse({ items: [], nextCursor: 'abc' }).nextCursor).toBe('abc')
-    expect(() =>
-      NotesPage.parse({
-        items: Array.from({ length: NOTES_PAGE_LIMIT_MAX + 1 }, () => view),
-        nextCursor: null,
-      }),
-    ).toThrow()
   })
 })
 
@@ -217,7 +62,7 @@ describe('actor and orgs', () => {
   })
 
   it('models a caller in several orgs with one of them active', () => {
-    const other: OrgSummary = { id: NOTE_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
+    const other: OrgSummary = { id: OTHER_ORG_ID, name: 'Globex', role: 'viewer', slug: 'globex' }
     const multi: ActorView = {
       activeOrg: ORG,
       displayName: 'Sam',
@@ -309,27 +154,15 @@ describe('data export (DSR portability)', () => {
   const wire = '2026-01-01T00:00:00.123456+00:00'
   const profile = { createdAt: wire, displayName: 'Sam', id: OWNER_ID, updatedAt: wire }
   const membership = { createdAt: wire, orgId: ORG_ID, roleRank: 40, userId: OWNER_ID }
-  const exportedNote = {
-    body: 'hello',
-    createdAt: wire,
-    id: NOTE_ID,
-    orgId: ORG_ID,
-    title: 'a note',
-    updatedAt: wire,
-  }
-  const page: DataExportPage = {
-    memberships: [membership],
-    notes: { items: [exportedNote], nextCursor: null },
-    profile,
-  }
+  const page: DataExportPage = { memberships: [membership], profile }
 
   it('accepts the reviewed projection shape and nothing unbounded', () => {
     expect(DataExportPage.parse(page)).toEqual(page)
-    // Every string on the page is bounded — the body bound is the biggest and
-    // therefore the one worth pinning: one char over NOTE_BODY_MAX fails.
-    const oversize = { ...exportedNote, body: 'x'.repeat(NOTE_BODY_MAX + 1) }
     expect(() =>
-      DataExportPage.parse({ ...page, notes: { items: [oversize], nextCursor: null } }),
+      DataExportPage.parse({
+        ...page,
+        profile: { ...profile, displayName: 'x'.repeat(DISPLAY_NAME_MAX + 1) },
+      }),
     ).toThrow()
   })
 
@@ -346,20 +179,16 @@ describe('data export (DSR portability)', () => {
     expect(() => MembershipExport.parse({ ...membership, roleRank: 50 })).toThrow()
   })
 
-  it('bounds the page arrays and the compound cursor', () => {
-    const notes = { items: [exportedNote], nextCursor: 'A'.repeat(EXPORT_CURSOR_MAX + 1) }
-    expect(() => DataExportPage.parse({ ...page, notes })).toThrow()
+  it('bounds the memberships array', () => {
     const seats = Array.from({ length: EXPORT_MEMBERSHIPS_LIMIT + 1 }, () => membership)
     expect(() => DataExportPage.parse({ ...page, memberships: seats })).toThrow()
   })
 
-  it('the input takes only an opaque cursor and a clamped limit — no org field exists to send', () => {
-    expect(ExportMyDataSchema.parse({})).toEqual({ limit: NOTES_PAGE_LIMIT_DEFAULT })
-    expect(() => ExportMyDataSchema.parse({ cursor: 'not base64url!' })).toThrow()
-    expect(() => ExportMyDataSchema.parse({ limit: NOTES_PAGE_LIMIT_MAX + 1 })).toThrow()
-    // The walk position travels INSIDE the opaque cursor; an orgId payload
-    // field would let the request name its own tenant, which the whole file
-    // forbids (see ORG_ID_HEADER).
-    expect('orgId' in ExportMyDataSchema.shape).toBe(false)
+  it('the input takes nothing — no org field, and an invented field is a parse failure', () => {
+    expect(ExportMyDataSchema.parse({})).toEqual({})
+    // The export reads the VERIFIED caller's own rows; an orgId payload field
+    // would let the request name its own tenant, which the whole file forbids
+    // (see ORG_ID_HEADER), and .strict() refuses it rather than dropping it.
+    expect(() => ExportMyDataSchema.parse({ orgId: ORG_ID })).toThrow()
   })
 })

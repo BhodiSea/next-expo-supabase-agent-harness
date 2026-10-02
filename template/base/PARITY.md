@@ -17,18 +17,13 @@ is that ledger, and the `parity` gate (`tools/check-mobile-parity.mjs`) holds it
   for fresh installs and the template — force strict anywhere with
   `CHECK_MOBILE_PARITY_STRICT=1`.
 
-At seed the **web** surface is intentionally skeletal (a landing route only), so most web
-cells are `—` with a reason pointing at the build-out. The **mobile** surface ships the notes
-vertical, so its notes/list/create/health cells name real screens. As W9's
-authoring-vertical-slice adds web screens, these `—` cells become paths.
+Each row is one procedure the router mounts, with the screen that surfaces it on each side; a
+`—` cell carries its reason. The system procedures come with every scaffold, and a vertical
+brings its own rows (the notes vertical `init --with-demo` plants is the worked example, with
+five).
 
 | Action | Web | Mobile | Notes |
 | --- | --- | --- | --- |
-| notes.create | — | apps/mobile/src/features/notes/NoteComposer.tsx | Mobile: the composer creates optimistically (useCreateNote). Web: the write path exists (apps/web/app/actions/notes.ts) but no notes screen is wired to it yet — W9 adds the web screen. |
-| notes.get | — | — | Single-note read: no note-detail screen on either surface yet. Reserved for the note-detail route W9 seeds. |
-| notes.list | — | apps/mobile/src/features/notes/NotesPanel.tsx | Mobile: the home panel + the matrix (keyset) list notes. Web: no notes list screen yet — W9 adds it (the app-data read exists at apps/web/lib/app-data/notes.ts). |
-| notes.remove | — | — | Delete affordance not surfaced on either surface yet; the procedure exists ahead of the UI. W9 wires it into the note row. |
-| notes.update | — | — | Edit affordance not surfaced yet; the procedure exists ahead of the UI. W9 wires it into the note-detail screen. |
 | system.exportMyData | — | — | DSR delivery surface: the Art. 20 portability export (tools/data-flow.json export.surface), invoked per docs/runbooks/data-subject-requests.md as the subject — deliberately not a screen on either surface; it exists to be called when a request arrives, like system.me it belongs to the account layer, not a rendered page. |
 | system.health | — | apps/mobile/src/features/connection/ConnectionStatus.tsx | Mobile: the liveness indicator polls it. Web: infra liveness is not a user screen — intentionally web-exempt. |
-| system.me | — | — | Session identity: consumed by the auth/session layer (the supabase provider, server getVerifiedUser), not a rendered screen on either surface — intentionally exempt. |
+| system.me | — | apps/mobile/app/(tabs)/index.tsx | Mobile: the home screen lists the caller's organizations from it. Web: session identity is consumed by the auth/session layer (server getVerifiedUser), and the org picker reads seats server-side — not a rendered call on the web surface, intentionally exempt. |

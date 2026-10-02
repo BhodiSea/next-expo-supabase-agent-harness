@@ -45,7 +45,7 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { templateCandidates } from '../../installer/lib/layout.mjs'
-import { versionsBetween } from '../../installer/lib/migrations.mjs'
+import { cmpVersions, versionsBetween } from '../../installer/lib/migrations.mjs'
 
 // ── the reviewed per-version sweep table ─────────────────────────────────────────
 // One entry per shipped version, answering one question: when a swept leg crosses this
@@ -408,9 +408,34 @@ const SWEEPS = {
   // runs, and a leg's tools/i18n-allow.json is the empty seed, with no site entry in it. The
   // lint exemption for the seeded delete-account index.ts is gone, and a swept leg already ends
   // on the 1.1.0 shell through '1.1.0''s derived pass. The round budget's extension to 2.1.0 is
-  // a Stop step's. Empty, and written down, because computeSweepSet asks every version that
-  // withholds a path or parks a seeded-source fix for a reviewed posture.
-  '2.0.0': {},
+  // a Stop step's: no leg runs the Stop chain.
+  //
+  // THE EXAMPLE LEAVES THE DEFAULT TREE (#85), and three steps follow from that for a swept
+  // leg, whose install predates 2.0.0 and so still carries the example. They were found at
+  // the cut, when leg E (v0.3.0) went red after the sweep:
+  //   - notesEventCatalog: the runbook's one line. gen-event-catalog.mjs lost its 1.0.x
+  //     compatibility entry, so an install made before 1.1.0 adds
+  //     `export { noteEvents as EVENT_CATALOG } from './events.js'` to the example's ./client,
+  //     or `contracts` reds on the example's three rows. Its committed catalog already lists
+  //     them, so the line alone clears the gate; the regen the runbook names writes the same
+  //     bytes.
+  //   - adoptBelow '1.0.0': tools/suppressions-allow.json. `update` plants it when absent,
+  //     and an install made before 1.0.0 never had it, so it receives 2.0.0's DEFAULT copy,
+  //     which has no rows for the example's files. Its remedy is the demo's rows, and the
+  //     demo-first copy is that file.
+  //   - adoptBelow '0.6.0': the org landing page. tools/web-route-allowlist.json, planted the
+  //     same way into an install made before 0.6.0, now allowlists
+  //     apps/web/app/(protected)/o/[orgSlug]/page.tsx, which `update` withholds as a new
+  //     exemplar; the runbook's remedy is to pull it.
+  // A hop from 1.1.0 meets none of the three: its client, its allow list and its route
+  // allowlist are its own, so adoptBelow stays out of its sweep set.
+  '2.0.0': {
+    notesEventCatalog: true,
+    adoptBelow: {
+      '0.6.0': ['apps/web/app/(protected)/o/[orgSlug]/page.tsx'],
+      '1.0.0': ['tools/suppressions-allow.json'],
+    },
+  },
 }
 
 /**
@@ -487,6 +512,7 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     }
     if (sweep?.adoptSeedOnInitOnly === true) adopt.push(...(record.seedOnInitOnly ?? []))
     adopt.push(...(sweep?.extraAdopt ?? []))
+    adopt.push(...adoptedBelow(sweep?.adoptBelow, baseVersion))
     const fixPaths = (record.seededSourceFixes ?? []).flatMap(
       (/** @type {any} */ f) => f.paths ?? [],
     )
@@ -504,7 +530,58 @@ export function computeSweepSet(migrations, baseVersion, headVersion) {
     if (sweep?.reconcileDataFlowExclusions === true) reconcileDataFlowExclusions = true
     if (sweep?.grantDoctrine === true) grantDoctrine = true
   }
-  return { adopt, tomlSectionRenames, tomlSectionAppends, reconcileDataFlowExclusions, grantDoctrine }
+  const notesEventCatalog = crossedSweepsSet(migrations, baseVersion, headVersion, 'notesEventCatalog')
+  return {
+    adopt,
+    tomlSectionRenames,
+    tomlSectionAppends,
+    reconcileDataFlowExclusions,
+    grantDoctrine,
+    notesEventCatalog,
+  }
+}
+
+/**
+ * Whether any SWEEPS entry this hop crosses sets a boolean step.
+ * @param {Record<string, any>} migrations
+ * @param {string} baseVersion
+ * @param {string} headVersion
+ * @param {string} key
+ */
+function crossedSweepsSet(migrations, baseVersion, headVersion, key) {
+  return versionsBetween(migrations, baseVersion, headVersion).some(
+    (v) => /** @type {Record<string, any>} */ (SWEEPS)[v]?.[key] === true,
+  )
+}
+
+/**
+ * The paths a SWEEPS entry adopts only for an install made before a given version: the
+ * remedy for a register `update` plants when absent, which such an install never had.
+ * @param {Record<string, string[]> | undefined} below  version -> paths
+ * @param {string} baseVersion
+ * @returns {string[]}
+ */
+function adoptedBelow(below, baseVersion) {
+  return Object.entries(below ?? {})
+    .filter(([version]) => cmpVersions(baseVersion, version) < 0)
+    .flatMap(([, paths]) => paths)
+}
+
+/** The line the 2.0.0 runbook gives an install made before 1.1.0. */
+export const NOTES_EVENT_CATALOG_LINE = "export { noteEvents as EVENT_CATALOG } from './events.js'"
+
+/**
+ * The example's ./client with the runbook's EVENT_CATALOG line appended, or null when there is
+ * nothing to do: no client, a client that already declares EVENT_CATALOG, or one whose events
+ * module the line could not name because it exports no noteEvents.
+ * @param {string | null} clientText
+ * @returns {string | null}
+ */
+export function withNotesEventCatalog(clientText) {
+  if (clientText === null || /\bEVENT_CATALOG\b/.test(clientText)) return null
+  if (!/\bnoteEvents\b/.test(clientText)) return null
+  const sep = clientText.endsWith('\n') ? '' : '\n'
+  return `${clientText}${sep}${NOTES_EVENT_CATALOG_LINE}\n`
 }
 
 /**
@@ -594,7 +671,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
 
   const done = []
-  const TEMPLATE_ROOTS = ['template/stack', 'template/base']
+  // template/demo FIRST (2.0.0, #85): every install a sweep adopts into predates 2.0.0, so
+  // it carries the worked example, and for a file the demo also ships, the demo's copy is
+  // the one that matches it (the default's drops the example's wiring).
+  const TEMPLATE_ROOTS = ['template/demo', 'template/stack', 'template/base']
 
   /**
    * Where in the template a given install-relative path lives, or null —
@@ -611,27 +691,43 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return null
   }
 
-  /** Copy one file, or every file under it when the pattern names a directory. */
-  const adoptOne = (rel) => {
-    const src = sourceOf(rel)
-    if (src === null) return
-    const isDir = rel.endsWith('/')
-    if (!isDir) {
-      const dest = join(installDir, rel)
-      mkdirSync(dirname(dest), { recursive: true })
-      copyFileSync(src, dest)
-      done.push(rel)
-      return
-    }
+  /** Every file under a directory pattern, across EVERY root that has the directory. */
+  const filesUnder = (rel) => {
+    const files = new Set()
     const walk = (dir, prefix) => {
       for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
         a.name.localeCompare(b.name),
       )) {
         if (e.isDirectory()) walk(join(dir, e.name), `${prefix}${e.name}/`)
-        else adoptOne(`${prefix}${e.name}`)
+        else files.add(`${prefix}${e.name}`)
       }
     }
-    walk(src, rel)
+    for (const root of TEMPLATE_ROOTS) {
+      for (const cand of templateCandidates(rel)) {
+        const p = join(repoRoot, root, cand)
+        if (existsSync(p)) walk(p, rel)
+      }
+    }
+    return [...files].sort((a, b) => a.localeCompare(b))
+  }
+
+  /**
+   * Copy one file, or every file under it when the pattern names a directory. A directory
+   * is the UNION of the roots' copies (2.0.0, #85): the demo overlays only part of a seam
+   * directory (the web i18n catalog), so the first root holding the directory is not the
+   * whole seam. Each file still resolves demo-first through sourceOf.
+   */
+  const adoptOne = (rel) => {
+    if (rel.endsWith('/')) {
+      for (const file of filesUnder(rel)) adoptOne(file)
+      return
+    }
+    const src = sourceOf(rel)
+    if (src === null) return
+    const dest = join(installDir, rel)
+    mkdirSync(dirname(dest), { recursive: true })
+    copyFileSync(src, dest)
+    done.push(rel)
   }
 
   const migrations = JSON.parse(readFileSync(join(repoRoot, 'template/migrations.json'), 'utf8'))
@@ -754,6 +850,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         process.exit(1)
       }
       done.push('supabase/tests/rls_grants.generated.test.sql (node tools/gen-grant-assertions.mjs)')
+    }
+  }
+
+  // ── 2e. the example's event catalog, by the 2.0.0 runbook's one line ───────────────
+  if (sweepSet.notesEventCatalog) {
+    const clientRel = 'packages/verticals/notes/src/client.ts'
+    const next = withNotesEventCatalog(readTextOrNull(join(installDir, clientRel)))
+    if (next !== null) {
+      writeFileSync(join(installDir, clientRel), next)
+      done.push(`${clientRel} (the runbook's EVENT_CATALOG line)`)
     }
   }
 

@@ -213,12 +213,17 @@ for (const [surface, map] of [
     referenced.add(bucket)
   }
 }
-for (const name of declared.keys()) {
-  if (!referenced.has(name)) {
-    errs.push(
-      `${BUDGET}: bucket "${name}" is declared but nothing spends from it — a stale bucket reads as coverage of a surface that no longer exists`,
-    )
-  }
+// THE UNMAPPED FALLBACK (2.0.0, #85). The code limits every procedure and action its maps do
+// not name with one strict bucket (section 4 proves it is never null). That is a real spend
+// — a default scaffold's system.exportMyData is limited by it, and its maps name no write
+// at all — so the budget may declare it as `"unmapped": "<bucket>"`. The declaration counts
+// as a spend only once section 4 has proved the running code returns that bucket for an
+// unknown procedure AND an unknown action; until then the stale check below waits for it.
+const unmapped = budget.unmapped
+if (unmapped !== undefined && !declared.has(unmapped)) {
+  errs.push(
+    `${BUDGET}: "unmapped" names bucket "${unmapped}", which "buckets" does not declare — the fallback every unmapped surface spends from must be a reviewed bucket`,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +369,27 @@ if (evaluated.unknownProcedure === null || evaluated.unknownAction === null) {
   )
 }
 
+if (unmapped !== undefined && declared.has(unmapped)) {
+  const seams = [
+    ['bucketForProcedure', evaluated.unknownProcedure],
+    ['bucketForAction', evaluated.unknownAction],
+  ]
+  const disagree = seams.filter(([, got]) => got !== null && got?.name !== unmapped)
+  for (const [fn, got] of disagree) {
+    errs.push(
+      `${BUDGET} declares "unmapped": "${unmapped}", but ${MODULE} ${fn}(<unmapped>) returns "${got?.name ?? 'nothing'}" — the fallback that runs is not the one reviewed`,
+    )
+  }
+  if (disagree.length === 0 && seams.every(([, got]) => got !== null)) referenced.add(unmapped)
+}
+for (const name of declared.keys()) {
+  if (!referenced.has(name)) {
+    errs.push(
+      `${BUDGET}: bucket "${name}" is declared but nothing spends from it — a stale bucket reads as coverage of a surface that no longer exists`,
+    )
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 5. Wiring. A policy nothing consults is a policy in name only.
 // ---------------------------------------------------------------------------
@@ -412,5 +438,5 @@ for (const n of notes) console.log(`${GATE}: NOTE — ${n}`)
 recordGreen()
 ok(
   GATE,
-  `${String(budget.buckets.length)} reviewed bucket(s) under ceiling; ${String(Object.keys(budget.procedures).length)} procedure(s) + ${String(Object.keys(budget.actions).length)} Server Action(s) mapped, ${String(exempt.size)} reasoned exemption(s); every mutation covered; both seams wired`,
+  `${String(budget.buckets.length)} reviewed bucket(s) under ceiling; ${String(Object.keys(budget.procedures).length)} procedure(s) + ${String(Object.keys(budget.actions).length)} Server Action(s) mapped, ${String(exempt.size)} reasoned exemption(s)${unmapped === undefined ? '' : `; unmapped surfaces fall to "${unmapped}"`}; every mutation covered; both seams wired`,
 )

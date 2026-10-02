@@ -10,16 +10,6 @@
       "table": "invitations",
       "column": "email",
       "reason": "The invitee's email address, which is the one identifier in this schema that reaches a human directly. It also belongs to someone who is not yet a member and has consented to nothing."
-    },
-    {
-      "table": "notes",
-      "column": "title",
-      "reason": "Customer content. The whole point of the notes vertical is that only the org can read it; capturing titles would make the audit table a second, less-policied copy readable by anyone with rank 30."
-    },
-    {
-      "table": "notes",
-      "column": "body",
-      "reason": "Customer content, unbounded to 20000 characters. Copying it on every UPDATE would also make the trail larger than the table it audits."
     }
   ]
 }

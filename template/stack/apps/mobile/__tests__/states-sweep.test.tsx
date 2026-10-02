@@ -1,6 +1,6 @@
 // The states sweep — src/routes.ts is the CONTRACT, this suite is its
 // enforcement in the fast lane: for every route with a network-backed query
-// (home, matrix) every canonical data state renders its manifest testID, and
+// (home) every canonical data state renders its manifest testID, and
 // the error state CONTAINS a working retry affordance. Driven through
 // renderRouter over the procedure double, so the shipped screens, hooks and
 // translateError run for real.
@@ -29,24 +29,34 @@ jest.mock('../src/lib/supabase/provider', () => ({
 jest.mock('../src/lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
 
 const HOME = ROUTES[0]
-const MATRIX = ROUTES[1]
-const ACTIONS = ROUTES[2]
+const ACTIONS = ROUTES[1]
 
 const HEALTH = () => ({ ok: true as const, version: '0.0.0' })
 
 type Behavior = 'empty' | 'error' | 'held'
 
-// ONE list handler per behavior, shared by both network-backed routes — home's
-// unpaged query and matrix's paged one hit the same procedure, which is exactly
-// why the sweep can be uniform per route instead of per screen.
-function queryHandler(behavior: Behavior): NonNullable<MockApiHandlers['notesList']> {
+// ONE handler per behavior for the home query. A network-backed route a project adds
+// joins NETWORK_ROUTES below with its own procedure's handler here, so the sweep stays
+// uniform per route instead of per screen.
+function queryHandler(behavior: Behavior): NonNullable<MockApiHandlers['systemMe']> {
   if (behavior === 'held') return () => new Promise<never>(() => undefined)
-  if (behavior === 'empty') return () => ({ ok: true, data: { items: [], nextCursor: null } })
+  if (behavior === 'empty') {
+    return () => ({
+      ok: true,
+      data: {
+        activeOrg: null,
+        displayName: 'Sam',
+        email: null,
+        id: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
+        orgs: [],
+      },
+    })
+  }
   return () => ({ ok: false, error: appError.unknown({ message: 'sweep-induced failure' }) })
 }
 
 function installFor(behavior: Behavior): void {
-  installMockServer({ systemHealth: HEALTH, notesList: queryHandler(behavior) })
+  installMockServer({ systemHealth: HEALTH, systemMe: queryHandler(behavior) })
 }
 
 beforeEach(() => {
@@ -57,7 +67,7 @@ afterEach(() => {
   uninstallMockServer()
 })
 
-const NETWORK_ROUTES = [HOME, MATRIX] as const
+const NETWORK_ROUTES = [HOME] as const
 
 describe.each(
   NETWORK_ROUTES.map((route) => [route.id, route] as const),

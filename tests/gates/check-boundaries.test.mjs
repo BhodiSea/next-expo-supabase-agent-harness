@@ -215,6 +215,78 @@ test('RED: a sanction with a blank module value cannot silently disable the stal
   assert.ok(r.out.includes('not a non-empty string'), r.out)
 })
 
+// ── the demo-provided package (2.0.0, #85) ─────────────────────────────────────
+// The worked example's vertical ships only with `init --with-demo`, and the census is
+// OWNED: it is the same file in every install, so the demo cannot bring its own. Its
+// entry says `"demo": true`, and the stale arm then follows the manifest's demo record
+// the way a module entry follows `modules`. A pre-2.0.0 manifest has no record, and every
+// scaffold of that age shipped the example, so it reads as present: nothing those
+// installs were held to is relaxed.
+
+const notesWithoutDemoMark = CENSUS.sanctioned.filter((e) => e.package !== '@app/notes')
+const DEMO_CENSUS = {
+  comment: 'x',
+  sanctioned: [...notesWithoutDemoMark, { package: '@app/notes', demo: true, reason: R('the worked example') }],
+}
+const NO_NOTES = /** @type {[string, any][]} */ (PACKAGES.filter(([rel]) => rel !== 'verticals/notes'))
+const WEB_NO_NOTES = { name: 'web', dependencies: { '@app/errors': 'workspace:*', '@app/supabase': 'workspace:*' } }
+/** @param {Record<string, unknown>} extra */
+const withManifest = (dir, extra) => {
+  writeFileSync(
+    join(dir, '.harness/manifest.json'),
+    JSON.stringify({ baseVersion: '2.0.0', harnessVersion: '2.0.0', modules: [], ...extra }),
+  )
+  return dir
+}
+
+test('GREEN (2.0.0): a demo-provided sanction is DORMANT on an install made without --with-demo', () => {
+  const dir = withManifest(fixture({ census: DEMO_CENSUS, packages: NO_NOTES, web: WEB_NO_NOTES }), { demo: false })
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('GREEN (2.0.0): the demo-provided sanction covers the demo package when the demo is installed', () => {
+  const dir = withManifest(fixture({ census: DEMO_CENSUS }), { demo: true })
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 0, r.out)
+})
+
+test('RED (2.0.0): the demo-provided sanction is STALE when the manifest records the demo but the package is gone', () => {
+  const dir = withManifest(fixture({ census: DEMO_CENSUS, packages: NO_NOTES, web: WEB_NO_NOTES }), { demo: true })
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/notes') && r.out.includes('--with-demo'), r.out)
+})
+
+test('RED (2.0.0): a pre-2.0.0 manifest (no demo record) shipped the example, so the stale arm stays live', () => {
+  const dir = withManifest(fixture({ census: DEMO_CENSUS, packages: NO_NOTES, web: WEB_NO_NOTES }), {
+    baseVersion: '1.1.0',
+    harnessVersion: '1.1.0',
+  })
+  const r = run(EXPORTS_WALLS, dir)
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('@app/notes'), r.out)
+})
+
+test('RED (2.0.0): a demo value other than true cannot park the stale arm', () => {
+  for (const demo of [false, 'yes', 1]) {
+    const census = { comment: 'x', sanctioned: [...CENSUS.sanctioned, { package: '@app/ghost', demo, reason: R() }] }
+    const r = run(EXPORTS_WALLS, fixture({ census }))
+    assert.equal(r.code, 1, `${JSON.stringify(demo)}\n${r.out}`)
+    assert.ok(r.out.includes('"demo"'), r.out)
+  }
+})
+
+test('RED (2.0.0): an entry cannot be both module- and demo-provided', () => {
+  const census = {
+    comment: 'x',
+    sanctioned: [...CENSUS.sanctioned, { package: '@app/ghost', module: 'e2ee', demo: true, reason: R() }],
+  }
+  const r = run(EXPORTS_WALLS, fixture({ census }))
+  assert.equal(r.code, 1, r.out)
+  assert.ok(r.out.includes('both'), r.out)
+})
+
 test('GREEN: a plain (module-less) sanction whose package EXISTS is unaffected by module state', () => {
   const r = run(EXPORTS_WALLS, fixture())
   assert.equal(r.code, 0, r.out)

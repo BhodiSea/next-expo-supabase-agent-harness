@@ -76,6 +76,12 @@ try {
 }
 
 const shapes = parseShapes(readFileSync(MANIFEST, 'utf8')).filter((s) => s.op === 'select')
+// No read shape: nothing to plan, and an OK over zero probes would certify nothing. The
+// db-scale lane stands down before this point when the manifest is empty (2.0.0); a run that
+// gets here anyway is told so, loudly locally and red in CI.
+if (shapes.length === 0) {
+  skipOrFail(GATE, `${MANIFEST} records no read shape — there is no plan to probe`)
+}
 const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'))
 const tenancy = JSON.parse(readFileSync(TENANCY, 'utf8'))
 const tenantColumn = tenancy.tenantColumn

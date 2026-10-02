@@ -21,13 +21,22 @@ jest.mock('../src/lib/supabase/provider', () => ({
 }))
 jest.mock('../src/lib/trpc/use-api', () => ({ useApi: () => mockApiClient() }))
 
-const SECURITY = ROUTES[3]
+const SECURITY = ROUTES[2]
 
 // The security screen itself queries nothing over tRPC, but the app shell
 // around it (connection status) does.
 const SHELL_API = {
   systemHealth: () => ({ ok: true as const, version: '0.0.0' }),
-  notesList: () => ({ ok: true as const, data: { items: [], nextCursor: null } }),
+  systemMe: () => ({
+    ok: true as const,
+    data: {
+      activeOrg: null,
+      displayName: 'Sam',
+      email: null,
+      id: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
+      orgs: [],
+    },
+  }),
 }
 
 afterEach(() => {

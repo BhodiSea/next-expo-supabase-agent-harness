@@ -8,7 +8,9 @@
 // retroactive edit yields a database that no longer matches its own history). A scaffolded
 // stub could never be filled in without hand-editing applied history, so the migration-rls-
 // author composes the complete migration with `supabase migration new <slice>` and writes it
-// exactly once. The stub shapes below are modelled on the real packages/verticals/notes/*.
+// exactly once. The stub shapes below are modelled on the worked example, which `init --with-demo`
+// plants and the skill's references/*.md carry as regions generated from its source (2.0.0: a
+// default scaffold ships no vertical, so a stub cites the references, never an example path).
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -36,15 +38,15 @@ const files = [
     join(vertical, 'schemas.ts'),
     '// Input schemas for this slice — what a procedure or a Server Action validates before\n' +
       '// anything touches the database. DERIVE them from @app/contracts (the wire bounds live\n' +
-      '// in exactly one place); add only refinements that need domain knowledge. See the real\n' +
-      '// packages/verticals/notes/src/schemas.ts (CreateNoteSchema = NewNoteInput.refine(...)).\n',
+      '// in exactly one place); add only refinements that need domain knowledge. See the\n' +
+      '// skill\'s references/dal-dto.md (the worked example\'s CreateNoteSchema = NewNoteInput.refine(...)).\n',
   ],
   [
     join(vertical, 'events.ts'),
     "// The facts this vertical publishes, declared through @app/events' defineEventCatalog so\n" +
       '// the event-catalog generator can walk them. Payloads carry IDENTIFIERS, never content;\n' +
       '// constructors are PURE (occurredAt is a parameter — the row\'s own timestamp — never\n' +
-      '// Date.now()). See packages/verticals/notes/src/events.ts.\n',
+      '// Date.now()). See the skill\'s references/dal-dto.md.\n',
   ],
   [
     join(vertical, 'client.ts'),
@@ -53,7 +55,7 @@ const files = [
       '// RLS READS a phone performs against its own scoped Supabase client. Nothing here may\n' +
       '// reach a service-role client, a Next-coupled leaf, or a Node built-in (Metro does not\n' +
       '// tree-shake). Re-export the reads, the input schemas, the event vocabulary and the pure\n' +
-      '// domain. Writes stay OFF this barrel. See packages/verticals/notes/src/client.ts.\n' +
+      '// domain. Writes stay OFF this barrel. See the skill\'s references/dal-dto.md.\n' +
       '// Export the event catalog under the name the generator looks for, then run `pnpm gen`:\n' +
       `// export { ${camel}Events as EVENT_CATALOG } from './events.js'\n`,
   ],
@@ -62,7 +64,7 @@ const files = [
     `// @app/${slice} — the vertical. src/domain (pure), src/data (the DAL: takes a client,\n` +
       '// returns zod DTOs from @app/contracts wrapped in ActionOutcome, never rows, never throws\n' +
       '// for a domain failure), src/schemas, src/events, src/client (Metro-safe), src/index (this\n' +
-      '// file). A vertical MUST NOT import another vertical. See packages/verticals/notes/src/index.ts.\n' +
+      '// file). A vertical MUST NOT import another vertical. See the skill\'s references/dal-dto.md.\n' +
       '\n' +
       "export * from './client.js'\n" +
       '\n' +
@@ -72,7 +74,7 @@ const files = [
   ],
   [
     join(base, 'packages', 'api', 'src', 'routers', `${slice}.ts`),
-    '// The tRPC router for this slice — copy packages/api/src/routers/notes.ts. Each procedure\n' +
+    '// The tRPC router for this slice — copy the create-procedure region of references/dal-dto.md. Each procedure\n' +
       '// is three lines: pick a rung of the ladder (orgProcedure, READS INCLUDED — the acting\n' +
       '// org is WHICH DATA a read is about, not an extra permission on top of it),\n' +
       '// for writes), name an input schema from @app/' +
@@ -100,7 +102,7 @@ const files = [
       '// validate with actionClient.inputSchema(...) first, resolve identity with getVerifiedUser()\n' +
       '// (getUser under the hood — never getSession), mint the client with createRequestScopedClient()\n' +
       '// narrowed `as unknown as <Slice>Database`, and revalidatePath on success only. Add this file\n' +
-      '// ONLY when the web surface writes this entity. See apps/web/app/actions/notes.ts.\n',
+      '// ONLY when the web surface writes this entity. See the skill\'s references/dal-dto.md.\n',
   ],
   [
     join(base, 'apps', 'web', 'app', slice, 'page.tsx'),
@@ -110,7 +112,7 @@ const files = [
       '// seam: per-request client -> the vertical ./client fn -> match the outcome -> a render\n' +
       '// model), NEVER a Supabase query in this component and NEVER a fetch() to /api/trpc. Writes\n' +
       '// go through the Server Action. getVerifiedUser() for rendering decisions only — RLS is the\n' +
-      '// boundary. See apps/web/app/page.tsx + apps/web/lib/app-data/notes.ts.\n' +
+      '// boundary. See apps/web/app/page.tsx + the skill\'s references/dal-dto.md (the web read seam).\n' +
       '\n' +
       'export default async function ' +
       pascal +

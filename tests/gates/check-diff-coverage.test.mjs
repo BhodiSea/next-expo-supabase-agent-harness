@@ -329,6 +329,34 @@ test('the SHIPPED vitest.config.ts parses: floors 50/40/45/50 and the exclusion 
   assert.ok(excludes.includes('supabase/functions/*/index.ts'), excludes.join(', '))
 })
 
+test('2.0.0 (#85): the RSC read seams are excluded by convention, their pure render models are not', () => {
+  // Through 1.1.x the exclusion named the worked example's seam file, which a default
+  // scaffold no longer ships. The convention it stood for (apps/web/lib/app-data/<slice>.ts
+  // is request-bound; <slice>-model.ts beside it is a pure fold with a unit suite) is now the
+  // entry, as a picomatch extglob vitest itself reads, and the classifier must read it the
+  // same way: exclude the seam, hold the model.
+  const excludes = parseCoverageExcludes(readShippedVitest())
+  assert.ok(excludes.includes('apps/web/lib/app-data/!(*-model).ts'), excludes.join(', '))
+  assert.ok(!excludes.some((e) => /notes/.test(e)), excludes.join(', '))
+  const { checked, findings } = evaluateDiffCoverage({
+    changedFiles: [
+      'apps/web/lib/app-data/notes.ts',
+      'apps/web/lib/app-data/orders.ts',
+      'apps/web/lib/app-data/notes-model.ts',
+      'apps/web/lib/app-data/nested/orders.ts',
+    ],
+    maps: { vitest: {}, jest: {} },
+    floors: BOTH,
+    vitestExcludes: excludes,
+    jestCoverageFrom: JEST_SURFACE,
+  })
+  assert.deepEqual(checked.map((c) => c.file ?? c).sort(), [
+    'apps/web/lib/app-data/nested/orders.ts',
+    'apps/web/lib/app-data/notes-model.ts',
+  ])
+  assert.equal(findings.length, 2)
+})
+
 test('Edge Functions (1.1.0): a changed handler is held to the vitest floors; the shell, tests and config are not', () => {
   const { checked, findings } = evaluateDiffCoverage({
     changedFiles: [

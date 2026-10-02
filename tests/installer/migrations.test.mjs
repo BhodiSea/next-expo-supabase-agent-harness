@@ -310,8 +310,12 @@ test('the shipped seedOnInitOnly records target real template files only (no typ
     }
     return
   }
-  // Seeded exemplars live in BOTH trees (stack app files and base tools/*.json).
-  const installPaths = [...walkTemplate('base'), ...walkTemplate('stack')].map((e) => e.installPath)
+  // Seeded exemplars live in BOTH trees (stack app files and base tools/*.json), and since
+  // 2.0.0 in the worked example's tree too: every record older than 2.0.0 withholds files from
+  // installs that carry the example, whose files live in template/demo now.
+  const installPaths = [...walkTemplate('base'), ...walkTemplate('stack'), ...walkTemplate('demo')].map(
+    (e) => e.installPath,
+  )
   for (const pattern of patterns) {
     const hit = installPaths.some((ip) => (pattern.endsWith('/') ? ip.startsWith(pattern) : ip === pattern))
     assert.ok(hit, `seedOnInitOnly pattern '${pattern}' resolves to no template file — stale/typo'd record`)

@@ -203,8 +203,8 @@ export const orgProcedure = authedProcedure.use(({ ctx, next }) =>
 
 /**
  * The ONE place in this package that constructs an envelope by hand. Everywhere
- * else an outcome is produced by @app/notes and returned verbatim, so if the
- * kernel's envelope shape ever moves, this function is the diff.
+ * else an outcome is produced by a vertical (or by ../export.ts) and returned
+ * verbatim, so if the kernel's envelope shape ever moves, this function is the diff.
  *
  * `forbidden`, not `unauthorized`: the caller IS authenticated. Telling a client
  * to re-authenticate when the credentials were never the problem sends it round

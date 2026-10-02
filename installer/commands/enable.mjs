@@ -16,8 +16,9 @@ const GATE_MODULES_NEEDING_CONFIG = new Map([])
 // (docs/modules/<name>/…, apps/mobile/src/crash/, …) is git-invisible litter.
 // Prune each removed file's parent chain upward, stopping at the first
 // non-empty directory or the scaffold root. Only truly empty directories are
-// removed, so drift-kept files and neighbours are never touched.
-function pruneEmptyDirs(targetDir, removedPaths, dryRun) {
+// removed, so drift-kept files and neighbours are never touched. `eject` (2.0.0) reuses it.
+/** @param {string} targetDir @param {string[]} removedPaths @param {boolean | undefined} dryRun */
+export function pruneEmptyDirs(targetDir, removedPaths, dryRun) {
   if (dryRun) return
   const root = resolve(targetDir)
   for (const ip of removedPaths) {

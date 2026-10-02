@@ -180,16 +180,13 @@ GRANT EXECUTE ON FUNCTION private.mfa_satisfied() TO authenticated;
 -- Both USING and WITH CHECK, because USING alone governs which existing rows are
 -- visible and would let an aal1 session INSERT rows it then cannot see.
 --
--- SCOPE, stated plainly: this rail is applied to public.notes — the worked vertical
--- every new slice is copied from — and not to every table in the tree. Which data
--- warrants a second factor is a product decision (a low-sensitivity lookup table
--- blocked at aal1 is a support ticket, not a control), so the harness ships the
--- correct shape and the proof that it binds, and the register grades accordingly: no
--- row claims "MFA is used to authenticate users of data repositories" on the strength
--- of one table.
--- SOURCE: PostgreSQL row security — a RESTRICTIVE policy is ANDed with the permissive
--- set, so it can only ever remove rows [corpus: postgres/rls-force]
-CREATE POLICY notes_mfa_aal2 ON public.notes
-  AS RESTRICTIVE TO authenticated
-  USING ((SELECT private.mfa_satisfied()))
-  WITH CHECK ((SELECT private.mfa_satisfied()));
+-- SCOPE, stated plainly: this migration ships the predicate, not a policy on any table.
+-- Which data warrants a second factor is a product decision (a low-sensitivity lookup
+-- table blocked at aal1 is a support ticket, not a control), so a table opts in with ONE
+-- restrictive policy in its own migration:
+--   CREATE POLICY <table>_mfa_aal2 ON public.<table> AS RESTRICTIVE TO authenticated
+--     USING ((SELECT private.mfa_satisfied())) WITH CHECK ((SELECT private.mfa_satisfied()));
+-- supabase/tests/mfa_aal2.test.sql proves the shape binds on a fixture table, and the
+-- notes rails migration `init --with-demo` plants is the worked example on a real one. The
+-- register grades accordingly: no row claims "MFA is used to authenticate users of data
+-- repositories" on the strength of a predicate.

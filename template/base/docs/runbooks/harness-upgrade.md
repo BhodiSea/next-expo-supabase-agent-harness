@@ -3455,6 +3455,120 @@ as if every install had it; its two generated documents do not quote notes and a
 unchanged), and, on an `e2ee` install, `docs/modules/e2ee/README.md`, which lists the rule
 among the files the module adds.
 
+### The worked example leaves the default scaffold: `init --with-demo` and `eject`
+
+From 2.0.0 a fresh `init` writes no worked example: no `@app/notes` vertical, no notes or
+matrix screens, no notes route or Server Action, and none of the example's migrations. The
+shared files the example used to change (the API router, the home tab, the command palette,
+the root `package.json`) and the seeded registers carry only the platform's rows, and the
+gates that judged the example's rows accept a tree without them. `init --with-demo` writes the
+example as before and records `"demo": true` in `.harness/manifest.json`; a default `init`
+records `"demo": false`.
+
+**Your install keeps its example, and nothing is yours to do.** Its files are seeded, so
+`update` neither rewrites nor deletes them. Your manifest records no demo choice, so `update`
+plans the default template for you and never hands you a file of the example's: the owned
+files it re-plants are the default ones, and they are green on an install that still has the
+example (the upgrade lane proves it on a 1.1.0 install). Two owned files moved into the
+example, `maestro/flows/matrix.yaml` and `maestro/journeys/mutation.yaml`: yours stay where
+they are, at the bytes you have, and `update` no longer touches them. The new
+`maestro/journeys/session.yaml` is planted beside them, and the device lane runs every
+journey in that directory.
+
+One owned change needs a line from you if your install was created before 1.1.0:
+`tools/gen-event-catalog.mjs` no longer reads the example's events by name ("The event
+catalog: a vertical opts in from its `./client`" in the 1.1.0 section). If your
+`packages/verticals/notes/src/client.ts` does not export `EVENT_CATALOG`, add the line that
+section shows and run `pnpm gen:contracts`; until you do, `contracts` reds on the example's
+three rows. `tools/generated/event-catalog.json` is seeded from 2.0.0 (and write-guarded), so
+`update` no longer re-plants it: your catalog is yours to regenerate.
+
+**`eject` removes the example from an install made with `init --with-demo`:**
+
+```
+node <harness checkout>/installer/cli.mjs eject --dir . --dry-run   # what it would remove
+node <harness checkout>/installer/cli.mjs eject --dir .
+pnpm install
+git add -A && git commit -m "chore: eject the worked example"
+pnpm validate
+```
+
+Commit before you validate: `eject` rewrites registers that `gate-integrity` holds to a
+commit, so a `pnpm validate` before the commit fails on each of them. In the pull request,
+`migrations` judges the deletions against its base. It deletes each of the example's files that still holds the bytes it was
+installed with, gives each shared file it replaced the default install's bytes back, and
+deletes the register rows `template/demo-index.json` lists where they still equal the rows
+the example shipped. A file you changed is kept and reported; a shared file you changed keeps
+your bytes, and the default copy parks under `.harness/pending/` for you to merge; a register
+row you changed is kept. Each migration it deletes is recorded with its sha256 under
+`ejectedMigrations` in the manifest, and `migrations` accepts the deletion of exactly those
+bytes with a NOTE per file. It still reds any other deleted or edited migration.
+
+**A database that applied the example's migrations keeps its tables.** `eject` deletes the
+files, not the schema, so a fresh `supabase db reset` no longer creates `public.notes`, but a
+database you keep (staging, production) still has it, with its triggers and policies. If you
+want it gone there, write a NEW migration, with an `-- adr:` comment as `migrations` requires
+for a `DROP TABLE`. First re-create `public.reconcile_org_usage()` with the body
+`supabase/migrations/20260203000000_quota.sql` gives it, because the example's rails
+migration replaced that function with one that counts notes. Then
+`DROP TABLE IF EXISTS public.notes CASCADE`. `IF EXISTS` keeps the migration valid on a fresh
+database, where the table never existed.
+
+**An install created before 2.0.0 cannot `eject`.** It records no demo choice, and `eject`
+refuses it and exits non-zero. Its spine migrations (`…_audit.sql`, `…_quota.sql`,
+`…_mfa_aal2.sql`) attach the rails to `public.notes` themselves, so deleting the example's
+migrations would break a fresh database, and editing the spine would break append-only
+history. To remove the example by hand:
+
+1. Write the NEW migration described above, so the table goes in history rather than by
+   deleting the migrations that made it.
+2. Delete the example's code: `packages/verticals/notes/`, `packages/api/src/routers/notes.ts`,
+   `apps/web/app/(protected)/o/[orgSlug]/notes/`, `apps/web/app/actions/notes.ts`,
+   `apps/web/lib/app-data/notes.ts` and `notes-model.ts`, `apps/mobile/src/features/notes/`
+   and `matrix/`, `apps/mobile/app/(tabs)/matrix.tsx`, their tests and specs,
+   `supabase/schemas/20_notes.sql`, and the two Maestro files above. Remove `@app/notes`
+   from every `package.json` that lists it, and the notes router from
+   `packages/api/src/index.ts`.
+3. Run `pnpm install`, `pnpm gen`, then `pnpm validate`, and remove each row the chain names.
+   In a harness checkout of 2.0.0, `template/demo-index.json` lists every register row the
+   example adds, and the default tree's copy of each register is what it should come back to.
+4. Record `"demo": false` in `.harness/manifest.json`, as a reviewed human commit. Until you
+   do, `boundaries` reads the `@app/notes` row of `tools/exports-walls.json` as live and reds
+   it as stale once the package is gone.
+
+Owned files re-planted when your copy still matches a released sha: `eslint.config.mjs`,
+`knip.json`, `vitest.config.ts` and `tsconfig.json` (no path of the example's), the gates
+that now accept a tree without it (`tools/check-rls-manifest.mjs`, `check-query-shapes.mjs`,
+`check-db-perf.mjs`, `check-rate-limits.mjs`, `check-perf-budget.mjs`,
+`check-exports-walls.mjs`, `check-diff-coverage.mjs`, `check-migrations.mjs`,
+`gen-event-catalog.mjs` and `tools/lib/event-catalogs.mjs`), `tools/conformance-map.json`
+and `docs/security/threat-model.md`, the guard rules, `.github/workflows/quality-gate.yml`
+(its `db-scale` adoption step stands down when the query-shape manifest holds no shape),
+`tools/ci/device-lane.sh`, `maestro/journeys/i18n-rtl.yaml`,
+`tests/rls/cross-tenant-isolation.test.ts` (its isolation proof reads `public.orgs`), and the
+authoring skill's `scaffold-slice.mjs`.
+The registers that gained an empty state (`tools/rls-exempt.json`'s `mfaRailUnused` row,
+`tools/rate-limit-budget.json`'s `unmapped` bucket) are seeded and change for fresh
+scaffolds only.
+Two more seeded files changed in 2.0.0, for fresh scaffolds only.
+`tools/duplication-allow.json` gains `4f2c41321264`, the mobile and web i18n catalogs'
+match on a tree without the example (the same kind of match as `e83e21400fb2`; the span
+moved with the example's keys). `apps/mobile/__tests__/live-api-proof.test.ts` writes the
+caller's own `profiles` row before it reads it back, because nothing creates one at signup.
+If you remove the example by hand, take both: add the entry when `duplication` (a Stop
+step) names that fingerprint, and run
+`update --refresh-seeded apps/mobile/__tests__/live-api-proof.test.ts` to replace the
+example's live proof, which writes to `public.notes`.
+
+Two registers reach a very old install as 2.0.0's default copies, because `update` plants a
+seeded register only where it is absent. An install made before 1.0.0 that keeps the example
+never had `tools/suppressions-allow.json`, and the default copy has no rows for the example's
+files: when `suppressions` names them, take their rows from
+`template/demo/tools/suppressions-allow.json` in a harness checkout of 2.0.0. An install made
+before 0.6.0 receives `tools/web-route-allowlist.json` the same way, and it allowlists the org
+landing page, which `update` withholds as a new exemplar: run
+`update --refresh-seeded 'apps/web/app/(protected)/o/[orgSlug]/page.tsx'`, or delete that row.
+
 ## RECOVERY — when an `update` is interrupted or fails
 
 Every real `update` (0.9.0+) records the pre-update state of every path it

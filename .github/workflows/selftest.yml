@@ -128,6 +128,14 @@ jobs:
   # (expo-policy, native-deps, e2e, build) only need the installed expo CLI.
   # The W6 device lanes carry their own wall-clock canaries when they land
   # (see tests/canary/injections.json PORT NOTE).
+  #
+  # 2.0.0 (#85): this fixture is an `init --with-demo` scaffold. Canaries 3, 4, 5, 14, 22
+  # and 28 inject into the worked example (its migrations, its mobile features, its
+  # vertical), which a default scaffold no longer carries; on one, an append or a
+  # redirect would CREATE the file it meant to edit and the gate could go red for some
+  # other reason. Each of those canaries now checks that its target exists before it
+  # injects. The default scaffold's own Stop chain runs in bootstrap-linux and, after
+  # `eject`, in demo-eject.
   canary:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -147,9 +155,9 @@ jobs:
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: 2.9.6
-      - name: Scaffold canary fixture (committed git baseline for the diff-based gates)
+      - name: Scaffold canary fixture (with the worked example; committed git baseline for the diff-based gates)
         run: |
-          node installer/cli.mjs init --dir "$RUNNER_TEMP/canary" --tier core --yes
+          node installer/cli.mjs init --dir "$RUNNER_TEMP/canary" --tier core --yes --with-demo
           cd "$RUNNER_TEMP/canary"
           git init -q -b main
           git add -A
@@ -228,6 +236,8 @@ jobs:
       - name: 'Canary 3: edit a committed migration → migrations must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
+          test -f supabase/migrations/20260101000100_notes.sql \
+            || { echo '::error::CANARY: the example migration is missing — an append would CREATE a file, not edit a committed one (is this an init --with-demo scaffold?)'; exit 1; }
           echo 'ALTER TABLE public.notes ADD COLUMN sneaky text;' >> supabase/migrations/20260101000100_notes.sql
           if env -u GITHUB_BASE_REF node tools/check-migrations.mjs; then
             echo '::error::CANARY: migrations PASSED after editing a committed migration — the gate cannot fail'; exit 1
@@ -237,6 +247,8 @@ jobs:
       - name: 'Canary 4: strip SOURCE citations from decision sites → provenance must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
+          grep -q 'SOURCE:' supabase/migrations/20260101000100_notes.sql \
+            || { echo '::error::CANARY: the example migration is missing or carries no SOURCE: citation to strip — the injection would be a no-op (is this an init --with-demo scaffold?)'; exit 1; }
           sed -i '/SOURCE:/d' supabase/migrations/20260101000100_notes.sql
           if env -u GITHUB_BASE_REF node tools/check-sources.mjs; then
             echo '::error::CANARY: provenance PASSED with uncited decision sites — the gate cannot fail'; exit 1
@@ -246,6 +258,8 @@ jobs:
       - name: 'Canary 5: remove FORCE RLS from the migration → schema-rls must FAIL'
         working-directory: ${{ runner.temp }}/canary
         run: |
+          grep -q 'FORCE ROW LEVEL SECURITY' supabase/migrations/20260101000100_notes.sql \
+            || { echo '::error::CANARY: the example migration is missing or carries no FORCE RLS line to remove — the injection would be a no-op (is this an init --with-demo scaffold?)'; exit 1; }
           sed -i '/FORCE ROW LEVEL SECURITY/d' supabase/migrations/20260101000100_notes.sql
           if env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs; then
             echo '::error::CANARY: schema-rls PASSED without FORCE RLS — the gate cannot fail'; exit 1
@@ -459,6 +473,9 @@ jobs:
             printf '  return mean + spread + total + positives - negatives\n'
             printf '}\n'
           }
+          if ! { test -d apps/mobile/src/features/notes && test -d apps/mobile/src/features/matrix; }; then
+            echo '::error::CANARY: the example mobile features are missing — the paste would land in directories nothing else uses'; exit 1
+          fi
           clone > apps/mobile/src/features/notes/canaryClone.ts
           clone > apps/mobile/src/features/matrix/canaryClone.ts
           if env -u GITHUB_BASE_REF node tools/check-duplication.mjs; then
@@ -494,6 +511,8 @@ jobs:
             printf '  return mean + spread + total + positives - negatives\n'
             printf '}\n'
           }
+          test -d packages/verticals/notes/src \
+            || { echo '::error::CANARY: the example vertical is missing — the package half of the paste has no package to land in'; exit 1; }
           clone > apps/web/lib/canary-web-clone.ts
           clone > packages/verticals/notes/src/canary-web-clone.ts
           if env -u GITHUB_BASE_REF node tools/check-duplication.mjs > web-dup.log 2>&1; then
@@ -619,6 +638,8 @@ jobs:
         # exact statement left `notes` in the enabled set and the gate reported the
         # table fully covered. Unramped, because no legitimate install disables RLS.
         run: |
+          grep -q 'CREATE TABLE public.notes' supabase/migrations/20260101000100_notes.sql \
+            || { echo '::error::CANARY: no migration creates public.notes — disabling RLS on a table that does not exist is a different red'; exit 1; }
           printf 'ALTER TABLE public.notes DISABLE ROW LEVEL SECURITY;\n' > supabase/migrations/29990101000000_canary_disable_rls.sql
           if env -u GITHUB_BASE_REF node tools/check-rls-manifest.mjs; then
             echo '::error::CANARY: schema-rls PASSED a migration that DISABLES row level security — the negation set cannot fail'; exit 1
@@ -679,6 +700,12 @@ jobs:
   # suppression, knip and Maestro rows), so this lane removes nothing; from 1.1.0 (#82) its
   # event-catalog leg moves the example aside for one generator run and puts it back. No
   # Supabase stack: run-stop-chain.mjs prints its declared exclusions, as in the canary job.
+  #
+  # 2.0.0 (#85): a default scaffold now ships the perf-budget empty state itself, so this
+  # fixture is an `init --with-demo` scaffold: the example is what puts a perfSubject.tsx
+  # beside the empty state (Canary 31) and a vertical with an EVENT_CATALOG in front of the
+  # generator (Canary 33 and the event-catalog leg). The edits and the four canaries are
+  # unchanged.
   day0-empty-states:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -692,9 +719,9 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22
-      - name: Scaffold the day-0 fixture (the three reviewed register edits are IN the baseline commit)
+      - name: Scaffold the day-0 fixture (with the worked example; the three reviewed register edits are IN the baseline commit)
         run: |
-          node installer/cli.mjs init --dir "$RUNNER_TEMP/day0" --tier core --yes
+          node installer/cli.mjs init --dir "$RUNNER_TEMP/day0" --tier core --yes --with-demo
           cd "$RUNNER_TEMP/day0"
           # Text-level edits, not a JSON round-trip: the output must stay byte-stable under
           # the scaffold's own formatter, or the `format` step reds the baseline.
@@ -822,7 +849,7 @@ jobs:
       # rows instead of throwing. The generator runs through ./node_modules/.bin/tsx, not
       # `pnpm exec`: pnpm's pre-run dependency check re-installs when the workspace changes,
       # and that install fails while packages/api and apps/web depend on a vertical that is
-      # gone. The rest of the chain still needs the example (#85 removes it at 2.0.0).
+      # gone. Removing the example for good is `eject`'s job (2.0.0, #85), proven in demo-eject.
       - name: 'Event catalog: the opted-in example regenerates the committed catalog; moved aside, exactly its three rows drop'
         working-directory: ${{ runner.temp }}/day0
         run: |
@@ -1010,8 +1037,9 @@ jobs:
   # biggest warm win must be SEEN engaging, not assumed — and, since 1.1.0, one
   # for the two register scripts of docs-sync), and the RLS story is
   # proven in BOTH directions against the scaffold's own pinned database:
-  # fail-closed with no db, green with one, and RED again when the keyset index
-  # is dropped (Canary 17 — the DAL plan probe seeing the whole-partition Sort).
+  # fail-closed with no db and green with one. (Canary 17, RED again when the
+  # keyset index is dropped, moved to demo-eject at 2.0.0 with Canary 24: the index
+  # is the worked example's, and a default scaffold no longer ships it.)
   # Canary 18 proves the prebuild-determinism compare can fail: a config plugin
   # emitting run-dependent output MUST break the double-prebuild tree hash the
   # consumer native lane relies on.
@@ -1355,45 +1383,6 @@ jobs:
           name: chain-budget-measured
           path: scripts/chain-budget.json
           if-no-files-found: error
-      # W6 armed (the registry-level PORT NOTE retired with it): the source
-      # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
-      # looking at the DAL's real SQL, not a statement nobody runs.
-      - name: 'Canary 17: drop the keyset index → the RLS structure test must FAIL (owner column no longer leads an index)'
-        if: matrix.node == 22
-        working-directory: .selftest/boot
-        run: |
-          # notes.org_id is the tenant key every policy qual filters on, and THREE indexes
-          # lead with it since the org re-scope: notes_org_id_created_at_id_idx (which
-          # also carries the keyset ORDER BY tail), notes_pkey — (org_id, id), partition-
-          # ready — and, since 0.7.0, notes_org_id_owner_id_created_at_id_idx (the DSR
-          # export's covering index). The pgTAP structure suite asserts every owner column
-          # leads SOME index, so ALL THREE have to go for the invariant to be exercised —
-          # leaving any one satisfies it and the canary silently stops biting, which is
-          # the exact shape of rot this job exists to catch (0.7.0 proved it: the export
-          # index landed and this canary fired on its own vacuity within one PR round).
-          # Applied directly (not via a migration edit) and restored below.
-          eval "$(supabase status -o env)"
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_owner_id_created_at_id_idx'
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes DROP CONSTRAINT notes_pkey'
-          if supabase test db > plan-canary.log 2>&1; then
-            tail -n 60 plan-canary.log
-            echo '::error::PLAN CANARY: the RLS structure suite PASSED with notes.owner_id leading no index — the owner-column-index invariant cannot fail, the exact defect it exists to catch'
-            exit 1
-          fi
-          # Evidence FIRST, then the which-path assertion: the red must come from the
-          # owner-column-index invariant naming the (notes, owner_id) pair, not another break.
-          if ! grep -Eiq 'LEADING column of some index|owner column' plan-canary.log; then
-            tail -n 60 plan-canary.log
-            echo '::error::the suite failed, but NOT on the owner-column-index invariant — the canary is not exercising the index-structure surface (log above)'
-            exit 1
-          fi
-          grep -Ei 'Failed test|LEADING column of some index|org_id' plan-canary.log | tail -n 6 || true
-          # Restore all three so the job's remaining steps see the intended schema.
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes ADD CONSTRAINT notes_pkey PRIMARY KEY (org_id, id)'
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_owner_id_created_at_id_idx ON public.notes (org_id, owner_id, created_at DESC, id DESC)'
-          echo 'canary OK: the RLS structure test went red on the dropped keyset index'
       - name: 'Canary 23: a per-role ceiling reset live → the resource-limits runner must FAIL (the ceiling is not merely a row in a migration)'
         if: matrix.node == 22
         working-directory: .selftest/boot
@@ -1472,82 +1461,6 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE anon SET statement_timeout = '3s'"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'"
           echo 'canary OK: the resource-limits runner went red on a ceiling that exists in every migration and in no live session'
-      # The db-scale lane's own falsifiability, and the reason that lane exists at all.
-      # Every structural check in this repo is TRUE of a two-row table, and a planner
-      # correctly ignores an index on one — so until this ran, the claim the whole
-      # tenancy design rests on had nothing that could contradict it.
-      - name: 'Scale-seed the stack (the db-scale lane needs cardinality no other lane has)'
-        if: matrix.node == 22
-        working-directory: .selftest/boot
-        run: |
-          eval "$(supabase status -o env)"
-          # Below the reviewed floor in tools/db-perf-baseline.json the probe SKIPS rather
-          # than certifying, so the row count here is not a tuning knob — it is the
-          # minimum at which the gate will speak at all.
-          time psql "$DB_URL" -q -v ON_ERROR_STOP=1 -v scale_rows=1100000 -f supabase/seeds/scale.sql
-      - name: 'Canary 24: drop the keyset index from the live database → db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN'
-        if: matrix.node == 22
-        working-directory: .selftest/boot
-        run: |
-          eval "$(supabase status -o env)"
-          export SUPABASE_DB_URL="$DB_URL"
-          # POSITIVE CONTROL FIRST. Its own output is the design's central claim made
-          # visible for the first time: an InitPlan node with loops=1, and the policy's
-          # `org_id = ANY((InitPlan 1).col1)` sitting INSIDE the Index Cond rather than in
-          # a Filter — the membership set resolved once per statement, not once per row.
-          CI=true node tools/check-db-perf.mjs 2>&1 | tee perf-baseline.log
-          grep -q 'db-perf: OK' perf-baseline.log \
-            || { echo '::error::the plan probe is not green on the seeded database — the canary below would be meaningless'; exit 1; }
-          # THE EDIT: live, no files touched. The index is still declared in the migration
-          # and in supabase/schemas, so every gate that reads TEXT is looking at a tree
-          # where nothing changed. Only the planner knows.
-          #
-          # It is NOT the same edit as Canary 17, and the difference is the point: that one
-          # drops the keyset index AND the primary key, because pgTAP's leading-column
-          # assertion is satisfied by either. This one drops ONLY the keyset index, so the
-          # PK still carries org_id, pgTAP still passes all 109 tests, and every list page
-          # in the product becomes a filter plus an in-memory sort of the tenant's rows.
-          #
-          # (The release plan sketched a `org_id::text = $1::text` policy rewrite for this
-          # proof; it was tried and does not degrade the plan, because a cast in the POLICY
-          # leaves the DAL's own indexable equality in place. Making the tenancy helper
-          # VOLATILE was tried too — an uncorrelated sub-select becomes an InitPlan
-          # regardless of volatility. This edit is the one that was measured.)
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
-          restore() { psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX IF NOT EXISTS notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'; }
-          if CI=true node tools/check-db-perf.mjs > perf-canary.log 2>&1; then
-            tail -n 40 perf-canary.log
-            restore
-            echo '::error::PLAN CANARY: db-perf PASSED with the keyset index gone — the one claim the tenancy design rests on cannot fail, the exact defect this lane exists to catch'
-            exit 1
-          fi
-          if ! grep -q 'Sort node' perf-canary.log; then
-            tail -n 40 perf-canary.log
-            restore
-            echo '::error::db-perf failed, but NOT on the Sort assertion — the plan-shape rule is not biting (log above)'
-            exit 1
-          fi
-          grep -E 'Sort node|expected the planner to choose|shared buffers' perf-canary.log | tail -n 6 || true
-          # THE OTHER HALF OF THE PROOF, and the half that justifies the lane's cost: with
-          # the defect still in place, every check that reads FILES must stay green. If one
-          # of them reds here, it is not a stricter harness — it means this canary is not
-          # isolating the layer it claims to, and the lane is not proving what it says.
-          for gate in check-rls-manifest check-tenancy check-query-shapes; do
-            if ! node "tools/$gate.mjs" > "static-$gate.log" 2>&1; then
-              cat "static-$gate.log"
-              restore
-              echo "::error::$gate reddened on a database-only defect — the canary is not isolating the plan layer"
-              exit 1
-            fi
-          done
-          if ! supabase test db > static-pgtap.log 2>&1; then
-            tail -n 40 static-pgtap.log
-            restore
-            echo '::error::the pgTAP suite reddened on a dropped SECONDARY index — notes_pkey still leads with org_id, so this is a different break'
-            exit 1
-          fi
-          restore
-          echo 'canary OK: only db-perf saw it — schema-rls, tenancy, query-shapes and 109 pgTAP tests were all green with the keyset index gone'
       - name: 'Canary 18: a config plugin emitting run-dependent output → the prebuild ×2 tree compare must FAIL'
         if: matrix.node == 22
         working-directory: .selftest/boot
@@ -1601,6 +1514,264 @@ jobs:
           rm -rf apps/mobile/android apps/mobile/plugins
           git checkout -q -- apps/mobile/app.config.ts
           echo "canary OK: the injected plugin broke the tree hash ($h3 != $h4) and the clean baseline was stable"
+
+  # ---------------------------------------------------------------------------
+  # 2.0.0 (#85). THE WORKED EXAMPLE, IN AND OUT. A default scaffold carries no example:
+  # `init --with-demo` overlays template/demo on the plan, and `eject` takes it back out
+  # (demo files that still match their record, the shared files the overlay replaced, and
+  # the register rows template/demo-index.json lists). This lane is that round trip on a
+  # real scaffold. The --with-demo scaffold must be validate-green out of the box; its
+  # database proofs run on the live stack, including Canaries 17 and 24, which moved here
+  # from bootstrap-linux because the keyset index they drop is the example's; then
+  # `eject` runs, the tree it leaves must equal a default `init` byte for byte outside
+  # .harness/, and that tree must validate green too. The example's migrations are
+  # deleted on the record: migrations accepts each deletion only for the bytes
+  # .harness/manifest.json ejectedMigrations holds, and prints a NOTE per file.
+  # ---------------------------------------------------------------------------
+  demo-eject:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Bootstrap a fresh project with the worked example (init --with-demo)
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/demo" --tier core --yes --with-demo
+      - name: Git baseline + corepack (the diff-based gates and eject's migration record need a repo)
+        working-directory: .selftest/demo
+        run: |
+          git init -q -b main
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'scaffold baseline (with the worked example)'
+          corepack enable
+          corepack prepare --activate
+      - name: pnpm install
+        working-directory: .selftest/demo
+        run: node "$GITHUB_WORKSPACE/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
+      # The workspace-local, catalog-pinned Supabase CLI — see bootstrap-linux for why it
+      # goes on PATH rather than behind `pnpm exec`.
+      - name: Put the workspace-local Supabase CLI on PATH
+        working-directory: .selftest/demo
+        run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+      # env -u GITHUB_BASE_REF: the scaffold is a different repository (see THE GATE in
+      # bootstrap-linux for why a step-level empty string does not reach the child).
+      - name: Validate WITH the example — full validate must be green out of the box
+        working-directory: .selftest/demo
+        env:
+          HARNESS_REQUIRE_TOOLCHAINS: '1'
+        run: env -u GITHUB_BASE_REF node tools/validate.mjs --min-floor
+      - name: Start the Supabase local stack
+        working-directory: .selftest/demo
+        run: supabase start
+      - name: RLS isolation suite runs for real and is green (the example's tables included)
+        working-directory: .selftest/demo
+        run: |
+          set -o pipefail
+          CI=true node tests/rls/run-rls.mjs 2>&1 | tee rls.log
+          grep -q '\[rls\] OK' rls.log \
+            || { echo '::error::RLS suite did not complete green against the live stack (a self-skip or truncated run)'; exit 1; }
+      # W6 armed (the registry-level PORT NOTE retired with it): the source
+      # harness's plan-probe lesson, re-proven on THIS schema — the probe must be
+      # looking at the DAL's real SQL, not a statement nobody runs. (Moved here from
+      # bootstrap-linux at 2.0.0: the keyset index it drops is the worked example's.)
+      - name: 'Canary 17: drop the keyset index → the RLS structure test must FAIL (owner column no longer leads an index)'
+        working-directory: .selftest/demo
+        run: |
+          # notes.org_id is the tenant key every policy qual filters on, and THREE indexes
+          # lead with it since the org re-scope: notes_org_id_created_at_id_idx (which
+          # also carries the keyset ORDER BY tail), notes_pkey — (org_id, id), partition-
+          # ready — and, since 0.7.0, notes_org_id_owner_id_created_at_id_idx (the DSR
+          # export's covering index). The pgTAP structure suite asserts every owner column
+          # leads SOME index, so ALL THREE have to go for the invariant to be exercised —
+          # leaving any one satisfies it and the canary silently stops biting, which is
+          # the exact shape of rot this job exists to catch (0.7.0 proved it: the export
+          # index landed and this canary fired on its own vacuity within one PR round).
+          # Applied directly (not via a migration edit) and restored below.
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_owner_id_created_at_id_idx'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes DROP CONSTRAINT notes_pkey'
+          if supabase test db > plan-canary.log 2>&1; then
+            tail -n 60 plan-canary.log
+            echo '::error::PLAN CANARY: the RLS structure suite PASSED with notes.owner_id leading no index — the owner-column-index invariant cannot fail, the exact defect it exists to catch'
+            exit 1
+          fi
+          # Evidence FIRST, then the which-path assertion: the red must come from the
+          # owner-column-index invariant naming the (notes, owner_id) pair, not another break.
+          if ! grep -Eiq 'LEADING column of some index|owner column' plan-canary.log; then
+            tail -n 60 plan-canary.log
+            echo '::error::the suite failed, but NOT on the owner-column-index invariant — the canary is not exercising the index-structure surface (log above)'
+            exit 1
+          fi
+          grep -Ei 'Failed test|LEADING column of some index|org_id' plan-canary.log | tail -n 6 || true
+          # Restore all three so the job's remaining steps see the intended schema.
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'ALTER TABLE public.notes ADD CONSTRAINT notes_pkey PRIMARY KEY (org_id, id)'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX notes_org_id_owner_id_created_at_id_idx ON public.notes (org_id, owner_id, created_at DESC, id DESC)'
+          echo 'canary OK: the RLS structure test went red on the dropped keyset index'
+      # The db-scale lane's own falsifiability, and the reason that lane exists at all.
+      # Every structural check in this repo is TRUE of a two-row table, and a planner
+      # correctly ignores an index on one — so until this ran, the claim the whole
+      # tenancy design rests on had nothing that could contradict it.
+      - name: 'Scale-seed the stack (the db-scale lane needs cardinality no other lane has)'
+        working-directory: .selftest/demo
+        run: |
+          eval "$(supabase status -o env)"
+          # Below the reviewed floor in tools/db-perf-baseline.json the probe SKIPS rather
+          # than certifying, so the row count here is not a tuning knob — it is the
+          # minimum at which the gate will speak at all.
+          time psql "$DB_URL" -q -v ON_ERROR_STOP=1 -v scale_rows=1100000 -f supabase/seeds/scale.sql
+      - name: 'Canary 24: drop the keyset index from the live database → db-perf must FAIL on a Sort while schema-rls, tenancy, query-shapes and the pgTAP suite all stay GREEN'
+        working-directory: .selftest/demo
+        run: |
+          eval "$(supabase status -o env)"
+          export SUPABASE_DB_URL="$DB_URL"
+          # POSITIVE CONTROL FIRST. Its own output is the design's central claim made
+          # visible for the first time: an InitPlan node with loops=1, and the policy's
+          # `org_id = ANY((InitPlan 1).col1)` sitting INSIDE the Index Cond rather than in
+          # a Filter — the membership set resolved once per statement, not once per row.
+          CI=true node tools/check-db-perf.mjs 2>&1 | tee perf-baseline.log
+          grep -q 'db-perf: OK' perf-baseline.log \
+            || { echo '::error::the plan probe is not green on the seeded database — the canary below would be meaningless'; exit 1; }
+          # THE EDIT: live, no files touched. The index is still declared in the migration
+          # and in supabase/schemas, so every gate that reads TEXT is looking at a tree
+          # where nothing changed. Only the planner knows.
+          #
+          # It is NOT the same edit as Canary 17, and the difference is the point: that one
+          # drops the keyset index AND the primary key, because pgTAP's leading-column
+          # assertion is satisfied by either. This one drops ONLY the keyset index, so the
+          # PK still carries org_id, the pgTAP suite still passes, and every list page
+          # in the product becomes a filter plus an in-memory sort of the tenant's rows.
+          #
+          # (The release plan sketched a `org_id::text = $1::text` policy rewrite for this
+          # proof; it was tried and does not degrade the plan, because a cast in the POLICY
+          # leaves the DAL's own indexable equality in place. Making the tenancy helper
+          # VOLATILE was tried too — an uncorrelated sub-select becomes an InitPlan
+          # regardless of volatility. This edit is the one that was measured.)
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'DROP INDEX public.notes_org_id_created_at_id_idx'
+          restore() { psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'CREATE INDEX IF NOT EXISTS notes_org_id_created_at_id_idx ON public.notes (org_id, created_at DESC, id DESC)'; }
+          if CI=true node tools/check-db-perf.mjs > perf-canary.log 2>&1; then
+            tail -n 40 perf-canary.log
+            restore
+            echo '::error::PLAN CANARY: db-perf PASSED with the keyset index gone — the one claim the tenancy design rests on cannot fail, the exact defect this lane exists to catch'
+            exit 1
+          fi
+          if ! grep -q 'Sort node' perf-canary.log; then
+            tail -n 40 perf-canary.log
+            restore
+            echo '::error::db-perf failed, but NOT on the Sort assertion — the plan-shape rule is not biting (log above)'
+            exit 1
+          fi
+          grep -E 'Sort node|expected the planner to choose|shared buffers' perf-canary.log | tail -n 6 || true
+          # THE OTHER HALF OF THE PROOF, and the half that justifies the lane's cost: with
+          # the defect still in place, every check that reads FILES must stay green. If one
+          # of them reds here, it is not a stricter harness — it means this canary is not
+          # isolating the layer it claims to, and the lane is not proving what it says.
+          for gate in check-rls-manifest check-tenancy check-query-shapes; do
+            if ! node "tools/$gate.mjs" > "static-$gate.log" 2>&1; then
+              cat "static-$gate.log"
+              restore
+              echo "::error::$gate reddened on a database-only defect — the canary is not isolating the plan layer"
+              exit 1
+            fi
+          done
+          if ! supabase test db > static-pgtap.log 2>&1; then
+            tail -n 40 static-pgtap.log
+            restore
+            echo '::error::the pgTAP suite reddened on a dropped SECONDARY index — notes_pkey still leads with org_id, so this is a different break'
+            exit 1
+          fi
+          restore
+          echo 'canary OK: only db-perf saw it — schema-rls, tenancy, query-shapes and the pgTAP suite were all green with the keyset index gone'
+      # The ejected tree is validated WITHOUT a stack, like THE GATE in bootstrap-linux: the
+      # live database still holds the example's tables, and a database gate run against it
+      # would be judging the schema eject does not touch (the runbook's 2.0.0 section says
+      # what a kept database needs).
+      - name: Stop the Supabase local stack
+        working-directory: .selftest/demo
+        run: supabase stop --no-backup
+      - name: eject — the example leaves, and the tree it leaves is a default init's, byte for byte
+        working-directory: .selftest/demo
+        run: |
+          node "$GITHUB_WORKSPACE/installer/cli.mjs" eject --dir . | tee "$RUNNER_TEMP/eject.log"
+          # The comparison scaffold sits in a directory with the SAME basename: init derives
+          # the project name from it, and that name is in the rendered files. It also sits
+          # inside the SAME checkout: init reads the owner from the enclosing repository's
+          # origin remote (installer/lib/detect.mjs), and .selftest/demo got this
+          # repository's owner in CODEOWNERS, SECURITY.md, CITATION.cff and the rest. A
+          # scaffold outside the checkout gets the default owner, and every file that
+          # carries the owner then differs for a reason that is not eject's.
+          node "$GITHUB_WORKSPACE/installer/cli.mjs" init --dir "$GITHUB_WORKSPACE/.selftest/compare/demo" --tier core --yes > "$RUNNER_TEMP/compare-init.log"
+          DEFAULT_DIR="$GITHUB_WORKSPACE/.selftest/compare/demo" node -e '
+            const { execFileSync } = require("node:child_process")
+            const { createHash } = require("node:crypto")
+            const fs = require("node:fs")
+            const path = require("node:path")
+            const def = process.env.DEFAULT_DIR
+            const sha = (f) => createHash("sha256").update(fs.readFileSync(f)).digest("hex")
+            const walk = (root, dir) =>
+              fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => {
+                const rel = dir ? dir + "/" + e.name : e.name
+                return e.isDirectory() ? walk(root, rel) : [rel]
+              })
+            // What either init wrote: the baseline commit (the --with-demo plan) and the
+            // default plan. Anything else on disk is a run artifact neither plan owns.
+            const shipped = execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", "HEAD"], { encoding: "utf8" })
+              .split("\0")
+              .filter(Boolean)
+            const wanted = new Set(walk(def, ""))
+            const problems = []
+            for (const f of new Set([...shipped, ...wanted])) {
+              if (f.startsWith(".harness/")) continue
+              const here = fs.existsSync(f)
+              if (!wanted.has(f)) {
+                if (here) problems.push(f + ": the --with-demo plan wrote it, a default init does not, and eject left it")
+              } else if (!here) problems.push(f + ": a default init writes it and the ejected tree has none")
+              else if (sha(f) !== sha(path.join(def, f))) problems.push(f + ": its bytes differ from a default init")
+            }
+            if (problems.length > 0) {
+              console.error(problems.join("\n"))
+              console.error("::error::eject did not leave a default scaffold")
+              process.exit(1)
+            }
+            const m = JSON.parse(fs.readFileSync(".harness/manifest.json", "utf8"))
+            const ejected = Object.keys(m.ejectedMigrations ?? {})
+            if (m.demo !== false || ejected.length === 0) {
+              console.error("::error::the manifest does not record the eject (demo: " + m.demo + ", ejectedMigrations: " + ejected.length + ")")
+              process.exit(1)
+            }
+            console.log("OK: the ejected tree equals a default init over " + wanted.size + " file(s) outside .harness/; the manifest records demo: false and " + ejected.length + " ejected migration(s)")
+          '
+      - name: pnpm install (the lockfile still names the example's workspace package)
+        working-directory: .selftest/demo
+        run: node "$GITHUB_WORKSPACE/scripts/ci/pnpm-install-retry.mjs" --no-frozen-lockfile
+      - name: Validate AFTER eject — the same tree, without the example, is green, and migrations names each deletion
+        working-directory: .selftest/demo
+        env:
+          HARNESS_REQUIRE_TOOLCHAINS: '1'
+        run: |
+          set -o pipefail
+          # Commit first, as eject's own next steps say: eject rewrites registers that
+          # gate-integrity holds to a commit, so a validate before the commit reds on each of
+          # them. The deletions are then judged the way a pull request judges them, against a
+          # base: the scaffold baseline, under a remote-tracking name because the
+          # diff-based gates read origin/$GITHUB_BASE_REF.
+          git add -A
+          git -c user.email=selftest@localhost -c user.name=selftest commit -qm 'chore: eject the worked example'
+          git update-ref refs/remotes/origin/demo-baseline "$(git rev-parse HEAD~1)"
+          GITHUB_BASE_REF=demo-baseline node tools/validate.mjs --min-floor 2>&1 | tee "$RUNNER_TEMP/eject-validate.log"
+          notes="$(grep -c "^migrations: NOTE — supabase/migrations/.*: deleted by \`eject\`" "$RUNNER_TEMP/eject-validate.log" || true)"
+          if [ "$notes" = 0 ]; then
+            echo '::error::validate passed after eject, but migrations named no ejected migration: the deletions were not judged against the manifest record'
+            exit 1
+          fi
+          echo "OK: validate green after eject; migrations accepted $notes deletion(s) on the manifest record"
 
   # ---------------------------------------------------------------------------
   # The mobile<->web integration lane, proven on a REAL scaffold: apps/web hosts
@@ -2318,8 +2489,12 @@ jobs:
           echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" | sha256sum -c -
           unzip -q maestro.zip -d "$HOME/.maestro-dist"
           echo "$HOME/.maestro-dist/maestro/bin" >> "$GITHUB_PATH"
-      - name: Bootstrap a fresh project
-        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes
+      # --with-demo (2.0.0, #85): the lane runs the worked example's write journey (sign in,
+      # create a note, relaunch, it persists) beside the default session journey, and
+      # Canaries 19 and 20 edit files every scaffold ships, so the demo scaffold is the one
+      # that keeps every leg of this lane executing.
+      - name: Bootstrap a fresh project (with the worked example)
+        run: node installer/cli.mjs init --dir "$GITHUB_WORKSPACE/.selftest/app" --tier core --yes --with-demo
       - name: Git baseline + corepack
         working-directory: .selftest/app
         run: |

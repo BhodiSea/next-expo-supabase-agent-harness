@@ -42,7 +42,6 @@ export const en = {
   'route.signUp': 'Create account',
   'route.mfa': 'Two-factor check',
   'route.orgs': 'Organizations',
-  'route.notes': 'Notes',
   'route.security': 'Security',
   'route.acceptInvite': 'Accept invitation',
 
@@ -61,7 +60,6 @@ export const en = {
   // this is the ONE thing a screen reader hears while a segment streams — which makes it copy,
   // not decoration, and it belongs here like every other sentence.
   'orgs.loading': 'Loading your organizations',
-  'notes.loading': 'Loading notes',
 
   // ---- home -------------------------------------------------------------------
   'home.lede':
@@ -143,12 +141,8 @@ export const en = {
   'orgs.empty.description':
     'Create your personal workspace to get started, or open an invitation link someone sent you.',
   'orgs.create': 'Create my workspace',
-
-  // ---- notes ------------------------------------------------------------------
-  'notes.new': 'New note',
-  'notes.add': 'Add note',
-  'notes.empty.title': 'No notes yet',
-  'notes.empty.description': 'Anything you write here is visible to everyone in this organization.',
+  'org.home.description':
+    'Nothing here yet. Screens you build for this organization will appear on this page.',
 
   // ---- invitations ------------------------------------------------------------
   'invite.accept': 'Accept invitation',

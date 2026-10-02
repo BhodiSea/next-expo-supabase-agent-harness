@@ -606,6 +606,7 @@ const RULE_CANARIES = {
   // against it. `pnpm gen` is the only author.
   'query-shapes-manifest': [pathDeny('tools/generated/query-shapes.json')],
   'action-inventory-manifest': [pathDeny('tools/generated/action-inventory.json')],
+  'event-catalog-manifest': [pathDeny('tools/generated/event-catalog.json')],
   // The agent surface: the prose the coding agent runs under. Layer 3 (prevention) did
   // not exist for any of these before 0.2.0 — an agent could rewrite its own reviewers,
   // rules, commands and skills, and only the hash lock would notice.

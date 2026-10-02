@@ -44,12 +44,21 @@ async function pressFirst(testId: string): Promise<void> {
   fireEvent.press(first)
 }
 
-const emptyPage = () => ({ ok: true as const, data: { items: [], nextCursor: null } })
+const seatlessMe = () => ({
+  ok: true as const,
+  data: {
+    activeOrg: null,
+    displayName: 'Sam',
+    email: null,
+    id: '9b2b1c7e-2a44-4a3e-8f5d-6c1a2b3c4d5e',
+    orgs: [],
+  },
+})
 const HEALTH = () => ({ ok: true as const, version: '0.0.0' })
 
-// Every screen a command can land on queries — one list procedure serves both.
+// Every screen a command can land on: home reads system.me, the connection indicator health.
 function installAppNetwork(): void {
-  installMockServer({ systemHealth: HEALTH, notesList: emptyPage })
+  installMockServer({ systemHealth: HEALTH, systemMe: seatlessMe })
 }
 
 beforeEach(() => {
@@ -74,13 +83,10 @@ describe('actions modal sections + ranking', () => {
     await screen.findByTestId('actions-screen')
 
     expect(screen.getByText(en['actions.group.navigation'])).toBeTruthy()
-    expect(screen.getByText(en['actions.group.notes'])).toBeTruthy()
     expect(screen.getByText(en['actions.group.session'])).toBeTruthy()
     expect(optionTitles()).toEqual([
       en['command.goHome'],
-      en['command.goMatrix'],
       en['command.goSecurity'],
-      en['command.createNote'],
       en['command.signOut'],
       en['command.deleteAccount'],
     ])
@@ -89,9 +95,9 @@ describe('actions modal sections + ranking', () => {
   it('re-ranks as the user types — pinned in fuzzyScore.test.ts: boundary hits beat scattered', async () => {
     installAppNetwork()
     renderRouter('./app', { initialUrl: '/actions' })
-    fireEvent.changeText(await screen.findByTestId('actions-search'), 'tm')
+    fireEvent.changeText(await screen.findByTestId('actions-search'), 'gs')
 
-    expect(optionTitles()).toEqual([en['command.goMatrix'], en['command.goHome']])
+    expect(optionTitles()).toEqual([en['command.goSecurity']])
     // Groups with no surviving member disappear.
     expect(screen.queryByText(en['actions.group.session'])).toBeNull()
   })
@@ -147,10 +153,10 @@ describe('actions modal recents', () => {
     installAppNetwork()
     renderRouter('./app', { initialUrl: '/actions' })
 
-    await pressFirst('action-nav.matrix')
+    await pressFirst('action-nav.security')
 
     await waitFor(() => {
-      expect(JSON.parse(kvBacking.get(RECENTS_KEY) ?? 'null')).toEqual(['nav.matrix', 'nav.home'])
+      expect(JSON.parse(kvBacking.get(RECENTS_KEY) ?? 'null')).toEqual(['nav.security', 'nav.home'])
     })
   })
 
@@ -169,20 +175,9 @@ describe('actions modal commands', () => {
     installAppNetwork()
     renderRouter('./app', { initialUrl: '/actions' })
 
-    await pressFirst('action-nav.matrix')
+    await pressFirst('action-nav.security')
 
-    expect(await screen.findByTestId('matrix-screen')).toBeTruthy()
-  })
-
-  it('create-note lands on Home with the composer focused', async () => {
-    installAppNetwork()
-    renderRouter('./app', { initialUrl: '/actions' })
-
-    await pressFirst('action-notes.create')
-
-    const input = await screen.findByTestId('note-composer-input')
-    // The ?focus=composer param forwards as the input's autoFocus.
-    expect(input.props['autoFocus'] as boolean).toBe(true)
+    expect(await screen.findByTestId('security-screen')).toBeTruthy()
   })
 
   it('sign-out drops the session and returns to the sign-in screen', async () => {

@@ -78,6 +78,18 @@ export const TOKEN_PRESETS = new Map([
   ['metal', 'presets/tokens-metal'],
 ])
 
+// The worked example (2.0.0, #85): template/demo/ holds the notes vertical, the matrix
+// screen and every file the example needs, plus the example's version of each SEEDED file
+// it changes (the API router, the home tab, the command palette, the seeded registers).
+// `init --with-demo` overlays it on the WHOLE plan, base and stack, the way a design-token
+// preset overlays the stack: same-path replacement plus additions (copy.mjs overlayEntries).
+// A default `init` plans none of it, and `eject` removes it again
+// (installer/commands/eject.mjs), deleting the rows template/demo-index.json lists from a
+// register the project has since changed. Not a module: the demo replaces seeded files that
+// exist from the first init, which `enable` never does, and the choice is recorded as
+// manifest.demo rather than in manifest.modules.
+export const DEMO_TREE = 'demo'
+
 export const TIERS = {
   core: [],
   standard: ['ci-provenance', 'ci-mobile-release', 'ci-web-deploy'],
@@ -255,6 +267,16 @@ export const SEEDED_FILES = new Set([
   // redded on a tree the consumer never touched. Seeded (plant-when-absent, never
   // clobber): the regen-diff in `contracts` plus `pnpm gen` keep it honest, never a mode.
   'tools/generated/action-inventory.json',
+  // 2.0.0 (#85), the third sibling, and the item the 1.1.0 record left open (#82): the
+  // event catalog is GENERATED from the platform catalog plus THIS project's verticals.
+  // Owned, `update` re-planted the template's catalog wherever an install's copy matched a
+  // released sha, and at 2.0.0 the template's copy loses the worked example's three rows,
+  // so every upgraded install that keeps the example would have met `contracts` red on a
+  // tree it never touched. Seeded, it is plant-when-absent like its siblings (the owned →
+  // seeded reclassification applies on the next `update`, manifest.mjs effectiveMode), the
+  // demo overlays only seeded files, and its integrity is the `contracts` regen-diff plus
+  // the write-guard, as theirs is.
+  'tools/generated/event-catalog.json',
   // Reviewed platform-capability data: every entry carries a reason. The
   // expo-policy/native-deps gates read them; a project extends them
   // deliberately — write-guard-protected against agents.
